@@ -392,10 +392,14 @@ made:
 and `zfs-gate-version-arm` leaves the approved module with its release text
 patched to `2.4.4-2` and every pool destroyed.
 Neither puts the approved module back,
-so no other arm can follow either in the same guest:
-run one module-changing arm per guest,
-and expect `zfs-gate-arm`'s control to see the changed module if it follows
-one.
+so `zfs-gate-arm`'s control sees a changed module if it follows either,
+and each module-changing arm needs its own guest unless the arm run after it
+rebuilds the module from source.
+`zfs-gate-change-arm` rebuilds it from the guest's own header,
+so it does not depend on the module text `zfs-gate-version-arm` patched:
+the integration pass ran the version arm and then the change arm in one guest
+and both passed,
+and it did not run the change arm before the version arm.
 These arms drive the binding's `check_module_layout` against the guest's two
 type-information files.
 They do not run the product's gate (`zfs_compatibility_gate::check`) or the

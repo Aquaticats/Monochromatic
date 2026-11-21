@@ -3,7 +3,15 @@
 //! an array's byte size,
 //! which the reader
 //!  leaves to this crate,
-//! and the one file the reader itself refuses.
+//! the one file the reader itself refuses,
+//! and the five branches the
+//!  reader's own structure hands this file:
+//! a member typed and named by the base
+//!  file,
+//! a typedef chain and a qualifier chain over a member's type,
+//! a base file the
+//!  reader refuses,
+//! and a negative enumerator whose sign the comparison prints.
 //! Why:
 //!  `btf-rs` states an array's element and count and its byte size nowhere,
 //! so the
@@ -20,14 +28,21 @@
 //!  while it parses,
 //! so the refusal names the module file rather than a type entry,
 //! which is the one branch of this adapter no comparison reaches.
+//!  Every other branch below is a lookup the reader answers for this file,
+//! and each
+//!  control runs on a machine with no kernel type information,
+//! where only the
+//!  guest arms would otherwise reach it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! checkPair('approved', emptyBase, moduleWith('none')); // a 4,096-byte array passes
 //! ```
 
-/// The approved declaration and the two array changes.
-use super::approved_module_fixture::{Change, module_with};
+/// The approved declaration and the changes it can carry.
+use super::approved_module_fixture::{
+    Change, module_typed_and_named_from_a_base_file, module_with,
+};
 /// The writer of the two files and the entry point's verdict.
 use super::blob_fixture::{Blob, check_pair, check_raw};
 /// The step one refusal names.
@@ -54,6 +69,16 @@ fn refused(name: &str, change: Change) -> Refusal {
         panic!("the {name} module passed the gate");
     };
     return refusal;
+}
+
+/// One module file that must pass the gate,
+/// naming what the fixture moved.
+fn passed(name: &str, module: &Blob) -> Compatible {
+    let answer: Result<Compatible, Refusal> = check_pair(name, &Blob::new(), module);
+    let Ok(compatible): Result<Compatible, Refusal> = answer else {
+        panic!("the {name} module refused: {}", answer.err().unwrap());
+    };
+    return compatible;
 }
 
 /// The approved module's first type entry renamed to an offset no section
@@ -101,6 +126,84 @@ fn an_array_of_wider_elements_refuses_at_the_element_size() {
         "{}",
         refusal.detail
     );
+}
+
+/// `zc_guid` under a chain of typedefs passes,
+/// so every hop of the alias walk is the module's own entry.
+///
+/// A reader that answers nothing for a typedef refuses here at `zc_guid`'s
+/// size,
+/// naming the member whose alias chain it could not follow.
+#[test]
+fn a_member_under_a_typedef_chain_reads_its_integer() {
+    let module: Blob = module_with(Change::TypedefChain);
+    let compatible: Compatible = passed("adapter-typedef-chain", &module);
+    assert_eq!(compatible.module_bytes, module.bytes().len());
+}
+
+/// `zc_guid` under a type tag,
+/// a `const`,
+/// a `restrict` and a `volatile` passes,
+/// so every qualifier is followed rather than answered as another kind.
+///
+/// A reader that drops one qualifier refuses here at `zc_guid`'s size.
+#[test]
+fn a_member_under_a_qualifier_chain_reads_its_integer() {
+    let module: Blob = module_with(Change::QualifierChain);
+    let compatible: Compatible = passed("adapter-qualifier-chain", &module);
+    assert_eq!(compatible.module_bytes, module.bytes().len());
+}
+
+/// A member of the module may be typed and named by the base file it extends:
+/// `zc_simple` is the base file's own integer,
+/// written under the base file's own name,
+/// and the pair passes.
+///
+/// A reader that answers a handle from the module's own section alone refuses
+/// here,
+/// because the base file's id and name are not the module's.
+#[test]
+fn a_member_typed_and_named_from_the_base_file_reads_through_it() {
+    let (base, module): (Blob, Blob) = module_typed_and_named_from_a_base_file();
+    let answer: Result<Compatible, Refusal> = check_pair("adapter-base-member", &base, &module);
+    let Ok(compatible): Result<Compatible, Refusal> = answer else {
+        panic!("the module over a base file refused: {}", answer.err().unwrap());
+    };
+    assert_eq!(compatible.module_bytes, module.bytes().len());
+    assert_eq!(compatible.base_bytes, base.bytes().len());
+}
+
+/// A base file the pre-scan passes and the reader cannot parse refuses at the
+/// base file,
+/// so a caller reads which of the two files stopped the gate.
+#[test]
+fn a_base_file_the_reader_cannot_parse_refuses_at_the_base_file() {
+    let name: &str = "adapter-unreadable-base-name";
+    let answer: Result<Compatible, Refusal> = check_raw(
+        name,
+        &module_with_an_unreadable_type_name(),
+        &module_with(Change::None).bytes(),
+    );
+    let Err(refusal): Result<Compatible, Refusal> = answer else {
+        panic!("a base file with no readable type name passed");
+    };
+    assert_eq!(refusal.step, Step::BaseBtf);
+    assert!(refusal.detail.contains("btf-rs refused it"), "{}", refusal.detail);
+    assert!(refusal.to_string().contains("vmlinux"), "{}", refusal.to_string());
+}
+
+/// A negative enumerator is compared as the signed number the format states:
+/// `ZFS_IOC_OBJSET_STATS` holding `0xffff_fffe` refuses as `-2`,
+/// not as the unsigned value its 32 bits also spell.
+///
+/// A reader that widens the value without the sign prints the unsigned number
+/// here.
+#[test]
+fn a_negative_enumerator_is_compared_signed() {
+    let refusal: Refusal = refused("adapter-negative-enumerator", Change::SignedEnumerator);
+    assert_eq!(refusal.step, Step::Enum);
+    assert!(refusal.detail.contains("ZFS_IOC_OBJSET_STATS"), "{}", refusal.detail);
+    assert!(refusal.detail.contains("is -2 "), "{}", refusal.detail);
 }
 
 /// A file the pre-scan passes and the reader cannot parse refuses at the

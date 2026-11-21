@@ -24,9 +24,20 @@
 //!  refuses a header or a section list before `btf-rs` sees the bytes
 //! (the vet report's integration note,
 //!  `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`).
-//!  The release's own masks lag its main branch on the widened fields,
-//! so a kernel
-//!  that widens them is refused by that pre-scan until a release catches up.
+//!  The release's own masks lag its main branch on the widened fields:
+//! 2.0.1 reads a
+//!  type entry's kind in five bits and its member count in sixteen,
+//! and the pre-scan
+//!  reads the header and the section list and no type entry,
+//! so a kernel that
+//!  widens either field is misread where the high bits only extend a kind,
+//! and refused
+//!  only when that reader's own parse fails.
+//!  No kernel on record writes one,
+//! and the
+//!  adoption record names the lag as a revisit trigger
+//! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+//!  "Exit, rollback and revisit triggers").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -52,6 +63,8 @@ use std::path::Path;
 /// The most aliases one handle resolves through before this adapter answers
 /// nothing,
 /// so a typedef that reaches itself ends in a refusal rather than a loop.
+/// The same budget bounds the array elements one handle descends through,
+/// so an array whose element is itself ends the same way.
 const ALIAS_HOPS: usize = 32;
 /// The width of a pointer on this target,
 /// which the format states for no pointer.
@@ -154,33 +167,21 @@ impl BtfRsDeclaration {
 }
 
 /// The declaration read through the adopted reader.
-impl Declaration for BtfRsDeclaration {
-    /// One named structure or union the module declares.
-    fn find_container(&self, name: &str, kind: ContainerKind) -> Option<u32> {
-        let ids: Vec<u32> = self.btf.resolve_ids_by_name(name).ok()?;
-        return ids.into_iter().find(|id| {
-            let found: Option<ContainerKind> =
-                self.own_type(*id).as_ref().and_then(container_kind);
-            return found == Some(kind);
-        });
-    }
-
-    /// One named enumeration the module declares.
-    fn find_enumeration(&self, name: &str) -> Option<u32> {
-        let ids: Vec<u32> = self.btf.resolve_ids_by_name(name).ok()?;
-        return ids.into_iter().find(|id| {
-            return matches!(
-                self.own_type(*id),
-                Some(Type::Enum(_) | Type::Enum64(_))
-            );
-        });
-    }
-
-    /// One entry,
-    /// through every alias over it.
-    fn declared(&self, id: u32) -> Option<DeclaredType> {
+impl BtfRsDeclaration {
+    /// What:
+    ///  One entry,
+    /// through every alias over it and every array element under it,
+    /// inside one hop budget the two chains share.
+    /// Why:
+    ///   A typedef that reaches itself and an array whose element is itself are
+    /// the same walk,
+    /// so one budget bounds both and neither ends in a loop:
+    /// the answer is nothing,
+    /// and the comparison refuses the size it cannot compute.
+    fn declared_within(&self, id: u32, budget: usize) -> Option<DeclaredType> {
         let mut current: u32 = id;
-        for _hop in 0..ALIAS_HOPS {
+        for hop in 0..budget {
+            let left: usize = budget - hop - 1;
             match self.btf.resolve_type_by_id(current).ok()? {
                 Type::Typedef(alias) => current = alias.get_type_id()?,
                 Type::Volatile(alias) => current = alias.get_type_id()?,
@@ -202,7 +203,7 @@ impl Declaration for BtfRsDeclaration {
                     return Some(DeclaredType::Array {
                         element,
                         byte_size: self
-                            .byte_size(element)?
+                            .size_within(element, left)?
                             .saturating_mul(array.len() as u64),
                     });
                 }
@@ -246,6 +247,42 @@ impl Declaration for BtfRsDeclaration {
             }
         }
         return None;
+    }
+
+    /// The size in bytes one handle describes,
+    /// inside the budget the handles above it left.
+    fn size_within(&self, id: u32, budget: usize) -> Option<u64> {
+        return self.declared_within(id, budget)?.byte_size();
+    }
+}
+
+/// The declaration read through the adopted reader.
+impl Declaration for BtfRsDeclaration {
+    /// One named structure or union the module declares.
+    fn find_container(&self, name: &str, kind: ContainerKind) -> Option<u32> {
+        let ids: Vec<u32> = self.btf.resolve_ids_by_name(name).ok()?;
+        return ids.into_iter().find(|id| {
+            let found: Option<ContainerKind> =
+                self.own_type(*id).as_ref().and_then(container_kind);
+            return found == Some(kind);
+        });
+    }
+
+    /// One named enumeration the module declares.
+    fn find_enumeration(&self, name: &str) -> Option<u32> {
+        let ids: Vec<u32> = self.btf.resolve_ids_by_name(name).ok()?;
+        return ids.into_iter().find(|id| {
+            return matches!(
+                self.own_type(*id),
+                Some(Type::Enum(_) | Type::Enum64(_))
+            );
+        });
+    }
+
+    /// One entry,
+    /// through every alias over it and every array element under it.
+    fn declared(&self, id: u32) -> Option<DeclaredType> {
+        return self.declared_within(id, ALIAS_HOPS);
     }
 }
 

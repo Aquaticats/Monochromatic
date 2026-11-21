@@ -29,6 +29,16 @@ const VLEN_MASK: u32 = 0x00ff_ffff;
 const KIND_STRUCT: u32 = 4;
 /// The kind number of one union.
 const KIND_UNION: u32 = 5;
+/// The kind number of one typedef.
+const KIND_TYPEDEF: u32 = 8;
+/// The kind number of one `volatile` qualifier.
+const KIND_VOLATILE: u32 = 9;
+/// The kind number of one `const` qualifier.
+const KIND_CONST: u32 = 10;
+/// The kind number of one `restrict` qualifier.
+const KIND_RESTRICT: u32 = 11;
+/// The kind number of one type tag.
+const KIND_TYPE_TAG: u32 = 18;
 
 /// One little-endian 32-bit word at `at`,
 /// and nothing for a file too short to hold it.
@@ -59,6 +69,11 @@ pub struct Blob {
     /// The offset a base file's strings add to every name,
     /// which a module's file carries past its base's.
     string_shift: u32,
+    /// The ids a base file's own section takes before this one's,
+    /// which a module's file numbers past its base's.
+    id_shift: u32,
+    /// The offset this writer gave each name it wrote.
+    names: Vec<(String, u32)>,
     /// Each type entry's bytes,
     /// in id order.
     entries: Vec<Vec<u8>>,
@@ -84,6 +99,9 @@ pub struct WrittenMember {
     pub type_id: u32,
     /// Bits from the container's first bit.
     pub bit_offset: u32,
+    /// The offset the name sits at instead of one this file writes,
+    /// which a member named by the base file's strings needs.
+    pub name_offset: Option<u32>,
 }
 
 /// An empty file,
@@ -105,16 +123,43 @@ impl Blob {
         return Blob {
             strings: vec![0],
             string_shift: 0,
+            id_shift: 0,
+            names: Vec::<(String, u32)>::new(),
             entries: Vec::<Vec<u8>>::new(),
         };
     }
 
-    /// An empty module file over a base whose string section is `shift` bytes,
-    /// so its names start where a split file's do.
-    pub fn over(shift: u32) -> Self {
-        let mut blob: Blob = Blob::new();
-        blob.string_shift = shift;
-        return blob;
+    /// An empty module file over `base`,
+    /// which takes the ids below this one's and the strings before them,
+    /// so a member can name the base file's type and its string.
+    pub fn over_base(base: &Blob) -> Self {
+        return Blob {
+            strings: vec![0],
+            string_shift: base.string_bytes(),
+            id_shift: base.entry_count(),
+            names: Vec::<(String, u32)>::new(),
+            entries: Vec::<Vec<u8>>::new(),
+        };
+    }
+
+    /// The bytes this file's string section holds.
+    pub fn string_bytes(&self) -> u32 {
+        return self.strings.len() as u32;
+    }
+
+    /// The type entries this file holds.
+    pub fn entry_count(&self) -> u32 {
+        return self.entries.len() as u32;
+    }
+
+    /// The offset this writer gave one name it wrote,
+    /// and nothing for a name it did not write.
+    pub fn name_offset(&self, name: &str) -> Option<u32> {
+        return self
+            .names
+            .iter()
+            .find(|(written, _)| written == name)
+            .map(|(_, offset)| *offset);
     }
 
     /// One base integer type,
@@ -134,8 +179,40 @@ impl Blob {
     /// One typedef of the type the writer is about to hand it,
     /// so the chain over it never leaves its own entry.
     pub fn self_alias(&mut self, name: &str) -> u32 {
-        let id: u32 = (self.entries.len() + 1) as u32;
-        let entry: Vec<u8> = self.entry(name, 8, 0, id, &[]);
+        let id: u32 = self.next_id();
+        return self.typedef(name, id);
+    }
+
+    /// One typedef of another type,
+    /// whose own id is the one this file hands it.
+    pub fn typedef(&mut self, name: &str, of: u32) -> u32 {
+        let entry: Vec<u8> = self.entry(name, KIND_TYPEDEF, 0, of, &[]);
+        return self.push(entry);
+    }
+
+    /// One `volatile` over another type.
+    pub fn volatile(&mut self, of: u32) -> u32 {
+        return self.qualified(KIND_VOLATILE, of);
+    }
+
+    /// One `const` over another type.
+    pub fn constant(&mut self, of: u32) -> u32 {
+        return self.qualified(KIND_CONST, of);
+    }
+
+    /// One `restrict` over another type.
+    pub fn restrict(&mut self, of: u32) -> u32 {
+        return self.qualified(KIND_RESTRICT, of);
+    }
+
+    /// One type tag over another type.
+    pub fn type_tag(&mut self, of: u32) -> u32 {
+        return self.qualified(KIND_TYPE_TAG, of);
+    }
+
+    /// One qualifier of the kind number given, over another type.
+    fn qualified(&mut self, kind: u32, of: u32) -> u32 {
+        let entry: Vec<u8> = self.entry("", kind, 0, of, &[]);
         return self.push(entry);
     }
 
@@ -180,14 +257,21 @@ impl Blob {
         return self.push(entry);
     }
 
+    /// One fixed array whose element is its own entry,
+    /// which no reader can give a size without asking itself again.
+    pub fn array_naming_itself(&mut self, count: u32) -> u32 {
+        let id: u32 = self.next_id();
+        return self.array(id, count);
+    }
+
     /// One structure.
     pub fn structure(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
-        return self.record(name, 4, bytes, members);
+        return self.record(name, KIND_STRUCT, bytes, members);
     }
 
     /// One union.
     pub fn union(&mut self, name: &str, bytes: u32, members: &[WrittenMember]) -> u32 {
-        return self.record(name, 5, bytes, members);
+        return self.record(name, KIND_UNION, bytes, members);
     }
 
     /// One enumeration of 32-bit values.
@@ -206,7 +290,10 @@ impl Blob {
     fn record(&mut self, name: &str, kind: u32, bytes: u32, members: &[WrittenMember]) -> u32 {
         let mut extra: Vec<u8> = Vec::<u8>::new();
         for member in members {
-            let offset: u32 = self.name(member.name);
+            let offset: u32 = match member.name_offset {
+                Some(written) => written,
+                None => self.name(member.name),
+            };
             extra.extend_from_slice(&offset.to_le_bytes());
             extra.extend_from_slice(&member.type_id.to_le_bytes());
             extra.extend_from_slice(&member.bit_offset.to_le_bytes());
@@ -268,13 +355,20 @@ impl Blob {
         let offset: u32 = self.string_shift.saturating_add(self.strings.len() as u32);
         self.strings.extend_from_slice(name.as_bytes());
         self.strings.push(0);
+        self.names.push((name.to_string(), offset));
         return offset;
+    }
+
+    /// The id the next entry this writer pushes takes.
+    fn next_id(&self) -> u32 {
+        return self.id_shift.saturating_add(self.entries.len() as u32).saturating_add(1);
     }
 
     /// One entry's id.
     fn push(&mut self, entry: Vec<u8>) -> u32 {
+        let id: u32 = self.next_id();
         self.entries.push(entry);
-        return self.entries.len() as u32;
+        return id;
     }
 }
 

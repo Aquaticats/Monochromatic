@@ -23,7 +23,7 @@
 //! which is what a release that kept the total size and moved
 //!  four fields into an anonymous union meets first.
 //!  The walk reads the reader-neutral declaration alone,
-//! so a reader picked later
+//! so a reader that replaces `btf-rs`
 //!  fills one adapter and changes no line here.
 //!
 //! In TS you'd write (pseudocode):

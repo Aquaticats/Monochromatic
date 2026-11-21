@@ -71,10 +71,9 @@ const PAD_BYTES: u32 = 3;
 /// The bytes `zc_pad1` holds,
 /// `sizeof (zinject_record_t) - 16`.
 const DESTROY_PAD_BYTES: u32 = 352;
-/// The bytes an empty base file's string section holds,
-/// the empty name alone,
-/// past which a module's names start.
-pub const EMPTY_BASE_STRINGS: u32 = 1;
+/// The number one control gives `ZFS_IOC_OBJSET_STATS`,
+/// whose 32 bits as a signed integer are `-2` and as an unsigned one are not.
+const NEGATIVE_REQUEST: i32 = -2;
 
 /// What:
 ///  The one field a control moves in the approved declaration.
@@ -123,6 +122,17 @@ pub enum Change {
     /// `zc_name` as 1,024 four-byte integers,
     /// the same 4,096 bytes with an element size of its own.
     NameArrayWiderElements,
+    /// `zc_guid` under a typedef that names a typedef that names the
+    /// approved integer,
+    /// so the alias chain is this file's and not the entry's.
+    TypedefChain,
+    /// `zc_guid` under a type tag,
+    /// a `const`,
+    /// a `restrict` and a `volatile` over the approved integer.
+    QualifierChain,
+    /// `ZFS_IOC_OBJSET_STATS` given a value whose 32 bits are negative,
+    /// with every other number and layout kept.
+    SignedEnumerator,
 }
 
 /// The member types one declaration reads,
@@ -157,13 +167,27 @@ pub struct MemberTypes {
     overlay: u32,
     /// `struct zfs_stat`.
     stat: u32,
+    /// One more alias over `unsigned long`,
+    /// which the typedef chain reads through and no other change uses.
+    wide_alias: u32,
 }
 
 /// The approved declaration with one change,
-/// written as a module over an empty base file whose string section is
-/// `EMPTY_BASE_STRINGS` bytes.
+/// written as a module over an empty base file.
 pub fn module_with(change: Change) -> Blob {
-    let mut blob: Blob = Blob::over(EMPTY_BASE_STRINGS);
+    return module_over(&Blob::new(), change);
+}
+
+/// What:
+///  The approved declaration with one change over the base file given.
+/// Why:
+///   A module's ids and string offsets start past its base file's,
+/// and this file's
+///  writer takes both from the base it is handed,
+/// so a control can move one member's
+///  type and its name into the base file without shifting another number.
+pub fn module_over(base: &Blob, change: Change) -> Blob {
+    let mut blob: Blob = Blob::over_base(base);
     let types: MemberTypes = member_types(&mut blob, change);
     blob.structure("zfs_cmd", COMMAND_BYTES, &command_members(&types, change));
     blob.enumeration("zfs_ioc", 4, &request_values(change));
@@ -179,12 +203,47 @@ const fn bits(bytes: u32) -> u32 {
 /// whose name offset points past the file's string section,
 /// so no reader can read that member.
 pub fn module_with_an_unreadable_extra_member() -> Blob {
-    let mut blob: Blob = Blob::over(EMPTY_BASE_STRINGS);
+    let mut blob: Blob = Blob::over_base(&Blob::new());
     let types: MemberTypes = member_types(&mut blob, Change::None);
     blob.structure("zfs_cmd", COMMAND_BYTES, &command_members(&types, Change::None));
     blob.enumeration("zfs_ioc", 4, &request_values(Change::None));
     blob.member_with_unreadable_name(types.stats, types.byte, bits(287));
     return blob;
+}
+
+/// What:
+///  The base file and the approved module whose `zc_simple` member is the
+/// base file's own integer,
+/// named by the base file's own string.
+/// Why:
+///   A split module may type and name one member from the file it extends,
+/// and the
+///  comparison reads the module through both files,
+/// so this is the pair a reader
+///  that answered from the module alone would refuse.
+pub fn module_typed_and_named_from_a_base_file() -> (Blob, Blob) {
+    let mut base: Blob = Blob::new();
+    let byte: u32 = base.int("zc_simple", BYTE_BYTES);
+    let name_offset: u32 = base.name_offset("zc_simple").expect("the base's own name");
+    let mut module: Blob = Blob::over_base(&base);
+    let types: MemberTypes = member_types(&mut module, Change::None);
+    let members: Vec<WrittenMember> = command_members(&types, Change::None)
+        .into_iter()
+        .map(|member: WrittenMember| {
+            if member.name != "zc_simple" {
+                return member;
+            }
+            return WrittenMember {
+                name: member.name,
+                type_id: byte,
+                bit_offset: member.bit_offset,
+                name_offset: Some(name_offset),
+            };
+        })
+        .collect();
+    module.structure("zfs_cmd", COMMAND_BYTES, &members);
+    module.enumeration("zfs_ioc", 4, &request_values(Change::None));
+    return (base, module);
 }
 
 /// The approved declaration with the kind flag set on every record,
@@ -200,6 +259,7 @@ const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
         name,
         type_id,
         bit_offset: bits(bytes),
+        name_offset: None,
     };
 }
 
@@ -208,6 +268,19 @@ fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
     let byte: u32 = blob.int("unsigned char", BYTE_BYTES);
     let word: u32 = blob.int("unsigned int", WORD_BYTES);
     let wide: u32 = blob.int("unsigned long", WIDE_BYTES);
+    let wide_alias: u32 = match change {
+        Change::TypedefChain => {
+            let inner: u32 = blob.typedef("zc_wide_alias", wide);
+            blob.typedef("zc_wide_alias_twice", inner)
+        }
+        Change::QualifierChain => {
+            let volatile: u32 = blob.volatile(wide);
+            let restrict: u32 = blob.restrict(volatile);
+            let constant: u32 = blob.constant(restrict);
+            blob.type_tag(constant)
+        }
+        _ => wide,
+    };
     let pointer: u32 = blob.pointer("pointer");
     let name: u32 = match change {
         Change::NameArrayOneShort => blob.array(byte, NAME_BYTES - 1),
@@ -247,6 +320,7 @@ fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
                 name: "",
                 type_id: control,
                 bit_offset: bits(0),
+                name_offset: None,
             },
         ],
     );
@@ -268,6 +342,7 @@ fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
         begin,
         overlay,
         stat,
+        wide_alias,
     };
 }
 
@@ -293,7 +368,7 @@ fn command_members(types: &MemberTypes, change: Change) -> Vec<WrittenMember> {
         at("zc_history", types.pointer, 4_136),
         at("zc_value", types.value, 4_144),
         at("zc_string", types.string, 12_336),
-        at("zc_guid", types.wide, 12_592),
+        at("zc_guid", types.wide_alias, 12_592),
         at("zc_nvlist_conf", types.wide, 12_600),
         at("zc_nvlist_conf_size", types.wide, 12_608),
         at("zc_cookie", types.wide, 12_616),
@@ -412,6 +487,13 @@ fn request_values(change: Change) -> Vec<(&'static str, i32)> {
         values.push(("ZFS_IOC_LAST", 0x5a8a));
     } else {
         values.push(("ZFS_IOC_LAST", 0x5a89));
+    }
+    if change == Change::SignedEnumerator {
+        let stats: &mut (&'static str, i32) = values
+            .iter_mut()
+            .find(|(name, _)| *name == "ZFS_IOC_OBJSET_STATS")
+            .expect("the approved table names the stats request");
+        stats.1 = NEGATIVE_REQUEST;
     }
     return values;
 }
