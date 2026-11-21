@@ -187,10 +187,12 @@ fn write_store(fixture: &Fixture) {
     let holding: &Path = Path::new(SLOT_IDENTITY_STORE_PATH).parent().expect("the store folder's own folder");
     std::fs::create_dir_all(holding).expect("the folder that holds the store is made");
     std::fs::set_permissions(holding, std::fs::Permissions::from_mode(STORE_FOLDER_MODE)).expect("the folder that holds the store is root's");
-    let _removed: std::io::Result<()> = std::fs::remove_dir_all(SLOT_IDENTITY_STORE_PATH);
+    // The store's folder may be a mount point of the guest's own ZFS dataset, which no removal takes away; what a
+    // second arm clears is the records inside it.
+    let _cleared: std::io::Result<()> = std::fs::remove_dir_all(SLOT_IDENTITY_STORE_PATH);
     // The setup run makes the store folder root's own and then publishes the parent record; a publication creates
     // `.parent` with an exclusive creation, so the folder is what is written first.
-    std::fs::create_dir(SLOT_IDENTITY_STORE_PATH).expect("the store folder is made");
+    std::fs::create_dir_all(SLOT_IDENTITY_STORE_PATH).expect("the store folder is made");
     std::fs::set_permissions(SLOT_IDENTITY_STORE_PATH, std::fs::Permissions::from_mode(STORE_FOLDER_MODE)).expect("the store folder is root's and readable");
     let parent: CloneFolderIdentity = identity_of(fixture.parent().as_path());
     publish_parent_identity_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH), &parent, &parent).expect("the setup run's parent record is published");

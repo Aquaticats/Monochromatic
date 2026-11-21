@@ -58,8 +58,20 @@ const EXPECTED_FSYNC_MARKERS = [
   'PROBE publication of one slot record: stage, write, fsync, link, unlink, folder fsync:',
 ] as const;
 
-/** Where the store's publication-fsync arm writes inside the guest, on the dataset the store lives on. */
-const FSYNC_FOLDER = '/var/lib/monochromatic-git-policy-cli-fsync-probe';
+/** Where the store's publication-fsync arm writes inside the guest, on a dataset of the store's own pool. */
+const FSYNC_FOLDER = '/var/lib/monochromatic-git-policy-cli-probe';
+
+/** The store's path inside the guest, which the arms write. */
+const STORE_PATH = '/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities';
+
+/** The pool the guest makes so the store is on a ZFS dataset, and the file-backed vdev it stands on. */
+const STORE_POOL = 'git-policy-cli-store';
+const STORE_POOL_IMAGE = '/home/git-policy-cli-store-fixture/store.img';
+const STORE_DATASET = `${STORE_POOL}/store`;
+const PROBE_DATASET = `${STORE_POOL}/probe`;
+
+/** The `PATH` the guest's OpenZFS 2.4.4 userspace needs. */
+const OPENZFS_PATH = '/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/sbin:/usr/sbin:/bin:/usr/bin';
 
 /** Seconds the publication-fsync arm runs, which is the record's own count of rounds. */
 const FSYNC_ROUNDS = '60';
@@ -200,6 +212,7 @@ async function run(chosen: Options): Promise<void> {
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n');
   guest({ chosen, script: build, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  storeDataset({ chosen, });
   const arm = [
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
@@ -229,7 +242,34 @@ async function run(chosen: Options): Promise<void> {
 }
 
 /**
- Run the store's publication cost against the pool the store lives on, inside the same guest.
+ Make the ZFS pool and the two datasets the store's arms write on.
+
+ The guest's own `/var/lib` is on its ext4 root, which no ZFS property reaches, so the store's path is
+ given a dataset of the guest's own pool. That is what settles the design's assumption about the
+ store's dataset: a hard link, an unlinking, a rename and a folder `fsync` on a ZFS dataset.
+
+ @param chosen - the run's options
+
+ @throws Error when any of the pool's commands refused
+ */
+function storeDataset({ chosen, }: { readonly chosen: Options; }): void {
+  const script = [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    'mkdir --parents "$(dirname ' + STORE_POOL_IMAGE + ')"',
+    `if ! zpool list -H -o name | grep --quiet '^${STORE_POOL}$'; then truncate --size 1G ${STORE_POOL_IMAGE}; zpool create -f ${STORE_POOL} ${STORE_POOL_IMAGE}; fi`,
+    `zfs list -H -o name ${STORE_DATASET} > /dev/null 2>&1 || zfs create ${STORE_DATASET}`,
+    `zfs set mountpoint=${STORE_PATH} ${STORE_DATASET}`,
+    `zfs list -H -o name ${PROBE_DATASET} > /dev/null 2>&1 || zfs create ${PROBE_DATASET}`,
+    `zfs set mountpoint=${FSYNC_FOLDER} ${PROBE_DATASET}`,
+    `chmod 0755 ${STORE_PATH} ${FSYNC_FOLDER}`,
+    `findmnt --target ${STORE_PATH} --output SOURCE --noheadings --first-only`,
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-store-dataset.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/**
+ Run the store's publication cost against a dataset of the store's own pool, inside the same guest.
 
  The probe is pushed rather than snapshot, because it lives in the package's `doc/` folder and the snapshot holds only
  what a build reads. It is run on a folder under `/var/lib`, which is the dataset the store itself is on, so the arm is
@@ -244,15 +284,13 @@ function publicationFsync({ chosen, }: { readonly chosen: Options; }): void {
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, probe, '/root/probe-reaches-storage.py',], log: 'guest-push-probe.log', });
   const script = [
     'set -eu',
-    `mkdir --parents ${FSYNC_FOLDER}`,
-    // `/sbin` is where Ubuntu puts the pool commands and an `mvm exec` shell does not always carry it.
-    'export PATH=/sbin:/usr/sbin:$PATH',
-    // The pool's own vdev, read inside the guest, so the counters the probe reads are the ones the store's writes reach.
-    'pool_device=$(zpool status -P | grep --only-matching "/dev/[^ ]*" | head --lines=1)',
+    `export PATH=${OPENZFS_PATH}`,
+    // The block device the pool's own file-backed vdev lives on, so the counters the probe reads are the ones the
+    // pool's writes reach; the probe reads the pool's own ZIL counters from its kstat folder.
+    `pool_device=$(findmnt --target ${STORE_POOL_IMAGE} --output SOURCE --noheadings --first-only)`,
     'test -n "$pool_device"',
-    'pool_disk=$(basename "$(readlink --canonicalize "$(lsblk --noheadings --output PKNAME --paths "$pool_device")")")',
-    `python3 -I /root/probe-reaches-storage.py ${FSYNC_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$pool_disk" > /mnt/shared/store-fsync.log 2>&1`,
-    'rmdir ' + FSYNC_FOLDER,
+    'pool_disk=$(lsblk --noheadings --output PKNAME --paths "$pool_device")',
+    `python3 -I /root/probe-reaches-storage.py ${FSYNC_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$(basename "$pool_disk")" > /mnt/shared/store-fsync.log 2>&1`,
   ].join('\n');
   guest({ chosen, script, log: 'guest-store-fsync.log', timeout: ARM_TIMEOUT_MS, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/store-fsync.log', join(chosen.logDir, 'store-fsync.log'),], log: 'host-pull-store-fsync.log', });
