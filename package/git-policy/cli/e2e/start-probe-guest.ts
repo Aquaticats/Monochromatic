@@ -8,13 +8,19 @@
  OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's handler inside it, prepares the probe dataset the design
  names, runs the arms, and destroys the guest.
 
- Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|m2-controls|m3-kill|m7-scan|m9-busy|timings|timings-boot-first|destroy|all> [--name <guest>]
+ Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|m1-key|m1-read-write|m2-controls|m3-kill|m7-scan|m9-busy|timings|timings-boot-first|destroy|all> [--name <guest>]
           [--log-dir <dir>] [--keep-guest]
 
  `red` runs the arm before the probe exists and requires the refusal that says the mode is not one of this build's,
  which is what proves the green run below is a change and not an absence that always passed. `green` requires the
  record's own words: the attach arm passed, the mount the probe made is gone from every namespace afterwards, and a
  filtered `move_mount` fails that step with `EPERM`.
+
+ `m1-key` is M1's unloaded-key control: the fixture's encrypted dataset attaches and passes with its key loaded and
+ answers `EACCES` from `fsconfig(create)` with the key unloaded. `m1-read-write` is M1's read-only against read-write
+ control: a read-only request for the probe dataset beside a read-write superblock of it answers `EBUSY`, while the
+ probe's read-only attachment of that dataset's `ready` snapshot passes, because a snapshot is the documented
+ exception.
 
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
  */
@@ -34,6 +40,13 @@ const HANDLER = `${CRATE_DIR}/package/git-policy/cli/target/release/mount-git-wo
 const RECORD = '/run/git-worktree-clone-mount-probe/result';
 /** The probe dataset the design names (doc/planning/cli-git-zfs-start-probe-design.md, "The source"). */
 const PROBE_DATASET = 'zpcachyos/nosnap/git-worktree-probe';
+/**
+ The fixture's encrypted dataset, whose empty `ready` snapshot is the source of M1's unloaded-key control.
+ It is never the configured source except inside that control, which restores the configuration afterwards.
+ */
+const PROBE_ENCRYPTED = 'zpcachyos/nosnap/git-worktree-probe-encrypted';
+/** The passphrase file the encrypted fixture dataset's key is loaded from, which only the guest's root reads. */
+const PROBE_KEY_FILE = '/root/git-worktree-probe-key';
 /** The fixture's file-backed pool, created by this driver and destroyed with the guest. */
 const POOL = 'zpcachyos';
 /** The pool's image inside the guest. */
@@ -216,13 +229,19 @@ function probeDataset(chosen: Options): void {
     `zfs create -o canmount=off -o mountpoint=none ${POOL}/nosnap`,
     `zfs create -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false ${PROBE_DATASET}`,
     `zfs set org.monochromatic:git-worktree-probe-source=v1 ${PROBE_DATASET}`,
+    // M1's unloaded-key control needs an encrypted source whose key the step can unload and load again.
+    `printf '%s' 'correct horse battery staple' > ${PROBE_KEY_FILE}`,
+    `chmod 0600 ${PROBE_KEY_FILE}`,
+    `zfs create -o encryption=on -o keyformat=passphrase -o keylocation=file://${PROBE_KEY_FILE} -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false ${PROBE_ENCRYPTED}`,
+    `zfs set org.monochromatic:git-worktree-probe-source=v1 ${PROBE_ENCRYPTED}`,
+    `zfs snapshot ${PROBE_ENCRYPTED}@ready`,
     `zfs snapshot ${PROBE_DATASET}@ready`,
     `mkdir --parents $(dirname ${CONFIGURATION})`,
     `printf '%s\\n' '{' '  "startProbe": {' '    "dataset": "'${PROBE_DATASET}'",' '    "checkout": "'${CHECKOUT}'"' '  },' '  "account": "'${ACCOUNT}'"' '}' > ${CONFIGURATION}`,
     `chmod 0644 ${CONFIGURATION}`,
     `mkdir --parents ${CHECKOUT}`,
     `chown ${ACCOUNT}:${ACCOUNT} ${CHECKOUT}`,
-    `zfs list -H -o name,mountpoint,canmount ${POOL} ${POOL}/nosnap ${PROBE_DATASET}`,
+    `zfs list -H -o name,mountpoint,canmount,encryption ${POOL} ${POOL}/nosnap ${PROBE_DATASET} ${PROBE_ENCRYPTED}`,
   ].join('\n');
   guest({ chosen, script, log: 'guest-probe-dataset.log', timeout: ARM_TIMEOUT_MS, });
 }
@@ -350,12 +369,95 @@ function probeScript(lines: readonly string[]): string {
     `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
     `H=${HANDLER}`,
     `REC=${RECORD}`,
+    `CONF=${CONFIGURATION}`,
     `SRC='${PROBE_DATASET}@ready'`,
     `PAT='^${HANDLER} start-probe$'`,
     'now_us() { echo $(( $(date +%s%N) / 1000 )); }',
     'leaks() { n=0; for ns in /proc/[0-9]*/ns/mnt; do if nsenter --mount="$ns" cat /proc/self/mountinfo 2>/dev/null | grep -q "git-worktree-probe@ready"; then n=$((n+1)); fi; done; echo "leaks=$n"; }',
     ...lines,
   ].join('\n');
+}
+
+/** The shell assertion both M1 controls share: a record line must be there, and its absence fails the arm. */
+const RECORD_LINE_ASSERTION = [
+  'check() {',
+  '  if ! grep --quiet --fixed-strings "$1" "$2"; then',
+  '    echo "MISSING $1 in $2"',
+  '    cat "$2"',
+  '    exit 1',
+  '  fi',
+  '  echo "M1 $3"',
+  '}',
+] as const;
+
+/**
+ M1's unloaded-key control: the encrypted fixture dataset's `ready` snapshot attaches while its key is loaded,
+ answers `EACCES` from `fsconfig(create)` once the key is unloaded, and attaches again once the key and the
+ configuration are back, so the green arm's attach is a reading of the key path rather than of a source that always
+ attaches.
+ */
+function m1Key(chosen: Options): void {
+  const script = probeScript([
+    ...RECORD_LINE_ASSERTION,
+    'cp $CONF /root/m1-key-config.jsonc',
+    `sed --in-place 's|${PROBE_DATASET}|${PROBE_ENCRYPTED}|' $CONF`,
+    'echo "M1 source: $(grep --fixed-strings dataset $CONF)"',
+    '$H start-probe > /root/m1-key-loaded.log 2>&1 || true',
+    'cp $REC /root/m1-key-loaded-record.txt',
+    `check 'verdict passed' /root/m1-key-loaded-record.txt 'key-loaded-passes'`,
+    `check 'step attach-exclusive-create passed' /root/m1-key-loaded-record.txt 'key-loaded-creates-a-fresh-superblock'`,
+    `check 'source-existed yes' /root/m1-key-loaded-record.txt 'key-loaded-finds-the-source'`,
+    `zfs unload-key ${PROBE_ENCRYPTED}`,
+    `keystatus=$(zfs get -H -o value keystatus ${PROBE_ENCRYPTED})`,
+    'echo "M1 unloaded keystatus=$keystatus"',
+    'test "$keystatus" = unavailable',
+    '$H start-probe > /root/m1-key-unloaded.log 2>&1 || true',
+    'cp $REC /root/m1-key-unloaded-record.txt',
+    `check 'verdict failed' /root/m1-key-unloaded-record.txt 'key-unloaded-fails'`,
+    `check 'step attach-exclusive-create failed errno EACCES' /root/m1-key-unloaded-record.txt 'key-unloaded-exclusive-create-EACCES'`,
+    `check 'arm attach failed errno EACCES' /root/m1-key-unloaded-record.txt 'key-unloaded-attach-EACCES'`,
+    'cp /root/m1-key-config.jsonc $CONF',
+    `zfs load-key ${PROBE_ENCRYPTED}`,
+    `keystatus=$(zfs get -H -o value keystatus ${PROBE_ENCRYPTED})`,
+    'echo "M1 restored keystatus=$keystatus"',
+    'test "$keystatus" = available',
+    '$H start-probe > /root/m1-key-restored.log 2>&1 || true',
+    'cp $REC /root/m1-key-restored-record.txt',
+    `check 'verdict passed' /root/m1-key-restored-record.txt 'key-and-configuration-restored-passes'`,
+    'echo "M1 key control done"',
+  ]);
+  guest({ chosen, script, log: 'guest-m1-key.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/**
+ M1's read-only against read-write control: a read-only request for the probe dataset beside a read-write superblock
+ of it answers `EBUSY` (`module/os/linux/zfs/zpl_super.c:936` to `:943`), while the probe's read-only attachment of
+ that dataset's `ready` snapshot still passes, because a snapshot is that rule's exception, so the arm's flags need no
+ adjustment.
+ */
+function m1ReadWrite(chosen: Options): void {
+  const script = probeScript([
+    ...RECORD_LINE_ASSERTION,
+    `DATASET='${PROBE_DATASET}'`,
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m1-rw-table-before.txt',
+    'mkdir --parents /root/m1-rw-mount /root/m1-ro-mount',
+    'mount -t zfs "$DATASET" /root/m1-rw-mount',
+    'if awk \'$5 == "/root/m1-rw-mount" { print $6 }\' /proc/self/mountinfo | grep --quiet "^rw,"; then echo "M1 read-write-superblock-present"; else echo "M1 read-write-superblock-missing"; grep m1-rw-mount /proc/self/mountinfo; exit 1; fi',
+    'if mount -o ro -t zfs "$DATASET" /root/m1-ro-mount 2> /root/m1-ro-mount.log; then echo "M1 read-only-request-succeeded-beside-a-read-write-superblock"; exit 1; fi',
+    'cat /root/m1-ro-mount.log',
+    'if grep --quiet --ignore-case busy /root/m1-ro-mount.log; then echo "M1 read-only-against-read-write-answers-EBUSY"; else echo "M1 read-only-request-answered-something-else"; exit 1; fi',
+    '$H start-probe > /root/m1-rw-run.log 2>&1 || true',
+    'cp $REC /root/m1-rw-record.txt',
+    `check 'verdict passed' /root/m1-rw-record.txt 'snapshot-attach-passes-beside-a-read-write-superblock'`,
+    `check 'step attach-exclusive-create passed' /root/m1-rw-record.txt 'snapshot-creates-a-fresh-superblock-beside-it'`,
+    'umount /root/m1-rw-mount',
+    'rmdir /root/m1-rw-mount /root/m1-ro-mount',
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m1-rw-table-after.txt',
+    'if cmp --silent /root/m1-rw-table-before.txt /root/m1-rw-table-after.txt; then echo "M1 table-restored"; else echo "M1 table-not-restored"; exit 1; fi',
+    'leaks | tail --lines=1',
+    'echo "M1 read-write control done"',
+  ]);
+  guest({ chosen, script, log: 'guest-m1-read-write.log', timeout: ARM_TIMEOUT_MS, });
 }
 
 /** M2's controls: an idle window, a deliberate mount, a deliberate write and a deliberate read. */
@@ -596,6 +698,16 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       await build(chosen);
     green(chosen);
   },
+  'm1-key': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    m1Key(chosen);
+  },
+  'm1-read-write': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    m1ReadWrite(chosen);
+  },
   'm2-controls': async (chosen: Options): Promise<void> => {
     if (!chosen.noBuild)
       await build(chosen);
@@ -638,6 +750,8 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       await build(chosen);
       probeDataset(chosen);
       green(chosen);
+      m1Key(chosen);
+      m1ReadWrite(chosen);
       m2Controls(chosen);
       m3Kill(chosen);
       m7Scan(chosen);
