@@ -21,6 +21,9 @@
 /// The pause schedule of the plan,
 /// which the words of a counted failure measure their span with.
 use crate::push_retry::pause_before;
+/// The failed attempt a push leaves,
+/// whose exit code and signal are the whole cause of one that wrote nothing.
+use crate::auto_push_single_flight::PushAttempt;
 /// The sentence a refusal prints for a host key this machine does not know,
 /// the reading that says OpenSSH's words are that refusal,
 /// and the opening words that say the sentence is already there.
@@ -192,6 +195,72 @@ pub fn final_failure(output: &str) -> Option<FinalFailure> {
         }
     }
     return None;
+}
+
+/// What:
+///  What a failed push that wrote nothing is reported with:
+///  the status it ended with,
+///  and the signal that ended it when one did.
+/// Why:
+///   The program's own lines are the record of why a push failed,
+/// and a push that printed none leaves its status as the only evidence there is.
+/// A record and a retry line built from the empty output named no cause at all:
+/// the journal line of a gate on `2026-11-21` said `cause:`,
+/// empty,
+/// for the push of `refs/heads/other` of `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`,
+/// so nobody could tell a killed push from a refused one
+/// (`doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md`).
+///  `128 + N` is also a status a program can choose itself,
+/// so the signal the attempt carries beside the code is what says which of the two happened,
+/// as it does for an upload (`lfs_upload_explanations`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const silentFailureLine = (attempt) => attempt.signal === undefined
+///   ? `... exited with status ${attempt.exitCode} and printed nothing ...`
+///   : `... was ended by signal ${attempt.signal} (status ${attempt.exitCode}) and printed nothing ...`;
+/// ```
+pub(crate) fn silent_failure_line(attempt: &PushAttempt) -> String {
+    let ending: String = match attempt.signal {
+        Some(signal) => format!("was ended by signal {signal} (status {})", attempt.exit_code),
+        None => format!("exited with status {}", attempt.exit_code),
+    };
+    return format!(
+        "monochromatic-git-policy-cli: the push {ending} and printed nothing about why, so what the remote did is not known; the commit \
+         is saved in this repository."
+    );
+}
+
+/// What:
+///  The words a push's record carries:
+///  the line that names what held the branch back,
+///  the program's own output when it printed any,
+///  and,
+///  for a push that failed without printing a word,
+///  the status and the signal that ended it.
+/// Why:
+///   The record is what the person reads,
+/// and its first line is the cause a retry's journal line names,
+/// so a failed push that printed nothing is named by the only evidence there is rather than by nothing
+/// (`silent_failure_line`).
+/// The held-back line comes first,
+/// because the commit it names is the one the push stopped before,
+/// and Git's own words follow it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordWords = (attempt, heldBack, said, failed) => [heldBack, said].filter(Boolean).join('\n') || (failed ? silentFailureLine(attempt) : '');
+/// ```
+pub(crate) fn record_words(attempt: &PushAttempt, held_back: Option<&str>, said: &str, failed: bool) -> String {
+    let mut shown: String = match (held_back, said.is_empty()) {
+        (None, _) => said.to_owned(),
+        (Some(line), true) => line.to_owned(),
+        (Some(line), false) => format!("{line}\n{said}"),
+    };
+    if failed && shown.is_empty() {
+        shown = silent_failure_line(attempt);
+    }
+    return shown;
 }
 
 /// What:

@@ -64,6 +64,7 @@ fn record(world: &World, kind: WorkKind, oid: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-10T18:16:51.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -311,6 +312,7 @@ fn a_trash_record(staged: &Stage, oid: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-10T18:16:51.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -325,6 +327,7 @@ fn a_push_record(staged: &Stage) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-10T18:20:53.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -865,7 +868,8 @@ fn a_slow_item_that_stops_unexpectedly_ends_its_own_record_and_not_the_look() {
 ///   The count is what keeps the service from exiting while a claim of the lane is held,
 /// so a count raised by a task that panicked would keep the service up for ever
 /// and the slow work that look was going to do would never be done.
-/// The count is held by the frame that raised it, not by the trap after it.
+/// The count is held by the frame that raised it,
+/// not by the trap after it.
 #[test]
 fn the_lane_gives_its_busy_count_back_when_a_look_panicked() {
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -888,7 +892,8 @@ fn the_lane_gives_its_busy_count_back_when_a_look_panicked() {
 ///  a look that answered keeps its own answer,
 ///  and a look that asked for nothing asks for nothing.
 /// Why:
-///   A look runs the drain, and a defect in it must not end the lane:
+///   A look runs the drain,
+/// and a defect in it must not end the lane:
 /// the records it held keep their lease,
 /// so the pause is what brings this repository back to the lane that is still serving the ones behind it.
 #[test]
@@ -920,7 +925,8 @@ const THE_TRASH_THAT_LOOK_NEVER_REACHED: &str = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 /// it is the defect a look must survive,
 /// where a wave's panic is kept for its own item.
 struct StoppingUpkeep {
-    /// Whether the upkeep stops, so the panic is a condition of a run and not dead code.
+    /// Whether the upkeep stops,
+    /// so the panic is a condition of a run and not dead code.
     stops: bool,
 }
 
@@ -959,7 +965,8 @@ impl WorkHandlers for StoppingUpkeep {
 /// Why:
 ///   The lane is the only thing that would look at those records again,
 /// so a look that stopped without asking would leave them claimed until another wake happened to name this repository.
-/// Nothing of a look that stopped is settled, because nothing of it is known to have run.
+/// Nothing of a look that stopped is settled,
+/// because nothing of it is known to have run.
 #[test]
 fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
     let world: World = world(
@@ -983,10 +990,12 @@ fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
 }
 
 /// The push a round owns in the first repository of the control below:
-/// the claim its look answers with, and the reason the lane waits at all.
+/// the claim its look answers with,
+/// and the reason the lane waits at all.
 const THE_PUSH_A_ROUND_OWNS: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-/// The trash that look runs, so the control knows the look has taken its wake.
+/// The trash that look runs,
+/// so the control knows the look has taken its wake.
 const THE_TRASH_THE_FIRST_LOOK_RUNS: &str = "cccccccccccccccccccccccccccccccccccccccc";
 
 /// The upkeep the wake behind that wait names,
@@ -1029,7 +1038,8 @@ fn holds_within(bound: Duration, condition: impl Fn() -> bool) -> bool {
 ///  and not at the moment the lane asked to be looked at.
 /// Why:
 ///   A look answers the end of the earliest claim of its directory,
-/// and a claim lives a whole lease (`CLAIM_LEASE`, 120 seconds in the shipped service).
+/// and a claim lives a whole lease (`CLAIM_LEASE`,
+/// 120 seconds in the shipped service).
 /// The claim of a push belongs to the round,
 /// which settles it in milliseconds,
 /// so a lane that waited that moment out with a new wake in its queue left a record it was woken for `pending` until the

@@ -66,7 +66,8 @@ fn the_words_name_the_worktree_what_failed_and_every_command() {
 /// Why:
 ///   A record killed on every try holds no answer of any tool,
 ///  and so does one whose reason could not be written;
-///  the two cannot be told apart from the files, so the words may only say what is true of both,
+///  the two cannot be told apart from the files,
+/// so the words may only say what is true of both,
 ///  and the journal is where the rest is.
 ///
 /// In TS you'd write (pseudocode):
@@ -173,6 +174,7 @@ fn a_record_of_another_kind_leaves_no_notice() {
         parent: String::from("{\"root\":\"/w\",\"tools\":[\"pnpm\"]}"),
         created: String::from("2026-11-12T04:00:00Z"),
         tries: 0,
+        transport: false,
     };
     assert_eq!(notice_for_given_up(&trash, 3), None);
     remove(root.as_path());
@@ -228,7 +230,8 @@ fn the_notice_quotes_the_reason_the_last_try_gave() {
 }
 
 /// What:
-///  A worktree of this repository, with its own administrative directory registered under the common one,
+///  A worktree of this repository,
+/// with its own administrative directory registered under the common one,
 ///  so the crate's registration proof accepts it as one of this repository's worktrees.
 /// Why:
 ///   The notice target is chosen from what a command in that worktree would read,

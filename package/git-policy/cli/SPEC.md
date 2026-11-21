@@ -10261,6 +10261,13 @@ in-process reader can) gives every value of the multi-valued keys.
   which is the only sign that the local view of the remote stayed behind,
   and it is written whatever the move came to,
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
+  A push that failed and printed nothing is named by the only evidence there is:
+  its status,
+  and the signal beside it when one ended it
+  (`silent_failure_line` and `record_words` in `src/native/push/push_retry_failure.rs`),
+  because a record built from the empty output named no cause at all and the journal's retry line said
+  `cause:` and nothing after it
+  (`doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md`).
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
   The name carries the commit the push sent,
@@ -13144,20 +13151,61 @@ The step:
   because a program that is there is not missing and its reader would go looking at a `PATH` that is right.
   Which folders that search reads is the push's own list.
   A typed push reads the environment of that command.
-  A push the commit service runs searches the service's own `PATH`,
-  which the manager that started the service fixed,
-  and no command of the person reaches that list:
-  nothing of the committing shell travels with the service's push
-  (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
-  and two runs' commits landed while their pushes were refused for a program their own shell could start).
+  A push the commit service runs reads the list the command that asked for it gave:
+  the five values (`PATH`,
+  `GIT_EXEC_PATH`,
+  `GIT_SSH`,
+  `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`) travel with each request and each wake,
+  live only in the memory of the service that runs the push,
+  are keyed by that push record's own id,
+  and are dropped when the record can no longer run
+  (`src/native/service/service_push_programs_held_in_memory.rs`).
+  Nothing of them is written as a setting of a file or of a work item,
+  because two are whole command lines that can hold a password:
+  the owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
+  The one value that reaches a file is the folder list a missing-program refusal names,
+  which the next paragraph states.
+  On 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
+  and two runs' commits landed while their pushes were refused for a program their own shell could start;
+  that list is why the values travel.
+  The service's own list is searched only when no list came with the request:
+  a service that restarted holds none,
+  and so does a push an earlier release queued.
+  A push whose command chose `GIT_SSH`,
+  `GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND` stops rather than speaking another transport when those settings are gone,
+  and its words name the repository,
+  the branch,
+  both ways the settings can be gone (a service started again since,
+  or a command that could not reach it),
+  and the one command that pushes
+  (`src/native/push/push_without_its_transport.rs`).
+  A merge's,
+  a cherry-pick's or a pull's own push is written as a record before the wake that carries its values,
+  so a round that claims the record in that moment runs the push with the service's own list,
+  and a push whose command chose a transport stops with those words rather than speaking another one.
+  A commit's own push is not exposed:
+  the service writes that record as it lands the commit and holds its values in the same step,
+  so no round can claim the record before them.
+  That window is issue 6332,
+  which carries the ranked shapes of a fix and waits for its own round
+  (`doc/troubleshooting/git-policy-cli-commit-service-cannot-find-the-shells-programs.md`).
   The refusal names the program,
   every folder of the list it searched,
   and where that list came from,
-  so a person can tell the manager's list from their own;
-  the way forward it prints for a service push is a push by hand once from a shell that holds the program
+  so a person can tell the manager's list from the shell's;
+  a list that came with the request is remedied with a commit made again,
+  which hands that shell's list over again,
+  and a push that searched the service's own list is remedied with a push by hand once from a shell that holds the program
   (`git push`),
-  which searches that shell's own `PATH`,
-  because nothing of the committing shell travels with the service's push.
+  which searches that shell's own `PATH`.
+  Neither remedy promises that a typed push records a list,
+  because no release writes one.
+  A record or staging file of the shape an unreleased branch wrote
+  (`<git-dir>/monochromatic-git-policy-cli/push-programs.json` and `.push-programs.json.<random>.partial`)
+  is removed by the first command that meets it,
+  never what a link of that name points at
+  (`src/native/foundation/earlier_push_programs_record.rs`).
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,
@@ -14769,6 +14817,25 @@ so the commit alone does not name the push;
 a record an earlier release named by the kind and the object alone keeps its name and is run as it is.
 The other kinds keep the commit as their key,
 because their work is of the commit and not of a branch.
+
+A push record keeps one flag of the environment it was queued with and no value:
+whether the command that asked for the push chose a transport
+(`GIT_SSH`,
+`GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND`),
+written as `transport` only when it is true,
+so a record of an earlier release,
+or one whose command chose none,
+reads and encodes exactly as it did before that field existed.
+The five values themselves live only in the memory of the service that runs the push
+(the section "Git LFS upload before a push" says which and why),
+and the batch's journal intent keeps that flag per commit (`transports=`),
+so a service that restarts re-holds the push with it:
+a push whose command chose a transport stops when this service no longer holds those settings,
+naming the repository,
+the branch,
+both ways they can be gone,
+and the one command that pushes,
+rather than speaking a transport nobody chose.
 
 The after-commit work of the service (pushes,
 upkeep,

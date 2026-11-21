@@ -506,10 +506,22 @@ Read-only commands,
   install Git LFS,
   remove the
    LFS configuration or use `git push --no-verify`.
-  A push the commit service runs searches the service's own `PATH`,
-  which the manager that started the service fixed,
-  so its message offers a push by hand once from a shell that holds the program,
+  A push the commit service runs searches the list the command that asked for it gave:
+  the five values it needs (`PATH`,
+  `GIT_EXEC_PATH`,
+  `GIT_SSH`,
+  `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`) travel with the request and live only in the service's memory,
+  never as a setting of a file,
+  because two of them can hold a password
+  (the one value that reaches a file is the folder list the message names when a program is missing);
+  the service's own `PATH` is searched only when no list came (a service that restarted holds none),
+  and the message then offers a push by hand once from a shell that holds the program,
   which searches that shell's own `PATH`.
+  A push whose command chose `GIT_SSH`,
+  `GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND`,
+  and whose settings a restart took away,
+  stops instead of speaking another transport and prints the one command that pushes.
   The other three hooks `git lfs install` writes (`post-checkout`,
   `post-commit`,
   `post-merge`) only keep lockable

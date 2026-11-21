@@ -38,6 +38,7 @@ fn push_item(root: &Path) -> WorkItem {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     };
 }
 

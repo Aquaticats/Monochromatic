@@ -53,6 +53,33 @@ pub fn cause_line(text: &str) -> Option<&str> {
     return remote;
 }
 
+/// The words a line uses when a push's own output holds no line that gives a reason:
+/// the push failed and said nothing about why.
+pub const SILENT_CAUSE: &str = "the push said nothing about why it failed";
+
+/// What:
+///  The cause a journal line names for a push that failed,
+///  never empty.
+/// Why:
+///   A line that ends `cause:` and nothing after it says no more than that something happened,
+/// and a push that printed nothing leaves the status as its only evidence,
+/// which `silent_failure_line` puts into the failure's own words (`push_retry_failure`).
+/// A text with no line at all is still possible,
+/// from a handler that answers with none,
+/// so the line says that no cause was given rather than nothing
+/// (a gate on `2026-11-21` wrote `cause:` with nothing after it).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const causeOrSilence = (text) => causeLine(text) ?? SILENT_CAUSE;
+/// ```
+pub fn cause_or_silence(text: &str) -> String {
+    return match cause_line(text) {
+        Some(line) => line.to_owned(),
+        None => String::from(SILENT_CAUSE),
+    };
+}
+
 /// The reading of a failure's cause is controlled in the test module.
 #[cfg(test)]
 #[path = "push_retry_cause_line_tests.rs"]

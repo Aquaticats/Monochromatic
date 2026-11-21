@@ -27,6 +27,10 @@ impl WakeTheService for NeverWoken {
     fn wake(&self, _git_dir: &Path) {
         panic!("the scan writes no record here, so it wakes nothing");
     }
+
+    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+        panic!("the scan settles no record here, so it forgets nothing");
+    }
 }
 
 /// The name of one object these controls name a record after,
@@ -112,6 +116,7 @@ fn a_trash_record_read_accounts_for_the_trash_it_names() {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     };
     let claimed: PathBuf = state_directory(work.as_path(), CLAIMED).join(item.id());
     std::fs::create_dir_all(claimed.parent().expect("the claimed directory")).expect("the claimed directory");

@@ -90,13 +90,15 @@ const PROCESS_TABLE: &str = "/proc";
 
 /// The file beside a worktree's registration that names the worktree a landed sweep compared its ignored files with.
 ///
-/// It lives in the registration, so a removal of the worktree takes it with the directory,
+/// It lives in the registration,
+/// so a removal of the worktree takes it with the directory,
 /// and a worktree that is kept keeps it for the next reading.
 pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-compared-with";
 
 /// The file beside a worktree's registration that names the worktree and the registration the record was written for.
 ///
-/// It holds the device and the inode of each, which is what tells the worktree the proof was made for from one a person
+/// It holds the device and the inode of each,
+/// which is what tells the worktree the proof was made for from one a person
 /// added at the same path while the record waited.
 pub const IDENTITY_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-identity";
 /// What:
@@ -146,7 +148,8 @@ pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path)
         oid: named,
         parent: target.display().to_string(),
         created: now_iso(),
-        tries: 0,
+        // A removal speaks through this service's own transport: no command's settings travel with it, so it carries none.
+        tries: 0, transport: false,
     };
 }
 
@@ -249,7 +252,7 @@ pub fn wake_the_service(context: &GitContext, git_dir: &Path) -> Result<(), Stri
         start_ceiling: HAND_OVER_GREETING_WAIT,
     };
     let mut silent: std::io::Sink = std::io::sink();
-    return match wake(&config, git_dir, None, &mut silent) {
+    return match wake(&config, git_dir, None, &[], &mut silent) {
         Ok(()) => Ok(()),
         Err(failure) => Err(render(&failure)),
     };
@@ -517,7 +520,8 @@ pub fn hand_over_worktree_removal(
 ///  and never run.
 ///  A registration that cannot be read leaves the path alone,
 ///  which is the record this release wrote before the identity was added.
-///  The bytes are the path and the registration's device, inode and change time,
+///  The bytes are the path and the registration's device,
+/// inode and change time,
 ///  exactly as the release before this one computed them:
 ///  a record queued while that release ran is still the record this one finds under its id,
 ///  and a change of the name here would have left it queued for a worktree nothing removes.
@@ -776,7 +780,7 @@ pub fn requeue_removals_an_earlier_release_refused(common_dir: &Path) -> Vec<Str
         }
         // The record is queued with one attempt behind it, so a removal Git refuses again is not queued by every later
         // command: the attempt count travels with the record into whatever state it settles in.
-        let again: WorkItem = WorkItem { tries: 1, ..item.clone() };
+        let again: WorkItem = WorkItem { tries: 1, transport: false, ..item.clone() };
         let pending: PathBuf = state_directory(work.as_path(), PENDING);
         if crate::private_storage::create_private_directory_all(pending.as_path()).is_err() {
             continue;
@@ -1025,7 +1029,8 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
 ///  holding one:
 /// its removal deletes what is mounted at a mount point and unlinks the files of a nested worktree.
 /// The steps are
-///  the person's own removal, made here with the checks that removal makes,
+///  the person's own removal,
+/// made here with the checks that removal makes,
 /// so the service and the command cannot disagree about
 ///  which tree may go.
 /// A removal that refuses keeps the worktree and says why,
