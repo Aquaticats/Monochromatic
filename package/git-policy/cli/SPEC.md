@@ -19854,7 +19854,10 @@ one line per arm,
 one line per step,
 the worker's and the holder's mount-namespace identities,
 the source,
-and whether the kernel found it.
+whether the kernel found it,
+and,
+for a skipped record,
+the gate step that refused.
 A record whose fingerprint differs from the running kernel,
 module or boot is stale.
 `first-attach` is a second file beside it with its own writer,
@@ -19892,12 +19895,17 @@ a failed,
 timed-out or skipped probe is a verdict in the record,
 never a failed unit,
 so the mode exits successfully whenever it reaches its own end.
-The deadline's value is the slowest measured whole-probe run plus the
-spread between its interleaved rounds,
-measured in the throwaway guest by M4's arms
+The deadline is 350 milliseconds:
+the slowest of M4's interleaved guest rounds,
+a cold binary's first run at 231
+milliseconds,
+plus a 119-millisecond margin over the 114-millisecond range the
+rounds covered
 (`doc/planning/cli-git-zfs-start-probe-design.md`,
 "M4:
-what the probe costs"),
+what the probe costs";
+the rounds are in
+`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`),
 and step 19 re-cites it when the boot unit measures the login delay.
 Until step 19 adds the `ExecStartPre=-`,
 no boot unit runs the probe,
