@@ -50,8 +50,16 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   `GIT_PROXY_COMMAND`)
   travel with the commit request and with the wake that announces a push record,
   are held in the service's memory against that record's own id,
-  and are dropped when the record can no longer run.
-  Nothing of them reaches a file,
+  and are dropped when the record can no longer run:
+  when its push lands,
+  fails for good or is skipped,
+  when a batch that carries it is given back,
+  when a repository the filesystem proves gone ends its plans,
+  and when the committing wrapper settles or removes the record itself,
+  which tells the service which records can no longer run.
+  None of the three transport values,
+  and no value at all except the folder list a missing-program refusal names,
+  reaches a file,
   a record,
   a journal line or a log.
 - The five names the service's own environment held are removed from a push that carries a list,
@@ -91,16 +99,20 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   state directory and home for a planted command line,
   and finds it before removing it,
   so the search is proved able to see a value on a disk.
-- `each_push_uses_the_settings_of_the_command_that_asked_for_it` commits twice from two shells and reads,
-  through a stand-in `git-lfs`,
-  which `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` each push carried.
+- `the_service_push_searches_the_list_the_command_that_asked_gave` builds a push record with a list held for it and
+  without one,
+  and reads the marker each push's environment carries:
+  the command's list is searched and named for the record whose values the service holds,
+  and the service's own list and its own name for a record it holds nothing for.
 - `a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command` kills a committing wrapper after it promoted
   its push record,
   starts a service that holds nothing,
   reads the words on the next command,
   and runs the command they print against a real bare remote.
-- `the_remedy_a_refusal_prints_pushes_from_the_shell` reads a refusal printed by a restarted service and runs the remedy
-  it names.
+- `the_missing_program_message_names_the_list_the_command_that_asked_gave` reads the refusal of a push whose values came
+  with the request and proves it names the shell's folders and the shell's own `PATH` as the one to install the program
+  on,
+  never the commit service's list.
 - `the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command` writes both shapes of the old record,
   runs one command,
   and proves no value of either is left on any disk.

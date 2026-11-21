@@ -512,8 +512,9 @@ Read-only commands,
   `GIT_SSH`,
   `GIT_SSH_COMMAND`,
   `GIT_PROXY_COMMAND`) travel with the request and live only in the service's memory,
-  never in a file,
-  because two of them can hold a password;
+  never as a setting of a file,
+  because two of them can hold a password
+  (the one value that reaches a file is the folder list the message names when a program is missing);
   the service's own `PATH` is searched only when no list came (a service that restarted holds none),
   and the message then offers a push by hand once from a shell that holds the program,
   which searches that shell's own `PATH`.

@@ -13011,9 +13011,11 @@ The step:
   are keyed by that push record's own id,
   and are dropped when the record can no longer run
   (`src/native/service/service_push_programs_held_in_memory.rs`).
-  Nothing of them is written,
+  Nothing of them is written as a setting of a file or of a work item,
   because two are whole command lines that can hold a password:
   the owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
+  The one value that reaches a file is the folder list a missing-program refusal names,
+  which the next paragraph states.
   On 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
   and two runs' commits landed while their pushes were refused for a program their own shell could start;
   that list is why the values travel.
