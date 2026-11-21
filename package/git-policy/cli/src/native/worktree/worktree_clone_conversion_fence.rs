@@ -433,8 +433,8 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
     //  Writing many paths through Git makes the fence slower than `main`'s own checkout (the converting source measured
     //  1.50 times `main` without the rule, `measure-r5-crlf-*`),
     //  and the rule is decided here, before the add's record is claimed and before real Git runs, so a declining source
-    //  pays only these reads and Git's own single checkout.
-    //  and a shape that is slower than the thing it replaces is not something to ship quietly.
+    //  pays only these reads and Git's own single checkout (measured at 1.67 to 1.75 of `main` when the rule was decided
+    //  after the copies, and at 1.06 to 1.09 when it was decided before them).
     #[cfg(feature = "measurement-routes")]
     let measure_decline: bool = std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default() != "nodecline";
     #[cfg(not(feature = "measurement-routes"))]

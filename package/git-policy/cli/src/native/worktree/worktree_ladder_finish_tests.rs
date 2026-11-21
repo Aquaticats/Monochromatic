@@ -642,3 +642,39 @@ fn btrfs_a_converting_path_is_written_by_git_and_the_snapshot_rung_is_clean() {
     assert_eq!(git_text(root.join("topic").as_path(), &["status", "--porcelain=v1"]), "", "the published worktree is clean");
     remove(root.as_path());
 }
+
+/// What:
+///  The same control for a source whose conversion comes from the configuration rather than from an attributes rule:
+///  `core.autocrlf=true` set after the files were committed,
+///  which is the class the conversion controls call
+///  `a_config_rule_gone_after_the_add_is_written_by_git`'s neighbour.
+/// Why:
+///   The fence reads `core.autocrlf` from the source's configuration,
+/// and the snapshot rung carries the source's bytes either way,
+///  so a rung that did not write these paths through Git would leave LF where Git's checkout writes CRLF.
+/// The control reads the served bytes against a real Git checkout of the same commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(repo, ['config', 'core.autocrlf', 'true']);
+/// const (result) = addThroughTheLadder(repo, root);
+/// expect(readFileSync('topic/notes.txt')).toEqual(readFileSync('reference/notes.txt'));
+/// ```
+#[test]
+fn btrfs_a_configuration_rule_writes_gits_bytes_in_the_snapshot_rung() {
+    let Some(root) = btrfs_fixture("finish-conversion-config") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), "notes.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "plain endings");
+    git(repo.as_path(), &["config", "core.autocrlf", "true"]);
+    let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
+    assert_eq!(result.git, GitStatus { code: Some(0) });
+    assert_eq!(result.carried, Some(root.join("topic")), "the snapshot rung served the add");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference"]);
+    let served: Vec<u8> = std::fs::read(root.join("topic/notes.txt")).expect("the served path");
+    let gits: Vec<u8> = std::fs::read(root.join("reference/notes.txt")).expect("Git's checkout");
+    assert_eq!(served, gits, "the served bytes are the ones Git's own checkout writes under core.autocrlf=true");
+    assert_ne!(served, b"line one\nline two\n", "Git's checkout converts both text lines, so a rung that carried the source would fail here");
+    assert_eq!(git_text(root.join("topic").as_path(), &["status", "--porcelain=v1"]), "", "the published worktree is clean");
+    remove(root.as_path());
+}
