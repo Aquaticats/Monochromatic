@@ -22,9 +22,15 @@
 /// empty and never written.
 pub const READY_SNAPSHOT: &str = "ready";
 
-/// The bound one dataset name has in OpenZFS,
-/// its terminating NUL included,
-/// so a name one byte shorter is the longest this build accepts.
+/// The suffix this build appends to the configured dataset.
+pub const READY_SNAPSHOT_SUFFIX: &str = "@ready";
+
+/// The bound one name has in OpenZFS:
+/// its buffer is 256 bytes with the terminating NUL,
+/// so the text the kernel takes is at most 255 bytes.
+/// The rule judges the whole source,
+/// `dataset@ready`,
+/// because that is the name the attach passes.
 pub const DATASET_NAME_BOUND: usize = 255;
 
 /// What:
@@ -90,7 +96,7 @@ impl ProbeSource {
     /// The source the probe attaches:
     /// the configured dataset and the empty `ready` snapshot.
     pub fn snapshot_name(&self) -> String {
-        return format!("{}@{}", self.dataset, READY_SNAPSHOT);
+        return format!("{}{READY_SNAPSHOT_SUFFIX}", self.dataset);
     }
 }
 
@@ -99,7 +105,7 @@ pub fn check_dataset_name(name: &str) -> Result<(), NameRefusal> {
     if name.is_empty() {
         return Err(NameRefusal::Empty);
     }
-    if name.len() > DATASET_NAME_BOUND {
+    if name.len() + READY_SNAPSHOT_SUFFIX.len() > DATASET_NAME_BOUND {
         return Err(NameRefusal::TooLong);
     }
     for component in name.split('/') {

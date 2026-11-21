@@ -97,9 +97,14 @@ impl WalkFailure {
     /// The errno's name,
     /// where the failure carries one this build names.
     pub fn errno_name(&self) -> Option<&'static str> {
+        return self.errno_number().and_then(errno_of);
+    }
+
+    /// The errno itself,
+    /// so a number this build does not name still reaches the record.
+    pub fn errno_number(&self) -> Option<i32> {
         return match self {
-            WalkFailure::Call { errno: Some(number), .. } | WalkFailure::Control { errno: Some(number), .. } => errno_of(*number),
-            WalkFailure::Call { errno: None, .. } | WalkFailure::Control { errno: None, .. } => None,
+            WalkFailure::Call { errno, .. } | WalkFailure::Control { errno, .. } => *errno,
         };
     }
 

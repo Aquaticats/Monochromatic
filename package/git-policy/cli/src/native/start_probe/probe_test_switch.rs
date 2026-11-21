@@ -28,6 +28,12 @@ use super::probe_arms::ProbeStep;
 /// which no shipped run sets.
 pub const TEST_SWITCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_START_PROBE";
 
+/// The test-only variable that keeps one descriptor on the attached mount,
+/// so M9's fixture can make the unmount arm answer `EBUSY`.
+/// It is a second variable rather than a third value of the switch above,
+/// whose values the project fixed at `disabled` and `hold-<step>`.
+pub const KEEP_DESCRIPTOR_VARIABLE: &str = "CLI_GIT_TEST_ONLY_START_PROBE_KEEP_DESCRIPTOR";
+
 /// What:
 ///  What a run's test switch asks for.
 /// Why:
@@ -47,9 +53,6 @@ pub enum TestSwitch {
     /// The probe disabled:
     /// the control arm that writes a skipped record and mounts nothing.
     Disabled,
-    /// The mode held after its started record,
-    /// so a kill leaves a started record and no finished one.
-    HoldMode,
     /// The worker held after this step,
     /// so the mode's deadline fires and names the step in flight.
     Hold {
@@ -75,9 +78,6 @@ pub fn parse_test_switch(value: Option<&str>) -> TestSwitch {
     if word == "disabled" {
         return TestSwitch::Disabled;
     }
-    if word == "hold-mode" {
-        return TestSwitch::HoldMode;
-    }
     let Some(step_name) = word.strip_prefix("hold-") else {
         return TestSwitch::None;
     };
@@ -90,6 +90,18 @@ pub fn parse_test_switch(value: Option<&str>) -> TestSwitch {
 /// The switch this process's environment asks for.
 pub fn test_switch_from_environment() -> TestSwitch {
     return parse_test_switch(std::env::var(TEST_SWITCH_VARIABLE).ok().as_deref());
+}
+
+/// Whether this run keeps one descriptor on the attached mount,
+/// which only M9's fixture asks for.
+pub fn keep_descriptor_from_words(value: Option<&str>) -> bool {
+    return value == Some("1");
+}
+
+/// Whether this process's environment keeps one descriptor on the attached
+/// mount.
+pub fn keep_descriptor_from_environment() -> bool {
+    return keep_descriptor_from_words(std::env::var(KEEP_DESCRIPTOR_VARIABLE).ok().as_deref());
 }
 
 /// Controls stay out of the release executable.

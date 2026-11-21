@@ -64,7 +64,7 @@ fn a_failed_step_stops_every_later_arm() {
     assert_eq!(report.verdict(), ProbeVerdict::Failed { step: ProbeStep::AttachPlace });
     let attach: super::ArmOutcome = report.arm_outcome(ProbeArm::Attach);
     assert_eq!(attach.answer, ArmAnswer::Failed);
-    assert_eq!(attach.errno, Some("EPERM"));
+    assert_eq!(attach.errno, super::super::probe_errno_names::ErrnoWord::Named("EPERM"));
     assert_eq!(report.arm_outcome(ProbeArm::Verify).answer, ArmAnswer::NotExercised);
     assert_eq!(report.arm_outcome(ProbeArm::Teardown).answer, ArmAnswer::NotExercised);
 }

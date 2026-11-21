@@ -57,6 +57,11 @@ use std::time::{Duration, Instant};
 /// (`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`).
 pub const PROBE_DEADLINE: Duration = Duration::from_millis(350);
 
+/// The test-only variable that raises the bound for M3's raised-deadline
+/// control,
+/// which must record a held step as passed rather than timed out.
+pub const DEADLINE_SWITCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS";
+
 /// What:
 ///  The margin this bound carries over the slowest measured run.
 /// Why:
@@ -78,8 +83,8 @@ pub const PROBE_DEADLINE_MARGIN: Duration = Duration::from_millis(119);
 /// ```ts
 /// const expired = now.durationSince(started) >= PROBE_DEADLINE;
 /// ```
-pub fn deadline_passed(started: Instant, now: Instant) -> bool {
-    return now.duration_since(started) >= PROBE_DEADLINE;
+pub fn deadline_passed(started: Instant, now: Instant, deadline: Duration) -> bool {
+    return now.duration_since(started) >= deadline;
 }
 
 /// What:
@@ -94,12 +99,30 @@ pub fn deadline_passed(started: Instant, now: Instant) -> bool {
 /// ```ts
 /// const left = remaining(started, Instant.now()); // 0 when expired
 /// ```
-pub fn remaining(started: Instant, now: Instant) -> Option<Duration> {
+pub fn remaining(started: Instant, now: Instant, deadline: Duration) -> Option<Duration> {
     let elapsed: Duration = now.duration_since(started);
-    if elapsed >= PROBE_DEADLINE {
+    if elapsed >= deadline {
         return None;
     }
-    return Some(PROBE_DEADLINE - elapsed);
+    return Some(deadline - elapsed);
+}
+
+/// The bound one value asks for,
+/// which is the shipped deadline unless the test-only variable names a
+/// positive number of milliseconds.
+pub fn deadline_from_words(value: Option<&str>) -> Duration {
+    let Some(word) = value else {
+        return PROBE_DEADLINE;
+    };
+    return match word.parse::<u64>() {
+        Ok(milliseconds) if milliseconds > 0 => Duration::from_millis(milliseconds),
+        _ => PROBE_DEADLINE,
+    };
+}
+
+/// The bound this process's environment asks for.
+pub fn deadline_from_environment() -> Duration {
+    return deadline_from_words(std::env::var(DEADLINE_SWITCH_VARIABLE).ok().as_deref());
 }
 
 /// Controls stay out of the release executable.

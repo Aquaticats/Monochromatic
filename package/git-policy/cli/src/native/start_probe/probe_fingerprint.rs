@@ -15,6 +15,13 @@
 //!  No term is a rule:
 //!  the module's release string is identity and reporting,
 //!  as the project's answer of 2026-11-19 leaves it.
+//!  The three module attributes are read by the gate's own
+//!  `ModuleIdentity`,
+//!  not by a second sysfs reader,
+//!  and the project's plan places that reader in plan step 4:
+//!  this record is its first reuse,
+//!  and step 4's `first-attach` writer and later readers reuse either it or
+//!  this fingerprint rather than opening the files again.
 //!  The paths are the caller's to name,
 //!  so no control reads this machine's kernel files.
 //!
@@ -23,6 +30,8 @@
 //! const fingerprint = ProbeFingerprint.read(livePaths()); // { kernel: '6.8.0-147-generic', module: '2.4.4-1', ... }
 //! ```
 
+use crate::zfs_compatibility_gate::gate_paths::GatePaths;
+use crate::zfs_compatibility_gate::module_identity::ModuleIdentity;
 use std::path::{Path, PathBuf};
 
 /// The kernel's own release text,
@@ -178,11 +187,19 @@ impl ProbeFingerprint {
             Ok(text) => text,
             Err(reason) => return Err(FingerprintRefusal::BootId { path: paths.boot_id.clone(), reason }),
         };
+        let module: ModuleIdentity = ModuleIdentity::read(&GatePaths {
+            device: PathBuf::new(),
+            module_version: paths.module_version.clone(),
+            module_srcversion: paths.module_srcversion.clone(),
+            module_build_id: paths.module_build_id.clone(),
+            base_btf: PathBuf::new(),
+            module_btf: PathBuf::new(),
+        });
         return Ok(ProbeFingerprint {
             kernel_release,
-            module_version: read_text(paths.module_version.as_path()).ok(),
-            module_srcversion: read_text(paths.module_srcversion.as_path()).ok(),
-            module_build_id: read_bytes(paths.module_build_id.as_path()).ok().map(|bytes| return hexadecimal(bytes.as_slice())),
+            module_version: module.version,
+            module_srcversion: module.srcversion,
+            module_build_id: module.build_id.as_deref().map(hexadecimal),
             boot_id,
             handler: binary_identity(paths.handler.as_path()),
         });

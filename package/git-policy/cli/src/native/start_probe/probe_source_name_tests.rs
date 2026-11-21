@@ -13,7 +13,7 @@
 //! expect(checkDatasetName('pool/dataset_1-2.3:4')).toBe(undefined); expect(checkDatasetName('pool/ds@snap')).toEqual('snapshot-or-bookmark');
 //! ```
 
-use super::{DATASET_NAME_BOUND, NameRefusal, ProbeSource, check_dataset_name};
+use super::{DATASET_NAME_BOUND, NameRefusal, ProbeSource, READY_SNAPSHOT_SUFFIX, check_dataset_name};
 
 /// The names the kernel takes pass,
 /// each separator included.
@@ -42,13 +42,14 @@ fn malformed_names_are_refused() {
     assert_eq!(check_dataset_name("pool/ds one"), Err(NameRefusal::BadCharacter { byte: ' ' }));
 }
 
-/// A name past the bound is refused,
-/// and the one at the bound passes.
+/// The bound judges the whole `dataset@ready` source,
+/// so the longest dataset leaves room for the suffix and one byte more is refused.
 #[test]
-fn the_bound_is_the_kernels() {
-    let at_bound: String = "a".repeat(DATASET_NAME_BOUND);
+fn the_bound_is_the_kernels_source_bound() {
+    let at_bound: String = "a".repeat(DATASET_NAME_BOUND - READY_SNAPSHOT_SUFFIX.len());
     assert_eq!(check_dataset_name(at_bound.as_str()), Ok(()));
-    let past: String = "a".repeat(DATASET_NAME_BOUND + 1);
+    assert_eq!(format!("{at_bound}{READY_SNAPSHOT_SUFFIX}").len(), DATASET_NAME_BOUND);
+    let past: String = "a".repeat(DATASET_NAME_BOUND - READY_SNAPSHOT_SUFFIX.len() + 1);
     assert_eq!(check_dataset_name(past.as_str()), Err(NameRefusal::TooLong));
 }
 

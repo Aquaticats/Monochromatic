@@ -12,7 +12,7 @@
 //! expect(remaining(start, start)).toBeGreaterThan(0); expect(deadlinePassed(start, start + PROBE_DEADLINE)).toBe(true);
 //! ```
 
-use super::{PROBE_DEADLINE, PROBE_DEADLINE_MARGIN, deadline_passed, remaining};
+use super::{PROBE_DEADLINE, PROBE_DEADLINE_MARGIN, deadline_from_words, deadline_passed, remaining};
 use std::time::{Duration, Instant};
 
 /// A just-started run has time left,
@@ -20,11 +20,11 @@ use std::time::{Duration, Instant};
 #[test]
 fn the_bound_is_where_the_wait_ends() {
     let started: Instant = Instant::now();
-    assert!(!deadline_passed(started, started));
-    assert!(remaining(started, started).is_some_and(|left| return left == PROBE_DEADLINE));
-    assert!(deadline_passed(started, started + PROBE_DEADLINE));
-    assert_eq!(remaining(started, started + PROBE_DEADLINE), None);
-    assert_eq!(remaining(started, started + PROBE_DEADLINE + Duration::from_millis(1)), None);
+    assert!(!deadline_passed(started, started, PROBE_DEADLINE));
+    assert!(remaining(started, started, PROBE_DEADLINE).is_some_and(|left| return left == PROBE_DEADLINE));
+    assert!(deadline_passed(started, started + PROBE_DEADLINE, PROBE_DEADLINE));
+    assert_eq!(remaining(started, started + PROBE_DEADLINE, PROBE_DEADLINE), None);
+    assert_eq!(remaining(started, started + PROBE_DEADLINE + Duration::from_millis(1), PROBE_DEADLINE), None);
 }
 
 /// The margin is part of the value,
@@ -33,4 +33,14 @@ fn the_bound_is_where_the_wait_ends() {
 fn the_margin_is_part_of_the_value() {
     assert!(PROBE_DEADLINE > Duration::ZERO);
     assert!(PROBE_DEADLINE_MARGIN < PROBE_DEADLINE);
+}
+
+/// The test-only deadline override takes a positive number of milliseconds
+/// and leaves the shipped bound alone otherwise.
+#[test]
+fn the_test_only_deadline_is_a_positive_number() {
+    assert_eq!(deadline_from_words(None), PROBE_DEADLINE);
+    assert_eq!(deadline_from_words(Some("900000")), std::time::Duration::from_millis(900000));
+    assert_eq!(deadline_from_words(Some("0")), PROBE_DEADLINE);
+    assert_eq!(deadline_from_words(Some("soon")), PROBE_DEADLINE);
 }

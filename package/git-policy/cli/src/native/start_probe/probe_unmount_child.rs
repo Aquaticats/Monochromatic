@@ -56,7 +56,7 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
             }
         }
         Err(error) => {
-            say(status, StepLine::failed(ProbeStep::Move, error.errno_name()));
+            say(status, StepLine::failed_number(ProbeStep::Move, Some(error.errno)));
             crate::start_probe::probe_child_prelude::exit_now(1);
         }
     }
@@ -71,7 +71,7 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
     match unmount(move_target) {
         Ok(()) => say(status, StepLine::passed(ProbeStep::Unmount)),
         Err(error) => {
-            say(status, StepLine::failed(ProbeStep::Unmount, error.errno_name()));
+            say(status, StepLine::failed_number(ProbeStep::Unmount, Some(error.errno)));
             crate::start_probe::probe_child_prelude::exit_now(1);
         }
     }

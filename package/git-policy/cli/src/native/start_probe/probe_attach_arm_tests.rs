@@ -31,7 +31,7 @@ fn a_missing_source_is_refused_at_the_exclusive_create() {
     let slot: PathBuf = root.join("slot");
     std::fs::create_dir(slot.as_path()).expect("the fixture slot is made");
     let handle: OwnedFd = super::super::probe_open_beneath::open_path_handle(slot.as_path()).expect("the slot handle opens");
-    let refusal = attach_snapshot(&handle, slot.as_path(), "no-such-pool/git-worktree-probe@ready").expect_err("the source is refused");
+    let refusal = attach_snapshot(&handle, slot.as_path(), "no-such-pool/git-worktree-probe@ready", false, |_| {}).expect_err("the source is refused");
     assert_eq!(refusal.step, super::super::probe_arms::ProbeStep::AttachExclusiveCreate);
     assert_eq!(refusal.errno, Some(libc::ENOENT));
 }

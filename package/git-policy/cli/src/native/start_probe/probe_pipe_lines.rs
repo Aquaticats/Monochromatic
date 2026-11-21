@@ -125,6 +125,45 @@ pub fn read_one_blocking(fd: RawFd) -> Result<u8, CallError> {
 }
 
 /// What:
+///  Read one whole line,
+///  waiting for its newline,
+///  within a bound.
+/// Why:
+///  The mode answers the worker's holder request with the holder's namespace,
+///  which is a word rather than one byte,
+///  and a line keeps the pipe's framing the same as every other message.
+///
+/// # Errors
+/// The read answered an error,
+///  the pipe ended,
+///  or the line passed the bound.
+pub fn read_line_blocking(fd: RawFd, limit: usize) -> Result<String, CallError> {
+    let mut line: Vec<u8> = Vec::new();
+    loop {
+        let mut byte: [u8; 1] = [0];
+        // SAFETY: the buffer is this call's own and the call writes at most its length.
+        let read: libc::ssize_t = unsafe { libc::read(fd, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
+        if read == 0 {
+            return Err(CallError { call: "read", errno: libc::EPIPE });
+        }
+        if read < 0 {
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EINTR) {
+                continue;
+            }
+            return Err(failed("read"));
+        }
+        if byte[0] == b'\n' {
+            return String::from_utf8(line).map_err(|_| return CallError { call: "read", errno: libc::EINVAL });
+        }
+        line.push(byte[0]);
+        if line.len() > limit {
+            return Err(CallError { call: "read", errno: libc::E2BIG });
+        }
+    }
+}
+
+/// What:
 ///  Make one descriptor non-blocking.
 /// Why:
 ///  A pipe the mode drains is read until it answers "nothing there yet",
