@@ -427,3 +427,45 @@ fn racy_entries_and_untrusted_entries_keep_their_stat_fields() {
     assert_eq!(updated, 0);
     assert_eq!(seen, vec![StoredStat { ctime_seconds: 1, ctime_nanos: 2, mtime_seconds: 100, mtime_nanos: 7, ino: 4, uid: 8, gid: 9, size: 10 }]);
 }
+
+/// The paths whose stat data a seed zeroes, as the set the install is given.
+fn written_paths(paths: &[&str]) -> HashSet<Vec<u8>> {
+    return paths.iter().map(|path: &&str| { return path.as_bytes().to_vec(); }).collect();
+}
+
+/// A seed whose written paths are zeroed:
+/// the entries, their modes and their object names are the same,
+/// the written entries hold no stat data at all,
+/// the others keep theirs,
+/// and the checksum verifies.
+#[test]
+fn a_seed_zeroes_the_stat_data_of_the_paths_git_still_has_to_write() {
+    for (version, checksum, hash_length) in [(2u32, Checksum::Sha1, 20usize), (2, Checksum::Sha256, 32), (3, Checksum::Sha1, 20), (4, Checksum::Sha256, 32)] {
+        let input: Vec<u8> = build(version, &[regular("carried.txt"), regular("written.txt")], &[], checksum);
+        let Some(output) = with_zeroed_stat(input.as_slice(), &written_paths(&["written.txt"]), hash_length) else { panic!("version {version} is an index this reader knows") };
+        assert_eq!(output.len(), input.len(), "entry lengths never change");
+        let fields: Vec<(Vec<u8>, [u32; 9])> = stored(output.as_slice(), hash_length);
+        assert_eq!(fields, vec![(b"carried.txt".to_vec(), UNTOUCHED), (b"written.txt".to_vec(), [0; 9])], "version {version}: only the written path loses its stat data");
+        let (input_entries, _input_end) = walk_entries(input.as_slice(), hash_length).expect("walk");
+        let (output_entries, _output_end) = walk_entries(output.as_slice(), hash_length).expect("walk");
+        for (before, after) in input_entries.iter().zip(output_entries.iter()) {
+            // The mode sits inside the stat fields and is not stat data: Git writes the path from it.
+            assert_eq!(be32(input.as_slice(), before.start + 24), be32(output.as_slice(), after.start + 24), "the mode of {} is kept", String::from_utf8_lossy(before.path.as_slice()));
+            assert_eq!(before.path, after.path);
+        }
+        let verifies: bool = if hash_length == 20 { sha1(&output[..output.len() - 20]).as_slice() == &output[output.len() - 20..] } else { sha256(&output[..output.len() - 32]).as_slice() == &output[output.len() - 32..] };
+        assert!(verifies, "version {version}: the checksum is made good");
+        let untouched: Option<Vec<u8>> = with_zeroed_stat(input.as_slice(), &written_paths(&[]), hash_length);
+        assert_eq!(untouched.as_deref(), Some(input.as_slice()), "version {version}: a seed that zeroes nothing is the index itself");
+    }
+}
+
+/// Nothing is zeroed in a file this reader cannot walk,
+/// and a zero checksum stays zero.
+#[test]
+fn a_seed_declines_a_layout_it_cannot_walk_and_keeps_a_zero_checksum() {
+    assert_eq!(with_zeroed_stat(b"DIRC", &written_paths(&["a"]), 20), None);
+    let skip_hash: Vec<u8> = build(2, &[regular("written.txt")], &[], Checksum::Zero20);
+    let zeroed: Option<Vec<u8>> = with_zeroed_stat(skip_hash.as_slice(), &written_paths(&["written.txt"]), 20);
+    assert_eq!(zeroed.map(|bytes| { return bytes[bytes.len() - 20..].iter().all(|byte| { return *byte == 0; }); }), Some(true), "an index written with index.skipHash keeps its zero checksum");
+}

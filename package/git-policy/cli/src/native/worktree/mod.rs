@@ -279,6 +279,12 @@ pub mod worktree_clone_conversion_rules;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_fence;
 
+/// The same fence beside the clone:
+/// its reads on a thread of their own while the tracked files are copied,
+/// and the seed the index is installed from once both have answered.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_beside_the_clone;
+
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
 #[cfg(target_os = "linux")]

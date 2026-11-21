@@ -38,12 +38,34 @@ use crate::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination}
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_refusal, explain_unsupported};
+use crate::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_decline, explain_refusal, explain_unsupported};
 use crate::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_or_dirty};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLadder";
+
+/// What:
+///  Which shape the clone rung's conversion fence takes.
+/// Why:
+///   Option B runs the fence's reads beside the clone and writes what it leaves to Git after both have finished;
+/// option A′
+///  decides the same fence before anything is copied,
+/// and it is kept only in a measurement build,
+/// because its reads sit on
+///  the add's waiting path and the shipped shape no longer does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CloneFence = { when: 'beside' } | { when: 'before'; fence: Fence };
+/// ```
+pub(crate) enum CloneFence {
+    /// The fence's reads run beside the clone (option B, shipped).
+    Beside,
+    /// The fence was decided before the clone (option A′, measurement only).
+    #[cfg(feature = "measurement-routes")]
+    BeforeTheClone(crate::worktree_clone_conversion_fence::Fence),
+}
 
 /// What:
 ///  Which rung the ladder chose before Git ran,
@@ -56,7 +78,7 @@ const TAG: &str = "worktreeLadder";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume; claim: StageClaim } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
+/// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume; claim: StageClaim; fence: CloneFence } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
 /// ```
 pub(crate) enum Rung {
     /// Git's own checkout,
@@ -67,9 +89,8 @@ pub(crate) enum Rung {
     /// the claim records the add durably,
     /// so
     ///  an interrupted one is removed by the next command,
-    /// and the fence is the one this add's attributes and configuration already decided,
-    /// before any of that work began.
-    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, crate::worktree_clone_conversion_fence::Fence),
+    /// and the fence answers beside the copies of the files it reads.
+    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, CloneFence),
     /// A snapshot of the source,
     /// Git running without a checkout first.
     Snapshot(Box<SnapshotSource>, StageClaim),
@@ -255,27 +276,59 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
     if clone_refusal.is_none() && source.dirty.is_none() {
         // What:
-        //  The fence decides here, before the add's record is claimed and before real Git runs.
+        //  The cheap half of the fence decides here,
+        //  before the add's record is claimed and before real Git runs:
+        //  a source with an untracked or ignored `.gitattributes` above a tracked path is refused now.
         // Why:
-        //  A source the fence declines must cost only the reads the decision needs and Git's own checkout; decided any
-        //  later, the claim, Git's `--no-checkout` run and the second checkout are paid for a worktree Git could have
-        //  written in one run. A fence that cannot read its inputs is the same answer: Git's checkout is correct.
+        //  That walk costs no Git run and no copy,
+        //  so a source it refuses must not pay the claim and Git's `--no-checkout` run first.
+        //  The rest of the fence reads Git's attributes and blobs;
+        //  in the shipped shape it does so beside the copies,
+        //  and only a measurement build decides it here
+        //  (`measurement-routes`, option A′).
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const fence = fenceTheClone(source, context); // throws the reason the rung cannot be proven
+        // refuseUntrackedAttributes(source); // throws the reason the rung cannot be proven
         // ```
-        let conversion_fence_entered: bool = begin_step("conversionFence");
-        let conversion_fence_outcome = crate::worktree_clone_conversion_fence::fence_the_clone(&source, context);
-        end_step(conversion_fence_entered);
-        let fence: crate::worktree_clone_conversion_fence::Fence = match conversion_fence_outcome {
-            Ok(decided) => decided,
-            Err(reason) => {
-                note_timing("route", "Git's checkout after the clone rung ended");
-                log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
-                return (Rung::Git(prepare_subvolume_destination(plan)), slow);
+        let attributes_entered: bool = begin_step("conversionFence");
+        let refusals_outcome = crate::worktree_clone_conversion_fence::refuse_untracked_attributes(&source);
+        end_step(attributes_entered);
+        if let Err(reason) = refusals_outcome {
+            log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+            return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+        }
+        // What:
+        //  The measurement routes of a measurement build:
+        //  `decline`, `all`, `nodecline` and `beforeclone` all decide the fence here,
+        //  before the clone (options C, D, A and A′).
+        // Why:
+        //  A report that times those options needs each of them in a build of its own;
+        //  no shipped build enables the feature,
+        //  so the release binary holds no switch at all.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const fence = process.env.MONOCHROMATIC_CLONE_FENCE ? fenceTheCloneBeforeTheClone(source) : { when: 'beside' };
+        // ```
+        #[cfg(feature = "measurement-routes")]
+        let fence: CloneFence = match std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default().as_str() {
+            "decline" | "all" | "nodecline" | "beforeclone" => {
+                let conversion_fence_entered: bool = begin_step("conversionFence");
+                let conversion_fence_outcome = crate::worktree_clone_conversion_fence::fence_the_clone(&source, context);
+                end_step(conversion_fence_entered);
+                match conversion_fence_outcome {
+                    Ok(decided) => CloneFence::BeforeTheClone(decided),
+                    Err(reason) => {
+                        log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+                        return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+                    }
+                }
             }
+            _ => CloneFence::Beside,
         };
+        #[cfg(not(feature = "measurement-routes"))]
+        let fence: CloneFence = CloneFence::Beside;
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         let claim_stage_again_entered: bool = begin_step("claimStage");
         let claim_stage_again_outcome = match held.take() {

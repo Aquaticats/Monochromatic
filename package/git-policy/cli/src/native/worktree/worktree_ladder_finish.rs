@@ -39,7 +39,10 @@ use crate::fs_beneath::ObjectId;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
+use crate::worktree_clone::{ClonedBytes, clone_tracked_bytes, leftover_report};
+#[cfg(feature = "measurement-routes")]
+use crate::worktree_clone::{Cloned, clone_tracked_files};
+use crate::worktree_clone_conversion_beside_the_clone::{FenceBesideTheClone, install_beside_the_clone};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
@@ -48,7 +51,7 @@ use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
 use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
 use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
-use crate::worktree_slow_route::{SlowRoute, explain_failure};
+use crate::worktree_slow_route::{SlowRoute, explain_clone_failure, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
@@ -221,9 +224,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 
 /// What:
 ///  The clone rung:
-/// clone the tracked files into the destination,
+/// copy the tracked files into the destination,
+/// have the fence answer,
 /// install the index,
-/// apply the tree difference.
+/// apply the tree difference,
+/// and write through Git every path the fence left to it.
 /// Why:
 ///   The destination is filled in place;
 /// an error removes nothing:
@@ -231,27 +236,79 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// are reported,
 /// and Git's
 ///  own checkout completes the worktree and overwrites the tracked ones.
+/// The fence's two shapes put the same steps in a different order
+/// (`CloneFence`):
+/// beside the copies,
+///  nothing is installed until the fence has answered,
+///  and the seed it hands the install holds no stat data for the paths Git still has to write;
+/// before the copies,
+///  option A′ of the fence's report,
+///  every copied path is proven and the index may vouch for all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_fence::Fence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
+fn serve_clones(source: &SnapshotSource, fence: crate::worktree_ladder_run::CloneFence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
+    let beside: bool = matches!(fence, crate::worktree_ladder_run::CloneFence::Beside);
+    let (created, decided): (Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence) = clone_with_the_fence(source, fence, bound, context)?;
     let applied: Result<(), String> = match verify_association(bound) {
         Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
         Err(reason) => Err(reason),
     };
     if let Err(reason) = applied {
-        warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
+        warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(created.as_slice(), plan.destination.as_path())).as_str());
         return Err(reason);
     }
-    if !fence.git_writes.is_empty() {
-        crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), plan.destination.as_path(), context, fence.git_writes.as_slice(), source.clean.hash_length)?;
+    if !decided.git_writes.is_empty() {
+        if beside {
+            crate::worktree_clone_conversion_fence::checkout_index_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length)?;
+        } else {
+            crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length)?;
+        }
     }
     return Ok(target.line);
+}
+
+/// What:
+///  Copy the tracked files and get the fence's answer,
+/// in the order the rung's fence shape names,
+/// and install the index the fence's answer allows.
+/// Why:
+///   The order is the option.
+/// In the shipped shape the copies and the fence's reads run together,
+/// the join is taken whatever the copy's answer was,
+/// and the index is installed from a seed that holds no stat data for a path Git still has to write,
+///  so no step between the copy and Git's write records such a path clean;
+/// a fence that ends the rung leaves no index at all,
+///  and Git's own checkout writes the whole worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function cloneWithTheFence(args): Promise<[Created[], Fence]>; // throws a reason
+/// ```
+fn clone_with_the_fence(source: &SnapshotSource, fence: crate::worktree_ladder_run::CloneFence, bound: &Bound, context: &GitContext) -> Result<(Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence), String> {
+    return match fence {
+        #[cfg(feature = "measurement-routes")]
+        crate::worktree_ladder_run::CloneFence::BeforeTheClone(decided) => {
+            let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
+            Ok((cloned.into_created(), decided))
+        }
+        crate::worktree_ladder_run::CloneFence::Beside => {
+            let beside_entered: bool = begin_step("conversionBesideTheClone");
+            let beside = FenceBesideTheClone::start(source, context);
+            let copied: Result<ClonedBytes, String> = clone_tracked_bytes(source, &bound.destination);
+            let answered: Result<crate::worktree_clone_conversion_fence::Fence, String> = beside.join();
+            end_step(beside_entered);
+            let cloned: ClonedBytes = copied?;
+            // A fence's reason ends the rung here, before any index exists: Git's checkout writes the worktree.
+            let decided: crate::worktree_clone_conversion_fence::Fence = answered?;
+            install_beside_the_clone(&bound.admin, source, &decided, cloned.stats())?;
+            Ok((cloned.into_created(), decided))
+        }
+    };
 }
 
 /// What:
@@ -383,7 +440,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_fence::Fence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, fence: crate::worktree_ladder_run::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
     }
@@ -407,8 +464,9 @@ fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversio
             // The record said which rung was chosen; the worktree this add publishes is Git's checkout, and a report that
             // read the route would otherwise take the clone for what wrote it.
             crate::add_timing::note("route", "Git's checkout after the clone rung ended");
-            // The clones failed after the cause that already sent the add this way, if any: the person hears the later one.
-            *slow = Some(explain_failure(reason.as_str()));
+            // The person is told why the clone rung ended, the fence's decline included, and the sentence names the clone
+            // rung and not the snapshot.
+            *slow = Some(explain_clone_failure(reason.as_str()));
             LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
         }
     };

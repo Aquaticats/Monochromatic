@@ -2,7 +2,8 @@
 //!  Rung 2 of the cheap-worktree ladder:
 //! each tracked file of the clean source is cloned (`FICLONE`) into the new worktree
 //!  with the source's mode and times,
-//! and the source's index is installed with fresh stat fields.
+//! and the source's index is installed with fresh stat fields
+//!  for the paths the rung's fence may carry.
 //! Why:
 //!  A clone shares every data block with the source on btrfs,
 //! on XFS with reflink and inside an overlay,
@@ -20,6 +21,9 @@
 //!  size and modification time kept,
 //! only the inode,
 //! change time and device of every entry change.
+//! A path the conversion fence leaves to Git is installed with no stat data at all
+//! (`install_the_index`),
+//!  so no step between the copy and Git's own write records it clean.
 //! The first failure ends
 //!  the rung with its reason,
 //! the entries this run created stay (a name cannot be checked and unlinked in one step),
@@ -37,7 +41,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await cloneTrackedFiles(source, destination, admin); // throws a reason
+//! const cloned = cloneTrackedBytes(source, destination); // throws a reason
+//! installTheIndex(admin, seed, cloned.stats, written, hashLength); // throws a reason
 //! ```
 
 use crate::add_timing::{begin_step, begin_work, end_step, note, note_work};
@@ -53,7 +58,7 @@ use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean::{StatEntry, metadata_differs_from_entry, stored_stats};
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::fd::AsRawFd;
@@ -230,6 +235,59 @@ impl Cloned {
     /// in creation order.
     pub fn created(&self) -> &[Created] {
         return self.created.as_slice();
+    }
+
+    /// The entries the run created,
+    /// in creation order,
+    /// as the caller's own.
+    pub fn into_created(self) -> Vec<Created> {
+        return self.created;
+    }
+}
+
+/// What:
+///  What a clone run holds before any index is installed:
+/// the entries it created,
+/// and the stat fields of every file and link it made,
+///  by path.
+/// Why:
+///   The index install is a step of its own,
+/// so the fence beside the clone can answer between the copy and the install,
+/// and a path Git
+///  still has to write is installed with no stat data (`install_the_index`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ClonedBytes = { created: Created[]; stats: Map<string, StatFields> };
+/// ```
+#[derive(Debug)]
+pub struct ClonedBytes {
+    /// The entries created,
+    /// in creation order.
+    created: Vec<Created>,
+    /// The stat fields of the objects made,
+    /// by path.
+    stats: HashMap<Vec<u8>, StatFields>,
+}
+
+impl ClonedBytes {
+    /// The entries the run created,
+    /// in creation order.
+    pub fn created(&self) -> &[Created] {
+        return self.created.as_slice();
+    }
+
+    /// The stat fields of the objects made,
+    /// by path.
+    pub fn stats(&self) -> &HashMap<Vec<u8>, StatFields> {
+        return &self.stats;
+    }
+
+    /// The entries the run created,
+    /// in creation order,
+    /// as the caller's own.
+    pub fn into_created(self) -> Vec<Created> {
+        return self.created;
     }
 }
 
@@ -621,28 +679,62 @@ fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
 
 /// What:
 ///  The stat fields the clones recorded,
-/// looked up by path for the index the new worktree takes.
+/// looked up by path for the index the new worktree takes,
+///  and none for the paths the conversion fence leaves to Git.
 /// Why:
 ///   Each clone recorded the fields of the file it made,
-/// and the index install asks for them by the entry's path.
+/// and the index install asks for them by the entry's path;
+/// a path Git still has to write keeps the zeroed stat data its seed entry holds,
+///  so nothing between the copy and Git's write records it clean.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class StatsMadeByTheClones implements StatLookup { statNow(path) { return this.stats.get(path); } }
+/// class StatsMadeByTheClones implements StatLookup { statNow(path) { return this.written.has(path) ? undefined : this.stats.get(path); } }
 /// ```
 struct StatsMadeByTheClones<'a> {
     /// The fields by path.
     stats: &'a HashMap<Vec<u8>, StatFields>,
+    /// The paths Git writes,
+    /// whose entries keep no stat data.
+    written: &'a HashSet<Vec<u8>>,
 }
 
 impl StatLookup for StatsMadeByTheClones<'_> {
     fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        if self.written.contains(path) {
+            return None;
+        }
         return self.stats.get(path).copied();
     }
 }
 
+/// What:
+///  Install `seed` as the index of the new worktree whose administrative directory is the open handle `admin`,
+/// with the stat fields the clones recorded,
+///  and none for the paths in `written`.
+/// Why:
+///   The seed the caller passes has those entries' stat data already zeroed
+/// (`subvolume_index::with_zeroed_stat`),
+/// and the install writes no fresh fields over them,
+/// so the published index never vouches for a path Git still has to write.
+/// The step is the install's own, so the fence before the clone and the fence beside it
+///  record it alike.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// installTheIndex(admin, seed, stats, written, hashLength); // throws a reason
+/// ```
+pub fn install_the_index(admin: &File, seed: &[u8], stats: &HashMap<Vec<u8>, StatFields>, written: &HashSet<Vec<u8>>, hash_length: usize) -> Result<String, String> {
+    let index_entered: bool = begin_step("cloneIndex");
+    let installed: Result<String, String> = install_index_in(admin, seed, &mut StatsMadeByTheClones { stats, written }, hash_length);
+    end_step(index_entered);
+    let report: String = installed?;
+    debug_report(report.as_str());
+    return Ok(report);
+}
+
 /// `clone_all` in one turn, with the moments at which a control may move the tree.
-fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
+fn clone_with(source: &SnapshotSource, directories: &mut Directories, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
@@ -661,12 +753,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
         return Err(reason);
     }
     (seams.before_index)();
-    let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length);
-    end_step(index_entered);
-    let report: String = installed?;
-    debug_report(report.as_str());
-    return Ok(());
+    return Ok(stats);
 }
 
 /// What one slice of the clones works on.
@@ -784,9 +871,9 @@ fn clone_worker_count(entries: usize) -> usize {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// cloneInSlices({ source, entries, destination, admin, created, workers }); // throws a reason
+/// cloneInSlices({ source, entries, destination, created, workers }); // throws a reason
 /// ```
-fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, admin: &File, created: &mut Vec<Created>, workers: usize) -> Result<(), String> {
+fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destination: &File, created: &mut Vec<Created>, workers: usize) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let source_root: Arc<File> = Arc::new(subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?);
     let destination_held: Arc<File> = Arc::new(subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let shared_source: Arc<SnapshotSource> = Arc::new(source.clone());
@@ -810,7 +897,7 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
             let mut directories: Directories = HashMap::new();
             directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
             let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-            return clone_with(source, &mut directories, admin, created, &mut seams);
+            return clone_with(source, &mut directories, created, &mut seams);
         }
     };
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
@@ -834,30 +921,25 @@ fn clone_in_slices(source: &SnapshotSource, entries: Arc<[StatEntry]>, destinati
     if let Some(reason) = failure {
         return Err(reason);
     }
-    let index_entered: bool = begin_step("cloneIndex");
-    let installed: Result<String, String> = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length);
-    end_step(index_entered);
-    let report: String = installed?;
-    debug_report(report.as_str());
-    return Ok(());
+    return Ok(stats);
 }
 
 /// The run itself:
-/// every tracked file in the slices the host's budget allows,
-/// then the index;
-/// the caller removes `created` when this fails.
-fn clone_all(source: &SnapshotSource, destination: &File, admin: &File, created: &mut Vec<Created>) -> Result<(), String> {
+/// every tracked file in the slices the host's budget allows;
+/// the caller installs the index,
+/// and removes `created` when this fails.
+fn clone_all(source: &SnapshotSource, destination: &File, created: &mut Vec<Created>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
     let workers: usize = clone_worker_count(entries.len());
     if workers > 1 {
-        return clone_in_slices(source, Arc::from(entries), destination, admin, created, workers);
+        return clone_in_slices(source, Arc::from(entries), destination, created, workers);
     }
     let mut directories: Directories = HashMap::new();
     directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
-    return clone_with(source, &mut directories, admin, created, &mut seams);
+    return clone_with(source, &mut directories, created, &mut seams);
 }
 
 /// Log what the index install did.
@@ -870,29 +952,53 @@ fn debug_report(report: &str) {
 }
 
 /// What:
-///  Clone every tracked file of the frozen index into the held `destination`,
-/// and install that index in the held `admin`
-///  with the stat fields of the regular files made.
+///  Clone every tracked file of the frozen index into the held `destination`.
 /// On an error nothing is removed:
 /// the entries this run created stay and
 ///  are counted in the reason.
 /// Why:
-///   The index bytes are the ones proven clean,
-/// so what is installed is what was proven;
-/// the destination may hold files
-///  of other writers,
+///   The bytes come first and the index install is a step of its own,
+/// so the conversion fence can read its inputs and decide while these files are copied,
+/// and no
+///  index exists until every path has its bytes.
+/// The destination may hold files of other writers,
 /// and they are not this run's to remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const cloned = await cloneTrackedFiles(source, destination, admin); // throws a reason
+/// const cloned = cloneTrackedBytes(source, destination); // throws a reason
 /// ```
-pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &File) -> Result<Cloned, String> {
+pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Result<ClonedBytes, String> {
     let mut created: Vec<Created> = Vec::new();
-    if let Err(reason) = clone_all(source, destination, admin, &mut created) {
-        return Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) });
-    }
-    return Ok(Cloned { created });
+    return match clone_all(source, destination, &mut created) {
+        Ok(stats) => Ok(ClonedBytes { created, stats }),
+        Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
+    };
+}
+
+/// What:
+///  Clone every tracked file of the frozen index into the held `destination`,
+/// and install that index in the held `admin`
+///  with the stat fields of every file and link made.
+/// Why:
+///   This is option A′ of the conversion fence's report
+/// (`doc/planning/cli-git-clone-rung-conversion-fence.md`):
+/// the fence was decided before the clone,
+/// so every copied path is proven to hold its blob and
+///  the installed index may vouch for all of them.
+/// It is kept only for a measurement build (`measurement-routes`);
+/// the shipped shape
+///  is `clone_tracked_bytes` and `install_the_index` around a fence that runs beside the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cloned = cloneTrackedFiles(source, destination, admin); // throws a reason
+/// ```
+#[cfg(any(test, feature = "measurement-routes"))]
+pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &File) -> Result<Cloned, String> {
+    let cloned: ClonedBytes = clone_tracked_bytes(source, destination)?;
+    install_the_index(admin, source.clean.index_bytes.as_slice(), cloned.stats(), &HashSet::new(), source.clean.hash_length)?;
+    return Ok(Cloned { created: cloned.created });
 }
 
 /// Clone rung controls stay out of the release executable.

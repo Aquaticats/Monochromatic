@@ -67,11 +67,14 @@ const WRITTEN_PATHS_REPORTED: usize = 8;
 /// The share of the tracked paths past which the rung declines instead of writing them through Git,
 /// as `1 / DECLINE_SHARE_DIVISOR`.
 /// Why this share:
-///  the write step prices a path through Git's own rules at about 0.06 to 0.08 ms for a text path and 0.41 to 0.57 ms
-///  for an LFS path (this round's `measure-recheck2-md-*` and `-real-*` runs, both classes in one `git checkout-index`),
-///  and a quarter is where a fenced add stops being separably faster than `main`'s own checkout;
-///  the measured converting source (15,731 of 24,389 paths,
-///  0.645) is far above it.
+///  the write step prices a path through Git's own rules at about 0.12 ms for a text path and 0.31 to 0.57 ms for an
+///  LFS path across kept runs (`measure-recheck2-md-*` and `-real-*`,
+///  `measure-gdc-real-*`; both classes in one `git checkout-index`),
+///  and the rule's threshold is above the break-even those prices give:
+///  the fence stays under `main` while the paths it writes cost less than `main`'s checkout minus the fence's non-write
+///  work, which lies between this repository's 0.065 and the measured 0.199 share.
+///  The part of that band the rule does not decline is a cost the proposal states.
+///  One measured source above the threshold is the converting one (0.644 of its paths) and it declines.
 pub const DECLINE_SHARE_DIVISOR: usize = 4;
 
 /// The counted paths below which the share is not worth a decline.
@@ -393,6 +396,33 @@ fn all_paths_through_git(entries: &[StatEntry]) -> Fence {
 }
 
 /// What:
+///  Refuse a source with an untracked or ignored `.gitattributes` above a tracked path,
+///  with the reason the rung cannot be proven.
+/// Why:
+///   Git read that file when the source's files were added and the new worktree will not have it,
+/// so no answer Git gives today
+///  can prove what it said then.
+/// The walk costs no Git run and no walk of the ignored directories,
+/// so the rung takes it before it copies anything,
+///  beside the other cheap refusals;
+/// the fence's own reads then run where the shape is,
+///  before or beside the clone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseUntrackedAttributes(source); // throws the reason
+/// ```
+pub fn refuse_untracked_attributes(source: &SnapshotSource) -> Result<(), String> {
+    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+        return Err(String::from("the source's index changed shape"));
+    };
+    return match first_untracked_attributes(entries.as_slice(), source.root.as_path()) {
+        Some(reason) => Err(reason),
+        None => Ok(()),
+    };
+}
+
+/// What:
 ///  Decide every tracked path of the clean source:
 /// what the clones may carry and what Git must write.
 /// Why:
@@ -405,12 +435,10 @@ fn all_paths_through_git(entries: &[StatEntry]) -> Fence {
 /// function fenceTheClone(source, context): Fence; // throws the reason the rung cannot be proven
 /// ```
 pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<Fence, String> {
+    refuse_untracked_attributes(source)?;
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
-    if let Some(reason) = first_untracked_attributes(entries.as_slice(), source.root.as_path()) {
-        return Err(reason);
-    }
     // What:
     //  The measurement routes of a measurement build: `decline` is option C (refuse the rung whenever anything could
     //  convert, with no Git run at all) and `all` is option D (Git writes every tracked path, with no attribute read).
@@ -499,6 +527,29 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 }
 
 /// What:
+///  The paths of the destination's index,
+///  as the set a write step intersects a fence's answer with.
+/// Why:
+///   The tree difference can remove a path the new `HEAD` lacks,
+/// and `git checkout-index` fails the whole rung on a path its index does not hold
+///  ("is not in the cache"),
+///  so both write steps ask the destination's own index which of the fenced paths are still there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pathsTheDestinationIndexHolds(admin, hashLength): Set<string>; // throws the reason
+/// ```
+fn paths_the_destination_index_holds(admin: &Path, hash_length: usize) -> Result<HashSet<Vec<u8>>, String> {
+    let index_path: PathBuf = admin.join("index");
+    let bytes: Vec<u8> = std::fs::read(index_path.as_path()).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
+    let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let Some(entries) = parse_index(bytes.as_slice(), format) else {
+        return Err(String::from("the new worktree's index has a layout the reader does not know"));
+    };
+    return Ok(entries.iter().map(|entry| return entry.path.clone()).collect());
+}
+
+/// What:
 ///  Zero the instance data of the index entries for `paths`,
 /// with one `git update-index -z --index-info`,
 /// so the entry no longer vouches for whatever the rung put in the work tree,
@@ -519,6 +570,8 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// `git update-index --index-info` *adds* an entry a path lacks,
 /// so a fenced path the new `HEAD` does not carry would be injected into the destination's index,
 /// and `git checkout-index` would then fail the whole rung ("is not in the cache").
+/// This is option A′'s write step;
+///  the fence beside the clone installs its zeroes with the index itself and needs only the checkout below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -575,13 +628,37 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
 /// ```
 pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
     let zeroed: Vec<Vec<u8>> = zero_the_entries(admin, destination, context, paths, hash_length)?;
-    if zeroed.is_empty() {
-        return Ok(());
-    }
+    return checkout_index_through_git(admin, destination, context, zeroed.as_slice(), hash_length);
+}
+
+/// What:
+///  Write the paths Git must write through one `git checkout-index --force --stdin`,
+/// without zeroing anything first,
+/// and only for the paths the destination's index holds.
+/// Why:
+///   This is the fence beside the clone's write step:
+/// the seed the index was installed from holds the written paths' stat data already zeroed
+/// (`worktree_clone_conversion_beside_the_clone::seed_without_stat`),
+///  so a zeroing run would only rewrite zeroes;
+/// the intersection stays,
+/// because the tree difference can have removed a path the new `HEAD` lacks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkoutIndexThroughGit(admin, destination, context, paths, hashLength); // throws the reason
+/// ```
+pub fn checkout_index_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+    let held: HashSet<Vec<u8>> = paths_the_destination_index_holds(admin, hash_length)?;
     let mut input: Vec<u8> = Vec::new();
-    for path in &zeroed {
+    for path in paths {
+        if !held.contains(path.as_slice()) {
+            continue;
+        }
         input.extend_from_slice(path.as_slice());
         input.push(0);
+    }
+    if input.is_empty() {
+        return Ok(());
     }
     let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
     return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
