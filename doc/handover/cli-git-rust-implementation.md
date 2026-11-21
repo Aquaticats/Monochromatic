@@ -41292,7 +41292,14 @@ stated in this entry. What follows from them, as work:
   branch (lint after: test file 0, doc 580 as on `main`). MERGED as `1a53a03178` at 2026-11-21T15:33:17-05:00; issue 6330
   closed. Its N2 and N3 (the probe header's unsoftened claims and x86-64 syscall numbers; v7.3 ranges not like-for-like)
   are nits left in that review. HOUSEKEEPING: the old `integrate/git-policy-cli-lfs-and-gate-base-image-data` worktree
-  removed (both branches it merged are on `main`; its only own commits were its two merges).
+  removed (both branches it merged are on `main`; its only own commits were its two merges). ISSUE 6327'S ROUND ended at
+  `77668d466b` on `fix/git-policy-cli-slot-identity-store-rewrite-size-check`: one shared size check
+  (`check_the_store_fits_one_read`) for the append and the adoption's rewrite, refusing before anything is written; the
+  refusal control red in the gate image (the rewrite grew the store 399 bytes past the bound) then green, and a rewrite
+  landing exactly on the bound reads back; SPEC and the lock-hold document updated (adoption hold 44.146 to 46.676 ms, the
+  wait's basis unchanged); gate 9476 of 9478, the cause-H pair. To judge: its refusal sentence sends a user of the released
+  binary to "the owner's open question (`doc/handover/questions-for-the-owner.md`)". GOING: its integration pass on Sonnet
+  (review to `~/temp/agent/integration-pass-git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/keep/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
