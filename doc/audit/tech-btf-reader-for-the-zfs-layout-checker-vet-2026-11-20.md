@@ -112,7 +112,7 @@ and no independent read has reviewed them.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T20:29:03-05:00,
+  2026-11-20T20:30:48-05:00,
   the write time of the fourth revision.
 - Revisions:
   four.
@@ -219,7 +219,7 @@ and no independent read has reviewed them.
   Every record after 14 records the previous record's `postEditSha256` as its `preEditSha256`,
   and the last record's `postEditSha256` is the report the third revision committed,
   so the final write is locked and the chain holds from record 14 onward.
-  The fourth revision wrote the report four times,
+  The fourth revision wrote the report five times,
   all under the lock:
   it staged its text in its own scratch folder,
   took the lock,
@@ -229,13 +229,13 @@ and no independent read has reviewed them.
   `2026-11-21T01:27:04-05:00`,
   a UTC date carrying a local offset;
   record 24 replaced that reading with the write's own local time;
-  and record 25 corrected this paragraph to report three writes rather than one and mended five
-  sentences it had left loose.
-  Record 26 recorded the digest of the image the gate final check's rerun built,
-  which M4 asks for and
-  the truncated base digest alone could not give.
-  The chain runs unbroken from record 22 through all four,
-  and record 26's `postEditSha256` is the report this revision commits.
+  record 25 corrected the paragraph that reports these writes and mended five sentences it had left
+  loose;
+  record 26 recorded the digest of the image the gate final check's rerun built;
+  and record 27 corrected one sentence about `bpftool`'s two program tests,
+  which rests on the report's reading and not on a read of the files.
+  The chain runs unbroken from record 22 through all five,
+  and record 27's `postEditSha256` is the report this revision commits.
 
   The chain does not hold inside the second revision,
   and the report says so rather than leaving it to a reader:
@@ -2583,9 +2583,11 @@ The third revision took each program in turn.
   `bpf(` and `syscall` finds nothing.
   Both need a kernel source tree,
   which this round did not have.
-  Two are privileged:
-  `prog_tests/bpftool_maps_access.c` and `prog_tests/bpftool_metadata.c`,
-  which load BPF programs and so need root and a BPF-capable kernel.
+  Two sit under `prog_tests/`,
+  `bpftool_maps_access.c` and `bpftool_metadata.c`,
+  and the report read them as needing root and a BPF-capable kernel;
+  the gate final check did not read those two and says so,
+  so that reading is carried here and not verified.
   No run here took those privileges,
   and a container's kernel is this host's kernel;
   a throwaway-VM route exists on this host and the report did not try it.
@@ -3622,7 +3624,8 @@ Two families are run and the difference matters:
 
 The two families' counts are the gate final check's,
 recomputed with its script under the C2 label the report prints,
-and they differ from the third revision's only by the two C2 rating steps that label adds.
+and they differ from the third revision's only by the C2 rating steps that label adds,
+two in the finalists' family and four in the four-candidate arm.
 The arm counts at the design writer's weights and the seven-criteria comparison are this revision's,
 from that same test definition over the same ratings,
 and that script and its output are kept in this revision's `keep/`.
