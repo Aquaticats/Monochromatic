@@ -41384,7 +41384,19 @@ stated in this entry. What follows from them, as work:
   the branch and on `main`), read as a host condition; gate 9559 of 9561. It stated its first round stopped three
   containers on a creation-time match. GOING: step 7's integration pass on Sonnet (review to
   `~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`), sorting its six open
-  questions into settled, later-step or owner's. Step 7's
+  questions into settled, later-step or owner's. ISSUE 6334'S ROUND ended at `a683375396`: every gate container carries
+  `--name gpc-gate-<run id>-<suite|clippy>` and `--label dev.monochromatic.git-policy.gate-run=<run id>` (the run id from
+  the evidence folder's random name), printed before the suite and recorded in `manifest.json` even on a refusal;
+  README guidance; a "Cause J" troubleshooting section; unit tests; gate 9476 of 9478. Its probe measured that a gate
+  container outlives a stopped `systemd-run` unit, so the briefs' "end your own gate by stopping the unit" leaves the
+  container running until its suite ends (`--rm` then removes it); the README now says to `podman stop` the printed names
+  too. Its Cause J states as fact that another session's SIGTERM ended a gate, which the `podman events` evidence does not
+  establish. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-git-policy-cli-gate-containers-carry-a-run-label-2026-11-21/keep/review.md`). THE
+  PARTIAL CLONE (task 415) resumed: `pi-clone-rung-partial-clone-on-the-fenced-rung` in its own worktree
+  `.claude/worktrees/clone-rung-partial-clone-of-a-dirty-source` (merge `main`, the prototype on the fenced rung,
+  re-measured against `main` and Git's checkout, whether the waiver's end condition is met; brief under
+  `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/`); then a Sonnet re-check, then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
