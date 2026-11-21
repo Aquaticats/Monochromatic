@@ -40865,7 +40865,14 @@ stated in this entry. What follows from them, as work:
   and changes no decision. Issue 6328 filed for the 60 package tasks without the shared parser and the inline node tasks
   without a usage spec. GOING: `pi-mise-usage-args-integration-pass-findings-fixed` (cap 400; brief under
   `~/temp/agent/mise-usage-args-integration-pass-findings-fixed-2026-11-20/`). `~/temp/agent/module-test-logs` (141 MB,
-  logs since 2026-11-17) is the module test harness's shared default log folder, left in place.
+  logs since 2026-11-17) is the module test harness's shared default log folder, left in place. THE ISSUE 6324 FIX
+  MERGED into `main` as `9f2fccf6d4` (integration re-check on Sonnet fit, its gate 9278 of 9280 with the cause-H pair;
+  the three Rust files reach only the `native_binary` test target). Lows that follow, on the issue: the source-text control
+  of the wiring is narrower than the behavioural stall-seam control the reviewer prototyped
+  (`~/temp/agent/integration-recheck-git-policy-cli-bounded-wait-after-findings-2026-11-20/keep/prototype-g-a-stall-seam-and-a-behavioural-control-of-the-wiring.patch`);
+  the doc's run command names `recv_timeout_queued_message` for `recv-timeout-queued-message`; two docs in
+  `binary_support_observation_bound.rs` still say the wait reads no status; the `LineBound` doc should say "no shipped
+  caller"; nits. The issue is left open for the owner to close.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
