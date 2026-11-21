@@ -236,6 +236,204 @@ fn the_skip_variable_is_read_as_a_boolean() {
     assert!(!skip_requested(&[]));
 }
 
+//region OpenSSH's words for a host key this machine does not know, and for one that changed
+
+/// OpenSSH's own words for a host key this machine does not know,
+/// under the account's default `StrictHostKeyChecking=ask`,
+/// measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2 and the wrapper's two variables
+/// (`SSH_ASKPASS=false`,
+/// `SSH_ASKPASS_REQUIRE=force`):
+/// the yes/no question goes to a program that answers nothing,
+/// and an empty answer is not "yes".
+const AN_UNKNOWN_HOST_KEY: &str = "Host key verification failed.\n";
+
+/// The words for a host whose key this machine's `known_hosts` holds as a different one:
+/// OpenSSH warns that someone may be attacking the connection,
+/// and then prints the same last line an unknown key gets.
+const A_CHANGED_HOST_KEY: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n\
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n\
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n\
+It is also possible that a host key has just been changed.\n\
+The fingerprint for the ED25519 key sent by the remote host is\n\
+SHA256:ZaVZ8S9YV0dQ4EG1Jc1iNoB8wqvbUpvB0GbUlZrKz3E.\n\
+Please contact your system administrator.\n\
+Add correct host key in a known_hosts file to get rid of this message.\n\
+Offending ED25519 key in a known_hosts file:1\n\
+Host key for [127.0.0.1]:41783 has changed and you have requested strict checking.\n\
+Host key verification failed.\n";
+
+/// The words for a host this machine does not know while the account asks for strict checking:
+/// the refusal is still an unknown key,
+/// and every way out the wrapper prints still applies.
+const AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING: &str =
+    "No ED25519 host key is known for [127.0.0.1]:41783 and you have requested strict checking.\nHost key verification failed.\n";
+
+/// The words for a host whose key this machine's `known_hosts` marks `@revoked`,
+/// measured the same way as the two above:
+/// OpenSSH warns that a stolen key may be in use,
+/// says the key was revoked,
+/// and then prints the same last line an unknown key gets.
+const A_HOST_KEY_MARKED_REVOKED: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+@       WARNING: REVOKED HOST KEY DETECTED!               @\n\
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+The ED25519 host key for [127.0.0.1]:43055 is marked as revoked.\n\
+This could mean that a stolen key is being used to\n\
+impersonate this host.\n\
+ED25519 host key for [127.0.0.1]:43055 was revoked and you have requested strict checking.\n\
+Host key verification failed.\n";
+
+/// The words for a host whose key a `RevokedHostKeys` file lists,
+/// measured the same way:
+/// OpenSSH names the file that revoked it,
+/// and then prints the same last line an unknown key gets.
+const A_HOST_KEY_REVOKED_BY_A_FILE: &str = "Host key ED25519 SHA256:hxi5iW5hp0qrgMwSe0Hxb1aY0bOOHuIp6qZxsZ+Prf4 revoked by file \
+/home/someone/revoked-host-keys\n\
+Host key verification failed.\n";
+
+/// What:
+///  A host key this machine does not know is read,
+///  whether the account leaves the question open or asks for strict checking.
+/// Why:
+///   Both are openSSH's refusal to connect to a host whose key this machine has none of,
+///  which is the refusal the no-prompt rule turns into an empty answer,
+///  so both get the sentence that names the two ways to add the key.
+#[test]
+fn a_host_key_this_machine_does_not_know_is_read() {
+    for text in [AN_UNKNOWN_HOST_KEY, AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING] {
+        assert!(reads_as_unknown_host_key(text), "{text}");
+    }
+}
+
+/// What:
+///  A host key that changed is not read as an unknown one.
+/// Why:
+///   OpenSSH has just said that this machine knows a key for the host and that the key it was given differs,
+///  and that someone may be attacking the connection;
+///  telling the person the key is unknown and to add the new one would answer that warning with the opposite advice.
+///  OpenSSH's own words stay,
+/// as they do on `main`.
+#[test]
+fn a_changed_host_key_keeps_opensshs_own_warning_and_is_no_unknown_key() {
+    assert!(
+        !reads_as_unknown_host_key(A_CHANGED_HOST_KEY),
+        "a changed key is not an unknown one, and its transcript is OpenSSH's warning of a possible attack"
+    );
+}
+
+/// What:
+///  A host key this machine's `known_hosts` marks as revoked is not read as an unknown one.
+/// Why:
+///   OpenSSH has just said that the key it was given is revoked and that a stolen key may be in use;
+///  telling the person the key is unknown and to add it to `known_hosts` would answer that warning with advice to trust
+///  the key a theft was suspected of,
+///  and the push's record would promise a retry that adds nothing.
+///  OpenSSH's own words stay,
+/// as they do on `main`.
+#[test]
+fn a_host_key_marked_revoked_is_no_unknown_key() {
+    assert!(
+        !reads_as_unknown_host_key(A_HOST_KEY_MARKED_REVOKED),
+        "a revoked key is not an unknown one, and its transcript is OpenSSH's warning that a stolen key may be in use"
+    );
+}
+
+/// What:
+///  A host key a `RevokedHostKeys` file lists is not read as an unknown one.
+/// Why:
+///   The account said the key is revoked and OpenSSH named the file that says so;
+///  the way out above would send the person to add that very key,
+///  and this file is where the account took it away.
+#[test]
+fn a_host_key_revoked_by_a_file_is_no_unknown_key() {
+    assert!(
+        !reads_as_unknown_host_key(A_HOST_KEY_REVOKED_BY_A_FILE),
+        "a key revoked by a file is not an unknown one, and adding it is what the account forbade"
+    );
+}
+
+/// The warning OpenSSH prints for a changed key
+/// (`warn_changed_key`,
+/// `sshconnect.c` at `V_10_6_P2` lines 1716 to 1726),
+/// as a whole block and without the lines about the `known_hosts` entry,
+/// with the last line every host-key refusal ends in.
+/// The banner never comes without the sentence about the host key that changed,
+/// because one function prints both.
+const A_CHANGED_HOST_KEYS_WARNING_ALONE: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n\
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n\
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n\
+It is also possible that a host key has just been changed.\n\
+Host key verification failed.\n";
+
+/// The line that ends OpenSSH's warning about a changed key,
+/// alone with the same last line.
+const A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE: &str =
+    "Host key for [127.0.0.1]:41783 has changed and you have requested strict checking.\nHost key verification failed.\n";
+
+/// The banner OpenSSH prints for the key of a refused host that it will not trust,
+/// alone with the same last line:
+/// its capitals are what the reading folds.
+const A_REVOKED_HOST_KEYS_BANNER_ALONE: &str = "@       WARNING: REVOKED HOST KEY DETECTED!               @\nHost key verification failed.\n";
+
+/// The sentence that says the key is marked as revoked,
+/// alone with the same last line.
+const A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE: &str =
+    "The ED25519 host key for [127.0.0.1]:43055 is marked as revoked.\nHost key verification failed.\n";
+
+/// The line with which OpenSSH refuses a certificate that does not fit the host
+/// (`sshkey_cert_check_host`,
+/// `sshkey.c` at `V_10_6_P2` lines 2480 to 2484),
+/// alone with the same last line.
+const A_CERTIFICATE_THAT_DOES_NOT_FIT: &str = "Certificate invalid: name is not a listed principal\nHost key verification failed.\n";
+
+/// OpenSSH's words for a host key that differs from the key known for the host's IP address
+/// (`sshconnect.c` at `V_10_6_P2` lines 1425 to 1452),
+/// taken from the source:
+/// an arm that asked for the check was allowed the connection instead.
+const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS: &str = "Warning: the ED25519 host key for 'localhost' differs from the key for the IP address '127.0.0.1'\nOffending key for IP in /home/someone/.ssh/known_hosts:2\nHost key verification failed.\n";
+
+/// A connection that needed no host-key decision at all,
+/// because the key it was given was already known.
+const A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION: &str =
+    "Warning: Permanently added '127.0.0.1' (ED25519) to the list of known hosts.\n";
+
+/// What:
+///  Each sentence OpenSSH prints beside its last line for a refusal that is not an unknown key answers by itself:
+///  a transcript holding that sentence and nothing else of a host key is no unknown key.
+/// Why:
+///   The reading holds only while every host-key line it meets is an unknown key's own,
+///  so each phrase has to answer alone:
+///  a transcript that also carried another refusal's words would pass whatever the reading did with either of them.
+#[test]
+fn each_other_refusals_sentence_alone_is_no_unknown_key() {
+    for text in [
+        A_CHANGED_HOST_KEYS_WARNING_ALONE,
+        A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE,
+        A_REVOKED_HOST_KEYS_BANNER_ALONE,
+        A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE,
+        A_CERTIFICATE_THAT_DOES_NOT_FIT,
+        A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS,
+    ] {
+        assert!(!reads_as_unknown_host_key(text), "{text}");
+    }
+}
+
+/// What:
+///  A transcript that does not hold OpenSSH's last line is no unknown-key refusal,
+///  whatever else it printed.
+/// Why:
+///   That line is the only mark that a host key stopped the connection,
+///  so a connection that listed the host as known says nothing about an unknown key.
+#[test]
+fn a_transcript_without_the_last_line_is_no_unknown_key() {
+    assert!(!reads_as_unknown_host_key(A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION));
+}
+
+//endregion
+
 /// A relative `PATH` entry is resolved where the lookup happens,
 /// so the file found is the file that runs even when the
 ///  child starts in another directory (`-C`).

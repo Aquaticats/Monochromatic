@@ -64,6 +64,7 @@ fn plan(refs: &[&str], full_scan: bool, everything: bool) -> UploadPlan {
         refs: refs.iter().map(OsString::from).collect(),
         everything,
         submodules: false,
+        lfs_server: None,
         full_scan,
         objects: None,
     };

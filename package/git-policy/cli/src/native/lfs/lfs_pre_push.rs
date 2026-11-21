@@ -293,6 +293,34 @@ pub fn missing_program_message() -> String {
 }
 
 /// What:
+///  The refusal printed when `git-lfs` is found where the lookup looked and cannot be started.
+/// Why:
+///   The lookup found an executable file,
+///  so it is not missing;
+///  the operating system refused the start,
+///  and its own error says why (a missing interpreter for a script,
+///  a wrong machine type,
+///  no permission to read it).
+///  Reporting a program that is there as absent sends its reader to a `PATH` that is right.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything. ... but \`{LFS_PROGRAM}\` was found at ${program} and could not be started (${why}). ...`
+/// ```
+pub fn start_failed_message(program: &str, why: &str) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+         keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large files the pushed commits point \
+         to before it publishes the pointer files, and `{LFS_PROGRAM}` was found at {program} but could not be started ({why}). \
+         Pushing without that upload would publish pointers whose content the LFS server does not have. Ways forward: make that file \
+         runnable (the interpreter or loader the parentheses name must exist on this machine) and push again; or accept pointers \
+         without objects for this push with `git push --no-verify` and upload the objects later with `git lfs push --all <remote>` \
+         once it runs; or, if this repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the \
+         `filter.lfs.*` and `lfs.*` keys).\n"
+    );
+}
+
+/// What:
 ///  The refusal printed when the wrapper cannot work out which objects a push needs uploaded.
 /// Why:
 ///   Running the push without an upload could publish pointers whose objects the server lacks,
@@ -359,7 +387,7 @@ pub fn failed_message(status: &str) -> String {
 /// ```ts
 /// const LOGIN_NEEDED = ['terminal prompts disabled', 'could not read Username', 'could not read Password', 'too many authentication attempts'];
 /// ```
-const LOGIN_NEEDED: [&str; 4] = [
+const LOGIN_NEEDED: [&str; 5] = [
     // Git's own words from `prompt.c`, with terminal prompts off.
     "terminal prompts disabled",
     // Git's credential prompt when no askpass program and no terminal answer.
@@ -367,7 +395,29 @@ const LOGIN_NEEDED: [&str; 4] = [
     "could not read Password",
     // git-lfs's words when every login it was given was refused.
     "too many authentication attempts",
+    // OpenSSH's words when it would not or could not use a key: a key whose passphrase nobody could ask for at a
+    //  terminal, and a key the server does not accept, print the same line (`SSH_ASKPASS_REQUIRE=force` with a
+    //  program that answers nothing, the owner's answer of 2026-11-19: "Passphrases count too").
+    "Permission denied (",
 ];
+
+/// What:
+///  The word that names the key an SSH key's passphrase is missing for:
+///  it is the agent,
+/// and the command that fills it is `ssh-add`.
+/// Why:
+///   A passphrase counts as a credential under the owner's answer of 2026-11-19T16:58:00-05:00,
+///  so a key that no agent holds fails at once instead of asking,
+///  and OpenSSH's own `Permission denied (publickey)` says nothing about what to do;
+///  the explanation must name the command that loads the key.
+///  A key the server simply does not accept prints the same line,
+/// so the sentence says "refused or could not be unlocked" and names `ssh-add` as the way to rule the second out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SSH_ADD = 'ssh-add'
+/// ```
+pub const SSH_ADD_COMMAND: &str = "ssh-add";
 
 /// What:
 ///  Whether text a failed upload printed says that it needed a login.
@@ -392,48 +442,235 @@ pub fn reads_as_a_login_failure(text: &str) -> bool {
 }
 
 /// What:
+///  Whether text a failed upload printed says that an SSH key could not be used,
+///  which is the one login failure whose way forward can be `ssh-add`.
+/// Why:
+///   The words are OpenSSH's own,
+/// and they arrive for either of two causes:
+///  a passphrase nobody could ask for,
+/// or a key the server refuses.
+///  Telling an HTTP server's refused password to run `ssh-add` would send its reader to a command that does nothing for it,
+///  so the sentence is added from these words and not from every login failure;
+///  the sentence itself names both causes,
+/// because these words do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.includes('Permission denied (')
+/// ```
+pub fn reads_as_a_key_failure(text: &str) -> bool {
+    return text.contains("Permission denied (");
+}
+
+/// What:
+///  Whether text a failed push printed says this machine does not know the SSH host key.
+/// Why:
+///   The no-prompt rule sends OpenSSH's yes/no question for an unknown host key to a program that answers nothing,
+///  and an empty answer is not "yes",
+///  so the connection is refused before any login and OpenSSH prints `Host key verification failed.`
+///  (`confirm`,
+///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
+///  That refusal is neither a credential the push lacked nor a fault it can retry away,
+///  so it gets its own sentence.
+///  OpenSSH prints that same last line for every refusal it makes over a host key,
+///  and the other refusals are different causes that must keep OpenSSH's own words alone,
+///  as `main` prints them:
+/// a changed key says someone may be attacking the connection,
+///  and a revoked key says a stolen key may be in use,
+///  so the sentence that says to add the key would answer either warning with advice to trust the very key it doubts.
+///  The reading is therefore a positive one about the words an unknown key leaves:
+///  every refusal prints a line that names a host key or a certificate,
+///  so a transcript is this refusal only when its host-key words are an unknown key's own:
+///  the last line by itself (the default `ask` path,
+///  where OpenSSH prints nothing of its own and the question is the askpass program's,
+///  `sshconnect.c` lines 1211 to 1246),
+///  the sentence for a key this machine has none of under strict checking (line 1204),
+///  or the wrapper's own sentence,
+/// which a pre-push hook may echo into the push's words.
+///  Anything else that names a host key or a certificate is another refusal:
+///  a changed key (`warn_changed_key`,
+///  lines 1716 to 1726,
+///  and `Host key for ... has changed and you have requested strict checking.`,
+///  lines 1358 to 1360),
+///  a key a `@revoked` line marks (the `HOST_REVOKED` case,
+///  lines 1287 to 1303)
+///  or a `RevokedHostKeys` file lists (lines 1552 to 1556),
+///  and a certificate that does not fit the host (`Certificate invalid: ...`,
+///  `sshkey.c`).
+///  So a refusal this release has never seen keeps OpenSSH's words rather than gaining a sentence that may mislead.
+///  Each arm's transcript was measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
+///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
+///  `SSH_ASKPASS_REQUIRE=force`);
+///  the certificate and the `CheckHostIP` words are from the source,
+///  because a `CheckHostIP` mismatch did not reproduce (the connection was allowed).
+///  A refusal that prints no host-key line at all is still read as this one:
+///  a new certificate and the quiet port-less check reach `fail` without a word
+///  (`sshconnect.c` lines 1154 and 1316),
+///  and nothing in a transcript can tell them from an unknown key.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.includes('Host key verification failed') && text.split('\n').every((line) => !namesAHostKey(line) || isAnUnknownKeysOwnLine(line))
+/// ```
+pub fn reads_as_unknown_host_key(text: &str) -> bool {
+    if !text.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
+        return false;
+    }
+    // One fold of the constant, and one of each line: the comparison is the whole reason to read the lines.
+    let last_line: String = HOST_KEY_NOT_KNOWN_PHRASE.to_ascii_lowercase();
+    for line in text.lines() {
+        let folded: String = line.to_ascii_lowercase();
+        if !names_a_host_key(folded.as_str()) {
+            continue;
+        }
+        let an_unknown_keys_own: bool = folded.contains(last_line.as_str())
+            || (folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE) && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE))
+            || folded.contains(HOST_KEY_NOT_KNOWN_SENTENCE_OPENING);
+        if an_unknown_keys_own {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+/// Whether one line,
+/// in lower case,
+/// names a host key or a certificate,
+/// which every refusal OpenSSH makes over a host key does in at least one line.
+fn names_a_host_key(folded: &str) -> bool {
+    return folded.contains(HOST_KEY_WORDS) || folded.contains(CERTIFICATE_WORD);
+}
+
+/// The last line OpenSSH prints when it will not connect because of the host key,
+/// whichever refusal it found (`sshconnect2.c` at `V_10_6_P2` lines 102 to 104,
+/// after `verify_host_key` answered non-zero).
+const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
+
+/// The words,
+/// in lower case,
+/// with which a line names the thing a host-key refusal is about.
+const HOST_KEY_WORDS: &str = "host key";
+
+/// The word,
+/// in lower case,
+/// with which a line names the other thing a host-key refusal is about.
+const CERTIFICATE_WORD: &str = "certificate";
+
+/// The words of OpenSSH's sentence for a host key this machine has none of while the account asks for strict checking
+/// (`check_host_key`'s `HOST_NEW` case,
+/// `sshconnect.c` lines 1204 and 1205).
+const NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE: &str = "host key is known for";
+
+/// The words that end that sentence,
+/// which no changed or revoked key's line carries beside `host key is known for`.
+const STRICT_CHECKING_REQUESTED_PHRASE: &str = "and you have requested strict checking";
+
+/// The opening words,
+/// in lower case,
+/// of the sentence this module prints for an unknown host key,
+/// which a pre-push hook may echo into the words of the push it refused,
+/// and which the service's record reads so that one refusal is told once.
+pub(crate) const HOST_KEY_NOT_KNOWN_SENTENCE_OPENING: &str = "this machine does not know the ssh host key";
+
+/// What:
+///  The one sentence a refusal prints when the cause is a host key this machine does not know:
+///  it says the connection was refused before any login,
+///  and names the two ways to add the key that the wrapper does not touch,
+///  then to retry.
+/// Why:
+///   The project's answer of 2026-11-20 keeps the refusal the no-prompt rule causes at a terminal
+///  and puts the way out where a person meets it:
+///  connect once with plain `ssh <host>`,
+///  which still asks its own question,
+///  or add the host key to `known_hosts`,
+///  then push again.
+///  No retry can add a host key,
+///  so saying only that the push failed would leave the person with no move.
+///  The sentence is shared by the push's failure record and the upload's explanation,
+///  so the two faces cannot say different things about one refusal.
+///  `host` is the host the wrapper can name for this refusal,
+///  and the remote is written as `ssh <host>` only when it names none:
+///  an upload's destination may be another host than the Git remote,
+///  and a person told to run `ssh` must be told which machine to name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: this machine does not know the SSH host key ... Connect once with plain ${host ? `ssh ${host}` : 'ssh <host>'} ...`
+/// ```
+pub fn host_key_not_known_sentence(host: Option<&str>) -> String {
+    let connect: String = match host {
+        Some(name) => format!("Connect once with plain `ssh {name}`"),
+        None => String::from("Connect once with plain `ssh <host>`"),
+    };
+    return format!(
+        "monochromatic-git-policy-cli: this machine does not know the SSH host key of the remote, and no command the wrapper \
+         runs asks whether to trust a new one (`SSH_ASKPASS_REQUIRE=force` sends that yes/no question to a program that \
+         answers nothing), so the connection was refused before any login. {connect}, which the wrapper does not touch and \
+         which still asks, or add the host key to `known_hosts`, then push again."
+    );
+}
+
+/// What:
 ///  The refusal that follows a failed upload which needed a login:
 ///  it names the server,
-/// says what the wrapper did about prompting,
-/// and names every way to give git-lfs a login it can use.
+/// says that no command the wrapper runs asks anyone for a credential,
+/// and names every way to give git-lfs a login it can use,
+/// including `ssh-add` for a key whose passphrase was never unlocked.
 /// Why:
 ///   The incident of 2026-11-10 ran for seven minutes because nothing said what was missing,
 /// and the push it belonged to could not be
 ///  published (`doc/troubleshooting/lfs-credential-in-url.md`).
 /// The server is named without any credential,
 /// and the setting that stores one is named without its value.
-///  `prompting_disabled` is whether the overlay the program ran under carried the never-prompt pair:
-/// a command at a terminal keeps Git's and `git-lfs`'s own prompting,
-/// and telling its person that no terminal existed
-///  names a cause that cannot be fixed because it was never there.
+///  The rule is the same for every command since the owner's answer of 2026-11-19T16:58:00-05:00:
+/// "Avoid ever asking for someone to type a username or password.",
+/// with an SSH key's passphrase counted as a credential,
+/// so there is no branch left for a command at a terminal
+///  and the words never name a terminal that did not decide anything.
+///  `key_not_unlocked` is whether the program's own words say a key could not be used,
+/// which is when an agent and `ssh-add` are the way forward;
+///  an HTTP server's refused password gets the credential-helper advice alone.
+///  The sentence starts the agent rather than assuming one runs,
+///  because the project's answer of 2026-11-20 is "We must support situations in which ssh-agent isn't there":
+///  it names `eval "$(ssh-agent)"` and `ssh-add`,
+///  or a key without a passphrase,
+///  which needs no agent.
+///  The first form is Bourne shell syntax,
+/// which fish rejects,
+///  so the sentence names fish's own form beside it:
+///  `ssh-agent -c` prints `setenv` commands,
+/// which `eval (ssh-agent -c)` reads
+///  (`ssh-agent`'s manual,
+///  "The agent prints the commands to set the environment variables ... `-c` Generate C-shell commands on stdout").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// promptingDisabled ? `...this command has no controlling terminal, so ...` : `...this command has a controlling terminal, so ...`
+/// `...needed a login, and this wrapper never lets a command ask for one... ${keyNotUnlocked ? '...`ssh-add`...' : ''}`
 /// ```
-pub fn login_needed_message(server: &str, prompting_disabled: bool) -> String {
-    if !prompting_disabled {
-        return format!(
-            "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login and stopped. This command has a \
-             controlling terminal, so the wrapper left prompting to `git-lfs` and the Git it asks (`GIT_ASKPASS` and \
-             `GIT_TERMINAL_PROMPT` unchanged): either a login they already had was refused, or a variable or Git setting of this \
-             command stopped them from asking. Ways forward: store a login the server accepts in a Git credential helper for that \
-             URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or `cache` \
-             for a while), and push again, because objects the server already has are not sent twice; or check a \
-             `GIT_TERMINAL_PROMPT`, `GIT_ASKPASS`, `core.askPass` or `credential.helper` setting of this command that refuses the \
-             login. A login written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
-             `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
-        );
-    }
+pub fn login_needed_message(server: &str, key_not_unlocked: bool) -> String {
+    let key_words: String = if key_not_unlocked {
+        format!(
+            " The key that server asked for was refused or could not be unlocked: with no program to ask a passphrase and \
+             no terminal read, a key that no agent holds cannot be used, and a key the server does not accept answers \
+             the same way. Start an SSH agent with `eval \"$(ssh-agent)\"` (`eval (ssh-agent -c)` in fish), then load the key \
+             with `{SSH_ADD_COMMAND}` \
+             (`{SSH_ADD_COMMAND} <key file>` for a key outside the agent's default list; `{SSH_ADD_COMMAND} -l` lists \
+             what the agent holds), or use a key without a passphrase, and push again; a key the server still refuses \
+             needs the server's account to accept it."
+        )
+    } else {
+        String::new()
+    };
     return format!(
-        "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this command has no controlling \
-         terminal, so `git-lfs` and the Git it asks were told never to prompt (`GIT_ASKPASS` set to the empty string and \
-         `GIT_TERMINAL_PROMPT=0`). That is why no password window opened for nobody to answer, and why the program stopped \
+        "monochromatic-git-policy-cli: the Git LFS upload to {server} needed a login, and this wrapper never lets a command \
+         ask for one (`GIT_ASKPASS` set to the empty string, `GIT_TERMINAL_PROMPT=0`, `SSH_ASKPASS=false` and \
+         `SSH_ASKPASS_REQUIRE=force`), whether or not a terminal is there: the owner decided that no command it runs or \
+         forwards asks a person for a username or a password. That is why nothing prompted, and why the program stopped \
          instead. Ways forward: store the login where `git-lfs` finds it without a person, in a Git credential helper for \
          that URL (`git config --global credential.helper libsecret` on a desktop, `store` for a file only you can read, or \
-         `cache` for a while), and push again, because objects the server already has are not sent twice; or run this push \
-         from a terminal, where Git's and `git-lfs`'s own prompting is kept. A login written into the `lfs.url` of a \
-         repository's configuration instead of a helper is the defect \
+         `cache` for a while), and push again, because objects the server already has are not sent twice.{key_words} A login \
+         written into the `lfs.url` of a repository's configuration instead of a helper is the defect \
          `doc/troubleshooting/lfs-credential-in-url.md` describes.\n"
     );
 }

@@ -169,6 +169,14 @@ pub mod wrapped_command_notices_snapshots_and_manual_push;
 /// and the Git it starts for its own work also carries `core.fsmonitor=false`.
 pub mod hooks_off;
 
+/// The `--skip-repo` a `git lfs install` inside a repository runs with,
+/// and the notice that says why no hook is needed.
+pub mod lfs_install_arguments;
+
+/// One `git lfs install` read from the words after its `install` word,
+/// which the rewrite and its notice read once.
+mod lfs_install_request;
+
 /// The startup step of a command:
 /// isolated merges whose process died,
 /// and what an earlier release left behind.

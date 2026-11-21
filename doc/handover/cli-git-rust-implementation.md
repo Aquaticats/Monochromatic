@@ -40941,13 +40941,103 @@ stated in this entry. What follows from them, as work:
   proof unconditional (202.8 ms of `git ls-tree` here); H3 LFS paths written by Git as their proof (0.64 to 0.91 s for
   this repository's 1,578); H4 a decline rule (converting paths past a quarter of the tree and past 1,000 give the add to
   Git's checkout); measured with the real attribute set: the fence 1.11 of `main` against its control's 1.03 (spread 0.35
-  to 1.64 over five rounds), step 3 without it 0.59 but wrong; a converting source A′ 1.09 with the rule, 1.50 without;
-  ranking A′ > C > D > E, B unbuilt; a fenced partial clone with this repository's LFS files would be 1.3 to 1.5 of
-  `main`, so the partial clone's gain does not survive here; whole gate at `a690379aa5` 9301 of 9303, the cause-H pair,
-  the twelve class controls running in the image; M4 (rung 1 at size in a guest) left open, M3's in-process reads removed
-  as a claim. GOING: its narrow re-check on Sonnet (brief under
+  to 1.64 over five rounds), step 3 without it 0.59 and correct on this repository as it is (`diffVsMain=0` in
+  `measure-r5b-real-*.summary.txt`; corrected 2026-11-20T20:40-05:00, it first read "0.59 but wrong", which is only the
+  converting fixture's 0.50); a converting source A′ 1.09 with the rule, 1.50 without; ranking A′ > C > D > E, B unbuilt;
+  the round's claim that a fenced partial clone would be 1.3 to 1.5 of `main` is unsupported (the re-check: it compared an
+  LFS write against a `main` that paid none), so it decides nothing about the partial clone; whole gate at `a690379aa5`
+  9301 of 9303, the cause-H pair, and the twelve class controls only skipped there (each printed `ZFS CONTROL NOT RUN`;
+  corrected the same time, it first read "running in the image"); M4 (rung 1 at size in a guest) left open, M3's
+  in-process reads removed as a claim. GOING: its narrow re-check on Sonnet (brief under
   `~/temp/agent/gate-recheck-of-the-clone-conversion-fence-on-sonnet-2026-11-20/`), then the owner's question on the
-  remedy, with step 3's merge and the partial clone depending on it.
+  remedy, with step 3's merge and the partial clone depending on it. STEP 6'S RE-CHECK (Sonnet) came back not fit by
+  one finding (its folder's `keep/review.md`): M1 the binding's `lint:types` fails on `clippy::implicit_return` at
+  `live_gate_tests.rs:62`; the seam holds (a scratch `btf-rs` adapter passed the binding's tests, 215 of 215); L2 three
+  reader duties (a zero width is no bitfield, alias chains bounded, an unreadable member refused) are in no contract or
+  surviving test; L3 the in-house adapter drops an unreadable member; L1 and L4 to L9; gate 9309 of 9311, the cause-H
+  pair; the append-only case under the record's endpoint rule reported to the owner as information. GOING:
+  `pi-zfs-step-6-recheck-findings-fixed` in the coordinator-made worktree `.claude/worktrees/zfs-step-6-recheck-findings`
+  (brief under `~/temp/agent/zfs-step-6-recheck-findings-fixed-2026-11-20/`). THE MISE TRAILING-TERMINATOR ROUND ended
+  at `31f3192c27`: the trim removed (mise's `append_inline_args` appends nothing after the words, cited), the twelve cases
+  red then green, the continuation refusal and the broken-word count fixed, the six effect-first tasks named in the doc.
+  GOING: its final narrow check on Sonnet (brief under `~/temp/agent/integration-final-check-mise-usage-args-2026-11-20/`).
+  THE MISE FIX MERGED into `main` as `f512a9b278` (final check fit: 57 real-mise cases, none with altered words; the trim
+  put back turns 13 wrong). Two wording lows follow (some terminators die in node's parser unnamed where the docs say
+  "refused and named"; the test header names trailing space and tab cases it lacks); issue 6328 holds the remaining
+  tasks. THE VET REPORT'S FINAL CHECK (Sonnet) found it not accurate yet, on words: H1 `pahole`'s CI path
+  (`test.yml` calling `vmtest.yml`) uninventoried and case 18, the only split read, skipped, so its eligibility is
+  contested and the outcome turns on it (eligible: none; not: `btf-rs`); H2 the libbpf is pinned by the tag, not
+  "unpinned"; M1 to M5 label and count slips, a stability claim unbounded (maintenance weight 11 alone puts `pahole`
+  first), the run's network overstated, the questions less separable than said. First place holds in every test at
+  weights 1 to 5. Per the advisor, the owner's question goes now and a text-only round runs beside it:
+  `pi-zfs-layout-checker-reader-vet-report-final-check-wording-fixed` (brief under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-final-check-wording-fixed-2026-11-20/`); that round blocks the
+  decision record citing the report and the docs branch's merge, not the pick. THE OWNER PICKED `btf-rs` on
+  2026-11-20T20:18:04-05:00 ("btf-rs (Recommended)"); the adoption is recorded in
+  `doc/decision/cli-git-zfs-runtime-layout-checker.md`, section "The reader adopted: `btf-rs` 2.0.1" (checksum, licence,
+  ranking, boundary, rollback, revisit triggers). NEXT, QUEUED ON THE RUNNING ROUND: when
+  `pi-zfs-step-6-recheck-findings-fixed` ends, a fresh round on its tip swaps the stand-in adapter for `btf-rs` 2.0.1
+  behind the new `declaration.rs` contract (array byte sizes in the binding; the review's scratch adapter in
+  `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/keep/` as a start), removes the in-house decoder,
+  then a gate re-check and the merge. It waits because both rounds edit the same files, not for a slot. The step 6
+  re-check also reported, as information for the owner: the record's endpoint rule refuses when `ZFS_IOC_LAST` moves by an
+  append with no layout change, a case neither record nor design examined. THE FENCE'S RE-CHECK (Sonnet) found it not
+  ready, on claims (its folder's `keep/review.md`): bytes hold (300 of 300 equal in a 150-combination sample, 10
+  different on the old prototype; `m01` to `m06` and `c06b` equal); H1 the gate's twelve class controls only skipped; H2
+  "no shape slower than `main`" false: the declining shape is slower by construction (+111 to +380 ms, five of five
+  rounds) and the threshold averaged LFS writes (0.41 to 0.57 ms per path) with text writes (0.06 to 0.08), so 19.9
+  percent converting, which the rule lets through, measured 1.22 of `main`; M1 a valueless `core.autocrlf` and a literal
+  `text=unset` still give wrong bytes (a unit control asserts the wrong reading); M2 the partial-clone figure unsupported;
+  M3 the in-process reads' stated obstacle false (`repo_read_pack.rs` resolves deltas); M4 the decline rule has no
+  control; M5 five rounds cannot resolve 0.1. With the advisor: one more round aimed at kept-run costs, not a waiver-free
+  claim, then a diff-only check, then the owner's question unless that check finds wrong bytes or a contradicted cost.
+  GOING: `pi-clone-rung-conversion-fence-recheck-findings-fixed` (cap 560; brief under
+  `~/temp/agent/clone-rung-conversion-fence-recheck-findings-fixed-2026-11-20/`, including the as-it-is trade 0.59 to 1.11
+  stated first, and a suggestion to prove LFS paths from the pointer's size or oid). THE VET REPORT'S WORDING ROUND ended
+  at `2cc139f19d` (H1 `pahole`'s CI inventoried and its eligibility a project question with both outcomes; H2 the libbpf
+  pinned by the tag; counts 66, 81, 51; nine questions). GOING: a diff-only check on Sonnet (brief under
+  `~/temp/agent/gate-diff-check-of-the-btf-reader-vet-report-wording-on-sonnet-2026-11-20/`), then the docs branch's merge.
+  LFS'S RE-CHECK FINDINGS ROUND ended at `af27d02b5d` (`main` merged as `0ecad357aa`): F1 the unknown host key read
+  positively from OpenSSH's own words (`sshconnect.c:1204`, `sshconnect2.c:102-104` at `V_10_6_P2`), the two revoked-key
+  reds committed first and green after, every other refusal keeping OpenSSH's words alone; limit: a certificate refusal
+  printing no host-key line still reads as unknown; F4 three files split as pure moves (`bounded_push.rs`,
+  `lfs_upload_plan.rs`, `service_work.rs`), zero `rust/max-lines` on every touched file; F2 the sentence once; F3 a
+  handler-level control on the record line; the author's restore slip (`232dc52a91`) fixed in `49aeb6c39d`; gate 9322 of
+  9324, the cause-H pair. GOING: its narrow final check on Sonnet in the integration worktree
+  `integrate-git-policy-cli-lfs-no-prompt-at-a-terminal` (brief under
+  `~/temp/agent/integration-final-check-lfs-after-the-recheck-findings-2026-11-20/`), then the merge on fit. THE VET
+  REPORT'S DIFF CHECK (Sonnet) found four gating wording slips (its folder's `keep/review.md`): N1 `build.yml` claims two
+  compilers where the log shows only GCC; N2 a stale 55 and 53 where the printed label gives 57 and 55; N3 the
+  question-dependency list numbered off by one from question 5; N4 the first place's reason stated as the library shape
+  alone; every count reproduced, lock chain intact, nothing against the adoption record. GOING:
+  `pi-zfs-layout-checker-reader-vet-report-diff-check-wording-fixed` (text only; brief under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/`), then the same reviewer
+  confirms its findings closed, then the docs branch merges and the adoption record's pointer moves to the merged revision.
+  That round ended at `93fe0d9779` (report `df0106c13a`: N1 one compiler of three, N2 57 and 55, N3 renumbered, N4 the
+  lead's reasons, L5 and N6 to N12, plus one sentence recording the adoption). GOING: the same reviewer's closure check,
+  appended to its `keep/review.md`. `~/temp/agent` measured 10,195 MB at 2026-11-20T21:00-05:00, the fence's cost round
+  growing inside its 10 GiB cap. THE VET REPORT MERGED into `main` as `d498b79010` (closure check fit; three non-gating
+  nits: report line 324 says every count reproduced though one was stale, line 221 "into this one", the "this is not
+  adoption" bullet beside the adoption sentence); the decision record's pointer now names the merge. The wrapper kept the
+  report's worktree for `kscreenlocker_greet` (issue 6321, commented) and kept its service journal for `rules-repository`
+  (issue 6322); the coordinator removed the worktree by hand. GIT LFS THROUGH THE WRAPPER MERGED into `main` as
+  `64f9a20335` at 2026-11-20T21:05:29-05:00 (final check on Sonnet fit, its gate 9324 of 9326 with the cause-H pair; real
+  `sshd` and real `git-lfs` transcripts read as designed; its folder
+  `~/temp/agent/integration-final-check-lfs-after-the-recheck-findings-2026-11-20/keep/`). The screen locker kept both
+  LFS worktrees; the coordinator removed them by hand after checking both branches are on `main`. The older
+  `integrate/git-policy-cli-lfs-and-gate-base-image-data` is not on `main` and stays. GOING: the three lows (F1 the
+  recorded limit is `CheckHostIP` under `ask`, not the cited lines; F2 a debug line or a URL naming "certificate" turns the
+  sentence off; F3 two nits) as `pi-git-policy-cli-lfs-final-check-lows` on `fix/git-policy-cli-lfs-final-check-lows`; and
+  whether two old LFS branches hold anything `main` lacks (17 and 9 commits; the one holding `9e23c2623e`) as
+  `pi-review-old-lfs-branches-against-main` on the Qwen plan, watched to its end. STEP 6'S FINDINGS ROUND ended at
+  `a312cea8b2` (`main` merged as `22d8ed1793`): M1 fixed (both `lint:types` exit 0); L2 the three reader duties stated in
+  `declaration.rs` with `declaration_contract_tests.rs`, each red against a breaking adapter (the alias-cycle variant hung
+  until its 45 s bound); L3 an unreadable member now refuses; L4 five reds; L5 to L9 fixed (L9 on the code's side, the
+  record unchanged); guest `run` 251 of 251 and the change arm refusing `zi_iotype`; gate 9317 of 9319, the cause-H pair.
+  GOING, the queued swap: `pi-zfs-step-6-btf-rs-reader-swap` on that tip (brief under
+  `~/temp/agent/zfs-step-6-btf-rs-reader-swap-2026-11-20/`: `btf-rs` 2.0.1 with its checksum checked in the lock file,
+  the adapter behind the contract, array sizes in the binding, the stand-in decoder removed, the fourteen real-byte
+  pairs compared), then one Sonnet gate re-check covering both rounds, then the integration pass and the merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

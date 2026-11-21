@@ -108,9 +108,15 @@ pub type Settings = Vec<(String, String)>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlanError(pub String);
 
-/// The `config --get-regexp` pattern that selects exactly the keys `wanted_key` accepts.
+/// The `config --get-regexp` pattern that selects exactly the keys `wanted_key` accepts,
+/// `lfs.pushurl` and `remote.<name>.lfspushurl` among them:
+/// they are the keys that decide which server an upload is sent to
+/// (git-lfs 3.8.1,
+/// `lfsapi/endpoint_finder.go:99` and `:128`),
+/// and `url.<base>.insteadOf` and `url.<base>.pushInsteadOf` rewrite that endpoint before it is read
+/// (`:234-235` and `:345-357`).
 pub const SETTINGS_REGEXP: &str =
-    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url)|push\\.default|url\\..*\\.pushinsteadof)$";
+    "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url|lfsurl|lfspushurl)|push\\.default|url\\..*\\.(pushinsteadof|insteadof)|lfs\\.(url|pushurl))$";
 
 /// What:
 ///  The last dotted word of a key after a prefix:
@@ -134,21 +140,26 @@ fn last_variable<'a>(key: &'a str, prefix: &str) -> Option<&'a str> {
 /// Whether the plan reads this configuration key (Git's normalised spelling).
 pub(crate) fn wanted_key(key: &str) -> bool {
     let remote_variable: bool = match last_variable(key, "remote.") {
-        Some(variable) => ["push", "pushurl", "mirror", "url"].contains(&variable),
+        Some(variable) => ["push", "pushurl", "mirror", "url", "lfsurl", "lfspushurl"].contains(&variable),
         None => false,
     };
     let branch_variable: bool = match last_variable(key, "branch.") {
         Some(variable) => variable == "pushremote" || variable == "remote",
         None => false,
     };
-    let push_rewrite: bool = match key.strip_prefix("url.") {
-        Some(rest) => rest.ends_with(".pushinsteadof"),
+    // An upload reads the push alias table first and the fetch alias table after it.
+    let url_rewrite: bool = match key.strip_prefix("url.") {
+        Some(rest) => rest.ends_with(".insteadof") || rest.ends_with(".pushinsteadof"),
         None => false,
     };
     return branch_variable
-        || push_rewrite
+        || url_rewrite
         || key == "remote.pushdefault"
         || key == "push.default"
+        // The endpoints the upload is sent to, which a stop names: `lfs.url` for a fetch and, when it is set, `lfs.pushurl`
+        //  for a push (git-lfs 3.8.1, `lfsapi/endpoint_finder.go:99-104`).
+        || key == "lfs.url"
+        || key == "lfs.pushurl"
         || remote_variable;
 }
 

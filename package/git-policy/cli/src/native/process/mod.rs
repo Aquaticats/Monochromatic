@@ -57,10 +57,6 @@ pub mod stop_word;
 /// which the relay and the wait both read.
 pub mod signal_report;
 
-/// Whether this process has a controlling terminal,
-/// and so may have a person to answer a login question.
-pub mod control_terminal;
-
 /// A child started by this process and published to the relay,
 /// so a caller's own bounded wait still relays the process's signals.
 pub mod signal_relay_relayed_child;

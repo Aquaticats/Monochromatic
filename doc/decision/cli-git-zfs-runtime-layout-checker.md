@@ -195,6 +195,110 @@ and the pre-discovery check-in is not written.
 The pick is therefore a decision the project still owes.
 The design's ranking is its input.
 
+## The reader adopted: `btf-rs` 2.0.1
+
+The owner picked `btf-rs` on 2026-11-20T20:18:04-05:00,
+answering "btf-rs (Recommended)"
+to the question which BTF reader step 6's start-time layout check uses.
+That answer is the separate action request that adopts it,
+as the `choosing-technology` skill's adoption boundary asks.
+The items Q1 lists had closed by then:
+`btf-rs`'s own suite ran,
+the vet report exists,
+discovery reached its terminal result,
+and the check-in was written.
+
+### What was adopted
+
+- the crate `btf-rs`,
+  version 2.0.1,
+  crates.io checksum `fa34ec915ede6b7eaeebcb38fdb749fcac1538ec1b94dcfde63a034ad8f7963b`,
+  published 2026-11-12T09:38:50Z;
+- its licence `LGPL-2.1-or-later`,
+  which the vet report's hard gate H2 found compatible with the wrapper's `LGPL-3.0-or-later`.
+
+### Evidence it rests on
+
+The vet report is `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`,
+at `1e6af850a8` (2026-11-20T19:47:58-05:00) on the branch `docs/planning-cli-git-zfs-layout-checker-reader-validation`,
+not yet on `main`
+(merged into `main` as `d498b79010` at 2026-11-20T21:00:35-05:00,
+carrying the branch at `93fe0d9779`).
+Its wording round after the final gate check was still running at adoption;
+that check found the report's words inaccurate in places,
+and its matrix,
+first place and suite reproduction sound.
+Two text rounds then corrected the words,
+and a diff check and its closure check on Sonnet found them fit,
+with every count reproduced and no score,
+rating or outcome changed.
+The governing skill is `.claude/skills/choosing-technology/SKILL.md`,
+an untracked file whose SHA-256 began `f4cfa6bc5d1d71f4` at adoption.
+The weights were frozen at 1 for each of the report's eight criteria,
+the skill's rule where the project states no priority.
+
+### Ranking and rejected alternatives
+
+At those weights,
+out of 32:
+`btf-rs` 27.5,
+`ebeepf` 24.5,
+`pahole` 18.5.
+`bpftool` failed the skill,
+because its functional tests are the kernel selftests.
+`btf-rs` is first in every sensitivity test at weights 1 to 5,
+at least 2 ahead of `ebeepf` and 5 ahead of `pahole`;
+a maintenance weight of 11 with every other weight at 1 would put `pahole` first.
+The skill's own outcome turned on whether `pahole` stays a finalist,
+since case 18,
+its only upstream test of reading split BTF,
+skipped:
+with `pahole`,
+sensitivity unresolved and no recommendation;
+without it,
+`btf-rs` recommended.
+The owner's pick adopts `btf-rs` either way.
+`ebeepf` was set aside on its README declaring the code unreviewed,
+one maintainer with no CI,
+and ten times the code the route uses with 57 `unsafe` tokens.
+`pahole` was set aside as a second program in C whose split-BTF path went untested upstream.
+The in-house reader stays ineligible,
+by the skill's existing-tools rule that Q1 records.
+
+### Integration boundary and migration
+
+The reader sits behind the declaration seam in the binding crate,
+`declaration.rs`,
+whose contract any adapter must pass:
+a zero width is not a bitfield,
+alias chains are bounded so a typedef cycle ends in a refusal,
+and an unreadable member is a refusal.
+`btf-rs` leaves array byte sizes to the binding.
+Migration replaces step 6's stand-in adapter,
+the in-house decoder,
+with a `btf-rs` adapter,
+plus the edits the step 6 gate re-check listed
+(`check_module_layout.rs`,
+`mod.rs`,
+the dead-code lints,
+the manifest),
+then removes the stand-in decoder.
+
+### Exit, rollback and revisit triggers
+
+Rollback is a revert of the adapter commit:
+the seam keeps every other file unchanged,
+and a reader that cannot answer leaves raw requests disabled,
+which is the gate's safe state.
+Exit to another reader is a new adapter behind the same contract.
+Revisit when any of these happens:
+a `btf-rs` release changes the API the adapter calls or carries a security advisory;
+the contract's tests fail on a new kernel's BTF;
+its maintenance record falls below what the report rated
+(releases stop,
+merges lose their second reviewer);
+or the release keeps lagging its own main on the widened masks the report names.
+
 ## The release string, Q2: "Any version, layout decides"
 
 The answer is "Any version,

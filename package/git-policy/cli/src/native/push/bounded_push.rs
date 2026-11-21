@@ -41,13 +41,13 @@
 /// The attempt record a finished or stopped push produces.
 use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::debug;
 /// How to allow a push longer,
 /// in the words of the program that runs it.
 use crate::push_deadline_advice::extend_clause;
 /// The clock that stops a push on a stall,
 /// and the wait it lets pass instead.
-use crate::push_progress::{Clock, WaitReport};
+use crate::push_progress::WaitReport;
 /// The lock files a stopped push leaves,
 /// and the ledger that finds them.
 use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
@@ -60,7 +60,6 @@ use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 use crate::lazy_runtime::run_on_runtime;
 /// The stop of a push and the sweep of the locks it leaves,
 /// and the pause between two looks at a running push.
-use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
@@ -112,221 +111,19 @@ use crate::stop_cause_and_words::stalled_reason;
 /// An open question for the owner.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
-/// The most output bytes kept from one push;
-///  a push that writes more is stopped.
-///  Citation:
-/// none yet.
-/// The owner decided "Keep all lines" for push output,
-/// which this cap limits,
-/// and no measurement of the
-///  size of a push's output is logged;
-/// the audit lists it as a memory bound to be measured.
-pub const MAX_PUSH_OUTPUT: u64 = 4 * 1024 * 1024;
-
-/// What the line a push's output gains has after the name of the program,
-/// when it waited with its connection open.
-pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
-
-/// Whether an output of this size is a flood:
-/// only a size past the cap is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// size > cap
-/// ```
-fn is_flood(size: u64, cap: u64) -> bool {
-    return size > cap;
-}
-
-/// What:
-///  Whether one of a run's output files has grown past the cap.
-/// Why:
-///   The wait looks at these between its polls,
-/// and a run that ends in the pause between two looks must be judged by the same bound:
-/// what it printed past the cap is not all of what it printed.
-///  A size that cannot be read counts as past the cap,
-/// so nothing unreadable passes for a complete answer either.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// outputs.some((output) => isFlood(statSize(output)))
-/// ```
-pub(crate) fn flooded(outputs: &[&File], cap: u64) -> bool {
-    for output in outputs {
-        let size: u64 = match output.metadata() {
-            Ok(metadata) => metadata.len(),
-            Err(_) => u64::MAX,
-        };
-        if is_flood(size, cap) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What a clock keeps as the longest quiet gap:
-/// its figure when it reads anything,
-/// nothing when it reads nothing.
-fn quiet_gap_kept(watched: &Clock) -> Option<Duration> {
-    if watched.measures() {
-        return Some(watched.longest_quiet());
-    }
-    return None;
-}
-
-/// Read the shared output file back from its start,
-///  keeping at most the output cap so a flood is never held in memory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await readFile(outputPath, 'utf8')
-/// ```
-fn read_output(file: &mut File) -> Result<String, SingleFlightError> {
-    file.seek(SeekFrom::Start(0))
-        .map_err(SingleFlightError::Start)?;
-    let mut bytes: Vec<u8> = Vec::new();
-    file.take(MAX_PUSH_OUTPUT)
-        .read_to_end(&mut bytes)
-        .map_err(SingleFlightError::Start)?;
-    return Ok(String::from_utf8_lossy(&bytes).into_owned());
-}
-
-/// What:
-///  Look at a running read-only query until it ends,
-/// stalls or floods its output,
-/// and say how quiet it got.
-/// Why:
-///   `std` has no timed wait,
-///  so the parent looks with `try_wait`,
-///  which never blocks;
-/// the clock reads the signs of work a few times a second.
-/// A query that works is waited for however
-///  long it takes:
-/// it has no wall-clock bound (owner,
-/// 2026-11-03:
-/// "Stop only on no progress";
-/// the coordinator's scope addition
-///  to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
-/// open to the owner's veto),
-/// and on a system that counts
-///  nothing it is never judged stalled.
-/// `quiet` receives the longest quiet gap seen,
-/// for the ledger,
-/// and nothing where the system counts nothing.
-/// The clock is the caller's,
-/// because what a run may do where nothing can be measured is the caller's decision.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await Promise.race([exited, stalled, flood]); // never by elapsed time
-/// ```
-pub async fn wait_until_done(
-    child: &mut OwnedChild,
-    outputs: &[&File],
-    clock: Clock,
-    quiet: &mut Option<Duration>,
-    stop: Option<&StopArm>,
-) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    return wait_until_done_up_to(child, outputs, clock, MAX_PUSH_OUTPUT, quiet, stop).await;
-}
-
-/// What:
-///  The same wait as `wait_until_done`,
-/// with the output ceiling it stops past given by the caller.
-/// Why:
-///   A query's answer is a report,
-/// and the push report's cap bounds it;
-/// the second pass of a merge reads the three stages of the files it may merge,
-/// up to the
-///  pass's own blob limit for each name it asks for,
-/// so its ceiling is that sum and not the report's.
-/// Nothing else may pass a ceiling above `MAX_PUSH_OUTPUT`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await Promise.race([exited, stalled, flood]); // flood: any watched file past `cap`
-/// ```
-pub async fn wait_until_done_up_to(
-    child: &mut OwnedChild,
-    outputs: &[&File],
-    clock: Clock,
-    cap: u64,
-    quiet: &mut Option<Duration>,
-    stop: Option<&StopArm>,
-) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let mut waits: Vec<WaitReport> = Vec::new();
-    return wait_with_clock(child, outputs, clock, cap, "git", &mut waits, quiet, stop).await;
-}
-
-/// What:
-///  The same wait as `wait_until_done` for a push,
-/// handing over the wait of a push that is waiting for its remote with the
-///  connection open.
-/// Why:
-///   The push is not stopped while it waits;
-/// the caller says so once,
-/// in a line,
-/// and the wait ends the way any other does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await Promise.race([exited, stalled, flood]); // waits.push(report) when the push begins to wait for the server
-/// ```
-pub async fn wait_until_done_noting(
-    child: &mut OwnedChild,
-    outputs: &[&File],
-    patience: Patience,
-    label: &str,
-    waits: &mut Vec<WaitReport>,
-    stop: Option<&StopArm>,
-    window: Duration,
-    minimum_rate: u64,
-) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    let clock: Clock = Clock::start(child.id(), patience).with_connected_window(window).with_minimum_rate(minimum_rate);
-    let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, MAX_PUSH_OUTPUT, label, waits, &mut unused, stop).await;
-}
-
-/// The loop of both waits,
-/// over a clock the caller made.
-async fn wait_with_clock(
-    child: &mut OwnedChild,
-    outputs: &[&File],
-    mut clock: Clock,
-    cap: u64,
-    label: &str,
-    waits: &mut Vec<WaitReport>,
-    quiet: &mut Option<Duration>,
-    stop: Option<&StopArm>,
-) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
-    // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
-    loop {
-        // The exit is awaited on the child's pidfd; the pause is the look at the output sizes and the clock, a few times a second.
-        if let Ok(waited) = tokio::time::timeout(POLL_PAUSE, child.wait()).await {
-            let status: ExitStatus = waited.map_err(SingleFlightError::Start)?;
-            *quiet = quiet_gap_kept(&clock);
-            return Ok(Ok(status));
-        }
-        // The service's shutdown told the stop: the wait ends here, and the caller ends the child with its own grace.
-        if stop.is_some_and(StopArm::is_told) {
-            *quiet = quiet_gap_kept(&clock);
-            return Ok(Err(StopCause::ServiceStopped));
-        }
-        if flooded(outputs, cap) {
-            *quiet = quiet_gap_kept(&clock);
-            return Ok(Err(StopCause::Flood));
-        }
-        if let Some(cause) = clock.check() {
-            *quiet = quiet_gap_kept(&clock);
-            return Ok(Err(cause));
-        }
-        if let Some(report) = clock.take_wait_note() {
-            // Said as the wait begins, so a long wait is read while it lasts (the service's log, or the person's terminal).
-            warn(TAG, &wait_line(label, &report));
-            waits.push(report);
-        }
-    }
-}
+/// The cap of a push's kept output and the words its wait line adds,
+/// which the module that waits owns.
+pub use crate::push_wait_until_done::{MAX_PUSH_OUTPUT, WAIT_NOTE_PHRASE};
+/// The wait of a bounded run,
+/// which ends when the run does or when it stalls,
+/// floods or is stopped.
+pub use crate::push_wait_until_done::{wait_until_done, wait_until_done_noting, wait_until_done_up_to};
+/// The words of a wait without the program's name,
+/// which the attempt's own line adds once.
+use crate::push_wait_until_done::wait_line_words;
+/// The flood look,
+/// which a bounded query reads for the output it watches too.
+pub(crate) use crate::push_wait_until_done::flooded;
 
 /// What:
 ///  The name a run goes by in the lines about it:
@@ -354,6 +151,102 @@ pub fn command_label(command: &Command) -> String {
 }
 
 /// What:
+///  The output of a run,
+///  read back from the file's start,
+///  and whether the cap kept only part of it.
+/// Why:
+///   The flag comes from the read itself,
+///  so a run that ended between two looks of the wait still says that its output is the head of it;
+///  the size the wait looked at cannot answer for what was read later.
+///  What is kept is whole lines,
+///  because a cap applied to the raw bytes cuts a URL in half and half a URL hides no secret:
+///  a cut before the `@` of a userinfo keeps the front of a password whichever mask runs afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// { text: await readFile(outputPath, 'utf8'), cut }
+/// ```
+fn read_output(file: &mut File) -> Result<(String, bool), SingleFlightError> {
+    file.seek(SeekFrom::Start(0))
+        .map_err(SingleFlightError::Start)?;
+    let mut bytes: Vec<u8> = Vec::new();
+    // One byte past the cap is read, so the read itself says whether more was printed than is kept.
+    file.take(MAX_PUSH_OUTPUT + 1)
+        .read_to_end(&mut bytes)
+        .map_err(SingleFlightError::Start)?;
+    let limit: usize = usize::try_from(MAX_PUSH_OUTPUT).unwrap_or(usize::MAX);
+    if bytes.len() <= limit {
+        return Ok((String::from_utf8_lossy(&bytes).into_owned(), false));
+    }
+    let kept: usize = bytes
+        .get(..limit)
+        .and_then(|head| { return head.iter().rposition(is_line_feed); })
+        .map_or(0, |at| { return at + 1; });
+    return Ok((String::from_utf8_lossy(bytes.get(..kept).unwrap_or_default()).into_owned(), true));
+}
+
+/// Whether a byte ends a line.
+fn is_line_feed(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  The output an attempt keeps from a captured file:
+///  the text with the one trailing line break removed,
+///  and,
+/// when the run ended with more printed than the cap,
+///  the line that says only the head of it is kept.
+/// Why:
+///   The head of a run that ended is its own status's output,
+///  not a stopped push's,
+///  so the cut line is added from the read and from whether the run ended,
+///  never from the size the wait last looked at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = stripOneTrailingBreak(captured); const text = shortened ? `${head}\n${cutLine(label)}` : head
+/// ```
+fn kept_output_text(captured: &str, shortened: bool, label: &str) -> String {
+    let mut text: String = strip_one_line_break(captured).to_owned();
+    if !shortened {
+        return text;
+    }
+    if !text.is_empty() {
+        text.push('\n');
+    }
+    text.push_str(shortened_output_line(label).as_str());
+    return text;
+}
+
+/// What:
+///  The attempt a push that ended leaves:
+///  its own status,
+///  the signal beside the code when one ended it,
+/// and the output it kept.
+/// Why:
+///   A run that ended is never a stopped push,
+///  so no limit's code replaces the status the program chose;
+///  `outcome_of` maps the status the way the wrapper's exit and its notices read it,
+///  a death by a signal included,
+///  because `128 + N` alone cannot tell that from a status the program chose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// endedAttempt(status, kept) => ({ exitCode: codeOf(status), signal: signalOf(status), output: kept })
+/// ```
+fn ended_attempt(status: ExitStatus, kept: String) -> PushAttempt {
+    let outcome: crate::forwarding::ChildOutcome = crate::forwarding::outcome_of(status);
+    return PushAttempt {
+        exit_code: i64::from(crate::forwarding::exit_code(outcome)),
+        signal: match outcome {
+            crate::forwarding::ChildOutcome::Signaled(signal) => Some(signal),
+            crate::forwarding::ChildOutcome::Exited(_) => None,
+        },
+        output: kept,
+    };
+}
+
+/// What:
 ///  The line a push's output gains when more of it was printed than is kept.
 /// Why:
 ///   The cap bounds what is held in memory,
@@ -364,44 +257,30 @@ pub fn command_label(command: &Command) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: git push wrote more than ${MAX} bytes of output, so only the first ${MAX} bytes are kept here; the push itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output by running it directly.`
+/// `monochromatic-git-policy-cli: ${label} wrote more than ${MAX} bytes of output, so only the whole lines that fit in the first ${MAX} bytes are kept here; the run itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output by running it directly.`
 /// ```
-fn shortened_output_line() -> String {
+fn shortened_output_line(label: &str) -> String {
     return format!(
-        "monochromatic-git-policy-cli: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output, so only the first {MAX_PUSH_OUTPUT} bytes \
-         are kept here; the push itself was not stopped. Hint: if a hook or the remote prints this much, read the hook's own output \
-         by running it directly."
+        "monochromatic-git-policy-cli: {label} wrote more than {MAX_PUSH_OUTPUT} bytes of output, so only the whole lines that fit in \
+         the first {MAX_PUSH_OUTPUT} bytes are kept here; the run itself was not stopped. Hint: if a hook or the remote prints this \
+         much, read the hook's own output by running it directly."
     );
 }
+
 
 /// What:
 ///  The line that names a run's wait for its remote.
 /// Why:
-///   The person or the journal reads that the run is not stuck:
-/// the connection to the remote is open,
-/// and what ends the wait.
-///  A wait that shows nothing the wrapper counts as progress ends at the connected window,
-/// which the report carries,
-/// so the line names the same limit the run will be stopped by.
-///  "Nothing this wrapper counts" and not "nothing":
-/// a server that keeps the connection alive sends a keepalive packet now and then,
-/// and a trickle below the minimum rate
-///  (`push_minimum_rate.rs`) moves bytes that are not progress either.
+///   The attempt's output and the journal name the program once already,
+///  so the line adds the words only,
+///  and the diagnostic of the moment carries the same words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `monochromatic-git-policy-cli: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
+/// `monochromatic-git-policy-cli: ${waitLineWords(label, report)}`
 /// ```
 fn wait_line(label: &str, report: &WaitReport) -> String {
-    return format!(
-        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing the wrapper counts as \
-         progress has moved for {} seconds (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited \
-         for until it answers or the connection closes, and a connection that stays open with nothing the wrapper counts as progress for \
-         {} seconds is stopped as a stall.",
-        report.silent.as_secs(),
-        report.elapsed.as_secs(),
-        report.window.as_secs(),
-    );
+    return format!("{TAG}: {}", wait_line_words(label, report));
 }
 
 /// What:
@@ -424,7 +303,35 @@ pub fn run_bounded_push(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
-    return crate::push_lock_clearing::run_clearing_locks(command, patience, grace, environment, &crate::stale_ref_lock_judge::Judge::here());
+    return run_bounded_push_naming(command, patience, grace, environment, None);
+}
+
+/// What:
+///  The same run,
+/// with the server a stop names when the caller already knows it.
+/// Why:
+///   An upload's plan knows the LFS server from the configuration,
+///  and a stop of the upload must name that server and not the push's destination.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runClearingLocksNamed({ command, patience, grace, environment, server })
+/// ```
+pub fn run_bounded_push_naming(
+    command: Command,
+    patience: Patience,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+    server: Option<&str>,
+) -> Result<PushAttempt, SingleFlightError> {
+    return crate::push_lock_clearing::run_clearing_locks_naming(
+        command,
+        patience,
+        grace,
+        environment,
+        &crate::stale_ref_lock_judge::Judge::here(),
+        server,
+    );
 }
 
 /// What:
@@ -448,7 +355,28 @@ pub fn run_bounded_push_once(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
-    return match run_on_runtime(run_bounded_push_awaiting(command, patience, grace, environment)) {
+    return run_bounded_push_once_naming(command, patience, grace, environment, None);
+}
+
+/// What:
+///  The same run,
+/// with the server a stop names when the caller already knows it.
+/// Why:
+///   The synchronous face enters the runtime for the same awaited run,
+///  so the name travels exactly as it does on the awaited face.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnRuntime(runBoundedPushAwaitingNamed({ command, server }))
+/// ```
+pub fn run_bounded_push_once_naming(
+    command: Command,
+    patience: Patience,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+    server: Option<&str>,
+) -> Result<PushAttempt, SingleFlightError> {
+    return match run_on_runtime(run_bounded_push_awaiting_naming(command, patience, grace, environment, server)) {
         Ok(attempt) => attempt,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -469,17 +397,41 @@ pub fn run_bounded_push_once(
 /// const attempt = await runBoundedPushAwaiting({ command, patience, graceMs, environment });
 /// ```
 pub async fn run_bounded_push_awaiting(
+    command: Command,
+    patience: Patience,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+) -> Result<PushAttempt, SingleFlightError> {
+    return run_bounded_push_awaiting_naming(command, patience, grace, environment, None).await;
+}
+
+/// What:
+///  The same run,
+/// with the server a stop names when the caller already knows it.
+/// Why:
+///   An upload's server is its LFS endpoint,
+///  which the upload plan read from the configuration,
+///  and the destination a push names is not it:
+///  a stop of an upload that asks the destination would name a server the upload never contacted.
+///  Every other run names none here and keeps the destination's own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attempt = await runBoundedPushAwaitingNamed({ command, patience, graceMs, environment, server });
+/// ```
+pub async fn run_bounded_push_awaiting_naming(
     mut command: Command,
     patience: Patience,
     grace: Duration,
     environment: &[(OsString, OsString)],
+    server: Option<&str>,
 ) -> Result<PushAttempt, SingleFlightError> {
     // The service's shutdown waits for this push and ends it when the service is stopped; a push that would begin after the stop is not
     //  started, and is queued for the next service as every stopped push is.
     let mut unfinished: Unfinished = match begin_unfinished_work(false, "git push") {
         Ok(counted) => counted,
         Err(refusal) => {
-            return Ok(PushAttempt { exit_code: STOPPED_EXIT_CODE, output: format!("monochromatic-git-policy-cli: {refusal}. {PUSH_QUEUED_LINE}") });
+            return Ok(PushAttempt { exit_code: STOPPED_EXIT_CODE, signal: None, output: format!("monochromatic-git-policy-cli: {refusal}. {PUSH_QUEUED_LINE}") });
         }
     };
     let stop: Option<StopArm> = unfinished.take_arm();
@@ -494,6 +446,7 @@ pub async fn run_bounded_push_awaiting(
     // How a stop names the server, read from the command before it is given to the child; asked for only if a stop needs it,
     //  so a push that lands pays nothing for it.
     let mut naming: ServerNaming<'_> = ServerNaming::of(&command, environment);
+    naming.named_by_the_caller(server);
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
     let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
@@ -517,15 +470,9 @@ pub async fn run_bounded_push_awaiting(
     // A push that ends in the pause between two looks can still have printed past the cap. Its output is the log a person
     //  reads, not Git's answer, so the attempt keeps the push's own status; but the text kept is the head of it, and passing
     //  that for all of it would be the same silence a shortened answer is.
-    let shortened: bool = ended.is_ok() && flooded(&[&output], MAX_PUSH_OUTPUT);
-    let captured: String = read_output(&mut output)?;
-    let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
-    if shortened {
-        if !shown_text.is_empty() {
-            shown_text.push('\n');
-        }
-        shown_text.push_str(shortened_output_line().as_str());
-    }
+    let (captured, cut): (String, bool) = read_output(&mut output)?;
+    let shortened: bool = ended.is_ok() && cut;
+    let mut shown_text: String = kept_output_text(captured.as_str(), shortened, label.as_str());
     // A wait is said once more, in the push's own output (the journal's `pushed` entry and the person's terminal carry it).
     for report in &waits {
         let line: String = wait_line(label.as_str(), report);
@@ -536,10 +483,7 @@ pub async fn run_bounded_push_awaiting(
     }
     let shown: &str = shown_text.as_str();
     return Ok(match ended {
-        Ok(status) => PushAttempt {
-            exit_code: i64::from(status.code().unwrap_or(1)),
-            output: shown.to_owned(),
-        },
+        Ok(status) => ended_attempt(status, shown_text),
         Err(cause) => {
             let reason: String = match cause {
                 StopCause::Deadline => format!(
@@ -553,7 +497,9 @@ pub async fn run_bounded_push_awaiting(
                     extend_clause()
                 ),
                 StopCause::Stalled(report) => {
-                    // The server is asked for here, once, because a run that was not stopped never needed it.
+                    // The server is asked for here, once, because a run that was not stopped never needed it;
+                    //  what the run's own output named is read first, because that is the server it really reached.
+                    naming.consider_output(shown);
                     naming.ask().await;
                     stalled_reason(label.as_str(), &report, naming.server())
                 }
@@ -575,6 +521,7 @@ pub async fn run_bounded_push_awaiting(
             };
             PushAttempt {
                 exit_code: STOPPED_EXIT_CODE,
+                signal: None,
                 output: joined,
             }
         }

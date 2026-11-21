@@ -67,8 +67,12 @@ The owner was asked the narrower form, "is it a hard requirement that the parser
 and the product starts no second program", and answered "No, not required (Recommended)".
 So no hard constraint admits the in-house reader, the choosing-technology skill's existing-tools
 rule keeps it ineligible, and the eligible order is the three candidates that pass every gate.
-The pick is still open: it waits for finalist validation and the `doc/audit/` vet report, which
-[Q1](#q1-which-reader-parses-the-module-btf) lists as the items that condition its answer.
+The pick is still open.
+Finalist validation now lands under [Finalist validation](#finalist-validation),
+and the pick waits for the `doc/audit/` vet report,
+a discovery result that is no longer blocked,
+and the check-in of 2026-11-20,
+which [Q1](#q1-which-reader-parses-the-module-btf) lists as the items that condition its answer.
 That section now records this answer and keeps its pick conditional on them.
 
 ### The release string, Q2
@@ -749,6 +753,132 @@ the pick is not made here.
   [The prose checks](#the-prose-checks).
   No product file, no plan step and no proposal step is edited here.
 
+- `2026-11-20T14:17:28-05:00`,
+  the time this entry was written,
+  which no commit can carry:
+  a label written into a commit cannot name that commit's own time or hash.
+  The commit that carries the body this entry records is `22006100f1`
+  at 2026-11-20T14:18:23-05:00,
+  and the commit that carries this sentence names it.
+  This is the revision that runs the first item Q1 lists,
+  the finalist validation of the three eligible finalists,
+  and records it under [Finalist validation](#finalist-validation).
+  It checked the 2.0.1 archive's SHA-256 against the crates.io index `cksum`,
+  and found that the archive ships no tests,
+  so the suite ran from the repository at tag `v2.0.1`.
+  It ran the crate's CI path on stable 1.100.0 in a capped container with the network off,
+  the product's consumer route on copies of this host's two BTF files with four negative
+  controls,
+  and `pahole` 1.32 and `bpftool` 7.8.0 through a repeatable harness on the same copies.
+  No ranking moved,
+  no candidate is adopted,
+  no crate is added to a manifest,
+  and no product file,
+  plan step or proposal step is edited.
+  The other three items Q1 lists stay open,
+  and that section restates each one.
+
+- `2026-11-20T17:46:00-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are `40fea4e6eb` at
+  2026-11-20T17:43:38-05:00,
+  `ae597db4a4` at 2026-11-20T17:44:36-05:00,
+  `ac364c61e6` at 2026-11-20T17:45:30-05:00,
+  `e280f31281` at 2026-11-20T17:46:50-05:00,
+  `53ec673c1c` at 2026-11-20T17:47:45-05:00,
+  and `127e01078c` at 2026-11-20T17:48:18-05:00.
+  The commit that carries this sentence names them.
+  This is the revision that finishes discovery.
+  It writes the check-in of 2026-11-20,
+  records the three class 3 queries and the class 2 repository and project lists,
+  and ends with the skill's saturated terminal result.
+  It adds `ebeepf` 0.1.0 as a fourth finalist,
+  audits its source,
+  validates it in a capped container with the network off,
+  scores it at 87 of 104,
+  and moves the eligible order to `btf-rs` 2.0.1 > `ebeepf` 0.1.0 > `pahole` 1.32 >
+  `bpftool` 7.8.0.
+  The `doc/audit/` vet report and the `aarch64` target stay open.
+  No candidate is adopted,
+  and no crate is added to a manifest.
+
+- `2026-11-20T18:16:05-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are `3c45fc912e` at
+  2026-11-20T18:15:58-05:00 and `50eb28f7ed` at 2026-11-20T18:16:01-05:00.
+  The commit that carries this sentence names them.
+  This is the revision that writes the skill's vet report and closes the last item Q1 listed.
+  The report is `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`,
+  with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`,
+  and it recommends `btf-rs` 2.0.1 with the `aarch64` target unrun and the start cost
+  unmeasured beside that recommendation.
+  That recommendation is superseded by the revision of `2026-11-20T18:53:17-05:00`,
+  which gives a conditional ranking and recommends none.
+  It makes two changes here:
+  [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)
+  now names the report,
+  and [Q1](#q1-which-reader-parses-the-module-btf) names it and says the pick is the project's.
+  No candidate is adopted,
+  no crate is added to a manifest,
+  no decision record is edited,
+  and no ranking moves.
+
+- `2026-11-20T18:53:17-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are
+  `e83c0de1c3` at 2026-11-20T18:53:00-05:00,
+  which is the report,
+  and `2dabc04b5b` at 2026-11-20T18:53:11-05:00,
+  which is this file.
+  The commit that carries this sentence names them.
+  This is the revision that answers the gate review of the vet report,
+  written on Sonnet,
+  a different vendor from the report's author,
+  and kept at
+  `/home/user/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  It makes three changes here:
+  [Q1](#q1-which-reader-parses-the-module-btf) says the report recommends none and gives its
+  conditional result;
+  option 1 stops calling itself the only eligible library and the widened-mask scenario names
+  options 3 and 4;
+  and [The check-in of 2026-11-20](#the-check-in-of-2026-11-20) says when that check-in was asked
+  relative to the twelve queries already run.
+  No candidate is adopted,
+  no crate is added to a manifest,
+  no decision record is edited,
+  and no ranking moves.
+
+- `2026-11-20T19:42:17-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are
+  `8617053f68` at 2026-11-20T19:42:13-05:00,
+  which is the report,
+  and `8b0e28656d` at 2026-11-20T19:42:17-05:00,
+  which is this file.
+  The commit that carries this sentence names them.
+  This is the revision that answers the gate re-check of the vet report,
+  written by a reviewer from another vendor,
+  and kept at
+  `/home/user/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  It makes four changes here:
+  [Q1](#q1-which-reader-parses-the-module-btf) carries the report's 32-point baseline only,
+  states that `btf-rs` is first in every defined test at the frozen weights,
+  and says that the maintenance weight moves places 2 and 3,
+  with `bpftool` failed on relevant execution and `pahole` still a finalist;
+  options 2 to 4 use that one scale and stop calling the child root-spawned;
+  the ranking names the C1,
+  C5 and C6 steps and is labelled conditional;
+  and [Scored comparison](#scored-comparison) records that four candidates reached finalist
+  validation and that the report fails `bpftool`.
+  No candidate is adopted,
+  no crate is added to a manifest,
+  no decision record is edited,
+  and no score input changed.
+
 ### Sources read
 
 Logs under `~/temp/agent` that this file cites are the author's session scratch.
@@ -832,6 +962,8 @@ with `git remote set-url --push origin DISABLED` before any other command:
 - `anakryiko/btfdump` at `e5951d4b2e2e7ce6c36001c1b48c1c239c9759dc` (crate `btfdump` 0.0.5).
 - `gidotencate/padlock` at `6a7d045f2c6b0cb64549ddebe5825411e25178fa` (`padlock-dwarf` 0.82.0).
 - `libbpf/libbpf-rs` at `6d771ee9835fcf517dbcf1d29e25a97480425d45` (crate `libbpf-rs` 0.27.2).
+- `kxxt/ebeepf` at `5de05465bd9445d89b13a967e198d0aeffd71ec4` (crate `ebeepf` 0.1.0),
+  cloned for this round under its own scratch root.
 
 Registry evidence: the crates.io API for those crates' metadata and versions,
 and the query schedule recorded under
@@ -988,10 +1120,68 @@ Run in the revision that answered the diff-only gate check of the fifth revision
 - `sha256sum` of the prose checker at the two paths that name it, and the checker on this file and
   on the deliberately broken copy the control paragraph describes.
 
+Run in the revision that validated the finalists:
+
+- `curl` for the sparse index entry and the 2.0.1 archive,
+  and `sha256sum` of the archive,
+  which equals the index entry's `cksum`.
+- `gh repo clone retis-org/btf-rs -- --branch v2.0.1 --depth 1`,
+  `git rev-parse HEAD`,
+  `git tag --points-at HEAD`,
+  `git remote set-url --push origin DISABLED`,
+  and `sha256sum` of the integration test and its two BTF assets.
+- `podman run` once per step,
+  with the fetch step's network on and every later step's network off,
+  for `cargo fmt`,
+  two `cargo clippy` runs,
+  `cargo doc`,
+  the six feature builds,
+  `cargo test` under both feature sets,
+  the published archive's own `cargo test`,
+  and the consumer program on the two BTF copies.
+- `pahole --version`,
+  `bpftool --version`,
+  four `pahole --btf_base` invocations,
+  `bpftool btf dump file ... --base-btf ... format raw` for the module and the base,
+  and each tool on the module without a base as a negative control,
+  driven by `tools-layout-check.ts`.
+
+Run in the revision that finished discovery:
+
+- Three web queries through the session's search tool,
+  one page each,
+  recorded with their provider,
+  page and row counts under [Discovery record](#discovery-record).
+- `gh api --paginate --slurp` for the three organizations' public repository lists,
+  and `gh api graphql` for each organization's projects count,
+  plus `curl` of the three board listing pages and the three board pages themselves.
+- `curl` of the crates.io version entry and the 0.1.0 archive,
+  and `sha256sum` of the archive,
+  which equals the version entry's `checksum`.
+- `gh repo clone kxxt/ebeepf -- --depth 1`,
+  `git rev-parse HEAD`,
+  and `git remote set-url --push origin DISABLED`.
+- `podman build` of one image that adds the distribution's Rust 1.100.0 and clang to the base,
+  then `podman run` once per step,
+  with the fetch steps' network on and every later step's network off,
+  for `cargo build`,
+  `cargo test`,
+  `cargo fmt --check`,
+  `cargo clippy --lib -- -D warnings`,
+  and the consumer program on the two BTF copies.
+- The design file's linter,
+  `monochromatic-lint`,
+  against the lines this round adds,
+  with zero findings on them.
+
 Not run:
 
-- No VM, no container, no ZFS command that changes anything,
+- No VM,
+  no ZFS command that changes anything,
   no `/dev/zfs` open, no pool, dataset, mount or unit change.
+  The finalist validation's containers read the mounted scratch tree and the read-only BTF
+  copies,
+  and nothing else of this host.
 - No measurement of the checker's start cost, memory, or behaviour on a rebuilt module.
 - No test of the built binding, the gate, the handler or the wrapper.
   None exists yet.
@@ -1707,8 +1897,11 @@ Ranking: Way 1 > Way 3. Both prove the items before the first ioctl and compare 
 layout, so each meets the answer.
 
 - Way 1 beats Way 3 because the proof stays in the wrapper's address space: no runtime program
-  for the product to find, verify and version, no root-spawned binary whose path and library
-  resolution join the privileged boundary, and no text format to parse back into members.
+  for the product to find,
+  verify and version,
+  no child whose path and library resolution join the
+  privileged boundary,
+  and no text format to parse back into members.
   Way 3 proves the same facts and pays those costs for them.
 
 The further ways are not ranked, each for a stated reason:
@@ -2071,7 +2264,8 @@ a scored comparison of the finalists, and a sensitivity pass.
 The pick is the owner's, so this section ends with ranked options and no choice.
 
 The skill's report artifact (`doc/audit/tech-...-vet-YYYY-MM-DD.md`) and its
-pre-discovery check-in are not done, because this brief permits edits to this file only and
+check-in before broad discovery are not done,
+because this brief permits edits to this file only and
 allows no questions. Both are owed before adoption; see
 [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write).
 
@@ -2112,6 +2306,9 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 - Discovery: crates.io query `btf`, first result by recent downloads among parser crates.
 - Version and revision: 2.0.1, tag `v2.0.1`, commit `03fd01bd9505d0888b568cd3aaa9b232b7e3fb20`,
   published 2026-11-12. License `LGPL-2.1-or-later`.
+  The crates.io archive's SHA-256 is
+  `fa34ec915ede6b7eaeebcb38fdb749fcac1538ec1b94dcfde63a034ad8f7963b`,
+  which is the index entry's `cksum`.
 - Dependencies: `btf-rs-derive`, `byteorder`, `fallible-iterator`, `memmap2`, `thiserror`;
   optional `elf`, `regex`, `bzip2`, `flate2`, `liblzma` and `zstd` for features this use does not
   enable. The default feature set is empty. No C build.
@@ -2132,6 +2329,15 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 - Tests and CI: an integration test with checked-in BTF assets
   (`btf-rs/tests/integration_test.rs`), and one CI workflow running format, Clippy,
   documentation, six feature builds and the tests (`.github/workflows/ci.yaml:1-40`).
+  The published archive ships no tests:
+  its manifest sets `autotests = false`,
+  and its `include` list holds only `examples/`,
+  `src/` and `LICENSE`.
+  The suite therefore ran from the repository at tag `v2.0.1`.
+  On 2026-11-20,
+  168 integration tests and four doctests passed under `--all-features`,
+  and 64 integration tests passed under the default features
+  ([Finalist validation](#finalist-validation)).
   No fuzz target.
 - Maintenance: releases `v2.0.0` (2026-04-16) and `v2.0.1` (2026-11-12);
   commits through 2026-10-29; one merged fix for an out-of-bounds mmap name read
@@ -2145,6 +2351,112 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 - Gates: H1 pass (split constructors plus the probe), H2 pass (LGPL-2.1-or-later can be used
   under LGPL-3.0; the wrapper is already LGPL-3.0-or-later), H3 pass on source (pure Rust, default
   features off; the aarch64 build is unrun), H4 pass, H5 pass, H6 pass.
+- Validation:
+  the library parsed this host's pair through `from_bytes` and `from_split_bytes`,
+  with every compared member and enumerator asserted and four negative controls refused
+  ([Finalist validation](#finalist-validation)).
+  The `aarch64` target remains unrun.
+- Finalist.
+
+#### ebeepf 0.1.0
+
+- Discovery:
+  class 3 query 3 of [the round of 2026-11-20](#the-round-of-2026-11-20),
+  whose 49-row page named it.
+- Version and revision:
+  0.1.0,
+  published 2026-10-06,
+  at commit `5de05465bd9445d89b13a967e198d0aeffd71ec4`.
+  That commit is the repository's `HEAD` and the one `.cargo_vcs_info.json` names.
+  The license is `LGPL-2.1-only OR BSD-2-Clause`,
+  read from the version's own metadata,
+  and a dual-licensed crate may be taken under its `BSD-2-Clause` arm.
+  The archive's SHA-256 is
+  `f5f4162021ff5dce1b6c5a657267523d7d41c6818bae2adc0adbfbf4b5b6fa96`,
+  which is the version entry's `cksum`.
+- Dependencies:
+  `bitflags`,
+  `flate2`,
+  `goblin`,
+  `libc`,
+  `object`,
+  `sha2` and
+  `thiserror`,
+  with `bpfcov` optional behind the `coverage` feature.
+  No C build runs for this use,
+  and the default feature set is empty.
+- Source audit:
+  1,926 lines in `src/btf.rs`.
+  Split support is explicit:
+  `Btf::parse_split` and the private `parse_with_base` clone the base's type and string tables,
+  number the module's types from the base's count,
+  and refuse a byte order that differs from the base's
+  (`src/btf.rs:403-480`).
+  Members carry a bit offset and a bit-field width,
+  and enumerators carry a value
+  (`src/btf.rs:94-121`).
+  `size_of` walks typedef and qualifier chains and multiplies array elements
+  (`src/btf.rs:576-706`),
+  so the binding needs no array-size shim.
+  The header reader accepts any `hdr_len` of 24 or more and places both sections from it
+  (`src/btf.rs:438-450`),
+  so a 32-byte header parses.
+  Type and string sections are bounds-checked,
+  every offset goes through `checked_add`,
+  and `validate_references` runs before a table is returned
+  (`src/btf.rs:441-477` for the checks and the call,
+  `:708-751` for the function).
+  Two residuals remain.
+  The kind and member-count masks are the 5-bit and 16-bit fields the `btf-rs` release also uses
+  (`src/btf.rs:1430-1431`).
+  A table passed as the base of another split table is not refused,
+  because `parse_split` compares only the byte order
+  (`src/btf.rs:411-419`),
+  and the consumer probe observed exactly that.
+- Tests and CI:
+  102 unit tests in the library,
+  of which 7 are BTF tests,
+  plus `tests/kernel_smoke.rs` and one doctest.
+  The archive ships all of them.
+  The repository has no CI workflow,
+  and `gh api repos/kxxt/ebeepf/contents/.github` answers 404.
+  No fuzz target.
+  On 2026-11-20 the archive's own `cargo test` passed:
+  102 unit tests,
+  `kernel_smoke` with 1 passed and 22 ignored,
+  and 1 doctest.
+  `cargo fmt --check` passed,
+  and so did `cargo clippy --lib` with `-D warnings`.
+  The suite needs `clang` for its BPF fixtures:
+  without it 94 unit tests pass and 8 fail at `src/test_bpf.rs:53`,
+  so the run used an image that has clang.
+- Maintenance:
+  one release,
+  2026-10-06,
+  one maintainer,
+  0 stars,
+  0 forks,
+  0 open issues,
+  no CI,
+  no commit after the release,
+  and a README whose first line reads "This repo contains AI-generated code that has not been
+  thoroughly reviewed".
+- Probe:
+  [Finalist validation](#finalist-validation) records 195 of 196 design checks passing on copies
+  of this host's pair.
+  The one failure is the unrefused split base above.
+- Gates:
+  H1 pass on the split constructors and the probe;
+  H2 pass on the `BSD-2-Clause` arm;
+  H3 pass on source,
+  pure Rust with the default features off,
+  while the `aarch64` build is unrun;
+  H4 pass,
+  since `parse` and `parse_split` take bytes the caller read and `from_path` reads one named
+  file;
+  H5 pass on member bit offsets,
+  bit-field widths and enumerator values;
+  H6 pass on the archive's checksum and vcs information.
 - Finalist.
 
 #### btfparse 1.3.9
@@ -2232,6 +2544,11 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
   Probe: on the sysfs path it resolves the base itself; on a copied file it needs `--base-btf`.
 - Gates: H1 pass, H2 pass for a separate process, H3 not applicable as a library but the product
   needs the program at run time, H4 pass, H5 pass, H6 pass.
+- Validation:
+  the harness ran the tool on copies of this host's pair with `--base-btf`,
+  checked every compared member and enumerator,
+  and refused the module copy without its base
+  ([Finalist validation](#finalist-validation)).
 - Finalist as a Way 3 tool.
 
 #### pahole 1.32
@@ -2244,6 +2561,11 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
   On a copied module it needs `--btf_base`; on the sysfs path it finds the base.
 - Gates: H1 pass, H2 pass as a separate process, H3 as for `bpftool`, H4 pass, H5 pass
   (the printer gives member offsets and sizes), H6 pass.
+- Validation:
+  the harness ran the tool on copies of this host's pair with `--btf_base`,
+  checked every compared member and enumerator,
+  and refused the module copy without its base
+  ([Finalist validation](#finalist-validation)).
 - Finalist as a Way 3 tool.
 
 #### Writing the reader in-house
@@ -2269,6 +2591,40 @@ re-admit `libbpf-rs` and a `dlopen` of `libbpf`, which is a choice for the owner
 - `object`, `goblin`, `scroll` and `libelf`: they expose an ELF section or a byte stream, not BTF
   types, so they are building blocks of the in-house reader, not candidates.
 - `trailofbits/btfparse` (C++): discovery found it; a C++ build fails H3.
+- The `libabigail` C++ ABI checker has a BTF front-end that calls libbpf's `btf__parse` for a base
+  and `btf__parse_split` for a module,
+  as its own commit `904c8eafccab` describes.
+  A C++ build and a libbpf link fail H3,
+  and the parser would be libbpf's,
+  which this ledger already refuses on H3.
+- Three Go libraries arrived with the class 3 pages:
+  `cilium/ebpf`,
+  whose `btf/` package holds a split reader;
+  `libbpfgo`,
+  Go bindings over libbpf's C library;
+  and `gbpf`,
+  a Go module the provider returned beside them.
+  The wrapper is Rust,
+  so H3 fails for want of any link path.
+- `coolbpf` is a C platform that wraps libbpf,
+  and its own README requires `elfutils-devel`,
+  `gcc` for the library and `clang` with `llvm` for the tools.
+  H3 fails,
+  and its parser would be libbpf's.
+- `bpf-compatible` and `bpf-compatible-rs` are BTF-portability helpers that resolve BTF files from
+  the btfhub archive;
+  `bpf-compatible-rs` 0.1.3's `src/lib.rs` holds archive-path helpers and no type model at all,
+  so the category fails.
+- `aquasecurity/btfhub` and the `btfhub-archive` repositories distribute BTF files rather than
+  parsing them,
+  so they are data sources.
+- `trailofbits/nate` is a Rust DWARF parser and not a BTF reader,
+  so the category fails.
+- `vock` is a Debian ITP for a command that reports which kernel code ran,
+  using KCOV or hardware tracing;
+  it is a tool rather than a parser.
+- `parttimenerd/btfparse` is a fork of `trailofbits/btfparse`,
+  which this list's `trailofbits/btfparse` bullet already refuses for its C++ build.
 
 ### Discovery record
 
@@ -2498,6 +2854,10 @@ audit exists in [Candidate ledger](#candidate-ledger).
   return 1, and a board's contents need the `read:project` scope, which this session's token does
   not carry, so their titles and items stay unread. A board is not a candidate index, and no
   candidate in the ledger came from one; the gap is recorded rather than filled.
+  The round of 2026-11-20 read those three boards through their public pages,
+  and their organizations' repository lists,
+  as recorded under
+  [class 2 of this round](#class-2-of-this-round-the-organization-lists-and-boards).
 - Class 3, broader web search. The literal query `Rust crate parse BTF split BTF module vmlinux
   base BTF parser library` was run once through this session's first provider, which returned 10
   result lines, that provider's page size; the first version's report of 44 lines under a 10-line
@@ -2515,13 +2875,444 @@ audit exists in [Candidate ledger](#candidate-ledger).
 - Class 4, this repository. The OpenZFS vet, the design's `pahole` command, the repo's `zfsdev`
   reuse. These are the incumbent and prior-report class, and the vet already names both tools.
 
-Terminal result: blocked by an unenumerable required source. Class 3 stops at its providers' page
-sizes, and class 2's boards under `libbpf`, `trailofbits` and `eunomia-bpf` stay unread, so no
-class is claimed saturated; the skill's rule is that discovery is saturated only when every
-required source class is saturated.
-The ledger is dated by the commit that carries this record, and
+#### The round of 2026-11-20
+
+This round ran the check-in this record owed,
+the class 3 queries,
+and the class 2 repository and project lists.
+It ran in the worktree `zfs-layout-checker-reader-validation` on 2026-11-20,
+adopted nothing,
+and added no crate to any manifest.
+Every command,
+page and result count is below.
+Every new name's screening is in
+[Candidate ledger](#candidate-ledger).
+
+#### The check-in of 2026-11-20
+
+The skill's "Check in before broad discovery" asks one question per vetting process,
+before the first discovery query.
+It states the subject,
+the context forks settled so far,
+the source classes,
+and the draft query schedule.
+It also offers who runs the enumeration:
+the earlier sessions' writer,
+a model the user names,
+or the user.
+The question was put to the project on 2026-11-20,
+after the initial and expansion rounds had already run their twelve numbered queries
+([Discovery record](#discovery-record)),
+so its answer covers the queries still to run and not the enumeration as a whole.
+Its subject was the BTF reader Q1 picks.
+Its settled forks were the design's three:
+a library the binding links or a program the gate starts;
+no hard requirement that the parser be our own code;
+and the two GNU release targets.
+Its source classes were the four the skill requires.
+Its remaining schedule was the three class 3 queries and the two class 2 list reads below.
+The answer of 2026-11-20 was "This session's writer (Recommended)".
+That writer was described as a `DeepSeek V4.1 Flash` writer through Pi that runs the remaining
+queries now.
+It records each one with its literal query,
+provider,
+page and result count.
+It ends in "no new candidate" or in new candidates checked the same way.
+This subsection is that artifact:
+the question,
+the answer and its date.
+
+#### Class 3 of this round: the three queries
+
+Each query ran on the DeepSeek provider through this session's search tool.
+That is the provider the class 3 bullet calls the second one,
+which reported 44 rows and reached the earlier reader in part.
+None sent an include or exclude filter,
+none sent a sort parameter,
+and each took the provider's own ranking.
+Each returned one page.
+That page holds at most 50 rows.
+Each returned fewer rows than that cap and offered no cursor.
+The provider therefore reported its listing ended,
+and no page 2 exists for these queries.
+No result was truncated after that page,
+and no filter can hide a row.
+
+1.  Literal:
+    `Rust crate parse BTF split BTF module vmlinux base BTF parser library`.
+    Page 1 of 1.
+    44 rows.
+    Names the ledger lacks:
+    `bpf-compatible-rs` and `vock`.
+    Both are screened in [Candidate ledger](#candidate-ledger),
+    and neither is a candidate.
+    New survivors:
+    none.
+2.  Variant,
+    C libraries that parse BTF:
+    `C library parse BTF split BTF module vmlinux base BTF parser`.
+    Page 1 of 1.
+    46 rows.
+    Names the ledger lacks:
+    `libabigail` and `parttimenerd/btfparse`.
+    Both are screened and neither is a candidate.
+    New survivors:
+    none.
+3.  Variant,
+    alternatives to libbpf's `btf__parse`:
+    `alternatives to libbpf btf__parse BTF parser library`.
+    Page 1 of 1.
+    49 rows.
+    Names the ledger lacks:
+    `ebeepf`,
+    `cilium/ebpf`,
+    `libbpfgo`,
+    `gbpf`,
+    `coolbpf` and
+    `bpf-compatible`.
+    `ebeepf` passed every hard gate and is this ledger's fourth finalist.
+    The other five are screened and not candidates.
+    New survivors:
+    one.
+
+#### Class 2 of this round: the organization lists and boards
+
+The repository lists came from the GitHub API.
+`gh api --paginate --slurp "orgs/<org>/repos?per_page=100&type=public"` read every public
+repository each organization's own `public_repos` count names.
+Each list therefore ends on the provider's exhaustion rather than on a page cap.
+
+- `libbpf`:
+  15 of 15 repositories.
+  The BTF-adjacent ones are the ledger's `libbpf-rs` and `libbpf-sys`,
+  `bpftool` (a finalist),
+  `blazesym` (symbolization),
+  `veristat` (a tool),
+  `libarena`,
+  `usdt`,
+  `vmlinux.h` (a header mirror),
+  `libbpf-cpp`,
+  and `bpfvv`.
+  None is a BTF parser the ledger lacks.
+- `trailofbits`:
+  298 of 298.
+  The BTF-adjacent ones are `btfparse` (refused on H3),
+  `mquire` (the ledger's memory-forensics tool),
+  `nate` (a Rust DWARF parser),
+  `ebpfpub`,
+  `ebpf-common`,
+  `ebpfault`,
+  and `bpf_tutorials_code`.
+  None is new as a candidate.
+- `eunomia-bpf`:
+  157 of 157.
+  The BTF-adjacent ones are `bpf-compatible` (C),
+  `btfhub-archive` (BTF files),
+  `btf2wit`,
+  `rust-struct-bindgen` and `c-struct-bindgen` (generators),
+  `btf-relocate-demo`,
+  `multiarch-relocate-example`,
+  a `bpftool` mirror,
+  a `libbpf-rs` fork,
+  and a `vmlinux` mirror.
+  None is new as a candidate.
+
+The boards came from two routes.
+`organization { projectsV2(first: 1) { totalCount } }` answers 1 for each of the three
+organizations,
+so each holds one board.
+Titles and items need `read:project`,
+which this session's token lacks.
+Its scopes are `gist`,
+`read:org`,
+`repo` and `workflow`.
+The REST project endpoints answer 404 because they are sunset.
+The boards' public HTML pages answered instead:
+
+- The `libbpf` board is project 1.
+  It is "BPF Verifier Visualizer" and holds Todo 0 and In Progress 0.
+- The `trailofbits` board is project 150.
+  It is "[ENG] Sigstore Transparency Log Monitoring",
+  a Sigstore monitoring board with no BTF item.
+- The `eunomia-bpf` board is project 1.
+  It is "eunomia-bpf" and no column holds an item.
+
+No board names a candidate,
+which is what the earlier round predicted a board could not do.
+What changed is that the three titles are read rather than assumed.
+
+Terminal result:
+saturated with at least two survivors.
+Class 1 read all 81 rows of its registry query.
+Class 2 now covers the three organizations' complete repository lists and all three of their
+boards.
+Class 3 read each of its three queries to the end its provider reported.
+Class 4 is unchanged.
+Screening survivors are these four:
+`btf-rs` 2.0.1,
+`ebeepf` 0.1.0,
+`pahole` 1.32 and
+`bpftool` 7.8.0.
+Each is validated under [Finalist validation](#finalist-validation).
+The ledger is dated by the commit that carries this record.
 [The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)
-records why no candidate is recommended.
+records what is still owed.
+
+### Finalist validation
+
+This round ran the first item Q1 lists,
+the finalist validation the skill requires,
+on 2026-11-20,
+in the worktree `zfs-layout-checker-reader-validation`.
+It adopted nothing,
+added no crate to a manifest,
+and ran no product code.
+Every step's command,
+output,
+exit status and checksum is kept under
+`/home/user/temp/agent/zfs-layout-checker-reader-finalist-validation-2026-11-20/keep/`.
+The crate's logs are in `keep/evidence/btf-rs-2.0.1/`,
+and the tools' outputs are in `keep/evidence/`,
+both under that root.
+This section cites those files by name.
+
+The untrusted build ran in one environment.
+The tool is `podman` 6.2.0.
+The image is `docker.io/cachyos/cachyos:latest`
+at digest `sha256:ab3e1698b7ce5eaa4f6342d7a0f687ce731c443706238a49338f46239036a185`.
+The caps are 2 CPUs,
+2 GiB of memory and 512 processes.
+No home directory is mounted:
+`HOME` is `/work/home` inside the container.
+The two BTF copies are mounted read-only at `/btf`.
+Dependencies were fetched in one step with the network on,
+and every build and test ran in a later step with `--network none`
+and `CARGO_NET_OFFLINE=true`.
+The toolchain is stable 1.100.0,
+installed by `rustup` 1.29.3 in the fetch step.
+The host's active rustup toolchain is nightly 1.102.0,
+with neither the `rustfmt` nor the `clippy` component,
+while the crate's CI runs stable,
+so the fetch step brings the toolchain and components the CI path needs.
+
+The archive was checked against the registry before it ran.
+The sparse index entry for 2.0.1 at `https://index.crates.io/bt/f-/btf-rs`
+gives `cksum`
+`fa34ec915ede6b7eaeebcb38fdb749fcac1538ec1b94dcfde63a034ad8f7963b`,
+and the downloaded archive's SHA-256 is that value.
+Its `.cargo_vcs_info.json` names commit
+`03fd01bd9505d0888b568cd3aaa9b232b7e3fb20`,
+which is the commit tag `v2.0.1` points at.
+
+The published archive ships no tests.
+It holds 15 files.
+Its manifest sets `autotests = false`,
+and its `include` list is `examples/`,
+`src/` and `LICENSE`,
+so `cargo test` on the archive runs no unit or integration test,
+and its four doctests only compile.
+The ledger's integration test therefore ran from the repository at that commit,
+cloned from `retis-org/btf-rs` at tag `v2.0.1`,
+with the same commit at `HEAD`.
+Its `btf-rs/tests/assets` folder is 56 MB.
+
+The CI-equivalent path passed on stable 1.100.0,
+with the network off:
+`cargo fmt --check`,
+`cargo clippy --locked --all-features -- -D warnings` for the library and the example,
+`cargo doc --locked --all-features` under `RUSTDOCFLAGS=-D warnings`,
+the six feature builds the workflow runs,
+and `cargo test --locked --all-features`.
+The suite ran 168 integration tests and four doctests,
+with 0 failed and 0 ignored,
+in 11.16 seconds.
+Their names group as `btf_api`,
+`resolve_anon_name`,
+`resolve_anon_regex`,
+`chained_type_iter`,
+`bijection` and `resolve_function` with 18 cases each,
+`btfc` and `btfc_resolve_regex` with 12 each,
+`resolve_split_func`,
+`resolve_split_struct` and `resolve_regex` with 9 each,
+`base_btf` and `split_btf` with 4 each,
+and `wrong_input` with 1.
+The log at `ci-cargo-test-all-features.log` lists every case's result.
+
+The suite needs what the repository carries and lacks the product's own case.
+It needs 56 MB of checked-in assets,
+a C compiler for the `zstd` and `xz` optional dependencies when `elf-compression` is on,
+and no network,
+no root and no `/sys` access.
+It has no fixture of a live kernel and module pair,
+so it cannot exercise the pair the gate reads.
+Its feature-gated cases are 104 of the 168:
+with the default,
+empty feature set it runs 64 integration tests and four doctests,
+and nothing is marked `#[ignore]`.
+The crate still has no fuzz target.
+
+The design's checks ran from a consumer program that depends on the library by path.
+It reads the two copies into bounded buffers,
+calls `Btf::from_bytes` for the base and `Btf::from_split_bytes` for the module,
+which is the loader route the product designs,
+and asserts the compared set.
+That set is both files' 32-byte header,
+the base's 151,181 types and the module's 13,141 types from 151,182 to 164,322,
+`zfs_cmd` at 13,744 bytes with its 32 members and their bit offsets and byte sizes,
+the anonymous union at 106,368 bits with `zc_inject_record` and its anonymous struct,
+`dmu_objset_stats` at 288 bytes with `dds_flags` at 2,296 bits and size 1,
+`zinject_record` at 368 bytes with its 19 members,
+the 104 `zfs_ioc` enumerators with the seven values this design names,
+and the base integer sizes those members use.
+It ran 183 checks with 0 failures.
+Its negative controls are a base and a module truncated to 1,024 bytes,
+a module whose magic byte changed,
+and a split object passed as a base;
+the library refused each with its own error,
+and none panicked or stalled.
+The log at `design-consumer-check-on-host-btf-copies.log` holds every check.
+
+The tool finalists ran through a scratch harness,
+`tools-layout-check.ts`,
+that runs each tool on the same two copies and checks the same members.
+`pahole` is 1.32 at `/usr/bin/pahole`,
+with SHA-256 `00acbd859cd0cca6e71dca93d885ed2483c5a52a78d3df1a9bcc9da82881503c`.
+`bpftool` is 7.8.0 on libbpf 1.8 at `/usr/bin/bpftool`,
+with SHA-256 `475a53182f50231c40e40ce002f2e032dc418489d56a2f8f902aa317aed03d20`.
+The harness ran 323 checks with 0 failures,
+at four `pahole` invocations and at `bpftool btf dump file` for the module and the base.
+Its negative controls are both tools on the module copy without a base:
+`pahole` exits 1 with libbpf's "did you forget to provide base BTF" message,
+and `bpftool` exits 234 with "Invalid argument".
+Two output facts bear on C4.
+`pahole` prints absolute byte offsets at every nesting depth,
+so its anonymous containers need no path arithmetic.
+`bpftool` prints `bits_offset` relative to the containing type,
+renders an empty BTF name as `(anon)`,
+and prints no member size,
+so a consumer must resolve each `type_id` through both dumps.
+The harness does that,
+and that resolver is the cost C4 prices.
+The raw outputs are `pahole-*-output.txt` and `bpftool-*-raw-output.txt`,
+and every check is in `tool-harness-checks.txt`.
+
+The skill's validation now holds for `btf-rs` on the one platform this host has.
+The default CI path passed,
+the suite passed,
+and the consumer boundary ran on copies of this host's own pair,
+with controls that show the reader refuses bad bytes.
+It does not hold for `aarch64`:
+no `aarch64` build or run happened,
+so H3's second target is still source evidence only,
+as it was before this round.
+The archive's missing tests are a provenance fact and not a gate failure:
+the vcs information maps the archive to the commit whose suite passed,
+which is what H6 asks for.
+
+The tool finalists are validated at their output boundary.
+Each ran on the same copies and its output carried the compared members,
+and a negative control showed the base file is required.
+`pahole`'s own upstream suite ran too,
+in a capped container at the packaged tag with the packaged patches,
+and `bpftool`'s functional suite did not,
+because the vet report reads it as needing root and a BPF-capable kernel.
+What did not run is `pahole`'s own CI path:
+a kernel build that supplies the `vmlinux` four of its cases skip for.
+The vet report records it with the one case that path would still leave open,
+and the project decides whether that gap leaves `pahole` a finalist.
+The product's own arms for a tool route,
+owed measurements 13 and 14,
+and the release-version matrix those items name,
+stay unrun.
+
+No rating moved.
+C5 and C6 for `btf-rs` rest on the upstream record the suite confirms,
+and a green suite neither raises nor lowers them.
+C4 for `bpftool` stands at 2,
+now with the resolver's cost demonstrated rather than read.
+C7 stays unmeasured,
+and this round took no timing,
+so it says nothing about start cost.
+Among those three the order stays `btf-rs` 2.0.1 > `pahole` 1.32 > `bpftool` 7.8.0.
+The fourth finalist changes the order once it is scored,
+and [Scored comparison](#scored-comparison) records that order.
+
+#### ebeepf 0.1.0
+
+This finalist's validation ran the same three steps as `btf-rs`'s.
+The archive was checked against the registry first:
+the version entry's `checksum` equals the downloaded archive's SHA-256 recorded in
+[Candidate ledger](#candidate-ledger).
+Its `.cargo_vcs_info.json` names commit `5de05465bd9445d89b13a967e198d0aeffd71ec4`,
+which is the commit the repository clone carries at `HEAD`.
+
+The environment is one image built for this round,
+because the published archive's own suite needs `clang` for its BPF fixtures.
+The image is `localhost/ebeepf-validation:rust-1.100.0-clang` at digest
+`sha256:d201d863b813804a9bc89db027eb51ed6f9839c4d8d363a2ab77e1363bed2a05`.
+It was built from `docker.io/cachyos/cachyos:latest` at digest
+`sha256:ab3e1698b7ce5eaa4f6342d7a0f687ce731c443706238a49338f46239036a185`,
+plus the distribution's Rust 1.100.0 and clang.
+Every step is a `podman run --rm` with 2 CPUs,
+2 GiB of memory and 512 processes.
+No home directory is mounted,
+and `HOME` is `/work/home` inside the container.
+The two BTF copies are mounted read-only at `/btf`.
+Dependencies were fetched in a step with the network on.
+Every build,
+test and check then ran with `--network none` and `CARGO_NET_OFFLINE=true`.
+A rustup route was tried twice for a cross `aarch64` toolchain and failed both times,
+with a TCP connect timeout to the distribution host while `curl` from the same container reached
+it.
+The `aarch64` target therefore stays unrun,
+as it does for `btf-rs`.
+
+The suite passed.
+On the archive,
+`cargo test` ran 102 unit tests,
+`kernel_smoke` with 1 passed and 22 ignored,
+and 1 doctest,
+all green.
+`cargo fmt --check` passed.
+`cargo clippy --lib -- -D warnings` passed with one manifest warning about a redundant `homepage`.
+The repository's own workspace adds a `bpfcov` member whose `libbpf-rs` dependency does not
+resolve offline,
+so the repository's `cargo clippy` was not a usable step there.
+The archive is the published artifact and the one this record cites.
+
+The design's checks ran from a consumer program that depends on the archive by path.
+It reads the two copies into bounded buffers,
+calls `Btf::parse` for the base and `Btf::parse_split` for the module,
+which is the loader route the product designs,
+and asserts the same compared set as `btf-rs`'s run:
+both files' 32-byte header,
+the base's 151,181 types,
+the module's 13,141 own types numbered from 151,182,
+`zfs_cmd` at 13,744 bytes with its 32 members,
+the anonymous union at 106,368 bits,
+`dmu_objset_stats`,
+`zinject_record`,
+the 104 `zfs_ioc` enumerators,
+and the base integer sizes the members use.
+195 of its 196 checks passed.
+The failing one is a negative control:
+a module passed as the base of another split parse is accepted rather than refused,
+which is the residual the ledger records.
+Its other negative controls passed,
+namely a base truncated to 1,024 bytes,
+a module truncated the same way,
+and a module whose magic byte changed,
+each refused with its own message and none panicking or stalling.
+The evidence sits under
+`/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/evidence/ebeepf-0.1.0/`.
+
+The skill's validation therefore holds for `ebeepf` on the one platform this host has,
+at the same depth as `btf-rs`'s:
+a CI-equivalent build and lint path,
+the crate's own suite,
+and the consumer boundary on copies of this host's pair.
+It does not hold for `aarch64`,
+and the start cost stays unmeasured.
 
 ### Scored comparison
 
@@ -2535,7 +3326,16 @@ Criteria and weights, frozen before the ratings:
 - C6. Integration and test cost, weight 3 (higher is cheaper).
 - C7. Start cost, weight 2, low confidence because it is unmeasured.
 
-Only `btf-rs`, `pahole` and `bpftool` are finalists: each passes every hard constraint.
+Four candidates reached finalist validation,
+and each passes every hard constraint:
+`btf-rs` 2.0.1,
+`ebeepf` 0.1.0,
+`pahole` 1.32 and
+`bpftool` 7.8.0.
+The vet report later fails `bpftool` on the skill's relevant-execution rule,
+so its row below is a price and not a ranked finalist's score;
+the three the report keeps are `btf-rs`,
+`ebeepf` and `pahole`.
 The in-house reader passes H1 to H6 by construction, but it is not eligible as a candidate while
 an existing tool passes them, which is the skill's existing-tools rule and the reason
 [Candidate ledger](#candidate-ledger) calls it conditional. It therefore stands outside the
@@ -2563,6 +3363,15 @@ Ratings, 0 to 4, with confidence:
 
 - `btf-rs` 2.0.1: C1 3 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 3 medium,
   C7 2.5 low (range 2 to 3).
+- `ebeepf` 0.1.0:
+  C1 3 medium,
+  C2 4 high,
+  C3 4 high,
+  C4 4 high,
+  C5 2 medium,
+  C6 3 medium,
+  and C7 2.5 low,
+  ranging 2 to 3.
 - In-house reader: C1 4 high, C2 4 high, C3 4 high, C4 4 high, C5 3 medium, C6 2 medium,
   C7 2.5 low (range 2 to 3).
 - `bpftool` 7.8.0: C1 3 medium, C2 1 high, C3 1 high, C4 2 medium, C5 4 high, C6 3 medium,
@@ -2580,7 +3389,9 @@ Evidence for the ratings:
 - C2: both libraries are pure Rust with no default features (4);
   both tools add a program the product must find and version (1).
 - C3: in-process code keeps the privileged handler to its own binary (4);
-  a root-spawned tool adds a path and library resolution to that boundary (1).
+  a tool the handler starts adds a path and library resolution to that boundary (1),
+  though the child need not run as root,
+  since both BTF files are mode `0444`.
 - C4: `btf-rs` and an in-house model expose names, bit offsets and sizes (4);
   `pahole`'s `-C` printer maps directly to the compared members (3);
   `bpftool`'s raw dump needs a type-id resolver in the wrapper (2).
@@ -2603,10 +3414,42 @@ Evidence for the ratings:
   matrix (3).
 - C7: unmeasured; `btf-rs` parses the base's type offsets and the module's types;
   in-house can read lazily; the tools pay a process start and a full dump.
+- The `ebeepf` ratings hold criterion by criterion:
+  C1 3 medium,
+  because it bounds both sections,
+  validates every type reference,
+  and refuses truncation and a wrong magic,
+  but its own README declares the tree AI-generated and unreviewed,
+  and it accepts a split table as a base,
+  so a 4 would claim a trust the evidence does not hold;
+  C2 4 high,
+  pure Rust with the default features off;
+  C3 4 high,
+  in-process code with no second program;
+  C4 4 high,
+  since members carry bit offsets and widths and enumerators carry values,
+  and `size_of` already multiplies array elements,
+  which `btf-rs` leaves to the binding;
+  C5 2 medium,
+  because it has one release,
+  one maintainer,
+  no CI,
+  no commit after that release,
+  and a self-declared unreviewed tree;
+  C6 3 medium,
+  the same shared work as `btf-rs` minus the array-size shim,
+  but with no CI to lean on;
+  C7 2.5 low,
+  ranging 2 to 3,
+  unmeasured,
+  and `parse_split` copies the base's 151,181 types into the module's table,
+  which is a memory cost `btf-rs` does not pay.
 
 Arithmetic:
 
 - `btf-rs`: `5*3 + 5*4 + 4*4 + 4*4 + 3*3 + 3*3 + 2*2.5` = 90 of 104, 86.5.
+- `ebeepf` scores `5*3 + 5*4 + 4*4 + 4*4 + 3*2 + 3*3 + 2*2.5` = 87 of 104,
+  which is 83.7.
 - In-house: `5*4 + 5*4 + 4*4 + 4*4 + 3*3 + 3*2 + 2*2.5` = 92 of 104, 88.5.
 - `pahole`: `5*3 + 5*1 + 4*1 + 4*3 + 3*4 + 3*3 + 2*1.5` = 60 of 104, 57.7.
 - `bpftool`: `5*3 + 5*1 + 4*1 + 4*2 + 3*4 + 3*3 + 2*1.5` = 56 of 104, 53.8.
@@ -2614,15 +3457,22 @@ Arithmetic:
 Low-signal endpoint totals, over every combination of the ranges' endpoints:
 
 - `btf-rs`: 89 to 91 (85.6 to 87.5).
+- The `ebeepf` endpoints are 86 to 88,
+  which is 82.7 to 84.6.
 - In-house: 91 to 93 (87.5 to 89.4).
 - `pahole`: 59 to 61 (56.7 to 58.7).
 - `bpftool`: 55 to 57 (52.9 to 54.8).
 
 The weights, the ratings, the confidence levels and the ranges stated in this section are every
 input the arithmetic uses, and the arithmetic and the matrix under [Sensitivity](#sensitivity)
-follow from them. Every score here is provisional: only `btf-rs` was built and probed, `pahole`
-and `bpftool` were exercised by hand rather than through a repeatable harness, and the in-house
-reader does not exist, so its ratings price an intention.
+follow from them.
+Every score here is provisional:
+`btf-rs`'s suite,
+`ebeepf`'s suite and the two tools' output boundary have run
+([Finalist validation](#finalist-validation)),
+the start cost is unmeasured,
+and the in-house reader does not exist,
+so its ratings price an intention.
 
 The in-house reader's 92 leads `btf-rs`'s 90 at this writer's weights, and that lead does not
 survive its own inputs. At equal weights (every criterion 1, which the skill sets for every
@@ -2631,6 +3481,14 @@ both rated high for code that does not exist: at medium confidence C1 alone puts
 87 and C4 alone at 88, both below 90, and both at medium give 83. Code that has not been written
 cannot hold a rating better than the release that was probed, so 92 is a ceiling, not a
 measurement.
+
+`ebeepf`'s 87 sits between `btf-rs`'s 90 and the tools' 60.
+C5 is where it loses first place:
+a step to 3 there ties the pair at 90,
+and its own C6 at 4 ties it again,
+so the pair's separation rests on the maintenance and trust evidence,
+not on the arithmetic alone.
+Both ties are recorded under [Sensitivity](#sensitivity).
 
 ### Sensitivity
 
@@ -2663,6 +3521,43 @@ Tools pair, `pahole` against `bpftool`, 60 against 56 at the baseline:
 
 No test moves a tool past a library, and more than twenty points of 104 separate them.
 
+A new library pair is `btf-rs` against `ebeepf`,
+90 against 87 at the baseline.
+Its one-input matrix runs 42 tests over the same method.
+One reverses the pair,
+four tie it,
+and thirty-seven leave the order.
+The tests that move it:
+
+- `ebeepf` C1 from 3 to 4 reverses the pair to 92 against 90;
+- `ebeepf` C5 from 2 to 3 ties the pair at 90 each;
+- `ebeepf` C6 from 3 to 4 ties the pair at 90 each;
+- `btf-rs` C5 from 3 to 2 ties the pair at 87 each;
+- `btf-rs` C6 from 3 to 2 ties the pair at 87 each.
+
+The rest leave it:
+C1 weight 1 puts them at 78 against 75,
+C1 weight 2 at 81 against 78,
+C5 weight 5 at 96 against 91,
+C6 weight 5 at 96 against 93,
+and C7 weight 5 at 97.5 against 94.5.
+Both C7 endpoints leave it too,
+`btf-rs`'s low end at 89 against 87 and `ebeepf`'s low end at 90 against 86.
+
+The one reversal is `ebeepf`'s C1 at 4,
+and the evidence does not support that step.
+The crate's own README declares its tree AI-generated and unreviewed,
+and it accepts a split table as its own base,
+so 3 is the rating its bounds and its provenance support.
+The four ties are C5 and C6 steps on either side,
+and the maintenance evidence decides those:
+`btf-rs` carries two releases,
+a merged out-of-bounds fix and a CI workflow on every push,
+against one release,
+one maintainer and no CI.
+The pair's order therefore stands on that evidence,
+not on the baseline arithmetic alone.
+
 A tie is not an order the arithmetic decides, and the skill's rule for both a tie and a change is
 to gather decisive evidence or ask only the controlling preference.
 For the tools, the C4 evidence decides: `pahole`'s `-C` output carries the compared members, while
@@ -2675,27 +3570,56 @@ offered, so those tests record what the route would have cost and decide nothing
 Stability here does not cover simultaneous multi-input changes, and this document makes no claim
 it does.
 The evidence that would settle the remaining ratings is owed:
-`btf-rs`'s own test suite, which was not run, would settle C5 and C6, and
-[Owed measurements](#owed-measurements) item 10 would settle C7.
+[Owed measurements](#owed-measurements) item 10 would settle C7,
+and the suite this round ran supports C5 and C6 without moving them
+([Finalist validation](#finalist-validation)).
 The controlling preference that remains is the owner's, not a weight on this writer's scale: a
 library the binding links, an `LGPL-2.1-or-later` dependency whose release lags its own main, or a
-program the gate starts at each run, which the product must find and version and the root handler
-starts as root.
-[Q1](#q1-which-reader-parses-the-module-btf) asks that in those words.
-Until then this section gives a conditional ranking and recommends none.
+program the gate starts at each run,
+which the product must find and version.
+The child need not run as root:
+both BTF files are mode `0444`,
+and the handler can drop privilege
+for it,
+which the report records.
+[Q1](#q1-which-reader-parses-the-module-btf) asks that in those words,
+and this section gives a conditional ranking and recommends none.
 
 ### Ranking and pros and cons
 
-Ranking of the eligible candidates: `btf-rs` 2.0.1 > `pahole` 1.32 > `bpftool` 7.8.0.
+Ranking of the finalists the report leaves,
+conditional at the report's frozen weights:
+`btf-rs` 2.0.1 > `ebeepf` 0.1.0 > `pahole` 1.32.
+`bpftool` 7.8.0 is not in it:
+it failed the skill's relevant-execution rule.
 The in-house reader stands outside it as an exception the owner declined to grant on 2026-11-19,
 priced at 92 of 104 while ineligible.
 
 - `btf-rs` beats `pahole` because its proof runs in the wrapper's address space, with no runtime
-  program and no root-spawned binary, which neither tool can offer; the arithmetic agrees, 90
+  program and no child the handler starts,
+  which no program arm offers;
+  the arithmetic agrees,
+  90
   against 60.
-- `pahole` beats `bpftool` because its `-C` output carries the compared members directly, while
-  `bpftool`'s raw dump needs a type-id resolver in the wrapper before it can compare anything.
-  The arithmetic agrees, 60 against 56; a C4 step ties the pair and a C1 step reverses it.
+- `btf-rs` beats `ebeepf` because the pair's 90 and 87 separate on maintenance and trust:
+  two releases,
+  a merged out-of-bounds fix and a CI workflow on every push,
+  against one release,
+  one maintainer and a tree its own README calls unreviewed AI-generated code.
+  The arithmetic agrees,
+  and the pair's one reversal and four ties are the C1,
+  C5 and C6 steps:
+  C1 on either side and C5 and C6 on either side,
+  of which the C6 steps are integration-cost ratings that maintenance evidence does not touch.
+- `ebeepf` beats `pahole` because it is a library in the wrapper's address space,
+  with a split parser and no runtime program,
+  while `pahole` costs the deployment and privilege points C2 and C3 price.
+  The arithmetic agrees at 87 against 60.
+- `pahole` and `bpftool` are not ordered here.
+  `bpftool` failed the skill's relevant-execution rule,
+  and at the report's frozen weights its pair with `pahole` ties on thirteen rating steps and reverses
+  on none,
+  so no evidence in this file turns those ties into an order.
 - The in-house reader is not ranked: the owner's answer of 2026-11-19 left it ineligible, and its
   92 of 104 against the tools' 60 stays in [Scored comparison](#scored-comparison) as what the route
   would have cost ([Answers of 2026-11-19](#answers-of-2026-11-19)).
@@ -2705,25 +3629,57 @@ The pros and cons of each candidate stand under
 
 ### The vet artifacts this brief could not write
 
-The skill asks for a vet report under `doc/audit/` when an evaluation crosses its threshold,
-with a fingerprint, a lock, the full evidence records and the pre-discovery check-in.
-This brief allows edits to this file only and allows no questions, so:
+The skill asks for a vet report under `doc/audit/` when an evaluation crosses its threshold.
+That report carries a fingerprint,
+a lock,
+the full evidence records and the check-in.
+This brief allowed edits to this file only and allowed no questions,
+so this record stood in place of that report until 2026-11-20,
+and both of the artifacts it owed are now written:
 
-- the ledger, gates, source audits, arithmetic, sensitivity and the full discovery listing are
-  here instead;
-- the `doc/audit/tech-...-vet-YYYY-MM-DD.md` report is owed before any dependency is adopted;
-- the finalist validation is incomplete: `btf-rs` was built and probed, not run through its own
-  test suite, and `pahole` and `bpftool` were exercised by hand, not through a repeatable harness. The
-  skill's rule that an unvalidated finalist cannot be recommended is why this section recommends
-  none; the ranking is an input to the owner's pick, not a recommendation;
-- discovery's terminal result is blocked, not saturated
-  ([Discovery record](#discovery-record)), which is a second reason no candidate is recommended
-  and a reason a later round may add a candidate;
-- the check-in that lets the owner delegate discovery to a model of their choosing is not
-  written: [Discovery record](#discovery-record) states the schedule and the boards it did not
-  read, and this file carries no check-in artifact, which is a known gap rather than the owner
-  question the first version made of it;
-- no candidate is adopted and no crate is added to a manifest.
+- the ledger,
+  gates,
+  source audits,
+  arithmetic,
+  sensitivity and the full discovery listing are here,
+  and the report takes them as its evidence;
+- the report is
+  [`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`][vet-report],
+  written on 2026-11-20 with fingerprint
+  `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`.
+  It adds what this file could not hold:
+  the governing skill's commit and hash,
+  the lock record,
+  an execution manifest for each validated run,
+  an evidence record for every gate and score,
+  the pros and cons of every finalist,
+  the maintenance audit and the auditability measurements,
+  and the terminal result with its limits beside it;
+  its second revision refroze the rubric at the skill's weights and added a criterion for
+  auditability,
+  so its scores are 32 points and 27.5 for `btf-rs`,
+  against the 104 and 90 this file records at its own weights;
+- the check-in is written under
+  [The check-in of 2026-11-20](#the-check-in-of-2026-11-20),
+  with its subject,
+  its settled forks,
+  its source classes,
+  its schedule,
+  its options and the answer the project gave on that date;
+- the finalist validation of the four eligible finalists is recorded under
+  [Finalist validation](#finalist-validation):
+  `btf-rs`'s own suite ran from its repository at tag `v2.0.1`,
+  since its archive ships none;
+  `ebeepf`'s suite ran from its published archive and from its repository;
+  and `pahole` and `bpftool` ran through a repeatable harness.
+  The `aarch64` target builds for both libraries and runs for neither;
+- discovery's terminal result is saturated with at least two survivors
+  ([Discovery record](#discovery-record)),
+  so the earlier reason a later round could add a candidate is closed:
+  a new name now needs a fresh schedule rather than a finished one;
+- no candidate is adopted,
+  no crate is added to a manifest,
+  and the pick is the project's to make.
 
 ## Owed measurements
 
@@ -2942,45 +3898,112 @@ Q3 is held until [Owed measurements](#owed-measurements) item 10 runs, and nothi
 answer before then.
 The Q2 and Q4 questions of the first versions are answered, and their answers are recorded under
 [Answers of 2026-11-19](#answers-of-2026-11-19) rather than here.
-Options are ranked, best first, each option says why it sits where it does, and the pick is the
-owner's.
+Options are ranked,
+best first,
+conditionally at the vet report's frozen weights,
+each option says why it sits where it does,
+and the pick is the owner's.
 
 ### Q1: which reader parses the module BTF
 
-Answered in its narrower form, and the pick is still conditional.
+Answered in its narrower form,
+and the pick is the project's to make.
 The owner was asked "is it a hard requirement that the parser is our own code and the product
 starts no second program" and answered "No, not required (Recommended)" on 2026-11-19
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
-So no named hard constraint admits the in-house reader, the skill's existing-tools rule keeps it
-ineligible, and the eligible order is options 1 to 3.
-No option is recommended, and `btf-rs` 2.0.1 ranks first among the eligible options
-on eligibility and not on validation: no hard gate fails on the source evidence read, and the
-crate holds the split model, the type kinds and the tests the check needs, while this proposal's
-pre-scan closes the residuals it names. The pick waits until these close:
+So no named hard constraint admits the in-house reader.
+The skill's existing-tools rule keeps it ineligible.
+The order the report keeps is options 1 to 3,
+with option 4 failed on relevant execution.
+`btf-rs` 2.0.1 ranks first among them at every weight set this design and its vet report try:
+no hard gate fails on the source evidence read,
+the crate holds the split model and the type kinds the check needs,
+and this proposal's pre-scan closes the residuals it names.
+Finalist validation,
+the first item that list held,
+is closed under
+[Finalist validation](#finalist-validation),
+with the `aarch64` target built and unrun as H3's own limit.
+The vet report the same list named is written:
+[`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`][vet-report],
+with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`.
+It recommends none while the project holds `pahole` a finalist,
+and names what it recommends if it does not.
+Its refrozen baseline,
+every criterion at weight 1 because this project has stated no priority,
+orders the finalists
+`btf-rs` 27.5,
+`ebeepf` 24.5 and
+`pahole` 18.5 of 32,
+with `bpftool` 17.5 last and failed on the skill's relevant-execution rule,
+because its functional tests need root,
+a BPF-capable kernel and a VM harness,
+as the vet report reads them,
+none of which ran here.
+The first place does not move under any input the skill defines:
+`btf-rs` is strictly first in every defined test at those weights,
+by at least 2 points over the runner-up and by at least 5 over `pahole`,
+and at every weight from 1 to 5,
+one criterion at a time or all eight jointly.
+The lead is bounded:
+a maintenance weight of 10 with the rest at 1 ties it and 11 puts `pahole` first,
+which is outside the skill's range.
+What does move is the second place:
+a maintenance weight of 4 ties `ebeepf` with `pahole` at 30.5,
+and a weight of 5 puts `pahole` second at 34.5 and `ebeepf` third at 32.5.
+So the report's terminal result is the skill's "sensitivity unresolved",
+for as long as `pahole` is a finalist;
+if the project finds it not eligible the family is the two libraries,
+all 51 of their one-input tests keep the order,
+and the skill then permits a recommendation of `btf-rs`.
+What it hands the project is a conditional ranking plus the questions that can move an order:
+the priority between maintenance and deployment fit,
+which decides the second place,
+and the choice between a library and a program,
+which the arithmetic does not decide in the program's favour at any weight from 1 to 5.
+The report's own list carries those and the rest,
+including `pahole`'s and `bpftool`'s eligibility and the disk-cache question.
+The two limits stay beside that result:
 
-- nobody ran `btf-rs`'s own test suite, and `pahole` and `bpftool` were exercised by hand rather
-  than through a repeatable harness;
-- the `doc/audit/` vet report does not exist;
-- discovery's terminal result is blocked, so a later round may add a candidate
-  ([Discovery record](#discovery-record));
-- the pre-discovery check-in is not written
-  ([The vet artifacts this brief could not write](#the-vet-artifacts-this-brief-could-not-write)).
+- the `aarch64` target builds and does not run for either library finalist,
+  which is H3's own limit;
+- the start cost of the two libraries is unmeasured,
+  so C7 rests on a low-confidence range ([Owed measurements](#owed-measurements)).
+
+Those two are the last of the items that list held.
+The pick stays the project's:
+nothing here and nothing in that report adopts a reader,
+the report names no reader as its recommendation,
+and the record's own Q1 section is where the project's answer will land.
 
 The scoring's baseline pair also flips or ties on one criterion at a time
-([Sensitivity](#sensitivity)), which does not cover simultaneous multi-input changes; that pair is
-`btf-rs` against the declined in-house reader, and the choice that remains is a library against a
-spawned program.
+([Sensitivity](#sensitivity)).
+That section does not cover simultaneous multi-input changes.
+That pair is `btf-rs` against the declined in-house reader.
+The pair the live choice turns on is `btf-rs` against `ebeepf`,
+and at the report's refrozen weights no single input moves it,
+while the pair between `ebeepf` and `pahole` moves on the maintenance weight alone.
+So the library leads every program in every defined test,
+and the rubric does not make the program the arithmetic winner at any weight this document or the
+report tries.
+What makes the choice the owner's is the operational shape and the risk the report prices under C2
+and C3,
+not a contest for first place.
 
 BTF (BPF Type Format) is the kernel's own description of its struct and enum layouts, published
 as files under `/sys/kernel/btf`. The gate reads the kernel's base file and the ZFS module's file
 and compares their field offsets and sizes with the ones the binding was built for. A dependency
 here is a library the binding links, or a program the gate starts.
 
-In plain words, the choice is between option 1 and options 2 and 3: take an `LGPL-2.1-or-later`
-dependency, a library under the GNU Lesser General Public License version 2.1 or later, which our
-`LGPL-3.0-or-later` product may link and redistribute, and whose 2.0.1 release lags its own main
-branch on the widened BTF masks; or start `pahole` or `bpftool` at each gate run, two separate
-programs the product must find and version, one of them in the root handler.
+In plain words the choice is between options 1 and 2 and options 3 and 4.
+Options 1 and 2 take a library under the GNU Lesser General Public License version 2.1 or later,
+or its BSD arm,
+which our `LGPL-3.0-or-later` product may link and redistribute.
+Option 1's 2.0.1 release lags its own main branch on the widened BTF masks.
+Option 2 is one release old and calls its own tree unreviewed AI-generated code.
+Options 3 and 4 start `pahole` or `bpftool` at each gate run,
+two separate programs the product must find and version,
+one of them in the root handler.
 A fourth route, about 350 to 450 source lines and 100 to 150 test lines of our own reader plus a
 fuzz target (a test that feeds random and mutated bytes to the parser and fails on a panic or a
 stall) and a review of it, stays priced under [Scored comparison](#scored-comparison) and is not
@@ -3003,36 +4026,100 @@ does not give.
 Scenario: a future kernel writes a BTF file whose member count needs the 24-bit field. With
 option 1, the released masks misread it or this design's pre-scan (the header and section checks
 made before any parser runs) refuses the file, so raw requests stay disabled and the command takes
-the Git fallback until `btf-rs` publishes a release with the wider mask. With options 2 and 3 the
-outcome depends on the installed tool's version, which this file has not checked.
+the Git fallback until `btf-rs` publishes a release with the wider mask.
+With options 3 and 4 the outcome depends on the installed tool's version,
+which this file has not checked,
+and with option 2 it depends on `ebeepf`'s own 16-bit and 5-bit masks,
+which are the same as option 1's.
 
 Options:
 
-1.  `btf-rs` 2.0.1, the first of the eligible options, finalist validation outstanding.
+1.  `btf-rs` 2.0.1,
+    the first of the eligible options,
+    with its finalist validation recorded in
+    [Finalist validation](#finalist-validation).
     Pros: split BTF and the type kinds this check needs; pure Rust with default features off;
     a documented API and tests; the probe parses this host's files and walks the anonymous union.
     Cons: `LGPL-2.1-or-later` adds a copyleft-family dependency; no section validation in the crate,
     so the binding keeps the pre-scan; its release's masks lag its main branch; a small maintainer
-    group; its own test suite is unrun.
+    group;
+    the published archive carries no tests,
+    so its suite runs from the repository at tag `v2.0.1`.
     Cost: the shared shape, about 350 to 550 lines of source and 300 to 450 of tests, plus the
     array-size shim and one fuzz target.
-    Why here: it is the only eligible library, since the skill admits a custom implementation only
-    when every existing tool fails a hard constraint, and the owner named no such constraint on
-    2026-11-19; 90 of 104, and a library needs no program the product must find and version.
-2.  `pahole` 1.32 as a start-time program, ranked after option 1.
+    Why here:
+    it leads both libraries and both programs at the report's refrozen weights,
+    27.5 of 32,
+    and a library needs no program the product must find and version.
+    It is one of two eligible libraries;
+    the skill admits a custom implementation only when every existing tool fails a hard constraint,
+    and the owner named no such constraint on 2026-11-19.
+2.  `ebeepf` 0.1.0,
+    a second library,
+    ranked after option 1 at the report's frozen weights.
+    Pros:
+    a split parser with a byte-level API and a path constructor;
+    `size_of` already multiplies array elements,
+    so the binding needs no array-size shim;
+    pure Rust with the default features off;
+    its suite and the design's checks ran
+    ([Finalist validation](#finalist-validation)).
+    Cons:
+    a dual `LGPL-2.1-only` and `BSD-2-Clause` crate,
+    so take it under the BSD arm;
+    one release,
+    one maintainer and no CI;
+    its own README calls the tree AI-generated code that has not been thoroughly reviewed;
+    its released masks are the same 5-bit kind and 16-bit count fields as `btf-rs`'s;
+    it accepts a split table as its own base;
+    and `parse_split` copies the base's types into the module's table.
+    Cost:
+    the shared shape without the array-size shim.
+    Why here:
+    24.5 of 32 at the report's frozen weights,
+    three points behind option 1 on maintenance and auditability,
+    and ahead of `pahole` because a library needs no program the product must find and version,
+    though the maintenance weight ties or reverses that pair.
+    This file's own weights put it at 87 of 104,
+    which is a different denominator and is labelled as such.
+3.  `pahole` 1.32 as a start-time program,
+    ranked after option 2.
     Pros: the command the design already names for the test-time comparison; `-C` prints the
     compared members; no new Rust dependency.
-    Cons: a runtime package; a root-spawned program in the handler; a text format; an invocation
-    each for the struct, the nested type and the enum.
-    Why here: 60 of 104, and a runtime program costs the deployment and privilege points that
-    option 1 does not.
-3.  `bpftool` 7.8.0 as a start-time program, ranked after `pahole`.
+    Cons:
+    a runtime package;
+    a program the handler starts,
+    in the shape the rubric prices,
+    though
+    the child need not run as root;
+    a text format;
+    an invocation each for the struct,
+    the nested
+    type and the enum.
+    Why here:
+    18.5 of 32 at the report's frozen weights,
+    and 60 of 104 at this file's,
+    and a runtime program costs the deployment and privilege points that options 1 and 2 do not.
+4.  `bpftool` 7.8.0 as a start-time program,
+    ranked after option 3 while it is eligible,
+    and failed by the report's relevant-execution rule.
     Pros: libbpf's reader; a documented base option and a raw type listing.
-    Cons: the same runtime-program and root-path costs; the raw listing needs a type-id resolver
-    in the wrapper before it can compare a member; the tool's version tracks the kernel's tools,
-    not the distribution's.
-    Why here: 56 of 104, the lowest of the three options, for the resolver its output needs and
-    its medium diagnostic rating.
+    Cons:
+    the same runtime-program and handler-child costs;
+    the raw listing needs a type-id
+    resolver in the wrapper before it can compare a member;
+    the tool's self-reported version
+    carries the bundled libbpf's version,
+    not the package's;
+    its functional tests need root,
+    a
+    BPF-capable kernel and a VM harness,
+    as the vet report reads them,
+    so it failed.
+    Why here:
+    17.5 of 32 at the report's frozen weights and 56 of 104 at this file's,
+    the lowest of the four,
+    for the resolver its output needs and its medium diagnostic rating.
 
 Not offered: an in-house reader, because the owner answered on 2026-11-19 that our own parser and
 no second program is not a hard requirement, which leaves it ineligible under the skill's
@@ -3041,11 +4128,25 @@ existing-tools rule while it stays priced under [Scored comparison](#scored-comp
 (unmaintained, no base), `btfdump` (no base, tool first), `padlock-dwarf` (no base, wrong fit),
 `libbpf-rs` and `libbpf` (C build), and a BTF digest (the answer the project did not select).
 
-Ranking: option 1 > option 2 > option 3. Option 1 leads option 2 because a library in the
-wrapper's address space needs no program the product must find and version and no binary the root
-handler starts; the arithmetic agrees, 90 against 60. Option 2 leads option 3 because `pahole`'s
-`-C` output carries the compared members while `bpftool`'s raw dump needs a type-id resolver
-before anything can be compared; the arithmetic agrees, 60 against 56.
+Ranking,
+conditional at the report's frozen weights:
+option 1 > option 2 > option 3,
+with option 4 failed.
+Option 1 leads option 2 because both are libraries in the wrapper's address space,
+and the pair's 90 and 87 separate on maintenance and auditability:
+two releases,
+a merged out-of-bounds fix and a CI workflow on every push,
+against one release,
+one maintainer and a self-declared unreviewed tree.
+Option 2 leads option 3 because a library needs no program the product must find and version and no
+child the handler starts,
+and the arithmetic agrees at 87 against 60 at this file's weights and at 24.5 against 18.5 at the
+report's;
+the maintenance weight ties or reverses that pair,
+which is what the report's first question asks.
+Option 4 has no place in the order:
+it failed the report's relevant-execution rule,
+and at the report's weights its pair with option 3 ties on thirteen rating steps.
 The in-house reader has no place in this order: the owner's answer of 2026-11-19 left it
 ineligible, and [Scored comparison](#scored-comparison) keeps its price as what the route would
 have cost.
@@ -3221,6 +4322,7 @@ for the project, and this design does what option 1 says until that question is 
 [design-requirements]: cli-git-zfs-worktree-design-proposal.md#requirements-and-module-ownership
 [design-record]: ../decision/cli-git-zfs-worktree-design.md
 [vet]: ../audit/tech-rust-crate-for-openzfs-vet-2026-11-18.md
+[vet-report]: ../audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md
 [skill]: ../../.agents/skills/choosing-technology/SKILL.md
 [design-abi-gate]: cli-git-zfs-worktree-design-proposal.md#abi-gate-and-tests
 [design-doctor]: cli-git-zfs-worktree-design-proposal.md#what-doctor-checks-and-prints
