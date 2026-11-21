@@ -40936,7 +40936,18 @@ stated in this entry. What follows from them, as work:
   ISSUE 6325 FIX MERGED into `main` as `e72caf6c0d` (re-check on Sonnet fit, its gate 9280 of 9282 with the cause-H pair;
   the changed Rust is test-only). Four lows on the troubleshooting record follow: the prune loop scans until `limit`
   entries, the link entry holds for one layout only, two positional pointers, a Symptom quote's thread number and column
-  not in the issue. Left open for the owner to close.
+  not in the issue. Left open for the owner to close. THE FENCE'S THIRD ROUND ended at `87dbb1b035`: H1 the decision
+  follows Git 2.56.1's `convert.c` (the review's `m01` to `m06` red on the old prototype, all 16 equal now); H2 the size
+  proof unconditional (202.8 ms of `git ls-tree` here); H3 LFS paths written by Git as their proof (0.64 to 0.91 s for
+  this repository's 1,578); H4 a decline rule (converting paths past a quarter of the tree and past 1,000 give the add to
+  Git's checkout); measured with the real attribute set: the fence 1.11 of `main` against its control's 1.03 (spread 0.35
+  to 1.64 over five rounds), step 3 without it 0.59 but wrong; a converting source A′ 1.09 with the rule, 1.50 without;
+  ranking A′ > C > D > E, B unbuilt; a fenced partial clone with this repository's LFS files would be 1.3 to 1.5 of
+  `main`, so the partial clone's gain does not survive here; whole gate at `a690379aa5` 9301 of 9303, the cause-H pair,
+  the twelve class controls running in the image; M4 (rung 1 at size in a guest) left open, M3's in-process reads removed
+  as a claim. GOING: its narrow re-check on Sonnet (brief under
+  `~/temp/agent/gate-recheck-of-the-clone-conversion-fence-on-sonnet-2026-11-20/`), then the owner's question on the
+  remedy, with step 3's merge and the partial clone depending on it.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
