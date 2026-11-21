@@ -179,7 +179,8 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 ///   Every task of one namespace is kept,
 ///  not just the last one a map happened to hold,
 ///  because the representative may end between the listing and the read:
-///  a task that exits answers `ENOENT`, `ESRCH` or `EINVAL` for its table,
+///  a task that exits answers `ENOENT`,
+///  `ESRCH` or `EINVAL` for its table,
 ///  and the scan then tries the namespace's next task.
 /// A namespace whose every task ended is skipped whole,
 ///  because a namespace no live task holds is invisible,

@@ -235,8 +235,8 @@ This document replaces them with the rounds above.
   The two effects were measured apart,
   so their sum is not measured here.
 - This host's root namespace count is not measured:
-  as the account, this run could read only a small part of this machine's
-  tasks.
+  as the account,
+  this run could read only a small part of this machine's tasks.
 - Per-arm timings were not taken:
   the record names each step's outcome but carries no arrival time,
   so the arm that dominates the run is not measured.

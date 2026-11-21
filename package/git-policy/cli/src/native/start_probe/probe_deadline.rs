@@ -46,11 +46,13 @@ use std::time::{Duration, Instant};
 /// warm whole-probe rounds ran at 94,973 to 103,230 microseconds,
 /// the same binary with the probe disabled at 75,889 to 93,432,
 /// so the worker phase those two bracket was 8,861 to 27,341;
-/// cache-dropped rounds 104,147 to 108,328, the phase 26,203 to 30,414;
+/// cache-dropped rounds 104,147 to 108,328,
+/// the phase 26,203 to 30,414;
 /// the first run after a guest boot 145,525;
 /// with 109 mount namespaces the whole probe ran at 120,499 to 153,667,
 /// the phase 38,875 to 68,068;
-/// and with 309 of them 197,714 to 211,176, the phase 106,349 to 118,503.
+/// and with 309 of them 197,714 to 211,176,
+/// the phase 106,349 to 118,503.
 /// The clock starts just before the worker's fork,
 /// so the bound covers the worker and holder,
 /// not the gate,

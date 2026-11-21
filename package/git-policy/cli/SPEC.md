@@ -19991,8 +19991,8 @@ never a failed unit,
 so the mode exits successfully whenever it reaches its own end.
 The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
-so the bound covers the worker and holder phases and not the gate, the
-fingerprint or the started record.
+so the bound covers the worker and holder phases and not the gate,
+the fingerprint or the started record.
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to
