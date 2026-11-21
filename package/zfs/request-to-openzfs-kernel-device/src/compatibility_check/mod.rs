@@ -46,7 +46,7 @@
 //!   its sections and the checks that run before any type is decoded.
 //! - `declaration.rs`:
 //!   the reader-neutral declaration of one module's types,
-//!   the three duties every reader owes it,
+//!   the four duties every reader owes it,
 //!   and the vocabulary everything after it reads.
 //! - `expectations.rs`:
 //!   the layout this crate's type compiles,
@@ -126,7 +126,7 @@ mod expectations_tests;
 #[cfg(test)]
 #[path = "comparison_tests.rs"]
 mod comparison_tests;
-/// The three duties every reader owes the declaration.
+/// The four duties every reader owes the declaration.
 #[cfg(test)]
 #[path = "declaration_contract_tests.rs"]
 mod declaration_contract_tests;
@@ -139,10 +139,17 @@ mod mod_tests;
 /// built by a writer of this folder's own.
 #[cfg(test)]
 mod blob_fixture;
+/// The approved module's member tables,
+/// and the one change a control makes in them.
+#[cfg(test)]
+mod approved_module_member_fixture;
 /// The approved module's declaration,
 /// written as data a test can move one field in.
 #[cfg(test)]
 mod approved_module_fixture;
+/// The pair that types and names one member from a base file.
+#[cfg(test)]
+mod base_file_fixture;
 /// The gate's one live arm in the throwaway guest.
 #[cfg(test)]
 #[path = "live_gate_tests.rs"]

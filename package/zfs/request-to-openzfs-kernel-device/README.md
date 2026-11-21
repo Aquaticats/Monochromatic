@@ -257,7 +257,7 @@ the vet report is
 `src/compatibility_check/declaration.rs` states what the comparison,
 the expectations,
 the records and the entry point ask of a reader,
-and the three duties every reader owes them,
+and the four duties every reader owes them,
 and `src/compatibility_check/btf_rs_declaration.rs` is the one adapter that
 maps `btf-rs` onto it.
 `btf-rs` leaves one piece of arithmetic to this crate:
@@ -265,10 +265,18 @@ an array's byte size,
 which the adapter multiplies out of the element's own size and the count.
 `btf-rs` validates no section list of its own,
 so `bounded_read.rs` and `btf_header.rs` keep the pre-scan that refuses a
-header or a section list before a byte is parsed,
-and that pre-scan is also what refuses a kernel that widens the format's
-masks,
-until a `btf-rs` release carries the widened ones.
+header or a section list before a byte is parsed.
+That pre-scan reads the header and the section list and no type entry,
+and `btf-rs` 2.0.1 reads a type entry's kind in five bits and its member count
+in sixteen,
+so a kernel that widened either field is misread where the high bits only
+extend a kind,
+and refused only when that reader's own parse fails;
+no kernel on record writes one,
+and the adoption record names the lag as a revisit trigger
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"Exit,
+rollback and revisit triggers").
 
 A later reader replaces that adapter file and its own controls,
 `declaration_contract_tests.rs` excepted,
@@ -285,7 +293,7 @@ Nothing else moves:
 `comparison.rs`,
 `comparison_requests.rs`,
 `expectations.rs`,
-`declaration.rs` and its three contract controls read the declaration alone,
+`declaration.rs` and its four contract controls read the declaration alone,
 so a swap keeps every verdict and every refusal sentence the comparison
 writes.
 The swap to `btf-rs` was measured on the fourteen real-byte pairs the first

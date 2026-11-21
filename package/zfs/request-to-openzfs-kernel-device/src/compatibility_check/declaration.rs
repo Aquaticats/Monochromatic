@@ -174,6 +174,20 @@ impl DeclaredType {
             DeclaredType::Other => "another kind",
         };
     }
+
+    /// The width in bytes this type is,
+    /// and nothing for a kind the comparison never reads a size from.
+    pub fn byte_size(&self) -> Option<u64> {
+        return match self {
+            DeclaredType::Integer { byte_size }
+            | DeclaredType::Pointer { byte_size }
+            | DeclaredType::Array { byte_size, .. }
+            | DeclaredType::Record { byte_size, .. }
+            | DeclaredType::Enumeration { byte_size, .. }
+            | DeclaredType::Float { byte_size } => Some(*byte_size),
+            DeclaredType::Other => None,
+        };
+    }
 }
 
 /// What:
@@ -186,7 +200,7 @@ impl DeclaredType {
 /// so the reader that fills it is one file and the walk
 ///  stays the same whichever reader is picked.
 ///
-/// Three duties every adapter owes,
+/// Four duties every adapter owes,
 /// and the comparison cannot check them for itself:
 ///
 /// - A member whose bitfield width is zero is no bitfield.
@@ -198,6 +212,9 @@ impl DeclaredType {
 /// - One handle's alias chain is bounded.
 ///   A typedef that reaches itself must end in nothing rather than loop,
 ///   so the caller refuses a size it cannot compute instead of waiting forever.
+/// - One handle's array elements are bounded.
+///   An array whose element is its own entry must end in nothing the same way,
+///   so the caller refuses rather than descending until the stack ends.
 /// - One member that cannot be read is a refusal,
 ///   never a member dropped.
 ///   A dropped member shortens the list the comparison counts,
@@ -226,15 +243,7 @@ pub trait Declaration {
 
     /// The size in bytes one handle describes.
     fn byte_size(&self, id: u32) -> Option<u64> {
-        return match self.declared(id)? {
-            DeclaredType::Integer { byte_size }
-            | DeclaredType::Pointer { byte_size }
-            | DeclaredType::Array { byte_size, .. }
-            | DeclaredType::Record { byte_size, .. }
-            | DeclaredType::Enumeration { byte_size, .. }
-            | DeclaredType::Float { byte_size } => Some(byte_size),
-            DeclaredType::Other => None,
-        };
+        return self.declared(id)?.byte_size();
     }
 
     /// Whether one handle is a base integer or an array of them.

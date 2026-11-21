@@ -1,11 +1,12 @@
 //! What:
-//!  The three duties every reader owes the declaration,
+//!  The four duties every reader owes the declaration,
 //! each one control through the
 //!  entry point:
 //! a record whose kind flag is set and whose widths are zero is no bitfield,
 //!  a typedef that names itself refuses instead of looping,
-//! and a member whose name cannot be read
-//!  refuses instead of vanishing from the list.
+//! an array that names itself does
+//!  the same,
+//! a member whose name cannot be read refuses instead of vanishing from the list.
 //! Why:
 //!  Each duty came out of the cut's own history,
 //! and the migration to `btf-rs`
@@ -20,7 +21,7 @@
 //! which is how the declaration's contract outlives every adapter.
 
 use super::approved_module_fixture::{
-    COMMAND_BYTES, EMPTY_BASE_STRINGS, module_with_an_unreadable_extra_member, module_with_the_kind_flag_set,
+    COMMAND_BYTES, module_with_an_unreadable_extra_member, module_with_the_kind_flag_set,
 };
 use super::blob_fixture::{Blob, WrittenMember, check_pair};
 use super::refusal::Step;
@@ -41,11 +42,15 @@ fn refused(name: &str, module: &Blob) -> Refusal {
     return refusal;
 }
 
+/// An element count one control's array declares,
+/// which no duty under test reads.
+const ELEMENT_COUNT: u32 = 2;
+
 /// A module whose `zfs_cmd` carries one member,
 /// `zc_name`,
 /// whose type is a typedef that names itself.
 fn module_with_a_self_naming_typedef() -> Blob {
-    let mut module: Blob = Blob::over(EMPTY_BASE_STRINGS);
+    let mut module: Blob = Blob::over_base(&Blob::new());
     let chain: u32 = module.self_alias("zc_objset_stats");
     module.structure(
         "zfs_cmd",
@@ -54,6 +59,26 @@ fn module_with_a_self_naming_typedef() -> Blob {
             name: "zc_name",
             type_id: chain,
             bit_offset: 0,
+            name_offset: None,
+        }],
+    );
+    return module;
+}
+
+/// A module whose `zfs_cmd` carries one member,
+/// `zc_name`,
+/// whose type is an array whose element is that same entry.
+fn module_with_a_self_naming_array() -> Blob {
+    let mut module: Blob = Blob::over_base(&Blob::new());
+    let element: u32 = module.array_naming_itself(ELEMENT_COUNT);
+    module.structure(
+        "zfs_cmd",
+        COMMAND_BYTES,
+        &[WrittenMember {
+            name: "zc_name",
+            type_id: element,
+            bit_offset: 0,
+            name_offset: None,
         }],
     );
     return module;
@@ -83,6 +108,21 @@ fn a_record_whose_kind_flag_is_set_and_whose_widths_are_zero_passes() {
 #[test]
 fn a_typedef_that_names_itself_refuses_and_returns() {
     let refusal: Refusal = refused("contract-alias-loop", &module_with_a_self_naming_typedef());
+    assert_eq!(refusal.step, Step::BaseType);
+    assert!(refusal.detail.contains("zc_name"), "{}", refusal.detail);
+    assert!(refusal.detail.contains("cannot compute"), "{}", refusal.detail);
+}
+
+/// An array element walk is bounded:
+/// an array whose element is itself ends in a refusal,
+/// and the call returns rather than descending for ever.
+///
+/// A reader that asks its element for a size without a bound never answers
+/// here,
+/// and one that descends on the stack ends the process instead.
+#[test]
+fn an_array_that_names_itself_refuses_and_returns() {
+    let refusal: Refusal = refused("contract-array-loop", &module_with_a_self_naming_array());
     assert_eq!(refusal.step, Step::BaseType);
     assert!(refusal.detail.contains("zc_name"), "{}", refusal.detail);
     assert!(refusal.detail.contains("cannot compute"), "{}", refusal.detail);
