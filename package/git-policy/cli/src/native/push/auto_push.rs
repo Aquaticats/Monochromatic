@@ -38,6 +38,8 @@ use crate::push_held_back_by_a_blocked_commit::{WhereThePushStops, where_the_pus
 use crate::work_item_holding::BlockedVerdict;
 /// Whether a push Git reported as failed published the recorded branch all the same.
 use crate::matching_push_delivered_the_recorded_branch::{MatchingPush, delivered_although_git_failed};
+/// The words a failed push that wrote nothing is reported with.
+use crate::push_retry_failure::silent_failure_line;
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
 /// Owned OS strings for Git arguments.
@@ -672,6 +674,11 @@ pub(crate) fn reported(attempt: PushAttempt, delivered: bool, stop: &WhereThePus
         (Some(line), true) => line,
         (Some(line), false) => format!("{line}\n{said}"),
     };
+    // A push that failed and wrote nothing is not left silent: its status is the only cause there is, and a record built from the
+    //  empty output would name none (`silent_failure_line`).
+    if failed && shown.is_empty() {
+        shown = silent_failure_line(&attempt);
+    }
     // A push that delivered but could not write the branch's tracking reference is said even when it printed nothing: silence
     //  there is a reference that disagrees with the remote until a push or a fetch writes it.
     if !note.is_empty() {

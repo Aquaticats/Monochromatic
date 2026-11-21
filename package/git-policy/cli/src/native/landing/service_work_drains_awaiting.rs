@@ -38,7 +38,7 @@ use crate::service_work_storage_awaited::{
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::PushOutcome;
 use crate::push_retry::{Due, FIRST_PAUSE, Retrying};
-use crate::push_retry_cause_line::cause_line;
+use crate::push_retry_cause_line::cause_or_silence;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, out_of_tries, out_of_tries_words};
 use crate::service_work_drain_pending_claims::drain_pending_awaiting;
 use crate::work_item::WorkKind;
@@ -284,7 +284,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     crate::service_warn!(
                         "the push of {branch:?} failed on try {} of {PROTECTED_BRANCH_TRIES} and needs you: {}",
                         due.attempt + 1,
-                        cause_line(text.as_str()).unwrap_or_default()
+                        cause_or_silence(text.as_str())
                     );
                     // The plan is the only durable record that this push is waiting for the person, so it goes only once the refusal
                     //  is written: a kill between the two would otherwise leave neither the plan nor the notice, nothing would try the
@@ -346,7 +346,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     "the push of {branch:?} {} failed on try {} and needs you: {}",
                     crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
                     due.attempt + 1,
-                    cause_line(text.as_str()).unwrap_or_default()
+                    cause_or_silence(text.as_str())
                 );
                 // The record of a refusal the person must act on is the last word about this push, so it is written
                 //  before the plan's file goes: a kill between the two then leaves the plan, and a later service tries
