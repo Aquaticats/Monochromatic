@@ -23,6 +23,7 @@
 use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use super::probe_record::ProbeRecord;
 use super::probe_record_files::{RecordFileRefusal, RecordPlace};
+use super::probe_errno_names::ErrnoWord;
 use super::probe_report::{ProbeReport, ProbeVerdict};
 
 /// The line the mode says about a run it could not start.
@@ -40,7 +41,7 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
     return match verdict {
         ProbeVerdict::Passed => format!("start probe passed: every arm passed, so managed attaches are enabled for this boot and module identity and the result is in {record}"),
         ProbeVerdict::Failed { step } => {
-            let errno: &str = first_errno(report).unwrap_or("none");
+            let errno: String = first_errno(report).text();
             format!(
                 "start probe failed at arm `{}`'s `{}` step (errno {errno}), so managed attaches are refused, an unused slot takes the reflink or ordinary Git route, and the result is in {record}",
                 step.arm().name(),
@@ -60,15 +61,15 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
     };
 }
 
-/// The first failed step's errno name,
-/// where one answered.
-fn first_errno(report: &ProbeReport) -> Option<&'static str> {
+/// The first failed step's errno field,
+/// or `none` when no step failed.
+fn first_errno(report: &ProbeReport) -> ErrnoWord {
     return report.lines().iter().find_map(|line| {
         return match &line.answer {
-            super::probe_status_line::StepAnswer::Failed { errno } => *errno,
+            super::probe_status_line::StepAnswer::Failed { errno } => Some(*errno),
             super::probe_status_line::StepAnswer::Passed | super::probe_status_line::StepAnswer::NotExercised { .. } => None,
         };
-    });
+    }).unwrap_or(ErrnoWord::None);
 }
 
 /// The source the worker's read-source-name line carried.

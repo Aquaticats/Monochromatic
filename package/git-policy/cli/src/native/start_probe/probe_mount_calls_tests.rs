@@ -14,7 +14,7 @@
 //! expect(bindMount('/no/such/source', '/no/such/target').call).toBe('mount bind');
 //! ```
 
-use super::{bind_mount, read_own_mount_table, unmount};
+use super::{SCRATCH_TMPFS_OPTIONS, bind_mount, read_own_mount_table, unmount};
 use crate::testing::test_support::fixture;
 use std::path::PathBuf;
 
@@ -35,6 +35,14 @@ fn an_unmount_of_a_plain_folder_is_refused() {
     let refusal = unmount(root.as_path()).expect_err("the unmount is refused");
     assert_eq!(refusal.call, "umount2");
     assert!(matches!(refusal.errno, libc::EINVAL | libc::EPERM), "{}", refusal.errno);
+}
+
+/// The scratch tmpfs names a size and an inode count,
+/// so it can hold only what the probe needs.
+#[test]
+fn the_scratch_tmpfs_is_bounded() {
+    assert!(SCRATCH_TMPFS_OPTIONS.contains("size=64k"));
+    assert!(SCRATCH_TMPFS_OPTIONS.contains("nr_inodes=32"));
 }
 
 /// This process's own table reads and holds at least its root mount.

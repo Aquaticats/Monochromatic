@@ -12,7 +12,7 @@
 //! for (const [name, value] of ERRNO_NAMES) expect(errnoOf(value)).toBe(name);
 //! ```
 
-use super::{ERRNO_NAMES, REASON_WORDS, errno_name, errno_of, known_reason_word};
+use super::{ERRNO_NAMES, ErrnoWord, REASON_WORDS, errno_name, errno_of, known_reason_word};
 
 /// Each listed name maps to its own number and back.
 #[test]
@@ -38,6 +38,20 @@ fn no_number_is_named_twice() {
 fn an_unnamed_number_stays_unnamed() {
     assert_eq!(errno_of(4242), None);
     assert_eq!(errno_name("ENOTLISTED"), None);
+}
+
+/// A named number becomes its name,
+/// an unnamed number stays itself,
+/// and both parse back.
+#[test]
+fn the_errno_field_names_or_keeps_the_number() {
+    assert_eq!(ErrnoWord::of_number(Some(libc::EBUSY)), ErrnoWord::Named("EBUSY"));
+    assert_eq!(ErrnoWord::of_number(Some(4242)), ErrnoWord::Number(4242));
+    assert_eq!(ErrnoWord::of_number(None), ErrnoWord::None);
+    assert_eq!(ErrnoWord::parse("EBUSY"), Some(ErrnoWord::Named("EBUSY")));
+    assert_eq!(ErrnoWord::parse("4242"), Some(ErrnoWord::Number(4242)));
+    assert_eq!(ErrnoWord::parse("none"), Some(ErrnoWord::None));
+    assert_eq!(ErrnoWord::parse("ENOTLISTED"), None);
 }
 
 /// Only the listed reason words are known,

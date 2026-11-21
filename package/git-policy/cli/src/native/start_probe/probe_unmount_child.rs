@@ -22,7 +22,7 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_child_prelude::{parent_death_signal, parent_id, CHILD_FIRST_KEPT_DESCRIPTOR};
+use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_FIRST_KEPT_DESCRIPTOR, parent_death_signal, parent_id};
 use super::probe_descriptor_calls::move_mount_between_paths;
 use super::probe_mount_calls::{read_own_mount_table, unmount};
 use super::probe_pipe_lines::write_all;
@@ -49,14 +49,12 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         Ok(()) => {
             say(status, StepLine::passed(ProbeStep::Move));
             if hold == Some(ProbeStep::Move) {
-                let mut byte: [u8; 1] = [0];
-                // SAFETY: the buffer is this call's own and the read waits for a byte this arm never sends.
-                let waited: libc::ssize_t = unsafe { libc::read(super::probe_child_prelude::CHILD_CONTROL_DESCRIPTOR, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
-                let _ = waited;
+                let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: CHILD_CONTROL_DESCRIPTOR, events: libc::POLLIN, revents: 0 }];
+                let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
             }
         }
         Err(error) => {
-            say(status, StepLine::failed(ProbeStep::Move, error.errno_name()));
+            say(status, StepLine::failed_number(ProbeStep::Move, Some(error.errno)));
             crate::start_probe::probe_child_prelude::exit_now(1);
         }
     }
@@ -68,10 +66,14 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         say(status, StepLine::failed(ProbeStep::Unmount, None));
         crate::start_probe::probe_child_prelude::exit_now(1);
     }
+    if hold == Some(ProbeStep::Unmount) {
+        let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: CHILD_CONTROL_DESCRIPTOR, events: libc::POLLIN, revents: 0 }];
+        let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
+    }
     match unmount(move_target) {
         Ok(()) => say(status, StepLine::passed(ProbeStep::Unmount)),
         Err(error) => {
-            say(status, StepLine::failed(ProbeStep::Unmount, error.errno_name()));
+            say(status, StepLine::failed_number(ProbeStep::Unmount, Some(error.errno)));
             crate::start_probe::probe_child_prelude::exit_now(1);
         }
     }

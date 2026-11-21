@@ -25,7 +25,7 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_errno_names::{errno_name, known_reason_word};
+use super::probe_errno_names::{ErrnoWord, known_reason_word};
 use super::probe_line_refusal::LineRefusal;
 use super::probe_status_prefix::STATUS_PREFIX;
 
@@ -46,12 +46,12 @@ pub enum StepAnswer {
     /// The step's call or check answered as the design expects.
     Passed,
     /// The step failed,
-    /// with the errno name its call answered,
-    /// or nothing where the failure was a comparison.
+    /// with the errno field its call answered.
     Failed {
-        /// The errno name,
+        /// The name,
+        /// the number where this build has no name,
         /// or nothing for a comparison.
-        errno: Option<&'static str>,
+        errno: ErrnoWord,
     },
     /// The step did not run,
     /// the word says why,
@@ -59,9 +59,8 @@ pub enum StepAnswer {
     NotExercised {
         /// One word naming the cause.
         reason: &'static str,
-        /// The errno name the call answered,
-        /// where it answered one.
-        errno: Option<&'static str>,
+        /// The errno field the call answered.
+        errno: ErrnoWord,
     },
 }
 
@@ -107,25 +106,35 @@ impl StepLine {
     /// One failed step's line,
     /// with the errno name its call answered or nothing for a comparison.
     pub fn failed(step: ProbeStep, errno: Option<&'static str>) -> Self {
-        return StepLine { step, answer: StepAnswer::Failed { errno }, source: None };
+        return StepLine { step, answer: StepAnswer::Failed { errno: ErrnoWord::of_name(errno) }, source: None };
+    }
+
+    /// One failed step's line from the number its call answered,
+    /// which stays a number where this build has no name for it.
+    pub fn failed_number(step: ProbeStep, errno: Option<i32>) -> Self {
+        return StepLine { step, answer: StepAnswer::Failed { errno: ErrnoWord::of_number(errno) }, source: None };
     }
 
     /// One step that did not run,
     /// the word saying why,
     /// and the errno its call answered where one did.
     pub fn not_exercised(step: ProbeStep, reason: &'static str, errno: Option<&'static str>) -> Self {
-        return StepLine { step, answer: StepAnswer::NotExercised { reason, errno }, source: None };
+        return StepLine { step, answer: StepAnswer::NotExercised { reason, errno: ErrnoWord::of_name(errno) }, source: None };
+    }
+
+    /// One step that did not run from the number its call answered,
+    /// which stays a number where this build has no name for it.
+    pub fn not_exercised_number(step: ProbeStep, reason: &'static str, errno: Option<i32>) -> Self {
+        return StepLine { step, answer: StepAnswer::NotExercised { reason, errno: ErrnoWord::of_number(errno) }, source: None };
     }
 
     /// The line as the pipe carries it,
     /// its newline included.
     pub fn encode(&self) -> String {
-        let errno: &str = match &self.answer {
-            StepAnswer::Passed => "none",
-            StepAnswer::Failed { errno: Some(name) } => name,
-            StepAnswer::Failed { errno: None } => "none",
-            StepAnswer::NotExercised { errno: Some(name), .. } => name,
-            StepAnswer::NotExercised { errno: None, .. } => "none",
+        let errno: String = match &self.answer {
+            StepAnswer::Passed => String::from("none"),
+            StepAnswer::Failed { errno } => errno.text(),
+            StepAnswer::NotExercised { errno, .. } => errno.text(),
         };
         let arm: &str = self.step.arm().name();
         let source: &str = self.source.as_deref().unwrap_or("-");
@@ -202,20 +211,20 @@ impl StepLine {
         let Some(answer_word) = answer_field else {
             return Err(LineRefusal::MissingKey { key: String::from("answer") });
         };
-        let errno_name: Option<&'static str> = match errno {
-            None | Some("none") => None,
-            Some(word) => match errno_name(word) {
-                Some(name) => Some(name),
+        let errno_word: ErrnoWord = match errno {
+            None => ErrnoWord::None,
+            Some(word) => match ErrnoWord::parse(word) {
+                Some(field) => field,
                 None => return Err(LineRefusal::UnknownErrno { word: String::from(word) }),
             },
         };
         let parsed_answer: StepAnswer = match answer_word {
             "passed" => StepAnswer::Passed,
-            "failed" => StepAnswer::Failed { errno: errno_name },
+            "failed" => StepAnswer::Failed { errno: errno_word },
             "not-exercised" => match reason_field {
                 None => return Err(LineRefusal::MissingKey { key: String::from("reason") }),
                 Some(word) => match known_reason_word(word) {
-                    Some(reason) => StepAnswer::NotExercised { reason, errno: errno_name },
+                    Some(reason) => StepAnswer::NotExercised { reason, errno: errno_word },
                     None => return Err(LineRefusal::UnknownReason { word: String::from(word) }),
                 },
             },
