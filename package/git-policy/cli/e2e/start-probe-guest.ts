@@ -79,12 +79,13 @@ const GREEN_MARKERS = [
 
 //region Arguments
 
-/** The step, the guest name, the log directory and whether `all` keeps the guest. */
+/** The step, the guest name, the log directory, whether `all` keeps the guest and whether `green` rebuilds. */
 interface Options {
   readonly step: string;
   readonly name: string;
   readonly logDir: string;
   readonly keepGuest: boolean;
+  readonly noBuild: boolean;
 }
 
 /** The step and the values the command line gave it. */
@@ -99,6 +100,7 @@ function options(): Options {
     name: value('--name') ?? 'git-policy-start-probe',
     logDir: value('--log-dir') ?? resolve(import.meta.dirname, '..', 'target', 'start-probe-guest-logs'),
     keepGuest: rest.includes('--keep-guest'),
+    noBuild: rest.includes('--no-build'),
   };
 }
 
@@ -342,7 +344,8 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
   },
   'probe-dataset': probeDataset,
   green: async (chosen: Options): Promise<void> => {
-    await build(chosen);
+    if (!chosen.noBuild)
+      await build(chosen);
     green(chosen);
   },
   destroy: (chosen) => recipe({ chosen, step: 'destroy', }),

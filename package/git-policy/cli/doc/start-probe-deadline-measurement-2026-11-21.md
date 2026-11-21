@@ -50,6 +50,27 @@ in the order the rounds ran:
   128510,
   144710,
   127813, 116570.
+- The first run after a build,
+  which is a cold binary:
+  230892,
+  159552,
+  161404,
+  150121, 154725.
+- Run D (final binary):
+  138984,
+  136934,
+  138567,
+  117492, 118038.
+- Run E (final binary):
+  136927,
+  130734,
+  119730,
+  123550, 117399.
+- Run F (final binary):
+  127092,
+  125162,
+  117863,
+  130544, 118388.
 
 Control,
 the same order:
@@ -69,24 +90,51 @@ the same order:
   96622,
   75607,
   74551, 77268.
+- The first run after a build,
+  cold:
+  167540,
+  68564,
+  74448,
+  67421, 65910.
+- Run D:
+  82455,
+  80065,
+  75805,
+  82137, 74443.
+- Run E:
+  82389,
+  74446,
+  73947,
+  77610, 78919.
+- Run F:
+  73783,
+  77014,
+  78418,
+  77278, 73712.
 
-The probe's slowest round was 149450 and its fastest 116570,
+The probe's slowest round was 230892,
+its fastest 116570,
+a spread of 114322;
+the slowest of the warm rounds was 149450 and the fastest 116570,
 a spread of 32880.
-The control's slowest was 96622 and its fastest 73130.
-The interleaved ratio was 1.3 to 2.0,
-with a median near 1.6;
+The cold first round is kept in the range rather than dropped:
+a boot after a kernel or handler upgrade reads the same cold binary,
+and the deadline must not fail that boot closed.
+The control's slowest was 167540 and its fastest 65910,
+and the interleaved ratio was 1.3 to 2.0 with a median near 1.6:
 the control's own cost is the process start,
 the compatibility gate,
 the fingerprint and the record,
-and the probe adds about 30 to 55 milliseconds over it.
+and the probe adds about 30 to 65 milliseconds over it.
 
 ## What the value is
 
-`PROBE_DEADLINE` is 200 milliseconds,
-which is the slowest measured round (149450) plus a margin of 51 milliseconds,
-and that margin is larger than the 32880-microsecond spread the rounds
+`PROBE_DEADLINE` is 350 milliseconds,
+which is the slowest measured round (230892) plus a margin of 119092
+microseconds,
+and that margin is larger than the 114322-microsecond spread the rounds
 covered.
-`PROBE_DEADLINE_MARGIN` records the 51 milliseconds on its own.
+`PROBE_DEADLINE_MARGIN` records the 119 milliseconds on its own.
 A run inside the range the harness saw therefore does not fail closed on
 noise.
 The mode kills the worker's process group and the holder at the deadline,
