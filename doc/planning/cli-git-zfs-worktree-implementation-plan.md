@@ -1187,6 +1187,24 @@ merge,
 then faster reader (Recommended)".
 So step 3 with the fence merges once its review passes,
 carrying that cost until a reader of the sizes from the object database replaces the `git ls-tree` run.
+On 2026-11-21 the project answered a second cost the fence's closure check measured:
+an add at a commit whose tree differs from the source in a path the fence hands to Git
+(a converting path or any LFS path)
+copies the files,
+then falls back to Git's checkout,
+and took 508 ms against `main`'s 378 ms on a 10,002-file fixture
+(identical-binary control 497 ms),
+where `main` on ZFS makes that add with Git's checkout and is byte-correct;
+neither waiver covers it.
+Asked whether to merge now and then build a check that skips the clone rung before copying when the target differs in a
+fenced path,
+fix that first,
+or merge and keep the cost,
+the project answered "A:
+merge now,
+fix it next (Recommended)".
+So step 3 with the fence merges carrying that cost as a limitation,
+and the up-front skip is built and measured against `main` next.
 
 #### Depends on
 
