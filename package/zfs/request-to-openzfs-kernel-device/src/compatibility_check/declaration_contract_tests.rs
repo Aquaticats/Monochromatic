@@ -7,17 +7,17 @@
 //! and a member whose name cannot be read
 //!  refuses instead of vanishing from the list.
 //! Why:
-//!  The project has not picked the profile reader,
-//! and the adapter that stands
-//!  in for it goes with the pick,
-//! so each duty needs a control written against
+//!  Each duty came out of the cut's own history,
+//! and the migration to `btf-rs`
+//!  replaced the adapter that owed them,
+//! so each needs a control written against
 //!  `check_raw`:
 //! a fixture this folder's writer builds and a verdict,
 //! and nothing from
-//!  the decoder the pick deletes.
+//!  the decoder that migration removed.
 //!  A reader that breaks a duty is refused by these
 //!  controls,
-//! which is how the declaration's contract outlives the stand-in adapter.
+//! which is how the declaration's contract outlives every adapter.
 
 use super::approved_module_fixture::{
     COMMAND_BYTES, EMPTY_BASE_STRINGS, module_with_an_unreadable_extra_member, module_with_the_kind_flag_set,
