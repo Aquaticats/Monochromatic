@@ -275,7 +275,8 @@ and refused only when that reader's own parse fails;
 no kernel on record writes one,
 and the adoption record names the lag as a revisit trigger
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
-"Exit, rollback and revisit triggers").
+"Exit,
+rollback and revisit triggers").
 
 A later reader replaces that adapter file and its own controls,
 `declaration_contract_tests.rs` excepted,

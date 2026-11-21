@@ -210,7 +210,8 @@ impl Blob {
         return self.qualified(KIND_TYPE_TAG, of);
     }
 
-    /// One qualifier of the kind number given, over another type.
+    /// One qualifier of the kind number given,
+    /// over another type.
     fn qualified(&mut self, kind: u32, of: u32) -> u32 {
         let entry: Vec<u8> = self.entry("", kind, 0, of, &[]);
         return self.push(entry);

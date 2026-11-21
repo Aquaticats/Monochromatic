@@ -139,10 +139,17 @@ mod mod_tests;
 /// built by a writer of this folder's own.
 #[cfg(test)]
 mod blob_fixture;
+/// The approved module's member tables,
+/// and the one change a control makes in them.
+#[cfg(test)]
+mod approved_module_member_fixture;
 /// The approved module's declaration,
 /// written as data a test can move one field in.
 #[cfg(test)]
 mod approved_module_fixture;
+/// The pair that types and names one member from a base file.
+#[cfg(test)]
+mod base_file_fixture;
 /// The gate's one live arm in the throwaway guest.
 #[cfg(test)]
 #[path = "live_gate_tests.rs"]

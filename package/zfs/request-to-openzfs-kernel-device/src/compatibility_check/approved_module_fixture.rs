@@ -23,154 +23,28 @@
 //!  The fixture is written by hand rather than from the expectation table,
 //! so the
 //!  two are independent statements of the same layout.
+//!  What a member is belongs beside the member tables,
+//! `approved_module_member_fixture.rs`,
+//! and the pair that types one member
+//!  from a base file belongs to `base_file_fixture.rs`.
 
+/// The one change a control makes,
+/// re-exported so a test names it beside the builder.
+pub use super::approved_module_member_fixture::Change;
+/// The member tables,
+/// their bit offsets and the types they name.
+use super::approved_module_member_fixture::{
+    MemberTypes, bits, command_members, member_types,
+};
 /// The writer of the bytes.
 use super::blob_fixture::{Blob, WrittenMember};
 
-/// `unsigned char`,
-/// one byte.
-const BYTE_BYTES: u32 = 1;
-/// `unsigned int`,
-/// four bytes.
-const WORD_BYTES: u32 = 4;
-/// `unsigned long`,
-/// eight bytes.
-const WIDE_BYTES: u32 = 8;
-/// The bits one byte holds.
-const BITS_PER_BYTE: u32 = 8;
 /// `struct zfs_cmd`'s declared size,
 /// `(MAXPATHLEN * 3) + MAXNAMELEN + 1200` at Linux's field widths.
 pub const COMMAND_BYTES: u32 = 13_744;
-/// `struct dmu_objset_stats`'s declared size.
-pub const STATS_BYTES: u32 = 288;
-/// `struct zinject_record`'s declared size at `zfs-2.4.4`.
-pub const INJECT_BYTES: u32 = 368;
-/// `struct zinject_record`'s size before `zfs-2.4.4` added its two counters.
-pub const SHORT_INJECT_BYTES: u32 = 352;
-/// The anonymous structure's declared size,
-/// `sizeof (zinject_record_t) - 16` padded to eight bytes.
-pub const DESTROY_BYTES: u32 = 368;
-/// The anonymous union's declared size,
-/// its largest member.
-pub const OVERLAY_BYTES: u32 = 368;
-/// `struct zfs_share`'s declared size.
-const SHARE_BYTES: u32 = 32;
-/// `struct drr_begin`'s declared size.
-const BEGIN_BYTES: u32 = 304;
-/// `struct zfs_stat`'s declared size.
-const STAT_BYTES: u32 = 40;
-/// The bytes `zc_name` holds.
-const NAME_BYTES: u32 = 4_096;
-/// The bytes `zc_value` holds.
-const VALUE_BYTES: u32 = 8_192;
-/// The bytes `zc_string`,
-/// `dds_origin` and `zi_func` each hold.
-const STRING_BYTES: u32 = 256;
-/// The bytes `zc_pad` holds.
-const PAD_BYTES: u32 = 3;
-/// The bytes `zc_pad1` holds,
-/// `sizeof (zinject_record_t) - 16`.
-const DESTROY_PAD_BYTES: u32 = 352;
 /// The number one control gives `ZFS_IOC_OBJSET_STATS`,
 /// whose 32 bits as a signed integer are `-2` and as an unsigned one are not.
 const NEGATIVE_REQUEST: i32 = -2;
-
-/// What:
-///  The one field a control moves in the approved declaration.
-/// Why:
-///   A refusal must name the field the module changed,
-/// so each test states the
-///  change it makes and the fixture writes every other member as the approved
-///  module declares it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Change = 'none' | 'no flags' | 'no union' | 'short inject record' | 'swapped members' | 'extra member' | 'renumbered clone' | 'missing channel program';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Change {
-    /// The approved declaration.
-    None,
-    /// `dmu_objset_stats` without `dds_flags`,
-    /// the field `zfs-2.4.4` added in the byte that was padding.
-    NoDdsFlags,
-    /// `zfs_cmd` with the four control fields as direct members,
-    /// the shape `zfs-2.2.2` declares,
-    /// where the union stands.
-    NoUnion,
-    /// `zinject_record` at its former 352 bytes,
-    /// without the two counters `zfs-2.4.4` added.
-    ShortInject,
-    /// `zinject_record` with `zi_duration` and `zi_iotype` swapped,
-    /// so no member size and no total moves.
-    SwappedMembers,
-    /// `dmu_objset_stats` with one member this crate does not expect.
-    ExtraMember,
-    /// `ZFS_IOC_CLONE` renumbered,
-    /// with every layout kept.
-    RenumberedClone,
-    /// `ZFS_IOC_CHANNEL_PROGRAM` absent,
-    /// with every layout kept.
-    MissingChannelProgram,
-    /// Every number this crate sends kept,
-    /// and `ZFS_IOC_LAST` moved by one as a release that appends a request
-    ///  does.
-    AppendedRequest,
-    /// `zc_name` as a 4,095-byte character array,
-    /// one element short of the field this crate declares.
-    NameArrayOneShort,
-    /// `zc_name` as 1,024 four-byte integers,
-    /// the same 4,096 bytes with an element size of its own.
-    NameArrayWiderElements,
-    /// `zc_guid` under a typedef that names a typedef that names the
-    /// approved integer,
-    /// so the alias chain is this file's and not the entry's.
-    TypedefChain,
-    /// `zc_guid` under a type tag,
-    /// a `const`,
-    /// a `restrict` and a `volatile` over the approved integer.
-    QualifierChain,
-    /// `ZFS_IOC_OBJSET_STATS` given a value whose 32 bits are negative,
-    /// with every other number and layout kept.
-    SignedEnumerator,
-}
-
-/// The member types one declaration reads,
-/// created in the order the format hands out ids.
-pub struct MemberTypes {
-    /// `unsigned char`.
-    byte: u32,
-    /// `unsigned int`,
-    /// which carries the enum members this fixture does not model.
-    word: u32,
-    /// `unsigned long`.
-    wide: u32,
-    /// A pointer.
-    pointer: u32,
-    /// A 4,096-byte character array.
-    name: u32,
-    /// An 8,192-byte character array.
-    value: u32,
-    /// A 256-byte character array.
-    string: u32,
-    /// A three-byte character array.
-    pad: u32,
-    /// `struct zinject_record`.
-    inject: u32,
-    /// `struct zfs_share`.
-    share: u32,
-    /// `struct dmu_objset_stats`.
-    stats: u32,
-    /// `struct drr_begin`.
-    begin: u32,
-    /// The anonymous union.
-    overlay: u32,
-    /// `struct zfs_stat`.
-    stat: u32,
-    /// One more alias over `unsigned long`,
-    /// which the typedef chain reads through and no other change uses.
-    wide_alias: u32,
-}
 
 /// The approved declaration with one change,
 /// written as a module over an empty base file.
@@ -194,11 +68,6 @@ pub fn module_over(base: &Blob, change: Change) -> Blob {
     return blob;
 }
 
-/// One member's bit offset from the byte offset `pahole` reports.
-const fn bits(bytes: u32) -> u32 {
-    return bytes * BITS_PER_BYTE;
-}
-
 /// The approved declaration with one extra member in `dmu_objset_stats`
 /// whose name offset points past the file's string section,
 /// so no reader can read that member.
@@ -212,38 +81,35 @@ pub fn module_with_an_unreadable_extra_member() -> Blob {
 }
 
 /// What:
-///  The base file and the approved module whose `zc_simple` member is the
-/// base file's own integer,
-/// named by the base file's own string.
+///  The approved declaration over the base file given,
+/// whose one member the caller
+///  types and names instead of this file's own entry.
 /// Why:
-///   A split module may type and name one member from the file it extends,
-/// and the
-///  comparison reads the module through both files,
-/// so this is the pair a reader
-///  that answered from the module alone would refuse.
-pub fn module_typed_and_named_from_a_base_file() -> (Blob, Blob) {
-    let mut base: Blob = Blob::new();
-    let byte: u32 = base.int("zc_simple", BYTE_BYTES);
-    let name_offset: u32 = base.name_offset("zc_simple").expect("the base's own name");
-    let mut module: Blob = Blob::over_base(&base);
-    let types: MemberTypes = member_types(&mut module, Change::None);
+///   A split module may type and name a member from the file it extends,
+/// and the comparison
+///  reads the module through both files,
+/// so a control hands the base file's own id
+///  and name here and nothing else moves.
+pub(super) fn module_over_a_member(base: &Blob, name: &'static str, type_id: u32, name_offset: u32) -> Blob {
+    let mut blob: Blob = Blob::over_base(base);
+    let types: MemberTypes = member_types(&mut blob, Change::None);
     let members: Vec<WrittenMember> = command_members(&types, Change::None)
         .into_iter()
         .map(|member: WrittenMember| {
-            if member.name != "zc_simple" {
+            if member.name != name {
                 return member;
             }
             return WrittenMember {
                 name: member.name,
-                type_id: byte,
+                type_id,
                 bit_offset: member.bit_offset,
                 name_offset: Some(name_offset),
             };
         })
         .collect();
-    module.structure("zfs_cmd", COMMAND_BYTES, &members);
-    module.enumeration("zfs_ioc", 4, &request_values(Change::None));
-    return (base, module);
+    blob.structure("zfs_cmd", COMMAND_BYTES, &members);
+    blob.enumeration("zfs_ioc", 4, &request_values(Change::None));
+    return blob;
 }
 
 /// The approved declaration with the kind flag set on every record,
@@ -251,212 +117,6 @@ pub fn module_typed_and_named_from_a_base_file() -> (Blob, Blob) {
 /// which is the shape a module's own tools write when the flag is on.
 pub fn module_with_the_kind_flag_set() -> Blob {
     return module_with(Change::None).with_kind_flag_on_records();
-}
-
-/// One member at one byte offset.
-const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
-    return WrittenMember {
-        name,
-        type_id,
-        bit_offset: bits(bytes),
-        name_offset: None,
-    };
-}
-
-/// The member types one declaration is built from.
-fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
-    let byte: u32 = blob.int("unsigned char", BYTE_BYTES);
-    let word: u32 = blob.int("unsigned int", WORD_BYTES);
-    let wide: u32 = blob.int("unsigned long", WIDE_BYTES);
-    let wide_alias: u32 = match change {
-        Change::TypedefChain => {
-            let inner: u32 = blob.typedef("zc_wide_alias", wide);
-            blob.typedef("zc_wide_alias_twice", inner)
-        }
-        Change::QualifierChain => {
-            let volatile: u32 = blob.volatile(wide);
-            let restrict: u32 = blob.restrict(volatile);
-            let constant: u32 = blob.constant(restrict);
-            blob.type_tag(constant)
-        }
-        _ => wide,
-    };
-    let pointer: u32 = blob.pointer("pointer");
-    let name: u32 = match change {
-        Change::NameArrayOneShort => blob.array(byte, NAME_BYTES - 1),
-        Change::NameArrayWiderElements => blob.array(word, NAME_BYTES / WORD_BYTES),
-        _ => blob.array(byte, NAME_BYTES),
-    };
-    let value: u32 = blob.array(byte, VALUE_BYTES);
-    let string: u32 = blob.array(byte, STRING_BYTES);
-    let pad: u32 = blob.array(byte, PAD_BYTES);
-    let destroy_pad: u32 = blob.array(byte, DESTROY_PAD_BYTES);
-    let stats: u32 = blob.structure(
-        "dmu_objset_stats",
-        STATS_BYTES,
-        &stats_members(wide, word, byte, string, change),
-    );
-    let inject: u32 = blob.structure(
-        "zinject_record",
-        inject_bytes(change),
-        &inject_members(wide, word, string, change),
-    );
-    let control: u32 = blob.structure(
-        "",
-        DESTROY_BYTES,
-        &[
-            at("zc_pad1", destroy_pad, 0),
-            at("zc_defer_destroy", word, 352),
-            at("zc_flags", word, 356),
-            at("zc_action_handle", wide, 360),
-        ],
-    );
-    let overlay: u32 = blob.union(
-        "",
-        OVERLAY_BYTES,
-        &[
-            at("zc_inject_record", inject, 0),
-            WrittenMember {
-                name: "",
-                type_id: control,
-                bit_offset: bits(0),
-                name_offset: None,
-            },
-        ],
-    );
-    let share: u32 = blob.structure("zfs_share", SHARE_BYTES, &[]);
-    let begin: u32 = blob.structure("drr_begin", BEGIN_BYTES, &[]);
-    let stat: u32 = blob.structure("zfs_stat", STAT_BYTES, &[]);
-    return MemberTypes {
-        byte,
-        word,
-        wide,
-        pointer,
-        name,
-        value,
-        string,
-        pad,
-        inject,
-        share,
-        stats,
-        begin,
-        overlay,
-        stat,
-        wide_alias,
-    };
-}
-
-/// The inject record's declared size under one change.
-fn inject_bytes(change: Change) -> u32 {
-    return match change {
-        Change::ShortInject => SHORT_INJECT_BYTES,
-        _ => INJECT_BYTES,
-    };
-}
-
-/// `zfs_cmd`'s 32 members,
-/// in the order the module declares them.
-fn command_members(types: &MemberTypes, change: Change) -> Vec<WrittenMember> {
-    let mut members: Vec<WrittenMember> = vec![
-        at("zc_name", types.name, 0),
-        at("zc_nvlist_src", types.wide, 4_096),
-        at("zc_nvlist_src_size", types.wide, 4_104),
-        at("zc_nvlist_dst", types.wide, 4_112),
-        at("zc_nvlist_dst_size", types.wide, 4_120),
-        at("zc_nvlist_dst_filled", types.word, 4_128),
-        at("zc_pad2", types.word, 4_132),
-        at("zc_history", types.pointer, 4_136),
-        at("zc_value", types.value, 4_144),
-        at("zc_string", types.string, 12_336),
-        at("zc_guid", types.wide_alias, 12_592),
-        at("zc_nvlist_conf", types.wide, 12_600),
-        at("zc_nvlist_conf_size", types.wide, 12_608),
-        at("zc_cookie", types.wide, 12_616),
-        at("zc_objset_type", types.wide, 12_624),
-        at("zc_perm_action", types.wide, 12_632),
-        at("zc_history_len", types.wide, 12_640),
-        at("zc_history_offset", types.wide, 12_648),
-        at("zc_obj", types.wide, 12_656),
-        at("zc_iflags", types.wide, 12_664),
-        at("zc_share", types.share, 12_672),
-        at("zc_objset_stats", types.stats, 12_704),
-        at("zc_begin_record", types.begin, 12_992),
-    ];
-    match change {
-        Change::NoUnion => {
-            members.push(at("zc_inject_record", types.inject, 13_296));
-            members.push(at("zc_defer_destroy", types.word, 13_648));
-            members.push(at("zc_flags", types.word, 13_652));
-            members.push(at("zc_action_handle", types.wide, 13_656));
-        }
-        _ => members.push(at("", types.overlay, 13_296)),
-    }
-    members.push(at("zc_cleanup_fd", types.word, 13_664));
-    members.push(at("zc_simple", types.byte, 13_668));
-    members.push(at("zc_pad", types.pad, 13_669));
-    members.push(at("zc_sendobj", types.wide, 13_672));
-    members.push(at("zc_fromobj", types.wide, 13_680));
-    members.push(at("zc_createtxg", types.wide, 13_688));
-    members.push(at("zc_stat", types.stat, 13_696));
-    members.push(at("zc_zoneid", types.wide, 13_736));
-    return members;
-}
-
-/// `dmu_objset_stats`'s nine members,
-/// the flag `zfs-2.4.4` added last.
-fn stats_members(wide: u32, word: u32, byte: u32, origin: u32, change: Change) -> Vec<WrittenMember> {
-    let mut members: Vec<WrittenMember> = vec![
-        at("dds_num_clones", wide, 0),
-        at("dds_creation_txg", wide, 8),
-        at("dds_guid", wide, 16),
-        at("dds_type", word, 24),
-        at("dds_is_snapshot", byte, 28),
-        at("dds_inconsistent", byte, 29),
-        at("dds_redacted", byte, 30),
-        at("dds_origin", origin, 31),
-    ];
-    if change != Change::NoDdsFlags {
-        members.push(at("dds_flags", byte, 287));
-    }
-    if change == Change::ExtraMember {
-        members.push(at("dds_extra", byte, 287));
-    }
-    return members;
-}
-
-/// `zinject_record`'s 19 members,
-/// the two counters `zfs-2.4.4` added last.
-fn inject_members(wide: u32, word: u32, function: u32, change: Change) -> Vec<WrittenMember> {
-    let mut members: Vec<WrittenMember> = vec![
-        at("zi_objset", wide, 0),
-        at("zi_object", wide, 8),
-        at("zi_start", wide, 16),
-        at("zi_end", wide, 24),
-        at("zi_guid", wide, 32),
-        at("zi_level", word, 40),
-        at("zi_error", word, 44),
-        at("zi_type", wide, 48),
-        at("zi_freq", word, 56),
-        at("zi_failfast", word, 60),
-        at("zi_func", function, 64),
-    ];
-    if change == Change::SwappedMembers {
-        members.push(at("zi_duration", word, 320));
-        members.push(at("zi_iotype", word, 324));
-    } else {
-        members.push(at("zi_iotype", word, 320));
-        members.push(at("zi_duration", word, 324));
-    }
-    members.push(at("zi_timer", wide, 328));
-    members.push(at("zi_nlanes", wide, 336));
-    members.push(at("zi_cmd", word, 344));
-    members.push(at("zi_dvas", word, 348));
-    if change == Change::ShortInject {
-        return members;
-    }
-    members.push(at("zi_match_count", wide, 352));
-    members.push(at("zi_inject_count", wide, 360));
-    return members;
 }
 
 /// `enum zfs_ioc`'s numbers this crate sends,

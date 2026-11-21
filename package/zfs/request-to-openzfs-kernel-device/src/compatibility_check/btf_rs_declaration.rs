@@ -37,7 +37,8 @@
 //! and the
 //!  adoption record names the lag as a revisit trigger
 //! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
-//!  "Exit, rollback and revisit triggers").
+//!  "Exit,
+//!  rollback and revisit triggers").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

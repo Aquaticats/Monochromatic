@@ -40,9 +40,9 @@
 //! ```
 
 /// The approved declaration and the changes it can carry.
-use super::approved_module_fixture::{
-    Change, module_typed_and_named_from_a_base_file, module_with,
-};
+use super::approved_module_fixture::{Change, module_with};
+/// The pair that types and names one member from a base file.
+use super::base_file_fixture::module_typed_and_named_from_a_base_file;
 /// The writer of the two files and the entry point's verdict.
 use super::blob_fixture::{Blob, check_pair, check_raw};
 /// The step one refusal names.
