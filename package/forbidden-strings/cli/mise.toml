@@ -148,12 +148,13 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
-const files = parseUsageArgs(process.env.usage_paths ?? '')
+const files = parseUsageArgs(process.env.usage_paths ?? forwardedArgumentWords())
 // Defaulting to the two source roots keeps `lint` enforcing the bans on every
 // package TypeScript file; an explicit path still narrows a one-off run.
 const paths = files.length > 0 ? files : ['src', 'bin']
 ensureOxlintConfig()
 runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', paths)
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."format:scripts:oxlint"]
@@ -163,10 +164,11 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
-const files = parseUsageArgs(process.env.usage_paths ?? '')
+const files = parseUsageArgs(process.env.usage_paths ?? forwardedArgumentWords())
 if (files.length === 0) { throw new Error('format:scripts:oxlint requires at least one file') }
 ensureOxlintConfig()
 runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."lock:members"]
