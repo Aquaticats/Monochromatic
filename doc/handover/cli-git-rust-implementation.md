@@ -40997,6 +40997,15 @@ stated in this entry. What follows from them, as work:
   at `2cc139f19d` (H1 `pahole`'s CI inventoried and its eligibility a project question with both outcomes; H2 the libbpf
   pinned by the tag; counts 66, 81, 51; nine questions). GOING: a diff-only check on Sonnet (brief under
   `~/temp/agent/gate-diff-check-of-the-btf-reader-vet-report-wording-on-sonnet-2026-11-20/`), then the docs branch's merge.
+  LFS'S RE-CHECK FINDINGS ROUND ended at `af27d02b5d` (`main` merged as `0ecad357aa`): F1 the unknown host key read
+  positively from OpenSSH's own words (`sshconnect.c:1204`, `sshconnect2.c:102-104` at `V_10_6_P2`), the two revoked-key
+  reds committed first and green after, every other refusal keeping OpenSSH's words alone; limit: a certificate refusal
+  printing no host-key line still reads as unknown; F4 three files split as pure moves (`bounded_push.rs`,
+  `lfs_upload_plan.rs`, `service_work.rs`), zero `rust/max-lines` on every touched file; F2 the sentence once; F3 a
+  handler-level control on the record line; the author's restore slip (`232dc52a91`) fixed in `49aeb6c39d`; gate 9322 of
+  9324, the cause-H pair. GOING: its narrow final check on Sonnet in the integration worktree
+  `integrate-git-policy-cli-lfs-no-prompt-at-a-terminal` (brief under
+  `~/temp/agent/integration-final-check-lfs-after-the-recheck-findings-2026-11-20/`), then the merge on fit.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
