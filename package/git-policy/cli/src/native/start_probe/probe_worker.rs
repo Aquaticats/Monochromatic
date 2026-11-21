@@ -86,6 +86,7 @@ fn attach_line(failure: AttachFailure) -> StepLine {
     return match (failure.step, failure.errno) {
         (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(failure.step, "exclusive-create-unsupported", Some("EOPNOTSUPP")),
         (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => StepLine::not_exercised(failure.step, "source-held", Some("EBUSY")),
+        (ProbeStep::AttachExclusiveCreate, Some(libc::ENOENT)) => StepLine::not_exercised(failure.step, "missing-source", Some("ENOENT")),
         _ => StepLine::failed(failure.step, failure.errno_name()),
     };
 }
