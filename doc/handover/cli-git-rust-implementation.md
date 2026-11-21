@@ -41299,7 +41299,19 @@ stated in this entry. What follows from them, as work:
   landing exactly on the bound reads back; SPEC and the lock-hold document updated (adoption hold 44.146 to 46.676 ms, the
   wait's basis unchanged); gate 9476 of 9478, the cause-H pair. To judge: its refusal sentence sends a user of the released
   binary to "the owner's open question (`doc/handover/questions-for-the-owner.md`)". GOING: its integration pass on Sonnet
-  (review to `~/temp/agent/integration-pass-git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/keep/`).
+  (review to `~/temp/agent/integration-pass-git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/keep/`). It
+  said fit (both writers checked before any write; the refusal control red without the check; gate 9476 of 9478) with F1
+  medium (the refusal sends a user of the released binary to a handover file and "the owner", and the open question it
+  names is about the format, not growth), F2 and F3 low. MERGED as `93f7a33a67` at 2026-11-21T16:22:29-05:00 (closes issue
+  6327). THE OWNER ANSWERED the store format question at 2026-11-21T16:24:40-05:00: "B: folder, one file per slot"
+  (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`; moved to Answered in the owner file). So the
+  wording round for F1 to F3 was stopped before any commit and its worktree and branch removed (the single file, its size
+  refusal and the lock-hold document are what B replaces); step 7 was steered to add no dependency on the single-file
+  format and to list where it touches the store. GOING: the design of B as `pi-zfs-slot-identity-store-per-slot-files-design`
+  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md` on
+  `docs/planning-cli-git-zfs-slot-identity-store-per-slot-files`; brief under
+  `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/`); then a gate review on Sonnet, the design to the
+  owner, and a build before step 8.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
