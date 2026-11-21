@@ -38,6 +38,15 @@ fn a_failed_line_keeps_its_errno() {
     assert_eq!(StepLine::parse(comparison.encode().as_str()), Ok(comparison));
 }
 
+/// A number this build does not name stays the kernel's number,
+/// so a failed call never reads as a comparison.
+#[test]
+fn an_unnamed_errno_keeps_its_number() {
+    let line: StepLine = StepLine::failed_number(ProbeStep::AttachSource, Some(4242));
+    assert!(line.encode().contains("errno=4242"));
+    assert_eq!(StepLine::parse(line.encode().as_str()), Ok(line));
+}
+
 /// A step that did not run carries the word saying why.
 #[test]
 fn a_not_exercised_line_carries_its_reason() {

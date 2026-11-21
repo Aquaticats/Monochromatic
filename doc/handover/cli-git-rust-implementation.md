@@ -41209,7 +41209,41 @@ stated in this entry. What follows from them, as work:
   after boot 145,525 µs; F3 M2, M3 (86 kill cases), M7 and M9 arms built, M1's extra controls still open for fixture
   reasons; F5 one module-identity reader; F6 to F13; the holder control waits with a deadline, its order forced; gate
   9474 of 9476, the cause-H pair. GOING: the start probe reviewer's closure check (new integration branch
-  `integrate/git-policy-cli-zfs-start-probe-findings`, guest arms rerun, gate once).
+  `integrate/git-policy-cli-zfs-start-probe-findings`, guest arms rerun, gate once). THE PUSH PROGRAMS FINDINGS ROUND
+  ended at `1140a29eb5` (`main` merged as `b5cb456c29`): A12(b) fixed at every ending of a due retry (six controls red
+  first); dropped batches, a repository gone, and gate-blocked records (through a new one-way
+  `ClientMessage::ForgetPrograms`) give values up; `Debug` names variables only; `Skipped` order; A7 guarded; the
+  end-to-end control committed (4 of 4 in the gate image; skips on this host, whose `/usr/bin/git-lfs` shadows the
+  stand-in); notes exact. The race (a merge's push record written before the wake carrying its values) forced and NOT
+  fixed: the reorder broke `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`
+  and was reverted; no gate after the revert; one new `rust/max-lines` (322 against 321). GOING: the push programs
+  reviewer's closure check, ruling on whether the race blocks and running the gate. THE START PROBE FINDINGS MERGED into
+  `main` as `1c590467b4` at 2026-11-21T12:32:20-05:00 (closure check fit as an increment; its own guest reruns green,
+  86 kill cases with no host change; gate 9474 of 9476, the cause-H pair). Step 6's gate, layout checker and start probe
+  are all on `main`. Left: M1's unloaded-key and read-only against read-write controls (both buildable; the reviewer built
+  the first in its guest), the older-than-6.6 control (not on a 6.8 guest), two low notes on the deadline document, and
+  the holder control's companion test. GOING: `pi-zfs-step-6-start-probe-m1-controls` (brief under
+  `~/temp/agent/zfs-step-6-start-probe-m1-controls-2026-11-21/`). THE PUSH PROGRAMS CLOSURE CHECK (Sonnet) found it not
+  fit on two narrow points: the revert left two dead helpers that fail Clippy (and the gate's Clippy step), plus residue
+  (docs, a reordered `hand_over_if_ahead`, a failure-path `promote` that could release another command's held record); and
+  a retry plan cancelled by a later landed push keeps its values (`PushRetries::forget`). The race is ruled not blocking
+  (200 merges in the gate image, all pushed) and filed as issue 6332 with the ranked fix shapes (service-side wait first).
+  `ForgetPrograms` can start a cold service to tell it nothing. Gate tests 9507 of 9509, the cause-H pair. GOING:
+  `pi-git-policy-cli-lfs-push-programs-closure-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-closure` (brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`). THREE ROUNDS ENDED: step 3 with
+  the fence at `9732a7a68d` (step 3's fixes merged as `bfab8057e0`, the block-cloning-off cost closed by a decline before
+  the source proof; M1 kill-safe, the index waiting under `index.pending` and published after Git's write, red then green;
+  H2 split: the btrfs snapshot add 838 against 431 ms, 338 ms of it `git ls-tree`, not reducible by ordering; M2; the
+  `m05` scenario now leaves an untracked `extra.txt` the rung names; gate 9476 of 9478, the cause-H pair). THE OWNER
+  ANSWERED the btrfs cost on 2026-11-21: "A: merge, then faster reader (Recommended)" (recorded in the plan's step 10
+  notes). The push programs closing round at `52de6d5b97` (clean revert, Clippy passing in the image, the cancelled plan,
+  a replaced plan and a recovery give-up forget their values, `ForgetPrograms` only to an active service, the race stated
+  as issue 6332; gate 9522 of 9524). The M1 controls at `9e475f1f52` (unloaded key and read-only against read-write, each
+  red then green in a guest; older-than-6.6 stated as a limit; no production Rust). GOING, each to its own reviewer:
+  step 3 with the fence's closure check (with an `m05` ruling), the push programs' second closure check, and the M1
+  controls' narrow check. NEXT after step 3 merges: the faster size reader (object database instead of `git ls-tree`),
+  the partial clone (task 415), and the old LFS branches' deletion once the push programs merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

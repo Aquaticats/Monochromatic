@@ -604,6 +604,10 @@ The setup run that writes the parent record is step 19's install and boot unit;
 the mode that runs the decision is step 5's dispatch.
 The attach code extends the walk `fs_beneath.rs` already implements.
 The plan's suggestion names the module `worktree_clone_mount` under `src/native/`.
+The host facts the fingerprint holds are read by the gate's own `ModuleIdentity`,
+which step 6's `ProbeFingerprint` reuses,
+so the `first-attach` writer this step adds reuses `ProbeFingerprint` rather than
+opening the module's sysfs files a second way.
 
 #### Design sections
 
@@ -747,6 +751,9 @@ keeps registrations and durable recovery state,
 and leaves an unused slot to the applicable reflink or ordinary Git route.
 Also the start probe the kernel-release answer asks for,
 and the runtime layout checker.
+The account companion's check code is step 10's,
+by the project's answer of 2026-11-21,
+so this step ships without it.
 
 #### Design sections
 
@@ -1041,6 +1048,9 @@ the pointer install,
 the verified fill and the dependency-repair queue;
 the durable binding record keyed on repository,
 registration and clone GUID;
+the account companion's check code,
+its skip arms and its own deadline,
+by the project's answer of 2026-11-21;
 and the resume states and `ENOSPC` behavior.
 
 #### Design sections
@@ -1142,6 +1152,19 @@ So B is the remedy and is built thoroughly,
 its remaining flaws are listed in the proposal's "Limitations" section rather than chased,
 and no further alternative to it is explored;
 the question is not put again.
+On 2026-11-21 the project answered one cost B leaves:
+a btrfs snapshot add of this repository took about twice `main`'s time in the guest
+(838 ms against 431 ms over five rounds with the identical-binary control,
+338 ms of it one `git ls-tree` reading every path's recorded size,
+which the snapshot's constant-time copy leaves nothing to overlap with).
+Asked whether to merge and then build a faster reader,
+merge and accept the cost,
+or build the reader first,
+the project answered "A:
+merge,
+then faster reader (Recommended)".
+So step 3 with the fence merges once its review passes,
+carrying that cost until a reader of the sizes from the object database replaces the `git ls-tree` run.
 
 #### Depends on
 

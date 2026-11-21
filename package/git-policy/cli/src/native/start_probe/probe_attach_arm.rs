@@ -82,23 +82,45 @@ fn failed(step: super::probe_arms::ProbeStep, error: CallError) -> AttachFailure
 /// A call failed,
 ///  the read-back refused,
 ///  or the mount could not be read through `fstatfs`.
-pub fn attach_snapshot(slot: &std::os::fd::OwnedFd, slot_path: &std::path::Path, source: &str) -> Result<AttachEvidence, AttachFailure> {
+///
+/// Each step's line is written by `on_step` as that call returns,
+///  so a timeout inside a call names the call in flight rather than the last
+///  one that finished.
+pub fn attach_snapshot<F: FnMut(super::probe_arms::ProbeStep)>(
+    slot: &std::os::fd::OwnedFd,
+    slot_path: &std::path::Path,
+    source: &str,
+    keep_descriptor: bool,
+    mut on_step: F,
+) -> Result<AttachEvidence, AttachFailure> {
     use super::probe_arms::ProbeStep;
     let context = fsopen(ZFS_FILESYSTEM).map_err(|error| return failed(ProbeStep::AttachContext, error))?;
+    on_step(ProbeStep::AttachContext);
     fsconfig_text(context.as_raw_fd(), SOURCE_OPTION, source).map_err(|error| return failed(ProbeStep::AttachSource, error))?;
+    on_step(ProbeStep::AttachSource);
     for option in [READ_ONLY_OPTION, NOSUID_OPTION, NODEV_OPTION] {
         fsconfig_flag(context.as_raw_fd(), option).map_err(|error| return failed(ProbeStep::AttachOptions, error))?;
     }
+    on_step(ProbeStep::AttachOptions);
     fsconfig_create(context.as_raw_fd(), true).map_err(|error| return failed(ProbeStep::AttachExclusiveCreate, error))?;
+    on_step(ProbeStep::AttachExclusiveCreate);
     let mount = fsmount(context.as_raw_fd()).map_err(|error| return failed(ProbeStep::AttachMountDescriptor, error))?;
     let mount_id: u64 = match mount_id_of(mount.as_raw_fd()) {
         Ok(number) => number,
         Err(_) => return Err(AttachFailure { step: ProbeStep::AttachMountDescriptor, errno: Some(libc::ENOENT) }),
     };
+    on_step(ProbeStep::AttachMountDescriptor);
     move_mount_onto_descriptor(mount.as_raw_fd(), slot.as_raw_fd()).map_err(|error| return failed(ProbeStep::AttachPlace, error))?;
+    on_step(ProbeStep::AttachPlace);
     // The mount descriptor holds a reference on the mount, and a reference the worker keeps would make the unmount arm answer EBUSY.
-    drop(mount);
-    return verify_after_move(slot_path, mount_id, source).map_err(|failure| return AttachFailure { step: ProbeStep::VerifyMount, errno: failure.errno });
+    if keep_descriptor {
+        std::mem::forget(mount);
+    } else {
+        drop(mount);
+    }
+    let evidence = verify_after_move(slot_path, mount_id, source).map_err(|failure| return AttachFailure { step: ProbeStep::VerifyMount, errno: failure.errno })?;
+    on_step(ProbeStep::VerifyMount);
+    return Ok(evidence);
 }
 
 /// Controls stay out of the release executable.
