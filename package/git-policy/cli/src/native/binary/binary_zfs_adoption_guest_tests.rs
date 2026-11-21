@@ -264,8 +264,16 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
     // rather than at the identity: every earlier check passes, which is what makes this arm report the slot.
     let re_recording: Arm = adopt(fixture.checkout.as_path(), current.0, current.1);
     assert_eq!(re_recording.status, Some(0), "the folder the arm stands in is recorded with its agreeing slot: {}", re_recording.said);
-    std::fs::remove_dir(survivor.as_path()).expect("the slot folder is replaced");
+    // The recorded folder is renamed aside rather than removed: ZFS reuses an inode a removal freed, so a remove
+    // and a create in one step gave the replacement the recorded inode and the arm proved nothing.
+    let survivor_aside: PathBuf = fixture.parent().join("survivor-before-the-adoption");
+    std::fs::rename(survivor.as_path(), survivor_aside.as_path()).expect("the recorded slot folder is moved aside");
     std::fs::create_dir(survivor.as_path()).expect("another folder stands at the slot");
+    assert_ne!(
+        identity_of(survivor.as_path()).inode,
+        identity_of(survivor_aside.as_path()).inode,
+        "the replacement slot folder is another inode, so the arm proves the refusal"
+    );
     let before_slot_arm: Vec<(String, Vec<u8>)> = store_bytes();
     let slot_arm: Arm = adopt(fixture.checkout.as_path(), current.0, current.1);
     assert_eq!(slot_arm.status, Some(EXIT_REFUSED), "a surviving slot that is not its record stops the adoption: {}", slot_arm.said);
