@@ -50,6 +50,13 @@ pub(crate) const INDEX_LOCK: &str = "index.lock";
 /// in the administrative directory of a worktree.
 pub(crate) const INDEX: &str = "index";
 
+/// The name the clone rung writes its index under while the paths Git must write are unwritten
+/// (`worktree_clone_index::PendingIndex`).
+const WAITING_INDEX: &str = "index.pending";
+
+/// The lock a Git run pointed at the waiting index holds while it writes it.
+const WAITING_INDEX_LOCK: &str = "index.pending.lock";
+
 /// The name Git gives the pointer file that makes a directory a worktree.
 const POINTER: &str = ".git";
 
@@ -340,6 +347,31 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 }
 
 /// What:
+///  Remove the clone rung's waiting index and the lock a killed Git left beside it,
+/// when they stand in the administrative directory `admin`.
+/// Why:
+///   A rung killed between writing its index under its own name and giving it the worktree's name leaves the file, and
+/// the finish command the report prints writes the worktree's own `index` and knows nothing of it,
+/// so a person who lists the directory would find a file of the add's that no step will ever take.
+/// The names are this wrapper's own:
+/// the rung publishes the waiting index as its last step,
+/// so once the worktree's `index` stands no rung of ours is between the two names,
+/// and a name another program left there is the only thing this could touch,
+/// which is the same price the recovery already pays for the record itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// clearTheWaitingIndex(admin); // index.pending and index.pending.lock, when they stand
+/// ```
+fn clear_the_waiting_index(admin: &Path) {
+    for name in [WAITING_INDEX, WAITING_INDEX_LOCK] {
+        // A name that is not there is the ordinary case: a served rung published its index, and one killed earlier left
+        //  nothing of its own.
+        let _removed = std::fs::remove_file(admin.join(name));
+    }
+}
+
+/// What:
 ///  What finishes or removes an interrupted add,
 /// with the stale lock named first when one stands in the way.
 /// Why:
@@ -394,8 +426,10 @@ pub(crate) fn the_add_finished(claim: &Path) -> bool {
 
 /// What:
 ///  Report an add that was interrupted before it was marked complete,
-/// and change nothing.
+/// and change nothing of the person's.
 /// Why:
+///   The only thing it removes is the clone rung's own waiting index, which names nothing a person or a later step
+/// reads (`clear_the_waiting_index`).
 ///   Recovery never deletes or unregisters a worktree:
 /// a path,
 /// a registration or a name can be changed by another process
@@ -521,6 +555,12 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             if destination_is_gone(destination.as_path()) {
                 return Settlement { notice: None, keep: false };
             }
+            // The rung's waiting index is the add's own bookkeeping, so it goes whether the checkout is proven whole or
+            //  not: the finish command the notice prints writes the worktree's own `index` and nothing takes these names
+            //  afterwards, so a person who lists the directory would find files of the add that no step will use.
+            if let Some(admin) = registered.as_ref() {
+                clear_the_waiting_index(admin.as_path());
+            }
             let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
             if let Some(admin) = registered.as_ref()
                 && add_is_finished(destination.as_path(), admin.as_path())
@@ -553,6 +593,8 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             if the_snapshot_is_in_place(record, binding.destination.as_path()) {
                 return Settlement { notice: None, keep: false };
             }
+            // As above: the rung's waiting index names nothing a person needs once the add is reported.
+            clear_the_waiting_index(binding.admin.as_path());
             let owes_a_copy: bool = crate::worktree_add_binding::owed_copy_of(text.as_str()).is_some();
             if add_is_finished(binding.destination.as_path(), binding.admin.as_path()) {
                 // As above: a record that names the copy still owed stays, because a command in that worktree can make it.
