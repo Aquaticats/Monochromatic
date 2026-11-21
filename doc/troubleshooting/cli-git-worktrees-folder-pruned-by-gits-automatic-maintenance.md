@@ -220,6 +220,8 @@ Git 2.56.1.
 This host's `git --version` reports it,
 and so does the gate image's.
 The source read is commit `03b4152` (tag `v2.56.1`).
+Each link in Citations was loaded in `agent-browser` on 2026-11-20,
+and the first and last line of its range are the lines quoted here.
 
 ### The order, forced
 
@@ -306,17 +308,17 @@ never a silent pass.
 
 ## Verified workarounds
 
-1. Register a real linked worktree when a control needs another worktree's state.
+1.  Register a real linked worktree when a control needs another worktree's state.
    The command is `git worktree add --quiet --detach <path>`.
    Tradeoffs:
    one Git start and a checkout inside the fixture.
    The registration then names a checkout the control owns.
-2. Write the folder by hand with a `gitdir` file naming an existing path.
+2.  Write the folder by hand with a `gitdir` file naming an existing path.
    A `locked` file works as well.
    Tradeoffs:
    invented state no Git command made.
    Its target must exist for as long as the control needs the entry.
-3. Turn the fixture's own upkeep off,
+3.  Turn the fixture's own upkeep off,
    then run it yourself and assert its effect.
    The keys are `maintenance.auto = false` and `gc.auto = 0` in the fixture's config,
    and the run is `git maintenance run --auto --no-detach`.
@@ -324,7 +326,7 @@ never a silent pass.
    the fixture no longer exercises the automatic launch `git commit` performs,
    and the forced run proves nothing unless the control asserts what it took,
    because a run that skips its work exits zero and prints nothing.
-4. Remove the entry tolerating `NotFound` when a control only needs it absent at the end.
+4.  Remove the entry tolerating `NotFound` when a control only needs it absent at the end.
    Tradeoff:
    the control can no longer tell its own removal from another process's.
    It stops pinning who took the entry.
