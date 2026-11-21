@@ -5503,9 +5503,11 @@ so the sweep carries on with the identity that stands rather than failing.
 A writer removes its own staging name on its success path and on its failure path.
 The adoption removes the two known staging forms before it stages its own record,
 which its quiescence precondition makes safe,
-the sweep removes them before it does anything else,
-and `doctor` reports the known forms with their count and age and any unknown dot entry,
-and removes nothing.
+and the sweep removes them before it does anything else,
+so a machine that runs either one does not keep a killed writer's litter.
+Plan step 18's `doctor` is to report the known forms with their count and age,
+and any unknown dot entry,
+and to remove nothing.
 A dot entry that matches neither form is therefore left for an administrator,
 which is the one state no command of this repository repairs.
 
