@@ -2670,14 +2670,32 @@ because the clones would land in that clone's dataset and not in the source's;
 so is a mounted clone used as the source of a slot in the checkout's dataset,
 and so is any destination on another dataset than the source,
 which a destination on a dataset mounted inside the source's own is,
-such as `~/.cache`, which this host's layout gives a dataset of its own
-(`zpcachyos/nosnap/user-cache`, which `findmnt -t zfs` lists).
+such as `~/.cache`,
+which this host's layout gives a dataset of its own
+(`zpcachyos/nosnap/user-cache`,
+which `findmnt -t zfs` lists).
 What a reflink needs is why:
 a clone shares data blocks only inside one dataset,
 `FICLONE` answers `EXDEV` across filesystems,
 and a `copy_file_range` that shares blocks across two datasets with one data key does not qualify.
 A refused or failed `FICLONE` ends the rung and never becomes a copy of the bytes;
 rung 3 fills the worktree.
+On ZFS a destination whose pool has block cloning off (`zfs_bclone_enabled` reads 0) is declined before the source
+proof,
+because every clone into that dataset would be refused and Git's checkout would follow anyway;
+a switch file that cannot be read declines nothing.
+Two costs of this rung on ZFS are waived in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`
+until the partial-clone proposal that record names lands or is rejected.
+A source with uncommitted changes pays the proof and ends in Git's checkout,
+about 0.2 s more than the same add on `main`
+(0.80 to 1.59 times as long over 24,313 tracked files in twenty rounds,
+medians 0.93 to 1.25).
+A clean add of a tree of many small files is slower than on `main`,
+because cloning a small file costs more than Git's write of it
+(1.33 times at 10,001 files of about 2.6 KB,
+1.18 times at about 8.8 KB,
+parity at about 26 KB,
+0.64 times on this repository's own tree of 24,383 files of about 32 KB).
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept;
 links
 recreated),

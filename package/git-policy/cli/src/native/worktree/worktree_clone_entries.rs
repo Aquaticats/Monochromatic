@@ -7,7 +7,8 @@
 //! Why:
 //!  A whole rung and one slice of a parallel run clone entries through the same body,
 //! so the loop and its answer live
-//!  between the per-entry work (`worktree_clone_entry.rs`) and the fan-out that cuts the slices
+//!  between the per-entry work (`worktree_clone_entry.rs`),
+//! the paths it walks (`worktree_clone_paths.rs`) and the fan-out that cuts the slices
 //! (`worktree_clone_slices.rs`).
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +20,8 @@ use crate::add_timing::{begin_step, end_step};
 use crate::fs_beneath::open_root;
 use crate::subvolume_index::StatFields;
 use crate::worktree_clean::{StatEntry, stored_stats};
-use crate::worktree_clone_entry::{Created, Directories, EntryResults, OneEntry, Seams, SpentByTheEntries, clone_one_entry};
+use crate::worktree_clone_entry::{EntryResults, OneEntry, Seams, SpentByTheEntries, clone_one_entry};
+use crate::worktree_clone_paths::{Created, Directories};
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::HashMap;

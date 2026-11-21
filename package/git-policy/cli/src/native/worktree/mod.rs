@@ -265,13 +265,19 @@ pub mod worktree_add_binding;
 
 /// The clone rung's files in dependency order,
 /// the entry point last:
-/// one tracked entry and its clone
-/// (`worktree_clone_entry`),
+/// one indexed path's names and the destination directories a run holds
+/// (`worktree_clone_paths`),
+/// one tracked entry and its clone (`worktree_clone_entry`),
 /// one run of entries on this thread (`worktree_clone_entries`),
 /// the slices of the blocking pool (`worktree_clone_slices`),
 /// the index install (`worktree_clone_index`),
 /// and the rung itself,
 /// whose module doc names each of them.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_paths;
+
+/// One tracked entry of the frozen index,
+/// made in the destination with the checks that prove the source did not move.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_entry;
 
@@ -325,6 +331,10 @@ pub mod worktree_clone_conversion_fence_measurement_routes;
 /// and the seed the index is installed from once both have answered.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_beside_the_clone;
+
+/// The pool's block-cloning switch and what the clone rung does when it reads off.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_block_cloning;
 
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
