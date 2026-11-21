@@ -793,3 +793,177 @@ in the same image with the gate's limits and fixture root,
 rather than the whole suite a second time:
 751 of 753 passed,
 and the two failures were the standing cause-H pair.
+
+## Cause I: a joined thread's own file outlives its join (issue 6330)
+
+This is neither cause G nor cause H.
+Cause G is the label this document gives failures that one busy full run had and no other run repeats,
+with no cause recorded;
+this one has a cause decidable from the kernel source,
+and its control is fixed.
+Cause H is the standing scratch-directory pair,
+which fails here and on the Btrfs host.
+
+### The symptom the gate reader saw
+
+The closure gate of 2026-11-20T23:47-05:00
+(`9367 tests run: 9364 passed, 3 failed`)
+failed this control beside the two cause-H tests:
+
+```text
+FAIL [ 0.013s] (8870/9367) monochromatic-git-policy-cli::native_binary process_cpu_counters_guard::a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_ended
+  stderr ───
+    thread 'process_cpu_counters_guard::a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_ended' (275220) panicked at src/native/binary/binary_support_process_cpu_counters_tests.rs:52:5:
+    a thread's own file is gone once the thread ended, which is the reading a listing meets
+```
+
+That run started each test in a process of its own
+(`running 1 test`,
+`1252 filtered out`),
+so the tid the control named was the thread it started,
+and not a sibling test's.
+
+### The cause
+
+The control asserted an order the kernel does not promise.
+A join returns when the kernel clears the child tid the join waits on and wakes that futex,
+which happens inside the thread's own exit:
+`mm_release` does both
+(`kernel/fork.c:1617-1627`),
+and it is reached from `exit_mm` in `do_exit`
+(`kernel/exit.c:926`).
+The thread's `/proc` entry goes later,
+in `release_task` through `proc_flush_pid`
+(`kernel/exit.c:241` and `:280`),
+which `exit_notify` reaches at the end of the same `do_exit`
+(`kernel/exit.c:959`).
+`clone(2)` documents the first half as `CLONE_CHILD_CLEARTID`,
+which is "used by threading libraries".
+So a thread's own file can still answer when its join returns.
+
+The window is microseconds for a sub-thread,
+which is why one loaded gate met it and filtered runs did not.
+It is not bounded for two other tasks,
+and both make the same reading:
+a thread-group leader whose group still has a thread is not reaped,
+because `exit_notify` reaps a leader only when `thread_group_empty`
+(`kernel/exit.c:757-763`),
+and a traced task is released only when its tracer reaps or detaches it.
+
+The same control had a second,
+latent defect the gate never met:
+it named the ended thread as any tid its second listing had and its first had not,
+so a thread a runtime started beside it would have been read as the one that ended.
+The thread now reports its own number instead.
+
+### The evidence, forced rather than repeated
+
+The order is forced by a construction whose barrier the probe controls.
+The probe and its logs are scratch,
+never part of the tree,
+and their scratch root is this:
+`${HOME}/temp/agent/git-policy-cli-process-cpu-counters-thread-race-2026-11-20/scratch/`,
+with the probe in `forced-red-process-cpu-counters` and its transcripts in `keep/` inside it,
+while the gate image runs' logs sit in the root's own `keep/`.
+The probe starts a child process that runs one of two arms,
+takes the child's `/proc/<pid>/task` listing while the ending thread still waits,
+releases it,
+and reads that thread's own file as the join returns:
+
+- `--leader`,
+  the forced order:
+  the child's leader publishes the join word with `set_tid_address`,
+  and ends with `exit`,
+  which ends only that thread,
+  while one other thread waits on the word exactly as a join does.
+  The kernel clears the word and leaves the task in `/proc`.
+- `--plain`,
+  the positive control:
+  an ordinary sub-thread is ended and joined.
+
+The probe was run in the gate's own image under the gate's own bounds
+(`--cpus 4 --memory 2g --pids-limit 1024`).
+Three `--leader` runs printed the same answer,
+and the control's own assertion failed in each:
+
+```text
+arm --leader listing [3, 4] listed true state-before S joined at-join Some(0) state-at-join Z control-passes false gone-after true total 1.508625ms
+arm --leader listing [3, 4] listed true state-before S joined at-join Some(0) state-at-join Z control-passes false gone-after true total 1.199126ms
+arm --leader listing [3, 4] listed true state-before S joined at-join Some(0) state-at-join Z control-passes false gone-after true total 1.660545ms
+```
+
+The `--plain` control in the same image read the file as already gone at the join
+(`at-join None ... control-passes true`),
+so the probe can show either answer,
+and the forced arm is not the only one it knows.
+Each run ended by the probe's own barrier byte,
+reaped its child,
+and exited 0 in about a millisecond.
+
+A tracer is the other way to hold a task between the join wake and its release,
+and it was measured first.
+`PTRACE_SEIZE` on the child's thread showed the same state
+(`at-join Some(0)`,
+state `Z`),
+and it ended badly:
+the tracee stops after that wake as a zombie,
+`PTRACE_DETACH` on it was refused (`-1`),
+and the child process could not die while its traced thread stayed a zombie,
+so the probe hung until its wall clock bound killed it.
+No control in the tree holds a task at a tracer's stop.
+
+### The fix
+
+`package/git-policy/cli/src/native/binary/binary_support_process_cpu_counters_tests.rs`
+is the only file that changed.
+The reader it guards,
+`package/git-policy/cli/src/native/binary/binary_support_process_cpu_counters.rs`,
+needed nothing:
+it already sums the threads each moment has,
+and answers nothing only for a process that is gone.
+The control now:
+
+- has the waiting thread report its own tid,
+  so the thread it ends is that thread;
+- takes the listing while that thread waits,
+  and asserts the listing names it;
+- ends and joins the thread,
+  then waits,
+  bounded to 30 s at 1 ms between looks,
+  until the kernel has released the thread's own file,
+  so it reaches the state it is named for under either order,
+  instead of assuming the moment;
+- sums beside a thread that only waits,
+  whose clock ticks cannot grow between the two readings,
+  and asserts that sum is exactly that thread's own ticks,
+  so a thread whose own file is gone adds nothing and counts nothing twice.
+
+A planted removal of the reader's tolerance,
+a sum that expects a thread's own file,
+fails this control on every run,
+which is the guard this incident was about.
+A reader that answered zero everywhere still passed it in the runs that planted it,
+because the thread that only waits had spent no ticks to expect;
+no test in the tree pins that undercount,
+which is recorded here rather than left for the next reader to discover.
+
+The image was `localhost/git-policy-native-test:gpc-6330-final2-20261121`,
+built 2026-11-21T04:28:08-05:00 from this branch's tree,
+and each run was the gate image's own `cargo nextest run --offline --locked --all-targets --no-fail-fast`
+narrowed by a name filter under those bounds.
+The module's control passed
+(`1 test run: 1 passed`,
+0.019 s),
+and so did the whole `source_guard` set
+(`80 tests run: 80 passed`,
+4.083 s).
+
+### If this name fails again
+
+Read which assertion failed.
+The patience assertion names a joined thread whose own file the kernel still answered after 30 s,
+which is a task the kernel is not releasing,
+and a different incident from this one.
+The sum assertions name the listing's sum and the live threads' sum,
+and either failing is a defect in the reader,
+rather than in the order the kernel took.
