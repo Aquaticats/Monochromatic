@@ -46,7 +46,10 @@ pub enum TextAttribute {
     /// text,
     /// with the ending `core.autocrlf` or `core.eol` names.
     Set,
-    /// `-text`, or the literal value `unset`: never convert, or an action Git does not name.
+    /// `-text`,
+    /// or the literal value `unset`:
+    /// never convert,
+    /// or an action Git does not name.
     /// `git check-attr` prints both as `unset`,
     /// so the fence reads it as Git's undefined action,
     /// which is exact for `text=unset` and only more careful for `-text` (`git_path_check_crlf`).
@@ -387,7 +390,8 @@ pub fn checkout_converts(attributes: &PathAttributes, rules: &ConversionRules) -
 /// so the search runs from the end,
 /// and a value is the bytes the file holds,
 ///  which a decoding would shorten;
-/// a key written without `=` is a bare name to Git's boolean parser, not an absent key.
+/// a key written without `=` is a bare name to Git's boolean parser,
+/// not an absent key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

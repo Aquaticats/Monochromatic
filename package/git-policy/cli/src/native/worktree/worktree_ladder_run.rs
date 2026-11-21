@@ -67,7 +67,8 @@ pub(crate) enum Rung {
     /// the claim records the add durably,
     /// so
     ///  an interrupted one is removed by the next command,
-    /// and the fence is the one this add's attributes and configuration already decided, before any of that work began.
+    /// and the fence is the one this add's attributes and configuration already decided,
+    /// before any of that work began.
     Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, crate::worktree_clone_conversion_fence::Fence),
     /// A snapshot of the source,
     /// Git running without a checkout first.

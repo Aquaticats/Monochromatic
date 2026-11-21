@@ -13,7 +13,8 @@ fn entry(path: &str, size: u32) -> StatEntry {
     return StatEntry { path: path.as_bytes().to_vec(), flags: 0, mode: 0o100644, stored: StoredStat { ctime_seconds: 1, ctime_nanos: 0, mtime_seconds: 1, mtime_nanos: 0, ino: 1, uid: 0, gid: 0, size } };
 }
 
-/// The same entry, as a symbolic link.
+/// The same entry,
+/// as a symbolic link.
 fn link_entry(path: &str) -> StatEntry {
     return StatEntry { mode: 0o120000, ..entry(path, 11) };
 }
