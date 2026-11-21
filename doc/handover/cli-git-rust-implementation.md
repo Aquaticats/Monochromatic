@@ -41202,7 +41202,14 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-step-3-fence-integration-findings-fixed` in the coordinator-made worktree
   `.claude/worktrees/zfs-step-3-fence-integration-findings` (merge step 3's fixes, M1 red first, H2 split and reduced, M2;
   brief under `~/temp/agent/zfs-step-3-fence-integration-findings-fixed-2026-11-21/`); H2's remaining cost and any
-  block-cloning-off cost go to the owner after it.
+  block-cloning-off cost go to the owner after it. THE START PROBE FINDINGS ROUND ended at `b3f6bac60c`: the three answers
+  applied (`startProbe` nested keys, `hold-mode` gone, the plan's step 10 owning the companion); F1 a task gone between
+  listing and read is skipped (red first); F2 the deadline document rewritten from kept logs, the clock bounding the
+  worker and holder phases only, 350 ms standing on a 309-namespace worst of 118,503 µs plus a 231 ms margin, first run
+  after boot 145,525 µs; F3 M2, M3 (86 kill cases), M7 and M9 arms built, M1's extra controls still open for fixture
+  reasons; F5 one module-identity reader; F6 to F13; the holder control waits with a deadline, its order forced; gate
+  9474 of 9476, the cause-H pair. GOING: the start probe reviewer's closure check (new integration branch
+  `integrate/git-policy-cli-zfs-start-probe-findings`, guest arms rerun, gate once).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
