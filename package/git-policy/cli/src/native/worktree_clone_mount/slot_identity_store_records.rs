@@ -25,7 +25,9 @@ use std::path::Path;
 /// The store's first line:
 /// the file's own name and the version of its grammar,
 /// so a later format cannot be read as this one.
-/// Version 2 is the folder: one file per slot, and `.parent` for the parent folder.
+/// Version 2 is the folder:
+/// one file per slot,
+/// and `.parent` for the parent folder.
 pub const STORE_HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 2";
 
 /// The name `.claude/worktrees`'s record is filed under,
@@ -156,11 +158,11 @@ pub(super) fn parse_one_record(path: &Path, text: &str, filed_under: &str) -> Re
     if !header_seen {
         return Err(StoreRefusal::Line { path: path.to_path_buf(), number: 1, reason: format!("the file is empty: it must start with `{STORE_HEADER}`") });
     }
-    let Some(record) = record else {
+    let Some(parsed) = record else {
         return Err(StoreRefusal::Line { path: path.to_path_buf(), number: 1, reason: String::from("the file holds a header and no record line") });
     };
-    check_filed_under(path, filed_under, &record)?;
-    return Ok(record);
+    check_filed_under(path, filed_under, &parsed)?;
+    return Ok(parsed);
 }
 
 /// Whether the record's own key is the name its file is filed under.
@@ -220,7 +222,10 @@ pub(super) fn slot_name_refusal(name: &str) -> Option<String> {
     return None;
 }
 
-/// Whether `name` is a dot name: a parent record, a staging entry, or a name this layout does not know.
+/// Whether `name` is a dot name:
+/// a parent record,
+/// a staging entry,
+/// or a name this layout does not know.
 pub(super) fn is_a_dot_name(name: &str) -> bool {
     return name.starts_with('.');
 }
@@ -245,6 +250,6 @@ pub fn is_known_staging_name(name: &str) -> bool {
     if rest.len() == STAGING_NAME_DIGITS && rest.chars().all(|digit| return digit.is_ascii_digit() || ('a'..='f').contains(&digit)) {
         return true;
     }
-    let inner: Option<&str> = name.strip_prefix(PARENT_STAGING_PREFIX).and_then(|rest| return rest.strip_suffix(PARENT_STAGING_SUFFIX));
+    let inner: Option<&str> = name.strip_prefix(PARENT_STAGING_PREFIX).and_then(|after_the_prefix| return after_the_prefix.strip_suffix(PARENT_STAGING_SUFFIX));
     return inner.is_some_and(|random| return !random.is_empty());
 }

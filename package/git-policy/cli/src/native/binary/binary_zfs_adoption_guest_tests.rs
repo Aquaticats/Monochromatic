@@ -20,7 +20,9 @@
 //!  because the mode and its grammar are what the install ships.
 //!  Two more arms run in the same guest and settle what only the store's own dataset can:
 //!  the folder under `/var/lib` publishes a record as root and reads it back
-//!  (a hard link, an unlink, a rename and the folder's `fsync` on `zpcachyos/ROOT/cos/root`),
+//!  (a hard link,
+//! an unlink,
+//! a rename and the folder's `fsync` on `zpcachyos/ROOT/cos/root`),
 //!  and a writer killed between its bytes and its link leaves one staging entry and no record,
 //!  which the adoption then removes.
 //!
@@ -278,6 +280,18 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
 /// The environment variable that makes one process of this test the writer a kill leaves half done.
 const KILLED_CHILD_VARIABLE: &str = "CLI_GIT_ZFS_STAGING_KILLED_CHILD";
 
+/// The test binary this run is,
+/// which the killed-writer arm starts as its own child.
+/// Why:
+///  The child must run this file's own staging steps and then die,
+///  and only the running binary runs them;
+///  the ban on `current_exe` guards the wrapper starting itself,
+///  and this starts the test harness.
+#[allow(clippy::disallowed_methods, reason = "starts this test binary (libtest), not the wrapper; the ban on `current_exe` guards the wrapper's own start")]
+fn this_test_binary() -> PathBuf {
+    return std::env::current_exe().expect("this test's own executable");
+}
+
 /// The one staging name the killed writer uses,
 /// which is a form the store's own removal knows.
 const KILLED_STAGING_NAME: &str = ".fedcba9876543210fedcba9876543210";
@@ -362,7 +376,9 @@ fn the_store_folder_under_var_lib_publishes_a_record_as_root_and_reads_it_back()
 /// Why:
 ///  The decision's commitment is that the adoption is not the only remover but that it is one,
 ///  and a machine whose sweep is not built yet has no other;
-///  only a killed process, on the store's own dataset, shows what the kill leaves.
+///  only a killed process,
+/// on the store's own dataset,
+/// shows what the kill leaves.
 #[test]
 fn a_killed_writer_between_its_bytes_and_its_link_leaves_no_record() {
     let Some(_guest) = std::env::var_os(GUEST_VARIABLE) else {
@@ -372,7 +388,7 @@ fn a_killed_writer_between_its_bytes_and_its_link_leaves_no_record() {
     let fixture: Fixture = create_fixture();
     write_store(&fixture);
     let store_path: &Path = Path::new(SLOT_IDENTITY_STORE_PATH);
-    let child: std::process::ExitStatus = std::process::Command::new(std::env::current_exe().expect("this test's own executable"))
+    let child: std::process::ExitStatus = std::process::Command::new(this_test_binary())
         .arg("--exact")
         .arg("zfs_adoption_guest::the_staging_writer_that_is_killed_before_its_link")
         .arg("--nocapture")

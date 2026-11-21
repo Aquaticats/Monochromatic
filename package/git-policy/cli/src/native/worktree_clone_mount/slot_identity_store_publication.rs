@@ -342,8 +342,8 @@ fn link_or_rename(store: &SlotIdentityStore, staging: &OsStr, name: &OsStr, stag
     #[cfg(test)]
     BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
         // Taken out, so a second publication the hook runs does not run it again.
-        let between = hook.borrow_mut().take();
-        if let Some(between) = between { between(); }
+        let held = hook.borrow_mut().take();
+        if let Some(between) = held { between(); }
     });
     drop(staged);
     #[cfg(test)]

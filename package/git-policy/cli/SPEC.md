@@ -5357,10 +5357,12 @@ replaces nothing,
 so the store takes no lock,
 and no later writer can record an identity taken from a folder that changed under it.
 An entry whose name begins with a dot is never read as a record,
-except `.parent`, which is the parent folder's record.
+except `.parent`,
+which is the parent folder's record.
 
 Each record file is the version 2 header line and exactly one record line.
-The parent folder's record, at `.parent`:
+The parent folder's record,
+at `.parent`:
 
 ```text
 # monochromatic-git-policy-cli worktree clone slot identities, version 2

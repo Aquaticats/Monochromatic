@@ -48,7 +48,8 @@ use std::path::{Path, PathBuf};
 ///  A folder whose ACL the kernel would not hold never reaches a record,
 ///  because the capture refuses it (`read_acl`),
 ///  so no record a writer of this repository makes is refused by this bound.
-///  What the bound is for is a runaway or replaced file, which must be named rather than read into memory.
+///  What the bound is for is a runaway or replaced file,
+/// which must be named rather than read into memory.
 pub const RECORD_MAXIMUM_BYTES: u64 = header_line_bytes() + slot_line_prefix_bytes() + SLOT_NAME_MAXIMUM_BYTES + 1 + widest_identity_token_bytes() + 1;
 
 /// The header line and its newline.

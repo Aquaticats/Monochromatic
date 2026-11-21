@@ -85,7 +85,8 @@ fn clear_hooks() {
 ///  and after the publication the record reads whole with no staging entry left.
 /// Why:
 ///  A record's name must never hold a prefix of its bytes;
-///  a kill in the window leaves the staging entry and no record, which is control 4's state.
+///  a kill in the window leaves the staging entry and no record,
+/// which is control 4's state.
 #[test]
 fn a_record_is_published_whole_and_a_reader_never_sees_it_partly_written() {
     let root: PathBuf = fixture("store-published-whole");
@@ -101,9 +102,9 @@ fn a_record_is_published_whole_and_a_reader_never_sees_it_partly_written() {
     });
     publish_slot_identity(folder.as_path(), "one", &identity(301), &parent).expect("the slot is recorded");
     clear_hooks();
-    let seen = seen.lock().expect("the control's own list").clone();
-    assert_eq!(seen.len(), 1, "the window was read once");
-    let (names, record) = &seen[0];
+    let in_the_window = seen.lock().expect("the control's own list").clone();
+    assert_eq!(in_the_window.len(), 1, "the window was read once");
+    let (names, record) = &in_the_window[0];
     assert!(record.is_none(), "the record's name holds nothing in the window");
     assert_eq!(names.len(), 2, "the window holds the parent record and the staging entry: {names:?}");
     let staging: &String = names.iter().find(|name| return name.as_str() != PARENT_RECORD_NAME).expect("a staging entry");
@@ -121,7 +122,8 @@ fn a_record_is_published_whole_and_a_reader_never_sees_it_partly_written() {
 ///  no staging entry of either,
 ///  and the loser's `SlotAlreadyRecorded` carries the record that won.
 /// Why:
-///  The store takes no lock, so the kernel's own exclusivity at the record's name is the whole answer:
+///  The store takes no lock,
+/// so the kernel's own exclusivity at the record's name is the whole answer:
 ///  a loser that rewrote the record or failed the sweep would lose the identity every attach compares against.
 #[test]
 fn two_recorders_of_one_slot_publish_once_and_the_second_reads_the_first() {
@@ -183,7 +185,8 @@ fn a_publication_that_fails_leaves_no_record_and_no_staging_entry() {
 ///  A writer killed between its bytes and its link leaves one staging entry and no record,
 ///  and one killed between its link and its own removal leaves the record whole beside a staging entry naming the same file.
 /// Why:
-///  Both states must be readable: no reader reads a staging entry,
+///  Both states must be readable:
+/// no reader reads a staging entry,
 ///  and the record a kill left is whole because a link publishes every byte at once.
 #[test]
 fn a_killed_writer_leaves_one_staging_entry_and_no_record() {

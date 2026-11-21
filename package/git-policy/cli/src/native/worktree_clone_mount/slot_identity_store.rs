@@ -278,7 +278,8 @@ impl SlotIdentityStore {
 ///  Remove the staging names a killed writer left in the store at `path`,
 ///  and answer their names.
 /// Why:
-///  A caller that holds no store (the sweep, before its step lands) still removes what a killed writer left,
+///  A caller that holds no store (the sweep,
+/// before its step lands) still removes what a killed writer left,
 ///  and a caller that holds one removes them through `SlotIdentityStore::remove_staging_entries`.
 ///
 /// In TS you'd write (pseudocode):

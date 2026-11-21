@@ -29,7 +29,8 @@ use std::io::Write;
 /// Why:
 ///   Two writers of one staging name never share a file,
 ///  and a link planted at the name is refused rather than written through;
-///  the mode is set at creation, so the file is never readable wider than it keeps.
+///  the mode is set at creation,
+/// so the file is never readable wider than it keeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,7 +38,8 @@ use std::io::Write;
 /// ```
 ///
 /// # Errors
-/// The system's own answer, including `EEXIST` when the name is taken.
+/// The system's own answer,
+/// including `EEXIST` when the name is taken.
 pub fn create_new_entry(folder: &std::fs::File, name: &OsStr, mode: u32) -> std::io::Result<std::fs::File> {
     let opened: rustix::fd::OwnedFd = rustix::fs::openat(
         folder,
@@ -50,7 +52,8 @@ pub fn create_new_entry(folder: &std::fs::File, name: &OsStr, mode: u32) -> std:
 
 /// What:
 ///  Write `bytes` into a freshly created entry,
-///  set its mode, and flush it,
+///  set its mode,
+/// and flush it,
 ///  so the bytes are durable before any name can hold them.
 /// Why:
 ///  The staging file holds every byte before it is published,
@@ -64,7 +67,8 @@ pub fn create_new_entry(folder: &std::fs::File, name: &OsStr, mode: u32) -> std:
 /// ```
 ///
 /// # Errors
-/// The system's own answer for a write, a mode change or a flush.
+/// The system's own answer for a write,
+/// a mode change or a flush.
 pub fn fill_entry_and_sync(file: &mut std::fs::File, bytes: &[u8], mode: u32) -> std::io::Result<()> {
     file.write_all(bytes)?;
     rustix::fs::fchmod(&*file, rustix::fs::Mode::from_bits_truncate(mode))?;
@@ -84,7 +88,8 @@ pub fn fill_entry_and_sync(file: &mut std::fs::File, bytes: &[u8], mode: u32) ->
 /// ```
 ///
 /// # Errors
-/// The system's own answer, including `EEXIST` when `to` is taken and `EPERM` or `EOPNOTSUPP` on a folder that refuses a hard link.
+/// The system's own answer,
+/// including `EEXIST` when `to` is taken and `EPERM` or `EOPNOTSUPP` on a folder that refuses a hard link.
 pub fn link_entry(folder: &std::fs::File, from: &OsStr, to: &OsStr) -> std::io::Result<()> {
     return rustix::fs::linkat(folder, from, folder, to, rustix::fs::AtFlags::empty()).map_err(std::io::Error::from);
 }
@@ -117,13 +122,15 @@ pub fn link_refused_because_the_folder_makes_none(error: &std::io::Error) -> boo
 /// ```
 ///
 /// # Errors
-/// The system's own answer, including `EEXIST` when `to` is taken and `EINVAL` on a folder without the flag.
+/// The system's own answer,
+/// including `EEXIST` when `to` is taken and `EINVAL` on a folder without the flag.
 pub fn rename_entry_never_replacing(folder: &std::fs::File, from: &OsStr, to: &OsStr) -> std::io::Result<()> {
     return rustix::fs::renameat_with(folder, from, folder, to, rustix::fs::RenameFlags::NOREPLACE).map_err(std::io::Error::from);
 }
 
 /// What:
-///  Rename `from` to `to` below `folder`, replacing what stands at `to` in one step.
+///  Rename `from` to `to` below `folder`,
+/// replacing what stands at `to` in one step.
 /// Why:
 ///   The adoption's new parent record replaces the old one in one rename,
 ///  so a reader sees either whole record and never a third state,
@@ -152,7 +159,8 @@ pub fn rename_entry_replacing(folder: &std::fs::File, from: &OsStr, to: &OsStr) 
 /// ```
 ///
 /// # Errors
-/// The system's own answer for a removal that failed, including `ENOENT` for a name already gone.
+/// The system's own answer for a removal that failed,
+/// including `ENOENT` for a name already gone.
 pub fn remove_entry(folder: &std::fs::File, name: &OsStr) -> std::io::Result<()> {
     return rustix::fs::unlinkat(folder, name, rustix::fs::AtFlags::empty()).map_err(std::io::Error::from);
 }

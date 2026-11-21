@@ -111,7 +111,9 @@ pub enum StoreRefusal {
         /// What makes it no plain name.
         reason: String,
     },
-    /// The folder, or one record in it, is not under root control,
+    /// The folder,
+    /// or one record in it,
+    /// is not under root control,
     /// so this account could rewrite the identities the route reads.
     NotUnderRootControl {
         /// The path that is not under root control.

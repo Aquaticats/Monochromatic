@@ -90,7 +90,8 @@ pub fn open_entry_for_reading(folder: &std::fs::File, name: &OsStr) -> Result<st
     return Ok(file);
 }
 
-/// The refusal of one open, told apart the way a caller repairs each cause.
+/// The refusal of one open,
+/// told apart the way a caller repairs each cause.
 fn open_refusal(error: rustix::io::Errno) -> ReadRefusal {
     return match error {
         rustix::io::Errno::NOENT => ReadRefusal::Missing,
@@ -143,8 +144,8 @@ pub fn read_entry_bytes(file: &mut std::fs::File, limit: u64) -> Result<Vec<u8>,
 pub fn entry_names(folder: &std::fs::File) -> std::io::Result<Vec<OsString>> {
     let mut directory: rustix::fs::Dir = rustix::fs::Dir::read_from(folder)?;
     let mut names: Vec<OsString> = Vec::new();
-    while let Some(entry) = directory.read() {
-        let entry: rustix::fs::DirEntry = entry?;
+    while let Some(read) = directory.read() {
+        let entry: rustix::fs::DirEntry = read?;
         let name: OsString = OsString::from(entry.file_name().to_string_lossy().as_ref());
         // The kernel's own listing starts with the folder and its parent, which name no entry of it.
         if name == OsStr::new(".") || name == OsStr::new("..") {

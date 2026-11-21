@@ -98,10 +98,13 @@ pub mod clone_folder_identity;
 pub mod slot_identity_store_refusals;
 
 /// One record file's grammar:
-/// its header, its kinds and its own encoding.
+/// its header,
+/// its kinds and its own encoding.
 mod slot_identity_store_records;
 
-/// One record read, the folder's listing, and the staging names a killed writer left.
+/// One record read,
+/// the folder's listing,
+/// and the staging names a killed writer left.
 mod slot_identity_store_reading;
 
 /// The store folder of recorded folder identities,
@@ -160,7 +163,8 @@ pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
 /// The store folder's path,
 /// its open and its lookups and listing.
 pub use slot_identity_store::{RECORD_MODE, SLOT_IDENTITY_STORE_PATH, STORE_FOLDER_MODE, STORE_OWNER, SlotIdentityStore, remove_staging_entries_in, store_control_refusal};
-/// The per-file bound, derived from the kernel's own limits.
+/// The per-file bound,
+/// derived from the kernel's own limits.
 pub use slot_identity_store_reading::RECORD_MAXIMUM_BYTES;
 /// The store's three writes.
 pub use slot_identity_store_publication::{publish_parent_identity_under_root_control, publish_slot_identity_under_root_control, replace_parent_identity_under_root_control};

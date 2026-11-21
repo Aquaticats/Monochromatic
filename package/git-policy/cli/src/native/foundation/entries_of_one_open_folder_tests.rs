@@ -32,7 +32,8 @@ fn a_file_written_through_a_held_folder_reads_back() {
 }
 
 /// What:
-///  An absent entry, a link at an entry's name and a folder at an entry's name are told apart,
+///  An absent entry,
+/// a link at an entry's name and a folder at an entry's name are told apart,
 ///  and none of them is read through.
 /// Why:
 ///  A refusal that cannot tell "nothing is there" from "something unsafe is there" sends a person to the wrong repair.

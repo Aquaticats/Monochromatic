@@ -1,4 +1,5 @@
-//! Controls for creating, filling and publishing one entry below a folder held open:
+//! Controls for creating,
+//! filling and publishing one entry below a folder held open:
 //! a link publishes a filled staging file and answers `EEXIST` onto a taken name,
 //! the rename that never replaces does the same on a folder without links,
 //! a replacing rename replaces in one step,
