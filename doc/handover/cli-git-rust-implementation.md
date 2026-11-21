@@ -40879,8 +40879,11 @@ stated in this entry. What follows from them, as work:
   comparison, `VerdictCache` constructible, the refused-gate control red with the gate removed, the passing path and
   missing-file refusals); the recipe carries `zfs-gate-arm`, `zfs-gate-version-arm`, `zfs-gate-change-arm` and fails on
   `SKIP gate_arm`; SPEC says only the handler runs the gate until a later step; L10 treated as required (a moved
-  `ZFS_IOC_LAST` refuses, read from Q2's "the request numbers decide"), which the re-check is told to weigh as possibly
-  the owner's choice; gate 9306 of 9308, the cause-H pair. GOING: its narrow re-check on Sonnet (brief under
+  `ZFS_IOC_LAST` refuses), which the record decides: `doc/decision/cli-git-zfs-runtime-layout-checker.md:50` lists "every
+  request number the binding can send with the range's two endpoints" among the expectations, and the design gives the
+  reason (the kernel indexes a table sized `ZFS_IOC_LAST - ZFS_IOC_FIRST`, design line 1318); so a release that only
+  appends a request turns raw requests off until the approved layout is updated, by the accepted record, and no owner
+  question is owed; gate 9306 of 9308, the cause-H pair. GOING: its narrow re-check on Sonnet (brief under
   `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/`). It still merges only after the reader pick
   replaces the adapter.
   Then each design branch
