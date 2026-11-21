@@ -41217,7 +41217,13 @@ stated in this entry. What follows from them, as work:
   stand-in); notes exact. The race (a merge's push record written before the wake carrying its values) forced and NOT
   fixed: the reorder broke `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`
   and was reverted; no gate after the revert; one new `rust/max-lines` (322 against 321). GOING: the push programs
-  reviewer's closure check, ruling on whether the race blocks and running the gate.
+  reviewer's closure check, ruling on whether the race blocks and running the gate. THE START PROBE FINDINGS MERGED into
+  `main` as `1c590467b4` at 2026-11-21T12:32:20-05:00 (closure check fit as an increment; its own guest reruns green,
+  86 kill cases with no host change; gate 9474 of 9476, the cause-H pair). Step 6's gate, layout checker and start probe
+  are all on `main`. Left: M1's unloaded-key and read-only against read-write controls (both buildable; the reviewer built
+  the first in its guest), the older-than-6.6 control (not on a 6.8 guest), two low notes on the deadline document, and
+  the holder control's companion test. GOING: `pi-zfs-step-6-start-probe-m1-controls` (brief under
+  `~/temp/agent/zfs-step-6-start-probe-m1-controls-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
