@@ -41231,7 +41231,57 @@ stated in this entry. What follows from them, as work:
   `ForgetPrograms` can start a cold service to tell it nothing. Gate tests 9507 of 9509, the cause-H pair. GOING:
   `pi-git-policy-cli-lfs-push-programs-closure-findings-fixed` in the coordinator-made worktree
   `.claude/worktrees/git-policy-cli-lfs-push-programs-closure` (brief under
-  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`).
+  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`). THREE ROUNDS ENDED: step 3 with
+  the fence at `9732a7a68d` (step 3's fixes merged as `bfab8057e0`, the block-cloning-off cost closed by a decline before
+  the source proof; M1 kill-safe, the index waiting under `index.pending` and published after Git's write, red then green;
+  H2 split: the btrfs snapshot add 838 against 431 ms, 338 ms of it `git ls-tree`, not reducible by ordering; M2; the
+  `m05` scenario now leaves an untracked `extra.txt` the rung names; gate 9476 of 9478, the cause-H pair). THE OWNER
+  ANSWERED the btrfs cost on 2026-11-21: "A: merge, then faster reader (Recommended)" (recorded in the plan's step 10
+  notes). The push programs closing round at `52de6d5b97` (clean revert, Clippy passing in the image, the cancelled plan,
+  a replaced plan and a recovery give-up forget their values, `ForgetPrograms` only to an active service, the race stated
+  as issue 6332; gate 9522 of 9524). The M1 controls at `9e475f1f52` (unloaded key and read-only against read-write, each
+  red then green in a guest; older-than-6.6 stated as a limit; no production Rust). GOING, each to its own reviewer:
+  step 3 with the fence's closure check (with an `m05` ruling), the push programs' second closure check, and the M1
+  controls' narrow check. NEXT after step 3 merges: the faster size reader (object database instead of `git ls-tree`),
+  the partial clone (task 415), and the old LFS branches' deletion once the push programs merge. THE M1 CONTROLS MERGED
+  into `main` as `d5b8375652` at 2026-11-21T15:06:46-05:00 (check fit; the reviewer's guest reran `green`, `m1-key` and
+  `m1-read-write`; no production code). All of step 6's own work is on `main`; open: the older-than-6.6 control (a stated
+  limit) and two low notes in the deadline document (the 75 ms cold arm ran on a shared host, not under a gate; the
+  "231 milliseconds" comparison sets a difference against a whole round). The fuzz sidecar type check of
+  `package/git-policy/cli.fuzz` passes on `main` (clippy `-D warnings` exit 0; cargo reused cached results from outside the
+  sidecar's own `target/`, valid because a path dependency is rechecked when its sources change). GOING: ZFS step 7 (the
+  intent property, the receipts, the readiness record, the per-slot root claim, the wrapper's side) as
+  `pi-zfs-step-7-intent-receipts-readiness` on `feat/git-policy-cli-zfs-mount-intent-receipts-readiness` (its
+  dependencies, steps 1, 2, 5 and 6, are all on `main`; the mount-request deadline provisional until step 22 sizes it;
+  brief under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/`). ISSUE 6330'S INTEGRATION LOWS: F1 to F7
+  (docs and test comments claiming more than the control shows, kernel lines without a version, `detach_pid` not
+  `proc_flush_pid`, evidence under deleted scratch, `RELEASE_PATIENCE`'s basis, nits) go to
+  `pi-git-policy-cli-process-cpu-counters-review-lows` (brief under
+  `~/temp/agent/git-policy-cli-process-cpu-counters-review-lows-2026-11-21/`); F8 (the live-thread sum can go down when a
+  thread ends, under a `u64` subtraction) filed as issue 6333; `5b9381875f`'s overclaiming message has a corrective commit
+  comment. Issue 6310 closed: its reproduce command passes on `main` (cause of recovery not traced). ISSUE 6327 (the
+  identity store's adoption rewrite has no size check) goes to `pi-git-policy-cli-slot-identity-store-rewrite-size-check`
+  (brief under `~/temp/agent/git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/`). HELD: the
+  `worktree_remove_hand_over.rs` max-lines split waits until the fence and push programs branches merge, because both
+  touch that file and a split now would conflict with each. STEP 3 WITH THE FENCE'S CLOSURE CHECK (Sonnet) said fit at
+  `697ceec31f` (H1, M1, M2, lows closed; the kill reproduction red on the first tip, green on the closure tip;
+  block-cloning off declining with no proof in the guest; gate 9567 of 9569, the cause-H pair) and ruled the `m05`
+  leftover acceptable. NOT MERGED: the leftover is every source path the target tree lacks (41 files in its run), where
+  `main` leaves none and on ZFS is byte-right, so it misses the merge bar, which no waiver covers. New lows: N1 `SPEC.md`
+  says `attr.tree`/`GIT_ATTR_SOURCE` refuse the rung but the code served `attr.tree` (not yet a disagreeing fixture); N2 the
+  Limitations understates the leftover; N3 `index.pending` and its lock stay after the finish. GOING:
+  `pi-zfs-step-3-fence-leftover-and-attribute-source-fixed` in `.claude/worktrees/zfs-step-3-fence-leftover-fix` (main's
+  `m05` first, the leftover red first on rungs 1 and 2, the pending-index fallback with kill and refresh controls, N1 with a
+  disagreeing fixture, N2, N3; brief under `~/temp/agent/zfs-step-3-fence-leftover-and-attribute-source-fixed-2026-11-21/`).
+  THE PUSH PROGRAMS' SECOND CLOSURE CHECK said fit at `815a161f8b` (every item closed; the race a stated limit, issue
+  6332). NOT MERGED: `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`
+  failed in two of this branch's gates (the reviewer's and the author's 13:55) with a text neither troubleshooting note
+  records ("other: the new commit, not the earlier one, reached the origin"; the `other` push `retrying` with an empty
+  `cause:`; two service instances 7 ms apart and a lost lease), and in no gate today on `main` or other branches. GOING:
+  `pi-git-policy-cli-lfs-push-programs-two-worktree-push-retry` in
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-two-worktree-push` (forced reproduction on the branch and on `main`,
+  fix red first or an issue, the empty cause named, two lows; brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-two-worktree-push-retry-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

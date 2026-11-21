@@ -1769,6 +1769,15 @@ reporting every refusal as a missing dataset fails its own control. Also record 
 against a read-write dataset superblock refuses `EBUSY` (`module/os/linux/zfs/zpl_super.c:936` to `:943`), adjust
 the arm's flags if it does, and record what a kernel older than 6.6 returns for the exclusive create, so the
 unexercised arm's wording is measured rather than assumed.
+That last reading cannot be taken in this design's guest:
+it boots kernel `6.8.0-147-generic`,
+whose `fsconfig` knows `FSCONFIG_CMD_CREATE_EXCL`,
+so no arm there answers `EOPNOTSUPP`.
+A run for it needs a throwaway guest whose kernel predates the command
+and an OpenZFS module built against that kernel,
+because the refusal is the kernel's and the module must load on it;
+until one runs,
+the wording stays the kernel source's reading rather than a measurement.
 
 Gates: the probe's attach arm and its source, the exclusive create as the freshness oracle, the claim that a
 source no namespace mounts is the one that reaches the mount path, and the limit that the key refusal is regression

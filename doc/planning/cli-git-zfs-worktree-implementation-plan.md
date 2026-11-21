@@ -794,6 +794,28 @@ The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`.
 
 #### Open items
 
+The probe's guest arms are built and run in
+`package/git-policy/cli/e2e/start-probe-guest.ts`:
+M1's attach,
+its held-source `EBUSY` control,
+its unloaded-key `EACCES` control and its read-only against read-write control;
+M2's controls;
+M3's kill matrix and raised deadline;
+M5's refusal controls;
+M7's scan arms;
+M9's accepted release and filtered refusal;
+and M10's absent-source reading.
+One reading of M1 cannot be taken there:
+what a kernel older than 6.6 answers for the exclusive create.
+The guest boots `6.8.0-147-generic`,
+whose `fsconfig` knows `FSCONFIG_CMD_CREATE_EXCL`,
+so no arm in that guest answers `EOPNOTSUPP`.
+Such a run needs a throwaway guest whose kernel predates the command
+and an OpenZFS module built against that kernel,
+because the refusal is the kernel's and the module must load on it;
+until one runs,
+the wording for that arm stays the kernel source's reading rather than a measurement.
+
 Blocked by "The start probe a kernel-release answer asks for" and "The runtime layout checker",
 which are this step's own designs.
 The architecture,
@@ -1152,6 +1174,19 @@ So B is the remedy and is built thoroughly,
 its remaining flaws are listed in the proposal's "Limitations" section rather than chased,
 and no further alternative to it is explored;
 the question is not put again.
+On 2026-11-21 the project answered one cost B leaves:
+a btrfs snapshot add of this repository took about twice `main`'s time in the guest
+(838 ms against 431 ms over five rounds with the identical-binary control,
+338 ms of it one `git ls-tree` reading every path's recorded size,
+which the snapshot's constant-time copy leaves nothing to overlap with).
+Asked whether to merge and then build a faster reader,
+merge and accept the cost,
+or build the reader first,
+the project answered "A:
+merge,
+then faster reader (Recommended)".
+So step 3 with the fence merges once its review passes,
+carrying that cost until a reader of the sizes from the object database replaces the `git ls-tree` run.
 
 #### Depends on
 
