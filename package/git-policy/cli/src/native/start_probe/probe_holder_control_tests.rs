@@ -57,10 +57,19 @@ fn a_holder_without_mount_authority_reports_a_failed_attach() {
 /// The old count of polls cannot see an answer that arrives after the last
 /// poll,
 /// and the deadline wait does.
-/// This forces the failing order rather than repeating the control's run.
+/// This forces the failing order rather than repeating the control's run:
+/// the answer cannot be stored until the count has finished,
+/// so the count must miss it.
 #[test]
 fn a_late_answer_is_missed_by_a_count_of_polls_and_seen_by_the_deadline() {
     let answered: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let (count_finished, after_the_count) = std::sync::mpsc::channel::<()>();
+    let answering = Arc::clone(&answered);
+    let answer = std::thread::spawn(move || {
+        // The count's sender is dropped once the count has run, so the answer is stored only after it.
+        let _released = after_the_count.recv();
+        answering.store(true, Ordering::SeqCst);
+    });
     let mut seen: bool = false;
     for _ in 0..1000 {
         if answered.load(Ordering::SeqCst) {
@@ -68,11 +77,8 @@ fn a_late_answer_is_missed_by_a_count_of_polls_and_seen_by_the_deadline() {
             break;
         }
     }
-    assert!(!seen, "the count of polls saw an answer before anything set it");
-    let late = Arc::clone(&answered);
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        late.store(true, Ordering::SeqCst);
-    });
+    assert!(!seen, "the count of polls saw an answer that had not arrived when the count began");
+    drop(count_finished);
     assert!(wait_until(&|| return answered.load(Ordering::SeqCst)), "the deadline wait did not see the late answer");
+    answer.join().expect("the late answer's thread ends");
 }
