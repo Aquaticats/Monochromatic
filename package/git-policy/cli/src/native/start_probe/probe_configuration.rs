@@ -12,35 +12,31 @@
 //!  blocked rather than a probe failure
 //!  (`doc/decision/cli-git-zfs-start-probe.md`,
 //!  Q4).
-//!  The keys' spellings are the narrowest reading of "the configuration field
-//!  that names it",
-//!  because the records fix none,
-//!  and they are questions for the project rather than decided names.
+//!  The project answered on 2026-11-21 that both sit inside one `startProbe`
+//!  object,
+//!  as `dataset` and `checkout`,
+//!  so the root-owned configuration holds one object rather than two flat
+//!  keys.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const source = sourceFromConfiguration(text); const checkout = checkoutFromConfiguration(text);
+//! const source = sourceFromConfiguration('{"startProbe":{"dataset":"pool/ds"}}');
 //! ```
 
 use super::probe_source_name::{NameRefusal, ProbeSource, check_dataset_name};
 use monochromatic_jsonc_edit::units_to_string;
 use std::path::{Path, PathBuf};
 
-/// The configuration key that names the probe dataset,
-/// beside the pool and dataset names the configuration pins.
-///
-/// The records fix no key spelling;
-/// this one is the narrowest reading of "the configuration field that names
-///  it",
-/// and it is a question for the project rather than a decided name.
-pub const DATASET_KEY: &str = "gitWorktreeProbeDataset";
+/// The one object the project answered holds both names.
+pub const START_PROBE_KEY: &str = "startProbe";
 
-/// The configuration key that names the checkout the walk opens read-only.
-///
-/// The records fix no key spelling either;
-/// like {@link DATASET_KEY} this is the narrowest reading and a question for
-///  the project.
-pub const CHECKOUT_KEY: &str = "gitWorktreeCheckout";
+/// The key inside `startProbe` that names the probe dataset,
+/// beside the pool and dataset names the configuration pins.
+pub const DATASET_KEY: &str = "dataset";
+
+/// The key inside `startProbe` that names the checkout the walk opens
+/// read-only.
+pub const CHECKOUT_KEY: &str = "checkout";
 
 /// What:
 ///  Why the configured name is a name the kernel would refuse,
@@ -110,7 +106,7 @@ impl SourceRefusal {
     /// naming the path,
     /// the key and what to change.
     pub fn message(&self) -> String {
-        let key: &str = DATASET_KEY;
+        let key: String = format!("{START_PROBE_KEY}.{DATASET_KEY}");
         return match self {
             SourceRefusal::ConfigurationMissing { path } => format!(
                 "the probe's source is not configured: {} is not there. Nothing was attached, and every managed attach stays on the reflink or ordinary Git route until the configuration names the probe dataset. Ways forward: create the file with `{key}` naming the dataset, which `doctor` prints a command for.",
@@ -195,8 +191,15 @@ fn text_at_key(configuration: &str, key: &str) -> Result<Option<String>, ()> {
     let Some(entries) = root.entries() else {
         return Ok(None);
     };
+    let start_wanted: Vec<u16> = START_PROBE_KEY.encode_utf16().collect();
+    let Some(start_entry) = entries.iter().find(|entry| return entry.key.units == start_wanted) else {
+        return Ok(None);
+    };
+    let Some(start_entries) = start_entry.value.entries() else {
+        return Ok(None);
+    };
     let wanted: Vec<u16> = key.encode_utf16().collect();
-    let Some(entry) = entries.iter().find(|entry| return entry.key.units == wanted) else {
+    let Some(entry) = start_entries.iter().find(|entry| return entry.key.units == wanted) else {
         return Ok(None);
     };
     let Some(units) = entry.value.text_units() else {

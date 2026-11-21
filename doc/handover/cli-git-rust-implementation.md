@@ -41189,7 +41189,49 @@ stated in this entry. What follows from them, as work:
   stand-in `git-lfs` found only on the shell's `PATH`; nothing written). GOING:
   `pi-git-policy-cli-lfs-push-programs-integration-findings-fixed` in the coordinator-made worktree
   `.claude/worktrees/git-policy-cli-lfs-push-programs-findings` (brief under
-  `~/temp/agent/git-policy-cli-lfs-push-programs-integration-findings-fixed-2026-11-21/`).
+  `~/temp/agent/git-policy-cli-lfs-push-programs-integration-findings-fixed-2026-11-21/`). STEP 3 WITH THE FENCE'S
+  INTEGRATION PASS (Sonnet; its folder's `keep/review.md`) found it not fit: H1 step 3's earlier integration fixes on
+  `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung` up to `477975e732` never reached the fence branch (five
+  conflicts; the block-cloning-off cost, which no waiver covers, reopens with them); M1 a kill after the index install
+  and before the fenced write leaves an index that, once refreshed, vouches for the source's bytes (issue 6323 again; zeroed
+  stat does not stop a refresh); H2 a btrfs snapshot add of this repository about twice `main` in the guest (890 against
+  439 ms, every round 1.94 to 2.61), not yet put to the owner; M2 the crate's SPEC and README lack the fence; lows. Bytes
+  held everywhere it looked (26 of 26, 300 of 300, 18 of 18, 12 of 12), the same harnesses red on the unfenced build;
+  gate 9550 of 9553: the cause-H pair and a start probe control polling 1,000 times with no wait (sent as a steer to the
+  start probe findings round). The merge removed the author's fence worktree. GOING:
+  `pi-zfs-step-3-fence-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/zfs-step-3-fence-integration-findings` (merge step 3's fixes, M1 red first, H2 split and reduced, M2;
+  brief under `~/temp/agent/zfs-step-3-fence-integration-findings-fixed-2026-11-21/`); H2's remaining cost and any
+  block-cloning-off cost go to the owner after it. THE START PROBE FINDINGS ROUND ended at `b3f6bac60c`: the three answers
+  applied (`startProbe` nested keys, `hold-mode` gone, the plan's step 10 owning the companion); F1 a task gone between
+  listing and read is skipped (red first); F2 the deadline document rewritten from kept logs, the clock bounding the
+  worker and holder phases only, 350 ms standing on a 309-namespace worst of 118,503 µs plus a 231 ms margin, first run
+  after boot 145,525 µs; F3 M2, M3 (86 kill cases), M7 and M9 arms built, M1's extra controls still open for fixture
+  reasons; F5 one module-identity reader; F6 to F13; the holder control waits with a deadline, its order forced; gate
+  9474 of 9476, the cause-H pair. GOING: the start probe reviewer's closure check (new integration branch
+  `integrate/git-policy-cli-zfs-start-probe-findings`, guest arms rerun, gate once). THE PUSH PROGRAMS FINDINGS ROUND
+  ended at `1140a29eb5` (`main` merged as `b5cb456c29`): A12(b) fixed at every ending of a due retry (six controls red
+  first); dropped batches, a repository gone, and gate-blocked records (through a new one-way
+  `ClientMessage::ForgetPrograms`) give values up; `Debug` names variables only; `Skipped` order; A7 guarded; the
+  end-to-end control committed (4 of 4 in the gate image; skips on this host, whose `/usr/bin/git-lfs` shadows the
+  stand-in); notes exact. The race (a merge's push record written before the wake carrying its values) forced and NOT
+  fixed: the reorder broke `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`
+  and was reverted; no gate after the revert; one new `rust/max-lines` (322 against 321). GOING: the push programs
+  reviewer's closure check, ruling on whether the race blocks and running the gate. THE START PROBE FINDINGS MERGED into
+  `main` as `1c590467b4` at 2026-11-21T12:32:20-05:00 (closure check fit as an increment; its own guest reruns green,
+  86 kill cases with no host change; gate 9474 of 9476, the cause-H pair). Step 6's gate, layout checker and start probe
+  are all on `main`. Left: M1's unloaded-key and read-only against read-write controls (both buildable; the reviewer built
+  the first in its guest), the older-than-6.6 control (not on a 6.8 guest), two low notes on the deadline document, and
+  the holder control's companion test. GOING: `pi-zfs-step-6-start-probe-m1-controls` (brief under
+  `~/temp/agent/zfs-step-6-start-probe-m1-controls-2026-11-21/`). THE PUSH PROGRAMS CLOSURE CHECK (Sonnet) found it not
+  fit on two narrow points: the revert left two dead helpers that fail Clippy (and the gate's Clippy step), plus residue
+  (docs, a reordered `hand_over_if_ahead`, a failure-path `promote` that could release another command's held record); and
+  a retry plan cancelled by a later landed push keeps its values (`PushRetries::forget`). The race is ruled not blocking
+  (200 merges in the gate image, all pushed) and filed as issue 6332 with the ranked fix shapes (service-side wait first).
+  `ForgetPrograms` can start a cold service to tell it nothing. Gate tests 9507 of 9509, the cause-H pair. GOING:
+  `pi-git-policy-cli-lfs-push-programs-closure-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-closure` (brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

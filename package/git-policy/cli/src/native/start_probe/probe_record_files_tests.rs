@@ -14,7 +14,7 @@
 //! const place = RecordPlace.at(fixture('record')); place.prepare(); place.publish('v1\n');
 //! ```
 
-use super::{DIRECTORY_MODE, RECORD_MODE, RecordPlace, SCRATCH_NAME, HOLDER_NAME};
+use super::{DIRECTORY_MODE, RECORD_MODE, RecordPlace, SCRATCH_NAME, STAGING_NAME, HOLDER_NAME};
 use crate::testing::test_support::fixture;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -50,5 +50,6 @@ fn the_record_is_written_whole_and_readable() {
     place.publish("v1\nstate finished\n").expect("the second record is written");
     let second: String = std::fs::read_to_string(place.result()).expect("the record is read again");
     assert_eq!(second, "v1\nstate finished\n");
-    assert!(!place.directory().join(super::STAGING_NAME).exists(), "the staged sibling is renamed, not left");
+    assert!(!place.staging().exists(), "the staged sibling is renamed, not left");
+    assert!(place.staging().ends_with(format!("{STAGING_NAME}.{}", std::process::id())));
 }

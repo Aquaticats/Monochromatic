@@ -161,16 +161,17 @@ fn behind_the_gate(
 /// a skipped probe is a verdict in the
 ///  record,
 /// never a failed unit.
-fn behind_the_gate_for_the_probe(gate: &dyn BeforeRequests) -> Result<String, String> {
+/// The place and the configuration path are arguments,
+/// so a control runs the refused branch against a fixture directory and never
+/// writes under `/run`.
+fn behind_the_gate_for_the_probe(gate: &dyn BeforeRequests, place: &RecordPlace, configuration: &std::path::Path) -> Result<String, String> {
     let verdict: Verdict = gate.verdict();
     let line: String = verdict_line(&verdict);
     if let Verdict::Refused(refusal) = &verdict {
-        let place: RecordPlace = RecordPlace::live();
-        let skipped: Result<String, String> = skip_after_gate_refusal(&place, &FingerprintPaths::live(), refusal.step.as_str());
+        let skipped: Result<String, String> = skip_after_gate_refusal(place, &FingerprintPaths::live(), refusal.step.as_str());
         return Ok(format!("{line}\n{}", skipped.unwrap_or_else(|refusal_line| return refusal_line)));
     }
-    let place: RecordPlace = RecordPlace::live();
-    let mode: ProbeMode = ProbeMode::new(&place, std::path::Path::new(CONFIGURATION_PATH));
+    let mode: ProbeMode = ProbeMode::new(place, configuration);
     return match mode.run() {
         Ok(done) => Ok(format!("{line}\n{done}")),
         Err(refusal) => Ok(format!("{line}\n{refusal}")),
@@ -230,7 +231,7 @@ pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
         HandlerMode::BootReconcile => report(behind_the_gate(gate, || {
             return boot_reconcile_mode::run().map_err(|awaiting| return awaiting.message());
         })),
-        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate)),
+        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate, &RecordPlace::live(), std::path::Path::new(CONFIGURATION_PATH))),
         HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
             return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());
         })),
