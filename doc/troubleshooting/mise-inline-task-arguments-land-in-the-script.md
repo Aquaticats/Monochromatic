@@ -131,6 +131,26 @@ the script text itself rather than passing argv:
 
 ([jdx/mise permalink, `src/task/task_executor.rs` lines 1953 to 1962](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/task_executor.rs#L1953-L1962).)
 
+`append_inline_args` states the whole shape once:
+ with no forwarded words the script comes back unchanged,
+ and otherwise it is the script,
+ one space and `shell_words::join(args)`
+ ([jdx/mise permalink, `src/task/task_executor.rs` lines 357 to 372](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/task_executor.rs#L357-L372)).
+`shell_words::join` writes one space between words and none before the first or after the last,
+ so the text after the marker is empty or a space followed by the words,
+ with no trailing whitespace of its own.
+A last word's own final character therefore reaches the recovery unchanged:
+ a carriage return,
+ U+2028,
+ U+2029,
+ U+00A0,
+ U+FEFF,
+ U+3000,
+ U+2003,
+ a vertical tab or a form feed
+ (measured,
+ see [Verification](#verification)).
+
 `inline_args_style` decides that appending is a POSIX command text edit on Unix for every
 inline shell.
  On Windows the answer depends on the program:
@@ -230,6 +250,11 @@ console.log('tail40:', JSON.stringify(source.slice(-40)), 'usage_args:', JSON.st
 """
 ```
 
+The eval source ends at the marker with no forwarded words and at the last word otherwise,
+with no
+trailing newline or space (measured:
+`tail40` prints the last forty characters of that source).
+
 Commands that work cleanly:
 
 - `mise run probe`:
@@ -290,8 +315,9 @@ durable checks live in
 `package/monorepo-task/core-exec/src/root-task-shared-shapes.unit.test.ts`,
  which runs every
 shell-word shape through real mise against the root's own marker and parser,
- including the
-line terminators the recovery refuses.
+ including words that
+end in a line terminator the recovery refuses and words that end in whitespace it returns
+unchanged.
 
 The follow-up round carried the marker to the package task files,
  which interpolate the same root
@@ -364,11 +390,14 @@ const forwardedArgumentWords = () => {
   const source = process.execArgv.at(-1) ?? ''
   const markerStart = source.indexOf('\n' + forwardedArgumentsMarker)
   if (markerStart === -1) { return '' }
-  const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length).trimEnd()
+  // Empty or mise's paste: one space plus the words it joined with single spaces.
+  const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length)
+  if (forwarded === '') { return '' }
+  if (!forwarded.startsWith(' ')) { throw new Error('...the body continues past the marker comment...') }
   const lineBreak = forwarded.search(forwardedLineBreak)
   if (lineBreak !== -1) {
-    // The parser counts every word it reaches, the broken last one included.
-    const position = Math.max(parseUsageArgs(forwarded.slice(0, lineBreak)).length, 1)
+    // A placeholder continues the broken word, so the parser counts that word.
+    const position = parseUsageArgs(forwarded.slice(0, lineBreak) + 'x').length
     throw new Error('cannot read the arguments mise pasted into this script: argument ' + position + ' contains a line break ...')
   }
   return forwarded
@@ -382,9 +411,9 @@ Tradeoffs:
 in every package task file,
  and the whole weight of the workaround sits in one shared variable
 that package files interpolate as they already do the other root `[vars]`;
- it depends on mise
-trimming the script it evaluates,
- so the words land on the marker's own line (measured above),
+ it depends on the body's last line being the marker comment,
+ because mise appends to the
+script's end and the rendered script has no newline after that comment (measured above),
 and on `node` exposing its eval source through `process.execArgv`;
  it only recovers words,
  not
@@ -398,13 +427,40 @@ appended some (it then fails as TypeScript,
  as before);
  and a word that carries a line feed,
 a carriage return,
- U+2028 or U+2029 cannot be delivered at all,
+ U+2028 or U+2029 anywhere cannot be delivered at all,
  because it would end the marker
 comment early,
- so the task refuses and names that argument instead of running with fewer or
-other arguments.
- Remove it when mise forwards
-arguments as separate argv to a non-shell interpreter.
+ so the task refuses and names that word,
+ the last word included,
+instead of running with fewer or other arguments;
+ and every other character in a word arrives exactly:
+ a trailing space,
+ a tab,
+ U+00A0,
+ U+FEFF,
+ U+3000,
+ U+2003,
+ a vertical tab and a form feed too.
+mise appends nothing after the words,
+ so the recovery keeps the text as mise wrote it.
+ Remove it when mise
+forwards arguments as separate argv to a non-shell interpreter.
+
+Six parser bodies do their work before the refusal,
+ because the refusal comes from the body's first read of its words:
+ `mcp`,
+ `run`,
+ `run-quick` and `run-debug` in `package/music-player/desktop-app/mise.toml`
+ (directory creation and a cargo build,
+ and `run` also copies the desktop file and the binary into the home),
+ `run` in `package/nested-wayland-session/cli/mise.toml`
+ (a release cargo build),
+ and `test:browser` in `package/test-harness/core/mise.toml`
+ (`mise run prepare:playwright`).
+No body calls the recovery before its own first step,
+ so a task that acts first refuses after that work.
+These six were confirmed by reading their bodies,
+ not by a data-flow proof over every parser body.
 
 ### Make the task a file task
 

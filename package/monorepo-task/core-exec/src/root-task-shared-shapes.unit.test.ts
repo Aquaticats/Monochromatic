@@ -13,10 +13,12 @@
  The forwarded-arguments marker is a third shared shape. mise appends the words a task forwards to its inline script
  (the `-h`/`--help` case after `--`) past the TypeScript, so every body that reads `vars.parse_usage_args` ends with the
  marker comment those words land in. One check holds each body to that ending, and the rest run the parser against a
- paste, so the words are shown to arrive as arguments rather than as source. The synthetic paste covers the shapes a
- hand-written script can express; the catalog through real mise covers the boundary this code actually depends on,
- every shell-word shape mise can write into the script, including the words that carry a line terminator and must be
- refused. Package task files interpolate the same root variables, so the marker checks cover every package task file's
+ paste, so the words are shown to arrive as arguments rather than as source. The recovery returns the words exactly as
+ mise wrote them, a trailing space, tab, U+00A0, U+FEFF, U+3000, U+2003, vertical tab or form feed included; it
+ refuses a word holding a line feed, a carriage return, U+2028 or U+2029 and names that word, the last one included;
+ and it refuses a body that continues past the marker with a message of its own. The catalog through real mise covers
+ every one of those shapes, so a recovery that trims the tail or miscounts the broken word fails it. Package task files
+ interpolate the same root variables, so the marker checks cover every package task file's
  parser bodies as well as the root file's, and the marker itself must stay declared in the root file alone.
  */
 
@@ -497,6 +499,13 @@ const exactPasteCases: readonly PasteCase[] = [
   { name: 'shell metacharacters', words: ['--help', ';', '$(echo hi)', '`x`', '*', '&&', '|', '>',], },
   { name: 'comment openers and closers', words: ['--help', '*/', '/*', '//', '#',], },
   { name: 'a tab and unicode words', words: ['--help', 'tab\there', 'caf\u00E9 \u{1F600}',], },
+  { name: 'a last word ending with U+00A0', words: ['--help', 'a\u00A0',], },
+  { name: 'a last word that is only U+00A0', words: ['--help', '\u00A0',], },
+  { name: 'a last word ending with U+FEFF', words: ['--help', 'a\uFEFF',], },
+  { name: 'a last word ending with U+3000', words: ['--help', 'a\u3000',], },
+  { name: 'a last word ending with U+2003', words: ['--help', 'a\u2003',], },
+  { name: 'a last word ending with a vertical tab', words: ['--help', 'a\u000B',], },
+  { name: 'a last word ending with a form feed', words: ['--help', 'a\u000C',], },
   { name: 'the marker text itself', words: ['--help', '// mise appends forwarded arguments after this comment',], },
   { name: 'a word that begins with the marker', words: ['--help', '// mise appends forwarded arguments after this comment tail',], },
   { name: 'traversal tokens', words: ['--help', '../../etc/passwd', String.raw`..\..\x`,], },
@@ -521,6 +530,13 @@ const refusedPasteCases: readonly PasteCase[] = [
   { name: 'short help then a line feed and a line comment', words: ['-h', 'x\n// y',], },
   { name: 'short help then a line feed, the marker and more', words: ['--help', 'x\n// mise appends forwarded arguments after this comment y',], },
   { name: 'a break in the fourth word only', words: ['--help', 'one', 'two words', 'x\r//y',], },
+  { name: 'a last word ending with a carriage return', words: ['--help', 'a\r',], },
+  { name: 'a last word that is only a carriage return', words: ['--help', '\r',], },
+  // mise quotes this one for its space, so the break lands inside a quote and the count must still name it.
+  { name: 'a last word ending with a space and a carriage return then a comment', words: ['--help', 'a \r// b',], },
+  { name: 'a last word that is only a U+2028 separator', words: ['--help', '\u2028',], },
+  { name: 'a last word ending with U+2028', words: ['--help', 'a\u2028',], },
+  { name: 'a last word ending with U+2029', words: ['--help', 'a\u2029',], },
 ];
 
 /**
@@ -531,6 +547,9 @@ const refusedPasteCases: readonly PasteCase[] = [
 const unparsablePasteCases: readonly PasteCase[] = [
   { name: 'a line feed then ordinary text', words: ['--help', 'a\nb',], },
   { name: 'a line feed then a block comment opener', words: ['--help', 'a\n/*',], },
+  // mise quotes this word for its space, and the quote it opens is still open when the carriage return ends the
+  // marker comment, so node reads a raw carriage return inside a string literal.
+  { name: 'a quoted word ending with a carriage return', words: ['--help', 'a \r',], },
 ];
 
 /**
@@ -689,7 +708,7 @@ function exactProblems({
  Why a refused run is not what its case expects, or nothing when it is.
 
  The message must name the word that carries the line terminator, counted from the case's own words so the expectation
- does not restate the implementation.
+ does not restate the implementation, including when the break starts a word or lands inside a word mise quotes.
 
  @param options - the case and its outcome
 
@@ -851,7 +870,7 @@ await describe({
         const marker = forwardedMarker();
         const outcome = runParserBody({ marker, pasted: '', afterMarker: '\nconst after = 1;\n', },);
         expect(outcome.succeeded,).toBe(false,);
-        expect(outcome.stderr,).toContain(`${refusedPastePrefix} argument 1 contains a line break`,);
+        expect(outcome.stderr,).toContain(`${refusedPastePrefix} the body continues past the forwarded-arguments marker comment`,);
       },
     },),
     it({

@@ -262,11 +262,19 @@ const forwardedArgumentWords = () => {
   const source = process.execArgv.at(-1) ?? ''
   const markerStart = source.indexOf('\\n' + forwardedArgumentsMarker)
   if (markerStart === -1) { return '' }
-  const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length).trimEnd()
+  // mise appends nothing when it forwards no words and otherwise one space plus the shell-escaped words
+  // joined by single spaces (`append_inline_args` in its `task_executor.rs`), so this tail is empty or starts
+  // with a space, and it keeps every character mise wrote, the last word's last one included.
+  const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length)
+  if (forwarded === '') { return '' }
+  if (!forwarded.startsWith(' ')) {
+    throw new Error('cannot read the arguments mise pasted into this script: the body continues past the forwarded-arguments marker comment, so any words mise appends would run as source after that code. End the task body with the marker comment.')
+  }
   const lineBreak = forwarded.search(forwardedLineBreak)
   if (lineBreak !== -1) {
-    // The parser counts every word it reaches, the broken last one included, so its count is that word's position.
-    const position = Math.max(parseUsageArgs(forwarded.slice(0, lineBreak)).length, 1)
+    // A placeholder continues the word the break ends, so the parser counts that word whether the break starts it
+    // or lands inside one mise quoted.
+    const position = parseUsageArgs(forwarded.slice(0, lineBreak) + 'x').length
     throw new Error('cannot read the arguments mise pasted into this script: argument ' + position + ' contains a line break at character ' + (lineBreak + 1) + ' of the pasted words, so the rest of them became script source instead of arguments. Rerun without that argument.')
   }
   return forwarded

@@ -249,10 +249,15 @@ mise appends the words after `--` to an inline `node -e` task's script when it b
  so they land in the TypeScript instead of reaching the task:
 
 - the marker comment that ends every parser body,
-   and the recovery of the words from node's own eval source;
-- line feeds,
-   carriage returns and the Unicode separators in a forwarded word are refused,
-   because they would end that comment early;
+   and the recovery of the words from node's own eval source exactly as mise wrote them;
+- a line feed,
+   carriage return,
+   U+2028 or U+2029 anywhere in a forwarded word,
+   the last one included,
+   is refused by name,
+   because it would end that comment early;
+- text after the marker that is not mise's paste is refused as the body's own code,
+   and six parser bodies act before their first read;
 - package tasks that read no shared parser are tracked in issue 6328.
 
 ### [mise watch](mise-watch.md)
