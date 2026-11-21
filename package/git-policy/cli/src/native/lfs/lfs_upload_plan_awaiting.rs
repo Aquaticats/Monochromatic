@@ -27,7 +27,7 @@ use crate::lfs_upload_settings::{PlanError, QueryAwaiting, current_branch_awaiti
 /// The switch and the skip variable.
 use crate::lfs_pre_push::{hook_switched_off, skip_requested};
 use crate::lfs_upload_plan::{
-    Source, UploadPlan, configured_remotes, directory_of, has_push_rewrite, lfs_destination, names_of, refspec_source, star_split,
+    Source, UploadPlan, configured_remotes, directory_of, has_push_rewrite, lfs_destination, lfs_server_of, names_of, refspec_source, star_split,
 };
 /// Owned OS text for arguments.
 use std::ffi::{OsStr, OsString};
@@ -138,7 +138,8 @@ pub async fn plan_upload_awaiting(
     //  same place: a push URL, a `pushInsteadOf` rewrite, a URL or path destination or a mirror breaks that.
     let tracking_trusted: bool = configured && push_urls.is_empty() && !has_push_rewrite(all);
     let full_scan: bool = everything || !tracking_trusted;
-    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None }));
+    let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
+    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None, lfs_server }));
 }
 
 
