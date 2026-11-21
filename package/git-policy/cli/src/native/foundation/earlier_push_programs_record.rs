@@ -39,7 +39,9 @@ pub const FOLDER: &str = "monochromatic-git-policy-cli";
 pub const FILE: &str = "push-programs.json";
 
 /// What:
-///  Removes that record, and every staging file one of its writes left, from the Git directory `git_dir`.
+///  Removes that record,
+/// and every staging file one of its writes left,
+/// from the Git directory `git_dir`.
 /// Why:
 ///   The file holds command lines that can carry a credential,
 /// and no release writes or reads it any more,
@@ -79,7 +81,8 @@ pub fn remove_what_an_earlier_branch_wrote(git_dir: &Path) {
 
 /// What:
 ///  The staging files one of that record's writes left in `folder`:
-///  the hidden, uniquely named `.push-programs.json.<random>.partial` files.
+///  the hidden,
+/// uniquely named `.push-programs.json.<random>.partial` files.
 /// Why:
 ///   A staging file holds the whole record,
 /// so a write killed before its rename left a credential in a name nothing reads.

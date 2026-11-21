@@ -204,7 +204,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         shadow: None,
         captured: 0,
         holder: String::new(),
-programs: None,
+        programs: None,
     };
 }
 

@@ -248,8 +248,10 @@ fn the_missing_program_message_names_the_service_list_and_the_shell_it_offers() 
 /// Why:
 ///   The values travel with the request and live only in the service's memory (`service_push_programs_held_in_memory`),
 /// so a refusal must name the list it really searched:
-/// the shell's, which a new commit hands over again,
-///  rather than the manager's, which no command of the person reaches.
+/// the shell's,
+/// which a new commit hands over again,
+///  rather than the manager's,
+/// which no command of the person reaches.
 #[test]
 fn the_missing_program_message_names_the_list_the_command_that_asked_gave() {
     let from_the_request: ProgramSearch = ProgramSearch::of(&[

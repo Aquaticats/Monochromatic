@@ -300,7 +300,8 @@ fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::
 /// so a request at the ceiling is one whose line and break fit together.
 /// A request that does not fit is a commit the wrapper builds itself instead (`service_commit.rs`):
 /// "Commits should never fail."
-/// The request measured is the request the service is sent, so this command's program search list and transport flag are
+/// The request measured is the request the service is sent,
+/// so this command's program search list and transport flag are
 ///  counted here too:
 /// they travel with every request (`service_client::submit_traced`),
 /// and a request measured without them could fit alone and be refused as too long once they travelled.

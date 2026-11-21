@@ -143,6 +143,64 @@ fn every_command_says_which_commit_is_held() {
 }
 
 /// What:
+///  The programs a batch's requests carry are held against the record each landed commit becomes,
+///  which is the record a later round looks them up by.
+/// Why:
+///   The values live only in this service's memory and nothing is written,
+/// so the landing's key and the round's key must be the same record id;
+/// a hold under a name that is not the record's would make the push search the manager's list instead of the shell's,
+///  which is the defect these values exist to fix.
+#[test]
+fn a_batchs_programs_are_held_against_the_record_its_commit_becomes() {
+    use std::ffi::OsString;
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-push-programs");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let base: String = String::from("a".repeat(40));
+    let commit: String = String::from("b".repeat(40));
+    let intent: crate::service_journal::Intent = crate::service_journal::Intent {
+        seq: 1,
+        repository: repo.clone(),
+        common_dir: git_dir.clone(),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
+        old: base.clone(),
+        new: commit.clone(),
+        ids: vec![String::from("landed")],
+        commits: vec![commit.clone()],
+        holders: vec![String::new()],
+        transports: vec![false],
+        paths: Vec::new(),
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    let programs: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[(
+        OsString::from("PATH"),
+        OsString::from("/opt/git-lfs/bin:/usr/bin"),
+    )]);
+    crate::service_server_land_group::what_a_batch_owes(&intent, &[Some(programs.clone())]);
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.clone(),
+        parent: base,
+        created: String::new(),
+        tries: 0,
+        transport: false,
+    };
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(git_dir.as_path(), item.id().as_str()),
+        Some(programs),
+        "the round that runs this record finds the list of the command that asked for it"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(git_dir.as_path());
+    remove(root.as_path());
+}
+
+/// What:
 ///  The hold a batch writes before its branch moves names the command that will decide each commit's checks.
 /// Why:
 ///   That command is the only one that may promote the record,
@@ -174,7 +232,7 @@ fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
-transports: Vec::new(),
+        transports: Vec::new(),
     };
     crate::service_server_land_group::hold_the_pushes_of(&intent);
     let item: crate::work_item::WorkItem = crate::work_item::WorkItem {

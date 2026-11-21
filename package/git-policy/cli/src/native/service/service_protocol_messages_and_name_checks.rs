@@ -256,7 +256,8 @@ pub struct CommitRequest {
     pub scratch: PathBuf,
     /// The finished shadow the service drew ahead of this commit and handed it,
     /// which Git built the commit in;
-    /// nothing when the shadow is the commit's own, inside its scratch tree.
+    /// nothing when the shadow is the commit's own,
+    /// inside its scratch tree.
     /// The service removes it with the scratch tree once this request's landing is over,
     /// because nothing but that landing says when the commit is done with it.
     pub shadow: Option<PathBuf>,
@@ -287,8 +288,11 @@ pub struct CommitRequest {
     /// and `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` can hold a password,
     /// so the values travel in this request and live only in the service's memory
     /// (`service_push_programs_held_in_memory`).
-    /// Nothing of them reaches the journal, the intent or a work record:
-    /// the intent names the worktree, the branch and the commits, and the record of a push keeps the flag alone.
+    /// Nothing of them reaches the journal,
+    /// the intent or a work record:
+    /// the intent names the worktree,
+    /// the branch and the commits,
+    /// and the record of a push keeps the flag alone.
     /// Nothing means the request of a release that did not carry them,
     /// and the push it queues searches the service's own list.
     pub programs: Option<crate::service_push_programs_held_in_memory::PushPrograms>,
@@ -433,8 +437,10 @@ pub enum ClientMessage {
         /// Empty for a wake about other work.
         push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)>,
     },
-    /// A finished shadow drawn ahead of a commit, for the commit whose scratch tree is named:
-    /// the answer is where it is, or that the service holds none.
+    /// A finished shadow drawn ahead of a commit,
+    /// for the commit whose scratch tree is named:
+    /// the answer is where it is,
+    /// or that the service holds none.
     /// Nothing is queued and nothing lands,
     /// so the answer never waits behind another commit's landing.
     Shadow {

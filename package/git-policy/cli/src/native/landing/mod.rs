@@ -45,6 +45,12 @@ pub mod work_item_state_directories_and_claim_names;
 
 pub mod work_item_recovery;
 
+/// Writing one producer's record,
+/// or a round of them,
+/// to the queue,
+/// and finding what is already there.
+pub mod work_item_enqueue;
+
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 

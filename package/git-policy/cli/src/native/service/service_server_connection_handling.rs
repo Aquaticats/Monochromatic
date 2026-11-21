@@ -296,7 +296,8 @@ async fn refuse_a_message_for(git_dir: &std::path::Path, write_half: &mut OwnedW
 
 /// What:
 ///  Answers a commit's question about the finished shadow drawn ahead of it:
-///  the tree, or that the stock holds none.
+///  the tree,
+/// or that the stock holds none.
 /// Why:
 ///   The question is answered here and not by the landing,
 ///  from a list held in memory,

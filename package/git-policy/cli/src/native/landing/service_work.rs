@@ -380,7 +380,8 @@ impl GitHandlers {
     ///  with,
     /// which the person committing can neither see nor change
     /// (`service_work_push_environment`).
-    /// The values are this service's memory, never a file:
+    /// The values are this service's memory,
+    /// never a file:
     /// a service that restarted holds none,
     /// and the push either says whose list it searched or stops
     /// (`push_without_its_transport`).

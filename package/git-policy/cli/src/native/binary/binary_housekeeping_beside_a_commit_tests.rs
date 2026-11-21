@@ -1,17 +1,20 @@
 //! What:
-//!  A person's commit and its push, made while the service is inside a batch of housekeeping records it took from this
+//!  A person's commit and its push,
+//! made while the service is inside a batch of housekeeping records it took from this
 //!  repository's own queue:
 //! the commit's own wall time and the time until the remote holds it.
 //! Why:
 //!  The rule is that a person's work never waits behind housekeeping,
 //! and the audit of `0.6.1-alpha.12` found a wave of prewarm clones able to hold every place of the process's bound
-//! (finding 3 of `doc/handover/`, the places kept free of slow work).
+//! (finding 3 of `doc/handover/`,
+//! the places kept free of slow work).
 //! This is a measurement for the record and not a control:
 //! it asserts only what every arm must give,
 //! that the commit landed,
 //! that its push reached the remote,
 //! and that neither waited longer than a bound no queue of housekeeping may push a person's work past.
-//! Run it alone, because it creates its own queue and wants the host to itself:
+//! Run it alone,
+//! because it creates its own queue and wants the host to itself:
 //! `mise run //package/git-policy/cli:native:test:binary:host -- --run-ignored only housekeeping_beside_a_commit --no-capture`
 //!
 //! In TS you'd write (pseudocode):
@@ -60,18 +63,23 @@ const THE_CLONE_ENTRIES: usize = 2_000;
 /// and a payload naming none is refused before anything is cloned (`package_repair_prewarm::decode`).
 const THE_CLONED_WORKSPACES_OWN_CRATE: &str = "monochromatic-prewarm-measurement";
 
-/// The reference a prewarm record carries, which names no branch (`package_repair_prewarm::PREWARM_REFERENCE`).
+/// The reference a prewarm record carries,
+/// which names no branch (`package_repair_prewarm::PREWARM_REFERENCE`).
 const PREWARM_REFERENCE: &str = "refs/monochromatic/cargo-prewarm";
 
-/// A repository with a bare remote, a service the commits go through, and the queue's work directory.
+/// A repository with a bare remote,
+/// a service the commits go through,
+/// and the queue's work directory.
 struct Setup {
-    /// The disposable fixture, removed at the end.
+    /// The disposable fixture,
+    /// removed at the end.
     fixture: Fixture,
     /// The working repository.
     repo: PathBuf,
     /// The bare remote.
     remote: PathBuf,
-    /// The service, stopped with this value.
+    /// The service,
+    /// stopped with this value.
     service: FixtureService,
 }
 
@@ -113,7 +121,8 @@ fn setup(name: &str) -> Setup {
 /// Why:
 ///   The service runs with the fixture's own `PATH` (`<fixture>/bin:/usr/bin:/bin`) and its own `HOME`,
 /// and a prewarm refuses before it clones when no `cargo` can be found to clean the copy with.
-/// The tools are this run's own, linked into the fixture's bin directory rather than found on the host's path.
+/// The tools are this run's own,
+/// linked into the fixture's bin directory rather than found on the host's path.
 fn the_clone_keeps_its_tools(fixture: &Fixture) {
     let mut environment = fixture.service_environment.lock().expect("the fixture's service environment");
     for name in ["CARGO_HOME", "RUSTUP_HOME"] {
@@ -142,7 +151,8 @@ fn the_clone_keeps_its_tools(fixture: &Fixture) {
 }
 
 /// What:
-///  Plant the build directory the queue clones, and the prewarm records that name it.
+///  Plant the build directory the queue clones,
+/// and the prewarm records that name it.
 /// Why:
 ///   These are the records `git worktree add` writes for a new worktree's Cargo build directory
 /// (`package_repair_prewarm.rs`),
@@ -180,7 +190,8 @@ fn plant_the_queue(setup: &Setup) {
     }
 }
 
-/// The staging directory one prewarm clones into, beside the build directory it fills.
+/// The staging directory one prewarm clones into,
+/// beside the build directory it fills.
 fn staging_of(setup: &Setup, at: usize) -> PathBuf {
     return setup.fixture.root.join(format!("prewarm-build-{at}.monochromatic-prewarm"));
 }
@@ -217,7 +228,9 @@ fn remote_has(setup: &Setup, commit: &str) -> bool {
     return asked.status.success();
 }
 
-/// Wait, bounded, until `condition` holds.
+/// Wait,
+/// bounded,
+/// until `condition` holds.
 fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
     let began: Instant = Instant::now();
     while !condition() {
@@ -227,11 +240,13 @@ fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 }
 
 /// What:
-///  A commit and its push, made while the service is inside a batch of the repository's own housekeeping records,
+///  A commit and its push,
+/// made while the service is inside a batch of the repository's own housekeeping records,
 ///  with the commit's own wall time and the push's wait reported.
 /// Why:
 ///   The measurement answers the one question the queue raises for a person:
-/// how long did the commit take, and how long did the backup wait,
+/// how long did the commit take,
+/// and how long did the backup wait,
 /// while the service was already busy with work nobody waits for.
 /// What it asserts is what every run must give:
 /// both are inside `A_WAIT_NO_QUEUE_MAY_CAUSE`,

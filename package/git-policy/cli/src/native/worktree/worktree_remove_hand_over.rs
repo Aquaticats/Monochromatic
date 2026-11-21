@@ -90,13 +90,15 @@ const PROCESS_TABLE: &str = "/proc";
 
 /// The file beside a worktree's registration that names the worktree a landed sweep compared its ignored files with.
 ///
-/// It lives in the registration, so a removal of the worktree takes it with the directory,
+/// It lives in the registration,
+/// so a removal of the worktree takes it with the directory,
 /// and a worktree that is kept keeps it for the next reading.
 pub const COMPARED_WITH_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-compared-with";
 
 /// The file beside a worktree's registration that names the worktree and the registration the record was written for.
 ///
-/// It holds the device and the inode of each, which is what tells the worktree the proof was made for from one a person
+/// It holds the device and the inode of each,
+/// which is what tells the worktree the proof was made for from one a person
 /// added at the same path while the record waited.
 pub const IDENTITY_RECORD_NAME: &str = "monochromatic-git-policy-cli-removal-identity";
 /// What:
@@ -518,7 +520,8 @@ pub fn hand_over_worktree_removal(
 ///  and never run.
 ///  A registration that cannot be read leaves the path alone,
 ///  which is the record this release wrote before the identity was added.
-///  The bytes are the path and the registration's device, inode and change time,
+///  The bytes are the path and the registration's device,
+/// inode and change time,
 ///  exactly as the release before this one computed them:
 ///  a record queued while that release ran is still the record this one finds under its id,
 ///  and a change of the name here would have left it queued for a worktree nothing removes.
@@ -1026,7 +1029,8 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
 ///  holding one:
 /// its removal deletes what is mounted at a mount point and unlinks the files of a nested worktree.
 /// The steps are
-///  the person's own removal, made here with the checks that removal makes,
+///  the person's own removal,
+/// made here with the checks that removal makes,
 /// so the service and the command cannot disagree about
 ///  which tree may go.
 /// A removal that refuses keeps the worktree and says why,

@@ -1,5 +1,6 @@
 //! Controls for the client's wait bounds and for how it reads the lines the service sends.
 
+use crate::service_client_listen_and_ask_to_retire::read_message;
 use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, decode_service};
 use super::*;
 use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE, encode_service};
@@ -69,6 +70,37 @@ fn a_read_only_failure_is_the_frozen_move_one_only_when_the_move_record_covers_t
 }
 
 /// What:
+///  A commit the client sends carries this command's program search list and transport flag,
+///  which is the only route those values have to the push the service runs.
+/// Why:
+///   They live only in the service's memory and nothing of them may be written,
+/// so a client that sent none would leave every push on the manager's list,
+/// which is the refusal two runs' commits met on 2026-11-12.
+#[test]
+fn a_sent_commit_carries_the_programs_of_this_command() {
+    use crate::service_protocol::decode_client;
+    use std::io::BufRead;
+    let name: String = an_address("carries-programs");
+    let service: UnixListener = a_listener_on(name.as_str());
+    let (sender, receiver) = std::sync::mpsc::channel::<String>();
+    let serving = std::thread::spawn(move || {
+        let (stream, _address) = service.accept().expect("the client connects");
+        (&stream).write_all(the_line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice()).expect("greet");
+        let mut request: String = String::new();
+        std::io::BufReader::new(&stream).read_line(&mut request).expect("the client sends its request");
+        sender.send(request).expect("the captured line");
+        drop(stream);
+    });
+    // No answer comes, so the client ends on its silence bound; the line it wrote is captured before that.
+    let _unanswered: Result<Submitted, ClientFailure> = submit(&reach_settings(name.as_str()), &a_request("carries-programs"), &mut std::io::sink());
+    let line: String = receiver.recv_timeout(STAND_IN_PATIENCE).expect("the client wrote its request");
+    let _joined = serving.join();
+    let decoded: ClientMessage = decode_client(line.as_str()).expect("the client writes a request the service accepts");
+    let ClientMessage::Commit(sent) = decoded else { panic!("the client wrote no commit request") };
+    assert_eq!(sent.programs, Some(crate::service_push_programs_held_in_memory::of_this_process()), "the request carries this command's programs");
+}
+
+/// What:
 ///  The settings of a client that reaches `address` and asks no manager:
 /// the waits are milliseconds,
 /// so a control ends in well under a second.
@@ -119,7 +151,7 @@ fn a_request(id: &str) -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
-programs: None,
+        programs: None,
     };
 }
 
@@ -129,8 +161,7 @@ fn an_address(label: &str) -> String {
 }
 
 /// A listener on the abstract name `name`.
-fn a_listener_on(name: &str) -> UnixListener {
-    use std::os::linux::net::SocketAddrExt;
+fn a_listener_on(name: &str) -> UnixListener {    use std::os::linux::net::SocketAddrExt;
     let socket: std::os::unix::net::SocketAddr = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
     return UnixListener::bind_addr(&socket).expect("bind the stand-in service");
 }
@@ -349,8 +380,10 @@ fn a_commit_that_landed_before_the_signal_came_stays_landed() {
 /// a first attempt that put the whole line on the wire may be the service's already,
 /// so a later attempt that gives up cannot say the commit was not made — that verdict removes the scratch tree a
 ///  landing still reads and invites the person to make the commit twice.
-///  The control has the stand-in read the first request whole and answer nothing, then take the second connection and read
-///  nothing at all, so the client's second write fills the connection's buffers and ends at its silence bound.
+///  The control has the stand-in read the first request whole and answer nothing,
+/// then take the second connection and read
+///  nothing at all,
+/// so the client's second write fills the connection's buffers and ends at its silence bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -402,7 +435,8 @@ fn a_request_of_many_changes(id: &str) -> CommitRequest {
 }
 
 /// How many changes a control puts in a request so that its line cannot fit one connection's buffers.
-/// Measured on this host: both buffers of a local socket hold about 233,152 bytes,
+/// Measured on this host:
+/// both buffers of a local socket hold about 233,152 bytes,
 /// and a change of `A_PATH_THIS_LONG` characters is about 200 bytes of line.
 const A_CHANGE_SET_OF_MANY_PATHS: usize = 2_000;
 

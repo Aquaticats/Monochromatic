@@ -88,7 +88,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         shadow: None,
         captured: 0,
         holder: String::new(),
-programs: None,
+        programs: None,
     };
 }
 
@@ -1282,7 +1282,7 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
             changes: vec![Change { path: PathBuf::from(format!("{id}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
             git_dir: git_dir.clone(),
             index: git_dir.join("index"),
-programs: None,
+        programs: None,
             ..request(&world, id, "unused.txt", "x\n")
         };
     };
@@ -1508,7 +1508,7 @@ fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest
         shadow: None,
         captured: 0,
         holder: String::new(),
-programs: None,
+        programs: None,
     };
     return (landed, name);
 }

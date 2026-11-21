@@ -49,6 +49,51 @@ fn a_commit_request_round_trips() {
 }
 
 /// What:
+///  The programs a request carries survive the socket as pairs,
+///  a request of an earlier release carries none,
+///  and a name outside the five,
+///  a value that is not text and a value holding a NUL are refused.
+/// Why:
+///   These values become a child's environment,
+/// so a name this release would never carry and a value a protocol line cannot hold whole are refused rather than
+///  passed on;
+/// and an earlier release's request carries no `programs` field at all,
+/// which must read as a push that searches the service's own list.
+#[test]
+fn a_request_carries_the_programs_its_command_set_and_refuses_anything_else() {
+    use std::ffi::OsString;
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
+        (OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin")),
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/key")),
+    ]);
+    let with: CommitRequest = CommitRequest { programs: Some(carried.clone()), ..request() };
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))));
+    // A request of an earlier release names no programs, and its push searches the service's own list.
+    let plain: String = encode_client(&ClientMessage::Commit(Box::new(request())));
+    assert!(matches!(decode_client(plain.as_str()), Ok(ClientMessage::Commit(sent)) if sent.programs.is_none()));
+    // Every other shape of the field is refused, and each of these is a line this control writes.
+    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let rewritten = |variables: serde_json::Value, transport: serde_json::Value| -> String {
+        let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
+        let programs = value.get_mut("programs").expect("the request carries programs").as_object_mut().expect("an object");
+        programs.insert(String::from("variables"), variables);
+        programs.insert(String::from("transport"), transport);
+        return value.to_string();
+    };
+    for (why, variables) in [
+        ("a name outside the five", parsed(r#"[["SSH_AUTH_SOCK", "/run/agent.sock"]]"#)),
+        ("a value that is not text", parsed(r#"[["PATH", 7]]"#)),
+        ("a value holding a NUL", parsed(r#"[["PATH", "/a\u0000b"]]"#)),
+        ("a pair that is not a name and a value", parsed(r#"[["PATH"]]"#)),
+        ("no list at all", serde_json::Value::Null),
+    ] {
+        let bad: String = rewritten(variables, serde_json::Value::Bool(false));
+        assert!(decode_client(bad.as_str()).is_err(), "{why}");
+    }
+}
+
+/// What:
 ///  A change whose path is not text survives the socket.
 /// Why:
 ///   A commit's changed paths travel as JSON,
@@ -301,6 +346,59 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
+}
+
+/// What:
+///  A wake carries the programs of each push record it announces,
+///  a wake about other work carries none,
+///  and a record id that is no work record,
+///  a missing programs object and a name outside the five are refused.
+/// Why:
+///   The values live only in the service's memory and the record is a file,
+/// so this message is the only route they have to the push that will run;
+/// a wake that named other work's record would give one push another command's list.
+#[test]
+fn a_wake_carries_the_programs_of_each_record_it_announces_and_refuses_anything_else() {
+    use std::ffi::OsString;
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[(
+        OsString::from("PATH"),
+        OsString::from("/opt/lfs/bin:/usr/bin"),
+    )]);
+    let id: String = String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374");
+    let sent: ClientMessage = ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: None,
+        push_programs: vec![(id.clone(), carried.clone())],
+    };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
+    let nothing: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new() };
+    assert_eq!(decode_client(encode_client(&nothing).as_str()), Ok(nothing));
+    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let rewritten = |entries: serde_json::Value| -> String {
+        let mut value: serde_json::Value = serde_json::from_str(
+            encode_client(&ClientMessage::Work {
+                git_dir: PathBuf::from("/srv/repo/.git"),
+                review_key: None,
+                push_programs: vec![(id.clone(), carried.clone())],
+            })
+            .as_str(),
+        )
+        .expect("a JSON line");
+        value.as_object_mut().expect("an object").insert(String::from("pushPrograms"), entries);
+        return value.to_string();
+    };
+    for (why, entries) in [
+        ("a record id that is no work record", parsed(r#"[{"id": "maintenance", "programs": {"transport": false, "variables": []}}]"#)),
+        ("an entry with no programs", parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"}]"#)),
+        (
+            "a name outside the five",
+            parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374", "programs": {"transport": false, "variables": [["SSH_AUTH_SOCK", "/run/agent.sock"]]}}]"#),
+        ),
+        ("a list that is not a list", parsed("{}")),
+    ] {
+        let bad: String = rewritten(entries);
+        assert!(decode_client(bad.as_str()).is_err(), "{why}");
+    }
 }
 
 /// A warm message round-trips,

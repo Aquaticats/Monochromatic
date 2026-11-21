@@ -35,7 +35,8 @@ pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent, program
 /// What:
 ///  Holds the programs and transport settings of every request of `intent` against the push record its commit became.
 /// Why:
-///   Those values are never written (the owner's "Memory only", `service_push_programs_held_in_memory`),
+///   Those values are never written (the owner's "Memory only",
+/// `service_push_programs_held_in_memory`),
 /// and the push runs in a round of its own,
 /// possibly after this landing's thread is gone:
 /// the memory of this service is the only place both sides share.

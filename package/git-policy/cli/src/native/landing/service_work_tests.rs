@@ -1208,7 +1208,7 @@ fn a_retryable_push_keeps_its_programs_only_while_a_plan_carries_it() {
     let kept: crate::service_push_programs_held_in_memory::PushPrograms = programs("/opt/git-lfs/bin:/usr/bin");
     crate::service_push_programs_held_in_memory::remember(planned_item.git_dir.as_path(), planned_item.id().as_str(), kept.clone());
     let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
-    let _drained: Drained = drain_planned(
+    let _planned_drain: Drained = drain_planned(
         planned.common.as_path(),
         &retrying,
         &ClaimTime::read(),

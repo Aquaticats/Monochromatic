@@ -48,7 +48,8 @@ fn run_cargo(fixture: &Fixture, arguments: &[&str], build_directory: Option<&str
 }
 
 /// What:
-///  A stand-in ends a filling's clean with `SIGKILL`, fails the resolution that follows it,
+///  A stand-in ends a filling's clean with `SIGKILL`,
+/// fails the resolution that follows it,
 ///  and is the real program for every other run.
 /// Why:
 ///   This is the ending the gate's line names (`stopped by signal 9`) and the state it leaves (nothing displaced),
@@ -170,11 +171,15 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
 }
 
 /// What:
-///  A filling the queue still holds is waited for, not called a failure:
+///  A filling the queue still holds is waited for,
+/// not called a failure:
 ///  a record in `held` that settles in `done` while the reader waits is a filling that ran.
 /// Why:
-///   A filling the drain is running stands in `held`, which the wait a commit control uses does not count, so a reader that
-/// read that state as an answer would call a working filling a failure, which is the window the gate of
+///   A filling the drain is running stands in `held`,
+/// which the wait a commit control uses does not count,
+/// so a reader that
+/// read that state as an answer would call a working filling a failure,
+/// which is the window the gate of
 /// 2026-11-15T06:00-05:00 met.
 ///
 /// In TS you'd write (pseudocode):

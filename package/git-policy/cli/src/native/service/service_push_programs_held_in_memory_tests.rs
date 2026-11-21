@@ -98,7 +98,8 @@ fn only_the_variables_that_name_a_transport_mark_one() {
 /// Why:
 ///   Two commands of one worktree may queue pushes a moment apart,
 /// and a push must run with the values of the command that asked for it,
-/// never with those of a later one (`AGENTS.md` rule `NLK`: one owner per item).
+/// never with those of a later one (`AGENTS.md` rule `NLK`:
+/// one owner per item).
 #[test]
 fn a_value_is_taken_by_its_own_record_only() {
     let git_dir: PathBuf = crate::test_support::fixture_with_prefix("native-push-programs", "one-record");

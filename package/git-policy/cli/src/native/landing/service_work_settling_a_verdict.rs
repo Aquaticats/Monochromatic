@@ -33,7 +33,9 @@ use std::path::Path;
 /// Why:
 ///   The values live only in this service's memory (`service_push_programs_held_in_memory`),
 /// and one of them can hold a password:
-/// a push that was made, that failed for good, or that had nothing to push keeps none of them.
+/// a push that was made,
+/// that failed for good,
+/// or that had nothing to push keeps none of them.
 /// A record the service will try again keeps them,
 /// and so does one a plan carries,
 /// because that plan queues the same record again,
@@ -60,7 +62,8 @@ fn forget_the_programs_of(members: &[Claimed]) {
 ///  two pushes again,
 /// and nothing is lost.
 ///  A record the storage refused never leaves its items settled as if it existed:
-/// a push that landed keeps the words nowhere else, so its item is failed and the words are said in the journal,
+/// a push that landed keeps the words nowhere else,
+/// so its item is failed and the words are said in the journal,
 /// while a refusal or a skip the person was not told about leaves the claims to their lease,
 /// and the next try asks
 ///  the server again and records it then.

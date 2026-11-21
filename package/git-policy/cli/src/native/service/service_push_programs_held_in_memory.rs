@@ -38,7 +38,8 @@ use std::sync::Mutex;
 ///  The variables a push's children find their programs through,
 ///  by the names Git and `git-lfs` read them.
 /// Why:
-///  `PATH` is where `git-lfs`, a credential helper and `ssh` are found;
+///  `PATH` is where `git-lfs`,
+/// a credential helper and `ssh` are found;
 /// `GIT_SSH`,
 /// `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` name those programs outright,
 /// and `GIT_EXEC_PATH` is where Git looks for `git-upload-pack` and its other subcommands.
@@ -95,7 +96,9 @@ pub const FROM_THE_SERVICE: &str = "MONOCHROMATIC_PUSH_PROGRAMS_OF_THE_SERVICE";
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PushPrograms {
-    /// The variables that command set, in [`CARRIED`] order, as text.
+    /// The variables that command set,
+    /// in [`CARRIED`] order,
+    /// as text.
     /// A value that is not text is left out:
     /// it cannot be carried without inventing bytes,
     /// and a lossy value could name a folder no shell searched.
@@ -218,9 +221,12 @@ impl PushPrograms {
 /// so a value can never be taken by the push of another commit,
 /// even on the same branch of the same worktree.
 struct Held {
-    /// The worktree's own Git directory, as the request named it.
+    /// The worktree's own Git directory,
+    /// as the request named it.
     git_dir: PathBuf,
-    /// The push record's id, which names its kind, commit and branch.
+    /// The push record's id,
+    /// which names its kind,
+    /// commit and branch.
     item: String,
     /// The values the command that asked for that push gave.
     programs: PushPrograms,
@@ -229,7 +235,8 @@ struct Held {
 /// Lock kept:
 ///  the values each queued push record still has,
 /// one entry per record.
-/// The sections are one lookup, one replacement and one removal of an entry,
+/// The sections are one lookup,
+/// one replacement and one removal of an entry,
 /// and nothing is read from or written to the device under the lock,
 /// so a landing that queues a push and the round that runs one never wait on storage.
 /// The values are a few hundred bytes each and are dropped when their push can no longer run,

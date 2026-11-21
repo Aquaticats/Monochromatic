@@ -36,7 +36,7 @@ fn a_record(seq: u64, reference: &str, old: &str, new: &str, ids: &[&str], commi
         cleanup: None,
         index: PathBuf::from("/nowhere/repo/.git/index"),
         git_dir: PathBuf::from("/nowhere/repo/.git"),
-transports: Vec::new(),
+        transports: Vec::new(),
     };
 }
 
@@ -223,7 +223,7 @@ fn a_request_of(repo: &Path) -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
-programs: None,
+        programs: None,
     };
 }
 

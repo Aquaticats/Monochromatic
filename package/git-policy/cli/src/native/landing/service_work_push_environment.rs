@@ -49,7 +49,8 @@ use std::ffi::{OsStr, OsString};
 ///  `programs` is nothing when this service holds no values for the push record it is running:
 /// a service that restarted has none,
 /// and the push then either searches the service's own list and says so,
-/// or stops before it runs, because the transport its command chose is gone
+/// or stops before it runs,
+/// because the transport its command chose is gone
 /// (`push_without_its_transport`).
 ///
 /// In TS you'd write (pseudocode):

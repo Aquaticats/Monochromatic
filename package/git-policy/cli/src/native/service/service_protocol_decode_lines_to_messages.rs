@@ -15,6 +15,7 @@ use serde_json::Value;
 use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
+use crate::service_protocol_programs_of_a_request::programs_of;
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
 
 /// What:
@@ -336,39 +337,6 @@ fn landing_figures(value: &Value) -> Result<LandingFigures, String> {
 /// The sentence for a sync that does not say whether the landing waited for it.
 fn no_word_on_waiting() -> String {
     return String::from("a sync of a landing does not say whether it was waited for");
-}
-
-/// What:
-///  The programs and transport settings one request carries,
-///  every name and value checked.
-/// Why:
-///   The line is a socket's:
-/// a name this release would never carry is refused rather than put into a child's environment,
-/// and so is a value that is not text or holds a NUL.
-/// The flag reaches no file:
-/// it says only that the command chose a transport.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const programsOf = (entry) => ({ transport: entry.transport === true, variables: entry.variables.map(([name, value]) => { if (!CARRIED.includes(name)) throw ...; return [name, value]; }) });
-/// ```
-fn programs_of(entry: &Value) -> Result<crate::service_push_programs_held_in_memory::PushPrograms, String> {
-    let mut variables: Vec<(String, String)> = Vec::new();
-    for item in entry.get("variables").and_then(Value::as_array).ok_or("the programs carry no list of variables")? {
-        let pair: &Vec<Value> = item.as_array().filter(|pair| { return pair.len() == 2; }).ok_or("a carried variable is not a name and a value")?;
-        let (Some(name), Some(value)) = (pair[0].as_str(), pair[1].as_str()) else {
-            return Err(String::from("a carried variable is not text"));
-        };
-        if !crate::service_push_programs_held_in_memory::CARRIED.contains(&name) {
-            return Err(format!("a carried variable this release never carries: {name}"));
-        }
-        if value.contains('\0') {
-            return Err(String::from("a carried variable holds a NUL"));
-        }
-        variables.push((String::from(name), String::from(value)));
-    }
-    let transport: bool = entry.get("transport").and_then(Value::as_bool).unwrap_or(false);
-    return Ok(crate::service_push_programs_held_in_memory::PushPrograms { variables, transport });
 }
 
 /// What:
