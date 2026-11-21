@@ -176,6 +176,7 @@ impl<'a> ProbeMode<'a> {
                 {
                     match held.drain(&mut holder_feed, &mut report) {
                         Arrival::Attach { passed } => {
+                            holder_namespace = held.namespace();
                             if awaiting == Some(START_HOLDER) {
                                 let _ = write_all(raw(&reply_fd), &[if passed { HOLDER_DONE } else { HOLDER_FAILED }]);
                                 awaiting = None;
@@ -195,7 +196,6 @@ impl<'a> ProbeMode<'a> {
             if awaiting == Some(START_HOLDER) && holder.is_none() {
                 let source: String = source_of(&report).unwrap_or_default();
                 holder = Holder::start(self.place, source.as_str());
-                holder_namespace = holder.as_ref().and_then(|held| return held.namespace());
                 if holder.is_none() {
                     let _ = write_all(raw(&reply_fd), &[HOLDER_FAILED]);
                     awaiting = None;
@@ -231,7 +231,7 @@ impl<'a> ProbeMode<'a> {
         let verdict: ProbeVerdict = if timed_out {
             ProbeVerdict::TimedOut { in_flight: report.in_flight(), last_finished: report.last_finished() }
         } else {
-            if report.lines().iter().all(|line| return line.step != super::probe_arms::ProbeStep::Teardown) {
+            if report.first_failed_step().is_none() && report.lines().iter().all(|line| return line.step != super::probe_arms::ProbeStep::Teardown) {
                 report.finish_with(match ending {
                     Exit::Signaled { signal } => ChildEnding::Signal { number: signal },
                     _ => ChildEnding::NoStatusLine,

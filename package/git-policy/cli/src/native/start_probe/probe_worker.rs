@@ -232,6 +232,9 @@ fn scan_expecting(source: &str, expected: usize) -> Result<(), ()> {
         Ok(mentioned) => mentioned,
         Err(_) => return Err(()),
     };
+    if expected == 0 {
+        return if mentioned.is_empty() { Ok(()) } else { Err(()) };
+    }
     if !mentioned.iter().any(|namespace| return namespace == &own) {
         return Err(());
     }
