@@ -978,6 +978,10 @@ which is the guard this incident was about.
 The sum is one-sided:
 a sum that over-counts fails,
 and a sum that under-counts is not pinned.
+The read of the ticks of the thread that stays is also the positive control
+that the reader parses a live thread's own file:
+a reader that answered nothing for every file fails there,
+before any sum is taken.
 The thread that only waits has usually spent no tick to expect,
 and a tick it spent between the two reads is improbable,
 never impossible,
