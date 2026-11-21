@@ -835,6 +835,10 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
     if !named.is_empty() {
         crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
     }
+    // What: Every value held against a push record of that repository is given up with its plans.
+    // Why:  A repository the filesystem proves gone has no push that can run, and a value of a record nothing will run keeps a
+    //  command line that can hold a password (`service_push_programs_held_in_memory`).
+    crate::service_push_programs_held_in_memory::forget_every(git_dir);
     return Drained { wait: None, changes: replanning.changes };
 }
 

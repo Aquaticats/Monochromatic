@@ -62,7 +62,8 @@ fn remember_the_programs_of(intent: &crate::service_journal::Intent, programs: &
 ///  Gives back everything a batch that does not land owes.
 /// Why:
 ///   One call for every path that removes the intent,
-/// so a record or a held push of a batch that never landed survives nowhere.
+/// so a record or a held push of a batch that never landed survives nowhere,
+///  and neither do the programs and transport settings held against those records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,7 +132,8 @@ fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, referen
 }
 
 /// Forgets the pushes of a batch that does not land,
-/// under the name this release writes and under the name a release before it wrote.
+/// under the name this release writes and under the name a release before it wrote,
+/// and the programs and transport settings held against each of them.
 pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
     // A branch whose name is not text held no record (`hold_the_pushes_of`), so there is none to forget.
     let Some(reference) = intent.reference.text() else { return };
@@ -140,6 +142,10 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
         let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), false);
         for name in [item.id(), item.id_before_the_branch()] {
             crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+            // What: The values of that record go with it, because nothing can run it now.
+            // Why:  They live in this service's memory alone, and one of them can hold a password, so a record a batch gave back
+            //  keeps none of them (`service_push_programs_held_in_memory`).
+            crate::service_push_programs_held_in_memory::forget(intent.git_dir.as_path(), name.as_str());
         }
     }
 }

@@ -252,3 +252,73 @@ fn a_batchs_hold_names_the_command_that_will_decide_the_checks() {
     assert_eq!(holding.holder, holder, "the record names the command that will decide the commit's checks");
     remove(root.as_path());
 }
+
+/// What:
+///  A batch that never lands gives back the programs and transport settings held against its pushes,
+///  with the records themselves.
+/// Why:
+///   The values live in this service's memory alone,
+/// one of them can hold a password,
+/// and a push record the batch
+///  gave back can no longer run (`service_push_programs_held_in_memory`).
+/// Every path that drops a batch goes through here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await whatABatchOwes(intent, [programs]); expect(held(id)).toBeDefined(); forgetWhatABatchOwes(intent); expect(held(id)).toBeUndefined();
+/// ```
+#[test]
+fn a_batch_that_never_lands_gives_back_the_values_held_against_its_pushes() {
+    use std::ffi::OsString;
+    let root: PathBuf = crate::test_support::fixture("service-land-owed-push-programs-dropped");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let base: String = String::from("a".repeat(40));
+    let commit: String = String::from("b".repeat(40));
+    let intent: crate::service_journal::Intent = crate::service_journal::Intent {
+        seq: 1,
+        repository: repo.clone(),
+        common_dir: git_dir.clone(),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
+        old: base.clone(),
+        new: commit.clone(),
+        ids: vec![String::from("landed")],
+        commits: vec![commit.clone()],
+        holders: vec![String::new()],
+        transports: vec![true],
+        paths: Vec::new(),
+        derived: false,
+        cleanup: None,
+        index: git_dir.join("index"),
+        git_dir: git_dir.clone(),
+    };
+    let programs: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[(
+        OsString::from("GIT_SSH_COMMAND"),
+        OsString::from("ssh -i /nowhere/control-fake"),
+    )]);
+    crate::service_server_land_group::what_a_batch_owes(&intent, &[Some(programs)]);
+    let id: String = crate::work_item::WorkItem {
+        kind: WorkKind::Push,
+        repository: repo.clone(),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.clone(),
+        parent: base,
+        created: String::new(),
+        tries: 0,
+        transport: true,
+    }
+    .id();
+    assert!(
+        crate::service_push_programs_held_in_memory::held(git_dir.as_path(), id.as_str()).is_some(),
+        "the positive control: the values are held while the batch can still land"
+    );
+    crate::service_server_land_group::forget_what_a_batch_owes(&intent);
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(git_dir.as_path(), id.as_str()),
+        None,
+        "a record the batch gave back can no longer run, so it keeps no value"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(git_dir.as_path());
+    remove(root.as_path());
+}
