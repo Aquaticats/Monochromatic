@@ -27,7 +27,8 @@ use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 use crate::publishing_entries_in_one_open_folder::{
     create_new_entry, fill_entry_and_sync, link_entry, link_refused_because_the_folder_makes_none, remove_entry, rename_entry_never_replacing, rename_entry_replacing, sync_folder,
 };
-use super::slot_identity_store::{RECORD_MODE, SlotIdentityStore};
+use super::slot_identity_store::SlotIdentityStore;
+use super::slot_identity_store_control::RECORD_MODE;
 use super::slot_identity_store_reading::RECORD_MAXIMUM_BYTES;
 use super::slot_identity_store_records::{PARENT_RECORD_NAME, StoredIdentity, slot_name_refusal};
 use super::slot_identity_store_refusals::{StoreRefusal, write_refusal};

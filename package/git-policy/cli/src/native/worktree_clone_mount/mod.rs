@@ -37,6 +37,9 @@
 //!   why the store could not be read,
 //!   added to or rewritten,
 //!   and each cause's sentence.
+//! - `slot_identity_store_control.rs`:
+//!   whose the folder and its records must be,
+//!   and the refusal naming an account that could write them.
 //! - `slot_identity_store_records.rs`:
 //!   one record file's grammar,
 //!   its kinds and its parsing.
@@ -96,6 +99,10 @@ pub mod clone_folder_identity;
 /// Why the slot identity store could not be read,
 /// added to or rewritten.
 pub mod slot_identity_store_refusals;
+
+/// Whose the store folder and its records must be,
+/// and the permission bits that say another account could write them.
+mod slot_identity_store_control;
 
 /// One record file's grammar:
 /// its header,
@@ -162,7 +169,10 @@ pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
 /// The store folder's path,
 /// its open and its lookups and listing.
-pub use slot_identity_store::{RECORD_MODE, SLOT_IDENTITY_STORE_PATH, STORE_FOLDER_MODE, STORE_OWNER, SlotIdentityStore, remove_staging_entries_in, store_control_refusal};
+pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, remove_staging_entries_in};
+/// Whose the store folder and its records must be,
+/// and the modes they are made with.
+pub use slot_identity_store_control::{RECORD_MODE, STORE_FOLDER_MODE, STORE_OWNER, store_control_refusal};
 /// The per-file bound,
 /// derived from the kernel's own limits.
 pub use slot_identity_store_reading::RECORD_MAXIMUM_BYTES;

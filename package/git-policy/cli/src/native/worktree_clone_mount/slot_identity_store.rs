@@ -25,12 +25,14 @@
 //! const parent = store.parent(); const recorded = store.slot('my-worktree');
 //! ```
 
+use super::slot_identity_store_control::check_under_root_control;
+use super::slot_identity_store_reading::{listed_slot_names, read_record};
 use crate::entries_of_one_open_folder::open_folder;
-use super::slot_identity_store_reading::{check_under_root_control, listed_slot_names, read_record};
 use super::slot_identity_store_records::{PARENT_RECORD_NAME, StoredIdentity};
 use super::slot_identity_store_refusals::StoreRefusal;
 use crate::diagnostic_log::debug;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 /// Module tag for diagnostics.
 const TAG: &str = "slotIdentityStore";
@@ -39,54 +41,6 @@ const TAG: &str = "slotIdentityStore";
 /// under root control:
 /// a folder holding one record file per slot and `.parent` for the parent folder.
 pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities";
-
-/// The mode the store folder is made with:
-/// root writes it,
-/// and an account may read but not add,
-/// rename or remove an entry in it.
-pub const STORE_FOLDER_MODE: u32 = 0o755;
-
-/// The mode each record file is made with:
-/// readable by every account,
-/// writable by root alone.
-pub const RECORD_MODE: u32 = 0o644;
-
-/// The owner of the store folder and of every record in it:
-/// root,
-/// because only the root-run setup,
-/// sweep and adoption modes write them.
-pub const STORE_OWNER: u32 = 0;
-
-/// The permission bits that let an account other than the owner write:
-/// group write and other write.
-pub const WRITABLE_BY_OTHERS: u32 = 0o022;
-
-/// What:
-///  Why a folder or record file this route reads is not the one under root control,
-///  or nothing when it is.
-/// Why:
-///   A record decides which folder a clone may be attached to,
-///  so a store the attach's account could rewrite would make every recorded identity advisory.
-///  A folder owned by root and holding no group or other write bit is one only root writes;
-///  the account the attach runs as may still read it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const refusal = storeControlRefusal(owner, mode & 0o7777); // string | undefined
-/// ```
-pub fn store_control_refusal(owner: u32, mode: u32) -> Option<String> {
-    if owner != STORE_OWNER {
-        return Some(format!(
-            "its owner is user {owner} and not root, so the account that owns it could rewrite the identities this route compares against"
-        ));
-    }
-    if mode & WRITABLE_BY_OTHERS != 0 {
-        return Some(format!(
-            "its permission bits are {mode:04o}, and {WRITABLE_BY_OTHERS:04o} would let another account write it"
-        ));
-    }
-    return None;
-}
 
 /// What:
 ///  The store folder as one reader holds it:

@@ -47,7 +47,7 @@ use super::clone_slot_walk::{
 };
 use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusalReason};
 use super::misplaced_attach_rollback::{RollbackPlan, plan_rollback};
-use super::slot_identity_store::STORE_FOLDER_MODE;
+use super::slot_identity_store_control::STORE_FOLDER_MODE;
 use super::slot_identity_store_publication::{publish_parent_identity_under_root_control, publish_slot_identity_under_root_control};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::fs_mount_options::MountFacts;

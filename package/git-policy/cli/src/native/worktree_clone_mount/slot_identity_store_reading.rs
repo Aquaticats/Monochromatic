@@ -21,15 +21,13 @@
 //! const names = listedSlotNames(folder); const removed = removeKnownStagingEntries(folder);
 //! ```
 
-use super::clone_folder_identity::PERMISSION_BITS;
 use crate::entries_of_one_open_folder::{entry_names, open_entry_for_reading, read_entry_bytes};
 use crate::publishing_entries_in_one_open_folder::{remove_entry, sync_folder};
-use super::slot_identity_store::store_control_refusal;
+use super::slot_identity_store_control::check_under_root_control;
 use super::slot_identity_store_records::{PARENT_RECORD_NAME, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_a_dot_name, is_known_staging_name, parse_one_record, slot_name_refusal};
 use super::slot_identity_store_refusals::{StoreRefusal, unreadable, write_refusal};
 use crate::private_storage::ReadRefusal;
 use std::ffi::{OsStr, OsString};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// The largest one record file may hold,
@@ -206,14 +204,4 @@ pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: 
     sync_folder(folder).map_err(|error| return write_refusal(folder_path, error))?;
     removed.sort();
     return Ok(removed);
-}
-
-/// Whether the entry at `path` is under root control,
-/// and the refusal naming what lets this account write it when it is not.
-pub(super) fn check_under_root_control(path: &Path, what: &str, file: &std::fs::File) -> Result<(), StoreRefusal> {
-    let metadata: std::fs::Metadata = file.metadata().map_err(|error| return StoreRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() })?;
-    return match store_control_refusal(metadata.uid(), metadata.mode() & PERMISSION_BITS) {
-        Some(reason) => Err(StoreRefusal::NotUnderRootControl { path: path.to_path_buf(), what: what.to_string(), reason }),
-        None => Ok(()),
-    };
 }
