@@ -117,6 +117,12 @@ pub enum Change {
     /// and `ZFS_IOC_LAST` moved by one as a release that appends a request
     ///  does.
     AppendedRequest,
+    /// `zc_name` as a 4,095-byte character array,
+    /// one element short of the field this crate declares.
+    NameArrayOneShort,
+    /// `zc_name` as 1,024 four-byte integers,
+    /// the same 4,096 bytes with an element size of its own.
+    NameArrayWiderElements,
 }
 
 /// The member types one declaration reads,
@@ -169,6 +175,25 @@ const fn bits(bytes: u32) -> u32 {
     return bytes * BITS_PER_BYTE;
 }
 
+/// The approved declaration with one extra member in `dmu_objset_stats`
+/// whose name offset points past the file's string section,
+/// so no reader can read that member.
+pub fn module_with_an_unreadable_extra_member() -> Blob {
+    let mut blob: Blob = Blob::over(EMPTY_BASE_STRINGS);
+    let types: MemberTypes = member_types(&mut blob, Change::None);
+    blob.structure("zfs_cmd", COMMAND_BYTES, &command_members(&types, Change::None));
+    blob.enumeration("zfs_ioc", 4, &request_values(Change::None));
+    blob.member_with_unreadable_name(types.stats, types.byte, bits(287));
+    return blob;
+}
+
+/// The approved declaration with the kind flag set on every record,
+/// and every member's offset and width exactly as approved,
+/// which is the shape a module's own tools write when the flag is on.
+pub fn module_with_the_kind_flag_set() -> Blob {
+    return module_with(Change::None).with_kind_flag_on_records();
+}
+
 /// One member at one byte offset.
 const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
     return WrittenMember {
@@ -184,7 +209,11 @@ fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
     let word: u32 = blob.int("unsigned int", WORD_BYTES);
     let wide: u32 = blob.int("unsigned long", WIDE_BYTES);
     let pointer: u32 = blob.pointer("pointer");
-    let name: u32 = blob.array(byte, NAME_BYTES);
+    let name: u32 = match change {
+        Change::NameArrayOneShort => blob.array(byte, NAME_BYTES - 1),
+        Change::NameArrayWiderElements => blob.array(word, NAME_BYTES / WORD_BYTES),
+        _ => blob.array(byte, NAME_BYTES),
+    };
     let value: u32 = blob.array(byte, VALUE_BYTES);
     let string: u32 = blob.array(byte, STRING_BYTES);
     let pad: u32 = blob.array(byte, PAD_BYTES);

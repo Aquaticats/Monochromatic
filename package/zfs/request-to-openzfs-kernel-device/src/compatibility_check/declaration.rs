@@ -7,18 +7,33 @@
 //! its array element,
 //! and an enumeration's values.
 //! Why:
-//!  The project has not picked the profile reader yet,
-//! so everything that
-//!  compares or reports a layout depends on this declaration alone,
-//! and one adapter
-//!  file maps a reader onto it.
+//!  Everything that compares or reports a layout depends on this declaration
+//! alone,
+//!  and one adapter file maps a reader onto it,
+//! `btf_rs_declaration.rs` for the
+//!  adopted `btf-rs` 2.0.1
+//! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+//!  "The reader adopted:
+//!  `btf-rs` 2.0.1").
 //!  The vocabulary is the one the finalists give:
 //! `btf-rs` resolves a named type,
 //!  a chained type and a member's name and size,
 //! `pahole` prints each member's
 //!  offset and size,
 //! and `bpftool` dumps the same facts with the base file supplied,
-//!  so a reader picked later fills one implementation rather than the comparison.
+//!  so a reader fills one implementation rather than the comparison.
+//!  A later reader replaces the one adapter file and that adapter's own
+//!  controls,
+//! and it touches the three places the adapter cannot change alone:
+//! the entry
+//!  point's call,
+//! which hands a reader the whole file as well as the pre-scan's
+//!  header,
+//! this folder's module list,
+//! and the crate's manifest.
+//!  `README.md` states the same list beside the reader,
+//! so the cost of a reader is
+//!  read off the file that names the reader.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -170,6 +185,27 @@ impl DeclaredType {
 ///  point name only this trait,
 /// so the reader that fills it is one file and the walk
 ///  stays the same whichever reader is picked.
+///
+/// Three duties every adapter owes,
+/// and the comparison cannot check them for itself:
+///
+/// - A member whose bitfield width is zero is no bitfield.
+///   A record's kind flag says its member bytes are shaped to carry a width,
+///   not that every member is one,
+///   and a zero width is the shape a whole member takes there;
+///   a reader that answers a bitfield of zero bits makes the comparison refuse
+///   a record whose layout never moved.
+/// - One handle's alias chain is bounded.
+///   A typedef that reaches itself must end in nothing rather than loop,
+///   so the caller refuses a size it cannot compute instead of waiting forever.
+/// - One member that cannot be read is a refusal,
+///   never a member dropped.
+///   A dropped member shortens the list the comparison counts,
+///   which would accept a record that gained one.
+///
+/// `declaration_contract_tests` holds one control for each duty,
+/// written against the entry point,
+/// so every adapter that replaces this one is held to them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

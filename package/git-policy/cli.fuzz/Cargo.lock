@@ -172,6 +172,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "btf-rs"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa34ec915ede6b7eaeebcb38fdb749fcac1538ec1b94dcfde63a034ad8f7963b"
+dependencies = [
+ "btf-rs-derive",
+ "byteorder",
+ "fallible-iterator",
+ "memmap2",
+ "thiserror",
+]
+
+[[package]]
+name = "btf-rs-derive"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95d548bd1301bf327418190bbe8d63bc34b5671cc01f3ecf04aceb8ac47a7c60"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -464,6 +488,12 @@ dependencies = [
  "libc",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "fallible-iterator"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
 
 [[package]]
 name = "faster-hex"
@@ -1432,6 +1462,7 @@ dependencies = [
 name = "monochromatic-zfs-request-to-openzfs-kernel-device"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "btf-rs",
  "libc",
 ]
 

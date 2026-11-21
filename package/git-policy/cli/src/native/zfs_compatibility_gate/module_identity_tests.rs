@@ -108,6 +108,17 @@ fn the_cache_notices_a_moved_file_even_when_the_module_carries_its_values() {
     assert!(first.same_module_as(&first.clone()));
     std::fs::write(fixture.module_btf.as_path(), b"a longer module file").expect("the module moves");
     let moved: ModuleIdentity = ModuleIdentity::read(&fixture);
-    assert!(first.same_as(&moved), "the in-check reads compare only the carried values");
+    assert!(!first.same_as(&moved), "both identity reads compare the files beside the values");
     assert!(!first.same_module_as(&moved), "the cache compares the files too");
+}
+
+#[test]
+fn a_module_carrying_one_value_is_compared_by_it_and_by_both_files() {
+    let fixture: GatePaths = paths("identity-one-value", Some("2.4.4-1"), None);
+    let first: ModuleIdentity = ModuleIdentity::read(&fixture);
+    assert!(first.same_module_as(&first.clone()));
+    std::fs::write(fixture.base_btf.as_path(), b"a longer base file").expect("the base file moves");
+    let moved: ModuleIdentity = ModuleIdentity::read(&fixture);
+    assert_eq!(first.version, moved.version, "the carried value did not move");
+    assert!(!first.same_as(&moved), "the files decide beside the one value the module carries");
 }

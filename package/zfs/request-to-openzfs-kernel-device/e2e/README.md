@@ -381,6 +381,21 @@ beside the recipe itself:
 Every arm fails on a `SKIP gate_arm` line or a missing `MEASUREMENT gate`
 line,
 so an arm that never ran is never counted as passed.
+The red arm the change arm runs first also has to print the arm's own panic
+naming the module that passed where it should have refused,
+so a refusal for another reason fails it.
+
+Each of the two module-changing arms leaves the guest holding the module it
+made:
+`zfs-gate-change-arm` leaves the rebuilt module with `zi_iotype` and
+`zi_duration` swapped,
+and `zfs-gate-version-arm` leaves the approved module with its release text
+patched to `2.4.4-2` and every pool destroyed.
+Neither puts the approved module back,
+so no other arm can follow either in the same guest:
+run one module-changing arm per guest,
+and expect `zfs-gate-arm`'s control to see the changed module if it follows
+one.
 These arms drive the binding's `check_module_layout` against the guest's two
 type-information files.
 They do not run the product's gate (`zfs_compatibility_gate::check`) or the

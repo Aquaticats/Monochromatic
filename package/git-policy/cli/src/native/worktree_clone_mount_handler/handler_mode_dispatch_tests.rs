@@ -17,6 +17,7 @@ use super::{
     EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, boot_reconcile_mode, run_behind,
     shutdown_unmount_mode,
 };
+use super::handler_mode_arguments::{self, HandlerMode};
 use crate::zfs_compatibility_gate::gate_verdict::{Facts, Verdict};
 use crate::zfs_compatibility_gate::{BeforeRequests, gate_words::TESTED_MODULE_VERSION};
 use std::cell::Cell;
@@ -131,19 +132,42 @@ fn a_refused_gate_keeps_the_mode_unentered_and_says_so() {
 
 /// Each unbuilt mode names the plan step that lands it,
 /// so a passing gate still leaves the step a person can act on.
+///
+/// Each constant is paired with the invocation that reaches its mode,
+/// and the gate's line is the one a person reads:
+/// the message the mode itself answers,
+/// never the awaiting value's own words alone.
 #[test]
 fn each_unbuilt_mode_names_its_plan_step() {
-    for (awaiting, words) in [
-        (boot_reconcile_mode::AWAITING, Vec::<&str>::new()),
-        (attaching_sweep_mode::AWAITING, vec!["sweep"]),
-        (shutdown_unmount_mode::AWAITING, vec!["shutdown-unmount"]),
+    for (awaiting, words, mode) in [
+        (boot_reconcile_mode::AWAITING, vec!["boot-reconcile"], HandlerMode::BootReconcile),
+        (attaching_sweep_mode::AWAITING, Vec::<&str>::new(), HandlerMode::AttachingSweep),
+        (shutdown_unmount_mode::AWAITING, vec!["shutdown-unmount"], HandlerMode::ShutdownUnmount),
     ] {
+        let invocation: Vec<OsString> = arguments(words.as_slice());
+        assert_eq!(
+            handler_mode_arguments::parse(invocation.as_slice()),
+            Ok(mode.clone()),
+            "{words:?} does not reach {mode:?}"
+        );
         let message: String = awaiting.message();
         assert!(
             message.contains(format!("plan step {}", awaiting.step).as_str()),
             "{message}"
         );
-        assert_eq!(run(arguments(words.as_slice()).as_slice()), EXIT_REFUSED);
+        let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
+            return match mode {
+                HandlerMode::BootReconcile => boot_reconcile_mode::run(),
+                HandlerMode::AttachingSweep => attaching_sweep_mode::run(),
+                HandlerMode::ShutdownUnmount => shutdown_unmount_mode::run(),
+                _ => unreachable!("the table names only the unbuilt modes"),
+            }
+            .map_err(|refused| return refused.message());
+        });
+        let Err(line): Result<String, String> = answer else {
+            panic!("{words:?} answered a passing gate");
+        };
+        assert!(line.contains(message.as_str()), "{line}");
     }
 }
 

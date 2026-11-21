@@ -19580,10 +19580,11 @@ and no raw request is made until it passes.
 The wrapper `monochromatic-git-policy-cli` makes no request in this build and
 runs no gate;
 the step that gives the wrapper a ZFS request route adds that call.
-The gate is this repository's own code on both sides:
+The gate is this repository's own code except for the type reader:
 `compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
-holds the bounded reader,
+holds the bounded read,
 the pre-scan,
+the declaration and its adapter over `btf-rs` 2.0.1,
 the expectation table compiled from its own `repr(C)` type,
 the comparison and one refusal value,
 and `src/native/zfs_compatibility_gate/` in this package holds the paths,
@@ -19591,6 +19592,18 @@ the read order,
 the module's identity,
 the target allowlist,
 the per-process verdict and the words a person reads.
+`btf-rs` 2.0.1 is the reader the project adopted on 2026-11-20 under
+`LGPL-2.1-or-later`
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The reader adopted:
+`btf-rs` 2.0.1").
+It resolves a named type,
+a chained type,
+a record's members and an enumeration's values;
+the binding multiplies out each array's byte size,
+and the pre-scan stays here because that crate validates no section list,
+which is also what refuses a kernel that widens the format's masks until a
+`btf-rs` release carries them.
 
 What it proves,
 in this order:
@@ -19629,18 +19642,32 @@ in this order:
   The walk has a fixed order and stops at the first difference,
   naming the field path with both values.
   The two endpoints are part of that contract,
-  so a release that only appends a request moves `ZFS_IOC_LAST` and refuses
-  even though no layout moved:
-  that is what the record's "the request numbers decide" requires,
-  and `ZFS_IOC_FIRST` and `ZFS_IOC_LAST` are the range's two endpoints it
-  names.
+  so a release that moves `ZFS_IOC_LAST` refuses even though no layout moved,
+  which is what the record's Decision section requires:
+  its expectations list ends with
+  "every request number the binding can send with the range's two endpoints",
+  and any mismatch there refuses.
+  The accepted design states the same in its request contract:
+  "Every request number the binding can send has the value the approved
+  `zfs_ioc` enum gives it,
+  and the range's endpoints match".
+  A release that adds a request inside a reserved number moves no endpoint and
+  no layout,
+  which `zfs-2.3.0` did,
+  so the endpoints catch an append past the last number and not every append.
 - The identity is read again.
   A module that unloaded or was replaced under the check retries the whole
   check once,
   and refuses with "module changed while checking" only when the retry's own
   two identity reads also differ.
   A module that carries no release string,
-  `srcversion` or build ID weakens the reload check instead of refusing.
+  `srcversion` or build ID weakens the reload check instead of refusing:
+  the two identity reads then compare the values it does carry with each
+  file's device,
+  inode,
+  size and modification time,
+  and a module carrying none of the three compares no term at all,
+  which `doctor` says.
   This build's `doctor` reads no gate;
   step 18 adds its gate read and the sentence naming the absent attribute.
 
@@ -19684,15 +19711,18 @@ way:
   A clone that is already attached keeps its binding:
   a refusal never authorizes an unrelated mount or cleanup.
 
-The refusal prints one line naming the failing step,
+The refusal prints a line naming the failing step,
 the file it read and the detail,
 then states that every raw request,
 reads included,
 stays disabled,
 that registrations and durable recovery state stay as they were,
-that no mode was entered so nothing was mounted,
-unmounted or recorded,
 and that no flag and no environment turns the refusal into a pass.
+The handler adds a line saying that no mode was entered,
+so that mode opened nothing,
+made no request,
+mounted nothing,
+unmounted nothing and recorded nothing.
 It never offers a bypass.
 A compatible verdict prints one line naming the target,
 the module's release text,

@@ -115,20 +115,27 @@ impl ModuleIdentity {
     /// Whether the module that answered now is the one that answered the
     ///  check's first read.
     ///
-    /// The three values decide where the module carries any of them;
-    /// where it
-    ///  carries none the check compares nothing it trusts and never refuses,
-    /// by
-    ///  the design's read order,
-    /// which is the weaker reload check `doctor` reports.
+    /// The three values decide where the module carries any of them,
+    /// with each file's
+    ///  device,
+    /// inode,
+    /// size and modification time beside them,
+    /// so a replacement that
+    ///  keeps the values is still noticed.
+    /// Where the module carries none of the
+    ///  three the check compares nothing it trusts and never refuses,
+    /// by the design's
+    ///  read order:
+    /// this host's type-information modification times move without a
+    ///  reload,
+    /// so the file facts do not stand in there,
+    /// which is the weaker reload
+    ///  check `doctor` reports.
     pub fn same_as(&self, other: &Self) -> bool {
-        let carried: bool = self.carries_any();
-        if !carried {
+        if !self.carries_any() && !other.carries_any() {
             return true;
         }
-        return self.version == other.version
-            && self.srcversion == other.srcversion
-            && self.build_id == other.build_id;
+        return self.same_values_as(other) && self.base == other.base && self.module == other.module;
     }
 
     /// Whether the module that answered now is the one a remembered verdict
@@ -141,11 +148,15 @@ impl ModuleIdentity {
     /// whichever values the module carries,
     ///  so a replacement that keeps the values is still noticed.
     pub fn same_module_as(&self, other: &Self) -> bool {
-        let values_hold: bool = !self.carries_any()
-            || (self.version == other.version
-                && self.srcversion == other.srcversion
-                && self.build_id == other.build_id);
+        let values_hold: bool = !self.carries_any() || self.same_values_as(other);
         return values_hold && self.base == other.base && self.module == other.module;
+    }
+
+    /// Whether the three identity values this read holds are the other's.
+    fn same_values_as(&self, other: &Self) -> bool {
+        return self.version == other.version
+            && self.srcversion == other.srcversion
+            && self.build_id == other.build_id;
     }
 
     /// Whether the module carries any of the three identity values.
