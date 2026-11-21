@@ -353,6 +353,74 @@ fn a_host_key_revoked_by_a_file_is_no_unknown_key() {
     );
 }
 
+/// The banner OpenSSH prints before its warning about a changed key,
+/// alone with the last line every host-key refusal ends in.
+const A_CHANGED_HOST_KEYS_BANNER_ALONE: &str = "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\nHost key verification failed.\n";
+
+/// The line that ends OpenSSH's warning about a changed key,
+/// alone with the same last line.
+const A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE: &str =
+    "Host key for [127.0.0.1]:41783 has changed and you have requested strict checking.\nHost key verification failed.\n";
+
+/// The banner OpenSSH prints for the key of a refused host that it will not trust,
+/// alone with the same last line:
+/// its capitals are what the reading folds.
+const A_REVOKED_HOST_KEYS_BANNER_ALONE: &str = "@       WARNING: REVOKED HOST KEY DETECTED!               @\nHost key verification failed.\n";
+
+/// The sentence that says the key is marked as revoked,
+/// alone with the same last line.
+const A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE: &str =
+    "The ED25519 host key for [127.0.0.1]:43055 is marked as revoked.\nHost key verification failed.\n";
+
+/// The line with which OpenSSH refuses a certificate that does not fit the host
+/// (`sshkey_cert_check_host`,
+/// `sshkey.c` at `V_10_6_P2` lines 2480 to 2484),
+/// alone with the same last line.
+const A_CERTIFICATE_THAT_DOES_NOT_FIT: &str = "Certificate invalid: name is not a listed principal\nHost key verification failed.\n";
+
+/// OpenSSH's words for a host key that differs from the key known for the host's IP address
+/// (`sshconnect.c` at `V_10_6_P2` lines 1425 to 1452),
+/// taken from the source:
+/// an arm that asked for the check was allowed the connection instead.
+const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS: &str = "Warning: the ED25519 host key for 'localhost' differs from the key for the IP address '127.0.0.1'\nOffending key for IP in /home/someone/.ssh/known_hosts:2\nHost key verification failed.\n";
+
+/// A connection that needed no host-key decision at all,
+/// because the key it was given was already known.
+const A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION: &str =
+    "Warning: Permanently added '127.0.0.1' (ED25519) to the list of known hosts.\n";
+
+/// What:
+///  Each sentence OpenSSH prints beside its last line for a refusal that is not an unknown key answers by itself:
+///  a transcript holding that sentence and nothing else of a host key is no unknown key.
+/// Why:
+///   The reading holds only while every host-key line it meets is an unknown key's own,
+///  so each phrase has to answer alone:
+///  a transcript that also carried another refusal's words would pass whatever the reading did with either of them.
+#[test]
+fn each_other_refusals_sentence_alone_is_no_unknown_key() {
+    for text in [
+        A_CHANGED_HOST_KEYS_BANNER_ALONE,
+        A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE,
+        A_REVOKED_HOST_KEYS_BANNER_ALONE,
+        A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE,
+        A_CERTIFICATE_THAT_DOES_NOT_FIT,
+        A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS,
+    ] {
+        assert!(!reads_as_unknown_host_key(text), "{text}");
+    }
+}
+
+/// What:
+///  A transcript that does not hold OpenSSH's last line is no unknown-key refusal,
+///  whatever else it printed.
+/// Why:
+///   That line is the only mark that a host key stopped the connection,
+///  so a connection that listed the host as known says nothing about an unknown key.
+#[test]
+fn a_transcript_without_the_last_line_is_no_unknown_key() {
+    assert!(!reads_as_unknown_host_key(A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION));
+}
+
 //endregion
 
 /// A relative `PATH` entry is resolved where the lookup happens,

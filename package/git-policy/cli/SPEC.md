@@ -6741,8 +6741,13 @@ and no retry adds one.
 Where the wrapper owns the child,
 the upload's explanation and the push's failure record print one sentence
 (`host_key_not_known_sentence` in `src/native/lfs/lfs_pre_push.rs`,
-read from OpenSSH's own `Host key verification failed.` by `reads_as_unknown_host_key`,
-which leaves a changed key to OpenSSH's own warning and reads the reading after the hook-decline loop,
+read from OpenSSH's own words by `reads_as_unknown_host_key`,
+which holds only when every line of the transcript that names a host key or a certificate is an unknown key's own,
+so a changed key,
+a key a `@revoked` line or a `RevokedHostKeys` file revokes,
+and a certificate that does not fit the host keep
+OpenSSH's own words alone as `main` prints them,
+and reads the reading after the hook-decline loop,
 as `main` orders its readings):
 connect once with plain `ssh <host>`,
 which the wrapper does not touch and which still asks its own question,
@@ -6753,7 +6758,9 @@ The sentence names the host when the wrapper can answer which one it is
 from the program's own words or from a destination written as a URL),
 because an LFS server may live on another host than the Git remote;
 a push's own words for this refusal name no host,
-so its record writes the placeholder.
+so its record writes the placeholder,
+and when a pre-push hook's own explanation already printed the sentence with the host it read,
+the record adds only the promise and tells the refusal once.
 The refusal is not one of the stops below:
 the service keeps its usual retry schedule,
 and the record it leaves says that it pushes the branch by itself once this machine knows the key,

@@ -22,8 +22,9 @@
 /// which the words of a counted failure measure their span with.
 use crate::push_retry::pause_before;
 /// The sentence a refusal prints for a host key this machine does not know,
-/// and the reading that says OpenSSH's words are that refusal.
-use crate::lfs_pre_push::{host_key_not_known_sentence, reads_as_unknown_host_key};
+/// the reading that says OpenSSH's words are that refusal,
+/// and the opening words that say the sentence is already there.
+use crate::lfs_pre_push::{HOST_KEY_NOT_KNOWN_SENTENCE_OPENING, host_key_not_known_sentence, reads_as_unknown_host_key};
 use std::time::Duration;
 
 /// The words of the reconcile's report of a conflict,
@@ -213,21 +214,30 @@ pub fn final_failure(output: &str) -> Option<FinalFailure> {
 /// `fatal: Could not read from remote repository.`),
 ///  so the push's record writes the placeholder;
 ///  the upload's explanation names the host its destination or the program's words give.
+///  A pre-push hook's own explanation of the same refusal travels inside the push's words,
+///  and that one already names the host it read;
+///  a record that printed the sentence again told one refusal twice,
+///  with the placeholder above the host below it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readsAsUnknownHostKey(output) ? `${hostKeyNotKnownSentence(undefined)}${SERVICE_KEEPS_RETRYING}\n${output}` : output
+/// readsAsUnknownHostKey(output) ? saidAlready(output) ? `${SERVICE_KEEPS_RETRYING}\n${output}` : `${hostKeyNotKnownSentence(undefined)} ${SERVICE_KEEPS_RETRYING}\n${output}` : output
 /// ```
 pub fn retried_failure_record(output: &str) -> String {
     if !reads_as_unknown_host_key(output) {
         return output.to_string();
     }
-    return format!("{}{SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}", host_key_not_known_sentence(None));
+    // The hook's explanation says the key is unknown and names the host it read, so only the promise is new.
+    let folded: String = output.to_ascii_lowercase();
+    if folded.contains(HOST_KEY_NOT_KNOWN_SENTENCE_OPENING) {
+        return format!("{SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}");
+    }
+    return format!("{} {SERVICE_KEEPS_RETRYING_SENTENCE}\n{output}", host_key_not_known_sentence(None));
 }
 
 /// The promise the service's record adds for a host key this machine does not know,
 /// which is what the plan does with the failure the program's words describe.
-const SERVICE_KEEPS_RETRYING_SENTENCE: &str = " The commit service keeps its usual retry schedule, so it pushes this branch \
+const SERVICE_KEEPS_RETRYING_SENTENCE: &str = "The commit service keeps its usual retry schedule, so it pushes this branch \
  by itself once this machine knows the key: no new commit is needed, and adding the key is enough.";
 
 /// What:
