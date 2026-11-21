@@ -3215,7 +3215,7 @@ and a negative control showed the base file is required.
 `pahole`'s own upstream suite ran too,
 in a capped container at the packaged tag with the packaged patches,
 and `bpftool`'s functional suite did not,
-because it needs root and a BPF-capable kernel.
+because the vet report reads it as needing root and a BPF-capable kernel.
 What did not run is `pahole`'s own CI path:
 a kernel build that supplies the `vmlinux` four of its cases skip for.
 The vet report records it with the one case that path would still leave open,
@@ -3938,6 +3938,7 @@ orders the finalists
 with `bpftool` 17.5 last and failed on the skill's relevant-execution rule,
 because its functional tests need root,
 a BPF-capable kernel and a VM harness,
+as the vet report reads them,
 none of which ran here.
 The first place does not move under any input the skill defines:
 `btf-rs` is strictly first in every defined test at those weights,
@@ -4113,6 +4114,7 @@ Options:
     its functional tests need root,
     a
     BPF-capable kernel and a VM harness,
+    as the vet report reads them,
     so it failed.
     Why here:
     17.5 of 32 at the report's frozen weights and 56 of 104 at this file's,
