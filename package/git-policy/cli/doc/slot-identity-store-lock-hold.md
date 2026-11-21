@@ -20,7 +20,8 @@ or the adoption's read and whole-file rename.
 The wait must therefore cover a read,
 a write,
 the file's `fsync`,
-the folder's `fsync`
+the folder's `fsync`,
+the size check either writer makes before it writes,
 and,
 for the adoption,
 the rename that publishes the file.
@@ -50,6 +51,11 @@ so what it times is the shipped code and not a copy of its steps.
   their figure is the same write one record wider (about 250 bytes of 1 MiB),
   and the arms that matter for the wait are the two `fsync`s,
   not the last record.
+- The adoption arm starts on the same store,
+  and the parent record it writes is no wider than the one it replaces,
+  so the rewrite's size check passes and the arm times a write;
+  a rewrite the bound refuses writes nothing,
+  so its hold ends before the write.
 - Each sample starts from the same store text,
   written just before the timed call,
   so no sample reads a store another sample grew.
@@ -114,6 +120,47 @@ Read:
   because a slow hold is still a hold whatever caused it.
 - The width matters where the records do:
   the same 1 MiB of comment padding measured 20 times cheaper than the 1 MiB of records.
+
+## The run after the rewrite's size check
+
+The adoption's rewrite now checks the size of the file it would publish before it writes,
+on the same terms the append does,
+so a store of the bound adopted with a wider parent record is refused and nothing is written.
+The check compares the length of a `String` both writers have already built
+(`src/native/worktree_clone_mount/slot_identity_store.rs`,
+`check_the_store_fits_one_read`),
+so it calls nothing and adds no system call to the hold.
+The probe was run once in an image built after the check
+to show that its arms still measure writes and not refusals:
+
+```text
+MEASUREMENT store-hold append-small-store bytes=40106 samples=40 min_ms=1.489 median_ms=1.594 max_ms=7.137
+MEASUREMENT store-hold append-widest-store bytes=1048534 samples=10 min_ms=19.181 median_ms=19.566 max_ms=20.037
+MEASUREMENT store-hold adoption-widest-store bytes=1048534 samples=10 min_ms=44.146 median_ms=44.742 max_ms=46.676
+```
+
+The adoption arm read 44.146 to 46.676 ms,
+0.44 ms under the earlier runs' fastest figure (47.116 ms) and 6.07 ms under their slowest (52.750 ms),
+and every sample wrote and published the file:
+a refusal would have ended before the rename.
+The wide arms' `bytes` line reads 1,048,534,
+which is one append's record below the bound,
+the store the probe builds for the widest write the reader accepts.
+
+The run was on 2026-11-21,
+its container at `2026-11-21T15:30:03-05:00`,
+in `localhost/git-policy-native-test:slot-store-rewrite-size-green-20261121`
+(id `b33ff670c4b0`,
+built `2026-11-21T20:29:36Z`),
+unoptimized `test` profile,
+mounted `--user 0` with a folder of this host's `home` dataset at `/measurement`,
+2 GiB of memory and 2 CPUs.
+Its log is `hold-after-the-rewrite-size-check.log`
+in this session's scratch folder,
+`~/temp/agent/git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/scratch/keep/`.
+`STORE_LOCK_WAIT`'s citation stays the slowest hold either earlier run saw (79.362 ms)
+and its arithmetic against the adoption arm stays 2000 / 52.750 = 37.9,
+because this run's figures are smaller and one run on a differently loaded host is no new worst case.
 
 ## The `fsync` reaches the pool's device
 
@@ -198,6 +245,10 @@ which is larger than any the round saw.
 - The spread of a longer campaign:
   40 samples for the small arm and 10 for each wide arm,
   two runs.
+- A paired arm of the adoption without the size check.
+  The check adds one comparison and calls nothing,
+  and the arm's own spread between runs (47.116 to 52.750 ms) is far more than comparing two lengths costs,
+  so this record reasons the cost from the code and leaves that paired measurement unmade.
 
 ## How to re-run it
 

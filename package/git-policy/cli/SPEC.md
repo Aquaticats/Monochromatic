@@ -5410,7 +5410,15 @@ and a larger file is refused by that bound rather than read into memory.
 An append that would make the file larger than that bound is refused before anything is written,
 so an append never grows a store past what its own read accepts;
 the widest store an append grows is one record below the bound.
-The adoption's rewrite of the parent record has no such check yet (issue 6327).
+The adoption's rewrite of the parent record is refused on the same terms before anything is written,
+so a rewrite publishes a store of the bound at most,
+and the widest store it publishes is the bound itself.
+An adoption the bound refuses leaves the recorded parent identity in place,
+so every managed attach that compares the replacement folder against it keeps refusing,
+and nothing in this repository removes a recorded slot or raises the bound;
+the record format that lets a store grow past it is the owner's open question,
+and the refusal asks the person to report the store,
+its size and the adoption rather than edit the file.
 A missing file refuses and names the setup run that writes it.
 
 The route reads the store through `SlotIdentityStore::read_under_root_control`,

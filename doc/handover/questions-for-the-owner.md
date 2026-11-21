@@ -739,7 +739,14 @@ putting those tools on the checkout's `PATH` for every session.
 Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
 and the measurement shows nothing left to install.
 
-## Open: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
+## Answered: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
+
+Answered 2026-11-21T16:24:40-05:00 in the question tool: "B:
+folder,
+one file per slot".
+Recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`;
+a design for B goes to review before it is built.
+The question as it was put stays here for the record.
 
 What it is:
 step 4 records, for each worktree slot, the identities the attach checks (device, inode, owner, permissions, access
