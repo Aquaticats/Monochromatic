@@ -2232,8 +2232,10 @@ and the last two are flagged because they need a decision this design cannot mak
 - The store as built:
   `package/git-policy/cli/SPEC.md:5348`,
   and `package/git-policy/cli/src/native/worktree_clone_mount/slot_identity_store.rs`.
-- The lock's measurement record:
-  `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`.
+- The store's write-cost record:
+  `package/git-policy/cli/doc/slot-identity-store-write-cost.md`,
+  which was `slot-identity-store-lock-hold.md` until the build renamed it on 2026-11-21,
+  when the lock it measured went away.
 - The publication precedent:
   `package/git-policy/cli/src/native/worktree_copying/worktree_copy_publish_file.rs` and
   `package/git-policy/cli/src/native/foundation/private_storage.rs`.
@@ -2267,7 +2269,9 @@ and only the owner accepts any of it.
   each fact attributed to its line.
   It is Python,
   following the repository's one kept probe,
-  `package/git-policy/cli/doc/slot-identity-store-lock-hold/probe-reaches-storage.py`,
+  `package/git-policy/cli/doc/slot-identity-store-write-cost/probe-reaches-storage.py`
+  (then named `slot-identity-store-lock-hold/probe-reaches-storage.py`,
+  and renamed with its record on 2026-11-21),
   and the reason it is not the `.ts` that rule `NMJ` prefers is mechanical:
   `node` has no binding for `linkat(AT_EMPTY_PATH)`,
   `renameat2`'s flags or `setxattr`,
