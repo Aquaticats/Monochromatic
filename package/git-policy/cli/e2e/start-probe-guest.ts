@@ -289,14 +289,16 @@ function green(chosen: Options): void {
     'echo "PROBE source absent afterwards"',
     // M1's held-source control: a second namespace mounts the snapshot, so the exclusive create answers EBUSY.
     'rm --force /root/held.txt',
-    `unshare --mount sh -c '/sbin/mount.zfs ${PROBE_DATASET}@ready /mnt && touch /root/held.txt && sleep 30' &`,
+    'rm --recursive --force /root/held-mount',
+    'mkdir --parents /root/held-mount',
+    `unshare --mount sh -c '/sbin/mount.zfs ${PROBE_DATASET}@ready /root/held-mount && touch /root/held.txt && sleep 30' &`,
     'for wait in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do test -f /root/held.txt && break; sleep 0.5; done',
     'test -f /root/held.txt',
     `${HANDLER} start-probe > /root/probe-held.log 2>&1 || true`,
     `cp ${RECORD} /root/record-held.txt`,
     `check 'step attach-exclusive-create not-exercised' /root/record-held.txt 'held source not exercised'`,
     `check 'reason source-held' /root/record-held.txt 'held source names its cause'`,
-    'pkill --signal KILL --full "mount.zfs" || true',
+    'pkill --signal KILL --full "^/sbin/mount.zfs" || true',
     'wait || true',
     // M10's absent-source reading: the configuration names a dataset the pool does not hold.
     `sed --in-place 's|${PROBE_DATASET}|${POOL}/nosnap/git-worktree-probe-absent|' ${CONFIGURATION}`,
@@ -322,7 +324,7 @@ function green(chosen: Options): void {
     'wait "$mode" 2>/dev/null || true',
     `cp ${RECORD} /root/record-killed.txt`,
     `check 'state started' /root/record-killed.txt 'killed mode left a started record'`,
-    'pkill --signal KILL --full "mount-git-worktree-clone-datasets start-probe" || true',
+    'pkill --signal KILL --full "^/opt/git-policy-cli-start-probe/package/git-policy/cli/target/release/mount-git-worktree-clone-datasets start-probe$" || true',
     'sleep 0.2',
     'echo "GREEN done"',
   ].join('\n');

@@ -36,7 +36,7 @@ use super::probe_processes::{fork, pipe_pair, raw, set_process_group, wait_block
 use super::probe_record_files::RecordPlace;
 use super::probe_status_line::{LineFeed, StepAnswer, StepLine};
 use super::probe_walk_arm::{make_scratch_tree, open_checkout, refusal_controls, walk_to_slot};
-use std::os::fd::{AsRawFd, OwnedFd, RawFd};
+use std::os::fd::{OwnedFd, RawFd};
 use std::path::{Path, PathBuf};
 
 /// The directory inside the scratch tmpfs the attach lands on.
@@ -247,6 +247,9 @@ struct UnmountChild {
     pid: libc::pid_t,
     /// The read end of the child's status pipe.
     reports: OwnedFd,
+    /// The write end of the child's control pipe,
+    /// kept open so a hold in the child waits rather than reading its end.
+    _control: OwnedFd,
 }
 
 impl UnmountChild {
@@ -300,8 +303,7 @@ fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64, hold: Opti
             let _ = set_process_group(pid);
             drop(control.read);
             drop(reports.write);
-            let _ = control.write.as_raw_fd();
-            return Ok(UnmountChild { pid, reports: reports.read });
+            return Ok(UnmountChild { pid, reports: reports.read, _control: control.write });
         }
     }
 }
