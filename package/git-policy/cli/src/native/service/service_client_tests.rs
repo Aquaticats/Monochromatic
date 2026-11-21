@@ -161,7 +161,8 @@ fn an_address(label: &str) -> String {
 }
 
 /// A listener on the abstract name `name`.
-fn a_listener_on(name: &str) -> UnixListener {    use std::os::linux::net::SocketAddrExt;
+fn a_listener_on(name: &str) -> UnixListener {
+    use std::os::linux::net::SocketAddrExt;
     let socket: std::os::unix::net::SocketAddr = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
     return UnixListener::bind_addr(&socket).expect("bind the stand-in service");
 }

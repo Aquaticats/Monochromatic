@@ -140,8 +140,9 @@ impl WakeTheService for AskTheService<'_> {
             extra_wait: SHORT_EXTRA_WAIT,
             start_ceiling: HAND_OVER_GREETING_WAIT,
         };
-        let mut silent: std::io::Sink = std::io::sink();
-        let _forgotten: Result<(), crate::service_messages::ClientFailure> = crate::service_client_wake::forget_programs(&config, git_dir, records, &mut silent);
+        // The message asks the manager whether the service runs and is told to it alone, so a command that settles a record
+        //  starts no service to tell it nothing, and there is no wait here to report or to fail.
+        let _forgotten: Result<(), crate::service_messages::ClientFailure> = crate::service_client_wake::forget_programs(&config, git_dir, records);
     }
 }
 

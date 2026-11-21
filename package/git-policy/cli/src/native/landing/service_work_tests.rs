@@ -1225,6 +1225,113 @@ fn a_retryable_push_keeps_its_programs_only_while_a_plan_carries_it() {
 }
 
 /// What:
+///  A push of a later commit of the branch,
+///  which lands,
+///  cancels the plan that carried an earlier commit's push,
+///  and the values of that earlier record go with the plan.
+/// Why:
+///   The plan is the one thing that keeps a retryable push's values (`service_push_programs_held_in_memory`):
+/// a person who keeps committing while the network is down ends the earlier push's plan this way,
+/// and the record that plan carried can never run again.
+/// The loop drops a branch's plan with `PushRetries::forget`,
+/// which is where those values go;
+/// `service_push_retry_tests.rs` controls every other way a try ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(a); retries.apply(a.changes); await drain(b); retries.apply(b.changes); expect(held(a)).toBeUndefined();
+/// ```
+#[test]
+fn a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let planned: Repo = repo("work-retry-plan-cancelled-values");
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    // The first push cannot finish: a plan carries it, so the values of the command that asked for it wait for that plan's next try.
+    let first: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&first));
+    crate::service_push_programs_held_in_memory::remember(first.git_dir.as_path(), first.id().as_str(), programs("/first/bin:/usr/bin"));
+    let unable: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(drain_planned(planned.common.as_path(), &unable, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    assert!(retries.next_wait(planned.common.as_path(), Instant::now()).is_some(), "the plan carries the first push");
+    assert!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()).is_some(),
+        "the positive control: the plan's next try needs the values of the command that asked for it"
+    );
+    // The person commits again while the network is down, and that push lands: it carries the first commit too, so the plan ends.
+    let later: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&later));
+    crate::service_push_programs_held_in_memory::remember(later.git_dir.as_path(), later.id().as_str(), programs("/later/bin:/usr/bin"));
+    let landed: Recorder = Recorder::answering(Verdict::Done);
+    retries.apply(drain_planned(planned.common.as_path(), &landed, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    assert_eq!(retries.next_wait(planned.common.as_path(), Instant::now()), None, "the push that landed cancels the plan of its branch");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()),
+        None,
+        "the plan that carried the first push is gone, so its record can never run again and keeps no value of the command that asked for it"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(later.git_dir.as_path(), later.id().as_str()),
+        None,
+        "and the push that landed keeps no value either"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
+}
+
+/// What:
+///  A later commit whose push also fails to pass replaces the plan of its branch,
+///  and the values of the record the replaced plan carried go with it.
+/// Why:
+///   A plan holds one record of a branch,
+///   the newest,
+/// so planning a newer record drops the plan of the older one;
+/// that record was settled and its plan was the only thing that would run it again,
+/// so a value that can hold a password may not stay in the service's memory,
+/// and this is the ending a person who keeps committing while the network is down meets most.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(a); retries.apply(changes); await drain(b); retries.apply(changes); expect(planOf(branch).item).toBe(b); expect(held(a)).toBeUndefined();
+/// ```
+#[test]
+fn a_plan_replaced_by_a_later_pushs_plan_gives_up_the_values_of_the_record_it_carried() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let planned: Repo = repo("work-retry-plan-replaced-values");
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    let first: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&first));
+    crate::service_push_programs_held_in_memory::remember(first.git_dir.as_path(), first.id().as_str(), programs("/first/bin:/usr/bin"));
+    let unable: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(drain_planned(planned.common.as_path(), &unable, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    assert!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()).is_some(),
+        "the positive control: the plan carries the first push, so its next try needs these values"
+    );
+    // A later commit of the branch cannot pass either, and its own plan replaces the first one's.
+    let later: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&later));
+    crate::service_push_programs_held_in_memory::remember(later.git_dir.as_path(), later.id().as_str(), programs("/later/bin:/usr/bin"));
+    let unable_again: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(drain_planned(planned.common.as_path(), &unable_again, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    let planned_now: Vec<Due> = retries.take_due(planned.common.as_path(), Instant::now() + FIRST_PAUSE);
+    assert_eq!(planned_now.len(), 1, "one plan is left for the branch: {planned_now:?}");
+    assert_eq!(planned_now[0].item.id(), later.id(), "and it is the later push's");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()),
+        None,
+        "the replaced plan was the only thing that would run the first record again, so it keeps no value of the command that asked for it"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
+}
+
+/// What:
 ///  A plan a round kept is still the file that is on disk after the round's changes are applied,
 /// even though an
 ///  earlier change of the same round forgets that branch.

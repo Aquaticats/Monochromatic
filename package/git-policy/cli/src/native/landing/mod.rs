@@ -510,13 +510,12 @@ pub mod service_work_run_round;
 /// side by side and without a lock.
 pub mod service_round;
 
-/// The wrapper's side of after-commit work:
-/// records and the wake.
-/// The push record a command that moved a branch leaves where no round runs it until its values have reached the
-/// service,
-/// and the proof that it is this command's to publish.
+/// The push record a command that moves a branch leaves,
+/// and the hand-off that wakes the service to run it with that command's programs.
 pub mod push_record_of_a_moved_branch;
 
+/// The wrapper's side of after-commit work:
+/// records and the wake.
 pub mod service_handoff;
 
 /// The words a waiting push record is named with:

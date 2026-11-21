@@ -13,8 +13,7 @@
 //! and a push whose settings are gone with a service restart must stop and say what to run rather than speak a
 //!  transport nobody chose.
 //! Every value in these controls is plainly fake,
-//! the stand-in program that watches a push writes only whether it saw the fake one,
-//! never the value,
+//! the stand-in `git-lfs` of a push reads no variable and writes nothing,
 //! and no control prints the environment of any process.
 //!
 //! In TS you'd write (pseudocode):
@@ -51,8 +50,9 @@ const FAKE_PROXY: &str = "nc -x fakeuser:FAKE_PROXY_PASSWORD_2a6f proxy.invalid 
 
 /// The folder the stand-in `git-lfs` of these controls lives in,
 /// outside the fixture:
-/// it is the instrument that says whether a push carried the values,
-/// so it must not be provable that it holds one of them.
+/// it stands in for a program the shell that commits has and the service's own list does not,
+/// and it is reached through the list the request carries,
+/// so it must not sit anywhere a sweep of the fixture reads.
 /// A control removes its own folder when it ends,
 /// so a run leaves none behind.
 fn stand_in_folder(name: &str) -> PathBuf {
@@ -64,7 +64,7 @@ fn stand_in_folder(name: &str) -> PathBuf {
 /// A repository with one tracked file,
 /// its bare origin,
 /// Git LFS keys,
-/// a stand-in `git-lfs` that reports what the push's environment held,
+/// a stand-in `git-lfs` for the push to find,
 /// and a service whose own `PATH` holds no `git-lfs`.
 struct World {
     /// The fixture root.
@@ -84,43 +84,19 @@ struct World {
 }
 
 /// What:
-///  The stand-in `git-lfs`,
-///  which says whether the push searched the fixture's own `PATH` and whether it carried the fake values,
-///  and writes no value of them into any file.
+///  The stand-in `git-lfs` of these controls:
+///  a program that does nothing and says it did,
+///  because the push of a repository with LFS keys runs one before it publishes.
 /// Why:
-///   The control then searches every file for the two command lines and may not find one;
-/// a stand-in that recorded them would fail its own search,
-/// and a search that is allowed to see them proves nothing.
-fn stand_in_source(record: &Path, fixture_bin: &OsStr, stand_in: &Path) -> String {
-    return format!(
-        "#!/bin/sh\n\
-         {{\n\
-         printf 'lfs run\\n'\n\
-         case \"$GIT_SSH_COMMAND\" in\n\
-         '{FAKE_TRANSPORT_ONE}') printf 'ssh=one\\n' ;;\n\
-         '{FAKE_TRANSPORT_TWO}') printf 'ssh=two\\n' ;;\n\
-         '') printf 'ssh=unset\\n' ;;\n\
-         *) printf 'ssh=another\\n' ;;\n\
-         esac\n\
-         case \"$GIT_PROXY_COMMAND\" in\n\
-         '{FAKE_PROXY}') printf 'proxy=the-fake\\n' ;;\n\
-         '') printf 'proxy=unset\\n' ;;\n\
-         *) printf 'proxy=another\\n' ;;\n\
-         esac\n\
-         case \":$PATH:\" in\n\
-         *\":{fixture_bin}:\"*) printf 'path-fixture-bin=yes\\n' ;;\n\
-         *) printf 'path-fixture-bin=no\\n' ;;\n\
-         esac\n\
-         case \":$PATH:\" in\n\
-         *\":{stand_in}:\"*) printf 'path-stand-in=yes\\n' ;;\n\
-         *) printf 'path-stand-in=no\\n' ;;\n\
-         esac\n\
-         }} >> '{record}'\n\
-         exit 0\n",
-        record = record.display(),
-        fixture_bin = fixture_bin.to_string_lossy(),
-        stand_in = stand_in.display(),
-    );
+///   A repository that carries `filter.lfs.*` and `lfs.*` makes every push start the upload first,
+///  so a shell with no `git-lfs` anywhere is refused and nothing is pushed.
+/// Two controls of this file failed that way in the gate of 2026-11-21T13:25:00-05:00,
+///  where this program was not on the shell's `PATH`,
+///  and it stands in for the program the person's shell holds and the service's own list does not.
+/// It reads no variable and writes nothing,
+/// so the search that a commit and a typed push leave no command line on any disk still holds.
+fn stand_in_source() -> String {
+    return String::from("#!/bin/sh\nexit 0\n");
 }
 
 fn world(name: &str) -> World {
@@ -138,12 +114,11 @@ fn world(name: &str) -> World {
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
     git(&fixture, &repo, &["config", "lfs.url", "http://127.0.0.1:9/never-contacted"]);
     decline_in_process_lfs_scan(&fixture, repo.as_path());
-    let record: PathBuf = fixture.root.join("lfs-saw.txt");
-    // One folder per control: the four controls of this file run side by side in one process, and a shared stand-in would
-    //  report one control's push into another control's record.
+    // One folder per control: the controls of this file run side by side in one process, and a shared stand-in would be
+    //  written and removed by two of them at once.
     let stand_in: PathBuf = stand_in_folder(name);
     std::fs::create_dir_all(stand_in.as_path()).expect("the stand-in's own folder");
-    executable(stand_in.join("git-lfs").as_path(), stand_in_source(record.as_path(), fixture.root.join("bin").as_os_str(), stand_in.as_path()).as_bytes());
+    executable(stand_in.join("git-lfs").as_path(), stand_in_source().as_bytes());
     let shell_path: OsString = shell_path(&fixture, stand_in.as_path());
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());

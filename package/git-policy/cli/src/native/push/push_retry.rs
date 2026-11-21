@@ -495,20 +495,71 @@ impl PushRetries {
         return pause;
     }
 
-    /// Plan try number `attempt` of the branch of `item` for `due`,
-    /// replacing any plan for the same branch.
+    /// What:
+    ///  Plan try number `attempt` of the branch of `item` for `due`,
+    ///  replacing any plan for the same branch,
+    ///  and give up the values of the record a replaced plan carried,
+    ///  which `item` does not name.
+    /// Why:
+    ///   A plan is the one thing that runs a retryable push's record again
+    ///  (`service_push_programs_held_in_memory`),
+    ///  so a plan this one replaces leaves a record that can never run,
+    ///  and a value that can hold a password may not outlive it here.
+    /// A plan replaced by one of the same record keeps the values:
+    ///  that is the next try of the same push,
+    ///  and the plan a stale proof of a gone repository puts back.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const replaced = waiting.filter((entry) => entry.item.branchRef === item.branchRef && entry.item.id !== item.id());
+    /// const kept = waiting.filter((entry) => entry.item.branchRef !== item.branchRef); kept.push({ item, attempt, due });
+    /// replaced.forEach((entry) => forgetPrograms(entry.item.gitDir, entry.item.id()));
+    /// ```
     fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
+        let id: String = item.id();
+        let replaced: Vec<String> = self
+            .waiting
+            .iter()
+            .filter(|entry| {
+                return entry.git_dir == git_dir && entry.item.branch_ref == item.branch_ref && entry.item.id() != id;
+            })
+            .map(|entry| { return entry.item.id(); })
+            .collect();
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
         self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
+        for gone in replaced {
+            crate::service_push_programs_held_in_memory::forget(git_dir, gone.as_str());
+        }
     }
 
-    /// Drop the plan of a branch:
-    /// its push landed,
-    /// or the person must act.
+    /// What:
+    ///  Drop the plan of a branch:
+    ///  its push landed,
+    ///  or the person must act,
+    ///  and give up the values of every record that plan carried.
+    /// Why:
+    ///   A plan is the one thing that keeps a retryable push's values (`service_push_programs_held_in_memory`),
+    ///  and a later push of the branch that lands ends such a plan just as a try that fails for good does;
+    ///  the record a dropped plan carried can never run again,
+    ///  so a value that can hold a password may not outlive it in this service's memory.
     /// Writes nothing:
     /// the worker that decided it removes the file (`Replanning::forget`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (const entry of waiting) { if (sameBranch(entry)) forgetPrograms(entry.item.gitDir, entry.item.id()); }
+    /// ```
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
+        let ended: Vec<String> = self
+            .waiting
+            .iter()
+            .filter(|entry| { return entry.git_dir == git_dir && entry.item.branch_ref == branch_ref; })
+            .map(|entry| { return entry.item.id(); })
+            .collect();
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
+        for item in ended {
+            crate::service_push_programs_held_in_memory::forget(git_dir, item.as_str());
+        }
     }
 
     /// What:
