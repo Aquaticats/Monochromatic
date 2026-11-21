@@ -131,13 +131,13 @@ pub fn the_fence_of_this_build(source: &SnapshotSource, context: &GitContext) ->
 ///  The fence's remaining job for the clone's join:
 /// the attributes the add already read and the function that decides with them.
 /// Why:
-///   The work beside the copies is a job of the process's blocking pool
-/// (`side_by_side_on_the_runtime.rs`),
-/// not a thread of its own:
-/// the add's own thread waits once for the copies and the fence together,
-///  and a pool that refuses a thread runs this job in turn before the copies answer.
+///   The work beside the copies runs on the add's own thread
+/// (`worktree_clone_slices.rs` starts the copies as one task of the process's runtime and runs this job before it
+///  waits for them):
+/// the thread would otherwise sit idle,
+///  and the fence's Git runs cannot run inside the runtime at all.
 /// The job records its own duration as work,
-/// because a timing step belongs to the thread that runs it and this one runs on a worker.
+/// because a timing step belongs to the thread that runs it and this thread is not the one the copies ran on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -258,9 +258,10 @@ pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Resul
 /// they need no runtime,
 /// they change nothing the copies read,
 ///  and the copy is the same wait whether they run beside it or not.
-/// The job is a job of the process's blocking pool,
-/// so the add's own thread still waits once,
-///  and a pool that refuses a thread runs the job in turn before the slices answer.
+/// The copies are one task of the process's runtime,
+/// so the add's own thread is free while they run:
+/// it runs the job itself,
+///  and only then waits for the copies.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
