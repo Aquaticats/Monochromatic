@@ -269,6 +269,34 @@ pub mod worktree_add_binding;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone;
 
+/// One entry of that rung:
+/// its path's components,
+/// the source directory it is read from,
+/// the folders it is written through,
+///  and the clone of the file or link itself.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_entry;
+
+/// One run of that rung's entries on this thread:
+/// what it created,
+/// what it recorded for the index,
+///  and why it stopped.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_entries;
+
+/// The slices of that rung:
+/// contiguous runs of the frozen entries,
+/// one job of the blocking pool each,
+///  and the worker count the host's budget allows.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_slices;
+
+/// The install of that rung's index:
+/// the stat fields the clones recorded,
+/// and none for the paths the conversion fence leaves to Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_index;
+
 /// Git's conversion rules for one path,
 /// read from its attributes and `core.autocrlf`/`core.eol`,
 /// as the decision whether a clone may carry the file.

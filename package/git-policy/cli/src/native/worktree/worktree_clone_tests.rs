@@ -10,11 +10,22 @@
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
+use crate::worktree_clone_entries::clone_with;
+use crate::worktree_clone_entry::{Seams, Work, clone_entry, entry_names};
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
+use std::fs::File;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use crate::test_support::{git, git_context, git_text, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
 use crate::worktree_snapshot_source::common_source;
 use crate::worktree_clean::stored_stats;
 use crate::subvolume_index::StatFields;
+use crate::fs_beneath::open_root;
+use crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
+use crate::worktree_clean::StatEntry;
 
 /// An ordinary-directory repository with an executable file,
 /// a link,
