@@ -360,7 +360,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         let skip_entered: bool = begin_step("targetTreeDifference");
         let skip: Option<String> = crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, &|changed: &[Vec<u8>]| {
             return match &fence {
-                CloneFence::Beside(held) => held.first_converting_change(changed),
+                CloneFence::Beside(read) => read.first_converting_change(changed),
                 #[cfg(feature = "measurement-routes")]
                 CloneFence::BeforeTheClone(decided) => crate::worktree_clone_conversion_fence::first_written_change(decided, changed),
             };
