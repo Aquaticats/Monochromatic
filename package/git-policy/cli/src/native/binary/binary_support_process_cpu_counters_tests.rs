@@ -7,14 +7,24 @@
 //! which is what the gate of 2026-11-15T06:00-05:00 made of a service that was alive throughout
 //! (`a_record_nothing_announced_is_found::an_idle_service_runs_no_work`).
 //!
-//! The kernel wakes a join inside the thread's own exit and removes its `/proc` entry later:
+//! The kernel wakes a join inside the thread's own exit and removes its `/proc` entry later.
+//! Line numbers are the v6.12 tag (`adc218676eef`) and v7.3,
+//! the series the host that met this runs (7.3.5).
 //! `mm_release` clears the thread id the join waits on and wakes that futex
-//! (`kernel/fork.c:1617-1627`,
-//! reached from `exit_mm` at `kernel/exit.c:926`),
-//! and the task's `/proc` entry goes only in `release_task` (`proc_flush_pid`,
-//! `kernel/exit.c:280`),
-//! reached from `exit_notify` at `kernel/exit.c:959`,
-//! later in the same `do_exit`.
+//! (`kernel/fork.c:1617-1627` at v6.12,
+//! `:1490-1497` at v7.3),
+//! reached from `exit_mm` (`kernel/exit.c:926` at v6.12,
+//! `:974` at v7.3).
+//! The entry stops answering inside `release_task` (`kernel/exit.c:241` at v6.12,
+//! `:248` at v7.3),
+//! where `__exit_signal` (`:258` at v6.12,
+//! `:272` at v7.3)
+//! runs `__unhash_process`, which detaches the pid (`:129` at v6.12,
+//! `:140` at v7.3);
+//! `proc_flush_pid` (`:280` at v6.12,
+//! `:297` at v7.3) flushes cached entries after that,
+//! and `exit_notify` (`:959` at v6.12,
+//! `:998` at v7.3) is where the same `do_exit` reaches `release_task`.
 //! So a thread's own file may still be readable when `join` returns,
 //! which one loaded gate did meet (issue 6330):
 //! this control waits for that file to go instead of assuming it has gone,
@@ -23,7 +33,13 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const listing = threadNumbers(pid); await endAndJoin(one); await untilUnreadable(pid, one); expect(ticksOfThreads(pid, listing)).toBe(ticksOfThreads(pid, withoutIt));
+//! const listing = threadNumbers(pid);
+//! await endAndJoin(ended);
+//! await untilUnreadable(pid, ended);
+//! expect(threadTicks(pid, ended)).toBeUndefined();
+//! expect(ticksOfThreads(pid, [ended, still])).toBe(threadTicks(pid, still));
+//! expect(ticksOfThreads(pid, listing)).toBeGreaterThanOrEqual(threadTicks(pid, still));
+//! expect(cpuTicks(pid)).toBeDefined();
 //! ```
 
 use super::support::{cpu_ticks, thread_numbers, thread_ticks, ticks_of_threads};
@@ -32,13 +48,15 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
 /// How long the control waits for the kernel to remove a joined thread's own file.
-/// That removal is bookkeeping on the way out of the very exit that woke the join,
-/// and the whole arm of the reproduction that forces the other order (issue 6330) finishes in about a millisecond,
-/// so this patience is far past any release a loaded host delays.
+/// This is a ceiling, not a measured latency:
+/// it sits far under the 300 s at which nextest stops a test
+/// (`slow-timeout = { period = "60s", terminate-after = 5 }` in
+/// `package/git-policy/cli/.config/nextest.toml`).
+/// The removal itself is bookkeeping on the way out of the very exit that woke the join.
 const RELEASE_PATIENCE: Duration = Duration::from_secs(30);
 
 /// How often the wait looks for the file.
-/// A gap of this size keeps the wait's own reads negligible beside {@link RELEASE_PATIENCE},
+/// A gap of this size keeps the wait's own reads negligible beside [`RELEASE_PATIENCE`],
 /// and it sleeps between looks,
 /// so the wait adds no load to the host it runs on.
 const RELEASE_POLL: Duration = Duration::from_millis(1);
@@ -61,7 +79,7 @@ const RELEASE_POLL: Duration = Duration::from_millis(1);
 /// ```
 ///
 /// # Panics
-/// When the kernel still lists the thread after {@link RELEASE_PATIENCE},
+/// When the kernel still lists the thread after [`RELEASE_PATIENCE`],
 /// which is a thread this control could not observe in the state it names.
 fn wait_until_the_thread_file_is_gone(pid: u32, thread: u32) {
     let began: Instant = Instant::now();
@@ -89,11 +107,13 @@ fn wait_until_the_thread_file_is_gone(pid: u32, thread: u32) {
 /// which this control waits for,
 /// bounded,
 /// so it reaches that state under any order the kernel takes between the join and the release.
-/// The sum then counts the threads that are there,
+/// The sum then holds the threads that are there,
 /// and beside a thread that only waits,
-/// whose clock ticks stand still,
-/// it is exactly that thread's own number,
-/// while the process itself still answers with counters.
+/// whose clock ticks are improbable to have grown since the listing,
+/// a sum that over-counts fails,
+/// while a sum that under-counts is not pinned:
+/// a thread that only waits has usually spent no tick to expect.
+/// The process itself still answers with counters.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,7 +133,8 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
         report.send(u32::try_from(number).expect("a thread number")).expect("the control knows which thread waits");
         let _released = held.recv();
     });
-    // A thread that only waits stands still, so its own clock ticks cannot grow between the two readings below.
+    // A thread that only waits stands still, so its clock ticks are improbable to grow between the two readings
+    // that follow: the kernel promises nothing, and spending a tick on purpose would burn CPU, which is banned.
     let staying: std::thread::JoinHandle<()> = std::thread::spawn(move || {
         let number: i32 = current_thread_id().expect("the kernel's number for this thread");
         still_report.send(u32::try_from(number).expect("a thread number")).expect("the control knows which thread stays");
@@ -135,8 +156,8 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
         thread_ticks(pid, ended).is_none(),
         "a thread's own file is gone once the kernel released the thread, which is the reading a listing meets"
     );
-    // The clock ticks of the thread that stays cannot grow between these readings, so the sum over it and the thread
-    // that ended has one exact number to answer: the one thread that is there.
+    // The thread that stays has spent no tick since the listing in an ordinary run, so a sum that counts the ended
+    // thread again reads higher than it; a sum that answers less is not pinned by this assertion.
     let still_ticks: u64 = thread_ticks(pid, still).expect("the thread that stays is there");
     let beside_it: u64 = ticks_of_threads(pid, [ended, still].as_slice());
     assert_eq!(
