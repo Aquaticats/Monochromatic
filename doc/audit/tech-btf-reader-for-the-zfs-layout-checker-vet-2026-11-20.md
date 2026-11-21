@@ -77,7 +77,7 @@ which no machine here can do.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T19:43:07-05:00,
+  2026-11-20T19:47:52-05:00,
   the write time of the third revision.
 - Revisions:
   three.
@@ -1917,7 +1917,8 @@ and executed one candidate's suite in a container:
   `acmel/dwarves` at tag `v1.32`,
   `libbpf/libbpf` at its default branch,
   and the three patch files from the CachyOS packaging repository by `curl`.
-- One container run of the candidate's suite:
+- Four container runs of the candidate's suite,
+  the last kept:
   image `docker.io/cachyos/cachyos:latest`,
   `--cpus 2`,
   `--memory 4g`,
@@ -1929,8 +1930,8 @@ and executed one candidate's suite in a container:
   perf-tarball fetch failed instead of downloading.
   Ceilings are the container's;
   the driver is
-  `keep/build-and-run-the-pahole-suite-in-a-container-4.ts`
-  and the log is its `-output-4.txt`,
+  `keep/build-and-run-the-pahole-suite-in-a-container-5.ts`
+  and the log is its `-output-5.txt`,
   both under this revision's `keep/`.
   The one undeclared network endpoint the run revealed,
   the kernel.org perf mirror,
@@ -2244,7 +2245,7 @@ This revision took each program in turn.
   11 `Skip`,
   0 failures,
   exit 0.
-  The log is `keep/build-and-run-the-pahole-suite-in-a-container-output-4.txt`,
+  The log is `keep/build-and-run-the-pahole-suite-in-a-container-output-5.txt`,
   and the driver that ran it is part of the same folder.
   The libbpf built into this run is today's `libbpf` default branch,
   because the recipe pins none,
@@ -3813,8 +3814,8 @@ Kept evidence:
   its arms and its output,
   the crate-archive measurement and its output,
   the container driver,
-  the four pahole-suite logs and their outputs:
-  the first failed attempt,
+  the five pahole-suite logs and their outputs:
+  two failed starts,
   the offline run without `bpftool`,
   the killed attempt at a perf tarball,
   and the final run;
