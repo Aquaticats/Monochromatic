@@ -112,7 +112,7 @@ and no independent read has reviewed them.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T20:28:13-05:00,
+  2026-11-20T20:29:03-05:00,
   the write time of the fourth revision.
 - Revisions:
   four.
@@ -219,7 +219,7 @@ and no independent read has reviewed them.
   Every record after 14 records the previous record's `postEditSha256` as its `preEditSha256`,
   and the last record's `postEditSha256` is the report the third revision committed,
   so the final write is locked and the chain holds from record 14 onward.
-  The fourth revision wrote the report three times,
+  The fourth revision wrote the report four times,
   all under the lock:
   it staged its text in its own scratch folder,
   took the lock,
@@ -231,8 +231,11 @@ and no independent read has reviewed them.
   record 24 replaced that reading with the write's own local time;
   and record 25 corrected this paragraph to report three writes rather than one and mended five
   sentences it had left loose.
-  The chain runs unbroken from record 22 through all three,
-  and record 25's `postEditSha256` is the report this revision commits.
+  Record 26 recorded the digest of the image the gate final check's rerun built,
+  which M4 asks for and
+  the truncated base digest alone could not give.
+  The chain runs unbroken from record 22 through all four,
+  and record 26's `postEditSha256` is the report this revision commits.
 
   The chain does not hold inside the second revision,
   and the report says so rather than leaving it to a reader:
@@ -2139,8 +2142,11 @@ and executed one candidate's suite in a container:
   the last kept,
   and every one of them a single `podman run` with `--network host`:
   image `docker.io/cachyos/cachyos:latest`,
-  whose tag carries no digest and whose local digest on this host the gate final check recorded as
-  `sha256:57e7303ae41c…`,
+  whose tag carries no digest;
+  the gate final check's rerun committed its package layer and ran that image,
+  `sha256:e5d458da6220679f3f3aab3ec77dbd8884dffeebba6671a19532323dd99ccb8d`,
+  `Id` `427517f8262bf1a0f3377862596fa964faa0968cf9edf6cf069435dab47c56d7`,
+  built from the local base the check recorded as `sha256:57e7303ae41c…`,
   truncated there,
   `--cpus 2`,
   `--memory 4g`,
