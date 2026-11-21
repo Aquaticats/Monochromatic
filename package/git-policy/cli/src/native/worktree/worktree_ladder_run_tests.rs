@@ -194,6 +194,8 @@ fn a_converting_source_is_declined_before_anything_is_claimed_or_copied() {
     assert!(matches!(ladder.rung, Rung::Git(_)), "a source above the quarter takes Git's checkout");
     assert_eq!(ladder.slow.as_ref().map(|route| { return route.word(); }), Some("declines"), "{:?}", ladder.slow);
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed, so nothing can have been copied into or out of a stage");
-    assert!(!plan.destination.exists(), "the rung prepared no destination");
+    // The Git rung prepares an empty subvolume at the destination when the filesystem allows one, so what says nothing was copied is that it holds no entry.
+    let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };
+    assert_eq!(prepared, 0, "the rung copied nothing into the destination");
     remove(root.as_path());
 }
