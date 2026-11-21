@@ -323,6 +323,7 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
             environment: forward.environment.as_slice(),
             overlay: forward.overlay.as_slice(),
             settings: forward.lfs_settings.as_deref(),
+            destination: forward.lfs_destination.as_ref(),
         })
     {
         return code;

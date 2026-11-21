@@ -6,6 +6,10 @@
 //! the `PATH` lookup and the explanation texts.
 
 use super::*;
+/// The list,
+/// its sources and the refusal that names them,
+/// which the sibling file holds.
+use crate::lfs_program_search::{PUSH_FROM_SERVICE, ProgramSearch, missing_program_message};
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 

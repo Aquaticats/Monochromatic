@@ -50,7 +50,9 @@ use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{ProgramSearch, find_program, missing_program_message, start_failed_message};
+use crate::lfs_pre_push::{find_program, start_failed_message};
+/// The folders searched and the refusal that names them.
+use crate::lfs_program_search::{ProgramSearch, missing_program_message};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{

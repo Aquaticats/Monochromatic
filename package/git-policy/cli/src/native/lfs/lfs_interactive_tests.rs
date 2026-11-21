@@ -64,6 +64,7 @@ fn a_configuration_question_that_never_answers_is_stopped_and_reported() {
         environment: environment.as_slice(),
         overlay: &[],
         settings: None,
+        destination: None,
     };
     let started: Instant = Instant::now();
     let code: Option<i32> = upload_first(&upload);

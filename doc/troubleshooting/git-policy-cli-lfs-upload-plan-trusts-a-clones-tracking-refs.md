@@ -41,6 +41,34 @@ one ending:
 Every push that adds an object the destination lacks can end this way when the clone's tracking refs describe
 another server or another commit.
 
+The first fix asked the destination for its branch heads and trusted every tracking ref only when it reported all of
+them at the commits held here.
+That was sound but all or nothing:
+one tracking ref a teammate moved on,
+or a merged branch left behind,
+made every push read the whole pushed history and name every LFS object in it to the server.
+The fix now keeps each tracking ref the destination reports at the commit held here,
+drops only the others,
+and stops the scan at every ref it kept;
+`--all` stays for the `git-lfs` scan form,
+whose own skip list matches a cached ref by branch name alone.
+The question is also paid once:
+a typed push's manual-push discovery already confirms the pushed refs with one `git ls-remote --refs <url>`,
+that query now lists every branch head too,
+and the discovery carries the answer to the upload plan,
+so a typed push whose discovery ran opens no connection for it.
+A configuration that disables or escapes every manual-push policy has no discovery,
+and its upload asks the destination itself.
+A service push runs no discovery and asks the destination itself,
+one connection more than `main` charged it,
+which the same round measured at 205 ms,
+355 ms and 1017 ms for the added one-way delays of 0 ms,
+10 ms and 50 ms;
+the project accepts that cost.
+A typed push measured 1.001 to 1.005 of `main` per round at those delays,
+inside the identical-binary control's spread in every cell,
+with 3 connections on both binaries in every sample.
+
 ## Root cause
 
 The upload plan decided what to skip from the configuration alone,
@@ -133,10 +161,36 @@ The unit controls are
 `lfs_destination_confirms_tracking_refs::tests::both_faces_read_every_answer_alike`
 (every destination answer,
 on both faces),
-`lfs_upload_plan::tests::the_destination_itself_decides_whether_the_tracking_refs_are_evidence`,
+`lfs_destination_confirms_tracking_refs::tests::a_stale_tracking_ref_drops_only_itself`,
+`lfs_upload_plan::tests::the_destination_itself_decides_whether_the_tracking_refs_are_evidence`
+(which now also reads a destination that reports one of two tracking refs),
+`lfs_upload_plan::tests::a_destination_already_read_answers_without_a_second_query`,
+`lfs_object_plan::tests::a_stale_tracking_ref_does_not_drag_the_known_history_in`,
 `lfs_upload_plan::tests::a_mirror_is_read_through_git_and_never_from_a_list_of_spellings`,
 `lfs_upload_plan::tests::a_remote_with_several_urls_is_uploaded_to_each` and
 `lfs_destination_confirms_tracking_refs::tests::a_listing_in_another_shape_is_no_listing`.
+
+The binary control for the stale-ref cost is
+`binary_lfs_server_tests::a_stale_tracking_ref_drops_only_itself`.
+It passes at `main` (one `git-lfs` run naming the one object the push adds,
+one batch request,
+one object asked
+about),
+failed on the all-or-nothing fix (three objects named where the push added one),
+and passes again with
+per-ref trust.
+On a 2000-commit fixture with one stale tracking ref,
+the all-or-nothing fix sent 21 batch requests and named 2052 objects against `main`'s one and one,
+at 3734 ms against 71 ms.
+The per-ref rule measured again beside `main` in the round that made it,
+8 rounds after 1 warmup with an identical-binary control in each round:
+`main` median 69.657 ms and the wrapper median 69.079 ms,
+branch over `main` per round 0.983 (0.903 to 1.132),
+inside the control's spread,
+whose later over earlier of one binary was 0.956 (0.887 to 1.069) and 0.988 (0.908 to 1.061),
+with 1 batch request and 1 object named per push on both binaries.
+The fresh fixtures measured 1.015 (0.977 to 1.046),
+also inside the control.
 
 ## Verified workarounds
 
@@ -163,6 +217,9 @@ bounded push scan the whole ref,
 because there is nothing left to skip.
 Its tradeoff is that it discards a cache every later command reads;
 the next fetch recreates it from whichever server is configured then.
+The per-ref rule needs neither workaround for a ref the destination moved on:
+the wrapper drops that ref from the places it stops at and keeps the rest,
+so a stale tracking ref costs the ref and nothing else.
 
 ## What does not work
 

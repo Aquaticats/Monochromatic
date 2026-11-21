@@ -6766,6 +6766,16 @@ when the account leaves the question open (`CheckHostIP=yes` under `ask`):
 OpenSSH writes that warning into the askpass program's question and standard error holds the last line alone
 (`sshconnect.c:1429-1447` at `V_10_6_P2`),
 so the sentence's way to add the key is wrong for it and its way to connect once is right.
+A second case is read as an unknown one for a different reason:
+under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+(`do_log` writes `fatal` and `error` without a level word,
+`log.c:354-393` at the same tag),
+so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+`Host key verification failed.` on standard error,
+which is exactly an unknown key's transcript,
+and `main` reads those two the same way.
+The sentence's way to add the key is wrong for them and its way to connect once is right,
+and a transcript at that level cannot tell either from an unknown key.
 The sentence names the host when the wrapper can answer which one it is
 (`ssh_host` in `src/native/lfs/lfs_upload_explanations.rs`,
 from the program's own words or from a destination written as a URL),
@@ -12651,11 +12661,12 @@ The step:
   found by a walk ordered by committer time as `git rev-list` orders it,
   so the history
   behind a known tip is never read;
-  those refs are evidence about the destination only while the destination itself reports them at the same
-  commits (`git ls-remote --heads <remote>`,
+  each of those refs is evidence about the destination only while the destination itself reports that branch at
+  that commit
+  (`git ls-remote --heads <remote>`,
   see below),
-  and when the destination is untrusted nothing is known and
-  every commit of the pushed refs is read.
+  and a ref it moved on or no longer has is dropped on its own,
+  so one stale tracking ref costs the ref and not the whole scan.
   Each commit is compared with each of its parents,
   descending only into trees that
   differ,
@@ -12692,7 +12703,10 @@ The step:
   a walk of more than 100000 commits or 3 seconds),
   leaves the
   next paragraph's `git-lfs` scan in charge,
-  which also words a missing object and honours `lfs.allowincompletepush`.
+  which also words a missing object and honours `lfs.allowincompletepush`;
+  its own standard output already names the setting
+  (`hint: You can disable this check with: git config lfs.allowincompletepush true`),
+  so the wrapper's explanation does not name it again.
   The `--object-id` form does not verify locks,
   as the scan form does.
   The scan form runs `git-lfs push [--all] <destination> [<ref>...]`,
@@ -12713,13 +12727,15 @@ The step:
   (`git ls-remote --heads <remote>`,
   through the same remote name and the same `insteadOf` rewrites the push
   resolves)
-  and keeps a tracking ref only when it reports that branch at that commit.
-  A branch the destination
-  moved on,
-  a branch it no longer has,
-  a destination that cannot be answered,
-  and every case the configuration already
-  states (it is not a configured remote:
+  and keeps a tracking ref only when it reports that branch at that commit,
+  so the refs it reports are the places the scan stops at,
+  and a ref it moved on or no longer has is dropped alone.
+  The scan form keeps `--all`
+  (everything reachable from exactly those refs,
+  a superset and idempotent as objects are content addressed)
+  whenever the destination does not confirm every one of those refs,
+  because its own skip list matches a cached ref by branch name alone,
+  and for every case the configuration already states (it is not a configured remote:
   a URL,
   a path,
   a name nobody configured;
@@ -12728,21 +12744,37 @@ The step:
   Git writes to more than one URL;
   any `url.<base>.pushInsteadOf` rewrite exists;
   the push is a
-  mirror push)
-  keep `--all`
-  (everything reachable from exactly those refs,
-  a superset and idempotent as objects are content addressed),
-  which
-  can leave out nothing the destination might lack.
+  mirror push),
+  and nothing the destination might lack can be left out.
   A configured remote with no tracking refs needs no check:
   the bounded
   form then has nothing to skip and scans the whole refs itself,
   so it asks the destination nothing.
   The
-  question costs one local `for-each-ref` and one round trip to the destination in the bounded case,
+  question costs one local `for-each-ref` and one connection to the destination in the bounded case,
   and the same
-  round trip `git-lfs` would make anyway in the scan form;
+  connection `git-lfs` would make anyway in the scan form;
   a push that skips nothing pays nothing.
+  A typed push whose manual-push discovery ran pays no connection for it of its own:
+  that discovery already asks the destination for the pushed refs' values,
+  and its one `git ls-remote --refs <url>` now lists every branch head too,
+  so the answer travels from the discovery to the plan (`DestinationHeads`).
+  A typed push in a configuration that disables or escapes every manual-push policy has no discovery,
+  so its plan asks the destination and pays that one connection.
+  The service's bounded push runs no discovery,
+  so its upload plan asks the destination itself:
+  one connection more than `main` charged that push,
+  measured at 205 ms,
+  355 ms and 1017 ms for the added one-way delays of 0 ms,
+  10 ms and 50 ms,
+  and the project accepts that cost.
+  A typed push measured 1.001 to 1.005 of `main` per round at the same three delays,
+  inside the spread of the identical-binary control in every cell,
+  with 3 connections on both binaries in every sample.
+  One stale tracking ref on a 2000-commit fixture costs `main`'s scan again:
+  1 batch request and 1 object named,
+  measured at 0.983 of `main` (0.903 to 1.132),
+  where the all-or-nothing rule sent 21 batch requests and named 2052 objects at 52.106 of `main`.
   Measured with
   git-lfs 3.8.1 (`commands/uploader.go`,
   `uploadForRefUpdates`,
@@ -12754,7 +12786,9 @@ The step:
   it the whole ref is scanned (`ScanRefWithDeleted`).
   Both forms build the same scanner (`NewGitScannerForPush`),
   which
-  runs `git show-ref` and `git ls-remote --heads` against the remote (`calcSkippedRefs`) — by name only,
+  runs `git show-ref` and `git ls-remote --heads` against the remote (`calcSkippedRefs`),
+  which matches by
+  name only,
   so it
   treats a branch the destination still has as a place to stop whatever commit it holds there.
   No tighter bound exists

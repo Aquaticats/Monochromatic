@@ -398,10 +398,19 @@ Read-only commands,
   The remote's tracking refs say what the destination already has only while the destination itself says so:
   the wrapper asks it for its branch heads (`git ls-remote --heads <remote>`,
   through the same URL and rewrites the
-   push resolves) and keeps a ref only where it reports the same branch at the same commit.
-  A branch that moved on,
-   a branch the destination no longer has,
-  a question that cannot be answered,
+   push resolves) and keeps each ref only where it reports the same branch at the same commit,
+  so one ref the destination moved on or no longer has is dropped on its own
+  instead of making the push read the whole history.
+  A typed push pays no connection for that question when the manual-push policies run:
+  their discovery confirms the pushed refs with one `git ls-remote --refs <url>`,
+  which now lists every branch head too,
+  and the upload reads that answer.
+  A configuration that disables or escapes every manual-push policy runs no discovery,
+  so its upload asks the destination itself.
+  The commit service's own push runs no discovery,
+  so its upload asks the destination itself,
+  one connection more than `main` charged it.
+  A question that cannot be answered,
   a push URL,
   a `pushInsteadOf`
    rewrite,

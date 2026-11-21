@@ -37,9 +37,10 @@ use crate::manual_push_porcelain::{PorcelainBlock, PorcelainUpdate, RemoteBefore
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
 use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
-/// The push's own reading of its destination.
-use crate::command_options::{Boundary, DEFAULT_MODE, parse_options};
-use crate::command_push::{PUSH_TABLE, push_shape};
+/// The branches a destination reported,
+/// which the upload plan reads without a connection of its own.
+use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
+use crate::command_push::push_shape;
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 /// Maps each ref the remote listed to the object name it reported.
@@ -64,99 +65,8 @@ const TAG: &str = "monochromatic-git-policy-cli";
 /// A history that grows past a few tens of thousands more commits needs a larger figure.
 pub const QUERY_MEMORY: u64 = MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two();
 
-/// What:
-///  The probe's Git arguments:
-/// the invocation's global options,
-/// the switches that keep every hook and full object
-///  names,
-/// then `push` with `--dry-run --porcelain` placed before any `--` or `--end-of-options` terminator.
-/// Why:
-///   The `--` terminator is the user's;
-/// the options Git interprets must stay before it.
-/// The probe publishes nothing and
-///  must not run the upload hook of the caller's configuration,
-/// so configured `pre-push` hooks are off and the
-///  traditional hooks directory is one that never exists.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// probeArgs({ globalPrefix, args });
-/// ```
-pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString]) -> Vec<OsString> {
-    // The separator is the one Git reads: a `--` that is the value of an option such as `--receive-pack` is not it. A region
-    //  Git refuses has no reading, and the probe then stops at the first `--`, where Git refuses it as well.
-    let separator = match parse_options(post_subcommand, PUSH_TABLE, DEFAULT_MODE, &[]) {
-        Ok(parsed) => match parsed.boundary {
-            Boundary::DashDash(at) | Boundary::EndOfOptions(at) => Some(at),
-            Boundary::End | Boundary::NonOption(_) => None,
-        },
-        Err(_) => {
-            let mut first: Option<usize> = None;
-            for (position, argument) in post_subcommand.iter().enumerate() {
-                if argument.as_os_str() == "--" {
-                    first = Some(position);
-                    break;
-                }
-            }
-            first
-        }
-    };
-    let insertion = separator.unwrap_or(post_subcommand.len());
-    let mut arguments: Vec<OsString> = global_prefix.to_vec();
-    for setting in [
-        format!("core.hooksPath={}", crate::hooks_off::NO_HOOKS_DIRECTORY),
-        String::from("hook.pre-push.enabled=false"),
-        String::from("core.abbrev=no"),
-    ] {
-        arguments.push(OsString::from("-c"));
-        arguments.push(OsString::from(setting));
-    }
-    arguments.push(OsString::from("push"));
-    arguments.extend(post_subcommand[..insertion].iter().cloned());
-    // A `-q` written by the caller silences the report this probe reads, so it is cancelled here; the caller's own
-    //  push keeps its `-q`.
-    arguments.push(OsString::from("--no-quiet"));
-    arguments.push(OsString::from("--dry-run"));
-    arguments.push(OsString::from("--porcelain"));
-    arguments.extend(post_subcommand[insertion..].iter().cloned());
-    return arguments;
-}
-
-/// Whether text typed as the repository is an URL,
-/// an scp-style address or a path,
-/// not a remote name.
-fn looks_like_location(typed: &str) -> bool {
-    if typed.contains("://") || typed.starts_with('/') || typed.starts_with("./") || typed.starts_with("../") {
-        return true;
-    }
-    return match typed.split_once(':') {
-        Some((front, _)) => !front.contains('/'),
-        None => false,
-    };
-}
-
-/// One Git query of the probe:
-/// its trimmed standard output when it exits with status zero.
-fn answer(git: &PushGit, arguments: &[OsString]) -> Option<String> {
-    let output = run_query(git, arguments).ok()?;
-    if output.code != Some(0) {
-        return None;
-    }
-    return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
-}
-
-/// The destination locations of a remote name,
-/// one per `To` block Git printed:
-/// the push URLs of a configured remote,
-///  or the name itself when it is not one (a URL or a path typed in place of a remote).
-fn locations_of(git: &PushGit, global_prefix: &[OsString], remote: &str) -> Vec<String> {
-    let mut arguments: Vec<OsString> = global_prefix.to_vec();
-    arguments.extend(["remote", "get-url", "--push", "--all", remote].map(OsString::from));
-    return match answer(git, arguments.as_slice()) {
-        Some(listing) if !listing.is_empty() => listing.lines().map(str::to_owned).collect(),
-        Some(_) | None => vec![remote.to_owned()],
-    };
-}
+/// The probe's Git arguments and the destination locations it confirms.
+use crate::manual_push_probe_arguments::{answer, locations_of, looks_like_location, probe_arguments};
 
 /// What:
 ///  The object names of local refs,
@@ -187,12 +97,43 @@ fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> R
     return Ok(objects);
 }
 
+/// The pattern that makes one confirmation query list every branch head too,
+/// which is the answer the Git LFS upload plan
+///  needs about this clone's tracking refs.
+/// `git ls-remote` matches a pattern against the tail of a ref name,
+/// so this one adds the destination's
+///  heads to the refs the report named.
+pub const ALL_HEADS_PATTERN: &str = "refs/heads/*";
+
+/// What:
+///  One destination's confirmation:
+///  the updates it confirmed,
+///  and everything its one `ls-remote` reported.
+/// Why:
+///   The upload plan for a typed push asks the destination which of this clone's tracking refs it
+///  reports;
+/// that question is answered by the same connection if the confirmation lists every branch head,
+///  and the listing is carried so the plan asks nothing more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ConfirmedDestination = { updates: PushUpdate[]; listing: string };
+/// ```
+#[derive(Clone, Debug)]
+pub struct ConfirmedDestination {
+    /// The updates this destination confirmed.
+    pub updates: Vec<PushUpdate>,
+    /// The listing its one `ls-remote` printed,
+    /// which names every branch head as well as the pushed refs.
+    pub listing: String,
+}
+
 pub fn confirm_group(
     git: &PushGit,
     remote_location: &str,
     remote_name: &str,
     updates: &[(PorcelainUpdate, Option<String>)],
-) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+) -> Result<ConfirmedDestination, ManualPushProbeError> {
     let mut arguments: Vec<OsString> = vec![
         OsString::from("ls-remote"),
         OsString::from("--refs"),
@@ -201,6 +142,9 @@ pub fn confirm_group(
     for (update, _local) in updates {
         arguments.push(OsString::from(&update.to));
     }
+    // The branch heads of the destination answer the LFS upload plan's question about this clone's tracking refs, so they
+    //  travel in this query rather than in one of their own.
+    arguments.push(OsString::from(ALL_HEADS_PATTERN));
     let output = match run_query(git, arguments.as_slice()) {
         Ok(found) => found,
         Err(error) => return Err(probe_error(cause_of_query(&error), mask_url_secrets_text(format!("ls-remote of {remote_location} failed: {error}").as_str()))),
@@ -242,14 +186,64 @@ pub fn confirm_group(
             remote_ref: update.to.clone(),
         });
     }
-    return Ok(confirmed);
+    return Ok(ConfirmedDestination { updates: confirmed, listing });
+}
+
+/// What:
+///  One manual-push discovery:
+///  the updates the destination confirmed,
+///  and the destination's branches when the push went to
+///  exactly one destination.
+/// Why:
+///   The manual-push policies read the updates,
+/// and the Git LFS upload plan reads the branches,
+/// and
+///  both come from the one connection the confirmation makes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProbedPush = { updates: PushUpdate[]; destination?: DestinationHeads };
+/// ```
+#[derive(Clone, Debug)]
+pub struct ProbedPush {
+    /// The confirmed updates,
+    /// in the order Git printed the destinations.
+    pub updates: Vec<PushUpdate>,
+    /// The branches the destination reported,
+    /// so the upload plan asks the destination nothing.
+    pub destination: Option<DestinationHeads>,
+}
+
+/// What:
+///  Discover the exact updates the push would send,
+/// confirmed against each destination,
+/// and the destination's
+///  branches.
+/// Why:
+///   A typed push already asks the destination for its refs once;
+/// carrying those answers to the upload
+///  plan is what keeps a typed push at `main`'s connection count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function probeManualPushAndDestination({ gitPath, cwd, args }): Promise<ProbedPush>;
+/// ```
+pub fn probe_manual_push_and_destination(
+    git: &PushGit,
+    global_prefix: &[OsString],
+    post_subcommand: &[OsString],
+) -> Result<ProbedPush, ManualPushProbeError> {
+    return probe_manual_push_and_destination_on(&HostResources::read(), git, global_prefix, post_subcommand);
 }
 
 /// What:
 ///  Discover the exact updates the push would send,
 /// confirmed against each destination.
 /// Why:
-///   The lifecycle's candidates and published-set reads both start from these updates.
+///   The lifecycle's candidates and published-set reads both start from these updates;
+/// a caller that
+///  also plans an upload takes `probe_manual_push_and_destination`,
+/// which reads the same connection.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -260,7 +254,7 @@ pub fn probe_manual_push_updates(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
-    return probe_manual_push_updates_on(&HostResources::read(), git, global_prefix, post_subcommand);
+    return probe_manual_push_and_destination(git, global_prefix, post_subcommand).map(|probed| { return probed.updates; });
 }
 
 /// `probe_manual_push_updates` with the host's resources chosen by the caller,
@@ -271,6 +265,17 @@ pub fn probe_manual_push_updates_on(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+    return probe_manual_push_and_destination_on(host, git, global_prefix, post_subcommand).map(|probed| { return probed.updates; });
+}
+
+/// `probe_manual_push_and_destination` with the host's resources chosen by the caller,
+/// so a control states a host of any size.
+pub fn probe_manual_push_and_destination_on(
+    host: &HostResources,
+    git: &PushGit,
+    global_prefix: &[OsString],
+    post_subcommand: &[OsString],
+) -> Result<ProbedPush, ManualPushProbeError> {
     let arguments: Vec<OsString> = probe_arguments(global_prefix, post_subcommand);
     let output = match run_query(git, arguments.as_slice()) {
         Ok(found) => found,
@@ -283,7 +288,7 @@ pub fn probe_manual_push_updates_on(
     };
     if blocks.is_empty() {
         if output.code == Some(0) {
-            return Ok(Vec::new());
+            return Ok(ProbedPush { updates: Vec::new(), destination: None });
         }
         let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
         let message: String = mask_url_secrets_text(format!("Git could not determine push updates: {}", said.trim_end()).as_str());
@@ -335,7 +340,7 @@ pub fn probe_manual_push_updates_on(
         lanes.push(vec![index]);
     }
     let workers: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_REMOTE_QUERIES), cap: None, host });
-    let mut confirmed: Vec<PushUpdate> = Vec::new();
+    let mut confirmed: Vec<ConfirmedDestination> = Vec::new();
     let mut failure: Option<ManualPushProbeError> = None;
     run_ordered(OrderedRun {
         items: destinations.as_slice(),
@@ -344,10 +349,21 @@ pub fn probe_manual_push_updates_on(
         work: &ConfirmEachDestination { git, global_prefix, remote_name: remote_name.as_str() },
         on_event: &mut KeepConfirmedUntilTheFirstFailure { confirmed: &mut confirmed, failure: &mut failure },
     });
-    return match failure {
-        Some(error) => Err(error),
-        None => Ok(confirmed),
+    if let Some(error) = failure {
+        return Err(error);
+    }
+    // One destination's answer is the upload plan's question;
+    // with several destinations no single answer names the place the upload
+    //  stops, and the plan does not ask such a remote's tracking refs anyway.
+    let destination: Option<DestinationHeads> = match confirmed.as_slice() {
+        [only] => DestinationHeads::from_listing(remote_name.as_str(), only.listing.as_str()),
+        _ => None,
     };
+    let mut updates: Vec<PushUpdate> = Vec::new();
+    for one in confirmed {
+        updates.extend(one.updates);
+    }
+    return Ok(ProbedPush { updates, destination });
 }
 
 /// What:
@@ -401,7 +417,7 @@ impl GitQuery for RemoteResolverQuery<'_> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ConfirmEachDestination implements OrderedWork<[Block, string], Result<PushUpdate[]>> { run(i, destination) { return confirmBlock(git, globalPrefix, remoteName, ...destination); } }
+/// class ConfirmEachDestination implements OrderedWork<[Block, string], Result<ConfirmedDestination>> { run(i, destination) { return confirmBlock(git, globalPrefix, remoteName, ...destination); } }
 /// ```
 struct ConfirmEachDestination<'a> {
     /// The coordinator's Git,
@@ -413,8 +429,8 @@ struct ConfirmEachDestination<'a> {
     remote_name: &'a str,
 }
 
-impl OrderedWork<(&PorcelainBlock, &String), Result<Vec<PushUpdate>, ManualPushProbeError>> for ConfirmEachDestination<'_> {
-    fn run(&self, _index: usize, destination: &(&PorcelainBlock, &String), _say: &mut dyn LineSink) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+impl OrderedWork<(&PorcelainBlock, &String), Result<ConfirmedDestination, ManualPushProbeError>> for ConfirmEachDestination<'_> {
+    fn run(&self, _index: usize, destination: &(&PorcelainBlock, &String), _say: &mut dyn LineSink) -> Result<ConfirmedDestination, ManualPushProbeError> {
         return confirm_block(self.git, self.global_prefix, self.remote_name, destination.0, destination.1.as_str());
     }
 }
@@ -429,21 +445,22 @@ impl OrderedWork<(&PorcelainBlock, &String), Result<Vec<PushUpdate>, ManualPushP
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class KeepConfirmedUntilTheFirstFailure implements OrderedEvents<Result<PushUpdate[]>> { confirmed: PushUpdate[]; failure?: Error }
+/// class KeepConfirmedUntilTheFirstFailure implements OrderedEvents<Result<ConfirmedDestination>> { confirmed: ConfirmedDestination[]; failure?: Error }
 /// ```
 struct KeepConfirmedUntilTheFirstFailure<'a> {
-    /// The updates confirmed so far.
-    confirmed: &'a mut Vec<PushUpdate>,
+    /// The confirmations so far,
+    /// in block order.
+    confirmed: &'a mut Vec<ConfirmedDestination>,
     /// The first failure,
     /// when a block has failed.
     failure: &'a mut Option<ManualPushProbeError>,
 }
 
-impl OrderedEvents<Result<Vec<PushUpdate>, ManualPushProbeError>> for KeepConfirmedUntilTheFirstFailure<'_> {
-    fn on_event(&mut self, event: Event<'_, Result<Vec<PushUpdate>, ManualPushProbeError>>) {
+impl OrderedEvents<Result<ConfirmedDestination, ManualPushProbeError>> for KeepConfirmedUntilTheFirstFailure<'_> {
+    fn on_event(&mut self, event: Event<'_, Result<ConfirmedDestination, ManualPushProbeError>>) {
         if let Event::End(_index, outcome) = event {
             match outcome {
-                Ok(updates) if self.failure.is_none() => self.confirmed.extend(updates),
+                Ok(destination) if self.failure.is_none() => self.confirmed.push(destination),
                 Err(error) if self.failure.is_none() => *self.failure = Some(error),
                 Ok(_) | Err(_) => {}
             }
@@ -459,9 +476,9 @@ impl OrderedEvents<Result<Vec<PushUpdate>, ManualPushProbeError>> for KeepConfir
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function confirmBlock({ git, globalPrefix, remoteName, block, location }): Promise<PushUpdate[]>;
+/// async function confirmBlock({ git, globalPrefix, remoteName, block, location }): Promise<ConfirmedDestination>;
 /// ```
-fn confirm_block(git: &PushGit, global_prefix: &[OsString], remote_name: &str, block: &PorcelainBlock, location: &str) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
+fn confirm_block(git: &PushGit, global_prefix: &[OsString], remote_name: &str, block: &PorcelainBlock, location: &str) -> Result<ConfirmedDestination, ManualPushProbeError> {
     let mut unnamed: Vec<&str> = Vec::new();
     for update in &block.updates {
         if !update.from.is_empty() && update.after.is_none() {

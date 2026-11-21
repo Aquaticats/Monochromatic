@@ -50,6 +50,9 @@ struct ServerState {
     /// Every batch request received,
     /// answered or not.
     batches: usize,
+    /// The object names every batch request asked about,
+    /// in the order they were asked.
+    asked: Vec<String>,
 }
 
 /// A running LFS server on a loopback port.
@@ -155,6 +158,14 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
             return;
         }
         let asked: serde_json::Value = serde_json::from_slice(body.as_slice()).unwrap_or_default();
+        let asked_names: Vec<String> = asked["objects"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .map(|object| { return object["oid"].as_str().unwrap_or_default().to_owned(); })
+            .collect();
+        state.lock().expect("state").asked.extend(asked_names);
         let known: Vec<String> = state.lock().expect("state").uploads.iter().map(|upload| { return upload.oid.clone(); }).collect();
         // Built as text: the objects only carry hexadecimal names and whole numbers.
         let objects: Vec<String> = asked["objects"]
@@ -410,6 +421,12 @@ fn batches(server: &LfsServer) -> usize {
     return server.state.lock().expect("state").batches;
 }
 
+/// Every object name the server was asked about,
+/// in the order it was asked.
+fn asked_objects(server: &LfsServer) -> Vec<String> {
+    return server.state.lock().expect("state").asked.clone();
+}
+
 /// A wrapped `git push origin main` with extra environment variables.
 fn push_main(fixture: &Fixture, repo: &Path, variables: &[(&str, &str)]) -> Observed {
     let mut command = super::commit::wrapped_commit(fixture, repo, &["push", "origin", "main"]);
@@ -457,6 +474,61 @@ fn a_push_that_adds_no_object_sends_no_batch_request() {
     assert_eq!(batches(&server), after_first, "the second push added no object, so no batch request: {stderr}");
     assert_eq!(server.uploads().len(), 1);
     assert_eq!(published_main(&fixture, origin.as_path()), super::commit::git_text(&fixture, repo.as_path(), &["rev-parse", "main"]).trim());
+    drop(server);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Make the destination hold `other` at this clone's `main`,
+/// while this clone's tracking ref for `other` stays a commit behind.
+/// Why:
+///   That is a teammate pushing another branch this clone has not fetched:
+/// the destination reports `other` at
+///  another commit,
+/// so only the tracking ref of the pushed branch describes the destination.
+fn stale_tracking_ref_for_another_branch(fixture: &Fixture, repo: &Path, origin: &Path) {
+    let tip: String = super::commit::git_text(fixture, repo, &["rev-parse", "refs/heads/main"]);
+    let behind: String = super::commit::git_text(fixture, repo, &["rev-parse", "refs/heads/main~1"]);
+    git(fixture, origin, &["update-ref", "refs/heads/other", tip.trim()]);
+    git(fixture, repo, &["update-ref", "refs/remotes/origin/other", behind.trim()]);
+}
+
+/// What:
+///  A tracking ref the destination moved on drops only itself:
+/// the push names the object it adds,
+/// in one
+///  `git-lfs` run and one batch request,
+/// as `main` does.
+/// Why:
+///   The whole-history fallback this guards against named every object of the pushed history to the LFS
+///  server
+/// (the integration pass measured 21 batch requests and 2052 objects named on a 2000-commit fixture,
+///  against `main`'s one and one),
+/// and one tracking ref a teammate moved on is an ordinary clone.
+#[test]
+fn a_stale_tracking_ref_drops_only_itself() {
+    let fixture: Fixture = fixture("lfs-real-stale-tracking-ref");
+    let Some((repo, origin, server, content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let known: String = commit_lfs_file(&fixture, repo.as_path(), "second.bin", [content.as_slice(), b"second"].concat().as_slice());
+    let second: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
+    let log: PathBuf = record_git_lfs(&fixture);
+    stale_tracking_ref_for_another_branch(&fixture, repo.as_path(), origin.as_path());
+    let added: String = commit_lfs_file(&fixture, repo.as_path(), "third.bin", [content.as_slice(), b"third"].concat().as_slice());
+    let after_second: usize = batches(&server);
+    let asked_before: usize = asked_objects(&server).len();
+    let third: Observed = push_main(&fixture, repo.as_path(), &[]);
+    let stderr: String = stderr_of(&third);
+    assert_eq!(third.code, Some(0), "{stderr}");
+    assert_eq!(recorded_runs(log.as_path()), vec![format!("push --object-id origin {added}")], "only the object this push adds is named: {stderr}");
+    let asked: Vec<String> = asked_objects(&server).into_iter().skip(asked_before).collect();
+    assert_eq!(asked, vec![added.clone()], "the server is asked about one object, as `main` asks: {stderr}");
+    assert_eq!(batches(&server), after_second + 1, "one batch request, as `main` sends: {stderr}");
+    assert!(server.uploads().iter().any(|upload| { return upload.oid == known; }), "the object the earlier push sent reached the server");
     drop(server);
     remove_settled(&fixture);
 }

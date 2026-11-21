@@ -60,6 +60,22 @@ const MOVED_MAIN: &str = "2222222222222222222222222222222222222222\trefs/heads/m
 /// Another branch,
 /// as a destination that no longer has this one reports its branches.
 const GONE_MAIN: &str = "2222222222222222222222222222222222222222\trefs/heads/other";
+/// This clone's tracking ref for another branch,
+/// at the commit it held before a teammate moved that branch on.
+const STALE_OTHER: &str = "5555555555555555555555555555555555555555\t\trefs/remotes/origin/other";
+/// That branch as the destination reports it,
+/// five commits further on.
+const MOVED_OTHER: &str = "6666666666666666666666666666666666666666\trefs/heads/other";
+
+/// What:
+///  The evidence one listing and one answer support.
+/// Why:
+///   The expectation is written as the refs that may be stopped at and whether every ref was confirmed,
+/// so a case
+///  says what it expects instead of repeating the struct.
+fn evidence(confirmed: &[&str], every: bool) -> ConfirmedTrackingRefs {
+    return ConfirmedTrackingRefs { confirmed: confirmed.iter().map(|name| { return (*name).to_owned(); }).collect(), every };
+}
 
 /// What:
 ///  The answers of both faces of the decision,
@@ -68,15 +84,15 @@ const GONE_MAIN: &str = "2222222222222222222222222222222222222222\trefs/heads/ot
 ///   The synchronous push and the service's landing round must trust the same refs,
 /// so every case is asked of
 ///  both here.
-fn both_faces(answers: &[(&str, &str)], failing: &[&str]) -> ((bool, usize), (bool, usize)) {
+fn both_faces(answers: &[(&str, &str)], failing: &[&str]) -> ((ConfirmedTrackingRefs, usize), (ConfirmedTrackingRefs, usize)) {
     let mut stub: Stub<'_> = Stub { answers, failing, asked: 0 };
-    let planned: bool = {
+    let planned: ConfirmedTrackingRefs = {
         let mut synchronous = |arguments: &[&str]| -> Result<String, String> { return stub.answer(arguments); };
-        tracking_refs_describe_destination("origin", &mut synchronous)
+        tracking_refs_confirmed_by("origin", None, &mut synchronous)
     };
     let synchronous_asked: usize = stub.asked;
     let mut awaited_stub: Stub<'_> = Stub { answers, failing, asked: 0 };
-    let (awaited, _ticks): (bool, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(tracking_refs_describe_destination_awaiting("origin", &mut awaited_stub));
+    let (awaited, _ticks): (ConfirmedTrackingRefs, u32) = crate::ticker_beside_a_wait::with_a_ticker_beside(tracking_refs_confirmed_by_awaiting("origin", None, &mut awaited_stub));
     return ((planned, synchronous_asked), (awaited, awaited_stub.asked));
 }
 
@@ -88,7 +104,7 @@ fn both_faces(answers: &[(&str, &str)], failing: &[&str]) -> ((bool, usize), (bo
 ///   One helper keeps the cases of the decision beside each other,
 /// so a new answer cannot be left
 ///  unchecked on one face.
-fn check(answers: &[(&str, &str)], failing: &[&str], expected: bool, asked: usize) {
+fn check(answers: &[(&str, &str)], failing: &[&str], expected: ConfirmedTrackingRefs, asked: usize) {
     let (synchronous, awaited) = both_faces(answers, failing);
     assert_eq!(synchronous, (expected, asked), "{answers:?} {failing:?}");
     assert_eq!(awaited, synchronous, "{answers:?} {failing:?}");
@@ -144,9 +160,27 @@ fn the_destination_answer_reads_as_pairs_and_an_unreadable_one_is_no_answer() {
 fn a_tracking_ref_is_confirmed_only_at_the_commit_it_holds() {
     let tracked: Vec<TrackingRef> = tracking_refs(HELD_MAIN, "origin").expect("a listing");
     let heads = |reported: &str| -> HashMap<String, String> { return destination_heads(reported).expect("a listing"); };
-    assert!(every_tracking_ref_is_reported(tracked.as_slice(), &heads(SAME_MAIN)));
-    assert!(!every_tracking_ref_is_reported(tracked.as_slice(), &heads(MOVED_MAIN)));
-    assert!(!every_tracking_ref_is_reported(tracked.as_slice(), &heads(GONE_MAIN)));
+    assert_eq!(confirmed_tracking_refs(tracked.as_slice(), &heads(SAME_MAIN), "origin"), vec![String::from("refs/remotes/origin/main")]);
+    assert!(confirmed_tracking_refs(tracked.as_slice(), &heads(MOVED_MAIN), "origin").is_empty());
+    assert!(confirmed_tracking_refs(tracked.as_slice(), &heads(GONE_MAIN), "origin").is_empty());
+}
+
+/// What:
+///  One tracking ref the destination moved on drops itself and nothing else.
+/// Why:
+///   A clone routinely holds a tracking ref a teammate moved on or a merged branch left behind;
+/// an
+///  all-or-nothing rule made every push read the whole history because of one such ref
+/// (`keep/stale-tracking-ref-cost.txt` of the integration pass measured 21 batch requests and 2052
+///  objects named against main's one and one).
+#[test]
+fn a_stale_tracking_ref_drops_only_itself() {
+    let tracked: Vec<TrackingRef> = tracking_refs([HELD_MAIN, STALE_OTHER].join("\n").as_str(), "origin").expect("a listing");
+    let heads: HashMap<String, String> = destination_heads([SAME_MAIN, MOVED_OTHER].join("\n").as_str()).expect("a listing");
+    let confirmed: Vec<String> = confirmed_tracking_refs(tracked.as_slice(), &heads, "origin");
+    assert_eq!(confirmed, vec![String::from("refs/remotes/origin/main")], "only the ref the destination reports at its commit is kept");
+    let held: Option<HashMap<String, String>> = Some(heads);
+    assert_eq!(evidence_holds(tracked.as_slice(), held, "origin"), evidence(&["refs/remotes/origin/main"], false));
 }
 
 /// What:
@@ -159,14 +193,17 @@ fn a_tracking_ref_is_confirmed_only_at_the_commit_it_holds() {
 ///  the objects.
 #[test]
 fn both_faces_read_every_answer_alike() {
-    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", SAME_MAIN)], &[], true, 2);
-    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", MOVED_MAIN)], &[], false, 2);
-    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", GONE_MAIN)], &[], false, 2);
-    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", "not a listing")], &[], false, 2);
-    check(&[("for-each-ref", HELD_MAIN)], &["ls-remote"], false, 2);
-    check(&[], &["for-each-ref"], false, 1);
-    check(&[("for-each-ref", "refs/remotes/origin/main")], &[], false, 1);
-    check(&[("for-each-ref", "1111111111111111111111111111111111111111 refs/remotes/origin/main")], &[], false, 1);
-    check(&[("for-each-ref", HELD_HEAD)], &[], true, 1);
-    check(&[("for-each-ref", "")], &[], true, 1);
+    let main_confirmed: ConfirmedTrackingRefs = evidence(&["refs/remotes/origin/main"], true);
+    let nothing: ConfirmedTrackingRefs = ConfirmedTrackingRefs::unknown();
+    let nothing_to_skip: ConfirmedTrackingRefs = evidence(&[], true);
+    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", SAME_MAIN)], &[], main_confirmed.clone(), 2);
+    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", MOVED_MAIN)], &[], nothing.clone(), 2);
+    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", GONE_MAIN)], &[], nothing.clone(), 2);
+    check(&[("for-each-ref", HELD_MAIN), ("ls-remote", "not a listing")], &[], nothing.clone(), 2);
+    check(&[("for-each-ref", HELD_MAIN)], &["ls-remote"], nothing.clone(), 2);
+    check(&[], &["for-each-ref"], nothing.clone(), 1);
+    check(&[("for-each-ref", "refs/remotes/origin/main")], &[], nothing.clone(), 1);
+    check(&[("for-each-ref", "1111111111111111111111111111111111111111 refs/remotes/origin/main")], &[], nothing.clone(), 1);
+    check(&[("for-each-ref", HELD_HEAD)], &[], nothing_to_skip.clone(), 1);
+    check(&[("for-each-ref", "")], &[], nothing_to_skip, 1);
 }
