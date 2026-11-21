@@ -25,6 +25,7 @@
 //! ```
 
 use super::probe_arms::{ProbeArm, ProbeStep};
+use super::probe_errno_names::ErrnoWord;
 use super::probe_status_line::StepAnswer;
 use super::probe_status_line::StepLine;
 
@@ -87,9 +88,9 @@ pub struct ArmOutcome {
     pub arm: ProbeArm,
     /// What became of it.
     pub answer: ArmAnswer,
-    /// The errno name the first failing step answered,
+    /// The errno field the first failing step answered,
     /// where the arm failed.
-    pub errno: Option<&'static str>,
+    pub errno: ErrnoWord,
 }
 
 /// What:
@@ -274,7 +275,7 @@ impl ProbeReport {
                 Some(StepAnswer::NotExercised { .. }) | None => every_step_passed = false,
             }
         }
-        return ArmOutcome { arm, answer: if every_step_passed { ArmAnswer::Passed } else { ArmAnswer::NotExercised }, errno: None };
+        return ArmOutcome { arm, answer: if every_step_passed { ArmAnswer::Passed } else { ArmAnswer::NotExercised }, errno: ErrnoWord::None };
     }
 
     /// Every arm's outcome,

@@ -29,10 +29,10 @@ use super::probe_attach_arm::AttachFailure;
 use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_STATUS_DESCRIPTOR, close_from, exit_now, join_own_process_group, move_descriptor};
 use super::probe_configuration::{checkout_from_configuration, read_configuration, source_from_configuration};
 use super::probe_mount_calls::{make_mounts_private, mount_scratch_tmpfs, unshare_mount_namespace};
-use super::probe_namespace_scan::scan_namespaces;
+use super::probe_namespace_scan::{compare_namespaces, scan_namespaces};
 use super::probe_open_beneath::open_path_handle;
-use super::probe_pipe_lines::{read_one_blocking, write_all};
-use super::probe_processes::{fork, pipe_pair, raw, set_process_group, wait_blocking};
+use super::probe_pipe_lines::{read_line_blocking, read_one_blocking, write_all};
+use super::probe_processes::{fork, pipe_pair, raw, wait_blocking};
 use super::probe_record_files::RecordPlace;
 use super::probe_status_line::{LineFeed, StepAnswer, StepLine};
 use super::probe_walk_arm::{make_scratch_tree, open_checkout, refusal_controls, walk_to_slot};
@@ -72,6 +72,9 @@ pub struct WorkerStart<'a> {
     /// The step the worker is held after,
     /// which only a test arm sets.
     pub hold: Option<ProbeStep>,
+    /// Whether the worker keeps one descriptor on the attached mount,
+    /// which only M9's fixture asks for.
+    pub keep_descriptor: bool,
 }
 
 /// One step's line on the status pipe.
@@ -87,7 +90,7 @@ fn attach_line(failure: AttachFailure) -> StepLine {
         (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(failure.step, "exclusive-create-unsupported", Some("EOPNOTSUPP")),
         (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => StepLine::not_exercised(failure.step, "source-held", Some("EBUSY")),
         (ProbeStep::AttachExclusiveCreate, Some(libc::ENOENT)) => StepLine::not_exercised(failure.step, "missing-source", Some("ENOENT")),
-        _ => StepLine::failed(failure.step, failure.errno_name()),
+        _ => StepLine::failed_number(failure.step, failure.errno),
     };
 }
 
@@ -108,17 +111,21 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     };
     let hold_after = |step: ProbeStep| {
         if start.hold == Some(step) {
-            let _waited = read_one_blocking(start.reply);
+            // Twice the shipped bound keeps the step long enough for the
+            // deadline to fire,
+            // and lets M3's raised-deadline control see the step finish.
+            let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: start.reply, events: libc::POLLIN, revents: 0 }];
+            let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
         }
     };
     let _ = join_own_process_group();
     if let Err(error) = unshare_mount_namespace() {
-        ending(StepLine::failed(ProbeStep::Unshare, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::Unshare, Some(error.errno)));
     }
     say(start.status, StepLine::passed(ProbeStep::Unshare));
     hold_after(ProbeStep::Unshare);
     if let Err(error) = make_mounts_private() {
-        ending(StepLine::failed(ProbeStep::PrivatePropagation, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::PrivatePropagation, Some(error.errno)));
     }
     say(start.status, StepLine::passed(ProbeStep::PrivatePropagation));
     hold_after(ProbeStep::PrivatePropagation);
@@ -126,22 +133,22 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     let slot: PathBuf = scratch.join(SLOT_NAME);
     let move_target: PathBuf = scratch.join(MOVE_TARGET_NAME);
     if let Err(error) = mount_scratch_tmpfs(scratch.as_path()) {
-        ending(StepLine::failed(ProbeStep::ScratchTmpfs, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::ScratchTmpfs, Some(error.errno)));
     }
     say(start.status, StepLine::passed(ProbeStep::ScratchTmpfs));
     hold_after(ProbeStep::ScratchTmpfs);
     if let Err(failure) = make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path()) {
-        ending(StepLine::failed(ProbeStep::ScratchTree, failure.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::ScratchTree, failure.errno_number()));
     }
     say(start.status, StepLine::passed(ProbeStep::ScratchTree));
     hold_after(ProbeStep::ScratchTree);
     if let Err(failure) = walk_to_slot(scratch.as_path(), slot.as_path()) {
-        ending(StepLine::failed(ProbeStep::WalkSlot, failure.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::WalkSlot, failure.errno_number()));
     }
     say(start.status, StepLine::passed(ProbeStep::WalkSlot));
     hold_after(ProbeStep::WalkSlot);
     if let Err(failure) = refusal_controls(scratch.as_path(), slot.as_path()) {
-        ending(StepLine::failed(ProbeStep::WalkRefusalControls, failure.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::WalkRefusalControls, failure.errno_number()));
     }
     say(start.status, StepLine::passed(ProbeStep::WalkRefusalControls));
     hold_after(ProbeStep::WalkRefusalControls);
@@ -164,29 +171,39 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     say(start.status, read);
     let slot_handle: OwnedFd = match open_path_handle(slot.as_path()) {
         Ok(handle) => handle,
-        Err(error) => ending(StepLine::failed(ProbeStep::AttachPlace, error.errno_name())),
+        Err(error) => ending(StepLine::failed_number(ProbeStep::AttachPlace, Some(error.errno))),
     };
-    let evidence = match super::probe_attach_arm::attach_snapshot(&slot_handle, slot.as_path(), source.as_str()) {
+    let evidence = match super::probe_attach_arm::attach_snapshot(&slot_handle, slot.as_path(), source.as_str(), start.keep_descriptor, |step| {
+        say(start.status, StepLine::passed(step));
+        hold_after(step);
+    }) {
         Ok(evidence) => evidence,
         Err(failure) => ending(attach_line(failure)),
     };
     drop(slot_handle);
-    for step in [ProbeStep::AttachContext, ProbeStep::AttachSource, ProbeStep::AttachOptions, ProbeStep::AttachExclusiveCreate, ProbeStep::AttachMountDescriptor, ProbeStep::AttachPlace, ProbeStep::VerifyMount] {
-        say(start.status, StepLine::passed(step));
-        hold_after(step);
-    }
-    if !ask_holder(start, b'H') {
+    let Some(holder_namespace) = ask_holder(start, b'H') else {
+        ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
+    };
+    if holder_namespace.is_empty() {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     }
-    if scan_expecting(source.as_str(), 2).is_err() {
+    let worker_own: String = match own_namespace() {
+        Ok(namespace) => namespace,
+        Err(()) => ending(StepLine::failed(ProbeStep::ScanWhileHeld, None)),
+    };
+    if scan_expecting(source.as_str(), &[worker_own.as_str(), holder_namespace.as_str()]).is_err() {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanWhileHeld));
     hold_after(ProbeStep::ScanWhileHeld);
-    if !ask_holder(start, b'S') {
+    if ask_holder(start, b'S').is_none() {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
-    if scan_expecting(source.as_str(), 1).is_err() {
+    let worker_own_after: String = match own_namespace() {
+        Ok(namespace) => namespace,
+        Err(()) => ending(StepLine::failed(ProbeStep::ScanAfterHolder, None)),
+    };
+    if scan_expecting(source.as_str(), &[worker_own_after.as_str()]).is_err() {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanAfterHolder));
@@ -200,7 +217,7 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     if failed {
         exit_now(1);
     }
-    if scan_expecting(source.as_str(), 0).is_err() {
+    if scan_expecting(source.as_str(), &[]).is_err() {
         ending(StepLine::failed(ProbeStep::ClosingScan, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ClosingScan));
@@ -210,36 +227,39 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
 
 /// What:
 ///  Ask the mode to start or stop the holder,
-///  and answer whether it did.
+///  and answer the holder's namespace when it started.
 /// Why:
-///  Requests are single bytes and the reply is one byte,
-///  so neither process waits on a pipe the other is waiting to fill.
-fn ask_holder(start: &WorkerStart<'_>, request: u8) -> bool {
+///  Requests are single bytes,
+///  and the reply is one line so the first pass can compare the exact set
+///  of namespaces with the worker's and the holder's rather than a count.
+fn ask_holder(start: &WorkerStart<'_>, request: u8) -> Option<String> {
     if write_all(start.request, &[request]).is_err() {
-        return false;
+        return None;
     }
-    return read_one_blocking(start.reply).is_ok_and(|answer| return answer == b'P');
+    let line: String = read_line_blocking(start.reply, 128).ok()?;
+    if line == "P" {
+        return Some(String::new());
+    }
+    return line.strip_prefix("P ").map(String::from);
 }
 
-/// Scan this PID namespace for the source and require the number of
-///  namespaces that mention it,
-///  with the worker's own among them.
-fn scan_expecting(source: &str, expected: usize) -> Result<(), ()> {
-    let own: String = match std::fs::read_link("/proc/self/ns/mnt") {
-        Ok(namespace) => namespace.to_string_lossy().into_owned(),
-        Err(_) => return Err(()),
-    };
+/// This process's own mount-namespace identity.
+fn own_namespace() -> Result<String, ()> {
+    return std::fs::read_link("/proc/self/ns/mnt").map(|path| return path.to_string_lossy().into_owned()).map_err(|_| ());
+}
+
+/// Scan this PID namespace for the source and require exactly the namespaces
+///  the pass expects,
+///  naming a leaked or missing namespace rather than comparing a count.
+fn scan_expecting(source: &str, expected: &[&str]) -> Result<(), ()> {
     let mentioned: Vec<String> = match scan_namespaces(Path::new("/proc"), source) {
         Ok(mentioned) => mentioned,
         Err(_) => return Err(()),
     };
-    if expected == 0 {
-        return if mentioned.is_empty() { Ok(()) } else { Err(()) };
-    }
-    if !mentioned.iter().any(|namespace| return namespace == &own) {
-        return Err(());
-    }
-    return if mentioned.len() == expected { Ok(()) } else { Err(()) };
+    return match compare_namespaces(mentioned.as_slice(), expected) {
+        None => Ok(()),
+        Some(_difference) => Err(()),
+    };
 }
 
 /// One forked unmount child and its status pipe's read end.
@@ -301,7 +321,8 @@ fn fork_unmount_child(slot: &Path, move_target: &Path, mount_id: u64, hold: Opti
             super::probe_unmount_child::run(CHILD_STATUS_DESCRIPTOR, slot, move_target, mount_id, hold);
         }
         Ok(Some(pid)) => {
-            let _ = set_process_group(pid);
+            // The child stays in the worker's own process group,
+            // so the mode's group kill at the deadline reaches it too.
             drop(control.read);
             drop(reports.write);
             return Ok(UnmountChild { pid, reports: reports.read, _control: control.write });

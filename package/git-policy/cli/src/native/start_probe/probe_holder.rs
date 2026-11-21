@@ -52,37 +52,37 @@ pub fn run(control: RawFd, status: RawFd, source: &str, holder: &Path) -> ! {
     }
     let _ = super::probe_child_prelude::close_from(CHILD_FIRST_KEPT_DESCRIPTOR);
     if let Err(error) = unshare_mount_namespace() {
-        ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno)));
     }
     if let Err(error) = make_mounts_private() {
-        ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno)));
     }
     let context = match fsopen(ZFS_FILESYSTEM) {
         Ok(context) => context,
-        Err(error) => ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name())),
+        Err(error) => ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno))),
     };
     if let Err(error) = fsconfig_text(context.as_raw_fd(), SOURCE_OPTION, source) {
-        ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno)));
     }
     for option in [READ_ONLY_OPTION, NOSUID_OPTION, NODEV_OPTION] {
         if let Err(error) = fsconfig_flag(context.as_raw_fd(), option) {
-            ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name()));
+            ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno)));
         }
     }
     if let Err(error) = fsconfig_create(context.as_raw_fd(), false) {
-        ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno)));
     }
     let mount = match fsmount(context.as_raw_fd()) {
         Ok(mount) => mount,
-        Err(error) => ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name())),
+        Err(error) => ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno))),
     };
     let mount_id: u64 = mount_id_of(mount.as_raw_fd()).unwrap_or(0);
     let held: std::os::fd::OwnedFd = match super::probe_open_beneath::open_path_handle(holder) {
         Ok(held) => held,
-        Err(error) => ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name())),
+        Err(error) => ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno))),
     };
     if let Err(error) = move_mount_onto_descriptor(mount.as_raw_fd(), held.as_raw_fd()) {
-        ending(StepLine::failed(ProbeStep::HolderAttach, error.errno_name()));
+        ending(StepLine::failed_number(ProbeStep::HolderAttach, Some(error.errno)));
     }
     drop(mount);
     let listed: bool = match read_own_mount_table() {

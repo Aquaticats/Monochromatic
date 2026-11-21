@@ -37,6 +37,9 @@ pub const RECORD_DIRECTORY: &str = "/run/git-worktree-clone-mount-probe";
 pub const RESULT_NAME: &str = "result";
 /// The sibling the record is staged under before its rename,
 /// so a reader never sees half a record.
+/// The process's own id follows it,
+/// because two probes at once (a manual run beside the unit's) must not
+/// truncate each other's staging file.
 pub const STAGING_NAME: &str = "result.staging";
 /// The mount point the worker mounts its tmpfs on.
 pub const SCRATCH_NAME: &str = "scratch";
@@ -139,6 +142,12 @@ impl RecordPlace {
         return self.directory.join(RESULT_NAME);
     }
 
+    /// This writer's own staging path,
+    /// named for its process so two probes at once keep separate files.
+    pub fn staging(&self) -> PathBuf {
+        return self.directory.join(format!("{STAGING_NAME}.{}", std::process::id()));
+    }
+
     /// The worker's scratch mount point.
     pub fn scratch(&self) -> PathBuf {
         return self.directory.join(SCRATCH_NAME);
@@ -187,7 +196,7 @@ impl RecordPlace {
     /// The staging write,
     /// its sync or the rename answered an error.
     pub fn publish(&self, text: &str) -> Result<(), RecordFileRefusal> {
-        let staging: PathBuf = self.directory.join(STAGING_NAME);
+        let staging: PathBuf = self.staging();
         let staged: Result<(), String> = (|| {
             let mut file: File = OpenOptions::new()
                 .write(true)

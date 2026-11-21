@@ -14,9 +14,11 @@
 //! ```
 
 use super::{
-    EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, boot_reconcile_mode, run_behind,
+    EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, behind_the_gate_for_the_probe, boot_reconcile_mode, run_behind,
     shutdown_unmount_mode,
 };
+use crate::start_probe::RecordPlace;
+use crate::testing::test_support::fixture;
 use super::handler_mode_arguments::{self, HandlerMode};
 use crate::zfs_compatibility_gate::gate_verdict::{Facts, Verdict};
 use crate::zfs_compatibility_gate::{BeforeRequests, gate_words::TESTED_MODULE_VERSION};
@@ -169,6 +171,25 @@ fn each_unbuilt_mode_names_its_plan_step() {
         };
         assert!(line.contains(message.as_str()), "{line}");
     }
+}
+
+/// The probe's own gate refusal writes a skipped record in the place it is
+/// given,
+/// names the gate's step,
+/// and never reaches the mode's own work.
+#[test]
+fn the_probes_gate_refusal_writes_a_skipped_record_in_the_given_place() {
+    let root: std::path::PathBuf = fixture("start-probe-dispatch-skip");
+    let place: RecordPlace = RecordPlace::at(root.join("records"));
+    let configuration: std::path::PathBuf = root.join("handler.jsonc");
+    std::fs::write(&configuration, "{}").expect("the fixture configuration is written");
+    let answer: Result<String, String> = behind_the_gate_for_the_probe(&RefusingGate, &place, configuration.as_path());
+    let line: String = answer.expect("a skipped probe is a verdict, not a refusal");
+    assert!(line.contains("start probe skipped"), "{line}");
+    assert!(line.contains("device"), "{line}");
+    let text: String = std::fs::read_to_string(place.result()).expect("the skipped record is written");
+    assert!(text.contains("verdict skipped"), "{text}");
+    assert!(text.contains("skip-reason device"), "{text}");
 }
 
 /// A gate that refuses keeps the mode unentered,
