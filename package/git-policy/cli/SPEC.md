@@ -5877,6 +5877,25 @@ the refused sweep tries the slot again on its next trigger.
 The claim serializes cooperating wrapper operations only,
 and no claim proves anything about another account's actions.
 
+The claim keeps a lock rather than a lock-free record,
+and rule `NLK` asks for the reason beside it.
+The claimed unit is one slot,
+the smallest unit a lock may cover,
+and never the repository,
+a parent or the store.
+The kernel releases this `flock` when the descriptor closes,
+including when the process is killed,
+so a handler that dies cannot strand a slot and no later sweep must decide
+whether an owner record names a live process.
+A lock-free claim would need an owner record,
+a proven-dead test and an atomic takeover,
+and the window between proving the old owner dead and acting on the mount is
+the window the claim exists to close.
+The slot identity store beside it is a different object:
+the project made it a folder of `O_EXCL` files with no lock on 2026-11-21
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`),
+while this is an operation's hold on one mount.
+
 #### The wrapper's side and its deadline
 
 The wrapper writes an intent or a nudge only after the start-time

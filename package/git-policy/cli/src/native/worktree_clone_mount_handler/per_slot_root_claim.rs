@@ -23,6 +23,25 @@
 //!  it sits beside step 4's slot identity store under root control,
 //!  which is the narrowest place the records already keep such state.
 //!
+//!  Why this lock and not a lock-free claim (rule `NLK`):
+//!  the claimed unit is one slot,
+//!  the smallest unit a lock may cover,
+//!  and never the repository,
+//!  a parent or the store.
+//!  The kernel drops this `flock` when the descriptor closes,
+//!  including when the process is killed,
+//!  so a handler that dies cannot strand a slot and no later sweep must
+//!  decide whether an owner record names a live process.
+//!  A lock-free claim would need an owner record,
+//!  a proven-dead test and an atomic takeover,
+//!  and the window between proving the old owner dead and acting on the
+//!  mount is the window this claim exists to close.
+//!  The store beside it is a different object:
+//!  identity data the project made a folder of `O_EXCL` files on
+//!  2026-11-21
+//!  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`),
+//!  while this is an operation's hold on one mount.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const claims = SlotClaimDirectory.live(); const claim = claims.claim('one');
@@ -237,6 +256,9 @@ impl SlotClaimDirectory {
                 reason: format!("the claim file has mode {permission_bits:04o} and this route requires {SLOT_CLAIM_FILE_MODE:04o}"),
             });
         }
+        // The kernel releases this lock when the descriptor closes, a kill included, so the slot has no stale owner to
+        // prove dead; `NLK`'s smallest unit is this one slot, and a lock-free claim would reopen the proven-dead window
+        // the lock exists to close.
         let locked: Result<(), rustix::io::Errno> = rustix::fs::flock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive);
         return match locked {
             Ok(()) => Ok(HeldSlotClaim { file, slot: String::from(slot) }),

@@ -986,8 +986,12 @@ const STEP7_PARENT = `${STEP7_POOL}/clones`;
 const STEP7_CLONE = `${STEP7_PARENT}/one`;
 /** The snapshot the clone is made from. */
 const STEP7_CLONE_SNAPSHOT = `${STEP7_POOL}/checkout@protocol-arm`;
-/** The zedlet the measurement reads, which records its own arrival and nothing else. */
-const STEP7_ZEDLET = '/etc/zfs/zed.d/history_event-step7_probe';
+/**
+ The zedlet the measurement reads, which records its own arrival and nothing else.
+ This guest builds OpenZFS with `--prefix`, so zed's compiled configuration directory is the prefix's `etc/zfs`,
+ not `/etc/zfs`.
+ */
+const STEP7_ZEDLET = `${OPENZFS_PREFIX}/etc/zfs/zed.d/history_event-step7_probe`;
 /** The log the zedlet appends to. */
 const STEP7_ZEDLET_LOG = '/root/step7-zedlet.log';
 /** The wrapper's packages, unpacked inside the guest for the arms. */
