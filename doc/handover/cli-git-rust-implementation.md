@@ -41338,7 +41338,21 @@ stated in this entry. What follows from them, as work:
   section 6 incomplete, the attach's lost whole-store validation unsaid, choice reasoning); 11 lows. GOING:
   `pi-zfs-slot-identity-store-per-slot-files-design-gate-findings` in the design worktree (brief
   `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/prompt-gate-findings.md`); then the same reviewer
-  rechecks; then the design to the owner, with any departure from `O_EXCL` as its own flagged choice.
+  rechecks; then the design to the owner, with any departure from `O_EXCL` as its own flagged choice. The design's fix
+  round ended at `3e0fe761a6` (every finding fixed: compare `.parent` before publishing, a race that can happen, the
+  probe rewritten and its real output quoted, `O_EXCL` under a staging dot name plus one `linkat` as the lead with
+  `O_TMPFILE` a flagged departure, nine choices with choice 7 recorded); GOING: the same reviewer's recheck. THE FENCE
+  LEFTOVER ROUND ended at `87b4af4062`: `main`'s `m05` EQUAL (no leftover), the older-commit control red on rung 2 then
+  green on both rungs (the fallback `reset --hard` runs against `index.pending`, published after), the fallback's two
+  positive controls (rewrites a zeroed entry; a kill inside it leaves no `index`), N3 (the waiting index and lock
+  removed at settlement), N1 (`attr.tree` and `GIT_ATTR_SOURCE` with a disagreeing tree give Git's bytes; SPEC corrected),
+  N2; harness 26 of 26, sample 300 of 300, gate 9480 of 9482. GOING: the fence reviewer's closure check of `87b4af4062`.
+  INCIDENT: step 7's first round stopped three gate containers it matched by creation time; the fence round lists one of
+  them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour. Step 7's
+  running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
+  label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
+  `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
+  `~/temp/agent/git-policy-cli-gate-containers-carry-a-run-label-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
