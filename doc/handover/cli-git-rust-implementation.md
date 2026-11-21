@@ -41329,7 +41329,16 @@ stated in this entry. What follows from them, as work:
   path, mode, `flock` and refuse-not-wait; receipt outcomes; the wait's synchronous read; readiness writers' ordering)
   go to its integration pass. GOING: the same session resumed as `pi-zfs-step-7-intent-receipts-readiness-2` (guest arms
   and measurement in its own guest, the two reds, the claim's lock against rule `NLK` and the store decision, the linker
-  cause; continuation under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/continuation-1.md`).
+  cause; continuation under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/continuation-1.md`). THE
+  PER-SLOT STORE DESIGN'S GATE REVIEW (Sonnet; that folder's `keep/review.md`) said not ready: H1 the racing-adoption
+  example cannot happen and the sweep publishes a slot before comparing the parent (against the accepted design's line
+  625); H2 the kept probe's evidence is wrong (`O_TMPFILE` without `O_DIRECTORY`, a `fsync` check that always printed
+  "failed", facts it never measured), though the reviewer's corrected probe confirms the facts; M1 the lead option uses
+  `O_TMPFILE` and `linkat`, not the `O_EXCL` the chosen option named; M2 to M6 (staging cleanup, two dropped refusals,
+  section 6 incomplete, the attach's lost whole-store validation unsaid, choice reasoning); 11 lows. GOING:
+  `pi-zfs-slot-identity-store-per-slot-files-design-gate-findings` in the design worktree (brief
+  `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/prompt-gate-findings.md`); then the same reviewer
+  rechecks; then the design to the owner, with any departure from `O_EXCL` as its own flagged choice.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
