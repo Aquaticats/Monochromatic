@@ -28,9 +28,11 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{
-    LFS_PROGRAM, ProgramSearch, failed_message, host_key_not_known_sentence, login_needed_message, missing_program_message, reads_as_a_key_failure,
-    reads_as_a_login_failure, reads_as_unknown_host_key, start_failed_message,
+    LFS_PROGRAM, failed_message, host_key_not_known_sentence, login_needed_message, reads_as_a_key_failure, reads_as_a_login_failure, reads_as_unknown_host_key,
+    start_failed_message,
 };
+/// The folders searched and the refusal that names them.
+use crate::lfs_program_search::{ProgramSearch, missing_program_message};
 /// The masks and the hosts a destination or a failure names.
 use crate::lfs_output_mask::{host_of, hosts_in, mask_url_secrets_text};
 /// What a stop says the connection carried.

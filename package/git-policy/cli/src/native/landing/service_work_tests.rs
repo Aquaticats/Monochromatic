@@ -1081,8 +1081,8 @@ fn the_service_marks_its_push_environment_with_the_list_it_searched() {
     let repo: Repo = repo("service-push-program-search");
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
     let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
-    let search: crate::lfs_pre_push::ProgramSearch = crate::lfs_pre_push::ProgramSearch::of(started.environment.as_slice());
-    assert_eq!(search.source, crate::lfs_pre_push::ProgramSearchSource::ServiceEnvironment, "the service's push is marked");
+    let search: crate::lfs_program_search::ProgramSearch = crate::lfs_program_search::ProgramSearch::of(started.environment.as_slice());
+    assert_eq!(search.source, crate::lfs_program_search::ProgramSearchSource::ServiceEnvironment, "the service's push is marked");
     remove(repo.root.as_path());
 }
 

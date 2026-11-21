@@ -18,6 +18,11 @@ pub mod lfs_command_line_configuration;
 /// and the texts the parent prints around it.
 pub mod lfs_pre_push;
 
+/// The folders a push's children find their programs in,
+/// where that list came from,
+/// and the refusal that names both when `git-lfs` is not in it.
+pub mod lfs_program_search;
+
 /// What the Git LFS upload sends:
 /// the remote and the refs,
 /// read from the push and the configuration Git would read.
