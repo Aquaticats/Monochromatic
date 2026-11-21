@@ -5932,7 +5932,9 @@ and any other value is refused as a nudge rather than read as a request.
 
 The handler files one result per clone in
 `/run/git-worktree-clone-mount-results`,
-a root-owned directory of mode `0755`.
+a root-owned directory of mode `0755` that the writer makes itself when a fresh
+boot has none,
+because a sweep can reach its first attach before anything else wrote there.
 A receipt is a root-owned regular file of mode `0644`,
 and its name is only the clone's canonical numeric dataset GUID,
 with no sign and no leading zero.
@@ -5942,10 +5944,18 @@ The directory is opened as a descriptor and every receipt is opened relative
 to it with no link followed,
 and a caller checks the directory's and the file's ownership and mode before
 it reads a byte.
-A receipt over 4096 bytes is refused,
+A receipt over 4,819 bytes is refused,
 and a file whose keys are not the receipt's own,
 in the receipt's order,
 is refused rather than searched.
+That bound is derived from the receipt's own field bounds and its fifteen line
+keys,
+so a field at its widest still fits the file,
+and the writer refuses a receipt its own reader would not read back rather than
+file one nobody can read.
+The widest field is the canonical slot path at 4,095 bytes,
+the kernel's `PATH_MAX` without its terminator,
+and the whole bound is 4,819 bytes.
 
 A receipt carries its format version,
 its kind,
@@ -5954,13 +5964,15 @@ the request's nonce,
 operation and boot,
 the outcome (`done`,
 `refused` or `failed`),
-the mount identity a done result observed (mount id,
+the mount identity a done mount observed (mount id,
 device,
 inode,
 source dataset and canonical slot path),
 the failed step and errno where one applies,
 and the time with its offset.
-A done result carries the mount identity and no failing step;
+A done mount carries the mount identity and no failing step;
+a done unmount carries `none` for every mount field,
+because an unmount that verified absence has no mount to identify;
 a refused or failed result names the step and carries no mount identity.
 A result is published by writing a staging sibling,
 syncing it,
@@ -5973,8 +5985,12 @@ and nothing in this build removes a receipt for a destroyed clone.
 
 One boot's readiness is a root-owned file of mode `0644` named `result` in
 `/run/git-worktree-clone-mount-readiness`,
-a root-owned directory of mode `0755`,
-published atomically the same way a receipt is.
+a root-owned directory of mode `0755` that the writer makes itself when a fresh
+boot has none,
+published atomically the same way a receipt is,
+and refused by the writer when its own reader would not read it back.
+Its file bound is derived from its field bounds the same way a receipt's is,
+and is 4,547 bytes.
 It records the kernel's own boot identifier,
 the pool's name and whether it is `ready`,
 `not-ready` or `unknown`,
@@ -6000,19 +6016,25 @@ The record is a cache and never authority to act:
 every reader compares it with the live boot,
 pool and checkout.
 The sweep's state is recorded for an operator and gates no attach,
-because one running sweep does not make the pool or the checkout unready;
-that reading is narrow and waits for the project's answer.
+because one running sweep does not make the pool or the checkout unready:
+the design's prerequisites are the ABI,
+the keys,
+the checkout and the private propagation,
+and the sweep is none of them,
+so a failed prerequisite authorizes no attachment while a running sweep does
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit").
 
 #### The per-slot claim
 
 A root handler takes an exclusive claim on one slot before it rechecks the
 clone's desired state and identities and acts.
 The claims live in
-`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-claims`,
-a root-owned directory of mode `0755`,
-and one slot's claim is a root-owned file of mode `0600` named
-`<slot>.claim`,
-locked with the kernel's own `flock`.
+`/run/git-worktree-clone-mount-slot-claims`,
+a root-owned directory of mode `0755` that the claim makes itself when it is
+absent,
+and one slot's claim is a numbered generation file of mode `0600` named
+`<slot>.<generation>`.
 A held slot is refused rather than queued,
 so a slow step in one sweep does not hold every later sweep of the same slot
 without a deadline;
@@ -6020,20 +6042,27 @@ the refused sweep tries the slot again on its next trigger.
 The claim serializes cooperating wrapper operations only,
 and no claim proves anything about another account's actions.
 
-The claim keeps a lock rather than a lock-free record,
-and rule `NLK` asks for the reason beside it.
-The claimed unit is one slot,
-the smallest unit a lock may cover,
-and never the repository,
-a parent or the store.
-The kernel releases this `flock` when the descriptor closes,
-including when the process is killed,
-so a handler that dies cannot strand a slot and no later sweep must decide
-whether an owner record names a live process.
-A lock-free claim would need an owner record,
-a proven-dead test and an atomic takeover,
-and the window between proving the old owner dead and acting on the mount is
-the window the claim exists to close.
+The claim holds no lock,
+because rule `NLK` allows one only where it cannot be avoided and the
+repository already has the lock-free claim this needs
+(`lock/single_owner_claim.rs`,
+`take_claim`,
+used by the worktree conversion and the subvolume command).
+A claim record is made whole in a private file and published under the next
+generation number with one exclusive `link`,
+so the kernel lets exactly one claimant create it,
+no claimant ever waits,
+and a claimant that finds a live owner stops with the owner's process id.
+The owner is named by process birth rather than by a process id a later command
+can reuse,
+and a newer generation replaces an older one only when the older one records a
+released claim or an owner whose process no longer exists with that birth,
+so a killed claimant leaves nothing to clean by hand and nothing that blocks
+the next one.
+The claims belong under `/run` rather than in persistent state:
+a claim means nothing across a boot,
+and every take writes and syncs a record,
+which a durable folder would pay on every sweep.
 The slot identity store beside it is a different object:
 the project made it a folder of `O_EXCL` files with no lock on 2026-11-21
 (`doc/decision/cli-git-zfs-slot-identity-store-format.md`),
