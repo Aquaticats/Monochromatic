@@ -102,6 +102,8 @@
 //!   arms 1 to 5,
 //!   the scans,
 //!   arm 8's fork and the teardown.
+//! - `probe_test_switch.rs`:
+//!   the one test-only switch: disabled, or held after a step.
 //! - `probe_mode_words.rs`:
 //!   the verdict line,
 //!   the source readings and the skipped record.
@@ -182,6 +184,8 @@ pub mod probe_holder_control;
 pub mod probe_status_drain;
 /// The worker's arms.
 pub mod probe_worker;
+/// The test-only switch the timing and deadline arms set.
+pub mod probe_test_switch;
 /// The mode's words and readings.
 pub mod probe_mode_words;
 /// The mode itself.
@@ -191,6 +195,8 @@ pub mod probe_mode;
 pub use probe_mode::ProbeMode;
 /// The record a refused gate writes.
 pub use probe_mode_words::skip_after_gate_refusal;
+/// The test-only switch the timing and deadline arms set.
+pub use probe_test_switch::{TEST_SWITCH_VARIABLE, TestSwitch, test_switch_from_environment};
 /// The record's place and its two mount points.
 pub use probe_record_files::{HOLDER_NAME, RECORD_DIRECTORY, RecordPlace, RESULT_NAME, SCRATCH_NAME};
 /// The record's text.

@@ -59,13 +59,19 @@ const ARM_TIMEOUT_MS = 900_000;
 const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 /** The lines a green run must find, one per claim it makes. */
 const GREEN_MARKERS = [
-  'PROBE attach passed',
   'PROBE verdict passed',
+  'PROBE attach passed',
   'PROBE host table unchanged',
   'PROBE source absent afterwards',
-  'PROBE refused step move errno EPERM',
-  'PROBE timed-out step move',
-  'PROBE killed mode left the worker to finish',
+  'PROBE refused step attach-place errno EPERM',
+  'PROBE timed-out in flight unmount',
+  'PROBE killed mode left a started record',
+  'PROBE held source not exercised',
+  'PROBE absent source recorded',
+  'PROBE txg window clean',
+  'PROBE scan saw the worker and the holder',
+  'PROBE scan saw the worker alone',
+  'PROBE refusal controls refused',
   'GREEN done',
 ] as const;
 
@@ -229,67 +235,75 @@ function green(chosen: Options): void {
     'set -eu',
     `export PATH=${OPENZFS_PATH}`,
     `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
-    'host_tables() { for namespace in /proc/[0-9]*/ns/mnt; do readlink "$namespace"; done | sort -u; }',
-    // M2: the host's own table and the pool's txg kstat, before and after, fenced by a sync.
-    'host_tables > /root/tables-before.txt',
-    `cat /proc/self/mountinfo | sort > /root/mountinfo-before.txt`,
+    // M2: this session's own mount table, before the run, and the pool's txg kstat behind a start fence.
+    'cat /proc/self/mountinfo | sort > /root/mountinfo-before.txt',
     `zpool sync ${POOL}`,
     `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/txgs-before.txt`,
-    // M4: the whole probe, timed, and the same binary with the probe disabled as the interleaved control.
+    't0=$(awk \'NR > 2 { if ($1 > top) top = $1 } END { print top }\' /root/txgs-before.txt)',
+    'echo "PROBE start fence $t0"',
+    // M4: five interleaved rounds of the probe and of the same binary with the probe disabled.
     'for round in 1 2 3 4 5; do',
     '  start=$(date +%s%N)',
     `  ${HANDLER} start-probe > /root/probe-run.log 2>&1 || true`,
     '  end=$(date +%s%N)',
-    '  echo "ROUND $round $(( (end - start) / 1000000 )) ms"',
-    `  control_start=$(date +%s%N)`,
-    `  ${HANDLER} start-probe-control > /dev/null 2>&1 || true`,
-    `  control_end=$(date +%s%N)`,
-    '  echo "CONTROL $round $(( (control_end - control_start) / 1000000 )) ms"',
+    '  echo "ROUND $round $(( (end - start) / 1000 )) us"',
+    '  control_start=$(date +%s%N)',
+    `  CLI_GIT_TEST_ONLY_START_PROBE=disabled ${HANDLER} start-probe > /root/probe-control.log 2>&1 || true`,
+    '  control_end=$(date +%s%N)',
+    '  echo "CONTROL $round $(( (control_end - control_start) / 1000 )) us"',
     'done',
-    'echo "PROBE record:"; cat ' + RECORD,
+    'echo "PROBE record after the passing run:"; cat ' + RECORD,
     `grep --quiet 'verdict passed' ${RECORD} && echo 'PROBE verdict passed'`,
     `grep --quiet 'step attach-exclusive-create passed' ${RECORD} && echo 'PROBE attach passed'`,
-    // M2: the host table and the pool's rows after the run.
+    `grep --quiet 'step walk-refusal-controls passed' ${RECORD} && echo 'PROBE refusal controls refused'`,
+    `grep --quiet 'step scan-while-held passed' ${RECORD} && echo 'PROBE scan saw the worker and the holder'`,
+    `grep --quiet 'step scan-after-holder passed' ${RECORD} && echo 'PROBE scan saw the worker alone'`,
+    // M2: the end fence commits whatever the probe wrote, and every committed row at or above the start row is empty.
     `zpool sync ${POOL}`,
     `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/txgs-after.txt`,
-    'host_tables > /root/tables-after.txt',
-    'if cmp --silent /root/tables-before.txt /root/tables-after.txt; then echo "PROBE host table unchanged"; else echo "PROBE host table changed"; exit 1; fi',
-    `if cmp --silent /root/mountinfo-before.txt <(cat /proc/self/mountinfo | sort); then echo "PROBE host mountinfo unchanged"; else echo "PROBE host mountinfo changed"; exit 1; fi`,
-    // M2: every committed row at or above the first row the start fence committed carries no writes.
-    `awk '/^txg/ {next} NF >= 8 && $1 >= 0 { print }' /root/txgs-after.txt > /root/txgs-rows.txt`,
-    `tail --lines=20 /root/txgs-after.txt`,
-    // M3: a killed mode leaves the started record and the worker finishes.
-    `${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
-    `sleep 0.2`,
-    `kill --kill "$mode" || true`,
-    `wait "$mode" 2>/dev/null || true`,
-    `if grep --quiet 'state started' ${RECORD}; then echo "PROBE killed mode left a started record"; fi`,
-    `! grep --quiet 'state finished' ${RECORD} && echo "PROBE killed mode left the worker to finish"`,
-    // M9: a filtered `move_mount` fails the move step with EPERM, so the probe refuses.
-    `systemd-run --unit=git-worktree-probe-test --quiet --wait --collect --property=SystemCallFilter=~@mount --property=SystemCallErrorNumber=EPERM ${HANDLER} start-probe || true`,
-    `grep --quiet 'step move failed errno EPERM' ${RECORD} && echo 'PROBE refused step move errno EPERM'`,
-    // M3's held arm: a test-only hold after the move, so the deadline fires and names the step in flight.
-    `CLI_GIT_TEST_ONLY_PROBE_HOLD=move ${HANDLER} start-probe > /root/probe-hold.log 2>&1 || true`,
-    `grep --quiet 'verdict timed-out' ${RECORD} && grep --quiet 'in-flight unmount' ${RECORD} && echo 'PROBE timed-out step move'`,
-    // M1's held source: a namespace that mounts the snapshot makes the exclusive create answer EBUSY.
-    `unshare --mount sh -c 'mount --types zfs --options ro ${PROBE_DATASET}@ready /mnt && echo held > /root/held.txt && sleep 20' &`,
-    `for wait in 1 2 3 4 5 6 7 8 9 10; do test -f /root/held.txt && break; sleep 0.5; done`,
+    'if awk -v t0="$t0" \'NR > 2 && $1 >= t0 && ($4 != 0 || $6 != 0 || $8 != 0) { bad = 1 } NR > 2 && $1 >= t0 { seen = 1 } END { exit !(seen && !bad) }\' /root/txgs-after.txt; then',
+    '  echo "PROBE txg window clean"',
+    'else',
+    '  echo "PROBE txg window held a write"; awk -v t0="$t0" \'NR > 2 && $1 >= t0\' /root/txgs-after.txt; exit 1',
+    'fi',
+    'cat /proc/self/mountinfo | sort > /root/mountinfo-after.txt',
+    'if cmp --silent /root/mountinfo-before.txt /root/mountinfo-after.txt; then echo "PROBE host table unchanged"; else echo "PROBE host table changed"; exit 1; fi',
+    // M7's last reading: no namespace of this PID namespace lists the source after the run.
+    'if nsenter --mount=/proc/1/ns/mnt cat /proc/self/mountinfo | grep --quiet "git-worktree-probe@ready"; then echo "PROBE source still mounted"; exit 1; fi',
+    'for namespace in /proc/[0-9]*/ns/mnt; do',
+    '  if nsenter --mount="$namespace" cat /proc/self/mountinfo 2>/dev/null | grep --quiet "git-worktree-probe@ready"; then echo "PROBE source still mounted in $namespace"; exit 1; fi',
+    'done',
+    'echo "PROBE source absent afterwards"',
+    // M1's held-source control: a second namespace mounts the snapshot, so the exclusive create answers EBUSY.
+    'rm --force /root/held.txt',
+    `unshare --mount sh -c '${OPENZFS_PREFIX}/sbin/mount.zfs ${PROBE_DATASET}@ready /mnt && touch /root/held.txt && sleep 30' &`,
+    'for wait in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do test -f /root/held.txt && break; sleep 0.5; done',
+    'test -f /root/held.txt',
     `${HANDLER} start-probe > /root/probe-held.log 2>&1 || true`,
-    `grep --quiet 'step attach-exclusive-create not-exercised reason source-held' ${RECORD} && echo 'PROBE held source recorded as not exercised'`,
+    `grep --quiet 'step attach-exclusive-create not-exercised' ${RECORD} && grep --quiet 'reason source-held' ${RECORD} && echo 'PROBE held source not exercised'`,
+    'pkill --signal KILL --full "mount.zfs ${PROBE_DATASET}@ready" || true',
     'wait || true',
-    // M10: the configuration names a dataset the pool does not hold.
+    // M10's absent-source reading: the configuration names a dataset the pool does not hold.
     `sed --in-place 's|${PROBE_DATASET}|${POOL}/nosnap/git-worktree-probe-absent|' ${CONFIGURATION}`,
     `${HANDLER} start-probe > /root/probe-absent.log 2>&1 || true`,
     `grep --quiet 'source-existed no' ${RECORD} && echo 'PROBE absent source recorded'`,
     `sed --in-place 's|${POOL}/nosnap/git-worktree-probe-absent|${PROBE_DATASET}|' ${CONFIGURATION}`,
-    // M7: the record names only the probe's own namespaces while both mounts exist and one after.
-    `${HANDLER} start-probe > /root/probe-scan.log 2>&1 || true`,
-    `grep --quiet 'step scan-while-held passed' ${RECORD} && echo 'PROBE scan saw the worker and the holder'`,
-    `grep --quiet 'step scan-after-holder passed' ${RECORD} && echo 'PROBE scan saw the worker alone'`,
-    // The source is in no namespace afterwards: the probe's mounts died with their namespaces.
-    `if ! for namespace in /proc/[0-9]*/ns/mnt; do test -r "$namespace" && nsenter --mount="$namespace" cat /proc/self/mountinfo 2>/dev/null; done | grep --quiet 'git-worktree-probe@ready'; then echo "PROBE source absent afterwards"; else echo "PROBE source still mounted"; exit 1; fi`,
-    // M5: the refusal controls refuse and the success control attached, which the record shows.
-    `grep --quiet 'step walk-refusal-controls passed' ${RECORD} && echo 'PROBE refusal controls refused'`,
+    // M9's refused arm: a filtered `move_mount` answers EPERM, which fails that step and refuses the probe.
+    'systemd-run --unit=git-worktree-probe-test --quiet --wait --collect \',
+    '  --property=SystemCallFilter=~move_mount --property=SystemCallErrorNumber=EPERM \',
+    `  ${HANDLER} start-probe || true`,
+    `grep --quiet 'step attach-place failed' ${RECORD} && grep --quiet 'errno EPERM' ${RECORD} && echo 'PROBE refused step attach-place errno EPERM'`,
+    // M3's held arm: a test-only hold after the move makes the deadline fire and names the step in flight.
+    `CLI_GIT_TEST_ONLY_START_PROBE=hold-move ${HANDLER} start-probe > /root/probe-hold.log 2>&1 || true`,
+    `grep --quiet 'verdict timed-out' ${RECORD} && grep --quiet 'in-flight unmount' ${RECORD} && grep --quiet 'last-finished move' ${RECORD} && echo 'PROBE timed-out in flight unmount'`,
+    // M3's kill arm: the mode is killed while the worker is held, so the record stays started and the mode writes nothing.
+    `CLI_GIT_TEST_ONLY_START_PROBE=hold-move ${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
+    'sleep 1',
+    'kill --kill "$mode" || true',
+    'wait "$mode" 2>/dev/null || true',
+    `grep --quiet 'state started' ${RECORD} && echo 'PROBE killed mode left a started record'`,
+    'pkill --signal KILL --full "mount-git-worktree-clone-datasets start-probe" || true',
+    'sleep 0.2',
     'echo "GREEN done"',
   ].join('\n');
   guest({ chosen, script, log: 'guest-green.log', timeout: ARM_TIMEOUT_MS, });

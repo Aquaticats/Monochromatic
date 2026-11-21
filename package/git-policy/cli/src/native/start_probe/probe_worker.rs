@@ -69,6 +69,9 @@ pub struct WorkerStart<'a> {
     pub reply: RawFd,
     /// The worker's write end of the status pipe.
     pub status: RawFd,
+    /// The step the worker is held after,
+    /// which only a test arm sets.
+    pub hold: Option<ProbeStep>,
 }
 
 /// One step's line on the status pipe.
@@ -102,15 +105,22 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
         say(start.status, line);
         exit_now(1);
     };
+    let hold_after = |step: ProbeStep| {
+        if start.hold == Some(step) {
+            let _waited = read_one_blocking(start.reply);
+        }
+    };
     let _ = join_own_process_group();
     if let Err(error) = unshare_mount_namespace() {
         ending(StepLine::failed(ProbeStep::Unshare, error.errno_name()));
     }
     say(start.status, StepLine::passed(ProbeStep::Unshare));
+    hold_after(ProbeStep::Unshare);
     if let Err(error) = make_mounts_private() {
         ending(StepLine::failed(ProbeStep::PrivatePropagation, error.errno_name()));
     }
     say(start.status, StepLine::passed(ProbeStep::PrivatePropagation));
+    hold_after(ProbeStep::PrivatePropagation);
     let scratch: PathBuf = start.place.scratch();
     let slot: PathBuf = scratch.join(SLOT_NAME);
     let move_target: PathBuf = scratch.join(MOVE_TARGET_NAME);
@@ -118,18 +128,22 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
         ending(StepLine::failed(ProbeStep::ScratchTmpfs, error.errno_name()));
     }
     say(start.status, StepLine::passed(ProbeStep::ScratchTmpfs));
+    hold_after(ProbeStep::ScratchTmpfs);
     if let Err(failure) = make_scratch_tree(scratch.as_path(), slot.as_path(), move_target.as_path()) {
         ending(StepLine::failed(ProbeStep::ScratchTree, failure.errno_name()));
     }
     say(start.status, StepLine::passed(ProbeStep::ScratchTree));
+    hold_after(ProbeStep::ScratchTree);
     if let Err(failure) = walk_to_slot(scratch.as_path(), slot.as_path()) {
         ending(StepLine::failed(ProbeStep::WalkSlot, failure.errno_name()));
     }
     say(start.status, StepLine::passed(ProbeStep::WalkSlot));
+    hold_after(ProbeStep::WalkSlot);
     if let Err(failure) = refusal_controls(scratch.as_path(), slot.as_path()) {
         ending(StepLine::failed(ProbeStep::WalkRefusalControls, failure.errno_name()));
     }
     say(start.status, StepLine::passed(ProbeStep::WalkRefusalControls));
+    hold_after(ProbeStep::WalkRefusalControls);
     let configuration = read_configuration(start.configuration);
     let checkout = configuration.as_ref().ok().and_then(|text| return checkout_from_configuration(text.as_str(), start.configuration).ok());
     match checkout.and_then(|path| return open_checkout(path.as_path()).ok()) {
@@ -158,6 +172,7 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     drop(slot_handle);
     for step in [ProbeStep::AttachContext, ProbeStep::AttachSource, ProbeStep::AttachOptions, ProbeStep::AttachExclusiveCreate, ProbeStep::AttachMountDescriptor, ProbeStep::AttachPlace, ProbeStep::VerifyMount] {
         say(start.status, StepLine::passed(step));
+        hold_after(step);
     }
     if !ask_holder(start, b'H') {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
@@ -166,6 +181,7 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
         ending(StepLine::failed(ProbeStep::ScanWhileHeld, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanWhileHeld));
+    hold_after(ProbeStep::ScanWhileHeld);
     if !ask_holder(start, b'S') {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
@@ -173,6 +189,7 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
         ending(StepLine::failed(ProbeStep::ScanAfterHolder, None));
     }
     say(start.status, StepLine::passed(ProbeStep::ScanAfterHolder));
+    hold_after(ProbeStep::ScanAfterHolder);
     let mut child = match fork_unmount_child(slot.as_path(), move_target.as_path(), evidence.mount.mount_id) {
         Ok(child) => child,
         Err(errno) => ending(StepLine::failed(ProbeStep::Move, errno)),

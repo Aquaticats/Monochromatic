@@ -27,7 +27,8 @@
 //! ```
 
 use super::probe_deadline::{deadline_passed, remaining};
-use super::probe_mode_words::{namespace_of, source_of, source_refusal_word, unstarted, verdict_line};
+use super::probe_mode_words::{namespace_of, skip_after_gate_refusal, source_of, source_refusal_word, unstarted, verdict_line};
+use super::probe_test_switch::{TestSwitch, test_switch_from_environment};
 use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use super::probe_holder_control::{Arrival, Holder, reports_of};
 use super::probe_pipe_lines::{set_nonblocking, write_all};
@@ -88,17 +89,25 @@ impl<'a> ProbeMode<'a> {
     /// # Errors
     /// The fingerprint could not be read or the record could not be written.
     pub fn run_with(&self, paths: &FingerprintPaths) -> Result<String, String> {
+        let switch: TestSwitch = test_switch_from_environment();
+        if switch == TestSwitch::Disabled {
+            return skip_after_gate_refusal(self.place, paths, "test-switch");
+        }
         let fingerprint: ProbeFingerprint = ProbeFingerprint::read(paths).map_err(|refusal| return refusal.message())?;
         self.place.prepare().map_err(|refusal: RecordFileRefusal| return refusal.message())?;
         let time: String = crate::iso_time::now_iso();
         self.place.publish(started_text(&fingerprint, time.as_str()).as_str()).map_err(|refusal| return refusal.message())?;
-        return self.supervise(&fingerprint, time.as_str());
+        let hold: Option<super::probe_arms::ProbeStep> = match switch {
+            TestSwitch::Hold { step } => Some(step),
+            TestSwitch::None | TestSwitch::Disabled => None,
+        };
+        return self.supervise(&fingerprint, time.as_str(), hold);
     }
 
     /// Fork the worker and the holder,
     /// wait for the worker within the deadline,
     /// and write the finished record.
-    fn supervise(&self, fingerprint: &ProbeFingerprint, time: &str) -> Result<String, String> {
+    fn supervise(&self, fingerprint: &ProbeFingerprint, time: &str, hold: Option<super::probe_arms::ProbeStep>) -> Result<String, String> {
         let request = pipe_pair().map_err(|error| return unstarted("request pipe", error.errno))?;
         let reply = pipe_pair().map_err(|error| return unstarted("reply pipe", error.errno))?;
         let status = pipe_pair().map_err(|error| return unstarted("status pipe", error.errno))?;
@@ -112,6 +121,7 @@ impl<'a> ProbeMode<'a> {
                     request: raw(&request.write),
                     reply: raw(&reply.read),
                     status: raw(&status.write),
+                    hold,
                 };
                 drop(request.read);
                 drop(reply.write);

@@ -1,0 +1,92 @@
+//! What:
+//!  The one test-only switch the probe reads and what it can ask for:
+//!  the probe disabled for the timing control arm,
+//!  or a step the worker is held after so a run really misses its deadline.
+//! Why:
+//!  M4's control arm is the same binary with the probe disabled,
+//!  and M3's held arm needs a run that passes its deadline on purpose,
+//!  which no shipped switch may give:
+//!  a variable that turned a refusal into a pass would be the force flag the
+//!  design forbids
+//!  (`doc/decision/cli-git-zfs-start-probe.md`,
+//!  "The deadline's margin";
+//!  the test-only switch is the project's own decision in
+//!  `doc/planning/cli-git-rust-open-decisions.md`).
+//!  So the disabled arm records a skipped probe and enables nothing,
+//!  and the switch is inert unless set.
+//!  The value is parsed before the fork,
+//!  so no child reads the environment.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const mode = parseTestSwitch(process.env.CLI_GIT_TEST_ONLY_START_PROBE); // 'none' | 'disabled' | { hold: 'move' }
+//! ```
+
+use super::probe_arms::ProbeStep;
+
+/// The variable the switch is read from,
+/// which no shipped run sets.
+pub const TEST_SWITCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_START_PROBE";
+
+/// What:
+///  What a run's test switch asks for.
+/// Why:
+///  The timing control needs a run that does nothing,
+///  the deadline arms need a run that wedges after a named step,
+///  and everything else needs no switch at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TestSwitch = { kind: 'none' } | { kind: 'disabled' } | { kind: 'hold'; step: Step };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TestSwitch {
+    /// No switch,
+    /// which is every shipped run.
+    None,
+    /// The probe disabled:
+    /// the control arm that writes a skipped record and mounts nothing.
+    Disabled,
+    /// The worker held after this step,
+    /// so the mode's deadline fires and names the step in flight.
+    Hold {
+        /// The step whose passing line the worker wrote last.
+        step: ProbeStep,
+    },
+}
+
+/// What:
+///  The switch one value asks for.
+/// Why:
+///  A value this build does not know is no switch rather than a guess,
+///  and a shipped run sets nothing at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mode = parseTestSwitch('hold-move'); // { kind: 'hold', step: 'move' }
+/// ```
+pub fn parse_test_switch(value: Option<&str>) -> TestSwitch {
+    let Some(word) = value else {
+        return TestSwitch::None;
+    };
+    if word == "disabled" {
+        return TestSwitch::Disabled;
+    }
+    let Some(step_name) = word.strip_prefix("hold-") else {
+        return TestSwitch::None;
+    };
+    return match ProbeStep::from_name(step_name) {
+        Some(step) => TestSwitch::Hold { step },
+        None => TestSwitch::None,
+    };
+}
+
+/// The switch this process's environment asks for.
+pub fn test_switch_from_environment() -> TestSwitch {
+    return parse_test_switch(std::env::var(TEST_SWITCH_VARIABLE).ok().as_deref());
+}
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "probe_test_switch_tests.rs"]
+mod tests;
