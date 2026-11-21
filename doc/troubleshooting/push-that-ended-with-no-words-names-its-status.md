@@ -177,7 +177,9 @@ and the candidates the sources rule out are these:
   so the child that died was the push and not `git-lfs`.
 
 What is left is a `SIGKILL` from outside those paths,
-and a container at its memory bound is the shape that fits:
+and a container at its memory bound is the shape that fits
+(issue 6335 is filed for the killer,
+naming the seam below):
 this failure happened in two full gates and never in twelve runs of the same control alone
 (`keep/closure2-lfs-hang-alone-in-the-gate-image.log` in the round's folder).
 
