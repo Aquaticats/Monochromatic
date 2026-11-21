@@ -851,6 +851,34 @@ the pick is not made here.
   no decision record is edited,
   and no ranking moves.
 
+- `2026-11-20T19:42:17-05:00`,
+  the time this entry was written,
+  which no commit can carry.
+  The commits that carry the body this entry records are
+  `8617053f68` at 2026-11-20T19:42:13-05:00,
+  which is the report,
+  and `8b0e28656d` at 2026-11-20T19:42:17-05:00,
+  which is this file.
+  The commit that carries this sentence names them.
+  This is the revision that answers the gate re-check of the vet report,
+  written by a reviewer from another vendor,
+  and kept at
+  `/home/user/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  It makes four changes here:
+  [Q1](#q1-which-reader-parses-the-module-btf) carries the report's 32-point baseline only,
+  states that `btf-rs` is first in every defined test at the frozen weights,
+  and says that the maintenance weight moves places 2 and 3,
+  with `bpftool` failed on relevant execution and `pahole` still a finalist;
+  options 2 to 4 use that one scale and stop calling the child root-spawned;
+  the ranking names the C1,
+  C5 and C6 steps and is labelled conditional;
+  and [Scored comparison](#scored-comparison) records that four candidates reached finalist
+  validation and that the report fails `bpftool`.
+  No candidate is adopted,
+  no crate is added to a manifest,
+  no decision record is edited,
+  and no score input changed.
+
 ### Sources read
 
 Logs under `~/temp/agent` that this file cites are the author's session scratch.
