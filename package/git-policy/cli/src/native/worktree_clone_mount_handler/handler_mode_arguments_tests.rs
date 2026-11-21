@@ -52,10 +52,11 @@ fn no_argument_is_the_sweep() {
 #[test]
 fn every_mode_word_reads_as_its_mode() {
     assert_eq!(parse(&arguments(&["boot-reconcile"])), Ok(HandlerMode::BootReconcile));
+    assert_eq!(parse(&arguments(&["start-probe"])), Ok(HandlerMode::StartProbe));
     assert_eq!(parse(&arguments(&["shutdown-unmount"])), Ok(HandlerMode::ShutdownUnmount));
     assert_eq!(parse(&arguments(&[HELP_WORD])), Ok(HandlerMode::Help));
     assert_eq!(parse(&arguments(&[VERSION_WORD])), Ok(HandlerMode::Version));
-    assert_eq!(MODE_WORDS, ["boot-reconcile", "shutdown-unmount", "adopt-worktree-parent"]);
+    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "adopt-worktree-parent"]);
 }
 
 /// The adoption's three options read as one request,

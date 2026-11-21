@@ -1,0 +1,358 @@
+#!/usr/bin/env node
+/**
+ Drive the root start probe's arms in the throwaway `mvm` guest.
+
+ The probe mounts, unshares a mount namespace and reads `/proc/spl/kstat/zfs`, so no control on a person's machine may
+ run it. This driver borrows the ZFS binding's guest recipe for the parts that are not the probe's
+ (`package/zfs/request-to-openfs-kernel-device/e2e/run-fixture.ts`): it creates the Ubuntu 24.04 guest, prepares it with
+ OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's handler inside it, prepares the probe dataset the design
+ names, runs the arms, and destroys the guest.
+
+ Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|destroy|all> [--name <guest>]
+          [--log-dir <dir>] [--keep-guest]
+
+ `red` runs the arm before the probe exists and requires the refusal that says the mode is not one of this build's,
+ which is what proves the green run below is a change and not an absence that always passed. `green` requires the
+ record's own words: the attach arm passed, the mount the probe made is gone from every namespace afterwards, and a
+ filtered `move_mount` fails that step with `EPERM`.
+
+ `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
+ */
+import { spawnSync, } from 'node:child_process';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
+import { join, resolve, } from 'node:path';
+
+import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
+
+//region Constants
+
+/** Where the crate is unpacked and built inside the guest, which every account may traverse. */
+const CRATE_DIR = '/opt/git-policy-cli-start-probe';
+/** The handler binary the arms start. */
+const HANDLER = `${CRATE_DIR}/package/git-policy/cli/target/release/mount-git-worktree-clone-datasets`;
+/** The record the probe writes and the arms read. */
+const RECORD = '/run/git-worktree-clone-mount-probe/result';
+/** The probe dataset the design names (doc/planning/cli-git-zfs-start-probe-design.md, "The source"). */
+const PROBE_DATASET = 'zpcachyos/nosnap/git-worktree-probe';
+/** The fixture's file-backed pool, created by this driver and destroyed with the guest. */
+const POOL = 'zpcachyos';
+/** The pool's image inside the guest. */
+const POOL_IMAGE = '/home/zfs-probe-pool.img';
+/** The pool image's size: the probe mounts read-only and writes no block. */
+const POOL_IMAGE_SIZE = '1G';
+/** Where the handler's configuration lives, as the build names it. */
+const CONFIGURATION = '/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc';
+/** The account the guest image creates, which the configuration pins as the managed account. */
+const ACCOUNT = 'ubuntu';
+/** The checkout path the configuration pins, which the checkout-root arm opens read-only. */
+const CHECKOUT = '/home/git-worktree-probe-checkout';
+/** The `PATH` the guest's OpenZFS 2.4.4 userspace needs. */
+const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
+const OPENZFS_PATH = `${OPENZFS_PREFIX}/sbin:${OPENZFS_PREFIX}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+/** Milliseconds one host command may take. */
+const HOST_COMMAND_TIMEOUT_MS = 120_000;
+/** Milliseconds the guest's crate build may take. */
+const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
+/** Milliseconds one probe arm may take. */
+const ARM_TIMEOUT_MS = 900_000;
+/** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
+const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
+/** The lines a green run must find, one per claim it makes. */
+const GREEN_MARKERS = [
+  'PROBE attach passed',
+  'PROBE verdict passed',
+  'PROBE host table unchanged',
+  'PROBE source absent afterwards',
+  'PROBE refused step move errno EPERM',
+  'PROBE timed-out step move',
+  'PROBE killed mode left the worker to finish',
+  'GREEN done',
+] as const;
+
+//endregion Constants
+
+//region Arguments
+
+/** The step, the guest name, the log directory and whether `all` keeps the guest. */
+interface Options {
+  readonly step: string;
+  readonly name: string;
+  readonly logDir: string;
+  readonly keepGuest: boolean;
+}
+
+/** The step and the values the command line gave it. */
+function options(): Options {
+  const [step = '', ...rest] = process.argv.slice(2);
+  const value = (flag: string): string | undefined => {
+    const at = rest.indexOf(flag);
+    return at === -1 ? undefined : rest[at + 1];
+  };
+  return {
+    step,
+    name: value('--name') ?? 'git-policy-start-probe',
+    logDir: value('--log-dir') ?? resolve(import.meta.dirname, '..', 'target', 'start-probe-guest-logs'),
+    keepGuest: rest.includes('--keep-guest'),
+  };
+}
+
+//endregion Arguments
+
+//region Commands
+
+/** Quote one block of shell for the guest's `sh -ec`, quotes included. */
+function shellQuote(script: string): string {
+  return `'${script.replaceAll("'", `'\\''`)}'`;
+}
+
+/** One host command whose whole output goes to its own log. */
+function host({ chosen, command, args, log, }: { readonly chosen: Options; readonly command: string; readonly args: readonly string[]; readonly log: string; }): void {
+  const output = openSync(join(chosen.logDir, log), 'w', 0o600);
+  try {
+    const result = spawnSync(command, args, {
+      stdio: ['ignore', output, output,],
+      timeout: HOST_COMMAND_TIMEOUT_MS,
+    });
+    if ((result.error !== undefined) || (result.status !== 0))
+      throw result.error ?? new Error(`${command} ${args.join(' ')} exited ${String(result.status)}; see ${log}`);
+  } finally {
+    closeSync(output);
+  }
+}
+
+/** One guest script, its whole output kept in its own log. */
+function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): string {
+  const output = openSync(join(chosen.logDir, log), 'w', 0o600);
+  const command = `test "$(hostname)" = ${chosen.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
+  try {
+    const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', command], {
+      stdio: ['ignore', output, output,],
+      timeout,
+    });
+    if ((result.error !== undefined) || (result.status !== 0))
+      throw result.error ?? new Error(`mvm exec exited ${String(result.status)}; see ${log}`);
+  } finally {
+    closeSync(output);
+  }
+  return readFileSync(join(chosen.logDir, log), 'utf8');
+}
+
+/** One step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction. */
+function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: string; }): void {
+  const script = resolve(import.meta.dirname, '..', '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
+  const result = spawnSync('node', [script, step, '--name', chosen.name, '--log-dir', chosen.logDir,], {
+    stdio: 'inherit',
+    timeout: HOST_COMMAND_TIMEOUT_MS * 60,
+  });
+  if ((result.error !== undefined) || (result.status !== 0))
+    throw result.error ?? new Error(`the guest recipe's ${step} step exited ${String(result.status)}`);
+}
+
+/**
+ Build this crate's handler inside the guest from a snapshot of the worktree, so the arm compiles against the path
+ crates the wrapper links rather than against a copy somebody remembered to add.
+ */
+async function build(chosen: Options): Promise<void> {
+  const context = join(chosen.logDir, 'snapshot');
+  rmSync(context, { recursive: true, force: true, });
+  mkdirSync(context, { recursive: true, mode: 0o700, });
+  await copyWrapperSnapshot({ context, });
+  const tarball = join(chosen.logDir, 'subject.tar.gz');
+  host({ chosen, command: 'tar', args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--directory', context, '.'], log: 'host-package.log', });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, tarball, '/root/subject.tar.gz'], log: 'guest-push.log', });
+  const script = [
+    'set -eu',
+    'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
+    `rm --recursive --force ${CRATE_DIR}`,
+    `mkdir --parents ${CRATE_DIR}`,
+    `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
+    `cd ${CRATE_DIR}/package/git-policy/cli`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    'cargo build --release --locked --bins > /root/probe-build.log 2>&1',
+    'tail --lines=3 /root/probe-build.log',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+}
+
+//endregion Commands
+
+//region Steps
+
+/** The step that must fail before the probe exists: the mode word is not one this build takes. */
+function red(chosen: Options): void {
+  const script = [
+    'set -eu',
+    `${HANDLER} start-probe > /root/red.log 2>&1 || status=$?`,
+    'status=${status:-0}',
+    'cat /root/red.log',
+    // A red arm passes only when the refusal is the absence of the mode, and says so.
+    'if grep --quiet "start-probe" /root/red.log && grep --quiet "not a mode" /root/red.log; then',
+    '  echo "RED the probe mode does not exist yet: $(cat /root/red.log | head --lines=1)"',
+    '  exit 0',
+    'fi',
+    'echo "RED the arm did not meet the absence it expected"',
+    'exit 1',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-red.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/** Create the pool and the probe dataset the design names, with its empty `ready` snapshot and the configuration. */
+function probeDataset(chosen: Options): void {
+  const script = [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
+    // The pool is a file-backed image of this throwaway guest, and nothing here is on a person's machine.
+    `truncate --size ${POOL_IMAGE_SIZE} ${POOL_IMAGE}`,
+    `zpool create -f -o cachefile=none -O mountpoint=none ${POOL} ${POOL_IMAGE}`,
+    `zfs create -o canmount=off -o mountpoint=none ${POOL}/nosnap`,
+    `zfs create -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false ${PROBE_DATASET}`,
+    `zfs set org.monochromatic:git-worktree-probe-source=v1 ${PROBE_DATASET}`,
+    `zfs snapshot ${PROBE_DATASET}@ready`,
+    `mkdir --parents $(dirname ${CONFIGURATION})`,
+    `printf '%s\\n' '{' '  "gitWorktreeProbeDataset": "'${PROBE_DATASET}'",' '  "gitWorktreeCheckout": "'${CHECKOUT}'",' '  "account": "'${ACCOUNT}'"' '}' > ${CONFIGURATION}`,
+    `chmod 0644 ${CONFIGURATION}`,
+    `mkdir --parents ${CHECKOUT}`,
+    `chown ${ACCOUNT}:${ACCOUNT} ${CHECKOUT}`,
+    `zfs list -H -o name,mountpoint,canmount ${POOL} ${POOL}/nosnap ${PROBE_DATASET}`,
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-probe-dataset.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/**
+ Run the arms the design's measurements name, all in one guest script so every reading is in one log:
+ M1's attach and its `EBUSY` control, M2's table and txg fences, M3's kills and its held deadline, M4's timings,
+ M5's refusal controls, M7's scan, M9's accepted release and its filtered refusal, and M10's absent-source reading.
+ */
+function green(chosen: Options): void {
+  const script = [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
+    'host_tables() { for namespace in /proc/[0-9]*/ns/mnt; do readlink "$namespace"; done | sort -u; }',
+    // M2: the host's own table and the pool's txg kstat, before and after, fenced by a sync.
+    'host_tables > /root/tables-before.txt',
+    `cat /proc/self/mountinfo | sort > /root/mountinfo-before.txt`,
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/txgs-before.txt`,
+    // M4: the whole probe, timed, and the same binary with the probe disabled as the interleaved control.
+    'for round in 1 2 3 4 5; do',
+    '  start=$(date +%s%N)',
+    `  ${HANDLER} start-probe > /root/probe-run.log 2>&1 || true`,
+    '  end=$(date +%s%N)',
+    '  echo "ROUND $round $(( (end - start) / 1000000 )) ms"',
+    `  control_start=$(date +%s%N)`,
+    `  ${HANDLER} start-probe-control > /dev/null 2>&1 || true`,
+    `  control_end=$(date +%s%N)`,
+    '  echo "CONTROL $round $(( (control_end - control_start) / 1000000 )) ms"',
+    'done',
+    'echo "PROBE record:"; cat ' + RECORD,
+    `grep --quiet 'verdict passed' ${RECORD} && echo 'PROBE verdict passed'`,
+    `grep --quiet 'step attach-exclusive-create passed' ${RECORD} && echo 'PROBE attach passed'`,
+    // M2: the host table and the pool's rows after the run.
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/txgs-after.txt`,
+    'host_tables > /root/tables-after.txt',
+    'if cmp --silent /root/tables-before.txt /root/tables-after.txt; then echo "PROBE host table unchanged"; else echo "PROBE host table changed"; exit 1; fi',
+    `if cmp --silent /root/mountinfo-before.txt <(cat /proc/self/mountinfo | sort); then echo "PROBE host mountinfo unchanged"; else echo "PROBE host mountinfo changed"; exit 1; fi`,
+    // M2: every committed row at or above the first row the start fence committed carries no writes.
+    `awk '/^txg/ {next} NF >= 8 && $1 >= 0 { print }' /root/txgs-after.txt > /root/txgs-rows.txt`,
+    `tail --lines=20 /root/txgs-after.txt`,
+    // M3: a killed mode leaves the started record and the worker finishes.
+    `${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
+    `sleep 0.2`,
+    `kill --kill "$mode" || true`,
+    `wait "$mode" 2>/dev/null || true`,
+    `if grep --quiet 'state started' ${RECORD}; then echo "PROBE killed mode left a started record"; fi`,
+    `! grep --quiet 'state finished' ${RECORD} && echo "PROBE killed mode left the worker to finish"`,
+    // M9: a filtered `move_mount` fails the move step with EPERM, so the probe refuses.
+    `systemd-run --unit=git-worktree-probe-test --quiet --wait --collect --property=SystemCallFilter=~@mount --property=SystemCallErrorNumber=EPERM ${HANDLER} start-probe || true`,
+    `grep --quiet 'step move failed errno EPERM' ${RECORD} && echo 'PROBE refused step move errno EPERM'`,
+    // M3's held arm: a test-only hold after the move, so the deadline fires and names the step in flight.
+    `CLI_GIT_TEST_ONLY_PROBE_HOLD=move ${HANDLER} start-probe > /root/probe-hold.log 2>&1 || true`,
+    `grep --quiet 'verdict timed-out' ${RECORD} && grep --quiet 'in-flight unmount' ${RECORD} && echo 'PROBE timed-out step move'`,
+    // M1's held source: a namespace that mounts the snapshot makes the exclusive create answer EBUSY.
+    `unshare --mount sh -c 'mount --types zfs --options ro ${PROBE_DATASET}@ready /mnt && echo held > /root/held.txt && sleep 20' &`,
+    `for wait in 1 2 3 4 5 6 7 8 9 10; do test -f /root/held.txt && break; sleep 0.5; done`,
+    `${HANDLER} start-probe > /root/probe-held.log 2>&1 || true`,
+    `grep --quiet 'step attach-exclusive-create not-exercised reason source-held' ${RECORD} && echo 'PROBE held source recorded as not exercised'`,
+    'wait || true',
+    // M10: the configuration names a dataset the pool does not hold.
+    `sed --in-place 's|${PROBE_DATASET}|${POOL}/nosnap/git-worktree-probe-absent|' ${CONFIGURATION}`,
+    `${HANDLER} start-probe > /root/probe-absent.log 2>&1 || true`,
+    `grep --quiet 'source-existed no' ${RECORD} && echo 'PROBE absent source recorded'`,
+    `sed --in-place 's|${POOL}/nosnap/git-worktree-probe-absent|${PROBE_DATASET}|' ${CONFIGURATION}`,
+    // M7: the record names only the probe's own namespaces while both mounts exist and one after.
+    `${HANDLER} start-probe > /root/probe-scan.log 2>&1 || true`,
+    `grep --quiet 'step scan-while-held passed' ${RECORD} && echo 'PROBE scan saw the worker and the holder'`,
+    `grep --quiet 'step scan-after-holder passed' ${RECORD} && echo 'PROBE scan saw the worker alone'`,
+    // The source is in no namespace afterwards: the probe's mounts died with their namespaces.
+    `if ! for namespace in /proc/[0-9]*/ns/mnt; do test -r "$namespace" && nsenter --mount="$namespace" cat /proc/self/mountinfo 2>/dev/null; done | grep --quiet 'git-worktree-probe@ready'; then echo "PROBE source absent afterwards"; else echo "PROBE source still mounted"; exit 1; fi`,
+    // M5: the refusal controls refuse and the success control attached, which the record shows.
+    `grep --quiet 'step walk-refusal-controls passed' ${RECORD} && echo 'PROBE refusal controls refused'`,
+    'echo "GREEN done"',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-green.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+//endregion Steps
+
+const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
+  create: (chosen) => recipe({ chosen, step: 'create', }),
+  prepare: (chosen) => recipe({ chosen, step: 'prepare', }),
+  red: async (chosen: Options): Promise<void> => {
+    await build(chosen);
+    red(chosen);
+  },
+  'probe-dataset': probeDataset,
+  green: async (chosen: Options): Promise<void> => {
+    await build(chosen);
+    green(chosen);
+  },
+  destroy: (chosen) => recipe({ chosen, step: 'destroy', }),
+  all: async (chosen: Options): Promise<void> => {
+    let failure: unknown = null;
+    let created = false;
+    try {
+      recipe({ chosen, step: 'create', });
+      created = true;
+      recipe({ chosen, step: 'prepare', });
+      await build(chosen);
+      red(chosen);
+      probeDataset(chosen);
+      green(chosen);
+    } catch (thrown) {
+      failure = thrown;
+    }
+    if (chosen.keepGuest && created)
+      console.log(`git-policy probe guest: --keep-guest kept '${chosen.name}' to inspect and destroy`);
+    else if (!chosen.keepGuest && created) {
+      try {
+        recipe({ chosen, step: 'destroy', });
+      } catch (destruction) {
+        if (failure === null)
+          throw destruction;
+        console.error(`git-policy probe guest: destroying '${chosen.name}' also failed: ${String(destruction)}`);
+      }
+    } else if (!chosen.keepGuest)
+      console.error(`git-policy probe guest: no guest was destroyed, because this run did not create '${chosen.name}'`);
+    if (failure !== null)
+      throw failure;
+  },
+};
+
+const chosen = options();
+mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
+const step = steps[chosen.step];
+if (step === undefined)
+  throw new Error(`unknown step '${chosen.step}'; use ${Object.keys(steps).join(', ')}`);
+await step(chosen);
+const greenLog = join(chosen.logDir, 'guest-green.log');
+if (chosen.step === 'green' || chosen.step === 'all') {
+  const pulled = readFileSync(greenLog, 'utf8');
+  for (const marker of GREEN_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the green log lacks ${marker}; the guest ran the arm without proving it`);
+  }
+}
+console.log(`git-policy probe guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`);

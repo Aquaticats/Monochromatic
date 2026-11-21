@@ -2,6 +2,7 @@
 //!  The words one invocation of the handler is read as:
 //!  no argument for the clone-mount sweep the installed ZED event starts,
 //!  `boot-reconcile`,
+//!  `start-probe`,
 //!  `shutdown-unmount`,
 //!  `adopt-worktree-parent` with the replacement's device and inode,
 //!  and the two words that print what this build is.
@@ -34,7 +35,7 @@ use std::path::PathBuf;
 
 /// The mode words this build accepts,
 /// in the order the help lists them.
-pub const MODE_WORDS: [&str; 3] = ["boot-reconcile", "shutdown-unmount", "adopt-worktree-parent"];
+pub const MODE_WORDS: [&str; 4] = ["boot-reconcile", "start-probe", "shutdown-unmount", "adopt-worktree-parent"];
 
 /// The word that prints the help.
 pub const HELP_WORD: &str = "--help";
@@ -92,6 +93,9 @@ pub enum HandlerMode {
     /// `boot-reconcile`:
     /// the boot unit's reconciliation.
     BootReconcile,
+    /// `start-probe`:
+    /// the root start probe's arms and its record.
+    StartProbe,
     /// `shutdown-unmount`:
     /// the shutdown unit's verified unmount.
     ShutdownUnmount,
@@ -208,6 +212,7 @@ pub fn usage() -> String {
         String::from("usage: mount-git-worktree-clone-datasets [mode]"),
         String::from("  (no argument)        run the clone-mount sweep the installed ZED event starts"),
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
+        String::from("  start-probe          run the start probe's arms and write this boot's result"),
         String::from("  shutdown-unmount     unmount the verified clone mounts at shutdown; the boot unit's ExecStopPost"),
         String::from("  adopt-worktree-parent --checkout <path> --device <count> --inode <count>"),
         String::from("                       record an administrator-identified replacement .claude/worktrees folder"),
@@ -279,6 +284,10 @@ pub fn parse(arguments: &[OsString]) -> Result<HandlerMode, ArgumentRefusal> {
         },
         "boot-reconcile" => match words.len() {
             1 => Ok(HandlerMode::BootReconcile),
+            _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
+        },
+        "start-probe" => match words.len() {
+            1 => Ok(HandlerMode::StartProbe),
             _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
         },
         "shutdown-unmount" => match words.len() {

@@ -24,6 +24,8 @@ use super::boot_reconcile_mode;
 use super::handler_mode_arguments::{self, HandlerMode};
 use super::shutdown_unmount_mode;
 use crate::diagnostic_lines_off_the_calling_thread::write;
+use super::handler_install_paths::CONFIGURATION_PATH;
+use crate::start_probe::{FingerprintPaths, ProbeMode, RecordPlace, skip_after_gate_refusal};
 use crate::zfs_compatibility_gate::gate_verdict::Verdict;
 use crate::zfs_compatibility_gate::{BeforeRequests, LiveGate, verdict_line};
 use std::ffi::OsString;
@@ -144,6 +146,38 @@ fn behind_the_gate(
 }
 
 /// What:
+///  Run the start probe behind the gate,
+///  and answer
+///  with the skip line and a skipped record when the gate refuses.
+/// Why:
+///  The probe's own mode is entered only on a compatible verdict,
+///  and a refusal leaves the record saying the probe was skipped and that
+///  nothing was mounted,
+///  because the gate's refusal authorizes no mount
+///  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+///  "Who runs it,
+/// and where").
+///  The mode still exits successfully:
+/// a skipped probe is a verdict in the
+///  record,
+/// never a failed unit.
+fn behind_the_gate_for_the_probe(gate: &dyn BeforeRequests) -> Result<String, String> {
+    let verdict: Verdict = gate.verdict();
+    let line: String = verdict_line(&verdict);
+    if let Verdict::Refused(refusal) = &verdict {
+        let place: RecordPlace = RecordPlace::live();
+        let skipped: Result<String, String> = skip_after_gate_refusal(&place, &FingerprintPaths::live(), refusal.step.as_str());
+        return Ok(format!("{line}\n{}", skipped.unwrap_or_else(|refusal_line| return refusal_line)));
+    }
+    let place: RecordPlace = RecordPlace::live();
+    let mode: ProbeMode = ProbeMode::new(&place, std::path::Path::new(CONFIGURATION_PATH));
+    return match mode.run() {
+        Ok(done) => Ok(format!("{line}\n{done}")),
+        Err(refusal) => Ok(format!("{line}\n{refusal}")),
+    };
+}
+
+/// What:
 ///  Read one invocation and run it.
 /// Why:
 ///   The argument grammar is the only way in:
@@ -196,6 +230,7 @@ pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
         HandlerMode::BootReconcile => report(behind_the_gate(gate, || {
             return boot_reconcile_mode::run().map_err(|awaiting| return awaiting.message());
         })),
+        HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate)),
         HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
             return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());
         })),
