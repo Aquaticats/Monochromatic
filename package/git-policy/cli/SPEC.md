@@ -5347,26 +5347,50 @@ not one made after.
 
 #### The recorded identities store
 
-The store is one file under root control:
-`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`.
-Its grammar is one record per line,
-the first line being the file's own header,
-with `#` starting a line that says nothing about an identity.
+The store is one folder under root control:
+`/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`,
+root-owned with mode `0755`,
+holding `.parent` for the `.claude/worktrees` parent folder and one record file per clone slot,
+each root-owned with mode `0644`.
+One file per slot is what lets each record be published with an exclusive creation and one link that
+replaces nothing,
+so the store takes no lock,
+and no later writer can record an identity taken from a folder that changed under it.
+An entry whose name begins with a dot is never read as a record,
+except `.parent`, which is the parent folder's record.
+
+Each record file is the version 2 header line and exactly one record line.
+The parent folder's record, at `.parent`:
+
+```text
+# monochromatic-git-policy-cli worktree clone slot identities, version 2
+parent - 66304:306:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-
+```
+
+Each slot's record is filed under the slot's exact name.
+The record of the slot `add-cache-layer`:
+
+```text
+# monochromatic-git-policy-cli worktree clone slot identities, version 2
+slot add-cache-layer 66304:901:1000:0755:-:-
+```
+
+The record of the slot `fix-flaky-test`:
+
+```text
+# monochromatic-git-policy-cli worktree clone slot identities, version 2
+slot fix-flaky-test 66304:1337:1000:0755:-:-
+```
+
 No comment stands above the header:
 the first line that is not empty must be the header itself,
 and a comment may only follow it.
-
-```text
-# monochromatic-git-policy-cli worktree clone slot identities, version 1
-# one record per slot, written once by the sweep that first verified the clone
-parent - 66304:306:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-
-slot example 66304:901:1000:0755:-:-
-```
-
 A record's three fields are its kind (`parent` or `slot`),
 its key (`-` for the parent folder,
 the slot's name for a slot),
 and its identity token `device:inode:owner:mode:access:default`.
+The key is the name the record is filed under,
+so a record copied or hard-linked to another name refuses rather than deciding another slot's binding.
 The mode is four octal digits of permission bits,
 and each ACL is its bytes in lowercase hexadecimal,
 with `-` for a folder that has none.
@@ -5400,111 +5424,118 @@ read the store and the folders' `stat --format=%d` again,
 and repeat the arm with an export and import of the dataset in between.
 The plan's step 8 is the first step that depends on the answer.
 
-Reading refuses the whole file when any line is not one this repository wrote,
-naming the line,
-and when one key is recorded twice,
-because a skipped or doubled line would let a slot be compared against nothing or against two identities.
-The read is bounded at one mebibyte,
-which a header and thousands of slot lines fit inside,
-and a larger file is refused by that bound rather than read into memory.
-An append that would make the file larger than that bound is refused before anything is written,
-so an append never grows a store past what its own read accepts;
-the widest store an append grows is one record below the bound.
-The adoption's rewrite of the parent record is refused on the same terms before anything is written,
-so a rewrite publishes a store of the bound at most,
-and the widest store it publishes is the bound itself.
-An adoption the bound refuses leaves the recorded parent identity in place,
-so every managed attach that compares the replacement folder against it keeps refusing,
-and nothing in this repository removes a recorded slot or raises the bound;
-the record format that lets a store grow past it is the owner's open question,
-and the refusal asks the person to report the store,
-its size and the adoption rather than edit the file.
-A missing file refuses and names the setup run that writes it.
+A read is one file:
+one `openat` on the store folder's held descriptor with `O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`,
+one `fstat` for the owner and the mode,
+one bounded read,
+one UTF-8 check,
+and the two lines' parse.
+Nothing in it lists the folder,
+so a read costs the same whatever the store holds.
+A file larger than `RECORD_MAXIMUM_BYTES` is refused by that bound rather than read into memory,
+and the bound is 262,538 bytes,
+derived from the kernel's own limits rather than chosen:
+two ACLs of `MAXIMUM_ACL_BYTES` at two hexadecimal characters a byte,
+the widest digits each other identity field holds,
+the `slot ` prefix,
+a name of at most 255 bytes,
+and the header with each newline.
+No record a writer of this repository makes is wider,
+because the capture refuses a folder whose ACL is above `MAXIMUM_ACL_BYTES`,
+so the bound names a file another writer made and no command here raises it.
+A file that is not the header line followed by exactly one record line refuses,
+naming the line where it stopped,
+and a record whose key is not its file's name refuses,
+because nothing is attached to a slot until the file reads whole.
+A link,
+a folder or another non-regular file at a record's name refuses,
+never read through.
+A missing store folder refuses and names the setup run that makes it;
+a missing `.parent` refuses because there is nothing to compare the parent against;
+and a missing slot record asks for the sweep that first verifies that clone.
+The adoption and `doctor` list the folder,
+and a listing refuses an entry that is neither `.parent`,
+nor a slot's name,
+nor a staging entry,
+naming it:
+a foreign name could be a slot whose record a later read would miss.
+A staging entry is ignored by every reader and by the listing,
+and a dot entry that matches neither staging form is reported by `doctor`,
+because a third form means a writer this layout has not accounted for.
 
-The route reads the store through `SlotIdentityStore::read_under_root_control`,
-which refuses a file whose owner is not root or whose group or other write bit is set,
-and refuses the folder that holds it on the same two terms:
-a record the attach's account could rewrite would decide nothing.
-The grammar's own reader (`read`) is what a caller uses once it holds such a file,
-and what the controls drive on fixture files.
-The route's two writes make the same refusal inside the step that writes:
-`append_slot_identity_under_root_control` takes the lock,
-checks the lock file,
-the store file and the folder that holds it,
-and then appends,
-and `record_parent_identity_under_root_control` takes the lock,
-checks the lock file and reads the store through the route's reader,
-and then replaces the parent record.
-A caller that read the store first covers nothing,
-because the file it judged is not the file the write opens.
+The folder and every record in it answer the same two root-control terms:
+owner root,
+and no group or other write bit.
+The route reads through `SlotIdentityStore::open_under_root_control`,
+which opens the folder once and checks that descriptor,
+and each record read then checks the record's own descriptor,
+so a swap between a name and a read cannot change which object was judged.
+The grammar's own open (`SlotIdentityStore::open`) is what a caller uses once it holds such a folder,
+and what the controls drive on fixture folders.
+The route's writers open the folder under root control inside the step that writes,
+so a caller that read the store first covers nothing.
 
-A slot's record is written once,
-by the first sweep that verifies that clone (the plan's step 8).
-The read that finds no record for the slot and the append that records it are one step,
-under one exclusive `flock` of a lock file beside the store,
-so two sweeps that meet on one slot record it once:
-without that lock both would read no record,
-both would append,
-and the duplicate would refuse every later read until an administrator edited a root-owned file.
-A second record for the same slot is refused.
+A publication compares `.parent` against the walked parent before it creates anything,
+answering `NoParentRecord` or `ParentIdentity`,
+so no record is taken for a folder reached through a parent no check compared.
+It then formats the header and the record line,
+refusing a record wider than the bound before a name exists,
+and creates a staging file named `.<32 lowercase hex>` with `O_EXCL`,
+mode `0644`,
+writes the bytes,
+sets the mode and flushes the file.
+One `linkat` gives that file the slot's name and nothing else's:
+its `EEXIST` is what decides the one winner of two recorders,
+and the staging name is then removed and the folder flushed.
+A folder that refuses a hard link publishes the same file with `renameat2` and `RENAME_NOREPLACE`,
+which answers `EEXIST` in the same way,
+and a folder that refuses that flag as well refuses the write,
+naming the folder and both calls,
+because nothing is published by a rename that could replace another run's record.
+The loser of two recorders removes its own staging name,
+flushes the folder,
+reads the record that won,
+and answers `SlotAlreadyRecorded` carrying it,
+so the sweep carries on with the identity that stands rather than failing.
 
-The lock stands on `git-worktree-clone-slot-identities.lock` beside the store,
-which the append makes root's own with mode `0600`,
-and never on the store itself:
-an exclusive `flock` needs no write bit of the file it locks,
-so a lock on the store is one every account that may read the store could hold,
-and that account would stall root's own sweep.
-The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
-which is 25 times the slowest hold either run of the probe measured through these two writers
-on this host's ZFS `home` dataset in an unoptimized `test` profile build (`79.362 ms`):
-`1.600` to `2.159 ms` for one run's appends on a 1000-slot store and `1.586 ms` at the fastest in the other's
-(the medians were `1.647` and `1.985 ms`),
-`19.462` to `39.369 ms` for an append on a store of the whole bound one read accepts,
-and `47.116` to `52.750 ms` for that store's adoption,
-the arm that holds the lock longest (`37.9` times the wait)
-(the method,
-the ranges and counts,
-the append's size check that moved the probe's widest arm one record below the bound,
-and the control that shows each `fsync` reaching the pool's device,
-are in `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`,
-which `STORE_LOCK_WAIT` names),
-so a holder that never finishes refuses the write and says which lock file stood in the way
-instead of holding the command open.
-The kernel releases the lock when the descriptor closes however the run ends,
-so a killed run leaves no lock behind.
-That lock is the one place this route is not lock-free:
-the grammar's one file cannot be made safe by atomic rename,
-because two first-recording sweeps that both rebuild the file would let the later rename record an identity
-taken from a folder that changed in between,
-which is the refresh the design forbids.
-A folder with one file per slot,
-each made with `O_EXCL`,
-would record each slot without a lock and lose the one state a single read sees;
-this implementation keeps the single file,
-and the owner has not approved that format
-(the question is in `doc/handover/questions-for-the-owner.md`).
-The lock covers one read,
-check and append of one record,
-and the adoption's read and rename of the whole file,
-and nothing else.
-The parent folder's record is written by the setup run (the plan's step 19),
-and only the administrator's adoption replaces it;
-that write reads the store and publishes a whole new file by rename while it holds the same lock an append holds,
-keeping every slot record it read,
-so no append can land between its read and its rename and be dropped;
-the mode runs with managed operations quiesced because the design requires that of the adoption,
-not because this write needs it.
-The store's path is given to the module by its caller,
-so a control injects a fixture path and nothing writes under `/var/lib` in a test.
+A writer removes its own staging name on its success path and on its failure path.
+The adoption removes the two known staging forms before it stages its own record,
+which its quiescence precondition makes safe,
+the sweep removes them before it does anything else,
+and `doctor` reports the known forms with their count and age and any unknown dot entry,
+and removes nothing.
+A dot entry that matches neither form is therefore left for an administrator,
+which is the one state no command of this repository repairs.
+
+The parent folder's record has two writers.
+The setup run publishes `.parent` only where it is absent,
+and a second setup run compares the live parent with the record it finds:
+an equal folder is success,
+and only a difference refuses `ParentAlreadyRecorded`.
+The administrator's adoption is the one writer that replaces the record,
+publishing the new file by one rename over `.parent` while `.parent` is never removed,
+so a reader racing that rename reads either whole record and never a third state.
+The adoption opens no slot file for writing,
+renames none and removes none,
+so it cannot overwrite a surviving slot identity,
+and two adoptions at once leave the later one's record,
+exactly as the single file left them.
+The setup run's split from the adoption's write is what the plan's step 19 will carry:
+a boot unit that runs on every boot must not report an error for a record that is already right.
+The adoption lists the store folder twice and refuses where the set of slot names changed,
+so a slot published between the two listings reaches the decision rather than passing unverified.
+The store's folder is given to the module by its caller,
+so a control injects a fixture folder and nothing writes under `/var/lib` in a test.
 
 One store describes one checkout:
-its parent record is keyed `-` and a slot's record by the slot's name alone,
+its parent record is `.parent` and a slot's record is filed by the slot's name alone,
 so a second checkout's `.claude/worktrees` never matches the parent record,
-and its slot named like an existing one can never be recorded.
-That is the design's single managed checkout and the file is machine-global;
+and its slot named like an existing one cannot be published beside it:
+the second publication's link answers `EEXIST` and the winner's record stands.
+That is the design's single managed checkout and the folder is machine-global;
 the parent-identity refusal names the checkout it compared.
 This grammar is this implementation's own:
-the design and the plan name the file and the fields,
+the design and the plan name the folder and the fields,
 not their encoding.
 
 #### The flags
@@ -5625,17 +5656,28 @@ Every refusal names the failing component or field and every way forward:
   its identity or a mount number,
   named as a read of the folder's own facts rather than as an open that failed.
 - The store:
-  its path,
-  the line number for a line it cannot read,
+  its folder,
+  the file and line number for a record it cannot read,
+  the size and the bound for a record wider than one read accepts,
+  the name and the key for a record filed under another name,
+  the entry for a name that is no record and no staging entry,
   and the run that writes it or the administrator's copy to restore.
 - A store that is not under root control:
-  the file or the folder that is not,
+  the folder or the record that is not,
   the owner or the permission bits that say so,
   and the setup run as root or the administrator's copy as the way forward.
-- An append the store did not keep:
-  its path and the failure,
+- A publication the store did not keep:
+  its folder and the failure,
   said as a write rather than a read,
-  with the torn-record repair and the folder's free space and permissions to check.
+  with the folder's free space and permissions to check,
+  and for a folder that refuses both a link and the rename that never replaces,
+  both calls named and that nothing is published by a rename that could replace another record.
+- A slot another run recorded first:
+  the record that won,
+  its device,
+  inode,
+  owner and mode,
+  and that the sweep carries on with that identity.
 - A slot that changed between its two descriptors:
   both identities and that nothing is mounted onto a folder that moved between two looks.
 - A rollback that cannot be planned:
@@ -5655,9 +5697,13 @@ the device and inode the administrator identified independently from the restore
 the policy,
 every affected binding,
 every surviving slot the store records and a fresh canonical lookup.
-The surviving slots are the store's own `slot_names`,
-and a recorded slot the caller lists no state for is a refusal:
+The surviving slots are the names the store folder's first listing produced,
+and a slot a listing yields with no state is a refusal:
 an empty list must not pass for a checkout with nothing to reconcile.
+The folder is listed a second time before the parent record is published,
+and a set that changed refuses:
+a name that appeared is a slot this adoption never verified,
+and a name that vanished is a record the store no longer holds.
 The policy is the recorded folder's own owner,
 mode and ACLs,
 so a replacement cannot come back wider than the folder it replaces.

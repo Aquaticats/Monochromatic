@@ -29,14 +29,14 @@
 //! expect(adoptAt({ runningAsRoot: false, effectiveUser: 1000 })).toEqual({ refused: 'not-root' });
 //! ```
 
-use super::{AdoptFailure, adopt_at, recorded_slots};
+use super::{AdoptFailure, BETWEEN_THE_TWO_LISTINGS, adopt_at, recorded_slots};
 use crate::test_support::fixture;
 use crate::worktree_clone_mount::clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 use crate::worktree_clone_mount::parent_adoption_decision::AdoptionRefusal;
 use crate::worktree_clone_mount::parent_adoption_facts::{BindingState, SlotState};
 use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use crate::worktree_clone_mount::slot_identity_store_refusals::StoreRefusal;
-use crate::worktree_clone_mount::{HeldWorktreesParent, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, StoredIdentity, hold_the_worktrees_parent};
+use crate::worktree_clone_mount::{HeldWorktreesParent, PARENT_RECORD_NAME, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, StoredIdentity, hold_the_worktrees_parent};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use std::path::Path;
 use std::path::PathBuf;
@@ -70,14 +70,13 @@ fn identity_of(path: &Path) -> CloneFolderIdentity {
     return CloneFolderIdentity::capture(&std::fs::File::open(path).expect("a folder to read")).expect("an identity");
 }
 
-/// Write a store recording `parent` and the slot `name` as `slot`.
+/// Write a store folder recording `parent` and the slot `name` as `slot`.
 fn write_store(path: &Path, parent: &CloneFolderIdentity, name: &str, slot: &CloneFolderIdentity) {
-    let text: String = format!(
-        "{STORE_HEADER}\n{}\n{}\n",
-        StoredIdentity::Parent(parent.clone()).encode(),
-        StoredIdentity::Slot { name: name.to_string(), identity: slot.clone() }.encode()
-    );
-    std::fs::write(path, text).expect("a store fixture");
+    std::fs::create_dir_all(path).expect("the store folder fixture");
+    let parent_text: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Parent(parent.clone()).encode());
+    std::fs::write(path.join(PARENT_RECORD_NAME), parent_text).expect("the parent record fixture");
+    let slot_text: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Slot { name: name.to_string(), identity: slot.clone() }.encode());
+    std::fs::write(path.join(name), slot_text).expect("the slot record fixture");
 }
 
 /// The recorded slots of a fixture checkout,
@@ -85,8 +84,9 @@ fn write_store(path: &Path, parent: &CloneFolderIdentity, name: &str, slot: &Clo
 /// with the held parent folder.
 fn slots_and_bindings(built: &Fixture) -> (Vec<SlotState>, Vec<BindingState>) {
     let held: HeldWorktreesParent = hold_the_worktrees_parent(built.checkout.as_path()).expect("the walk holds the recreated parent");
-    let store: SlotIdentityStore = SlotIdentityStore::read(built.store.as_path()).expect("the fixture store reads");
-    return recorded_slots(Some(&held), &store);
+    let store: SlotIdentityStore = SlotIdentityStore::open(built.store.as_path()).expect("the fixture store opens");
+    let names: Vec<String> = store.slot_names().expect("the fixture store lists");
+    return recorded_slots(Some(&held), &store, names.as_slice()).expect("the recorded slots read");
 }
 
 /// An adoption of a fixture's checkout,
@@ -221,4 +221,52 @@ fn a_slot_folder_that_is_its_record_agrees_and_a_changed_one_differs() {
             }
         ]
     );
+}
+
+/// Environment variable that makes the control below run its inner half,
+/// inside a user namespace of its own,
+/// where this run's own files are root's.
+#[cfg(target_os = "linux")]
+const ROOT_SIDE_LISTINGS_VARIABLE: &str = "ADOPT_ROOT_SIDE_TWO_LISTINGS";
+
+/// What:
+///  A slot record published between the adoption's two listings refuses the adoption,
+///  naming the slot,
+///  and `.parent` keeps the identity it had.
+/// Why:
+///  The decision verified exactly the names its first listing produced,
+///  so a slot that appeared afterwards was not verified by this adoption;
+///  the second listing is what closes that window without a lock.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        ROOT_SIDE_LISTINGS_VARIABLE,
+        "worktree_clone_mount_handler::adopt_worktree_parent_mode::tests::a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption",
+    ) {
+        return;
+    }
+    let built: Fixture = fixture_checkout("adopt-two-listings");
+    let surviving: PathBuf = built.parent.join("one");
+    std::fs::create_dir(surviving.as_path()).expect("a surviving slot folder");
+    let parent: CloneFolderIdentity = identity_of(&built.parent);
+    write_store(&built.store, &parent, "one", &identity_of(surviving.as_path()));
+    let parent_before: Vec<u8> = std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes");
+    let appeared: PathBuf = built.store.clone();
+    let appeared_slot: PathBuf = built.parent.join("two");
+    BETWEEN_THE_TWO_LISTINGS.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::create_dir(appeared_slot.as_path()).expect("a slot folder appears with the record");
+            let slot_text: String = format!(
+                "{STORE_HEADER}\n{}\n",
+                StoredIdentity::Slot { name: String::from("two"), identity: identity_of(appeared_slot.as_path()) }.encode()
+            );
+            std::fs::write(appeared.join("two"), slot_text).expect("the slot's record is published in the window");
+        }));
+    });
+    let refusal: AdoptFailure = adopt_at(&request(&built), built.store.as_path(), true, 0).expect_err("a slot appeared between the two listings");
+    BETWEEN_THE_TWO_LISTINGS.with(|hook| { *hook.borrow_mut() = None });
+    assert!(matches!(refusal, AdoptFailure::Decision(AdoptionRefusal::SlotNotListed { ref slot }) if slot == "two"), "{refusal:?}");
+    assert!(refusal.message().contains("`two`"), "the slot is named: {}", refusal.message());
+    assert_eq!(std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes"), parent_before, "a refused adoption publishes nothing");
 }

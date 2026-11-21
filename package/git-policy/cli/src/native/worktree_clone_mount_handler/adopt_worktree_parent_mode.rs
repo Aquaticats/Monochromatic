@@ -33,7 +33,7 @@ use crate::worktree_clone_mount::parent_adoption_facts::{BindingState, ParentPol
 use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use crate::worktree_clone_mount::slot_identity_store_refusals::StoreRefusal;
 use crate::worktree_clone_mount::{
-    HeldWorktreesParent, SLOT_IDENTITY_STORE_PATH, hold_the_worktrees_parent, record_parent_identity_under_root_control,
+    HeldWorktreesParent, SLOT_IDENTITY_STORE_PATH, hold_the_worktrees_parent, replace_parent_identity_under_root_control,
 };
 use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use rustix::process::geteuid;
@@ -204,26 +204,51 @@ fn slot_folder_reason(error: &std::io::Error) -> String {
 /// ```ts
 /// const { slots, bindings } = recordedSlots(parent, store);
 /// ```
-fn recorded_slots(parent: Option<&HeldWorktreesParent>, store: &SlotIdentityStore) -> (Vec<SlotState>, Vec<BindingState>) {
+fn recorded_slots(parent: Option<&HeldWorktreesParent>, store: &SlotIdentityStore, names: &[String]) -> Result<(Vec<SlotState>, Vec<BindingState>), StoreRefusal> {
     let mut slots: Vec<SlotState> = Vec::new();
     let mut bindings: Vec<BindingState> = Vec::new();
     let Some(worktrees) = parent else {
-        return (slots, bindings);
+        return Ok((slots, bindings));
     };
-    for name in store.slot_names() {
-        let Some(recorded) = store.slot(name.as_str()) else {
-            continue;
-        };
-        match read_slot(worktrees, name.as_str(), recorded) {
-            SlotReading::Agrees => slots.push(SlotState::Agrees { slot: name }),
-            SlotReading::Differs { field } => slots.push(SlotState::Differs { slot: name, field }),
+    for name in names {
+        let recorded: CloneFolderIdentity = store.slot(name.as_str())?;
+        match read_slot(worktrees, name.as_str(), &recorded) {
+            SlotReading::Agrees => slots.push(SlotState::Agrees { slot: name.clone() }),
+            SlotReading::Differs { field } => slots.push(SlotState::Differs { slot: name.clone(), field }),
             SlotReading::Unresolved { reason } => bindings.push(BindingState::Unresolved {
                 what: format!("the clone slot `{name}` below {}", worktrees.canonical.display()),
                 reason,
             }),
         }
     }
-    return (slots, bindings);
+    return Ok((slots, bindings));
+}
+
+/// What:
+///  What the folder's second listing says about the set the decision was made from.
+/// Why:
+///   The decision verified exactly the names it read,
+///  and a slot published between the two listings was not verified by this adoption:
+///  a name that appeared refuses as a slot the decision never listed,
+///  and a name that vanished refuses as a record the store no longer holds,
+///  which nothing in this repository removes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// compareTheTwoListings(first, second); // throws SlotNotListed or NoSlotRecord
+/// ```
+fn compare_the_two_listings(first: &[String], second: &[String], store_path: &Path) -> Result<(), AdoptFailure> {
+    for name in second {
+        if !first.contains(name) {
+            return Err(AdoptFailure::Decision(AdoptionRefusal::SlotNotListed { slot: name.clone() }));
+        }
+    }
+    for name in first {
+        if !second.contains(name) {
+            return Err(AdoptFailure::Store(StoreRefusal::NoSlotRecord { path: store_path.to_path_buf(), slot: name.clone() }));
+        }
+    }
+    return Ok(());
 }
 
 /// What:
@@ -297,17 +322,22 @@ fn adopt_at(request: &AdoptRequest, store_path: &Path, running_as_root: bool, ef
     if !running_as_root {
         return Err(AdoptFailure::NotRoot { effective_user });
     }
-    let store: SlotIdentityStore = SlotIdentityStore::read_under_root_control(store_path).map_err(AdoptFailure::Store)?;
-    let Some(recorded_parent) = store.parent() else {
-        return Err(AdoptFailure::NoParentRecord { path: store_path.to_path_buf() });
-    };
-    let policy: ParentPolicy = ParentPolicy::from_recorded(recorded_parent);
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(store_path).map_err(AdoptFailure::Store)?;
+    let recorded_parent: CloneFolderIdentity = store.parent().map_err(|refusal| return match refusal {
+        StoreRefusal::NoParentRecord { path } => AdoptFailure::NoParentRecord { path },
+        other => AdoptFailure::Store(other),
+    })?;
+    let policy: ParentPolicy = ParentPolicy::from_recorded(&recorded_parent);
+    // The staging names a killed writer left are removed before this mode stages its own record, which is what
+    // makes one remover's reach the quiesced adoption rather than a lock.
+    let _removed: Vec<String> = store.remove_staging_entries().map_err(AdoptFailure::Store)?;
+    let names: Vec<String> = store.slot_names().map_err(AdoptFailure::Store)?;
     let walked: Result<HeldWorktreesParent, WalkRefusal> = hold_the_worktrees_parent(request.checkout.as_path());
     let walk: Result<CloneFolderIdentity, WalkRefusal> = match &walked {
         Ok(held) => Ok(held.identity.clone()),
         Err(refusal) => Err(refusal.clone()),
     };
-    let (slots, bindings) = recorded_slots(walked.as_ref().ok(), &store);
+    let (slots, bindings) = recorded_slots(walked.as_ref().ok(), &store, names.as_slice()).map_err(AdoptFailure::Store)?;
     let fresh: Result<CloneFolderIdentity, WalkRefusal> = match hold_the_worktrees_parent(request.checkout.as_path()) {
         Ok(looked) => Ok(looked.identity),
         Err(refusal) => Err(refusal),
@@ -319,15 +349,26 @@ fn adopt_at(request: &AdoptRequest, store_path: &Path, running_as_root: bool, ef
         policy,
         bindings,
         slots,
-        store: store.clone(),
+        store: names.clone(),
         fresh,
     };
     let adoption: Adoption = decide_adoption(&facts).map_err(AdoptFailure::Decision)?;
-    record_parent_identity_under_root_control(store_path, &adoption.identity).map_err(AdoptFailure::Write)?;
+    #[cfg(test)]
+    BETWEEN_THE_TWO_LISTINGS.with(|hook| { if let Some(between) = hook.borrow().as_ref() { between(); } });
+    let after: Vec<String> = store.slot_names().map_err(AdoptFailure::Store)?;
+    compare_the_two_listings(names.as_slice(), after.as_slice(), store_path)?;
+    replace_parent_identity_under_root_control(store_path, &adoption.identity).map_err(AdoptFailure::Write)?;
     let Ok(held) = walked else {
         unreachable!("a decided adoption walked the parent folder");
     };
     return Ok(recorded_line(&held, &adoption));
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may publish a slot record between the adoption's two listings,
+    /// which is the window the second listing closes.
+    pub(crate) static BETWEEN_THE_TWO_LISTINGS: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Controls stay out of the release executable.

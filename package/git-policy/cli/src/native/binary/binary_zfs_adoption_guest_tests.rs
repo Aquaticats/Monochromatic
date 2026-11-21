@@ -18,6 +18,11 @@
 //!  The arm drives the built executable,
 //! not the module,
 //!  because the mode and its grammar are what the install ships.
+//!  Two more arms run in the same guest and settle what only the store's own dataset can:
+//!  the folder under `/var/lib` publishes a record as root and reads it back
+//!  (a hard link, an unlink, a rename and the folder's `fsync` on `zpcachyos/ROOT/cos/root`),
+//!  and a writer killed between its bytes and its link leaves one staging entry and no record,
+//!  which the adoption then removes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,9 +30,14 @@
 //! expect(storeParent()).toEqual(liveIdentity());
 //! ```
 
+use git_policy_cli::entries_of_one_open_folder::open_folder;
+use git_policy_cli::publishing_entries_in_one_open_folder::{create_new_entry, fill_entry_and_sync};
 use git_policy_cli::worktree_clone_mount::{
-    CloneFolderIdentity, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control,
+    CloneFolderIdentity, PARENT_RECORD_NAME, RECORD_MODE, SLOT_IDENTITY_STORE_PATH, STORE_FOLDER_MODE, STORE_HEADER, SlotIdentityStore, StoredIdentity, is_known_staging_name,
+    publish_parent_identity_under_root_control, publish_slot_identity_under_root_control,
 };
+use std::ffi::OsStr;
+use std::io::Write as _;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -61,9 +71,9 @@ struct Arm {
     /// Its standard output and standard error,
     /// joined.
     said: String,
-    /// The store's bytes after the run,
+    /// The store's entries and their bytes after the run,
     /// which a refusal must leave as they were.
-    store_after: Vec<u8>,
+    store_after: Vec<(String, Vec<u8>)>,
 }
 
 /// The copy on disk of one folder's identity,
@@ -73,17 +83,26 @@ fn identity_of(path: &Path) -> CloneFolderIdentity {
     return CloneFolderIdentity::capture(&folder).expect("the folder's identity reads");
 }
 
-/// The store's bytes,
+/// The store folder's entries and their bytes,
 /// for the arms that prove a refusal recorded nothing.
-fn store_bytes() -> Vec<u8> {
-    return std::fs::read(SLOT_IDENTITY_STORE_PATH).unwrap_or_default();
+fn store_bytes() -> Vec<(String, Vec<u8>)> {
+    let mut entries: Vec<(String, Vec<u8>)> = std::fs::read_dir(SLOT_IDENTITY_STORE_PATH)
+        .map(|folder| {
+            return folder
+                .flatten()
+                .map(|entry| return (entry.file_name().to_string_lossy().into_owned(), std::fs::read(entry.path()).unwrap_or_default()))
+                .collect();
+        })
+        .unwrap_or_default();
+    entries.sort();
+    return entries;
 }
 
 /// The recorded parent identity,
 /// read the way the program reads it.
 fn recorded_parent() -> CloneFolderIdentity {
-    let store: SlotIdentityStore = SlotIdentityStore::read_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH)).expect("the store reads under root control");
-    return store.parent().expect("the store records the parent the arm wrote").clone();
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH)).expect("the store folder opens under root control");
+    return store.parent().expect("the store records the parent the arm wrote");
 }
 
 /// Run the built handler's adoption mode and read the store afterwards.
@@ -163,16 +182,16 @@ fn replace_parent(fixture: &Fixture) -> (u64, u64) {
 /// a root-owned file in a root-owned folder,
 /// recording the parent folder as it is now.
 fn write_store(fixture: &Fixture) {
-    let folder: &Path = Path::new(SLOT_IDENTITY_STORE_PATH).parent().expect("the store has a folder");
-    std::fs::create_dir_all(folder).expect("the store's folder is made");
-    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o700)).expect("the store's folder is root's");
-    let _removed: std::io::Result<()> = std::fs::remove_file(SLOT_IDENTITY_STORE_PATH);
-    // The setup run creates the store with its header and then records the parent; a writer replaces a store that is
-    // there, so the header is written first and the record is the writer's own.
-    std::fs::write(SLOT_IDENTITY_STORE_PATH, format!("{STORE_HEADER}\n")).expect("the store starts with its header");
-    std::fs::set_permissions(SLOT_IDENTITY_STORE_PATH, std::fs::Permissions::from_mode(0o644)).expect("the store is root's and readable");
-    record_parent_identity_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH), &identity_of(fixture.parent().as_path()))
-        .expect("the setup run's parent record is written");
+    let holding: &Path = Path::new(SLOT_IDENTITY_STORE_PATH).parent().expect("the store folder's own folder");
+    std::fs::create_dir_all(holding).expect("the folder that holds the store is made");
+    std::fs::set_permissions(holding, std::fs::Permissions::from_mode(STORE_FOLDER_MODE)).expect("the folder that holds the store is root's");
+    let _removed: std::io::Result<()> = std::fs::remove_dir_all(SLOT_IDENTITY_STORE_PATH);
+    // The setup run makes the store folder root's own and then publishes the parent record; a publication creates
+    // `.parent` with an exclusive creation, so the folder is what is written first.
+    std::fs::create_dir(SLOT_IDENTITY_STORE_PATH).expect("the store folder is made");
+    std::fs::set_permissions(SLOT_IDENTITY_STORE_PATH, std::fs::Permissions::from_mode(STORE_FOLDER_MODE)).expect("the store folder is root's and readable");
+    let parent: CloneFolderIdentity = identity_of(fixture.parent().as_path());
+    publish_parent_identity_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH), &parent, &parent).expect("the setup run's parent record is published");
 }
 
 /// The arm,
@@ -200,7 +219,7 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
     assert_eq!(recorded_after.differences(&live), Vec::new(), "the store records the replacement's own identity");
     println!("ADOPTION recorded device={device} inode={inode}");
 
-    let after_success: Vec<u8> = adoption.store_after;
+    let after_success: Vec<(String, Vec<u8>)> = adoption.store_after;
     let wrong_device: Arm = adopt(fixture.checkout.as_path(), device + 1, inode);
     assert_eq!(wrong_device.status, Some(EXIT_REFUSED), "another device is refused: {}", wrong_device.said);
     assert!(wrong_device.said.contains("not the one the administrator identified"), "{}", wrong_device.said);
@@ -232,7 +251,7 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
     std::fs::set_permissions(fixture.parent().as_path(), std::fs::Permissions::from_mode(0o755)).expect("the recorded mode comes back");
     let survivor: PathBuf = fixture.parent().join("survivor");
     std::fs::create_dir(survivor.as_path()).expect("a surviving slot folder is made");
-    append_slot_identity_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH), "survivor", &identity_of(survivor.as_path())).expect("the slot record is written");
+    publish_slot_identity_under_root_control(Path::new(SLOT_IDENTITY_STORE_PATH), "survivor", &identity_of(survivor.as_path()), &identity_of(fixture.parent().as_path())).expect("the slot record is published");
     let current: (u64, u64) = {
         let metadata: std::fs::Metadata = std::fs::metadata(fixture.parent().as_path()).expect("the parent's facts read");
         (metadata.dev(), metadata.ino())
@@ -243,7 +262,7 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
     assert_eq!(re_recording.status, Some(0), "the folder the arm stands in is recorded with its agreeing slot: {}", re_recording.said);
     std::fs::remove_dir(survivor.as_path()).expect("the slot folder is replaced");
     std::fs::create_dir(survivor.as_path()).expect("another folder stands at the slot");
-    let before_slot_arm: Vec<u8> = store_bytes();
+    let before_slot_arm: Vec<(String, Vec<u8>)> = store_bytes();
     let slot_arm: Arm = adopt(fixture.checkout.as_path(), current.0, current.1);
     assert_eq!(slot_arm.status, Some(EXIT_REFUSED), "a surviving slot that is not its record stops the adoption: {}", slot_arm.said);
     assert!(slot_arm.said.contains("survivor"), "the refusal names the slot: {}", slot_arm.said);
@@ -252,6 +271,131 @@ fn the_adoption_mode_records_a_replacement_and_refuses_each_mismatch() {
 
     let scratch: &Path = fixture.checkout.parent().unwrap_or(Path::new("/nonexistent"));
     let _cleanup: std::io::Result<()> = std::fs::remove_dir_all(scratch);
-    let _store_cleanup: std::io::Result<()> = std::fs::remove_file(Path::new(SLOT_IDENTITY_STORE_PATH));
+    let _store_cleanup: std::io::Result<()> = std::fs::remove_dir_all(Path::new(SLOT_IDENTITY_STORE_PATH));
     println!("ADOPTION done");
+}
+
+/// The environment variable that makes one process of this test the writer a kill leaves half done.
+const KILLED_CHILD_VARIABLE: &str = "CLI_GIT_ZFS_STAGING_KILLED_CHILD";
+
+/// The one staging name the killed writer uses,
+/// which is a form the store's own removal knows.
+const KILLED_STAGING_NAME: &str = ".fedcba9876543210fedcba9876543210";
+
+/// What:
+///  The writer one arm kills:
+///  the publication's own steps up to its link,
+///  and then the signal that ends the process.
+/// Why:
+///  A kill between a record's bytes and its link leaves exactly this state,
+///  and only a process that really died shows what a kill leaves;
+///  the steps are the shipped primitives the publisher calls,
+///  so the state is the one a killed publisher would leave.
+#[test]
+fn the_staging_writer_that_is_killed_before_its_link() {
+    let Some(store) = std::env::var_os(KILLED_CHILD_VARIABLE) else {
+        return;
+    };
+    let folder: std::fs::File = open_folder(Path::new(&store)).expect("the store folder opens");
+    let mut staged: std::fs::File = create_new_entry(&folder, OsStr::new(KILLED_STAGING_NAME), RECORD_MODE).expect("the staging entry is created");
+    let record: StoredIdentity = StoredIdentity::Slot { name: String::from("killed"), identity: identity_of(Path::new(&store)) };
+    let bytes: String = format!("{STORE_HEADER}\n{}\n", record.encode());
+    fill_entry_and_sync(&mut staged, bytes.as_bytes(), RECORD_MODE).expect("the bytes are durable");
+    println!("STORE killed-child bytes-durable staging={KILLED_STAGING_NAME}");
+    let _ = std::io::stdout().flush();
+    // SAFETY: the signal ends this process, which is exactly the kill this arm needs.
+    unsafe { libc::raise(libc::SIGKILL) };
+}
+
+/// What:
+///  The store folder under `/var/lib` publishes a parent record and a slot record as root,
+///  reads both back through the route's own reader,
+///  and keeps the folder's and the records' modes.
+/// Why:
+///  This is the arm that settles the design's one assumption about the store's own dataset:
+///  the hard link that publishes a record,
+///  the unlink that removes its staging name,
+///  the rename that replaces the parent's,
+///  and the folder's `fsync` all answer on the dataset `/var/lib` lives on,
+///  which no host control may write.
+#[test]
+fn the_store_folder_under_var_lib_publishes_a_record_as_root_and_reads_it_back() {
+    let Some(guest) = std::env::var_os(GUEST_VARIABLE) else {
+        eprintln!("SKIPPED: the store arm writes /var/lib, so it runs only in a disposable guest; set {GUEST_VARIABLE} in one");
+        return;
+    };
+    println!("STORE guest={}", guest.to_string_lossy());
+    let fixture: Fixture = create_fixture();
+    write_store(&fixture);
+    let store_path: &Path = Path::new(SLOT_IDENTITY_STORE_PATH);
+    let parent_identity: CloneFolderIdentity = identity_of(fixture.parent().as_path());
+    let slot: PathBuf = fixture.parent().join("measured");
+    std::fs::create_dir(slot.as_path()).expect("the slot folder is made");
+    let slot_identity: CloneFolderIdentity = identity_of(slot.as_path());
+    publish_slot_identity_under_root_control(store_path, "measured", &slot_identity, &parent_identity).expect("root publishes the slot's record");
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(store_path).expect("the store reads under root control");
+    assert_eq!(store.parent().expect("the parent record reads back"), parent_identity);
+    assert_eq!(store.slot("measured").expect("the slot record reads back"), slot_identity);
+    assert_eq!(store.slot_names().expect("the folder lists"), vec![String::from("measured")]);
+    let folder_mode: u32 = std::fs::metadata(SLOT_IDENTITY_STORE_PATH).expect("the store folder's metadata").permissions().mode() & 0o7777;
+    assert_eq!(folder_mode, STORE_FOLDER_MODE, "the store folder keeps its mode");
+    for name in [PARENT_RECORD_NAME, "measured"] {
+        let mode: u32 = std::fs::metadata(store_path.join(name)).expect("a record's metadata").permissions().mode() & 0o7777;
+        assert_eq!(mode, RECORD_MODE, "every record the root writer publishes keeps its mode");
+    }
+    println!("STORE published=measured folder-mode={folder_mode:04o} record-mode={RECORD_MODE:04o}");
+    // The adoption's replacing write, on the same dataset: one rename over `.parent`.
+    let adopted: CloneFolderIdentity = slot_identity.clone();
+    git_policy_cli::worktree_clone_mount::replace_parent_identity_under_root_control(store_path, &adopted).expect("root replaces the parent record");
+    let reread: SlotIdentityStore = SlotIdentityStore::open_under_root_control(store_path).expect("the store reads again");
+    assert_eq!(reread.parent().expect("the replaced record reads"), adopted);
+    println!("STORE replaced-parent=one-rename");
+    let scratch: &Path = fixture.checkout.parent().unwrap_or(Path::new("/nonexistent"));
+    let _cleanup: std::io::Result<()> = std::fs::remove_dir_all(scratch);
+    let _store_cleanup: std::io::Result<()> = std::fs::remove_dir_all(store_path);
+    println!("STORE done");
+}
+
+/// What:
+///  A writer killed between its bytes and its link leaves one staging entry and no record,
+///  and the administrator's adoption removes it.
+/// Why:
+///  The decision's commitment is that the adoption is not the only remover but that it is one,
+///  and a machine whose sweep is not built yet has no other;
+///  only a killed process, on the store's own dataset, shows what the kill leaves.
+#[test]
+fn a_killed_writer_between_its_bytes_and_its_link_leaves_no_record() {
+    let Some(_guest) = std::env::var_os(GUEST_VARIABLE) else {
+        eprintln!("SKIPPED: the killed-writer arm writes /var/lib, so it runs only in a disposable guest; set {GUEST_VARIABLE} in one");
+        return;
+    };
+    let fixture: Fixture = create_fixture();
+    write_store(&fixture);
+    let store_path: &Path = Path::new(SLOT_IDENTITY_STORE_PATH);
+    let child: std::process::ExitStatus = std::process::Command::new(std::env::current_exe().expect("this test's own executable"))
+        .arg("--exact")
+        .arg("zfs_adoption_guest::the_staging_writer_that_is_killed_before_its_link")
+        .arg("--nocapture")
+        .env(KILLED_CHILD_VARIABLE, store_path)
+        .status()
+        .expect("the child starts");
+    use std::os::unix::process::ExitStatusExt as _;
+    assert_eq!(child.signal(), Some(libc::SIGKILL), "the writer died by the signal the arm sent it");
+    let mut entries: Vec<String> = std::fs::read_dir(store_path).expect("the store folder lists").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).collect();
+    entries.sort();
+    assert_eq!(entries.len(), 2, "one staging entry beside the parent record: {entries:?}");
+    assert!(entries.iter().any(|name| return name.as_str() == KILLED_STAGING_NAME), "the staging entry is the one the kill left: {entries:?}");
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(store_path).expect("the store reads under root control");
+    assert!(matches!(store.slot("killed"), Err(git_policy_cli::worktree_clone_mount::StoreRefusal::NoSlotRecord { .. })), "a kill before the link left no record");
+    assert!(is_known_staging_name(KILLED_STAGING_NAME), "the entry a kill left is one of the forms the removal knows");
+    // The adoption removes what the kill left, on the dataset the store lives on.
+    let (device, inode) = replace_parent(&fixture);
+    let adoption: Arm = adopt(fixture.checkout.as_path(), device, inode);
+    assert_eq!(adoption.status, Some(0), "the adoption records the replacement: {}", adoption.said);
+    let after: Vec<String> = std::fs::read_dir(store_path).expect("the store folder lists").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(after, vec![String::from(PARENT_RECORD_NAME)], "the adoption removed the staging entry and left the parent record");
+    println!("STORE killed-writer staging-removed=true");
+    let scratch: &Path = fixture.checkout.parent().unwrap_or(Path::new("/nonexistent"));
+    let _cleanup: std::io::Result<()> = std::fs::remove_dir_all(scratch);
+    let _store_cleanup: std::io::Result<()> = std::fs::remove_dir_all(store_path);
 }

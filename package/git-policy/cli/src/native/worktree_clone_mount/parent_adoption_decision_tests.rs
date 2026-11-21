@@ -9,8 +9,6 @@ use super::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
 use crate::clone_slot_walk_refusals::{WalkRefusal, WalkRefusalReason};
 use crate::test_support::{fixture, remove};
-use crate::worktree_clone_mount::StoredIdentity;
-use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use std::path::{Path, PathBuf};
 
 /// The identity of one real fixture folder,
@@ -22,19 +20,10 @@ fn planted_identity(name: &str) -> (PathBuf, CloneFolderIdentity) {
     return (root, identity);
 }
 
-/// A store recording the slots `names`,
+/// The slot names the store folder's first listing produced,
 /// which is where the decision takes every recorded slot from.
-fn recording_slots(root: &Path, names: &[&str]) -> SlotIdentityStore {
-    let path: PathBuf = root.join("slot-identities");
-    let mut text: String = String::from("# monochromatic-git-policy-cli worktree clone slot identities, version 1");
-    text.push('\n');
-    for (index, name) in names.iter().enumerate() {
-        let record: StoredIdentity = StoredIdentity::Slot { name: String::from(*name), identity: CloneFolderIdentity { device: 66304, inode: 900 + index as u64, owner: 1000, mode: 0o755, access_acl: None, default_acl: None } };
-        text.push_str(record.encode().as_str());
-        text.push('\n');
-    }
-    std::fs::write(&path, text).expect("the store the decision reads its slots from");
-    return SlotIdentityStore::read(path.as_path()).expect("the store reads");
+fn recording_slots(_root: &Path, names: &[&str]) -> Vec<String> {
+    return names.iter().map(|name| return String::from(*name)).collect();
 }
 
 /// Facts that adopt `held` as it is,

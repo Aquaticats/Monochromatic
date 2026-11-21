@@ -25,7 +25,6 @@
 use super::clone_folder_identity::{CloneFolderField, CloneFolderIdentity, field_names};
 use super::clone_slot_walk_refusals::WalkRefusal;
 use super::parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
-use super::slot_identity_store::SlotIdentityStore;
 
 /// What:
 ///  Every fact the adoption decision reads.
@@ -58,12 +57,13 @@ pub struct AdoptionFacts {
     pub bindings: Vec<BindingState>,
     /// Every surviving slot's reconciliation.
     pub slots: Vec<SlotState>,
-    /// The store the adoption replaces the parent record in,
-    /// whose own slot names every state in `slots` must cover.
+    /// The slot names the store folder's first listing produced,
+    /// and every state in `slots` must cover.
     /// A caller cannot hand in a list of its own:
-    /// the names come from the store,
-    /// never from the caller's account of it.
-    pub store: SlotIdentityStore,
+    /// the names come from the folder's own listing,
+    /// never from the caller's account of it,
+    /// and the mode compares the folder's second listing against them before it publishes.
+    pub store: Vec<String>,
     /// A fresh canonical lookup of the parent folder,
     /// or its refusal.
     pub fresh: Result<CloneFolderIdentity, WalkRefusal>,
@@ -233,7 +233,7 @@ pub fn decide_adoption(facts: &AdoptionFacts) -> Result<Adoption, AdoptionRefusa
             return Err(AdoptionRefusal::BindingUnresolved { what: what.clone(), reason: reason.clone() });
         }
     }
-    for recorded in facts.store.slot_names() {
+    for recorded in &facts.store {
         let listed: bool = facts.slots.iter().any(|state| {
             let named: &str = match state {
                 SlotState::Agrees { slot } | SlotState::Differs { slot, .. } => slot,
@@ -241,7 +241,7 @@ pub fn decide_adoption(facts: &AdoptionFacts) -> Result<Adoption, AdoptionRefusa
             return named == recorded.as_str();
         });
         if !listed {
-            return Err(AdoptionRefusal::SlotNotListed { slot: recorded });
+            return Err(AdoptionRefusal::SlotNotListed { slot: recorded.clone() });
         }
     }
     for slot in &facts.slots {

@@ -47,8 +47,8 @@ use super::clone_slot_walk::{
 };
 use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusalReason};
 use super::misplaced_attach_rollback::{RollbackPlan, plan_rollback};
-use super::slot_identity_store::{append_slot_identity_under_root_control, record_parent_identity_under_root_control};
-use super::slot_identity_store_records::STORE_HEADER;
+use super::slot_identity_store::STORE_FOLDER_MODE;
+use super::slot_identity_store_publication::{publish_parent_identity_under_root_control, publish_slot_identity_under_root_control};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::fs_mount_options::MountFacts;
 use std::ffi::CString;
@@ -177,7 +177,7 @@ fn said(output: &Output) -> String {
 struct AttachArm {
     /// The arm's own folder below the fixture root,
     /// owned by root,
-    /// because the store and the lock beside it must be root's.
+    /// because the store folder and every record in it must be root's.
     root: PathBuf,
     /// The checkout the walk starts at,
     /// owned by the account.
@@ -197,7 +197,7 @@ impl AttachArm {
     ///  and root writes the store and records both identities.
     /// Why:
     ///   Item 2 judges folders the account created and still owns,
-    ///  and the store is a file only root may write,
+    ///  and the store folder and its records are root's own,
     ///  so the fixture is built by both accounts,
     /// as the route's is.
     fn build(guest: &Guest, name: &str, slots: &[&str]) -> AttachArm {
@@ -222,15 +222,17 @@ impl AttachArm {
         assert!(made.status.success(), "the account makes the slots: {}", String::from_utf8_lossy(made.stderr.as_slice()));
         let narrowed: Output = as_the_account(guest.account.as_str(), &["chmod", "0755", parent.display().to_string().as_str()]);
         assert!(narrowed.status.success(), "the account gives the worktrees folder its mode: {}", String::from_utf8_lossy(narrowed.stderr.as_slice()));
+        // The store is the folder the setup run makes, mode 0755, and every record root publishes is mode 0644.
         let store: PathBuf = root.join("slot-identities");
-        std::fs::write(&store, format!("{STORE_HEADER}\n")).expect("the store's header");
+        std::fs::create_dir(store.as_path()).expect("the store folder is made");
+        std::fs::set_permissions(store.as_path(), std::os::unix::fs::PermissionsExt::from_mode(STORE_FOLDER_MODE)).expect("the store folder is root's and readable");
         let built: AttachArm = AttachArm { root, checkout, parent, store };
         let recorded_parent: CloneFolderIdentity = built.identity_of(built.parent.as_path());
-        record_parent_identity_under_root_control(built.store.as_path(), &recorded_parent).expect("root records the parent folder");
+        publish_parent_identity_under_root_control(built.store.as_path(), &recorded_parent, &recorded_parent).expect("root publishes the parent record");
         for slot in slots {
             let slot_path: PathBuf = built.slot(slot);
             let recorded_slot: CloneFolderIdentity = built.identity_of(slot_path.as_path());
-            append_slot_identity_under_root_control(built.store.as_path(), slot, &recorded_slot).expect("root records the slot");
+            publish_slot_identity_under_root_control(built.store.as_path(), slot, &recorded_slot, &recorded_parent).expect("root publishes the slot's record");
         }
         return built;
     }
