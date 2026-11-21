@@ -41081,7 +41081,16 @@ stated in this entry. What follows from them, as work:
   Sonnet covering both rounds (brief under `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/`);
   one integration pass on Sonnet for both LFS branches, asked to price the destination question over SSH and to judge the
   pre-push hook's remote-sha input as a free alternative (brief under
-  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`).
+  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`). STEP 6'S INTEGRATION PASS (Sonnet) found it not
+  fit by one words-only finding (its folder's `keep/review.md`): M1 three sentences (README, SPEC, the adapter) and the vet
+  report say the pre-scan refuses widened BTF masks; it reads only the header, and `btf-rs` reads kind in 5 bits and
+  member count in 16 (a kind-33 entry now reads as compatible; no kernel uses one); L1 five adapter branches untested; L2
+  an array whose element is itself overflows the stack (as before the swap); gate 9361 of 9363, guest arms green, the
+  fourteen pairs identical. Corrective comment posted on `c1148be2bb`. Whether to add a pre-scan entry check is in
+  `doc/handover/questions-for-the-owner.md` ("should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads?"), to go
+  with the fence's next question. GOING: `pi-zfs-step-6-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/zfs-step-6-integration-findings` (brief under
+  `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/`), then a diff check and the merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
