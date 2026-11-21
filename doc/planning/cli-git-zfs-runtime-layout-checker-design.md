@@ -1869,8 +1869,11 @@ Ranking: Way 1 > Way 3. Both prove the items before the first ioctl and compare 
 layout, so each meets the answer.
 
 - Way 1 beats Way 3 because the proof stays in the wrapper's address space: no runtime program
-  for the product to find, verify and version, no root-spawned binary whose path and library
-  resolution join the privileged boundary, and no text format to parse back into members.
+  for the product to find,
+  verify and version,
+  no child whose path and library resolution join the
+  privileged boundary,
+  and no text format to parse back into members.
   Way 3 proves the same facts and pays those costs for them.
 
 The further ways are not ranked, each for a stated reason:
@@ -3289,12 +3292,16 @@ Criteria and weights, frozen before the ratings:
 - C6. Integration and test cost, weight 3 (higher is cheaper).
 - C7. Start cost, weight 2, low confidence because it is unmeasured.
 
-Four candidates are finalists,
+Four candidates reached finalist validation,
 and each passes every hard constraint:
 `btf-rs` 2.0.1,
 `ebeepf` 0.1.0,
 `pahole` 1.32 and
 `bpftool` 7.8.0.
+The vet report later fails `bpftool` on the skill's relevant-execution rule,
+so its row below is a price and not a ranked finalist's score;
+the three the report keeps are `btf-rs`,
+`ebeepf` and `pahole`.
 The in-house reader passes H1 to H6 by construction, but it is not eligible as a candidate while
 an existing tool passes them, which is the skill's existing-tools rule and the reason
 [Candidate ledger](#candidate-ledger) calls it conditional. It therefore stands outside the
@@ -3348,7 +3355,9 @@ Evidence for the ratings:
 - C2: both libraries are pure Rust with no default features (4);
   both tools add a program the product must find and version (1).
 - C3: in-process code keeps the privileged handler to its own binary (4);
-  a root-spawned tool adds a path and library resolution to that boundary (1).
+  a tool the handler starts adds a path and library resolution to that boundary (1),
+  though the child need not run as root,
+  since both BTF files are mode `0444`.
 - C4: `btf-rs` and an in-house model expose names, bit offsets and sizes (4);
   `pahole`'s `-C` printer maps directly to the compared members (3);
   `bpftool`'s raw dump needs a type-id resolver in the wrapper (2).
@@ -3532,20 +3541,31 @@ and the suite this round ran supports C5 and C6 without moving them
 ([Finalist validation](#finalist-validation)).
 The controlling preference that remains is the owner's, not a weight on this writer's scale: a
 library the binding links, an `LGPL-2.1-or-later` dependency whose release lags its own main, or a
-program the gate starts at each run, which the product must find and version and the root handler
-starts as root.
-[Q1](#q1-which-reader-parses-the-module-btf) asks that in those words.
-Until then this section gives a conditional ranking and recommends none.
+program the gate starts at each run,
+which the product must find and version.
+The child need not run as root:
+both BTF files are mode `0444`,
+and the handler can drop privilege
+for it,
+which the report records.
+[Q1](#q1-which-reader-parses-the-module-btf) asks that in those words,
+and this section gives a conditional ranking and recommends none.
 
 ### Ranking and pros and cons
 
-Ranking of the eligible candidates:
-`btf-rs` 2.0.1 > `ebeepf` 0.1.0 > `pahole` 1.32 > `bpftool` 7.8.0.
+Ranking of the finalists the report leaves,
+conditional at the report's frozen weights:
+`btf-rs` 2.0.1 > `ebeepf` 0.1.0 > `pahole` 1.32.
+`bpftool` 7.8.0 is not in it:
+it failed the skill's relevant-execution rule.
 The in-house reader stands outside it as an exception the owner declined to grant on 2026-11-19,
 priced at 92 of 104 while ineligible.
 
 - `btf-rs` beats `pahole` because its proof runs in the wrapper's address space, with no runtime
-  program and no root-spawned binary, which neither tool can offer; the arithmetic agrees, 90
+  program and no child the handler starts,
+  which no program arm offers;
+  the arithmetic agrees,
+  90
   against 60.
 - `btf-rs` beats `ebeepf` because the pair's 90 and 87 separate on maintenance and trust:
   two releases,
@@ -3553,14 +3573,19 @@ priced at 92 of 104 while ineligible.
   against one release,
   one maintainer and a tree its own README calls unreviewed AI-generated code.
   The arithmetic agrees,
-  and the pair's one reversal and four ties are the C1 and C5 steps that evidence settles.
+  and the pair's one reversal and four ties are the C1,
+  C5 and C6 steps:
+  C1 on either side and C5 and C6 on either side,
+  of which the C6 steps are integration-cost ratings that maintenance evidence does not touch.
 - `ebeepf` beats `pahole` because it is a library in the wrapper's address space,
   with a split parser and no runtime program,
   while `pahole` costs the deployment and privilege points C2 and C3 price.
   The arithmetic agrees at 87 against 60.
-- `pahole` beats `bpftool` because its `-C` output carries the compared members directly, while
-  `bpftool`'s raw dump needs a type-id resolver in the wrapper before it can compare anything.
-  The arithmetic agrees, 60 against 56; a C4 step ties the pair and a C1 step reverses it.
+- `pahole` and `bpftool` are not ordered here.
+  `bpftool` failed the skill's relevant-execution rule,
+  and at the report's frozen weights its pair with `pahole` ties on eleven rating steps and reverses
+  on none,
+  so no evidence in this file turns those ties into an order.
 - The in-house reader is not ranked: the owner's answer of 2026-11-19 left it ineligible, and its
   92 of 104 against the tools' 60 stays in [Scored comparison](#scored-comparison) as what the route
   would have cost ([Answers of 2026-11-19](#answers-of-2026-11-19)).
@@ -3839,8 +3864,11 @@ Q3 is held until [Owed measurements](#owed-measurements) item 10 runs, and nothi
 answer before then.
 The Q2 and Q4 questions of the first versions are answered, and their answers are recorded under
 [Answers of 2026-11-19](#answers-of-2026-11-19) rather than here.
-Options are ranked, best first, each option says why it sits where it does, and the pick is the
-owner's.
+Options are ranked,
+best first,
+conditionally at the vet report's frozen weights,
+each option says why it sits where it does,
+and the pick is the owner's.
 
 ### Q1: which reader parses the module BTF
 
@@ -3851,7 +3879,8 @@ starts no second program" and answered "No, not required (Recommended)" on 2026-
 ([Answers of 2026-11-19](#answers-of-2026-11-19)).
 So no named hard constraint admits the in-house reader.
 The skill's existing-tools rule keeps it ineligible.
-The eligible order is options 1 to 4.
+The order the report keeps is options 1 to 3,
+with option 4 failed on relevant execution.
 `btf-rs` 2.0.1 ranks first among them at every weight set this design and its vet report try:
 no hard gate fails on the source evidence read,
 the crate holds the split model and the type kinds the check needs,
@@ -3867,16 +3896,26 @@ with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec467
 It recommends none.
 Its refrozen baseline,
 every criterion at weight 1 because this project has stated no priority,
-orders the four finalists
+orders the finalists
 `btf-rs` 27.5,
-`ebeepf` 24.5,
-`pahole` 18.5 and `bpftool` 17.5 of 32,
-and that order does not survive every single-input test:
-a maintenance weight of 4 ties `ebeepf` with `pahole`,
-and a weight of 5 puts both programs above `ebeepf`.
+`ebeepf` 24.5 and
+`pahole` 18.5 of 32,
+with `bpftool` 17.5 last and failed on the skill's relevant-execution rule,
+because its functional tests need root,
+a BPF-capable kernel and a VM harness,
+none of which ran here.
+The first place does not move under any input:
+`btf-rs` is strictly first in every defined test at those weights,
+by at least 2 points over the runner-up and by at least 5 over `pahole`.
+What does move is the second place:
+a maintenance weight of 4 ties `ebeepf` with `pahole` at 30.5,
+and a weight of 5 puts `pahole` second at 34.5 and `ebeepf` third at 32.5.
 So the report's terminal result is the skill's "sensitivity unresolved",
 and what it hands the project is a conditional ranking plus two questions,
-the library-or-program choice and the priority between maintenance and deployment fit.
+the priority between maintenance and deployment fit,
+which decides the second place,
+and the choice between a library and a program,
+which the arithmetic does not decide in the program's favour at any weight the project stated.
 The two limits stay beside that result:
 
 - the `aarch64` target builds and does not run for either library finalist,
@@ -3897,8 +3936,12 @@ That pair is `btf-rs` against the declined in-house reader.
 The pair the live choice turns on is `btf-rs` against `ebeepf`,
 and at the report's refrozen weights no single input moves it,
 while the pair between `ebeepf` and `pahole` moves on the maintenance weight alone.
-That is what makes the choice between a library and a spawned program a question for the owner
-rather than an arithmetic result.
+So the library leads every program in every defined test,
+and the rubric does not make the program the arithmetic winner at any weight this document or the
+report tries.
+What makes the choice the owner's is the operational shape and the risk the report prices under C2
+and C3,
+not a contest for first place.
 
 BTF (BPF Type Format) is the kernel's own description of its struct and enum layouts, published
 as files under `/sys/kernel/btf`. The gate reads the kernel's base file and the ZFS module's file
@@ -3966,7 +4009,7 @@ Options:
     and the owner named no such constraint on 2026-11-19.
 2.  `ebeepf` 0.1.0,
     a second library,
-    ranked after option 1.
+    ranked after option 1 at the report's frozen weights.
     Pros:
     a split parser with a byte-level API and a path constructor;
     `size_of` already multiplies array elements,
@@ -3986,28 +4029,49 @@ Options:
     Cost:
     the shared shape without the array-size shim.
     Why here:
-    87 of 104,
-    three points behind option 1 on maintenance and provenance alone,
-    and ahead of the tools because a library needs no program the product must find and version.
+    24.5 of 32 at the report's frozen weights,
+    three points behind option 1 on maintenance and auditability,
+    and ahead of `pahole` because a library needs no program the product must find and version,
+    though the maintenance weight ties or reverses that pair.
+    This file's own weights put it at 87 of 104,
+    which is a different denominator and is labelled as such.
 3.  `pahole` 1.32 as a start-time program,
     ranked after option 2.
     Pros: the command the design already names for the test-time comparison; `-C` prints the
     compared members; no new Rust dependency.
-    Cons: a runtime package; a root-spawned program in the handler; a text format; an invocation
-    each for the struct, the nested type and the enum.
-    Why here: 60 of 104, and a runtime program costs the deployment and privilege points that
-    options 1 and 2 do not.
-4.  `bpftool` 7.8.0 as a start-time program,
-    ranked after option 3.
-    Pros: libbpf's reader; a documented base option and a raw type listing.
-    Cons: the same runtime-program and root-path costs; the raw listing needs a type-id resolver
-    in the wrapper before it can compare a member; the tool's version tracks the kernel's tools,
-    not the distribution's.
+    Cons:
+    a runtime package;
+    a program the handler starts,
+    in the shape the rubric prices,
+    though
+    the child need not run as root;
+    a text format;
+    an invocation each for the struct,
+    the nested
+    type and the enum.
     Why here:
-    56 of 104,
-    the lowest of the four options,
-    for the resolver its output needs and
-    its medium diagnostic rating.
+    18.5 of 32 at the report's frozen weights,
+    and 60 of 104 at this file's,
+    and a runtime program costs the deployment and privilege points that options 1 and 2 do not.
+4.  `bpftool` 7.8.0 as a start-time program,
+    ranked after option 3 while it is eligible,
+    and failed by the report's relevant-execution rule.
+    Pros: libbpf's reader; a documented base option and a raw type listing.
+    Cons:
+    the same runtime-program and handler-child costs;
+    the raw listing needs a type-id
+    resolver in the wrapper before it can compare a member;
+    the tool's self-reported version
+    carries the bundled libbpf's version,
+    not the package's;
+    its functional tests need root,
+    a
+    BPF-capable kernel and a VM harness,
+    so it failed.
+    Why here:
+    17.5 of 32 at the report's frozen weights and 56 of 104 at this file's,
+    the lowest of the four,
+    for the resolver its output needs and its medium diagnostic rating.
 
 Not offered: an in-house reader, because the owner answered on 2026-11-19 that our own parser and
 no second program is not a hard requirement, which leaves it ineligible under the skill's
@@ -4016,20 +4080,25 @@ existing-tools rule while it stays priced under [Scored comparison](#scored-comp
 (unmaintained, no base), `btfdump` (no base, tool first), `padlock-dwarf` (no base, wrong fit),
 `libbpf-rs` and `libbpf` (C build), and a BTF digest (the answer the project did not select).
 
-Ranking:
-option 1 > option 2 > option 3 > option 4.
+Ranking,
+conditional at the report's frozen weights:
+option 1 > option 2 > option 3,
+with option 4 failed.
 Option 1 leads option 2 because both are libraries in the wrapper's address space,
-and the pair's 90 and 87 separate on maintenance and provenance:
+and the pair's 90 and 87 separate on maintenance and auditability:
 two releases,
 a merged out-of-bounds fix and a CI workflow on every push,
 against one release,
 one maintainer and a self-declared unreviewed tree.
 Option 2 leads option 3 because a library needs no program the product must find and version and no
-binary the root handler starts,
-and the arithmetic agrees at 87 against 60.
-Option 3 leads option 4 because `pahole`'s `-C` output carries the compared members while
-`bpftool`'s raw dump needs a type-id resolver before anything can be compared,
-and the arithmetic agrees at 60 against 56.
+child the handler starts,
+and the arithmetic agrees at 87 against 60 at this file's weights and at 24.5 against 18.5 at the
+report's;
+the maintenance weight ties or reverses that pair,
+which is what the report's second question asks.
+Option 4 has no place in the order:
+it failed the report's relevant-execution rule,
+and at the report's weights its pair with option 3 ties on eleven rating steps.
 The in-house reader has no place in this order: the owner's answer of 2026-11-19 left it
 ineligible, and [Scored comparison](#scored-comparison) keeps its price as what the route would
 have cost.
