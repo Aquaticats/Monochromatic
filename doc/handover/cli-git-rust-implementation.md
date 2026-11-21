@@ -41397,7 +41397,23 @@ stated in this entry. What follows from them, as work:
   PARTIAL CLONE (task 415) resumed: `pi-clone-rung-partial-clone-on-the-fenced-rung` in its own worktree
   `.claude/worktrees/clone-rung-partial-clone-of-a-dirty-source` (merge `main`, the prototype on the fenced rung,
   re-measured against `main` and Git's checkout, whether the waiver's end condition is met; brief under
-  `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/`); then a Sonnet re-check, then the owner. Step 7's
+  `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/`); then a Sonnet re-check, then the owner.
+  ISSUE 6334'S INTEGRATION PASS said not fit on documentation only (Cause J, the README and a TSDoc state an unestablished
+  cause as fact; "how to tell" misstates what `podman events` can show; the stop guidance needs
+  `podman stop --ignore --filter label=...`; IDs reach `manifest.json` only at scope exit); the code is fit (gate 9573 of
+  9575; the label filter exact). GOING: `pi-git-policy-cli-gate-containers-label-findings-fixed` in
+  `.claude/worktrees/git-policy-cli-gate-containers-label-findings`. STEP 7'S INTEGRATION PASS said not fit
+  (`~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`): no regression (gate
+  9658 of 9660 on the merged tree, the guest arm passed, three acceptance reds shown); blocking, the per-slot claim's
+  `flock` where the repository's lock-free `lock/single_owner_claim.rs` (`take_claim`, used by two production commands)
+  fits, so rule `NLK` and that precedent settle it: build the claim on `take_claim` (adopted by the coordinator, not put
+  to the owner); mediums: the two `/run` folders never created, the wait ending at once on an absent results folder, a
+  failed publish's staging file blocking the next, no done unmount in the receipt grammar, a path bound contradicting the
+  file bound. Its six questions: readiness identity and the sweep state settled by the records; the claim settled with
+  `take_claim`; receipt outcomes partly settled, step 9 owns the rest; the wait's synchronous read settled by the tokio
+  rulings; readiness writers' ordering steps 8 and 19's. GOING: `pi-zfs-step-7-integration-findings-fixed` in
+  `.claude/worktrees/zfs-step-7-integration-findings` (brief under
+  `~/temp/agent/zfs-step-7-integration-findings-fixed-2026-11-21/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
