@@ -2303,3 +2303,144 @@ fn a_push_the_retry_plan_lands_keeps_what_the_server_said() {
     assert!(shown.contains(SERVER_LINE), "what the server said about the landed push reached nobody; the person was shown {shown:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  A due retry gives up the values and transport settings it carries on every way that try ends,
+///  because the record can no longer run,
+///  and a plan that keeps the push keeps them.
+/// Why:
+///   A due retry runs the plan's own item rather than a claimed record,
+/// so it never passes the settling a claimed push goes through.
+/// One of the values can hold a password,
+/// so a push that landed,
+/// failed for good or was skipped keeps nothing
+///  (`service_push_programs_held_in_memory`).
+/// The plan's next try looks the values up by the same record id,
+/// so a kept plan is the one ending that keeps them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = await dueEndingWith(verdict, attempt); expect(held).toBe(false);
+/// ```
+fn a_due_push_ending_with(verdict: Verdict, attempt: u32, name: &str) -> (bool, bool) {
+    let root: PathBuf = fixture(name);
+    let git_dir: PathBuf = root.join("common");
+    std::fs::create_dir_all(git_dir.as_path()).expect("common directory");
+    std::fs::create_dir_all(root.join("worktree").as_path()).expect("worktree directory");
+    let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(vec![verdict]), pushes: AtomicUsize::new(0) });
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: root.join("worktree"),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: 0,
+        transport: true,
+    };
+    crate::service_push_programs_held_in_memory::remember(
+        git_dir.as_path(),
+        item.id().as_str(),
+        crate::service_push_programs_held_in_memory::of(&[(std::ffi::OsString::from("GIT_SSH_COMMAND"), std::ffi::OsString::from("ssh -i /nowhere/control-fake"))]),
+    );
+    let held_before: bool = crate::service_push_programs_held_in_memory::held(git_dir.as_path(), item.id().as_str()).is_some();
+    let due: Due = Due { git_dir: git_dir.clone(), item: item.clone(), attempt };
+    let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due], plans: None };
+    let _drained: Drained = drain_planned_with(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
+    let still_held: bool = crate::service_push_programs_held_in_memory::held(git_dir.as_path(), item.id().as_str()).is_some();
+    crate::service_push_programs_held_in_memory::forget_every(git_dir.as_path());
+    remove(root.as_path());
+    return (held_before, still_held);
+}
+
+#[test]
+fn a_due_push_that_lands_gives_up_the_values_its_retry_carried() {
+    let (held_before, still_held): (bool, bool) = a_due_push_ending_with(Verdict::Done, 1, "due-retry-done-values");
+    assert!(held_before, "the positive control: the values are held before the try ends");
+    assert!(!still_held, "the push landed on its retry, so its record can no longer run and keeps no value");
+}
+
+#[test]
+fn a_due_push_that_fails_for_good_gives_up_the_values_its_retry_carried() {
+    let (held_before, still_held): (bool, bool) =
+        a_due_push_ending_with(Verdict::Failed(String::from("the server refused")), 1, "due-retry-failed-values");
+    assert!(held_before, "the positive control: the values are held before the try ends");
+    assert!(!still_held, "the push failed for good on its retry, so its record can no longer run and keeps no value");
+}
+
+#[test]
+fn a_due_push_the_service_skips_gives_up_the_values_its_retry_carried() {
+    let (held_before, still_held): (bool, bool) =
+        a_due_push_ending_with(Verdict::Skipped(String::from("nothing to push")), 1, "due-retry-skipped-values");
+    assert!(held_before, "the positive control: the values are held before the try ends");
+    assert!(!still_held, "the push was skipped on its retry, so its record can no longer run and keeps no value");
+}
+
+/// What:
+///  A protected-branch refusal that comes back on the last try the service gives it ends the plan,
+///  so the values that try carried are given up with it.
+/// Why:
+///   The out-of-tries ending is the one way a retryable answer stops the plan,
+/// and the record then waits for the person rather than for another
+///  try (`push_retry_failure.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const out = await dueEndingWith(Retry(PROTECTED_BRANCH_LINE), PROTECTED_BRANCH_TRIES); expect(out.held).toBe(false);
+/// ```
+#[test]
+fn a_due_push_out_of_tries_gives_up_the_values_its_retry_carried() {
+    let refusal: String = format!("remote: {GITHUB_PROTECTED_BRANCH_LINE}\n ! [remote rejected] main -> main (protected branch hook declined)\n");
+    let (held_before, still_held): (bool, bool) = a_due_push_ending_with(Verdict::Retry(refusal), PROTECTED_BRANCH_TRIES, "due-retry-out-of-tries-values");
+    assert!(held_before, "the positive control: the values are held before the try ends");
+    assert!(!still_held, "the plan ended with the last try, so the record can no longer run and keeps no value");
+}
+
+/// What:
+///  A due push whose repository is no longer acceptable is given up by the drain,
+///  and the values it carried are given up with it.
+/// Why:
+///   The record can never run again,
+/// so a value that can hold a password must not outlive it,
+/// and the plan of the
+///  branch goes here rather than at a later look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const due = { item: { repository: gone } }; await drain(due); expect(held(due.item.id())).toBeUndefined();
+/// ```
+#[test]
+fn a_due_push_whose_repository_is_gone_gives_up_the_values_it_carried() {
+    let root: PathBuf = fixture("due-retry-unacceptable-values");
+    let git_dir: PathBuf = root.join("common");
+    std::fs::create_dir_all(git_dir.as_path()).expect("common directory");
+    let handlers: Arc<Scripted> = Arc::new(Scripted { verdicts: Mutex::new(vec![Verdict::Done]), pushes: AtomicUsize::new(0) });
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: root.join("worktree-that-was-removed"),
+        git_dir: git_dir.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: 0,
+        transport: false,
+    };
+    crate::service_push_programs_held_in_memory::remember(
+        git_dir.as_path(),
+        item.id().as_str(),
+        crate::service_push_programs_held_in_memory::of(&[(std::ffi::OsString::from("PATH"), std::ffi::OsString::from("/gone/bin:/usr/bin"))]),
+    );
+    let due: Due = Due { git_dir: git_dir.clone(), item: item.clone(), attempt: 1 };
+    let round: Retrying = Retrying { first: Some(PAUSE), due: vec![due], plans: None };
+    let _drained: Drained = drain_planned_with(git_dir.as_path(), handlers.as_ref(), &ClaimTime::read(), crate::service_work::CLAIM_LEASE, Renewal::Timed, &round);
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 0, "a push of a repository that is gone is not started");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(git_dir.as_path(), item.id().as_str()),
+        None,
+        "the record can never run again, so it keeps no value of the command that asked for it"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(git_dir.as_path());
+    remove(root.as_path());
+}

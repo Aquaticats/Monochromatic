@@ -2446,3 +2446,43 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
     assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
     remove(repo.root.as_path());
 }
+
+/// What:
+///  A retry plan carries the newest record of a branch and nothing else,
+///  so the older records claimed with it keep no value when they settle.
+/// Why:
+///   The plan queues one record id,
+/// and the values of a record nobody will run again are a credential kept for nothing
+///  (`service_push_programs_held_in_memory`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const older = await drainTwoPushes(); expect(held(older)).toBeUndefined(); expect(held(newest)).toBeDefined();
+/// ```
+#[test]
+fn a_plan_that_carries_the_newest_push_gives_up_the_older_records_values() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let planned: Repo = repo("work-retry-programs-two-members");
+    let older: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    let newest: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, &[older.clone(), newest.clone()]);
+    crate::service_push_programs_held_in_memory::remember(older.git_dir.as_path(), older.id().as_str(), programs("/older/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(newest.git_dir.as_path(), newest.id().as_str(), programs("/newest/bin:/usr/bin"));
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let _drained: Drained = drain_planned(planned.common.as_path(), &retrying, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans) });
+    assert_eq!(names(&planned, FAILED).len(), 2, "both records settled failed together");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(older.git_dir.as_path(), older.id().as_str()),
+        None,
+        "the older record is settled failed and no plan carries it, so it keeps no value"
+    );
+    assert!(
+        crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_some(),
+        "the plan queues the newest record again, so its next try keeps the values the command that asked for it gave"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
+}
