@@ -853,9 +853,10 @@ fn the_widest_store() -> String {
 ///  because one name of at most 255 bytes cannot fill every remainder below one record's width.
 fn a_rewrite_of_whole_bytes(bytes: usize, parent: &CloneFolderIdentity) -> String {
     let fixed: String = format!("{}\n", slot_line("slot-0000", &wide_identity(3000)));
-    let shortest_tail: usize = format!("{}\n", slot_line("t", &identity(4000))).len();
-    // Two named records at their shortest, and two bytes of room so both names hold at least one byte.
-    let reserve: usize = 2 * shortest_tail + 2;
+    // What a tail record holds beside its name: the record's own bytes and its newline.
+    let tail_width: usize = format!("{}\n", slot_line("", &identity(4000))).len();
+    // Two tail names of at least one byte, and the two bytes that leave room for both.
+    let reserve: usize = 2 * tail_width + 2;
     let mut text: String = String::from(HEADER);
     text.push('\n');
     text.push_str(parent_line(parent).as_str());
@@ -866,7 +867,7 @@ fn a_rewrite_of_whole_bytes(bytes: usize, parent: &CloneFolderIdentity) -> Strin
         text.push_str(format!("{}\n", slot_line(format!("slot-{index:04}").as_str(), &wide_identity(3000 + index))).as_str());
         index += 1;
     }
-    let names: usize = bytes - text.len() - 2 * shortest_tail;
+    let names: usize = bytes - text.len() - 2 * tail_width;
     let first: usize = names / 2;
     text.push_str(format!("{}\n", slot_line("t".repeat(first).as_str(), &identity(4000))).as_str());
     text.push_str(format!("{}\n", slot_line("u".repeat(names - first).as_str(), &identity(4001))).as_str());
