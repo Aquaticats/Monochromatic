@@ -41029,7 +41029,15 @@ stated in this entry. What follows from them, as work:
   recorded limit is `CheckHostIP` under `ask`, not the cited lines; F2 a debug line or a URL naming "certificate" turns the
   sentence off; F3 two nits) as `pi-git-policy-cli-lfs-final-check-lows` on `fix/git-policy-cli-lfs-final-check-lows`; and
   whether two old LFS branches hold anything `main` lacks (17 and 9 commits; the one holding `9e23c2623e`) as
-  `pi-review-old-lfs-branches-against-main` on the Qwen plan, watched to its end.
+  `pi-review-old-lfs-branches-against-main` on the Qwen plan, watched to its end. STEP 6'S FINDINGS ROUND ended at
+  `a312cea8b2` (`main` merged as `22d8ed1793`): M1 fixed (both `lint:types` exit 0); L2 the three reader duties stated in
+  `declaration.rs` with `declaration_contract_tests.rs`, each red against a breaking adapter (the alias-cycle variant hung
+  until its 45 s bound); L3 an unreadable member now refuses; L4 five reds; L5 to L9 fixed (L9 on the code's side, the
+  record unchanged); guest `run` 251 of 251 and the change arm refusing `zi_iotype`; gate 9317 of 9319, the cause-H pair.
+  GOING, the queued swap: `pi-zfs-step-6-btf-rs-reader-swap` on that tip (brief under
+  `~/temp/agent/zfs-step-6-btf-rs-reader-swap-2026-11-20/`: `btf-rs` 2.0.1 with its checksum checked in the lock file,
+  the adapter behind the contract, array sizes in the binding, the stand-in decoder removed, the fourteen real-byte
+  pairs compared), then one Sonnet gate re-check covering both rounds, then the integration pass and the merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
