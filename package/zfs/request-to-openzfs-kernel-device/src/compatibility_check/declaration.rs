@@ -7,32 +7,32 @@
 //! its array element,
 //! and an enumeration's values.
 //! Why:
-//!  The project has not picked the profile reader yet,
-//! so everything that
-//!  compares or reports a layout depends on this declaration alone,
-//! and one adapter
-//!  file maps a reader onto it.
+//!  Everything that compares or reports a layout depends on this declaration
+//! alone,
+//!  and one adapter file maps a reader onto it,
+//! `btf_rs_declaration.rs` for the
+//!  adopted `btf-rs` 2.0.1
+//! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+//!  "The reader adopted: `btf-rs` 2.0.1").
 //!  The vocabulary is the one the finalists give:
 //! `btf-rs` resolves a named type,
 //!  a chained type and a member's name and size,
 //! `pahole` prints each member's
 //!  offset and size,
 //! and `bpftool` dumps the same facts with the base file supplied,
-//!  so a reader picked later fills one implementation rather than the comparison.
-//!  A picked reader replaces the one adapter file and that adapter's own
+//!  so a reader fills one implementation rather than the comparison.
+//!  A later reader replaces the one adapter file and that adapter's own
 //!  controls,
-//! and it touches the four places the adapter cannot change alone:
+//! and it touches the three places the adapter cannot change alone:
 //! the entry
 //!  point's call,
 //! which hands a reader the whole file as well as the pre-scan's
-//!  sections,
+//!  header,
 //! this folder's module list,
-//! the two decoder-side items a swap leaves
-//!  unread,
 //! and the crate's manifest.
-//!  `README.md` states the same list beside the pick,
-//! so the cost of a
-//!  reader is read off the file that names the reader.
+//!  `README.md` states the same list beside the reader,
+//! so the cost of a reader is
+//!  read off the file that names the reader.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

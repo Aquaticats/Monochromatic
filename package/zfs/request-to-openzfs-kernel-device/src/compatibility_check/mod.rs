@@ -1,9 +1,11 @@
 //! What:
 //!  The start-time compatibility gate's layout half:
-//! the bounded reader of the
+//! the bounded read of the
 //!  kernel's base type information and the ZFS module's own,
-//! the pre-scan that runs before
-//!  any type is decoded,
+//! the pre-scan that runs
+//!  before any type is decoded,
+//! the `btf-rs` 2.0.1 adapter that reads the two files
+//!  behind the declaration,
 //! the expected layout compiled from this crate's `#[repr(C)]` type,
 //!  the comparison that refuses the first difference,
 //! and the one call the root-run handler makes
@@ -41,20 +43,14 @@
 //!   base and module bounds.
 //! - `btf_header.rs`:
 //!   the type information's header,
-//!   its three sections and the checks that run before any type is decoded.
-//! - `btf_entry.rs`:
-//!   the format's kind numbers,
-//!   the bytes each kind's entry holds and one decoded entry.
-//! - `btf_decode.rs`:
-//!   the bytes each kind's entry holds after its head,
-//!   and the decode of one entry.
-//! - `btf_types.rs`:
-//!   the decoded type entries,
-//!   the walk that indexes them and the lookups the comparison asks.
+//!   its sections and the checks that run before any type is decoded.
 //! - `declaration.rs`:
 //!   the reader-neutral declaration of one module's types,
 //!   the three duties every reader owes it,
 //!   and the vocabulary everything after it reads.
+//! - `btf_rs_declaration.rs`:
+//!   the one adapter that reads the two files with `btf-rs` 2.0.1 and maps
+//!   them onto the declaration.
 //! - `expectations.rs`:
 //!   the layout this crate's type compiles,
 //!   and the two records compared member by member.
@@ -67,8 +63,6 @@
 //!   the first difference.
 //! - `comparison_requests.rs`:
 //!   the request numbers and the range's two endpoints.
-//! - `in_house_declaration.rs`:
-//!   the one adapter that maps the in-house decoder onto the declaration.
 //! - `check_module_layout.rs`:
 //!   the entry point the root-run handler calls,
 //!   and what a pass read.
@@ -85,14 +79,10 @@ mod refusal;
 mod bounded_read;
 /// The type information's header and its sections.
 mod btf_header;
-/// The format's kind numbers and one decoded entry.
-mod btf_entry;
-/// The decode of one entry's kind-specific fields.
-mod btf_decode;
-/// The decoded type entries and the lookups the comparison asks.
-mod btf_types;
 /// The reader-neutral declaration everything after it reads.
 mod declaration;
+/// The one adapter that reads the two files with `btf-rs` 2.0.1.
+mod btf_rs_declaration;
 /// The layout this crate's type compiles.
 mod expectations;
 /// The request numbers this crate can send.
@@ -103,8 +93,6 @@ mod mismatch;
 mod comparison;
 /// The request numbers compared with the module's `enum zfs_ioc`.
 mod comparison_requests;
-/// The one adapter that maps the in-house decoder onto the declaration.
-mod in_house_declaration;
 /// The entry point the root-run handler calls.
 mod check_module_layout;
 
@@ -126,14 +114,10 @@ mod bounded_read_tests;
 #[cfg(test)]
 #[path = "btf_header_tests.rs"]
 mod btf_header_tests;
-/// The type-entry walk and the lookups.
+/// The adapter's array sizes and the reader's own refusals.
 #[cfg(test)]
-#[path = "btf_types_tests.rs"]
-mod btf_types_tests;
-/// The adapter's member list and enumeration values.
-#[cfg(test)]
-#[path = "in_house_declaration_tests.rs"]
-mod in_house_declaration_tests;
+#[path = "btf_rs_declaration_tests.rs"]
+mod btf_rs_declaration_tests;
 /// The expectation table's own checks.
 #[cfg(test)]
 #[path = "expectations_tests.rs"]

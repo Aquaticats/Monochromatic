@@ -1,7 +1,7 @@
 //! What:
-//!  The header of one BTF file and the three sections it names,
+//!  The header of one BTF file and the sections it names,
 //! with the checks that run
-//!  before any type entry is decoded:
+//!  before any type entry is read:
 //! the magic,
 //! its byte order,
 //! the version,
@@ -31,6 +31,9 @@
 //! Both are read,
 //! and nothing infers a kernel release from
 //!  either.
+//!  `btf-rs` has no section validation of its own,
+//! so these checks are this
+//!  crate's and run before it parses a byte.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -61,26 +64,25 @@ pub const LAYOUT_HEADER_BYTES: usize = 32;
 pub const SECTION_COUNT: usize = 3;
 
 /// What:
-///  The three sections one BTF file names,
-/// as slices of the file's own bytes.
+///  What one file's header states:
+/// its own length,
+/// which every section offset is counted
+///  from.
 /// Why:
-///   The sections are counted from the end of the header,
-/// so the header's bytes are in
-///  no section,
-/// and the reader keeps them apart from the bytes it decodes.
+///   A caller prints the header length beside a pass,
+/// and the sections themselves are
+///  validated here rather than handed on,
+/// so the header is the one fact a reader of this
+///  file keeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Sections<'a> = { headerBytes: number; types: &'a [u8]; strings: &'a [u8] };
+/// type Sections = { headerBytes: number };
 /// ```
-pub struct Sections<'a> {
+pub struct Sections {
     /// The header's own length in bytes,
     /// which every section offset is counted from.
     pub header_bytes: usize,
-    /// The type entries.
-    pub types: &'a [u8],
-    /// The name strings the type entries' offsets index.
-    pub strings: &'a [u8],
 }
 
 /// What:
@@ -117,11 +119,11 @@ enum Which {
     Layout,
 }
 
-/// Read one file's header and cut its three sections out.
+/// Read one file's header and check the sections it names.
 ///
 /// # Errors
 /// A refusal at the header step naming the file and the check that failed.
-pub fn read_sections<'a>(bytes: &'a [u8], path: &Path) -> Result<Sections<'a>, Refusal> {
+pub fn read_sections(bytes: &[u8], path: &Path) -> Result<Sections, Refusal> {
     let step: Step = Step::Header;
     if bytes.len() < OLDEST_HEADER_BYTES {
         return Err(refusal_at(
@@ -169,12 +171,8 @@ pub fn read_sections<'a>(bytes: &'a [u8], path: &Path) -> Result<Sections<'a>, R
         ));
     }
     let places: Vec<Placed> = places_of(bytes, header_bytes);
-    let (types, strings): (&[u8], &[u8]) = cut_sections(bytes, header_bytes, &places, path, step)?;
-    return Ok(Sections {
-        header_bytes,
-        types,
-        strings,
-    });
+    check_sections(bytes, header_bytes, &places, path, step)?;
+    return Ok(Sections { header_bytes });
 }
 
 /// Refuse a file whose first two bytes are not the magic in this target's byte order.
@@ -233,18 +231,17 @@ fn places_of(bytes: &[u8], header_bytes: usize) -> Vec<Placed> {
 }
 
 /// Refuse a section list with a gap,
-/// an overlap or an end before the file's,
-/// and cut the types and strings out.
+/// an overlap or an end before the file's.
 ///
 /// # Errors
 /// A refusal at the header step naming the two sections that do not add up.
-fn cut_sections<'a>(
-    bytes: &'a [u8],
+fn check_sections(
+    bytes: &[u8],
     header_bytes: usize,
     places: &[Placed],
     path: &Path,
     step: Step,
-) -> Result<(&'a [u8], &'a [u8]), Refusal> {
+) -> Result<(), Refusal> {
     let mut expected_start: usize = 0;
     for place in places {
         if place.offset < expected_start {
@@ -308,11 +305,7 @@ fn cut_sections<'a>(
             ));
         }
     }
-    let types: &Placed = place_of(places, Which::Types, path, step)?;
-    return Ok((
-        cut(bytes, header_bytes, types),
-        cut(bytes, header_bytes, strings),
-    ));
+    return Ok(());
 }
 
 /// The section of one kind,
@@ -337,13 +330,6 @@ fn place_of<'a>(
         ));
     };
     return Ok(place);
-}
-
-/// One section's bytes.
-fn cut<'a>(bytes: &'a [u8], header_bytes: usize, place: &Placed) -> &'a [u8] {
-    let start: usize = header_bytes.saturating_add(place.offset);
-    let end: usize = start.saturating_add(place.length);
-    return &bytes[start..end];
 }
 
 /// One little-endian 32-bit field of the header.

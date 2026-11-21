@@ -35,8 +35,8 @@ fn valid() -> Vec<u8> {
 
 /// The refusal one file's sections must get.
 fn refused(bytes: &[u8]) -> Refusal {
-    let answer: Result<Sections<'_>, Refusal> = read_sections(bytes, Path::new(FIXTURE));
-    let Err(refusal): Result<Sections<'_>, Refusal> = answer else {
+    let answer: Result<Sections, Refusal> = read_sections(bytes, Path::new(FIXTURE));
+    let Err(refusal): Result<Sections, Refusal> = answer else {
         panic!("the file was accepted");
     };
     assert_eq!(refusal.step, Step::Header);
@@ -46,10 +46,8 @@ fn refused(bytes: &[u8]) -> Refusal {
 #[test]
 fn the_current_header_with_its_layout_fields_passes() {
     let bytes: Vec<u8> = valid();
-    let sections: Sections<'_> = read_sections(&bytes, Path::new(FIXTURE)).expect("the header is read");
+    let sections: Sections = read_sections(&bytes, Path::new(FIXTURE)).expect("the header is read");
     assert_eq!(sections.header_bytes, 32);
-    assert_eq!(sections.types.len(), 16);
-    assert_eq!(sections.strings.len(), 15);
 }
 
 #[test]
@@ -57,7 +55,7 @@ fn the_oldest_header_passes_when_the_strings_end_the_file() {
     let mut blob: Blob = Blob::new();
     blob.int("unsigned char", 1);
     let bytes: Vec<u8> = blob.bytes_with_header(24);
-    let sections: Sections<'_> = read_sections(&bytes, Path::new(FIXTURE)).expect("the header is read");
+    let sections: Sections = read_sections(&bytes, Path::new(FIXTURE)).expect("the header is read");
     assert_eq!(sections.header_bytes, 24);
 }
 

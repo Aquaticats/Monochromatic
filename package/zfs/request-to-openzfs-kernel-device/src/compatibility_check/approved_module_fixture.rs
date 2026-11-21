@@ -117,6 +117,12 @@ pub enum Change {
     /// and `ZFS_IOC_LAST` moved by one as a release that appends a request
     ///  does.
     AppendedRequest,
+    /// `zc_name` as a 4,095-byte character array,
+    /// one element short of the field this crate declares.
+    NameArrayOneShort,
+    /// `zc_name` as 1,024 four-byte integers,
+    /// the same 4,096 bytes with an element size of its own.
+    NameArrayWiderElements,
 }
 
 /// The member types one declaration reads,
@@ -203,7 +209,11 @@ fn member_types(blob: &mut Blob, change: Change) -> MemberTypes {
     let word: u32 = blob.int("unsigned int", WORD_BYTES);
     let wide: u32 = blob.int("unsigned long", WIDE_BYTES);
     let pointer: u32 = blob.pointer("pointer");
-    let name: u32 = blob.array(byte, NAME_BYTES);
+    let name: u32 = match change {
+        Change::NameArrayOneShort => blob.array(byte, NAME_BYTES - 1),
+        Change::NameArrayWiderElements => blob.array(word, NAME_BYTES / WORD_BYTES),
+        _ => blob.array(byte, NAME_BYTES),
+    };
     let value: u32 = blob.array(byte, VALUE_BYTES);
     let string: u32 = blob.array(byte, STRING_BYTES);
     let pad: u32 = blob.array(byte, PAD_BYTES);
