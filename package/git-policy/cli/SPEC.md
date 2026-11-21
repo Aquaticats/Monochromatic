@@ -10118,6 +10118,13 @@ in-process reader can) gives every value of the multi-valued keys.
   which is the only sign that the local view of the remote stayed behind,
   and it is written whatever the move came to,
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
+  A push that failed and printed nothing is named by the only evidence there is:
+  its status,
+  and the signal beside it when one ended it
+  (`silent_failure_line` and `record_words` in `src/native/push/push_retry_failure.rs`),
+  because a record built from the empty output named no cause at all and the journal's retry line said
+  `cause:` and nothing after it
+  (`doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md`).
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
   The name carries the commit the push sent,
