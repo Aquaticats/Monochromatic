@@ -41148,7 +41148,15 @@ stated in this entry. What follows from them, as work:
   `pi-clone-rung-conversion-fence-beside-the-clone-2` (cap 400). ISSUE 6330'S ROUND HELD ITS WHOLE WALL CLOCK in one call:
   its traced probe printed after 10 s and never exited (a zombie thread), nothing committed; resumed from its session as
   `pi-git-policy-cli-process-cpu-counters-thread-race-2` with every probe in a scope bounded by `RuntimeMaxSec`. Task 370
-  (the driver noticing a run stuck in one silent command) is the defect this shows.
+  (the driver noticing a run stuck in one silent command) is the defect this shows. B'S RESUMED ROUND ended at
+  `a942de110c`: right on every case (guest 18 of 18 conversion controls, 62 of 62 btrfs, the 150-combination sample 300 of
+  300, host classes 26 equal); this repository 0.86 of `main` and 0.199 at 1.02, each not resolved against A′; but at
+  0.644 converting B's decline is 1.67 to 1.75 of `main`, resolved slower than A′ (1.06) and `main` by 1.0 to 2.0 s,
+  because B copies before the fence decides; the fence's reads stay on the add's thread; rung 1 has no B;
+  `worktree_clone.rs` 483 code lines; gate 9407 of 9409, the cause-H pair; B stated as the chosen remedy, with
+  Limitations. GOING: `pi-clone-rung-conversion-fence-b-decides-before-copying` (cap 780): the decline decided from
+  `git check-attr` before the copies as A′ did, rung 1 fenced, the split, correctness and the three fixtures again (brief
+  under `~/temp/agent/clone-rung-conversion-fence-b-decides-before-copying-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
