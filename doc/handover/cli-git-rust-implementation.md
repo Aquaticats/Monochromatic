@@ -41351,7 +41351,13 @@ stated in this entry. What follows from them, as work:
   one of them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour.
   `podman events` shows only `died` and `remove` for all four named containers (no `stop` or `kill`; `gallant_moore` and
   `hardcore_pasteur` created together at 16:16:56, died 16:28:46 and 16:19:19), so whether one round ended another's gate
-  is not established; the log cannot say whose container it was. Step 7's
+  is not established; the log cannot say whose container it was. THE PER-SLOT DESIGN'S RECHECK said ready (0 high, 0
+  medium, 8 lows R1 to R8 for the build). THE OWNER ACCEPTED it, recorded 2026-11-21T17:23:49-05:00: "A: accept with its
+  proposals (Recommended)", "A: O_EXCL staging, then link (Recommended)", "A: no listing per sweep (Recommended)"
+  (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`, "The design accepted", with the losses accepted
+  and the commitment that the build adds removal of known staging names). The design merged as `8649808092`. GOING: the
+  build as `pi-zfs-slot-identity-store-per-slot-files-build` on `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files`
+  (brief under `~/temp/agent/zfs-slot-identity-store-per-slot-files-build-2026-11-21/`); step 8 waits on it and on step 7. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
