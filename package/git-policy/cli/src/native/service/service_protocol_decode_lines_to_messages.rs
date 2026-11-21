@@ -98,6 +98,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             }
             return Ok(ClientMessage::Work { git_dir, review_key, push_programs });
         }
+        "forgetPrograms" => return crate::service_protocol_forgetting_programs::forgetting_programs(&value),
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
     }

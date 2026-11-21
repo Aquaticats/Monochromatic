@@ -790,3 +790,42 @@ fn an_inside_write_notice_is_a_waiting_line_with_one_extra_field() {
         assert_eq!(decode_service(older), Ok(ServiceMessage::Waiting { text: String::from("t") }), "{older}");
     }
 }
+
+/// What:
+///  The message that names the push records which can no longer run travels as one line and is read back whole,
+///  and an id that is no work record,
+///  an entry that is not text and a list past the ceiling are refused.
+/// Why:
+///   A committed wrapper removes a push record after its post-commit gate,
+/// and this message is the only way the service's memory is told the values of that
+///  record can go (`service_push_programs_held_in_memory`);
+/// an id the queue never wrote would be an instruction about another work's record.
+#[test]
+fn the_message_that_gives_up_a_records_programs_travels_and_refuses_anything_else() {
+    let id: String = String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374");
+    let sent: ClientMessage = ClientMessage::ForgetPrograms { git_dir: PathBuf::from("/srv/repo/.git"), records: vec![id.clone()] };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
+    let empty: ClientMessage = ClientMessage::ForgetPrograms { git_dir: PathBuf::from("/srv/repo/.git"), records: Vec::new() };
+    assert_eq!(
+        decode_client(encode_client(&empty).as_str()),
+        Ok(empty),
+        "a message that names no record is read as one that forgets nothing"
+    );
+    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let rewritten = |records: serde_json::Value| -> String {
+        let mut value: serde_json::Value =
+            serde_json::from_str(encode_client(&ClientMessage::ForgetPrograms { git_dir: PathBuf::from("/srv/repo/.git"), records: vec![id.clone()] }).as_str())
+                .expect("a JSON line");
+        value.as_object_mut().expect("an object").insert(String::from("records"), records);
+        return value.to_string();
+    };
+    for (why, records) in [
+        ("an id that is no work record", parsed(r#"["maintenance"]"#)),
+        ("an entry that is not text", parsed(r#"[7]"#)),
+        ("a list past the ceiling", parsed(format!("[{}]", vec![format!("\"{id}\""); crate::service_protocol_messages_and_name_checks::MAX_FORGOTTEN_RECORDS + 1].join(",")).as_str())),
+        ("no list at all", parsed("{}")),
+    ] {
+        let bad: String = rewritten(records);
+        assert!(decode_client(bad.as_str()).is_err(), "{why}");
+    }
+}

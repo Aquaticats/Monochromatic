@@ -512,6 +512,11 @@ pub mod service_round;
 
 /// The wrapper's side of after-commit work:
 /// records and the wake.
+/// The push record a command that moved a branch leaves where no round runs it until its values have reached the
+/// service,
+/// and the proof that it is this command's to publish.
+pub mod push_record_of_a_moved_branch;
+
 pub mod service_handoff;
 
 /// The words a waiting push record is named with:

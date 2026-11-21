@@ -67,11 +67,53 @@ pub fn wake(
     push_programs: &[(String, crate::service_push_programs_held_in_memory::PushPrograms)],
     notices: &mut dyn Write,
 ) -> Result<(), ClientFailure> {
-    let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned(), push_programs: push_programs.to_vec() });
+    return send_one(config, &ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned(), push_programs: push_programs.to_vec() }, notices);
+}
+
+/// What:
+///  Tells the service that the push records `records` can no longer run,
+///  so it gives up the programs and transport settings it holds against them,
+///  and returns once the service has taken the message or the silence bound has passed.
+/// Why:
+///   A record the committing wrapper settles or removes after its post-commit gate is not the service's to notice:
+/// nothing is queued for it and no round looks at it,
+///  while the values it was given live in the service's memory alone,
+/// and one of them can hold a password
+///  (`service_push_programs_held_in_memory`).
+/// The message is best effort,
+/// as the wake is:
+/// a service of an earlier release holds no values and refuses a message it does not know,
+/// and one this command cannot reach holds none of them either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await forgetPrograms(config, gitDir, recordIds);
+/// ```
+pub fn forget_programs(config: &ClientConfig, git_dir: &std::path::Path, records: &[String], notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    if records.is_empty() {
+        return Ok(());
+    }
+    return send_one(config, &ClientMessage::ForgetPrograms { git_dir: git_dir.to_path_buf(), records: records.to_vec() }, notices);
+}
+
+/// What:
+///  Writes one client message and waits for the service to take it,
+///  no longer than the silence bound.
+/// Why:
+///   Every one-way message the wrapper sends is written the same way,
+/// and the close of the connection is the usual confirmation
+///  that the service read the line (`wake`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = encodeClient(message) + '\n'; const reader = await reachCurrent(config); writeWithin(reader, line); await closed(reader);
+/// ```
+fn send_one(config: &ClientConfig, message: &ClientMessage, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let mut line: String = encode_client(message);
     line.push('\n');
     let mut announced: bool = false;
     let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
-    // The one line the wake carries is written under the bounds of any other, so a service that stopped reading costs the
+    // The one line the message carries is written under the bounds of any other, so a service that stopped reading costs the
     //  confirmation and never the command.
     let written: Wrote = write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
     if written == Wrote::Ended {

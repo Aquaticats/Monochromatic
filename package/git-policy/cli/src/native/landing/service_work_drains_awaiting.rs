@@ -121,6 +121,25 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
 }
 
 /// What:
+///  Gives up the programs and transport settings the push `due` carries,
+///  because that record can no longer run.
+/// Why:
+///   A due retry runs the plan's own item rather than a claimed record,
+/// so it never reaches the settling a claimed push goes through,
+/// and nothing else here would give the values up:
+/// one of them can hold a password,
+/// a plan queues the very same record id,
+/// and a record nothing will run keeps nothing (`service_push_programs_held_in_memory`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forgetTheProgramsOf = (due) => forget(due.gitDir, due.item.id());
+/// ```
+fn forget_the_programs_of(due: &Due) {
+    crate::service_push_programs_held_in_memory::forget(due.git_dir.as_path(), due.item.id().as_str());
+}
+
+/// What:
 ///  The worktree the plans of `git_dir` name,
 /// which is the repository a missing Git directory may belong to.
 /// Why:
@@ -208,6 +227,7 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 crate::service_timing::in_the_repository_at(due.item.repository.as_path())
             );
             replanning.forget(git_dir, branch).await;
+            forget_the_programs_of(due);
             continue;
         }
         let pushing_since: std::time::SystemTime = std::time::SystemTime::now();
@@ -217,6 +237,9 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
             Verdict::Done => {
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
                 replanning.forget(git_dir, branch).await;
+                // The push landed on this plan's last try of the branch, so this record can no longer run and keeps no value. No plan
+                //  carries it any more: the file went just above.
+                forget_the_programs_of(due);
                 crate::service_log!(
                     "the push of {branch:?} {} landed on try {} push_ms={}",
                     crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
@@ -234,6 +257,8 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 }
                 clear_push_failures_before_awaiting(git_dir, branch, pushing_since).await;
                 replanning.forget(git_dir, branch).await;
+                // The plan's last try landed the branch, so this record can no longer run and keeps no value.
+                forget_the_programs_of(due);
                 crate::service_log!(
                     "the push of {branch:?} {} landed on try {} push_ms={}",
                     crate::service_timing::in_the_repository_at(due.item.repository.as_path()),
@@ -268,7 +293,12 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     let recorded: Result<(), String> =
                         record_push_failure_awaiting(git_dir, branch, commit, PushOutcome::Refused, said.as_str()).await;
                     match recorded {
-                        Ok(()) => replanning.forget(git_dir, branch).await,
+                        Ok(()) => {
+                            replanning.forget(git_dir, branch).await;
+                            // The person must act now, so the plan ends here and this record keeps no value of the command that asked for
+                            //  its last try.
+                            forget_the_programs_of(due);
+                        }
                         Err(reason) => {
                             crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                             // The refusal could not be written, so the plan stays: its next look asks the server again and says the same
@@ -306,6 +336,9 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 //  schedules.
                 if !keeps_a_plan {
                     replanning.forget(git_dir, branch).await;
+                    // No plan carries this push, so nothing runs its record again and the values of the command that asked for this try
+                    //  are given up with it. A kept plan queues this same record id, so that ending alone keeps them.
+                    forget_the_programs_of(due);
                 }
             }
             Verdict::Failed(text) => {
@@ -325,6 +358,9 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                     );
                 }
                 replanning.forget(git_dir, branch).await;
+                // The person must act, so the plan ends here whether or not its words could be written, and a record no plan carries
+                //  keeps no value.
+                forget_the_programs_of(due);
             }
             Verdict::Skipped(text) => {
                 if !text.is_empty()
@@ -335,8 +371,10 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                         crate::service_timing::in_the_repository_at(due.item.repository.as_path())
                     );
                 }
-                // The skip's words go before the plan's file, as every other record of a push's end does here.
+                // The skip's words go before the plan's file, as every other record of a push's end does here. Nothing ran and no plan
+                //  carries the push, so the values of the command that asked for this try are given up with it.
                 replanning.forget(git_dir, branch).await;
+                forget_the_programs_of(due);
             }
         }
     }

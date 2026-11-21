@@ -2446,3 +2446,144 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
     assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
     remove(repo.root.as_path());
 }
+
+/// What:
+///  A retry plan carries the newest record of a branch and nothing else,
+///  so the older records claimed with it keep no value when they settle.
+/// Why:
+///   The plan queues one record id,
+/// and the values of a record nobody will run again are a credential kept for nothing
+///  (`service_push_programs_held_in_memory`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const older = await drainTwoPushes(); expect(held(older)).toBeUndefined(); expect(held(newest)).toBeDefined();
+/// ```
+#[test]
+fn a_plan_that_carries_the_newest_push_gives_up_the_older_records_values() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let planned: Repo = repo("work-retry-programs-two-members");
+    let older: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    let newest: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, &[older.clone(), newest.clone()]);
+    crate::service_push_programs_held_in_memory::remember(older.git_dir.as_path(), older.id().as_str(), programs("/older/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(newest.git_dir.as_path(), newest.id().as_str(), programs("/newest/bin:/usr/bin"));
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let _drained: Drained = drain_planned(planned.common.as_path(), &retrying, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans) });
+    assert_eq!(names(&planned, FAILED).len(), 2, "both records settled failed together");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(older.git_dir.as_path(), older.id().as_str()),
+        None,
+        "the older record is settled failed and no plan carries it, so it keeps no value"
+    );
+    assert!(
+        crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_some(),
+        "the plan queues the newest record again, so its next try keeps the values the command that asked for it gave"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
+}
+
+/// What:
+///  A repository the filesystem proves gone gives up the programs and transport settings of its push records,
+///  with the plans that tried them.
+/// Why:
+///   A service that finds its repository deleted has nothing left to deliver,
+/// and a value of a record nothing
+///  will run keeps a command line that can hold a password (`service_push_programs_held_in_memory`).
+/// The worktree beside it keeps its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await endThePlansOfGoneRepository(dir, proof); expect(held(dir)).toBeUndefined(); expect(held(kept)).toBeDefined();
+/// ```
+#[test]
+fn a_repository_proved_gone_gives_up_the_values_of_its_push_records() {
+    let gone: Repo = repo("work-programs-of-a-gone-repository");
+    let kept: Repo = repo("work-programs-of-a-repository-that-is-there");
+    let gone_item: WorkItem = item(&gone, WorkKind::Push, OID, BRANCH);
+    let kept_item: WorkItem = item(&kept, WorkKind::Push, OID, BRANCH);
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let kept_programs: crate::service_push_programs_held_in_memory::PushPrograms = programs("/kept/bin:/usr/bin");
+    crate::service_push_programs_held_in_memory::remember(gone_item.git_dir.as_path(), gone_item.id().as_str(), programs("/gone/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(kept_item.git_dir.as_path(), kept_item.id().as_str(), kept_programs.clone());
+    let unreachable: crate::service_instance::GitDirUnreachable = crate::service_instance::GitDirUnreachable {
+        path: gone.common.clone(),
+        reason: String::from("No such file or directory (os error 2)"),
+    };
+    let proof: crate::unreachable_git_dir_proven_gone::Gone = crate::unreachable_git_dir_proven_gone::Gone {
+        nearest: gone.root.clone(),
+        because: crate::unreachable_git_dir_proven_gone::GoneBecause::OrdinaryDirectory,
+    };
+    let retrying: Retrying = Retrying { first: None, due: Vec::new(), plans: None };
+    let _drained: Drained = await_it(crate::service_work_handlers_replanning_and_acceptance::end_the_plans_of_a_gone_repository_awaiting(
+        gone.common.as_path(),
+        &retrying,
+        &unreachable,
+        &proof,
+    ));
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(gone_item.git_dir.as_path(), gone_item.id().as_str()),
+        None,
+        "a repository proved gone has no push that can run, so it keeps no value"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(kept_item.git_dir.as_path(), kept_item.id().as_str()),
+        Some(kept_programs),
+        "the repository beside it keeps its own values"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(kept.common.as_path());
+    remove(gone.root.as_path());
+    remove(kept.root.as_path());
+}
+
+/// What:
+///  The five names the service's own environment holds are removed from a push that carries a list of its own,
+///  and the command's values stand in their place,
+///  so a value the manager fixed never speaks for the command that asked.
+/// Why:
+///   Replacing only the names that travelled would let the manager's `GIT_SSH_COMMAND`,
+/// `GIT_SSH`,
+/// `GIT_PROXY_COMMAND` or `GIT_EXEC_PATH` decide how a push whose command
+///  set none of them reaches its remote,
+/// and its `PATH` decide which `git-lfs` the push runs,
+/// which is the defect the carried list exists for
+///  (`service_push_programs_held_in_memory`).
+/// The names are the ones the service held,
+/// and the push is the one the command asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [inherited, overlay] = pushEnvironmentOf(serviceHeld, someShellList); expect(everyCarriedName(inherited, overlay)).toBeUndefined();
+/// ```
+#[test]
+fn the_five_names_the_service_held_are_removed_from_a_push_that_carries_a_list() {
+    let service_held: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
+        (OsString::from("GIT_SSH"), OsString::from("/nowhere/service-fake-ssh")),
+        (OsString::from("GIT_PROXY_COMMAND"), OsString::from("nc /nowhere/service-fake")),
+        (OsString::from("GIT_EXEC_PATH"), OsString::from("/nowhere/service-fake-exec")),
+    ];
+    let shell: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from("/shell/bin:/usr/bin"))]);
+    let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
+        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
+    for name in ["GIT_SSH_COMMAND", "GIT_SSH", "GIT_PROXY_COMMAND", "GIT_EXEC_PATH"] {
+        assert_eq!(
+            crate::child_environment::environment_value(environment.as_slice(), name),
+            None,
+            "{name} the service held is not the shell's, so the push has none"
+        );
+    }
+    assert_eq!(
+        crate::child_environment::environment_value(environment.as_slice(), "PATH"),
+        Some(OsString::from("/shell/bin:/usr/bin")),
+        "the push searches the folders the command that asked for it searched"
+    );
+}

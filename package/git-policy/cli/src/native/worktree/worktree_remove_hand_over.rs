@@ -148,8 +148,8 @@ pub fn worktree_removal_item(git_dir: &Path, target: &Path, registration: &Path)
         oid: named,
         parent: target.display().to_string(),
         created: now_iso(),
-        tries: 0,
-        transport: false,
+        // A removal speaks through this service's own transport: no command's settings travel with it, so it carries none.
+        tries: 0, transport: false,
     };
 }
 

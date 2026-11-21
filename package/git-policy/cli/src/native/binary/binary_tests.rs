@@ -717,6 +717,9 @@ mod a_record_nothing_announced_is_found;
 #[path = "binary_push_programs_held_in_memory_tests.rs"]
 mod push_programs_held_in_memory;
 
+#[path = "binary_push_programs_end_to_end_tests.rs"]
+mod push_programs_end_to_end;
+
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,
 /// so no command says the opposite of `git status`.

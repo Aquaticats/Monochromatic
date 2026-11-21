@@ -124,6 +124,17 @@ pub const MAX_CHANGES: usize = 4096;
 /// A display and input cap.
 pub const MAX_ID_BYTES: usize = 128;
 
+/// What:
+///  The most push records one message may name as records that can no longer run.
+/// Why:
+///   A message names the records one command settled or removed,
+/// which is the commits of one command at most,
+/// and the reader bounds every list it accepts:
+/// the ceiling is the longest list this release's own command can produce,
+/// a landing's own changes (`MAX_CHANGES`),
+/// so no record of a real command is refused.
+pub const MAX_FORGOTTEN_RECORDS: usize = MAX_CHANGES;
+
 /// Modes a change may give a file.
 pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 
@@ -436,6 +447,24 @@ pub enum ClientMessage {
         /// (`service_push_programs_held_in_memory`).
         /// Empty for a wake about other work.
         push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)>,
+    },
+    /// What:
+    ///  The push records this command settled or removed can no longer run,
+    ///  so the service gives up the programs and transport settings it holds against them.
+    /// Why:
+    ///   The values live only in the service's memory (`service_push_programs_held_in_memory`),
+    /// and a record a command of another process removed leaves nothing else to forget them by:
+    /// the post-commit gate blocks a backup here in the committing wrapper,
+    /// and one of the values can hold a password.
+    ///  A service of an earlier release holds no values at all,
+    /// so nothing is lost where it refuses the message
+    ///  as one it does not know.
+    ForgetPrograms {
+        /// The worktree's own Git directory,
+        /// which names the instance that serves it.
+        git_dir: PathBuf,
+        /// The ids of the push records that can no longer run.
+        records: Vec<String>,
     },
     /// A finished shadow drawn ahead of a commit,
     /// for the commit whose scratch tree is named:

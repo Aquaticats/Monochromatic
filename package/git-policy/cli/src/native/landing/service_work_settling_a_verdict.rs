@@ -87,16 +87,20 @@ pub(super) async fn settle_after_the_push(
     let settling: Vec<Claimed> = members.to_vec();
     match verdict {
         Verdict::Done => {
-            forget_the_programs_of(members);
             // A push of the branch went through, so an earlier failure to push it is no longer true.
             if let Some(latest) = newest {
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
                 replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
             }
-            return settle_all_awaiting(held, work_dir, settling, DONE).await;
+            // The values go only once the records are settled: a settling step that could not run leaves the claims to their lease and
+            //  the push runs again, and then it needs exactly these values.
+            let back: Option<HeldClaims> = settle_all_awaiting(held, work_dir, settling, DONE).await;
+            if back.is_some() {
+                forget_the_programs_of(members);
+            }
+            return back;
         }
         Verdict::Delivered { commit, said } => {
-            forget_the_programs_of(members);
             // The push landed, so an earlier failure of its branch is no longer true and no retry plan is left for it. What it
             //  said is a record the next command shows, and that record goes before the items settle: an item in `done` always has
             //  its record, so a storage that refused the words leaves the item failed rather than done, and the words are said in
@@ -111,7 +115,12 @@ pub(super) async fn settle_after_the_push(
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
                 replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
             }
-            return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
+            // The values go only once the records are settled, for the reason the landed push above gives.
+            let back: Option<HeldClaims> = settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
+            if back.is_some() {
+                forget_the_programs_of(members);
+            }
+            return back;
         }
         Verdict::Retry(text) => {
             // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
@@ -137,13 +146,13 @@ pub(super) async fn settle_after_the_push(
             if !recorded && !carried {
                 return Some(held);
             }
-            // What: The values are given up only when no plan carries this push.
+            // What: The values are given up for every record of this push except the one a kept plan carries.
             // Why:  A plan queues this same record id again, so its next try needs exactly these values, and one that dropped them
-            //  would search the manager's list instead: `git-lfs` it cannot find, and a transport nobody chose. A push no plan
-            //  carries is over, so its records keep nothing (`service_push_programs_held_in_memory`).
-            if !carried {
-                forget_the_programs_of(members);
-            }
+            //  would search the manager's list instead: `git-lfs` it cannot find, and a transport nobody chose. A plan carries only
+            //  the newest record of the branch, and a push no plan carries is over, so every other record keeps nothing
+            //  (`service_push_programs_held_in_memory`).
+            let over: &[Claimed] = if carried { &members[..members.len().saturating_sub(1)] } else { members };
+            forget_the_programs_of(over);
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Failed(text) => {
@@ -172,7 +181,6 @@ pub(super) async fn settle_after_the_push(
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Skipped(text) => {
-            forget_the_programs_of(members);
             // Nothing was pushed, so an earlier failure of the branch is still true and stays. A skip with words leaves
             //  its own record before the items settle; one that could not be recorded leaves the claims to their lease, so the
             //  skip is worked out again and recorded then, because settling it either way would leave the person no reason for a
@@ -184,6 +192,9 @@ pub(super) async fn settle_after_the_push(
             if !recorded {
                 return Some(held);
             }
+            // The values go after the record is written, as they do for a failure the service gives up on: a skip that could not be
+            //  recorded leaves the claims to their lease, and the push those records run again needs these values.
+            forget_the_programs_of(members);
             return settle_all_awaiting(held, work_dir, settling, DONE).await;
         }
     }

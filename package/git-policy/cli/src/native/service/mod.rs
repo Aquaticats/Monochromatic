@@ -52,6 +52,9 @@ pub mod service_protocol_encode_messages_to_lines;
 
 /// Reads protocol lines as messages,
 /// checking every field.
+/// The reader of the message that names the push records which can no longer run.
+pub mod service_protocol_forgetting_programs;
+
 pub mod service_protocol_decode_lines_to_messages;
 
 /// The longest the wrapper waits for each thing it waits for,

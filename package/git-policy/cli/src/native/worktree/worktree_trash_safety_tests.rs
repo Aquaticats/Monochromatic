@@ -439,6 +439,10 @@ impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
             named.push(git_dir.to_path_buf());
         }
     }
+
+    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+        panic!("the scan settles no push record here, so it forgets no values");
+    }
 }
 
 /// Move a file's modification time into the past,

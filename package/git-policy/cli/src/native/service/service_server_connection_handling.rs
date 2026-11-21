@@ -362,6 +362,19 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
         // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
         //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
         //       commit's landing, which is the wait the hand-out exists to remove.
+        // What: The push records this command settled or removed can no longer run, so the values held against them are given
+        //  up here.
+        // Why:  A record the committing wrapper removed leaves nothing the service could learn it from, and one of the values
+        //  can hold a password (`service_push_programs_held_in_memory`). Nothing is queued: no push is left to run.
+        Ok(ClientMessage::ForgetPrograms { git_dir, records }) => match is_foreign(shared, git_dir.clone()).await {
+            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
+            Some(false) => {
+                for id in records {
+                    crate::service_push_programs_held_in_memory::forget(git_dir.as_path(), id.as_str());
+                }
+            }
+            None => tell_unavailable(write_half).await,
+        },
         Ok(ClientMessage::Shadow { git_dir, scratch }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,

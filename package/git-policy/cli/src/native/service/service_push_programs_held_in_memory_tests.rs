@@ -165,3 +165,58 @@ fn the_pairs_are_the_list_and_the_list_says_which_names_it_holds() {
     assert!(programs.holds("GIT_SSH"), "the command named its ssh");
     assert!(!programs.holds("GIT_PROXY_COMMAND"), "and named no proxy command");
 }
+
+/// What:
+///  The debug output of a list,
+///  of a commit request that carries one and of the message that carries one names the variables and no value.
+/// Why:
+///   One value can be a whole command line with a password in it,
+/// and a panic,
+/// an assertion or a debug print would otherwise write it
+///  wherever that output goes (`service_review_key.rs` redacts its credential the same way).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(`${programs} ${request} ${message}`).not.toContain(SECRET); expect(`${request}`).toContain('GIT_SSH_COMMAND');
+/// ```
+#[test]
+fn the_debug_output_of_a_list_names_the_variables_and_never_a_value() {
+    const SECRET: &str = "ssh -i /nowhere/A-VALUE-NOBODY-MAY-PRINT";
+    let programs: PushPrograms = of(environment(&[("PATH", "/usr/bin"), ("GIT_SSH_COMMAND", SECRET)]).as_slice());
+    let shown: String = format!("{programs:?}");
+    assert!(shown.contains("GIT_SSH_COMMAND") && shown.contains("PATH"), "the names say which variables travel: {shown}");
+    assert!(!shown.contains("A-VALUE-NOBODY-MAY-PRINT"), "no value reaches debug output: {shown}");
+    let message: crate::service_protocol::ClientMessage = crate::service_protocol::ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: None,
+        push_programs: vec![(String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"), programs.clone())],
+    };
+    let shown_message: String = format!("{message:?}");
+    assert!(shown_message.contains("pushPrograms") || shown_message.contains("Work"), "the message is named: {shown_message}");
+    assert!(!shown_message.contains("A-VALUE-NOBODY-MAY-PRINT"), "no value reaches the message's debug output: {shown_message}");
+    let request: crate::service_protocol::CommitRequest = crate::service_protocol::CommitRequest {
+        id: String::from("0a1b2c3d-4e5f"),
+        repository: PathBuf::from("/work/repo"),
+        common_dir: PathBuf::from("/work/repo/.git"),
+        git_dir: PathBuf::from("/work/repo/.git"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
+        base: String::from("0123456789abcdef0123456789abcdef01234567"),
+        changes: Vec::new(),
+        message: String::from("subject\n"),
+        author: None,
+        committer: String::from("T <t@example.invalid> 1793535889 +0000"),
+        amend: false,
+        tree: None,
+        commit: None,
+        cleanup: None,
+        index: PathBuf::from("/work/repo/.git/index"),
+        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0"),
+        shadow: None,
+        captured: 0,
+        holder: String::new(),
+        programs: Some(programs),
+    };
+    let shown_request: String = format!("{request:?}");
+    assert!(shown_request.contains("GIT_SSH_COMMAND"), "the request's debug output names the variables: {shown_request}");
+    assert!(!shown_request.contains("A-VALUE-NOBODY-MAY-PRINT"), "no value reaches the request's debug output: {shown_request}");
+}
