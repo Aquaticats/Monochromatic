@@ -28,7 +28,7 @@ use crate::bounded_push::{PUSH_DEADLINE_VARIABLE, STOPPED_EXIT_CODE, StopCause, 
 /// The texts of a failed or refused upload,
 /// and the reading that says a login was needed.
 use crate::lfs_pre_push::{
-    LFS_PROGRAM, failed_message, host_key_not_known_sentence, login_needed_message, missing_program_message, reads_as_a_key_failure,
+    LFS_PROGRAM, ProgramSearch, failed_message, host_key_not_known_sentence, login_needed_message, missing_program_message, reads_as_a_key_failure,
     reads_as_a_login_failure, reads_as_unknown_host_key, start_failed_message,
 };
 /// The masks and the hosts a destination or a failure names.
@@ -262,17 +262,19 @@ pub fn guard_failed_message(why: &str) -> String {
 }
 
 /// What:
-///  What a person is told when no `git-lfs` is on the caller's `PATH`.
+///  What a person is told when no `git-lfs` is in the folders the push searches.
 /// Why:
 ///   Both faces refuse the upload with the same words,
-/// and the push that would have followed it is never started.
+/// and the push that would have followed it is never started;
+/// the words
+///  name the folders searched and where that list came from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ({ exitCode: 1, output: missingProgramMessage().trimEnd() })
+/// ({ exitCode: 1, output: missingProgramMessage(search).trimEnd() })
 /// ```
-pub fn missing_program_attempt() -> PushAttempt {
-    return PushAttempt { exit_code: 1, signal: None, output: missing_program_message().trim_end().to_owned() };
+pub fn missing_program_attempt(search: &ProgramSearch) -> PushAttempt {
+    return PushAttempt { exit_code: 1, signal: None, output: missing_program_message(search).trim_end().to_owned() };
 }
 
 /// What:

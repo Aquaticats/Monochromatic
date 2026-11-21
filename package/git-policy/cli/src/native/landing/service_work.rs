@@ -43,7 +43,7 @@ use crate::config_snapshot::read_config_snapshot_awaiting;
 /// which only the control that builds the push's Git without the runtime asks.
 #[cfg(test)]
 use crate::config_snapshot::read_config_snapshot;
-use crate::lfs_pre_push::uses_lfs;
+use crate::lfs_pre_push::{PUSH_FROM_SERVICE, uses_lfs};
 use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_awaiting};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
@@ -381,6 +381,10 @@ impl GitHandlers {
     ///  a login (`never_prompt_overlay`):
     /// the host's askpass program is in this environment,
     /// and a dialog nobody answers is a push that waits.
+    /// It also marks that the push runs in the service,
+    /// so a refusal that cannot find `git-lfs` names the
+    ///  service's own `PATH` rather than the shell's (`lfs_pre_push::ProgramSearch`);
+    /// the mark holds no value and is written nowhere.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -391,7 +395,8 @@ impl GitHandlers {
         let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
         #[cfg(test)]
         inherited.extend(self.push_environment.iter().cloned());
-        let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = service_child_overlay(inherited.as_slice());
+        let mut overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = service_child_overlay(inherited.as_slice());
+        overlay.push((std::ffi::OsString::from(PUSH_FROM_SERVICE), std::ffi::OsString::from("1")));
         return (inherited, overlay);
     }
 }
