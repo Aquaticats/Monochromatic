@@ -370,7 +370,8 @@ fn a_failing_or_missing_upload_stops_with_the_explanation() {
     let empty: PathBuf = root.join("empty");
     std::fs::create_dir(&empty).expect("empty directory");
     let (missing_code, missing) = run(root.as_path(), &[empty.as_path()], &[], &plan());
-    assert_eq!((missing_code, missing), (Some(1), missing_program_message()));
+    let empty_path: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), empty.clone().into_os_string())];
+    assert_eq!((missing_code, missing), (Some(1), missing_program_message(&ProgramSearch::of(empty_path.as_slice()))));
     remove(root.as_path());
 }
 
@@ -1194,7 +1195,8 @@ fn the_bounded_face_names_a_found_program_that_cannot_start_and_refuses_a_missin
     let absent_context: PushGit = push_git_through(empty.as_path(), absent.as_path());
     let refusal: PushAttempt = run_upload_bounded(&absent_context, &plan()).expect("the upload answered").expect("the upload failed");
     assert_eq!(refusal.exit_code, 1, "{}", refusal.output);
-    assert!(refusal.output.contains("was not found in any directory of PATH"), "{}", refusal.output);
+    assert!(refusal.output.contains("was not found in the folders this push searches"), "{}", refusal.output);
+    assert!(refusal.output.contains(&empty.display().to_string()), "the folder it searched is named: {}", refusal.output);
     assert!(!refusal.output.contains("could not be started"), "nothing claims a program that is absent was found: {}", refusal.output);
     remove(absent.as_path());
 }

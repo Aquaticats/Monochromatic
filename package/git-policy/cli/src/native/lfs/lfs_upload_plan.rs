@@ -6,6 +6,10 @@
 //! so that it
 //!  cannot hide an object the destination lacks,
 //! and in git-lfs's bounded form (no `--all`) everywhere else.
+//! A tracking ref
+//!  describes the destination only where the destination itself reports it at the same commit,
+//! which is asked of
+//!  the destination rather than assumed (`lfs_destination_confirms_tracking_refs`).
 //! Why:
 //!  `git lfs push` takes refs and no ref-update lines,
 //! so the plan is read from the push's own arguments with the same
@@ -33,8 +37,10 @@
 
 /// The destination and the named refs of a push.
 use crate::command_push::{parse_push_region, push_shape};
+/// Whether the destination confirms this clone's tracking refs.
+use crate::lfs_destination_confirms_tracking_refs::tracking_refs_describe_destination;
 /// The configuration the plan reads.
-use crate::lfs_upload_settings::{current_branch, default_remote, reads_as_true, setting, values};
+use crate::lfs_upload_settings::{current_branch, default_remote, git_says_true, setting, values};
 /// The host a URL names,
 /// with any userinfo left out.
 use crate::lfs_output_mask::host_of;
@@ -452,7 +458,7 @@ pub fn plan_upload(
     let bare: bool = specs.is_empty() && !shape.branches && !shape.tags && !everything;
     if bare {
         let configured: Vec<&str> = values(all, &format!("remote.{remote_text}.push"));
-        if setting(all, &format!("remote.{remote_text}.mirror")).is_some_and(reads_as_true) {
+        if git_says_true(all, format!("remote.{remote_text}.mirror").as_str(), query)? {
             everything = true;
         } else if !configured.is_empty() {
             specs.extend(configured.into_iter().map(OsString::from));
@@ -493,10 +499,13 @@ pub fn plan_upload(
     }
     let configured: bool = configured_remotes(all).contains(&remote_text.as_str());
     let push_urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.pushurl")) } else { Vec::new() };
-    let push_url_count: usize = push_urls.len();
-    let remotes: Vec<OsString> = if push_url_count > 1 {
+    let urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.url")) } else { Vec::new() };
+    // Git pushes to every push URL of a remote, and to every URL of a remote that has no push URL, so each of those is a
+    //  destination of its own: each may keep its objects in its own place.
+    let places: &[&str] = if push_urls.is_empty() { urls.as_slice() } else { push_urls.as_slice() };
+    let remotes: Vec<OsString> = if places.len() > 1 {
         let mut destinations: Vec<OsString> = Vec::new();
-        for url in &push_urls {
+        for url in places {
             destinations.push(lfs_destination(OsStr::new(url), directory, false));
         }
         destinations
@@ -504,8 +513,14 @@ pub fn plan_upload(
         vec![lfs_destination(remote_name.as_os_str(), directory, configured)]
     };
     // The tracking refs describe the destination only for a configured remote that is fetched from and pushed to the
-    //  same place: a push URL, a `pushInsteadOf` rewrite, a URL or path destination or a mirror breaks that.
-    let tracking_trusted: bool = configured && push_urls.is_empty() && !has_push_rewrite(all);
+    //  same place: a push URL, several URLs, a `pushInsteadOf` rewrite, a URL or path destination, a mirror, and a
+    //  destination that does not report the same branches at the same commits break that.
+    let tracking_trusted: bool = !everything
+        && configured
+        && push_urls.is_empty()
+        && urls.len() == 1
+        && !has_push_rewrite(all)
+        && tracking_refs_describe_destination(remote_text.as_str(), query);
     let full_scan: bool = everything || !tracking_trusted;
     let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
     return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None, lfs_server }));

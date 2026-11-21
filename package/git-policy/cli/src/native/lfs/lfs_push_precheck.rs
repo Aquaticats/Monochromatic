@@ -28,7 +28,7 @@ use crate::child_environment::environment_value;
 use crate::command_push::parse_push_region;
 /// The hook switch,
 /// the lookup and the refusal text.
-use crate::lfs_pre_push::{hook_switched_off, missing_program_message, program_on_path, skip_requested};
+use crate::lfs_pre_push::{ProgramSearch, hook_switched_off, missing_program_message, program_on_path, skip_requested};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -58,7 +58,7 @@ pub fn lfs_refusal(
     if program_on_path(path.as_os_str()) {
         return None;
     }
-    return Some(missing_program_message());
+    return Some(missing_program_message(&ProgramSearch::of(environment)));
 }
 
 /// The refusal is controlled in the test module.

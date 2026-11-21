@@ -9,7 +9,8 @@
 //! The tips come
 //!  from the plan's refs;
 //! the commits already known to the destination are the remote's tracking refs when the plan
-//!  trusts them,
+//!  trusts them
+//! (they are kept only where the destination itself reports them at the same commit),
 //! else none (the whole history of the pushed refs is scanned,
 //! which keeps the case where the tracking
 //!  refs may not describe the destination correct).
