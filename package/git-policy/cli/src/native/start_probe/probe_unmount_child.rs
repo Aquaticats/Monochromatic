@@ -22,7 +22,7 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
-use super::probe_child_prelude::{parent_death_signal, parent_id, CHILD_FIRST_KEPT_DESCRIPTOR};
+use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_FIRST_KEPT_DESCRIPTOR, parent_death_signal, parent_id};
 use super::probe_descriptor_calls::move_mount_between_paths;
 use super::probe_mount_calls::{read_own_mount_table, unmount};
 use super::probe_pipe_lines::write_all;
@@ -49,7 +49,8 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         Ok(()) => {
             say(status, StepLine::passed(ProbeStep::Move));
             if hold == Some(ProbeStep::Move) {
-                std::thread::sleep(super::probe_deadline::PROBE_DEADLINE * 2);
+                let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: CHILD_CONTROL_DESCRIPTOR, events: libc::POLLIN, revents: 0 }];
+                let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
             }
         }
         Err(error) => {
@@ -66,7 +67,8 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         crate::start_probe::probe_child_prelude::exit_now(1);
     }
     if hold == Some(ProbeStep::Unmount) {
-        std::thread::sleep(super::probe_deadline::PROBE_DEADLINE * 2);
+        let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: CHILD_CONTROL_DESCRIPTOR, events: libc::POLLIN, revents: 0 }];
+        let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
     }
     match unmount(move_target) {
         Ok(()) => say(status, StepLine::passed(ProbeStep::Unmount)),

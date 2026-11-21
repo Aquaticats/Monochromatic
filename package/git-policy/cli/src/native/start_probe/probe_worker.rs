@@ -114,7 +114,8 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
             // Twice the shipped bound keeps the step long enough for the
             // deadline to fire,
             // and lets M3's raised-deadline control see the step finish.
-            std::thread::sleep(super::probe_deadline::PROBE_DEADLINE * 2);
+            let mut watched: [libc::pollfd; 1] = [libc::pollfd { fd: start.reply, events: libc::POLLIN, revents: 0 }];
+            let _ = super::probe_processes::poll_descriptors(watched.as_mut_slice(), Some(super::probe_deadline::PROBE_DEADLINE * 2));
         }
     };
     let _ = join_own_process_group();
