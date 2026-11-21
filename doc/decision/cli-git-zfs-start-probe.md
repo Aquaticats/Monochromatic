@@ -359,6 +359,36 @@ that a rewrap left short lines in the design,
 changes no statement,
 so this record carries nothing for it.
 
+## Answers of 2026-11-21, after the probe was built
+
+The start probe was built and merged into `main` as `04ecd9e6d3`
+(its integration pass:
+`~/temp/agent/integration-pass-zfs-step-6-start-probe-2026-11-21/keep/review.md`).
+The pass found three points the records left open,
+and the project answered each in the question tool on 2026-11-21:
+
+- The configuration keys.
+  The records named no spelling,
+  and the build read two flat keys.
+  The project answered "C:
+  nest under one key".
+  So the root-owned configuration holds one `startProbe` object,
+  with `dataset` for the dataset the probe mounts and `checkout` for the checkout it opens read-only.
+- Where the account companion's check code is built.
+  The design's notes put it in step 6,
+  and the plan puts it in step 10 with its deadline measurement and its skip arms.
+  The project answered "A:
+  step 10,
+  as the plan says (Recommended)".
+  So the design's note is read as step 10,
+  and step 6 ships without the companion.
+- The test-only switch's `hold-mode` value.
+  It held the whole mode in a root boot path with no deadline,
+  and `hold-unshare` with a kill gives the same evidence.
+  The project answered "A:
+  drop hold-mode (Recommended)".
+  So `CLI_GIT_TEST_ONLY_START_PROBE` keeps `disabled` and `hold-<step>` only.
+
 [answered]: ../planning/cli-git-zfs-start-probe-design.md#questions-the-owner-answered
 [design]: ../planning/cli-git-zfs-start-probe-design.md
 [owed]: ../planning/cli-git-zfs-start-probe-design.md#owed-measurements
