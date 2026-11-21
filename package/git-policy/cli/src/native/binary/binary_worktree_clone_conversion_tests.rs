@@ -513,6 +513,9 @@ fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() 
     assert_eq!(paths_below(topic.as_path(), &[".git"]), paths_below(reference.as_path(), &[".git"]), "a path the clones copied and the target tree lacks stays behind");
     assert!(!topic.join("extra.txt").exists(), "the fenced path the older tree lacks is gone");
     assert!(!topic.join("old").exists(), "the folder the older tree lacks is gone");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    assert!(admin.join("index").is_file(), "the rung gives the index the worktree's name once Git's checkout is done");
+    assert!(!admin.join("index.pending").exists() && !admin.join("index.pending.lock").exists(), "nothing of the rung's waiting name stays in the administrative directory: {:?}", paths_below(admin.as_path(), &[]));
     std::fs::remove_dir_all(topic.as_path()).expect("remove the worktree");
     std::fs::remove_dir_all(reference.as_path()).expect("remove the control");
     remove(&fixture);
