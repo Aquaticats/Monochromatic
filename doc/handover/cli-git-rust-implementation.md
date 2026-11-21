@@ -41189,7 +41189,20 @@ stated in this entry. What follows from them, as work:
   stand-in `git-lfs` found only on the shell's `PATH`; nothing written). GOING:
   `pi-git-policy-cli-lfs-push-programs-integration-findings-fixed` in the coordinator-made worktree
   `.claude/worktrees/git-policy-cli-lfs-push-programs-findings` (brief under
-  `~/temp/agent/git-policy-cli-lfs-push-programs-integration-findings-fixed-2026-11-21/`).
+  `~/temp/agent/git-policy-cli-lfs-push-programs-integration-findings-fixed-2026-11-21/`). STEP 3 WITH THE FENCE'S
+  INTEGRATION PASS (Sonnet; its folder's `keep/review.md`) found it not fit: H1 step 3's earlier integration fixes on
+  `feat/git-policy-cli-zfs-recognition-in-the-reflink-rung` up to `477975e732` never reached the fence branch (five
+  conflicts; the block-cloning-off cost, which no waiver covers, reopens with them); M1 a kill after the index install
+  and before the fenced write leaves an index that, once refreshed, vouches for the source's bytes (issue 6323 again; zeroed
+  stat does not stop a refresh); H2 a btrfs snapshot add of this repository about twice `main` in the guest (890 against
+  439 ms, every round 1.94 to 2.61), not yet put to the owner; M2 the crate's SPEC and README lack the fence; lows. Bytes
+  held everywhere it looked (26 of 26, 300 of 300, 18 of 18, 12 of 12), the same harnesses red on the unfenced build;
+  gate 9550 of 9553: the cause-H pair and a start probe control polling 1,000 times with no wait (sent as a steer to the
+  start probe findings round). The merge removed the author's fence worktree. GOING:
+  `pi-zfs-step-3-fence-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/zfs-step-3-fence-integration-findings` (merge step 3's fixes, M1 red first, H2 split and reduced, M2;
+  brief under `~/temp/agent/zfs-step-3-fence-integration-findings-fixed-2026-11-21/`); H2's remaining cost and any
+  block-cloning-off cost go to the owner after it.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
