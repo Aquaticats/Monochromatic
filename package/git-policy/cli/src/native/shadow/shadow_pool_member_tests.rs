@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 ///  so a run forced while it holds the lock skips every task and exits zero.
 ///  The controls in this file force that upkeep themselves,
 ///  so they would race a child of the fixture and pass or fail on timing;
-///  `prepare_auto_maintenance` starts no child while `maintenance.auto` is false
-///  and `gc.auto` is not positive,
+///  `prepare_auto_maintenance` starts no child while `maintenance.auto` is false,
+///  and with that key unset it starts none unless `gc.auto` is positive,
 ///  so the fixture states both in its config before its first commit
 ///  and never has a child to race.
 ///  `git maintenance run --auto` itself reads neither key for its `worktree-prune` task
