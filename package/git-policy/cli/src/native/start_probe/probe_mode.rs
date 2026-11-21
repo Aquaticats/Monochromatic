@@ -26,12 +26,12 @@
 //! const line = new ProbeMode(place, configuration).run(); // writes result and returns one line
 //! ```
 
-use super::probe_deadline::{deadline_passed, remaining};
+use super::probe_deadline::{deadline_from_environment, deadline_passed, remaining};
 use super::probe_mode_words::{namespace_of, skip_after_gate_refusal, source_of, source_refusal_word, unstarted, verdict_line};
-use super::probe_test_switch::{TestSwitch, test_switch_from_environment};
+use super::probe_test_switch::{TestSwitch, keep_descriptor_from_environment, test_switch_from_environment};
 use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use super::probe_holder_control::{Arrival, Holder, reports_of};
-use super::probe_pipe_lines::{read_one_blocking, set_nonblocking, write_all};
+use super::probe_pipe_lines::{set_nonblocking, write_all};
 use super::probe_processes::{Exit, fork, kill_process, kill_process_group, pid_descriptor, pipe_pair, poll_descriptors, raw, reap_now, set_process_group};
 use super::probe_record::{ProbeRecord, started_text};
 use super::probe_record_files::{RecordFileRefusal, RecordPlace};
@@ -46,10 +46,12 @@ use std::time::Instant;
 pub const START_HOLDER: u8 = b'H';
 /// The byte the worker sends to ask for the holder to stop.
 pub const STOP_HOLDER: u8 = b'S';
-/// The byte the mode answers a request the holder performed.
-pub const HOLDER_DONE: u8 = b'P';
-/// The byte the mode answers a request the holder could not perform.
-pub const HOLDER_FAILED: u8 = b'F';
+/// The reply that says the holder performed the request.
+/// A start carries the holder's namespace after a space,
+/// so the worker's first pass compares the exact set.
+pub const HOLDER_DONE: &str = "P";
+/// The reply that says the holder could not perform the request.
+pub const HOLDER_FAILED: &str = "F";
 
 /// What:
 ///  The mode's one run:
@@ -97,29 +99,19 @@ impl<'a> ProbeMode<'a> {
         self.place.prepare().map_err(|refusal: RecordFileRefusal| return refusal.message())?;
         let time: String = crate::iso_time::now_iso();
         self.place.publish(started_text(&fingerprint, time.as_str()).as_str()).map_err(|refusal| return refusal.message())?;
-        if switch == TestSwitch::HoldMode {
-            return self.hold_after_the_started_record();
-        }
         let hold: Option<super::probe_arms::ProbeStep> = match switch {
             TestSwitch::Hold { step } => Some(step),
-            TestSwitch::None | TestSwitch::Disabled | TestSwitch::HoldMode => None,
+            TestSwitch::None | TestSwitch::Disabled => None,
         };
         return self.supervise(&fingerprint, time.as_str(), hold);
-    }
-
-    /// Write the started record and block forever,
-    /// which is the kill arm's own state:
-    /// the record says the probe began and nothing finished it.
-    fn hold_after_the_started_record(&self) -> Result<String, String> {
-        let blocked = pipe_pair().map_err(|error| return unstarted("hold pipe", error.errno))?;
-        let _ = read_one_blocking(raw(&blocked.read));
-        return Err(String::from("the test-only hold ended without a signal"));
     }
 
     /// Fork the worker and the holder,
     /// wait for the worker within the deadline,
     /// and write the finished record.
     fn supervise(&self, fingerprint: &ProbeFingerprint, time: &str, hold: Option<super::probe_arms::ProbeStep>) -> Result<String, String> {
+        let deadline: std::time::Duration = deadline_from_environment();
+        let keep_descriptor: bool = keep_descriptor_from_environment();
         let request = pipe_pair().map_err(|error| return unstarted("request pipe", error.errno))?;
         let reply = pipe_pair().map_err(|error| return unstarted("reply pipe", error.errno))?;
         let status = pipe_pair().map_err(|error| return unstarted("status pipe", error.errno))?;
@@ -134,6 +126,7 @@ impl<'a> ProbeMode<'a> {
                     reply: raw(&reply.read),
                     status: raw(&status.write),
                     hold,
+                    keep_descriptor,
                 };
                 drop(request.read);
                 drop(reply.write);
@@ -158,7 +151,7 @@ impl<'a> ProbeMode<'a> {
         let pidfd = pid_descriptor(worker).map_err(|error| return unstarted("worker watch", error.errno))?;
         let mut timed_out: bool = false;
         loop {
-            if deadline_passed(started, Instant::now()) {
+            if deadline_passed(started, Instant::now(), deadline) {
                 timed_out = true;
                 break;
             }
@@ -170,7 +163,7 @@ impl<'a> ProbeMode<'a> {
             if let Some(held) = holder.as_ref() {
                 watched.push(libc::pollfd { fd: reports_of(held), events: libc::POLLIN, revents: 0 });
             }
-            match poll_descriptors(watched.as_mut_slice(), remaining(started, Instant::now())) {
+            match poll_descriptors(watched.as_mut_slice(), remaining(started, Instant::now(), deadline)) {
                 Ok(0) => continue,
                 Ok(_) => {}
                 Err(_) => continue,
@@ -193,13 +186,17 @@ impl<'a> ProbeMode<'a> {
                         Arrival::Attach { passed } => {
                             holder_namespace = held.namespace();
                             if awaiting == Some(START_HOLDER) {
-                                let _ = write_all(raw(&reply_fd), &[if passed { HOLDER_DONE } else { HOLDER_FAILED }]);
+                                let answer: String = match (passed, holder_namespace.as_deref()) {
+                                    (true, Some(namespace)) => format!("{HOLDER_DONE} {namespace}\n"),
+                                    _ => format!("{HOLDER_FAILED}\n"),
+                                };
+                                let _ = write_all(raw(&reply_fd), answer.as_bytes());
                                 awaiting = None;
                             }
                         }
                         Arrival::Gone => {
                             if awaiting == Some(START_HOLDER) {
-                                let _ = write_all(raw(&reply_fd), &[HOLDER_FAILED]);
+                                let _ = write_all(raw(&reply_fd), format!("{HOLDER_FAILED}\n").as_bytes());
                                 awaiting = None;
                             }
                             holder = None;
@@ -212,7 +209,7 @@ impl<'a> ProbeMode<'a> {
                 let source: String = source_of(&report).unwrap_or_default();
                 holder = Holder::start(self.place, source.as_str());
                 if holder.is_none() {
-                    let _ = write_all(raw(&reply_fd), &[HOLDER_FAILED]);
+                    let _ = write_all(raw(&reply_fd), format!("{HOLDER_FAILED}\n").as_bytes());
                     awaiting = None;
                 }
             }
@@ -221,12 +218,12 @@ impl<'a> ProbeMode<'a> {
                     held.stop();
                     if held.reap() != Exit::StillRunning {
                         let _ = held.drain(&mut holder_feed, &mut report);
-                        let _ = write_all(raw(&reply_fd), &[HOLDER_DONE]);
+                        let _ = write_all(raw(&reply_fd), format!("{HOLDER_DONE}\n").as_bytes());
                         awaiting = None;
                         holder = None;
                     }
                 } else {
-                    let _ = write_all(raw(&reply_fd), &[HOLDER_DONE]);
+                    let _ = write_all(raw(&reply_fd), format!("{HOLDER_DONE}\n").as_bytes());
                     awaiting = None;
                 }
             }

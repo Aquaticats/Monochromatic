@@ -58,20 +58,29 @@ pub fn make_mounts_private() -> Result<(), CallError> {
     return if mounted == 0 { Ok(()) } else { Err(answered) };
 }
 
+/// The scratch tmpfs's size and inode count:
+/// large enough for the slot,
+/// the move target,
+/// the refusal tree and one symbolic link,
+/// and no larger.
+pub const SCRATCH_TMPFS_OPTIONS: &str = "size=64k,nr_inodes=32,mode=0700";
+
 /// What:
 ///  Mount a fresh tmpfs at the scratch mount point.
 /// Why:
 ///   The probe's slot,
 ///  its move target and its refusal tree live inside a filesystem the probe
 ///  owns,
-///  so nothing it writes is visible outside its namespace.
+///  so nothing it writes is visible outside its namespace,
+///  and the size bound keeps that filesystem no larger than the directories
+///  it must hold.
 ///
 /// # Errors
 /// The `mount` call refused.
 pub fn mount_scratch_tmpfs(target: &Path) -> Result<(), CallError> {
     let target_path: CString = c_path(target);
     let filesystem: CString = CString::new("tmpfs").expect("no NUL in a filesystem type");
-    let data: CString = CString::new("mode=0700").expect("no NUL in a mount option");
+    let data: CString = CString::new(SCRATCH_TMPFS_OPTIONS).expect("no NUL in a mount option");
     // SAFETY: every pointer is this call's own and outlives it.
     let mounted: libc::c_int = unsafe { libc::mount(filesystem.as_ptr(), target_path.as_ptr(), filesystem.as_ptr(), libc::MS_NOSUID | libc::MS_NODEV, data.as_ptr().cast::<libc::c_void>()) };
     return if mounted == 0 { Ok(()) } else { Err(failed("mount tmpfs")) };

@@ -69,15 +69,44 @@ fn the_comparison_names_both_directions() {
     assert_eq!(compare_namespaces(&[], &[]), None);
 }
 
-/// A `/proc` root that cannot be listed,
-/// or a table that cannot be read,
-/// is a refusal.
+/// A `/proc` root that cannot be listed is a refusal.
 #[test]
-fn an_unreadable_scan_is_a_refusal() {
+fn an_unlistable_proc_root_is_a_refusal() {
     let root: PathBuf = fixture("start-probe-scan-missing");
     let missing: PathBuf = root.join("no-such-proc");
     assert!(matches!(scan_namespaces(missing.as_path(), "source"), Err(ScanRefusal::Proc { .. })));
+}
+
+/// A task that ends between the listing and the table read is skipped,
+/// and a namespace whose every task ended is skipped whole,
+/// because a namespace no live task holds is invisible to the scan.
+#[test]
+fn a_task_gone_between_listing_and_read_is_skipped() {
+    let root: PathBuf = fixture("start-probe-scan-gone");
+    let proc: PathBuf = proc_root(root.as_path(), MENTIONING, OTHER_SOURCE);
+    std::fs::remove_file(proc.join("11/mountinfo")).expect("the vanished task's table is removed");
+    let tables: Vec<NamespaceTable> = namespaces_outside(proc.as_path()).expect("the scan reads the live task's table");
+    assert_eq!(tables.len(), 2);
+    for (pid, namespace) in [("31", "mnt:[4026533001]"), ("32", "mnt:[4026533001]")] {
+        let task: PathBuf = proc.join(pid);
+        std::fs::create_dir_all(task.join("ns")).expect("the fixture task is made");
+        std::os::unix::fs::symlink(namespace, task.join("ns/mnt")).expect("the namespace link is made");
+    }
+    std::fs::remove_file(proc.join("21/mountinfo")).expect("the second namespace's first table is removed");
+    let mentioned: Vec<String> = scan_namespaces(proc.as_path(), "zpcachyos/nosnap/git-worktree-probe@ready").expect("the scan reads");
+    assert_eq!(mentioned, vec![String::from("mnt:[4026531840]")]);
+}
+
+/// A read error that is not a task's ending still refuses the scan,
+/// so a table this process may not read is never reported as clear.
+#[test]
+fn a_persistent_read_error_on_a_live_task_still_refuses() {
+    let root: PathBuf = fixture("start-probe-scan-error");
     let proc: PathBuf = proc_root(root.as_path(), MENTIONING, OTHER_SOURCE);
     std::fs::remove_file(proc.join("21/mountinfo")).expect("the table is removed");
-    assert!(matches!(namespaces_outside(proc.as_path()), Err(ScanRefusal::Table { .. })));
+    std::fs::create_dir(proc.join("21/mountinfo")).expect("a directory stands where the table was");
+    match namespaces_outside(proc.as_path()) {
+        Err(ScanRefusal::Table { path, .. }) => assert_eq!(path, proc.join("21/mountinfo")),
+        other => panic!("{other:?}"),
+    }
 }

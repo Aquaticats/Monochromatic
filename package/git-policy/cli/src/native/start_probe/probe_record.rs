@@ -28,6 +28,7 @@
 //! ```
 
 use super::probe_arms::ProbeStep;
+use super::probe_errno_names::ErrnoWord;
 use super::probe_fingerprint::ProbeFingerprint;
 use super::probe_report::{ArmAnswer, ProbeReport, ProbeVerdict};
 use super::probe_status_line::StepAnswer;
@@ -141,14 +142,13 @@ impl ProbeRecord<'_> {
                 ArmAnswer::Failed => "failed",
                 ArmAnswer::NotExercised => "not-exercised",
             };
-            lines.push(format!("arm {} {answer} errno {}", outcome.arm.name(), outcome.errno.unwrap_or("none")));
+            lines.push(format!("arm {} {answer} errno {}", outcome.arm.name(), outcome.errno.text()));
         }
         for line in self.report.lines() {
-            let errno: &str = match &line.answer {
-                StepAnswer::Failed { errno: Some(name) } => name,
-                StepAnswer::Passed | StepAnswer::Failed { errno: None } => "none",
-                StepAnswer::NotExercised { errno: Some(name), .. } => name,
-                StepAnswer::NotExercised { errno: None, .. } => "none",
+            let errno: String = match &line.answer {
+                StepAnswer::Failed { errno } => errno.text(),
+                StepAnswer::NotExercised { errno, .. } => errno.text(),
+                StepAnswer::Passed => String::from("none"),
             };
             let reason: String = match &line.answer {
                 StepAnswer::NotExercised { reason, .. } => format!(" reason {reason}"),
@@ -193,8 +193,8 @@ impl ProbeRecord<'_> {
         };
         return match &line.answer {
             StepAnswer::Passed => SourcePresence::Yes,
-            StepAnswer::Failed { errno: Some("ENOENT") } | StepAnswer::NotExercised { errno: Some("ENOENT"), .. } => SourcePresence::No,
-            StepAnswer::Failed { errno: Some("EBUSY") } | StepAnswer::NotExercised { errno: Some("EBUSY"), .. } => SourcePresence::Yes,
+            StepAnswer::Failed { errno: ErrnoWord::Named("ENOENT") } | StepAnswer::NotExercised { errno: ErrnoWord::Named("ENOENT"), .. } => SourcePresence::No,
+            StepAnswer::Failed { errno: ErrnoWord::Named("EBUSY") } | StepAnswer::NotExercised { errno: ErrnoWord::Named("EBUSY"), .. } => SourcePresence::Yes,
             StepAnswer::Failed { .. } | StepAnswer::NotExercised { .. } => SourcePresence::Unknown,
         };
     }

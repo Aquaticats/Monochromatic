@@ -176,35 +176,61 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 /// What:
 ///  One representative table per live mount namespace.
 /// Why:
-///   A task that exits between the listing and the read is skipped rather than
-///  failing the scan,
-///  and a namespace with no live task is invisible,
+///   Every task of one namespace is kept,
+///  not just the last one a map happened to hold,
+///  because the representative may end between the listing and the read:
+///  a task that exits answers `ENOENT`,
+///  `ESRCH` or `EINVAL` for its table,
+///  and the scan then tries the namespace's next task.
+/// A namespace whose every task ended is skipped whole,
+///  because a namespace no live task holds is invisible,
 ///  which the design states as the scan's own limit.
+/// A read error that no task's ending explains still refuses,
+///  so a table this process may not read is never reported as clear.
 ///
 /// # Errors
-/// The listing or a representative table could not be read.
+/// The listing could not be read,
+///  or a live task's table answered an error other than its own ending.
 pub fn namespaces_outside(proc_root: &Path) -> Result<Vec<NamespaceTable>, ScanRefusal> {
-    let entries: std::collections::BTreeMap<String, PathBuf> = match std::fs::read_dir(proc_root) {
+    let mut entries: std::collections::BTreeMap<String, Vec<PathBuf>> = std::collections::BTreeMap::new();
+    let listing = match std::fs::read_dir(proc_root) {
         Ok(iter) => iter,
         Err(error) => {
             return Err(ScanRefusal::Proc { path: proc_root.to_path_buf(), reason: error.to_string() });
         }
-    }
-    .filter_map(|entry| return entry.ok())
-    .filter(|entry| return entry.file_name().to_string_lossy().chars().all(|character| return character.is_ascii_digit()))
-    .filter_map(|entry| {
-        let namespace: String = std::fs::read_link(entry.path().join("ns/mnt")).ok()?.to_string_lossy().into_owned();
-        return Some((namespace, entry.path()));
-    })
-    .collect();
-    let mut tables: Vec<NamespaceTable> = Vec::new();
-    for (namespace, task) in entries {
-        let table_path: PathBuf = task.join("mountinfo");
-        let text: Vec<u8> = match crate::plain_file::read_plain_file(table_path.as_path(), MOUNT_TABLE_LIMIT) {
-            Ok(bytes) => bytes,
-            Err(error) => return Err(ScanRefusal::Table { path: table_path, reason: error.to_string() }),
+    };
+    for entry in listing.filter_map(|entry| return entry.ok()) {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if !name.chars().all(|character| return character.is_ascii_digit()) {
+            continue;
+        }
+        let Ok(link) = std::fs::read_link(entry.path().join("ns/mnt")) else {
+            continue;
         };
-        tables.push(NamespaceTable { namespace, mounts: parse_mount_table(text.as_slice()) });
+        entries.entry(link.to_string_lossy().into_owned()).or_default().push(entry.path());
+    }
+    let mut tables: Vec<NamespaceTable> = Vec::new();
+    for (namespace, mut tasks) in entries {
+        tasks.sort_by_key(|task| return task.file_name().and_then(|name| return name.to_str()).and_then(|name| return name.parse::<u32>().ok()).unwrap_or(u32::MAX));
+        let mut table: Option<Vec<u8>> = None;
+        for task in tasks {
+            let table_path: PathBuf = task.join("mountinfo");
+            match crate::plain_file::read_plain_file(table_path.as_path(), MOUNT_TABLE_LIMIT) {
+                Ok(bytes) => {
+                    table = Some(bytes);
+                    break;
+                }
+                Err(error) => {
+                    let ended: bool = matches!(error.raw_os_error(), Some(libc::ENOENT) | Some(libc::ESRCH) | Some(libc::EINVAL));
+                    if !ended {
+                        return Err(ScanRefusal::Table { path: table_path, reason: error.to_string() });
+                    }
+                }
+            }
+        }
+        if let Some(text) = table {
+            tables.push(NamespaceTable { namespace, mounts: parse_mount_table(text.as_slice()) });
+        }
     }
     return Ok(tables);
 }
