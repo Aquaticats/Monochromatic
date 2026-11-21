@@ -41136,7 +41136,19 @@ stated in this entry. What follows from them, as work:
   (Recommended)". THE LFS UPLOAD FIX MERGED into `main` as `50c683047e` at 2026-11-21T03:58:29-05:00; the SPEC and the
   troubleshooting note now cite the acceptance; the BTF answer is in the layout checker's decision record, section
   "Widened entry fields, answered 2026-11-21", and the owner file marks it answered. NEXT for LFS: the memory-held push
-  programs carry (task 424), then deleting both old LFS branches.
+  programs carry (task 424), then deleting both old LFS branches. THE START PROBE ROUND ended at `7ccb964f22` (the
+  `start-probe` mode, its nine arms, the record under `/run/git-worktree-clone-mount-probe/result`, the journal line;
+  guest red: the mode absent; guest green: 29 markers; `PROBE_DEADLINE` 350 ms from 31 guest rounds, slowest 231 ms,
+  recorded in `package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`; gate 9446 of 9448, the
+  cause-H pair, which the round mistook for new; left for steps 7, 8, 10, 18, 19, 20 as the plan places them; eight
+  narrow readings, three of them questions for the owner: the configuration key spellings, a missing checkout key
+  blocking the route, `hold-mode` in the release executable). GOING: its integration pass on Sonnet, asked to rule on
+  each narrow reading (brief under `~/temp/agent/integration-pass-zfs-step-6-start-probe-2026-11-21/`). B HIT ITS TURN CAP
+  (600) after seven commits through `0fe2cece9e` with the proposal edit uncommitted; resumed from its session as
+  `pi-clone-rung-conversion-fence-beside-the-clone-2` (cap 400). ISSUE 6330'S ROUND HELD ITS WHOLE WALL CLOCK in one call:
+  its traced probe printed after 10 s and never exited (a zombie thread), nothing committed; resumed from its session as
+  `pi-git-policy-cli-process-cpu-counters-thread-race-2` with every probe in a scope bounded by `RuntimeMaxSec`. Task 370
+  (the driver noticing a run stuck in one silent command) is the defect this shows.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
