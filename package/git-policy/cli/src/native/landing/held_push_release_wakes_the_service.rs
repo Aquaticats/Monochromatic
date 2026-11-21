@@ -122,11 +122,6 @@ impl WakeTheService for AskTheService<'_> {
         let Some(Route { address, provision: host }) = route_from_environment(self.context.real_git.as_path(), git_dir) else {
             return;
         };
-        if let Some(setup) = host.as_ref()
-            && provision(setup).is_err()
-        {
-            return;
-        }
         let config: ClientConfig = ClientConfig {
             address,
             activation: Activation::Managed,
@@ -140,8 +135,16 @@ impl WakeTheService for AskTheService<'_> {
             extra_wait: SHORT_EXTRA_WAIT,
             start_ceiling: HAND_OVER_GREETING_WAIT,
         };
-        // The message asks the manager whether the service runs and is told to it alone, so a command that settles a record
-        //  starts no service to tell it nothing, and there is no wait here to report or to fail.
+        // What: The manager is asked whether this worktree's service runs before anything about the worktree is written.
+        // Why:  The message is told only to a service that already runs, so it starts none and needs no unit link written under
+        //  it: a running service's units were provisioned by the commit that holds the record, and a worktree whose service is
+        //  down has no memory for the values to be given up from. Asking first is what keeps a command that only settles a
+        //  record from reading or writing the unit links of a worktree (a Claude Sonnet review of this branch, its low that the
+        //  seam provisioned before it asked).
+        if !crate::service_client_wake::a_service_is_running(&config) {
+            return;
+        }
+        // The service asked above is the one told, so nothing here waits for a start or reports one.
         let _forgotten: Result<(), crate::service_messages::ClientFailure> = crate::service_client_wake::forget_programs(&config, git_dir, records);
     }
 }

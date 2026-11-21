@@ -2694,3 +2694,38 @@ fn the_five_names_the_service_held_are_removed_from_a_push_that_carries_a_list()
         "the push searches the folders the command that asked for it searched"
     );
 }
+
+/// What:
+///  The line a planned push retry writes never ends with an empty cause:
+///  a push whose own output holds no reason is named as one that said nothing.
+/// Why:
+///   The cause is the only field of that line that says what went wrong,
+/// and a push that printed nothing left it empty:
+/// the journal of a gate on `2026-11-21` said `cause:` and no more for the push of `refs/heads/other` of
+/// `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`,
+/// so a killed push could not be told from a refused one.
+///   The push's own words are still the cause whenever it has any,
+/// which is the second arm below and the control of the first.
+#[test]
+fn the_line_a_planned_retry_writes_never_leaves_its_cause_empty() {
+    let repo: Repo = repo("work-retry-cause-never-empty");
+    let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        // A handler that answered with no words at all leaves the text every line here is built from empty.
+        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, ""));
+    });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
+    assert!(line.contains("cause: the push said nothing about why it failed"), "a push that said nothing is named as one: {line}");
+    assert!(!line.trim_end().ends_with("cause:"), "the cause is never left empty: {line}");
+    // The control: a push whose output names its failure keeps those words as the cause.
+    let mut second_replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
+    let second_entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut second_replanning, FIRST_PAUSE, &newest, 2, "the network is down"));
+    });
+    let second_said: Vec<String> = second_entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    let second_line: &String = second_said.iter().find(|candidate| { return candidate.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {second_said:?}"));
+    assert!(second_line.contains("cause: the network is down"), "the program's own line is the cause: {second_line}");
+    remove(repo.root.as_path());
+}

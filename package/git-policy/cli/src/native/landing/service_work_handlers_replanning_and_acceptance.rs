@@ -21,7 +21,7 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
 use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
-use crate::push_retry_cause_line::cause_line;
+use crate::push_retry_cause_line::cause_or_silence;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
@@ -799,7 +799,7 @@ pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, f
             item.repository,
             attempt + 1,
             pause.as_secs(),
-            cause_line(text).unwrap_or_default()
+            cause_or_silence(text)
         )
         .as_str(),
         &fields,
