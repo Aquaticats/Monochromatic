@@ -40872,7 +40872,17 @@ stated in this entry. What follows from them, as work:
   (`~/temp/agent/integration-recheck-git-policy-cli-bounded-wait-after-findings-2026-11-20/keep/prototype-g-a-stall-seam-and-a-behavioural-control-of-the-wiring.patch`);
   the doc's run command names `recv_timeout_queued_message` for `recv-timeout-queued-message`; two docs in
   `binary_support_observation_bound.rs` still say the wait reads no status; the `LineBound` doc should say "no shipped
-  caller"; nits. The issue is left open for the owner to close.
+  caller"; nits. The issue is left open for the owner to close. STEP 6'S FINDINGS ROUND ended (its folder's
+  `keep/report-from-summary.md`; worktree `.claude/worktrees/zfs-step-6-compatibility-gate-findings`): H1 the seam holds
+  (`declaration.rs` the reader-neutral vocabulary, `in_house_declaration.rs` the one adapter; with the three decoder files
+  emptied, 3 errors, all in the adapter, against 14 in six files before); M1 to M5 fixed with reds (`check_with` takes the
+  comparison, `VerdictCache` constructible, the refused-gate control red with the gate removed, the passing path and
+  missing-file refusals); the recipe carries `zfs-gate-arm`, `zfs-gate-version-arm`, `zfs-gate-change-arm` and fails on
+  `SKIP gate_arm`; SPEC says only the handler runs the gate until a later step; L10 treated as required (a moved
+  `ZFS_IOC_LAST` refuses, read from Q2's "the request numbers decide"), which the re-check is told to weigh as possibly
+  the owner's choice; gate 9306 of 9308, the cause-H pair. GOING: its narrow re-check on Sonnet (brief under
+  `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/`). It still merges only after the reader pick
+  replaces the adapter.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
