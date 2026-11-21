@@ -318,9 +318,9 @@ function green(chosen: Options): void {
     `check 'in-flight unmount' /root/record-timeout.txt 'timed-out in flight unmount'`,
     `check 'last-finished move' /root/record-timeout.txt 'timed-out last finished move'`,
     // M3's kill arm: the mode is killed while the worker is held, so the record stays started.
-    `CLI_GIT_TEST_ONLY_START_PROBE=hold-move ${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
+    `env CLI_GIT_TEST_ONLY_START_PROBE=hold-move ${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
     'sleep 1',
-    'kill --kill "$mode" || true',
+    'kill -KILL "$mode" || true',
     'wait "$mode" 2>/dev/null || true',
     `cp ${RECORD} /root/record-killed.txt`,
     `check 'state started' /root/record-killed.txt 'killed mode left a started record'`,

@@ -42,11 +42,17 @@ use std::time::{Duration, Instant};
 /// what the probe costs"),
 ///  and the value here is replaced by the measurement's own number.
 ///
-/// Pending:
-/// M4's run in this step's guest arms replaces this value and the margin
-/// below with the numbers it measured,
-/// and no shipped build may carry this placeholder.
-pub const PROBE_DEADLINE: Duration = Duration::from_secs(60);
+/// Measured 2026-11-21 in the throwaway guest by M4's five interleaved rounds
+/// in each of three green runs:
+/// the whole probe ran at 116,570 to 149,450 microseconds per round,
+/// which is a spread of 32,880,
+/// and the same binary with the probe disabled ran at 73,130 to 96,622,
+/// so the probe's own work is about half the run.
+/// This bound is the slowest round plus more than that spread.
+/// The guest's pool is a file-backed image,
+/// so the number is the guest's until the owner measures this host's storage
+/// (`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`).
+pub const PROBE_DEADLINE: Duration = Duration::from_millis(200);
 
 /// What:
 ///  The margin this bound carries over the slowest measured run.
@@ -55,7 +61,7 @@ pub const PROBE_DEADLINE: Duration = Duration::from_secs(60);
 ///  and the margin is the part of the value that protects a run from
 ///  noise,
 ///  so it is stated as its own number rather than hidden in the total.
-pub const PROBE_DEADLINE_MARGIN: Duration = Duration::from_millis(0);
+pub const PROBE_DEADLINE_MARGIN: Duration = Duration::from_millis(51);
 
 /// What:
 ///  Whether the run that started at `started` has passed its deadline at
