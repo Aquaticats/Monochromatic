@@ -41120,7 +41120,15 @@ stated in this entry. What follows from them, as work:
   (built to `doc/decision/cli-git-zfs-start-probe.md` and the accepted design; cap 640; brief under
   `~/temp/agent/zfs-step-6-start-probe-2026-11-20/`); and issue 6330 as
   `pi-git-policy-cli-process-cpu-counters-thread-race` (force the order, fix where it lives, record it beside causes G and
-  H; brief under `~/temp/agent/git-policy-cli-process-cpu-counters-thread-race-2026-11-20/`).
+  H; brief under `~/temp/agent/git-policy-cli-process-cpu-counters-thread-race-2026-11-20/`). THE LFS UPLOAD ROUND
+  ended at `12c9022ca5` (`main` merged as `8d95d65fec`): U1 per-ref trust (stale ref: 1 batch request, 1 object, 0.983 of
+  `main`; red on the all-or-nothing build, green on `main` and here); U2 a typed push answers from the discovery's
+  existing `ls-remote --refs`, 3 connections as on `main` at 0, 10 and 50 ms, ratios inside the control's spread, a
+  positive control counting 4 on the old build; I1 split; L1 the `LogLevel=FATAL` limit; D1 to D4; gate 9346 of 9348, the
+  cause-H pair. Left for the owner: the service's bounded push goes from 1 connection to 2 (read from the code; one
+  connection measured 205, 355, 1,017 ms at 0, 10, 50 ms one-way). GOING: the integration reviewer's closure check (merge
+  `main`, rerun the stale-ref control and fixture, count connections, confirm the service path, gate once); then the
+  owner's question on the service push's connection, with the BTF entry-check question.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
