@@ -12766,7 +12766,7 @@ The step:
   355 ms and 1017 ms for the added one-way delays of 0 ms,
   10 ms and 50 ms,
   and the project accepts that cost.
-  A typed push measured 0.998 to 1.005 of `main` per round at the same three delays,
+  A typed push measured 1.001 to 1.005 of `main` per round at the same three delays,
   inside the spread of the identical-binary control in every cell,
   with 3 connections on both binaries in every sample.
   One stale tracking ref on a 2000-commit fixture costs `main`'s scan again:
