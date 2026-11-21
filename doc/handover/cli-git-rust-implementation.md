@@ -40932,7 +40932,11 @@ stated in this entry. What follows from them, as work:
   64 tests and only the maintenance weight swaps second and third, so the skill's outcome stays "sensitivity unresolved,
   recommend none"; eight open questions, each with what it changes. GOING: a narrow final check on Sonnet of the new suite
   claim and the outcome's wording (brief under
-  `~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's pick.
+  `~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's pick. THE
+  ISSUE 6325 FIX MERGED into `main` as `e72caf6c0d` (re-check on Sonnet fit, its gate 9280 of 9282 with the cause-H pair;
+  the changed Rust is test-only). Four lows on the troubleshooting record follow: the prune loop scans until `limit`
+  entries, the link entry holds for one layout only, two positional pointers, a Symptom quote's thread number and column
+  not in the issue. Left open for the owner to close.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
