@@ -41049,7 +41049,16 @@ stated in this entry. What follows from them, as work:
   two open defects fixed (the fit check before the programs attach; values kept after a retried push settles); delete
   both old branches once both land. GOING: `pi-git-policy-cli-lfs-upload-plan-asks-the-destination` on
   `fix/git-policy-cli-lfs-upload-plan-asks-the-destination` (red first on `main`, the round trip's price measured; brief
-  under `~/temp/agent/git-policy-cli-lfs-upload-plan-asks-the-destination-2026-11-20/`).
+  under `~/temp/agent/git-policy-cli-lfs-upload-plan-asks-the-destination-2026-11-20/`). THE FENCE'S COST ROUND ended at
+  `9369b1a575`: the valueless `core.autocrlf` and `text=unset` read as Git reads them (red first); decline-rule controls
+  added; the fence decided in `choose_rung` so a declining add is one Git checkout; in one guest the 18 conversion controls
+  and the 66 btrfs ladder controls ran and passed; costs from kept runs: this repository as it is, step 3 0.49 to 0.59 of
+  `main` and correct, the fence 0.98 to 1.11 (control 0.90 to 1.03); 0.199 converting, A′ 1.13; a declining add +0.07;
+  A′ against C not resolved; LFS 0.35 ms and text 0.12 ms per path; the pointer-proof suggestion rejected with reasons;
+  gate 9356 of 9358, the cause-H pair. It used `git restore --no-enforce-worktree` twice after saving a patch. GOING: a
+  diff-only check on Sonnet with the two byte reproductions and one headline reproduction (brief under
+  `~/temp/agent/gate-diff-check-of-the-clone-conversion-fence-costs-on-sonnet-2026-11-20/`); then the owner's question,
+  unless it finds wrong bytes or a contradicted cost.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
