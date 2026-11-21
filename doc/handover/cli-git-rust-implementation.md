@@ -41357,7 +41357,15 @@ stated in this entry. What follows from them, as work:
   (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`, "The design accepted", with the losses accepted
   and the commitment that the build adds removal of known staging names). The design merged as `8649808092`. GOING: the
   build as `pi-zfs-slot-identity-store-per-slot-files-build` on `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files`
-  (brief under `~/temp/agent/zfs-slot-identity-store-per-slot-files-build-2026-11-21/`); step 8 waits on it and on step 7. Step 7's
+  (brief under `~/temp/agent/zfs-slot-identity-store-per-slot-files-build-2026-11-21/`); step 8 waits on it and on step 7.
+  THE TWO-WORKTREE PUSH DIAGNOSIS ended at `f7d4e77c35`: a `git push` ended by SIGKILL with no output became
+  `Verdict::Retry("")` and an empty `cause:` (the same code on `main`; a forced-kill seam fails the control on both, with
+  an empty cause on `main`); the branch now names a silent failure's status and signal (two controls red on `main`'s files,
+  green); `ForgetPrograms` asks the manager first and its handler has a control; gate 9525 of 9527. The killer is issue
+  6335 (the out-of-memory killer in the 2 GiB suite container is a hypothesis; `journalctl --kernel` shows this account no
+  entries for that window, so its empty search proves nothing). On record the SIGKILL hit only this branch's gates (three,
+  none of `main`'s). GOING: the push programs reviewer's third closure check, measuring the suite container's peak memory
+  on this branch against `main` and ruling whether that blocks. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
