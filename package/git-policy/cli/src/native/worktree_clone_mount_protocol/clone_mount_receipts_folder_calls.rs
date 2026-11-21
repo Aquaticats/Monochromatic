@@ -2,6 +2,7 @@
 //!  The descriptor-relative calls the receipts folder makes:
 //!  opening the directory and a receipt,
 //!  creating the staging sibling,
+//!  removing one,
 //!  renaming it over the receipt,
 //!  and syncing the directory.
 //! Why:
@@ -94,6 +95,29 @@ pub(super) fn open_receipt_at(directory: &std::fs::File, name: &str) -> std::io:
     }
     // SAFETY: `openat` returned a new descriptor that nothing else owns.
     return Ok(Some(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) })));
+}
+
+/// What:
+///  Remove one entry in the directory by name,
+///  following no link.
+/// Why:
+///   A writer that failed after it made its staging sibling removes that
+///  sibling,
+///  and one it left in an earlier run of the same process is replaceable
+///  rather than in its way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await unlinkat(directory, name); // no AT_REMOVEDIR: a folder is a refusal
+/// ```
+pub(super) fn unlink_at(directory: &std::fs::File, name: &str) -> std::io::Result<()> {
+    let text: CString = CString::new(name).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
+    let removed: libc::c_int = unsafe { libc::unlinkat(directory.as_raw_fd(), text.as_ptr(), 0) };
+    if removed != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(());
 }
 
 /// What:

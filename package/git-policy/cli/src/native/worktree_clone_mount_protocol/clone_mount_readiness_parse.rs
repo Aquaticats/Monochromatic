@@ -21,13 +21,10 @@
 use crate::foundation::iso_time::instant_of_iso;
 use crate::foundation::random_id::is_canonical_uuid;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
-    MAXIMUM_CHECKOUT_PATH_BYTES, MAXIMUM_POOL_NAME_BYTES, MAXIMUM_READINESS_BYTES, READINESS_KIND, READINESS_VERSION, ReadinessRecord, ReadyState,
-    SweepState,
+    MAXIMUM_CHECKOUT_PATH_BYTES, MAXIMUM_POOL_NAME_BYTES, MAXIMUM_READINESS_BYTES, READINESS_KEYS, READINESS_KIND, READINESS_VERSION, ReadinessRecord,
+    ReadyState, SweepState,
 };
 use crate::worktree_clone_mount_protocol::request_nonce::{NonceRefusal, RequestNonce};
-
-/// The record's keys in the order the file holds them.
-pub const READINESS_KEYS: [&str; 7] = ["v1", "kind", "boot", "pool", "checkout", "sweep", "time"];
 
 /// What:
 ///  Why a file is not a readiness record this route wrote.
@@ -122,7 +119,7 @@ impl ReadinessParseRefusal {
             ReadinessParseRefusal::Time { value } => format!("`time {value}` is not an ISO 8601 time with an offset"),
         };
         return format!(
-            "the file in the readiness directory is not a readiness record this route wrote: {reason}. Nothing was attached, mounted or unmounted on its answer. Ways forward: run the handler's `boot-reconcile` in this boot and read `journalctl -u reconcile-git-worktree-clone-mounts.service`; do not hand-edit the file."
+            "the file in the readiness directory is not a readiness record this route wrote: {reason}. Nothing was attached, mounted or unmounted on its answer. Ways forward: run the handler's `boot-reconcile` in this boot, which plan step 8 builds, and read `journalctl -u reconcile-git-worktree-clone-mounts.service`, whose unit plan step 19 installs; do not hand-edit the file."
         );
     }
 }

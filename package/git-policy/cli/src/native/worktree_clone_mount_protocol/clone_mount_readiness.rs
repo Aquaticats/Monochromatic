@@ -29,6 +29,7 @@
 //! const admission = admitAttach(record, { boot, pool, checkout });
 //! ```
 
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
 /// The record's format version.
@@ -50,14 +51,74 @@ pub const READINESS_DIRECTORY_MODE: u32 = 0o755;
 /// The record's mode.
 pub const READINESS_MODE: u32 = 0o644;
 
-/// The largest readiness record a reader accepts.
-pub const MAXIMUM_READINESS_BYTES: usize = 4096;
+/// The record's keys in the order the file holds them.
+pub const READINESS_KEYS: [&str; 7] = ["v1", "kind", "boot", "pool", "checkout", "sweep", "time"];
 
 /// The bound one pool name may use.
 pub const MAXIMUM_POOL_NAME_BYTES: usize = 255;
 
-/// The bound one checkout path may use.
+/// The bound one checkout path may use,
+/// which is the kernel's `PATH_MAX` without its terminator.
 pub const MAXIMUM_CHECKOUT_PATH_BYTES: usize = 4095;
+
+/// The bound the kernel's own boot identifier uses,
+/// a canonical UUID's 36 characters.
+pub const MAXIMUM_BOOT_BYTES: usize = 36;
+
+/// The bound one ready state word may use.
+pub const MAXIMUM_READY_STATE_BYTES: usize = 9;
+
+/// The bound one sweep state word may use.
+pub const MAXIMUM_SWEEP_STATE_BYTES: usize = 8;
+
+/// The bound one sweep nonce may use.
+pub const MAXIMUM_SWEEP_NONCE_BYTES: usize = NONCE_HEX_DIGITS;
+
+/// The bound one time may use:
+/// the date,
+/// the second,
+/// nine fraction digits and the offset.
+pub const MAXIMUM_TIME_BYTES: usize = 35;
+
+/// What:
+///  The largest readiness record a reader accepts,
+///  from the bound of every field the writer fills and the line each field is
+///  written on.
+/// Why:
+///   A file bound typed in beside field bounds can fall below them,
+///  and then a record the writer can write is one the reader refuses,
+///  so no caller sees this boot ready and nothing says why.
+///  Derived this way,
+///  every record the writer builds fits,
+///  and `publish` proves the reader reads it back.
+///  It refuses a record it cannot read back,
+///  so nothing is filed for a caller to wait out.
+pub const MAXIMUM_READINESS_BYTES: usize = READINESS_KEYS[0].len()
+    + READINESS_KEYS[1].len()
+    + 1
+    + READINESS_KIND.len()
+    + READINESS_KEYS[2].len()
+    + 1
+    + MAXIMUM_BOOT_BYTES
+    + READINESS_KEYS[3].len()
+    + 1
+    + MAXIMUM_READY_STATE_BYTES
+    + 1
+    + MAXIMUM_POOL_NAME_BYTES
+    + READINESS_KEYS[4].len()
+    + 1
+    + MAXIMUM_READY_STATE_BYTES
+    + 1
+    + MAXIMUM_CHECKOUT_PATH_BYTES
+    + READINESS_KEYS[5].len()
+    + 1
+    + MAXIMUM_SWEEP_STATE_BYTES
+    + 1
+    + MAXIMUM_SWEEP_NONCE_BYTES
+    + READINESS_KEYS[6].len()
+    + 1
+    + MAXIMUM_TIME_BYTES
+    + READINESS_KEYS.len();
 
 /// What:
 ///  Whether one prerequisite is ready.

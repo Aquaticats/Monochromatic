@@ -28,9 +28,12 @@
 
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, MAXIMUM_RECEIPT_BYTES};
 use crate::worktree_clone_mount_protocol::clone_mount_receipt_parse::parse_receipt;
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{c_string_of, create_at, open_receipt_at, rename_at, sync_directory};
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{
+    c_string_of, create_at, open_receipt_at, rename_at, sync_directory, unlink_at,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsRefusal};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_mount_protocol::root_owned_directory::{RootDirectoryRefusal, make_and_prove};
 use std::ffi::CString;
 use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
@@ -93,30 +96,55 @@ impl ReceiptsFolder {
     }
 
     /// What:
+    /// Make the directory when it is absent,
+    /// give it its designed mode,
+    /// and prove it is the designed root-owned folder.
+    ///
+    /// # Errors
+    /// The directory could not be made or given its mode,
+    /// or it is owned by another account.
+    pub fn prepare(&self) -> Result<(), ReceiptsRefusal> {
+        let directory: std::fs::File = self.prepare_directory()?;
+        drop(directory);
+        return Ok(());
+    }
+
     ///  File one receipt,
     ///  replacing the dataset's own earlier one whole.
     /// Why:
-    ///   The staging sibling is written and synced first,
+    ///   The directory is made when a fresh boot has none,
+    ///  the text is proved readable by the route's own reader before a byte is
+    ///  written,
+    ///  and the staging sibling is written and synced first,
     ///  so the GUID's name always holds one whole receipt,
     ///  and a live clone's next result overwrites its own entry as the design
     ///  says.
+    ///  Every way out after the staging sibling was made removes it,
+    ///  so this process's next publish is never blocked by its own failure,
+    ///  and a sibling an earlier run of this process left is replaced rather
+    ///  than waited on.
     ///
     /// # Errors
     /// The directory is not the designed root-owned `0755` folder,
+    /// the text is not one this route's reader accepts,
     /// or the staging write,
     /// its sync or the rename answered an error.
     pub fn publish(&self, receipt: &CloneMountReceipt) -> Result<(), ReceiptsRefusal> {
-        let directory: std::fs::File = self.open_directory()?;
+        let directory: std::fs::File = self.prepare_directory()?;
         let name: String = self.entry_name(receipt.dataset);
+        let text: String = receipt.text();
+        match parse_receipt(text.as_str()) {
+            Ok(parsed) if parsed == *receipt => {}
+            Ok(_) => return Err(ReceiptsRefusal::NotWhatWasWritten { name }),
+            Err(refusal) => return Err(ReceiptsRefusal::NotAReceipt { name, refusal }),
+        }
         let staging: String = self.staging_name(receipt.dataset);
         let staged: Result<(), ReceiptsRefusal> = (|| {
-            let mut file: std::fs::File = create_at(&directory, staging.as_str(), RECEIPT_MODE).map_err(|error| {
-                return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
-            })?;
+            let mut file: std::fs::File = self.create_staging(&directory, staging.as_str())?;
             file.set_permissions(std::fs::Permissions::from_mode(RECEIPT_MODE)).map_err(|error| {
                 return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
             })?;
-            file.write_all(receipt.text().as_bytes()).map_err(|error| {
+            file.write_all(text.as_bytes()).map_err(|error| {
                 return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
             })?;
             file.sync_all().map_err(|error| {
@@ -127,7 +155,52 @@ impl ReceiptsFolder {
             })?;
             return sync_directory(&directory).map_err(|error| return ReceiptsRefusal::Staging { name: name.clone(), reason: error.to_string() });
         })();
+        if staged.is_err() {
+            // A rename may have completed before a failed directory sync, and then there is no sibling to remove; a
+            // removal's own failure changes nothing about the refusal being reported.
+            let _removed: std::io::Result<()> = unlink_at(&directory, staging.as_str());
+        }
         return staged;
+    }
+
+    /// What:
+    ///  Create this writer's staging sibling,
+    ///  replacing one an earlier run of this process left.
+    /// Why:
+    ///   The sibling's name carries this process's id,
+    ///  so a name already there can only be this process's own earlier failure
+    ///  (or a reused id):
+    ///  nobody else writes this route's staging names,
+    ///  and treating it as another writer's file would block the very retry
+    ///  the sibling's own removal exists to allow.
+    ///
+    /// # Errors
+    /// The sibling could not be made even after the leftover was removed.
+    fn create_staging(&self, directory: &std::fs::File, staging: &str) -> Result<std::fs::File, ReceiptsRefusal> {
+        return match create_at(directory, staging, RECEIPT_MODE) {
+            Ok(file) => Ok(file),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let removed: std::io::Result<()> = unlink_at(directory, staging);
+                if let Err(removal) = removed {
+                    return Err(ReceiptsRefusal::Staging { name: String::from(staging), reason: removal.to_string() });
+                }
+                create_at(directory, staging, RECEIPT_MODE).map_err(|again| {
+                    return ReceiptsRefusal::Staging { name: String::from(staging), reason: again.to_string() };
+                })
+            }
+            Err(error) => Err(ReceiptsRefusal::Staging { name: String::from(staging), reason: error.to_string() }),
+        };
+    }
+
+    /// Make the directory and prove it,
+    /// handing back the descriptor every later call is relative to.
+    fn prepare_directory(&self) -> Result<std::fs::File, ReceiptsRefusal> {
+        let path: &Path = self.directory.as_path();
+        return make_and_prove(path, self.owner, DIRECTORY_MODE).map_err(|refusal| return match refusal {
+            RootDirectoryRefusal::Open { reason } => ReceiptsRefusal::Directory { path: path.to_path_buf(), reason },
+            RootDirectoryRefusal::Owner { found, wanted } => ReceiptsRefusal::DirectoryOwner { path: path.to_path_buf(), found, wanted },
+            RootDirectoryRefusal::Mode { found, wanted: _wanted } => ReceiptsRefusal::DirectoryMode { path: path.to_path_buf(), found },
+        });
     }
 
     /// What:
@@ -197,7 +270,11 @@ impl ReceiptsFolder {
         // SAFETY: `text` is a NUL-terminated string that outlives the call.
         let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
         if descriptor < 0 {
-            return Err(ReceiptsRefusal::Directory { path: path.to_path_buf(), reason: std::io::Error::last_os_error().to_string() });
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::NotFound {
+                return Err(ReceiptsRefusal::DirectoryAbsent { path: path.to_path_buf() });
+            }
+            return Err(ReceiptsRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
         }
         // SAFETY: `open` returned a new descriptor that nothing else owns.
         let directory: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });

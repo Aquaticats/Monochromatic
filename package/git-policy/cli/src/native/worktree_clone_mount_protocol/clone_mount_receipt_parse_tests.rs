@@ -169,6 +169,33 @@ fn the_mount_identity_belongs_only_to_a_done_result() {
     assert!(matches!(refusal, ReceiptRefusal::MountField { key: "mount-id", wanted: false }), "{refusal:?}");
 }
 
+/// What:
+///  A done unmount carries `none` for the mount identity and parses,
+///  and a done unmount that carries one is refused.
+/// Why:
+///   An unmount that verified absence has no mount to identify,
+///  and the design asks for the identity "where applicable"
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Requests,
+/// results and ordering").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(parseReceipt(doneUnmount.text()).mount).toBeNull();
+/// ```
+#[test]
+fn a_done_unmount_carries_no_mount_identity() {
+    let mut unmount: CloneMountReceipt = done();
+    unmount.operation = MountOperation::Unmount;
+    unmount.mount = None;
+    let parsed: CloneMountReceipt = parse_receipt(unmount.text().as_str()).expect("a done unmount without a mount parses");
+    assert_eq!(parsed, unmount);
+    assert_eq!(parsed.mount, None, "a done unmount identifies no mount");
+    let with_identity: String = unmount.text().replace(&format!("mount-id {ABSENT_WORD}"), "mount-id 41");
+    let refusal: ReceiptRefusal = parse_receipt(with_identity.as_str()).expect_err("a done unmount carries no mount");
+    assert!(matches!(refusal, ReceiptRefusal::MountField { key: "mount-id", wanted: false }), "{refusal:?}");
+}
+
 /// A done result names no failing step,
 /// and a refusal names one.
 #[test]

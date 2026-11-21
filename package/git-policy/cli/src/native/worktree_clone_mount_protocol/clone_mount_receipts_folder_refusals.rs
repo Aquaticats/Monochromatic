@@ -51,6 +51,12 @@ pub enum ReceiptsRefusal {
         /// What the call or the facts answered.
         reason: String,
     },
+    /// The directory is not there at all,
+    /// which on a fresh boot is the answer before the handler's first publish.
+    DirectoryAbsent {
+        /// The path.
+        path: PathBuf,
+    },
     /// The directory is not owned by the expected account.
     DirectoryOwner {
         /// The path.
@@ -116,6 +122,13 @@ pub enum ReceiptsRefusal {
         /// The GUID the file carries.
         found: String,
     },
+    /// The writer built a text its own reader does not read back as the same
+    /// receipt,
+    /// so nothing could ever read it.
+    NotWhatWasWritten {
+        /// The file's name.
+        name: String,
+    },
     /// The text is not a receipt this route wrote.
     NotAReceipt {
         /// The file's name.
@@ -138,6 +151,10 @@ impl ReceiptsRefusal {
     pub fn message(&self) -> String {
         let reason: String = match self {
             ReceiptsRefusal::Directory { path, reason } => format!("the results directory {} could not be opened ({reason})", path.display()),
+            ReceiptsRefusal::DirectoryAbsent { path } => format!("the results directory {} does not exist yet", path.display()),
+            ReceiptsRefusal::NotWhatWasWritten { name } => format!(
+                "the receipt `{name}` this route built is not one its own reader reads back, so it was not written; a field of it holds a character or a length the receipt's grammar refuses"
+            ),
             ReceiptsRefusal::DirectoryOwner { path, found, wanted } => format!(
                 "the results directory {} is owned by user {found}, and this route requires user {wanted}",
                 path.display()
@@ -165,7 +182,7 @@ impl ReceiptsRefusal {
             ),
         };
         return format!(
-            "{reason}. Nothing was matched, mounted or unmounted on this file, because a caller acts only on a result it can prove root filed. Ways forward: as the account, read what the handler recorded with `journalctl -u reconcile-git-worktree-clone-mounts.service`; a wrong owner or mode needs an administrator, since this route never changes either."
+            "{reason}. Nothing was matched, mounted or unmounted on this file, because a caller acts only on a result it can prove root filed. Ways forward: as the account, read what the handler recorded with `journalctl -u reconcile-git-worktree-clone-mounts.service`, which the unit of plan step 19 installs; the `doctor` command reports a receipt once plan step 10 adds it; a wrong owner or mode needs an administrator, since this route never changes either."
         );
     }
 }
