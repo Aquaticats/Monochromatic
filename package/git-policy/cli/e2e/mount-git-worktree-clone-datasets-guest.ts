@@ -245,9 +245,12 @@ function publicationFsync({ chosen, }: { readonly chosen: Options; }): void {
   const script = [
     'set -eu',
     `mkdir --parents ${FSYNC_FOLDER}`,
+    // `/sbin` is where Ubuntu puts the pool commands and an `mvm exec` shell does not always carry it.
+    'export PATH=/sbin:/usr/sbin:$PATH',
     // The pool's own vdev, read inside the guest, so the counters the probe reads are the ones the store's writes reach.
     'pool_device=$(zpool status -P | grep --only-matching "/dev/[^ ]*" | head --lines=1)',
-    'pool_disk=$(lsblk --noheadings --output PKNAME "$pool_device")',
+    'test -n "$pool_device"',
+    'pool_disk=$(basename "$(readlink --canonicalize "$(lsblk --noheadings --output PKNAME --paths "$pool_device")")")',
     `python3 -I /root/probe-reaches-storage.py ${FSYNC_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$pool_disk" > /mnt/shared/store-fsync.log 2>&1`,
     'rmdir ' + FSYNC_FOLDER,
   ].join('\n');

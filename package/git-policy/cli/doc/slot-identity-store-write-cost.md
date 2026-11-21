@@ -1,192 +1,95 @@
-# The slot identity store's lock hold
+# The slot identity store's write cost
 
 **Status:
 measurement record by an agent,
 unapproved and non-final.**
-It records what two shipped constants rest on,
-`STORE_LOCK_WAIT` and `STORE_LOCK_PAUSE` in
-`src/native/worktree_clone_mount/slot_identity_store.rs`,
-and it is where the probe that produced them lives,
-because a shipped limit cites a workload measurement or an owner decision beside the value
-(rule `LQM` of `AGENTS.md`),
-and a citation whose probe is not in the repository cannot be repeated.
+
+It records what a publication into the store costs,
+and two durable facts that outlived the lock this file once measured:
+
+- the kernel's `fsync` of a record reaches the pool's device,
+  and
+- `probe-reaches-storage.py` is kept beside this file,
+  so that question can be asked again.
+
+The store takes no lock:
+one file per slot is published with an exclusive creation and one link that replaces nothing,
+so no write waits for another and no wait's constant has to cite a hold.
+This record replaced the lock-hold record
+(`slot-identity-store-lock-hold.md`,
+renamed on 2026-11-21,
+whose subject was the lock and its measured wait),
+because rule `VGW` of `AGENTS.md` says a name must not lie about its content,
+and rule `DL4` says a record goes only when its durable facts have a new home.
 
 ## What is measured
 
-The lock stands on a file beside the store and covers one write:
-an append's read,
-check and line,
-or the adoption's read and whole-file rename.
-The wait must therefore cover a read,
-a write,
-the file's `fsync`,
-the folder's `fsync`,
-the size check either writer makes before it writes,
-and,
-for the adoption,
-the rename that publishes the file.
-The hold is that whole stretch,
-timed from the moment the writer is called to the moment it returns,
-because that is how long another writer waits for the lock.
+The publication of one slot's record is:
+
+- a staging file created with `O_EXCL` under a dot name,
+  mode `0644`,
+- the header line and the record line written into it,
+- the file's `fsync`,
+- one `linkat` that gives the file the slot's name,
+- the staging name unlinked,
+- and the folder's `fsync`.
+
+The adoption's replacement adds one rename over `.parent` and the same two `fsync` calls,
+and it writes no slot file.
+
+What a publication costs is therefore two `fsync` calls and three name operations,
+and that cost is what this record measures:
+
+- the pool's partition's written sectors,
+  the whole disk's completed flush requests and the dataset's ZIL counters around the whole sequence,
+- against controls whose windows are the same length,
+- so a figure that says nothing about the store cannot pass for one that does.
 
 ## The probe
-
-`a_store_write_s_hold_is_measured_for_the_lock_wait`,
-an ignored test beside the module in
-`src/native/worktree_clone_mount/slot_identity_store_tests.rs`,
-drives the module's own writers (`append_slot_identity` and `record_parent_identity`),
-so what it times is the shipped code and not a copy of its steps.
-
-- Arms:
-  an append on a store of 1000 slot records (40 samples),
-  an append that lands exactly on `STORE_MAXIMUM_BYTES` (1,048,576 bytes,
-  10 samples),
-  and that store's adoption (10 samples).
-- The widest append starts on a store one record below the bound,
-  which is the widest write the store accepts:
-  an append to a store of the whole bound is refused before anything is written
-  (`StoreRefusal::WouldNotFit`),
-  so timing it would time a refusal.
-  The two runs this record keeps predate that refusal and appended to a store of the whole bound;
-  their figure is the same write one record wider (about 250 bytes of 1 MiB),
-  and the arms that matter for the wait are the two `fsync`s,
-  not the last record.
-- The adoption arm starts on the same store,
-  and the parent record it writes is no wider than the one it replaces,
-  so the rewrite's size check passes and the arm times a write;
-  a rewrite the bound refuses writes nothing,
-  so its hold ends before the write.
-- Each sample starts from the same store text,
-  written just before the timed call,
-  so no sample reads a store another sample grew.
-- A record of the wide store carries an access ACL of 200 bytes,
-  because a stored ACL is what makes one record wide.
-  A store padded with comment lines alone measured 0.873 to 1.385 ms per append and
-  0.620 to 0.920 ms per adoption,
-  about twenty times less than the same bytes of records:
-  the reader skips a comment without parsing a line,
-  so padding measures nothing about a full store.
-- `MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT` names the folder to measure on.
-  Unset,
-  the probe writes under the package's fixture root.
-
-## Where it ran
-
-Two runs of 2026-11-20 by this host's clock,
-both before the kept log's last write at `2026-11-20T03:22:46-05:00`
-(the log holds four runs:
-a first one that could not reach its folder,
-a comment-padded one,
-and the two quoted here),
-inside a container of a gate image this host held,
-tagged `localhost/git-policy-native-test:integrate-git-policy-cli-zfs-descriptor-attach-pre-merge`,
-built at `2026-11-20T02:31:04-05:00` from an earlier commit of this package's branch,
-which the previous branch's integration check left here.
-The kept log records no image name,
-and that image's `slot_identity_store.rs` does not hash to the tip's,
-so the tag is the one the author recorded and not one the log proves,
-unoptimized `test` profile build,
-with the measured folder bind-mounted from this host's ZFS `home` dataset.
-The store itself lives at `SLOT_IDENTITY_STORE_PATH` on this host's `root` dataset,
-the same pool and device:
-the probe writes on `home` because the store at `/var/lib` is not a measurement's to write,
-and both are `zpcachyos` datasets on `nvme1n1p2`.
-
-The lines one run prints,
-and the second run beside them:
-
-```text
-run 1
-MEASUREMENT store-hold append-small-store bytes=40106 samples=40 min_ms=1.600 median_ms=1.647 max_ms=2.159
-MEASUREMENT store-hold append-widest-store bytes=1048576 samples=10 min_ms=19.462 median_ms=19.602 max_ms=20.785
-MEASUREMENT store-hold adoption-widest-store bytes=1048576 samples=10 min_ms=47.116 median_ms=50.008 max_ms=50.345
-run 2
-MEASUREMENT store-hold append-small-store bytes=40106 samples=40 min_ms=1.586 median_ms=1.985 max_ms=79.362
-MEASUREMENT store-hold append-widest-store bytes=1048576 samples=10 min_ms=20.288 median_ms=22.656 max_ms=39.369
-MEASUREMENT store-hold adoption-widest-store bytes=1048576 samples=10 min_ms=48.598 median_ms=50.727 max_ms=52.750
-```
-
-Read:
-
-- The adoption of a full store is the arm that holds the lock longest,
-  at 47.116 to 52.750 ms over both runs.
-- The small store's append keeps a median near 1.6 to 2.0 ms,
-  and one sample in the second run took 79.362 ms
-  while that run's other samples stayed near 2 ms.
-  No kept line measures what the host was doing then,
-  so this record attributes the sample to nothing;
-  it is the slowest hold either run saw,
-  and `STORE_LOCK_WAIT` is cited against it,
-  because a slow hold is still a hold whatever caused it.
-- The width matters where the records do:
-  the same 1 MiB of comment padding measured 20 times cheaper than the 1 MiB of records.
-
-## The run after the rewrite's size check
-
-The adoption's rewrite now checks the size of the file it would publish before it writes,
-on the same terms the append does,
-so a store of the bound adopted with a wider parent record is refused and nothing is written.
-The check compares the length of a `String` both writers have already built
-(`src/native/worktree_clone_mount/slot_identity_store.rs`,
-`check_the_store_fits_one_read`),
-so it calls nothing and adds no system call to the hold.
-The probe was run once in an image built after the check
-to show that its arms still measure writes and not refusals:
-
-```text
-MEASUREMENT store-hold append-small-store bytes=40106 samples=40 min_ms=1.489 median_ms=1.594 max_ms=7.137
-MEASUREMENT store-hold append-widest-store bytes=1048534 samples=10 min_ms=19.181 median_ms=19.566 max_ms=20.037
-MEASUREMENT store-hold adoption-widest-store bytes=1048534 samples=10 min_ms=44.146 median_ms=44.742 max_ms=46.676
-```
-
-The adoption arm read 44.146 to 46.676 ms,
-0.44 ms under the earlier runs' fastest figure (47.116 ms) and 6.07 ms under their slowest (52.750 ms),
-and every sample wrote and published the file:
-a refusal would have ended before the rename.
-The wide arms' `bytes` line reads 1,048,534,
-which is one append's record below the bound,
-the store the probe builds for the widest write the reader accepts.
-
-The run was on 2026-11-21,
-its container at `2026-11-21T15:30:03-05:00`,
-in `localhost/git-policy-native-test:slot-store-rewrite-size-green-20261121`
-(id `b33ff670c4b0`,
-built `2026-11-21T20:29:36Z`),
-unoptimized `test` profile,
-mounted `--user 0` with a folder of this host's `home` dataset at `/measurement`,
-2 GiB of memory and 2 CPUs.
-Its log is `hold-after-the-rewrite-size-check.log`
-in this session's scratch folder,
-`~/temp/agent/git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/scratch/keep/`.
-`STORE_LOCK_WAIT`'s citation stays the slowest hold either earlier run saw (79.362 ms)
-and its arithmetic against the adoption arm stays 2000 / 52.750 = 37.9,
-because this run's figures are smaller and one run on a differently loaded host is no new worst case.
-
-## The `fsync` reaches the pool's device
 
 `probe-reaches-storage.py` in this folder is the time-matched control the pre-merge integration check wrote
 (it was run from that check's own scratch folder,
 and its review quoted the run);
 it is kept here so the question can be asked again.
-It stays Python because the run this record quotes was made with this file:
+It stays Python because the run this record quotes for it was made with this file:
 a TypeScript port would be a new tool whose output is not compared against that run,
 and the counters it reads (`/proc/diskstats` and the pool's `kstat` objset files)
 are read by nothing else in the repository.
-It is run by hand and by no task.
+It is run by hand and by no task,
+and the guest driver's `run` step runs it too,
+on a folder under `/var/lib`,
+which is the dataset the store itself is on.
+
 The dataset comes from `findmnt` at run time;
 the pool's partition and whole disk are options,
 because a dataset's mount names the dataset and never its vdev,
 and reading the vdev from ZFS opens `/dev/zfs`,
 which this repository's rules for the host bar.
-It appends the line the module writes and `fsync`s the file and the folder,
-against three controls whose windows are as long as the `fsync` arm's own,
-and reads the pool partition's written sectors,
-the whole disk's completed flush requests
-and the `home` dataset's own ZIL counters around every sample.
+Its arms,
+interleaved over the same rounds:
 
-Its re-run on 2026-11-20 by this record's author,
+- an append with the file's and the folder's `fsync`,
+- the same append without `fsync`,
+  in a window as short as that control's,
+- the same append without `fsync` and then a wait as long as the `fsync` sample took,
+- nothing but a wait of that length,
+- and one publication of a per-slot record:
+  the staging name created with `O_EXCL`,
+  the record's bytes,
+  `fchmod 0644`,
+  the file's `fsync`,
+  the `linkat` that names it,
+  the staging name's `unlink`,
+  and the folder's `fsync`.
+
+## Where it ran
+
+### The host's `fsync` control, 2026-11-20
+
+Its re-run on 2026-11-20 by the earlier record's author,
 60 rounds,
-four arms interleaved:
+four arms interleaved,
+on the `home` dataset of this host's `zpcachyos` pool:
 
 ```text
 append with fsync of the file and the folder: n=60 ms 0.091 / 0.134 / 0.668 (min/median/max)
@@ -208,60 +111,51 @@ What the probe does not show is a cache-flush command:
 no flush request completed on `nvme1n1` in any sample.
 That is what a device the kernel treats as write-through gives:
 `/sys/block/nvme1n1/queue/write_cache` reads `write through` and `fua` reads `0`.
-On a host whose pool disk has a volatile write cache the flush would appear in that counter and add to the hold,
-which is the case the shipped wait has to carry.
+On a host whose pool disk has a volatile write cache the flush would appear in that counter.
 
-## The arithmetic the shipped constants rest on
+### The store's own dataset, in the throwaway guest, 2026-11-21
 
-- `STORE_LOCK_WAIT` is 2000 ms;
-  2000 / 79.362 = 25.2,
-  so the wait is 25 times the slowest hold either run saw.
-- 2000 / 52.750 = 37.9 for the adoption arm alone,
-  the arm a full store's rewrite takes.
-- `STORE_LOCK_PAUSE` is 2 ms;
-  2 / 79.362 = 0.025,
-  about a fortieth of that slowest hold.
-- The wait holds at most 2000 / 2 = 1000 asks.
+GUEST-FSYNC-MEASUREMENT
 
-The pre-merge round of 2026-11-20 measured the same three arms before this record
-(1.577 to 2.243 ms,
-31.657 to 33.926 ms and 33.483 to 35.976 ms),
-on a store of 1,011,406 bytes rather than the whole bound,
-and its numbers agree with this record's in magnitude.
-The shipped constants stand on the slowest figure this record saw,
-which is larger than any the round saw.
+## What the numbers say
+
+The publication is two `fsync` calls and three name operations,
+and its cost is the two `fsync` calls:
+each one reaches the pool's device and commits a ZIL block,
+which is what the host's control above shows for the append's two calls,
+and the guest's run shows the same for a record's publication on the dataset the store lives on.
+
+Nothing ships a limit that cites these numbers:
+the store takes no lock,
+no write waits for another,
+and the only bound the publication enforces is `RECORD_MAXIMUM_BYTES`,
+which is derived from the kernel's own limits on one extended attribute value and one file name
+(`src/native/worktree_clone_mount/slot_identity_store_reading.rs`)
+and not from a timing.
 
 ## What this does not show
 
 - A release-profile build.
-  The release build is faster,
-  so the direction is safe.
-- A busy pool whose `fsync` waits behind a transaction group sync for longer than any sample here,
-  which the wait's tail has to carry and these 60 samples may not have seen.
+  The figures come from test binary runs and from the probe itself,
+  and the direction the release build takes is unknown here.
+- A busy pool whose `fsync` waits behind a transaction group sync for longer than any sample here.
 - The dataset's `sync` property,
-  the store's own dataset as a measurement target,
   or a device with a volatile write cache;
   reading the property needs `/dev/zfs`.
-- The spread of a longer campaign:
-  40 samples for the small arm and 10 for each wide arm,
-  two runs.
-- A paired arm of the adoption without the size check.
-  The check adds one comparison and calls nothing,
-  and the arm's own spread between runs (47.116 to 52.750 ms) is far more than comparing two lengths costs,
-  so this record reasons the cost from the code and leaves that paired measurement unmade.
+- The adoption's rename as its own arm:
+  the probe's publication arm does not rename over an existing record,
+  and the rename costs one name operation and its own folder `fsync`,
+  which the arm already includes.
 
 ## How to re-run it
 
 ```sh
-# In this package, in a container of the gate image, with a folder on the file system to measure mounted, and the
-# container's own account given the mounted folder's ownership (rootless podman maps container root to this user, and
-# the image's own account cannot write a folder the bind mount shows as root's):
-podman run --rm --user 0 --volume <folder>:/measurement:rw \
-  --env MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT=/measurement <gate image> \
-  sh -c 'cd /work/package/git-policy/cli && cargo nextest run --offline --locked --lib --run-ignored only --no-capture -E "test(a_store_write_s_hold_is_measured)"'
+# The publication's cost, inside a capped scope, on a folder of the same dataset the store's siblings live on.
+python3 -I package/git-policy/cli/doc/slot-identity-store-write-cost/probe-reaches-storage.py <folder> 60
 ```
 
 ```sh
-# The `fsync` control, inside a capped scope, on a folder of the same dataset the store's siblings live on.
-python3 -I package/git-policy/cli/doc/slot-identity-store-lock-hold/probe-reaches-storage.py <folder> 60
+# The same arm on the store's own dataset, which only the guest can write:
+mise run //package/git-policy/cli:e2e:mount-git-worktree-clone-datasets -- all
+# whose log directory holds store-fsync.log
 ```
