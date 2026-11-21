@@ -689,9 +689,9 @@ fn a_service_gives_up_the_values_of_the_records_a_forget_message_names() {
     let elsewhere: PathBuf = PathBuf::from("/srv/other-repo/gitdir");
     let (shared, _jobs) = shared_serving("connection-forget-programs", own.clone());
     let programs = PushPrograms { variables: vec![(String::from("PATH"), String::from("/srv/repo/bin"))], transport: false };
-    let named: String = String::from("push-0123456789abcdef0123456789abcdef01234567-aaaaaaaaaaaa");
-    let sibling: String = String::from("push-89abcdef0123456789abcdef0123456789abcdef-bbbbbbbbbbbb");
-    let foreign: String = String::from("push-456789abcdef0123456789abcdef0123456789ab-cccccccccccc");
+    let named: String = String::from("push-0123456789abcdef0123456789abcdef01234567-0123456789abcdef");
+    let sibling: String = String::from("push-89abcdef0123456789abcdef0123456789abcdef-0123456789abcdef");
+    let foreign: String = String::from("push-456789abcdef0123456789abcdef0123456789ab-fedcba9876543210");
     // Every value is held against a record of one worktree, so a message for one worktree can be told from the other by what
     //  it leaves behind alone.
     remember(own.as_path(), named.as_str(), programs.clone());

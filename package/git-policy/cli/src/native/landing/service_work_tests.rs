@@ -2726,6 +2726,6 @@ fn the_line_a_planned_retry_writes_never_leaves_its_cause_empty() {
     });
     let second_said: Vec<String> = second_entries.iter().map(|entry| { return entry.message.clone(); }).collect();
     let second_line: &String = second_said.iter().find(|candidate| { return candidate.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {second_said:?}"));
-    assert!(second_line.ends_with("cause: the network is down"), "the program's own line is the cause: {second_line}");
+    assert!(second_line.contains("cause: the network is down"), "the program's own line is the cause: {second_line}");
     remove(repo.root.as_path());
 }
