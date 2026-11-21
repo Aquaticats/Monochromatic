@@ -9,6 +9,8 @@ use super::*;
 use crate::process_tree::{TreeMember, member_of};
 use std::time::Instant;
 use crate::stop_of_a_push_and_sweep_of_its_locks::grace_remains;
+// The flood look's own test reads the size rule, which the wait's module owns.
+use crate::push_wait_until_done::is_flood;
 use crate::test_support::scratch_environment;
 // The floor a connected stop is judged on, and the window a connected run is stopped by, which the wait line names.
 use crate::push_minimum_rate::PUSH_MINIMUM_RATE_VARIABLE;
