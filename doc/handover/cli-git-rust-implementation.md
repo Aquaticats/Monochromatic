@@ -41081,7 +41081,33 @@ stated in this entry. What follows from them, as work:
   Sonnet covering both rounds (brief under `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/`);
   one integration pass on Sonnet for both LFS branches, asked to price the destination question over SSH and to judge the
   pre-push hook's remote-sha input as a free alternative (brief under
-  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`).
+  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`). STEP 6'S INTEGRATION PASS (Sonnet) found it not
+  fit by one words-only finding (its folder's `keep/review.md`): M1 three sentences (README, SPEC, the adapter) and the vet
+  report say the pre-scan refuses widened BTF masks; it reads only the header, and `btf-rs` reads kind in 5 bits and
+  member count in 16 (a kind-33 entry now reads as compatible; no kernel uses one); L1 five adapter branches untested; L2
+  an array whose element is itself overflows the stack (as before the swap); gate 9361 of 9363, guest arms green, the
+  fourteen pairs identical. Corrective comment posted on `c1148be2bb`. Whether to add a pre-scan entry check is in
+  `doc/handover/questions-for-the-owner.md` ("should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads?"), to go
+  with the fence's next question. GOING: `pi-zfs-step-6-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/zfs-step-6-integration-findings` (brief under
+  `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/`), then a diff check and the merge. THE LFS
+  INTEGRATION PASS (Sonnet; its folder's `keep/review.md`): the lows branch fit, MERGED into `main` as `c2881ce698` (48
+  real OpenSSH transcripts, four unknown-key rows changed, no changed or revoked key; one limit to add: `LogLevel=FATAL`
+  prints only the last line for changed and revoked keys too, as on `main`). The upload branch not fit: U1 high, the
+  trust rule all or nothing, so one stale tracking ref rescans everything (2,000 pointers: 71 ms on `main`, 3,734 ms; 1
+  batch request against 21); U2 the destination question is a fourth connection on a typed push (218, 391, 1,003 ms at
+  0, 10, 50 ms latency; 1.30 to 1.35 of `main`) and, by reading, a second on the service's push; a typed push already makes
+  `ls-remote --refs <url>`, which could answer it; the pre-push hook would reverse the recorded no-hook decision; I1 the
+  pair puts `lfs_pre_push.rs` at 307 code lines; smalls. Its fixes are not on `main`. GOING:
+  `pi-git-policy-cli-lfs-upload-plan-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-lfs-upload-plan-findings` (per-ref trust, the existing query reused, the split; brief
+  under `~/temp/agent/git-policy-cli-lfs-upload-plan-integration-findings-fixed-2026-11-20/`). THE OWNER CHOSE B at
+  2026-11-20T23:27:33-05:00 ("Yeah, do B. But this is an edge case of an edge case so don't spend too much effort on it,
+  and note whatever still isn't completely sane as a limitation."), then: "No need to make it have lower effort. You've
+  already chosen B so be thorough with it. I was just talking about minimal efforts except what we've already chosen."
+  Recorded in the plan's step 10 notes. So the B round keeps its whole brief; a steer told it B is the chosen remedy (not
+  an option to put again) and to add a "Limitations" section; no further alternative is explored. The coordinator's
+  first steer, which cut the round's scope, was refused by the owner and deleted undelivered.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

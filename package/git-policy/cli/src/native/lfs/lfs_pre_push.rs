@@ -498,19 +498,43 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  and a certificate that does not fit the host (`Certificate invalid: ...`,
 ///  `sshkey.c`).
 ///  So a refusal this release has never seen keeps OpenSSH's words rather than gaining a sentence that may mislead.
-///  Each arm's transcript was measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
+///  Two kinds of line are passed over,
+///  because neither can hold a refusal's own words:
+///  the lines OpenSSH prints only at a debug log level (`debug1: `,
+///  `debug2: `,
+///  `debug3: `,
+///  which `do_log` writes in front of those three levels alone,
+///  `log.c` lines 371 to 382),
+///  and the words inside single quotes,
+///  which OpenSSH writes only around a host name,
+///  an address or a path,
+///  and Git only around the remote's URL in the line that ends a push its hook refused.
+///  A certificate that does not fit is no refusal of its own:
+///  `fail:` drops the certificate and retries with the plain key (`sshconnect.c` lines 1473 to 1486),
+///  so the words that end the connection are that plain key's.
+///  Two certificate cases still answer as other refusals:
+///  a key a `@revoked` line marks,
+///  whose words OpenSSH prints before `fail:` returns (lines 1287 to 1303),
+///  and `Certificate invalid: ...` (`sshkey.c`),
+///  which a certificate that does not fit the host prints before that last line.
+///  Each arm's transcript was measured against a throwaway `sshd` with OpenSSH 10.6p2
 ///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
-///  `SSH_ASKPASS_REQUIRE=force`);
-///  the certificate and the `CheckHostIP` words are from the source,
-///  because a `CheckHostIP` mismatch did not reproduce (the connection was allowed).
-///  A refusal that prints no host-key line at all is still read as this one:
-///  a new certificate and the quiet port-less check reach `fail` without a word
-///  (`sshconnect.c` lines 1154 and 1316),
-///  and nothing in a transcript can tell them from an unknown key.
+///  `SSH_ASKPASS_REQUIRE=force`),
+///  certificates included.
+///  One refusal is still read as an unknown key though it is not:
+///  with `CheckHostIP=yes` and a key this machine knows for the host beside a different one for its address,
+///  OpenSSH writes that warning into `confirm`'s question (`sshconnect.c` lines 1429 to 1447),
+///  the askpass program gets the question and standard error gets nothing of it,
+///  so the transcript is the last line alone,
+///  exactly as an unknown key's,
+///  and nothing in a transcript can tell the two apart.
+///  The sentence's way to add the key is then wrong for it and its way to connect once is right,
+///  because the question plain `ssh` asks is OpenSSH's own about the address.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// text.includes('Host key verification failed') && text.split('\n').every((line) => !namesAHostKey(line) || isAnUnknownKeysOwnLine(line))
+/// const lines = text.split('\n').filter((line) => !isADebugLine(line))
+/// text.includes('Host key verification failed') && lines.every((line) => !namesAHostKeyOutsideQuotes(line) || isAnUnknownKeysOwnLine(line))
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
     if !text.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
@@ -520,7 +544,7 @@ pub fn reads_as_unknown_host_key(text: &str) -> bool {
     let last_line: String = HOST_KEY_NOT_KNOWN_PHRASE.to_ascii_lowercase();
     for line in text.lines() {
         let folded: String = line.to_ascii_lowercase();
-        if !names_a_host_key(folded.as_str()) {
+        if is_a_debug_line(folded.as_str()) || !names_a_host_key_outside_quotes(folded.as_str()) {
             continue;
         }
         let an_unknown_keys_own: bool = folded.contains(last_line.as_str())
@@ -536,10 +560,39 @@ pub fn reads_as_unknown_host_key(text: &str) -> bool {
 
 /// Whether one line,
 /// in lower case,
-/// names a host key or a certificate,
+/// names a host key or a certificate outside the single quotes in which OpenSSH and Git write data,
 /// which every refusal OpenSSH makes over a host key does in at least one line.
-fn names_a_host_key(folded: &str) -> bool {
-    return folded.contains(HOST_KEY_WORDS) || folded.contains(CERTIFICATE_WORD);
+/// OpenSSH writes a host name,
+/// an address or a file path inside them,
+/// and Git writes the remote's URL,
+/// so the word in a remote's name is no refusal's own.
+fn names_a_host_key_outside_quotes(folded: &str) -> bool {
+    for words in folded.split('\'').step_by(2) {
+        if words.contains(HOST_KEY_WORDS) || words.contains(CERTIFICATE_WORD) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether one line,
+/// in lower case,
+/// is one OpenSSH prints only while the account asks it for debug output,
+/// which no refusal it makes over a host key is:
+/// `error`,
+/// `logit` and `fatal` print their message alone at any log level,
+/// and a debug line that names a host key or a certificate is either news about the key
+/// (`Server host key: ...`,
+/// `sshconnect.c` at `V_10_6_P2` lines 1523 to 1539)
+/// or the certificate retry's own note (lines 1308 to 1317),
+/// which `fail:` follows by dropping the certificate for the plain key (lines 1473 to 1486).
+fn is_a_debug_line(folded: &str) -> bool {
+    for prefix in OPENSSH_DEBUG_LINE_PREFIXES {
+        if folded.starts_with(prefix) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// The last line OpenSSH prints when it will not connect because of the host key,
@@ -556,6 +609,12 @@ const HOST_KEY_WORDS: &str = "host key";
 /// in lower case,
 /// with which a line names the other thing a host-key refusal is about.
 const CERTIFICATE_WORD: &str = "certificate";
+
+/// The words `do_log` puts in front of every line of a debug log level,
+/// and of those three levels alone (`log.c` at `V_10_6_P2` lines 371 to 382);
+/// a line an error,
+/// a log or a fatal refusal printed on standard error carries no prefix at all.
+const OPENSSH_DEBUG_LINE_PREFIXES: [&str; 3] = ["debug1: ", "debug2: ", "debug3: "];
 
 /// The words of OpenSSH's sentence for a host key this machine has none of while the account asks for strict checking
 /// (`check_host_key`'s `HOST_NEW` case,

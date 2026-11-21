@@ -6743,6 +6743,10 @@ the upload's explanation and the push's failure record print one sentence
 (`host_key_not_known_sentence` in `src/native/lfs/lfs_pre_push.rs`,
 read from OpenSSH's own words by `reads_as_unknown_host_key`,
 which holds only when every line of the transcript that names a host key or a certificate is an unknown key's own,
+leaving out OpenSSH's own debug lines and the words inside single quotes
+(OpenSSH writes a host name,
+an address or a path there,
+and Git writes the remote's URL),
 so a changed key,
 a key a `@revoked` line or a `RevokedHostKeys` file revokes,
 and a certificate that does not fit the host keep
@@ -6753,6 +6757,15 @@ connect once with plain `ssh <host>`,
 which the wrapper does not touch and which still asks its own question,
 or add the host key to `known_hosts`,
 and then push again.
+The reading passes over OpenSSH's own debug lines
+(`debug1: ` to `debug3: `),
+at which no refusal is printed,
+and the words inside single quotes,
+and it still reads a host key that differs from the one this machine knows for the host's address as an unknown one
+when the account leaves the question open (`CheckHostIP=yes` under `ask`):
+OpenSSH writes that warning into the askpass program's question and standard error holds the last line alone
+(`sshconnect.c:1429-1447` at `V_10_6_P2`),
+so the sentence's way to add the key is wrong for it and its way to connect once is right.
 The sentence names the host when the wrapper can answer which one it is
 (`ssh_host` in `src/native/lfs/lfs_upload_explanations.rs`,
 from the program's own words or from a destination written as a URL),
