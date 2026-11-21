@@ -103,7 +103,9 @@
 //!   the scans,
 //!   arm 8's fork and the teardown.
 //! - `probe_test_switch.rs`:
-//!   the one test-only switch: disabled, or held after a step.
+//!   the one test-only switch:
+//!   disabled,
+//!   or held after a step.
 //! - `probe_mode_words.rs`:
 //!   the verdict line,
 //!   the source readings and the skipped record.
