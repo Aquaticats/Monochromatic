@@ -846,7 +846,8 @@ fn the_widest_store() -> String {
 ///  A store text whose rewrite with `parent` is exactly `bytes` bytes.
 /// Why:
 ///  The rewrite keeps every slot record and drops comment lines,
-///  so the file it publishes is the header, the parent record and the slot records alone;
+///  so the file it publishes is the header,
+/// the parent record and the slot records alone;
 ///  this builds that text,
 ///  with the names of the last two slot records lengthened to land it exactly on the size a control asks for.
 ///  Two names and not one,
