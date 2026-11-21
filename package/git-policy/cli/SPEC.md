@@ -19261,7 +19261,8 @@ in this order:
   and any mismatch there refuses.
   The accepted design states the same in its request contract:
   "Every request number the binding can send has the value the approved
-  `zfs_ioc` enum gives it, and the range's endpoints match".
+  `zfs_ioc` enum gives it,
+  and the range's endpoints match".
   A release that adds a request inside a reserved number moves no endpoint and
   no layout,
   which `zfs-2.3.0` did,
@@ -19277,8 +19278,8 @@ in this order:
   file's device,
   inode,
   size and modification time,
-  and a module carrying none of the three compares no term at all, which
-  `doctor` says.
+  and a module carrying none of the three compares no term at all,
+  which `doctor` says.
   This build's `doctor` reads no gate;
   step 18 adds its gate read and the sentence naming the absent attribute.
 

@@ -87,7 +87,9 @@ pub fn compatible_line(facts: &Facts) -> String {
 ///
 /// The line names no mode and no command's status:
 /// the handler appends its own sentence saying no mode was entered,
-/// and the wrapper's refusal, when its route lands, appends its own.
+/// and the wrapper's refusal,
+/// when its route lands,
+/// appends its own.
 pub fn refusal_line(refusal: &Refusal) -> String {
     return format!(
         "the start-time ZFS compatibility gate refused: {refusal}. Every raw request, reads included, stays disabled until a module whose declared layout and request numbers match this build is loaded, and registrations and durable recovery state stay as they were. No flag and no environment turns this refusal into a pass."

@@ -11,7 +11,8 @@
 //! and the adapter that stands
 //!  in for it goes with the pick,
 //! so each duty needs a control written against
-//!  `check_raw`: a fixture this folder's writer builds and a verdict,
+//!  `check_raw`:
+//! a fixture this folder's writer builds and a verdict,
 //! and nothing from
 //!  the decoder the pick deletes.
 //!  A reader that breaks a duty is refused by these
@@ -87,7 +88,8 @@ fn a_typedef_that_names_itself_refuses_and_returns() {
     assert!(refusal.detail.contains("cannot compute"), "{}", refusal.detail);
 }
 
-/// An unreadable member is a refusal, never a member dropped:
+/// An unreadable member is a refusal,
+/// never a member dropped:
 /// the approved layout with one more member whose name no reader can read
 /// refuses naming the record it sits in,
 /// where a dropped member would leave the count the comparison accepts.
