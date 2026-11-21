@@ -47,6 +47,9 @@ pub enum TestSwitch {
     /// The probe disabled:
     /// the control arm that writes a skipped record and mounts nothing.
     Disabled,
+    /// The mode held after its started record,
+    /// so a kill leaves a started record and no finished one.
+    HoldMode,
     /// The worker held after this step,
     /// so the mode's deadline fires and names the step in flight.
     Hold {
@@ -71,6 +74,9 @@ pub fn parse_test_switch(value: Option<&str>) -> TestSwitch {
     };
     if word == "disabled" {
         return TestSwitch::Disabled;
+    }
+    if word == "hold-mode" {
+        return TestSwitch::HoldMode;
     }
     let Some(step_name) = word.strip_prefix("hold-") else {
         return TestSwitch::None;

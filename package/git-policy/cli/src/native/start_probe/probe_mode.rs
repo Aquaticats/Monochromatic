@@ -31,7 +31,7 @@ use super::probe_mode_words::{namespace_of, skip_after_gate_refusal, source_of, 
 use super::probe_test_switch::{TestSwitch, test_switch_from_environment};
 use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use super::probe_holder_control::{Arrival, Holder, reports_of};
-use super::probe_pipe_lines::{set_nonblocking, write_all};
+use super::probe_pipe_lines::{read_one_blocking, set_nonblocking, write_all};
 use super::probe_processes::{Exit, fork, kill_process, kill_process_group, pid_descriptor, pipe_pair, poll_descriptors, raw, reap_now, set_process_group};
 use super::probe_record::{ProbeRecord, started_text};
 use super::probe_record_files::{RecordFileRefusal, RecordPlace};
@@ -97,11 +97,24 @@ impl<'a> ProbeMode<'a> {
         self.place.prepare().map_err(|refusal: RecordFileRefusal| return refusal.message())?;
         let time: String = crate::iso_time::now_iso();
         self.place.publish(started_text(&fingerprint, time.as_str()).as_str()).map_err(|refusal| return refusal.message())?;
+        if switch == TestSwitch::HoldMode {
+            return self.hold_after_the_started_record(&fingerprint, time.as_str());
+        }
         let hold: Option<super::probe_arms::ProbeStep> = match switch {
             TestSwitch::Hold { step } => Some(step),
-            TestSwitch::None | TestSwitch::Disabled => None,
+            TestSwitch::None | TestSwitch::Disabled | TestSwitch::HoldMode => None,
         };
         return self.supervise(&fingerprint, time.as_str(), hold);
+    }
+
+    /// Write the started record and block forever,
+    /// which is the kill arm's own state:
+    /// the record says the probe began and nothing finished it.
+    fn hold_after_the_started_record(&self, fingerprint: &ProbeFingerprint, time: &str) -> Result<String, String> {
+        let _ = (fingerprint, time);
+        let blocked = pipe_pair().map_err(|error| return unstarted("hold pipe", error.errno))?;
+        let _ = read_one_blocking(raw(&blocked.read));
+        return Err(String::from("the test-only hold ended without a signal"));
     }
 
     /// Fork the worker and the holder,
