@@ -40865,7 +40865,67 @@ stated in this entry. What follows from them, as work:
   and changes no decision. Issue 6328 filed for the 60 package tasks without the shared parser and the inline node tasks
   without a usage spec. GOING: `pi-mise-usage-args-integration-pass-findings-fixed` (cap 400; brief under
   `~/temp/agent/mise-usage-args-integration-pass-findings-fixed-2026-11-20/`). `~/temp/agent/module-test-logs` (141 MB,
-  logs since 2026-11-17) is the module test harness's shared default log folder, left in place.
+  logs since 2026-11-17) is the module test harness's shared default log folder, left in place. THE ISSUE 6324 FIX
+  MERGED into `main` as `9f2fccf6d4` (integration re-check on Sonnet fit, its gate 9278 of 9280 with the cause-H pair;
+  the three Rust files reach only the `native_binary` test target). Lows that follow, on the issue: the source-text control
+  of the wiring is narrower than the behavioural stall-seam control the reviewer prototyped
+  (`~/temp/agent/integration-recheck-git-policy-cli-bounded-wait-after-findings-2026-11-20/keep/prototype-g-a-stall-seam-and-a-behavioural-control-of-the-wiring.patch`);
+  the doc's run command names `recv_timeout_queued_message` for `recv-timeout-queued-message`; two docs in
+  `binary_support_observation_bound.rs` still say the wait reads no status; the `LineBound` doc should say "no shipped
+  caller"; nits. The issue is left open for the owner to close. STEP 6'S FINDINGS ROUND ended (its folder's
+  `keep/report-from-summary.md`; worktree `.claude/worktrees/zfs-step-6-compatibility-gate-findings`): H1 the seam holds
+  (`declaration.rs` the reader-neutral vocabulary, `in_house_declaration.rs` the one adapter; with the three decoder files
+  emptied, 3 errors, all in the adapter, against 14 in six files before); M1 to M5 fixed with reds (`check_with` takes the
+  comparison, `VerdictCache` constructible, the refused-gate control red with the gate removed, the passing path and
+  missing-file refusals); the recipe carries `zfs-gate-arm`, `zfs-gate-version-arm`, `zfs-gate-change-arm` and fails on
+  `SKIP gate_arm`; SPEC says only the handler runs the gate until a later step; L10 treated as required (a moved
+  `ZFS_IOC_LAST` refuses), which the record decides: `doc/decision/cli-git-zfs-runtime-layout-checker.md:50` lists "every
+  request number the binding can send with the range's two endpoints" among the expectations, and the design gives the
+  reason (the kernel indexes a table sized `ZFS_IOC_LAST - ZFS_IOC_FIRST`, design line 1318); so a release that only
+  appends a request turns raw requests off until the approved layout is updated, by the accepted record, and no owner
+  question is owed; gate 9306 of 9308, the cause-H pair. GOING: its narrow re-check on Sonnet (brief under
+  `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/`). It still merges only after the reader pick
+  replaces the adapter. THE ISSUE 6325 FINDINGS ROUND ended at `3557b95dd1`: the race removed at its source
+  (`repository_of` writes `maintenance.auto = false` and `gc.auto = 0` before its first commit, so no detached upkeep
+  exists; the forced run still runs `worktree-prune`); the keeps-control adds a folder the upkeep must take, so a skipped
+  run fails; held-lock red and green with no repetition; the doc names the landing's own upkeep
+  (`service_work.rs` `maintenance_awaiting`, `maintenance_run.rs`) and pins every citation to `v2.56.1`'s commit; the gate
+  image ran `shadow::` and `source_guard::` (304 passed), no whole gate. GOING: its narrow re-check on Sonnet with one gate
+  (brief under `~/temp/agent/integration-recheck-git-policy-cli-shadow-pool-after-findings-2026-11-20/`).
+  `~/temp/agent` measured 13 GB, the fence's findings round's folder 7.7 GB of it (cap 10 GiB). THE MISE FINDINGS ROUND
+  ended at `2828a38f84` (`main` merged as `cb5967fcb7`): H1 the fixtures derive the marker from the root file
+  (`oneLineVariable`), three suites red on the old tip and green after; M1 the recovery refuses any line terminator and
+  names the word (through real mise, 26 exact, 10 refusals, 2 dying in node's parser as on `main`, none with wrong words);
+  M2 a real-mise catalog in the shapes test; M3 the older doc corrected and both indexed; fuzz `run` prints help instead
+  of making `corpus/--help`. Nine Rust packages' unit tasks could not run (no `cargo-nextest` installed here). It found
+  `playwright-image-version.unit.test.ts` failing on `main` (Dockerfile v1.65.0 against the locked 1.65.1 since
+  `aaf95005a2`): issue 6329. GOING: its narrow re-check on Sonnet (brief under
+  `~/temp/agent/integration-recheck-mise-usage-args-after-findings-2026-11-20/`). THE VET REPORT'S RE-CHECK (Sonnet)
+  came back not ready, on words, not numbers (its folder's `keep/review.md`): the matrix reproduces (`btf-rs` 27.5,
+  `ebeepf` 24.5, `pahole` 18.5, `bpftool` 17.5 of 32; 10 of 71 tests tie or reverse); H1 the open questions misstate the
+  maintenance weight (it moves places 2 to 4 only; `btf-rs` is strictly first in all 71, its smallest lead 5); H2 the two
+  tools stayed finalists through two departures from the skill (provenance unrecorded, which the reviewer closed from
+  the package recipes, and upstream suites unrun, which the skill fails a candidate for); with both tools out `btf-rs`
+  over `ebeepf` holds in all 51 tests and the skill allows a recommendation; mediums on C8's role, mixed scales,
+  wording, the lock's hash chain. The skill's own rule decides the tools' eligibility, so it is applied, not asked.
+  GOING: `pi-zfs-layout-checker-reader-vet-report-recheck-findings-fixed` (cap 400; brief under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/`); the owner's question then is
+  the recommended reader and any priority the skill leaves open. LFS'S RE-CHECK (Sonnet) came back not fit on two
+  mechanical mediums (its folder's `keep/review.md`): F1 the host-key reading is a deny-list, so a revoked key (`@revoked`
+  in `known_hosts` or a `RevokedHostKeys` file) still gets the unknown-key sentence beside OpenSSH's revoked warning; F4
+  `lfs_upload_plan.rs` (322 code lines) and `bounded_push.rs` (342) exceed `rust/max-lines`, invisible to the added-line
+  mapping; lows: the sentence twice when a hook printed it, no control on `service_work.rs:528`, a mis-cited function.
+  Held: M2's leak guard, M3's retry, the pure-move split, the fish form; gate 9313 of 9315, the cause-H pair. GOING:
+  `pi-git-policy-cli-lfs-recheck-findings-fixed` (cap 450), suggested to read the unknown key positively from OpenSSH's own
+  words (brief under `~/temp/agent/git-policy-cli-lfs-recheck-findings-fixed-2026-11-20/`). THE MISE RE-CHECK (Sonnet)
+  came back not fit on one point (its folder's `keep/review.md`): `.trimEnd()` in the root `parse_usage_args` strips a
+  trailing carriage return, U+2028, U+2029 and other trailing whitespace from the last word before the refusal looks, so
+  12 of 36 real-mise cases exit 0 with altered words (`-- --help $'a\r'` gives `["--help","a"]`), a new silent success;
+  deleting the call fixed all twelve in scratch. Held: the four core-exec suites, the real-mise catalog (two mutants fail
+  it), 31 of 32 sampled pairs as on `main`, the fuzz help path. The merge removed the author's worktree. GOING:
+  `pi-mise-usage-args-trailing-terminator-fixed` in the coordinator-made worktree
+  `.claude/worktrees/mise-usage-args-trailing-terminator` (brief under
+  `~/temp/agent/mise-usage-args-trailing-terminator-fixed-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
