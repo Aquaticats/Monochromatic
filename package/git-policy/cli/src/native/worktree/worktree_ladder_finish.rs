@@ -39,7 +39,7 @@ use crate::fs_beneath::ObjectId;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone::{Beside, ClonedBytes, clone_tracked_bytes_beside, leftover_report};
+use crate::worktree_clone::{ClonedBytes, clone_tracked_bytes_beside, leftover_report};
 #[cfg(feature = "measurement-routes")]
 use crate::worktree_clone::{Cloned, clone_tracked_files};
 use crate::worktree_clone_conversion_beside_the_clone::{fence_beside_the_clone, install_beside_the_clone};
@@ -298,14 +298,13 @@ fn clone_with_the_fence(source: &SnapshotSource, fence: crate::worktree_ladder_r
         }
         crate::worktree_ladder_run::CloneFence::Beside => {
             let beside_entered: bool = begin_step("conversionBesideTheClone");
-            let (cloned, answered): (ClonedBytes, Option<Beside<Result<crate::worktree_clone_conversion_fence::Fence, String>>>) = clone_tracked_bytes_beside(source, &bound.destination, fence_beside_the_clone(source, context))?;
+            let (cloned, answered): (ClonedBytes, Option<Result<crate::worktree_clone_conversion_fence::Fence, String>>) = clone_tracked_bytes_beside(source, &bound.destination, fence_beside_the_clone(source, context))?;
             end_step(beside_entered);
             // A fence's reason, or a pool that would not run it, ends the rung here before any index exists: Git's own
             // checkout writes the worktree.
             let decided: crate::worktree_clone_conversion_fence::Fence = match answered {
-                Some(Beside::Ran(Ok(decided))) => decided,
-                Some(Beside::Ran(Err(reason))) => return Err(reason),
-                Some(Beside::NotRun(refusal)) => return Err(refusal),
+                Some(Ok(decided)) => decided,
+                Some(Err(reason)) => return Err(reason),
                 None => return Err(String::from("the fence beside the copies answered nothing")),
             };
             install_beside_the_clone(&bound.admin, source, &decided, cloned.stats())?;

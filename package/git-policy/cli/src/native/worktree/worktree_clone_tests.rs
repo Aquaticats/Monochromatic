@@ -184,7 +184,7 @@ fn the_slices_clone_every_empty_entry_without_a_reflink() {
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
     let mut created: Vec<Created> = Vec::new();
-    let (stats, _beside): (HashMap<Vec<u8>, StatFields>, Option<Beside<()>>) = clone_in_slices::<(), ()>(&source, Arc::clone(&entries), &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
+    let (stats, _beside): (HashMap<Vec<u8>, StatFields>, Option<()>) = clone_in_slices::<(), ()>(&source, Arc::clone(&entries), &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
     install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
     let listed: Vec<String> = entries.iter().map(|entry: &StatEntry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); }).collect();
     let made: Vec<String> = created.iter().filter(|entry: &&Created| { return !entry.directory; }).map(|entry: &Created| { return joined_names(entry.names.as_slice()); }).collect();
@@ -218,8 +218,8 @@ fn the_slices_answer_beside_a_job_that_runs_with_the_copies() {
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
     let mut created: Vec<Created> = Vec::new();
-    let (stats, answer): (HashMap<Vec<u8>, StatFields>, Option<Beside<usize>>) = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, Some((41usize, double_it))).expect("clones");
-    assert_eq!(answer, Some(Beside::Ran(82)), "the job beside the copies answered on the same join");
+    let (stats, answer): (HashMap<Vec<u8>, StatFields>, Option<usize>) = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, Some((41usize, double_it))).expect("clones");
+    assert_eq!(answer, Some(82), "the job beside the copies answered on the same join");
     install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
     assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the clone is clean");
     remove(root.as_path());
@@ -230,40 +230,6 @@ fn the_slices_answer_beside_a_job_that_runs_with_the_copies() {
 /// twice the number out.
 fn double_it(state: usize) -> usize {
     return state * 2;
-}
-
-/// What:
-///  A job beside the copies that panics is a reason the add hears,
-///  not a crash of the add and not a silent pass.
-/// Why:
-///   The fence's job is the one such item,
-/// and a panic in it must end the rung before any index is installed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [stats, answer] = cloneInSlices(..., [(), () => { throw new Error('x'); }]);
-/// expect(answer).toMatchObject({ notRun: '...Panicked...' });
-/// ```
-#[test]
-fn a_job_beside_the_copies_that_panics_is_a_reason_not_a_crash() {
-    let root: PathBuf = crate::test_support::fixture("clone-slices-beside-panic");
-    let (repo, destination, admin) = empty_many_file_fixture(root.as_path());
-    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
-    let (entries, held, _administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
-    let mut created: Vec<Created> = Vec::new();
-    let (stats, answer): (HashMap<Vec<u8>, StatFields>, Option<Beside<()>>) = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, Some(((), panic_beside))).expect("clones");
-    assert!(!stats.is_empty(), "the copies still answered");
-    match answer {
-        Some(Beside::NotRun(refusal)) => assert!(refusal.contains("did not run"), "{refusal}"),
-        other => panic!("a panicked job must be a reason: {other:?}"),
-    }
-    remove(root.as_path());
-}
-
-/// The job of the control above:
-/// a panic where the fence would read.
-fn panic_beside(_state: ()) {
-    panic!("a control's job panics beside the copies");
 }
 
 /// What:
@@ -343,7 +309,7 @@ fn btrfs_the_slices_clone_every_entry_of_a_large_run() {
     let held: File = open_root(destination.as_path()).expect("destination");
     let administrative: File = open_root(admin.as_path()).expect("administrative directory");
     let mut created: Vec<Created> = Vec::new();
-    let (stats, _beside): (HashMap<Vec<u8>, StatFields>, Option<Beside<()>>) = clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
+    let (stats, _beside): (HashMap<Vec<u8>, StatFields>, Option<()>) = clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None).expect("clones");
     install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
     assert_eq!(created.iter().filter(|entry: &&Created| { return !entry.directory; }).count(), tracked, "every file of every slice was made");
     for index in 0..MANY_FILES {
@@ -369,7 +335,7 @@ fn btrfs_a_changed_entry_ends_a_sliced_run_and_keeps_what_the_slices_made() {
     std::fs::write(repo.join(changed.as_str()), b"CHANGED\n").expect("edit after the check");
     crate::test_support::age(repo.join(changed.as_str()).as_path());
     let mut created: Vec<Created> = Vec::new();
-    let refused: Result<(HashMap<Vec<u8>, StatFields>, Option<Beside<()>>), String> = clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None);
+    let refused: Result<(HashMap<Vec<u8>, StatFields>, Option<()>), String> = clone_in_slices::<(), ()>(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, None);
     let reason: String = match refused {
         Err(reason) => reason,
         Ok(_cloned) => panic!("the changed entry must end the run"),
