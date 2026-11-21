@@ -232,6 +232,38 @@ pub(crate) fn silent_failure_line(attempt: &PushAttempt) -> String {
 }
 
 /// What:
+///  The words a push's record carries:
+///  the line that names what held the branch back,
+///  the program's own output when it printed any,
+///  and,
+///  for a push that failed without printing a word,
+///  the status and the signal that ended it.
+/// Why:
+///   The record is what the person reads,
+/// and its first line is the cause a retry's journal line names,
+/// so a failed push that printed nothing is named by the only evidence there is rather than by nothing
+/// (`silent_failure_line`).
+/// The held-back line comes first,
+/// because the commit it names is the one the push stopped before,
+/// and Git's own words follow it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordWords = (attempt, heldBack, said, failed) => [heldBack, said].filter(Boolean).join('\n') || (failed ? silentFailureLine(attempt) : '');
+/// ```
+pub(crate) fn record_words(attempt: &PushAttempt, held_back: Option<&str>, said: &str, failed: bool) -> String {
+    let mut shown: String = match (held_back, said.is_empty()) {
+        (None, _) => said.to_owned(),
+        (Some(line), true) => line.to_owned(),
+        (Some(line), false) => format!("{line}\n{said}"),
+    };
+    if failed && shown.is_empty() {
+        shown = silent_failure_line(attempt);
+    }
+    return shown;
+}
+
+/// What:
 ///  The record the person reads for a push the service keeps retrying:
 ///  the program's own words,
 ///  and,

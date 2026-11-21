@@ -1080,13 +1080,11 @@ fn a_push_that_failed_without_a_word_names_its_status_and_its_signal() {
     assert!(!cause_or_silence(reported_killed.shown.as_str()).trim().is_empty(), "the cause is never empty");
     // A push that exited by itself, with no signal and no words.
     let exited: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::new() };
-    let mut sink: Vec<u8> = Vec::new();
     let reported_exited: AutoPushResult = reported(exited, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
     assert!(reported_exited.shown.contains("exited with status 1"), "the record names the status: {}", reported_exited.shown);
     assert!(!reported_exited.shown.contains("signal"), "and claims no signal where none ended it: {}", reported_exited.shown);
     // The control of both: a failure with words of its own keeps exactly them.
     let spoke: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::from("fatal: the network is down") };
-    let mut sink: Vec<u8> = Vec::new();
     let reported_spoke: AutoPushResult = reported(spoke, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
     assert_eq!(reported_spoke.shown, "fatal: the network is down", "the program's own lines are the whole record");
 }

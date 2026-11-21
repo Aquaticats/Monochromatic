@@ -707,7 +707,7 @@ fn a_service_gives_up_the_values_of_the_records_a_forget_message_names() {
     assert!(held(own.as_path(), sibling.as_str()).is_some(), "a record of the same worktree the message left out keeps its values");
     assert!(held(elsewhere.as_path(), foreign.as_str()).is_some(), "another worktree's values are none of this message's");
     // The control of the arm: a message about another worktree is refused, and what it names keeps its values.
-    let ((), _ticks) = with_a_ticker_beside(async {
+    let ((), _refusal_ticks) = with_a_ticker_beside(async {
         let line: String = encode_client(&ClientMessage::ForgetPrograms { git_dir: elsewhere.clone(), records: vec![foreign.clone()] });
         let (_read_half, mut write_half, mut client) = connection();
         answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
