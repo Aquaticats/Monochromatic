@@ -650,7 +650,8 @@ before the copies.
    and the install's own rewrite skips an entry whose recorded size is zero,
    so the index cannot vouch for one.
 7. **The index is written under a name of its own**
-   (`install_the_index_beside_the_write`, `index.pending`):
+   (`install_the_index_beside_the_write`,
+   `index.pending`):
    one exclusive create of that name,
    the absence of the worktree's `index` checked,
    the finished index written and synced into the file,
@@ -671,7 +672,8 @@ before the copies.
    a rename that replaces nothing (`RENAME_NOREPLACE`),
    after the last run of this rung writes a path.
    This is the moment the worktree starts vouching for its files;
-   before it, no `git status` reads a stat record of this rung's.
+   before it,
+    no `git status` reads a stat record of this rung's.
 
 ### Why each step is safe if the other side fails or is killed
 
@@ -714,18 +716,21 @@ not by what it would have cleaned up.
   (`D` for every tracked path and `??` for the files that are there),
   and `worktree_copy_interrupted_add_settlement::add_is_finished` calls such a destination unfinished,
   so the next command keeps the record and prints the commands that finish or remove the add
-  (`git reset --no-enforce-worktree --hard`, whose hatch the sentence names).
+  (`git reset --no-enforce-worktree --hard`,
+  whose hatch the sentence names).
   An index published earlier is exactly the wrong ordering this option exists to avoid:
   the clean form of the source's bytes equals the blob the entry names,
   so `git status` refreshes such an entry and reports the worktree clean while a converted path still holds the
   source's bytes,
   and the recovery reports only the ignored-state copy as owed.
   The guest control measured that end to end
-  ("The kill this round's ordering closes", below).
+  ("The kill this round's ordering closes",
+  below).
 - **A kill inside step 9 leaves Git's own bytes on the paths it had written,
   with the stat data `-u` recorded in the waiting file,
   and the source's bytes on the paths it had not**:
-  neither is vouched for by any published index, and the recovery writes the whole worktree.
+  neither is vouched for by any published index,
+  and the recovery writes the whole worktree.
 - **A failure of the clone after the fence answered** is the clone's reason,
   with the entries it made counted,
   and the fence's answer is dropped:
@@ -748,8 +753,10 @@ not by what it would have cleaned up.
   the rung discards the index it wrote under its own name,
   and the fallback's `reset --hard` therefore sees an untracked file where the older order's published index made it a
   tracked-then-deleted one and removed it.
-  The rung names it in the same warning it gives every leftover (`N entries the clones created stay`, with
-  `git -C <path> status`), so nothing is silently wrong,
+  The rung names it in the same warning it gives every leftover (`N entries the clones created stay`,
+  with
+  `git -C <path> status`),
+  so nothing is silently wrong,
   and `git status` in that worktree says `?? extra.txt`.
   That failure is safe but costs the clone,
   and it is option B's one known roteness regression against A′:
@@ -1985,7 +1992,8 @@ after the sentence about the clean-source requirement:
 > which the next command reports as an add that is possibly incomplete and follows with the commands that finish or
 > remove it;
 > an index published earlier would vouch for nothing either,
-> because a written path's clean form is its blob, so a `git status` would refresh the entry and call the worktree
+> because a written path's clean form is its blob,
+> so a `git status` would refresh the entry and call the worktree
 > clean while the path held the source's bytes.
 > Where more than a quarter of the tracked paths,
 > and more than a thousand,
@@ -2016,9 +2024,12 @@ after the restore's steps:
 > the tracked paths whose checkout would differ are known then,
 > and the index the snapshot installs holds them with no stat data,
 > so no path is recorded clean before Git's own write records the bytes it checked out.
-> The whole fence is decided in that one step (the attributes and the decline first, the sizes and the decision in the
-> same call), because the snapshot's index install needs the written paths before it runs;
-> the fence's reads therefore sit on the rung's waiting path, where the snapshot has no copy for them to run beside.
+> The whole fence is decided in that one step (the attributes and the decline first,
+> the sizes and the decision in the
+> same call),
+> because the snapshot's index install needs the written paths before it runs;
+> the fence's reads therefore sit on the rung's waiting path,
+> where the snapshot has no copy for them to run beside.
 > In the stage,
 > and before it is swapped in,
 > the paths the fence leaves to Git are written by one `git checkout-index --force -u` in the stage,
@@ -2029,7 +2040,8 @@ after the restore's steps:
 
 ### `package/git-policy/cli/README.md`, the ladder's two items
 
-The README's item 1 (the snapshot rung) and item 2 (the clones) are where a person reads what the ladder does, so both
+The README's item 1 (the snapshot rung) and item 2 (the clones) are where a person reads what the ladder does,
+so both
 now name the fence:
 which paths a clone or a snapshot may carry and why the proof is the recorded size against the blob's,
 that the attributes and the decline are decided before anything is copied,
@@ -2951,20 +2963,28 @@ That tip is now merged here with `git merge --no-ff`,
 as merge `bfab8057e0`,
 and the five conflicts are the two sides' different splits of `worktree_clone.rs`:
 
-- `worktree_clone_paths.rs` is that branch's path module (an indexed path's names, the times and identity a clone must find
-  again, the entries a run created, the destination directories one entry is made in) and is taken whole;
-  `worktree_clone_entry.rs` keeps only the per-entry work and the seams, and imports those names.
+- `worktree_clone_paths.rs` is that branch's path module (an indexed path's names,
+  the times and identity a clone must find
+  again,
+  the entries a run created,
+  the destination directories one entry is made in) and is taken whole;
+  `worktree_clone_entry.rs` keeps only the per-entry work and the seams,
+  and imports those names.
 - `worktree_clone_entries.rs` and `worktree_clone_slices.rs` stay as the fence wrote them:
-  the fence beside the clone's order (the copies as one task of the runtime, the fence's reads on the add's own thread)
+  the fence beside the clone's order (the copies as one task of the runtime,
+  the fence's reads on the add's own thread)
   is the shape this branch ships,
   so the other side's `clone_all` and the index install it carries are not taken.
-- `worktree_clone.rs` keeps this branch's entry points (`clone_tracked_bytes`, `clone_tracked_bytes_beside`, and the
+- `worktree_clone.rs` keeps this branch's entry points (`clone_tracked_bytes`,
+  `clone_tracked_bytes_beside`,
+  and the
   measurement-build-only `clone_tracked_files`).
 - `worktree_clone_tests.rs` keeps this branch's controls and gains that branch's
   `a_file_with_bytes_is_offered_to_the_clone_wherever_the_run_is`.
 - The two doc comments that branch's own fix moved off the wrong functions are moved here too.
 
-`native:build`, `native:check` and `native:clippy` pass on the merged tree,
+`native:build`,
+`native:check` and `native:clippy` pass on the merged tree,
 before the merge commit.
 
 ### The earlier pass's findings, one by one
@@ -2990,7 +3010,8 @@ before the merge commit.
   the awaited-identity control now pins the dates the two faces would otherwise read from the clock,
   and it passes on the host.
 - **The gate controls for the ladder's clone-domain call (L2) exist and pass** (the three controls above).
-- **The waived costs are stated where a person meets them (L3)**, by `7c30936bed`:
+- **The waived costs are stated where a person meets them (L3)**,
+  by `7c30936bed`:
   `SPEC.md`'s rung 2 names both waived costs and the block-cloning decline,
   and `README.md`'s item 2 names both costs.
 
@@ -3004,11 +3025,14 @@ The clean form of an LF file under `text eol=crlf` is its blob,
 so a zeroed entry over such a file is refreshed by `git status` and the path is not reported at all,
 and `add_is_finished` called the state a finished add whose ignored-state copy alone was owed.
 
-The red, with the review's own reproduction and the binary of `bfab8057e0`:
-a source with `a.txt`, a 320 MB `big.txt` and `z.txt` under `*.txt text eol=crlf`,
+The red,
+with the review's own reproduction and the binary of `bfab8057e0`:
+a source with `a.txt`,
+a 320 MB `big.txt` and `z.txt` under `*.txt text eol=crlf`,
 the wrapper killed inside `git checkout-index` and its parent killed with it.
 The administrative directory held `index` and a stale `index.lock`;
-with the lock removed, `git status` printed `M big.txt` only,
+with the lock removed,
+`git status` printed `M big.txt` only,
 while `z.txt` held the source's 18 LF bytes where Git's checkout writes 20 with carriage returns,
 and the recovery said only that the ignored-state copy was owed.
 
@@ -3016,31 +3040,44 @@ The order now:
 the index is written under `index.pending` in the worktree's administrative directory
 (`install_the_index_beside_the_write`),
 Git's `read-tree -m -u` and the one `git checkout-index -u` are pointed at that file with `GIT_INDEX_FILE`,
-and only after the write does it take the name `index` (`PendingIndex::publish`, a rename that replaces nothing).
-A rung that ends first removes its own file, checking the identity, and Git's own checkout writes the index.
+and only after the write does it take the name `index` (`PendingIndex::publish`,
+a rename that replaces nothing).
+A rung that ends first removes its own file,
+checking the identity,
+and Git's own checkout writes the index.
 
-The green, same fixture and same kill:
+The green,
+same fixture and same kill:
 the administrative directory held `index.pending` and no `index`,
 `git status` reported every tracked path deleted and every file untracked,
 the recovery said the add was possibly incomplete and printed the commands that finish or remove it,
-and the command it prints (`git reset --no-enforce-worktree --hard --no-recurse-submodules`, the worktree guard's hatch)
+and the command it prints (`git reset --no-enforce-worktree --hard --no-recurse-submodules`,
+the worktree guard's hatch)
 left the worktree equal to Git's own checkout of the same commit.
 
 The control over the order is
 `the_installed_index_vouches_for_no_path_git_still_has_to_write`,
-which now reads the waiting file, asserts the worktree holds no `index` and that `add_is_finished` says unfinished,
-asserts the published entry records Git's byte count, and asserts the worktree is whole only after the publication.
-The proposal's step order, its kill section and "Limitations" say what the code does.
-One visible consequence: the harness's `m05` (an add whose new `HEAD` lacks a fenced path) now leaves that file as an
-untracked leftover the rung names, where the older order's published index made `reset --hard` delete it;
+which now reads the waiting file,
+asserts the worktree holds no `index` and that `add_is_finished` says unfinished,
+asserts the published entry records Git's byte count,
+and asserts the worktree is whole only after the publication.
+The proposal's step order,
+its kill section and "Limitations" say what the code does.
+One visible consequence:
+the harness's `m05` (an add whose new `HEAD` lacks a fenced path) now leaves that file as an
+untracked leftover the rung names,
+where the older order's published index made `reset --hard` delete it;
 the tracked bytes are equal either way.
 
 ### `SPEC.md` and `README.md`
 
-The review's M2: the crate's `SPEC.md` and `README.md` said nothing of the fence.
+The review's M2:
+the crate's `SPEC.md` and `README.md` said nothing of the fence.
 `SPEC.md`'s rung 2 and rung 1 now carry the text this proposal's "Where the design and `SPEC.md` change" names
 (corrected to the order above),
-and the README's two ladder items state the fence, the quarter decline rule, what the index's own name means for a kill,
+and the README's two ladder items state the fence,
+the quarter decline rule,
+what the index's own name means for a kill,
 and the two sentences a person reads.
 
 ### The lows
@@ -3048,16 +3085,19 @@ and the two sentences a person reads.
 - The stale sentence about the decline happening after the clone,
   the two nearly identical "what it reuses" paragraphs,
   and the timestamp of the project's "do B" answer
-  (2026-11-20T23:27:33-05:00, as the plan's step 10 notes record it) are corrected.
+  (2026-11-20T23:27:33-05:00,
+  as the plan's step 10 notes record it) are corrected.
 - The two code comments that described an earlier shape of B
-  (a blocking-pool job, and the add's thread waiting once for it) now say what the code does:
+  (a blocking-pool job,
+  and the add's thread waiting once for it) now say what the code does:
   the copies are one task of the runtime and the fence's reads run on the add's own thread before it waits.
 - The byte-equality controls' size relative to the clone's break-even is a "Limitations" entry now.
 - The markdown findings on the branch's added lines are fixed;
   the plan's line 726 and the crate's `README.md`/`SPEC.md` carry none,
   and the one citation in `worktree_remove_hand_over.rs` is re-wrapped so that file is 1,331 lines against `main`'s
   1,331 and the linter reports nothing on the added line where `main`'s wording had two findings.
-  `rust/avoidable-closure` is still unexercised (`cargo-dylint` is not installed), on `main` as here.
+  `rust/avoidable-closure` is still unexercised (`cargo-dylint` is not installed),
+  on `main` as here.
 
 ## Limitations
 
@@ -3108,16 +3148,22 @@ with the evidence behind it.
   and the ordering rule behind them is
   `the_index_the_snapshot_installs_vouches_for_no_path_the_fence_leaves_to_git`.
 - **An add killed while the clone rung's index waits under its own name leaves the worktree with no index.**
-  From the copies' end to the end of Git's write the worktree holds no `index`, so `git status` reports every tracked
+  From the copies' end to the end of Git's write the worktree holds no `index`,
+  so `git status` reports every tracked
   path deleted and every file untracked,
   and the recovery keeps the add's record and prints the commands that finish or remove it
-  (`git reset --no-enforce-worktree --hard`, whose hatch the sentence names, and then the ignored-state copy, which the
+  (`git reset --no-enforce-worktree --hard`,
+  whose hatch the sentence names,
+  and then the ignored-state copy,
+  which the
   next command in that worktree makes).
   That is the safe direction and not a clean worktree:
-  the person has to run one command, and an add that finished pays nothing for it.
+  the person has to run one command,
+  and an add that finished pays nothing for it.
   Rung 1 is in a different state:
   its index is installed in the destination's administrative directory while the destination holds only its `.git`
-  file, which `add_is_finished` already calls unfinished.
+  file,
+  which `add_is_finished` already calls unfinished.
 - **A path with the `-text` attribute under `core.autocrlf=true` is written by Git.**
   The exemption the class table describes holds only where nothing converts,
   so such a repository's binaries count toward
@@ -3139,11 +3185,14 @@ with the evidence behind it.
   which now run before anything is copied and before Git's own run.
   No in-process replacement is built or measured.
 - **Every byte-equality control runs below the clone's break-even.**
-  The guest's eighteen class controls, the host's scenarios and the 150-combination sample use repositories of three to
-  eight tracked entries, so all of them take the one-thread order,
+  The guest's eighteen class controls,
+  the host's scenarios and the 150-combination sample use repositories of three to
+  eight tracked entries,
+  so all of them take the one-thread order,
   where the fence answers before the copy instead of beside it.
   The concurrent order is reached by `the_slices_answer_beside_a_job_that_runs_with_the_copies` and by the
-  whole-repository runs, whose worktree every arm compared equal with `main`'s.
+  whole-repository runs,
+  whose worktree every arm compared equal with `main`'s.
 - **The `attr.tree` setting is still not refused by the shipped code.**
   `git check-attr` honours it and so would the destination,
   so the two agree,
