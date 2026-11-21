@@ -804,7 +804,19 @@ Read-only commands,
      pointer and the source's index with refreshed stat fields,
      has the difference between the source's tree and the
      new `HEAD` applied by `git read-tree -m -u`,
+     has the paths the conversion fence below leaves to Git written by one
+     `git checkout-index --force -u`,
      and is swapped into place with `RENAME_EXCHANGE`.
+     The conversion fence decides this rung too,
+     before the snapshot and before its stage name is claimed:
+     the index the snapshot installs holds the paths Git must write with no stat data,
+     so no path is recorded clean before Git's own write records the bytes it checked out,
+     and a fence that cannot read its inputs,
+     or its decline rule,
+     ends the rung and Git's own checkout completes the worktree.
+     The fence's two reads are on this rung's waiting path:
+     a snapshot copies everything anyway,
+     so there is no copy for them to run beside.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
@@ -894,6 +906,32 @@ Read-only commands,
      1.18 times at about 8.8 KB,
      parity at about 26 KB,
      and 0.64 times on this repository's own tree).
+     The conversion fence decides which of those paths the clones may carry
+     (GitHub issue 6323:
+     a clone keeps the source's bytes where Git's checkout would convert line endings or `ident`),
+     so that no path is ever recorded clean while its bytes are not Git's own checkout's.
+     A path is carried only where Git's checkout of its blob is the blob itself and the source's file is proven to hold
+     that blob,
+     from Git's own attribute rules (`text`,
+     the legacy `crlf`,
+     `eol`,
+     `filter`,
+     `ident`,
+     `working-tree-encoding`),
+     `core.autocrlf` and `core.eol`,
+     read in `convert.c`'s order;
+     every other path is written by Git,
+     through one `git checkout-index --force -u`.
+     The attributes are read and the decline decided before the copies,
+     the rest of the fence (`git ls-tree` and the decision) runs while the clones copy,
+     and the index is written under a name of its own until that write is done,
+     so a process killed in between leaves no index in the worktree at all,
+     which the next command reports as an add that is possibly incomplete and follows with the commands that finish it.
+     A source whose attributes convert more than a quarter of its tracked paths,
+     and more than a thousand of them,
+     is declined before anything is copied,
+     and the line on standard error is the fence's own count and rule in place of
+     `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
