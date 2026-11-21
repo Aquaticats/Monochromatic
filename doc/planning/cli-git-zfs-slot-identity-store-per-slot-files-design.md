@@ -729,12 +729,12 @@ so the record's name never holds a prefix of the bytes:
     and `fsync`s it,
     so the bytes are durable before any name can hold them.
 5.  It gives the file the slot's name with one `linkat` that never replaces:
-    `linkat(folder, "<32 lowercase hex>", folder, name, 0)`.
+    `linkat(folder, ".<32 lowercase hex>", folder, name, 0)`.
     The probe published a staged file this way (`linkat-from-a-staged-name-onto-an-absent-name`) and measured
     `EEXIST` onto a name that exists (`linkat-from-a-staged-name-onto-a-taken-name`),
     which is the race's whole answer.
 6.  It removes the staging name and syncs the folder:
-    `unlinkat(folder, "<32 lowercase hex>", 0)`,
+    `unlinkat(folder, ".<32 lowercase hex>", 0)`,
     then `fsync(folder)`,
     so the record's name is durable and the staging name is gone.
     After the unlink the probe read the record's bytes back whole with one link
@@ -753,7 +753,7 @@ and the staging name is a dot name no reader reads.
 
 A folder that refuses `linkat` of a regular file (`EPERM`,
 `EOPNOTSUPP` or a filesystem with no hard links) publishes with
-`renameat2(folder, "<32 lowercase hex>", folder, name, RENAME_NOREPLACE)`,
+`renameat2(folder, ".<32 lowercase hex>", folder, name, RENAME_NOREPLACE)`,
 which the probe measured answering `EEXIST` onto a taken name and leaving the staged name in place,
 and publishing onto an absent name in one step with the staged name gone
 (`renameat2-RENAME_NOREPLACE-onto-a-taken-name`,
@@ -1463,15 +1463,24 @@ and it is not the old guard:
 a record for slot X misfiled under another name can only be put there by root,
 the sweep does not list and so records X afresh,
 and nothing else in this route reads a record for another slot.
-The owner who wants the old guard back can have it at one `readdir` per sweep run,
-which is choice 9.
+The listing half of that guard can come back at one `readdir` per sweep run,
+which is choice 9:
+a foreign name and the entry count.
+The content half,
+a record of another slot that does not parse or whose key is not its name,
+needs every record read on every sweep,
+which this design does not propose and `doctor` does on demand.
 
 What each reader could already do,
 and what it still cannot:
 
-- the attach never asked for the set,
-  so it loses nothing it used,
-  and its two reads are of records that cannot change;
+- the attach never read the set,
+  so it lost nothing it read for its own decision,
+  and its two reads are its own slot's record,
+  which cannot change,
+  and `.parent`,
+  which can,
+  with a stale read refusing rather than permitting;
 - the sweep does not ask,
   and its set comes from its own walk of the parent's children;
 - the adoption asks,
@@ -1518,19 +1527,21 @@ and the timings are the ones the hooks of section 7 force:
     compares,
     and refuses the same way.
     A folder reached through an uncompared parent gets no record.
-4.  The adoption lists the folder,
+4.  The adoption lists the folder once,
     reads `.parent`,
     `add-cache-layer` and `fix-flaky-test`,
     verifies both slots against the live folders,
     checks the replacement's identity,
-    stages the new parent record and renames it over `.parent`,
-    which now holds `57:67990:1000:0755:...`.
-    The two slot files keep their inodes and their bytes.
-5.  The second listing therefore sees the same two slot names it saw at its first,
+    and takes its second listing before it publishes anything,
+    which is section 5's order.
+    That listing sees the same two slot names it saw at the first,
     because no sweep could publish while the parent differed.
     No set changed,
     so nothing refuses,
     and the second listing's job narrows to the one case below.
+5.  It stages the new parent record and renames it over `.parent`,
+    which now holds `57:67990:1000:0755:...`,
+    and the two slot files keep their inodes and their bytes.
 6.  The case it still covers:
     a sweep whose walk and `.parent` read both predate the recreation.
     Its compare passed against the old folder (inode `66304` on both sides),
@@ -2119,11 +2130,14 @@ and the last two are flagged because they need a decision this design cannot mak
 9.  Whether a sweep lists the store:
     no listing,
     one record read per slot reached (A),
-    or one `readdir` per sweep run that refuses a foreign name and a misfiled record before any attach (B).
+    or one `readdir` per sweep run that refuses a foreign name before any attach (B).
     Ranking A > B.
-    B restores part of the whole-store guard `main` had,
-    at one listing per sweep;
-    only root writes the store,
+    B restores the name half of the whole-store guard `main` had,
+    at one listing per sweep,
+    and does not restore the half that reads another slot's record:
+    a misfiled record needs a content read,
+    which `doctor` makes and a sweep would pay on every run.
+    Only root writes the store,
     and the adoption and `doctor` already run that listing,
     so the sweep's copy buys detection of a state a root-only writer rarely makes.
 
@@ -2173,11 +2187,14 @@ and only the owner accepts any of it.
   each fact attributed to its line.
   It is Python,
   following the repository's one kept probe,
-  `package/git-policy/cli/doc/slot-identity-store-lock-hold/probe-reaches-storage.py`:
-  rule `NMJ` settles `.mjs` against `.ts` and does not reach a probe,
-  and `node` has no binding for `linkat(AT_EMPTY_PATH)`,
+  `package/git-policy/cli/doc/slot-identity-store-lock-hold/probe-reaches-storage.py`,
+  and the reason it is not the `.ts` that rule `NMJ` prefers is mechanical:
+  `node` has no binding for `linkat(AT_EMPTY_PATH)`,
   `renameat2`'s flags or `setxattr`,
-  which are exactly the calls this probe must make.
+  which are exactly the calls this probe must make,
+  so a `.ts` probe could only wrap a Python one.
+  The design's own arms live in Rust (section 7),
+  where those calls are already in `libc`.
 - The publication's ranking was reversed to keep `O_EXCL` (finding M1).
   The earlier draft ranked an `O_TMPFILE` route first,
   which does not make the slot's file with `O_EXCL` as the decision's words say.
