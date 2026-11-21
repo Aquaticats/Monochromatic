@@ -53,8 +53,9 @@ pub enum TestSwitch {
     /// The probe disabled:
     /// the control arm that writes a skipped record and mounts nothing.
     Disabled,
-    /// The worker held after this step,
-    /// so the mode's deadline fires and names the step in flight.
+    /// The worker held after this step for twice the shipped deadline,
+    /// so the mode's deadline fires and names the step in flight,
+    /// and M3's raised-deadline control can see the step finish.
     Hold {
         /// The step whose passing line the worker wrote last.
         step: ProbeStep,

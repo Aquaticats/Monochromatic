@@ -8,7 +8,7 @@
  OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's handler inside it, prepares the probe dataset the design
  names, runs the arms, and destroys the guest.
 
- Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|destroy|all> [--name <guest>]
+ Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|m2-controls|m3-kill|m7-scan|m9-busy|timings|timings-boot-first|destroy|all> [--name <guest>]
           [--log-dir <dir>] [--keep-guest]
 
  `red` runs the arm before the probe exists and requires the refusal that says the mode is not one of this build's,
@@ -218,7 +218,7 @@ function probeDataset(chosen: Options): void {
     `zfs set org.monochromatic:git-worktree-probe-source=v1 ${PROBE_DATASET}`,
     `zfs snapshot ${PROBE_DATASET}@ready`,
     `mkdir --parents $(dirname ${CONFIGURATION})`,
-    `printf '%s\\n' '{' '  "gitWorktreeProbeDataset": "'${PROBE_DATASET}'",' '  "gitWorktreeCheckout": "'${CHECKOUT}'",' '  "account": "'${ACCOUNT}'"' '}' > ${CONFIGURATION}`,
+    `printf '%s\\n' '{' '  "startProbe": {' '    "dataset": "'${PROBE_DATASET}'",' '    "checkout": "'${CHECKOUT}'"' '  },' '  "account": "'${ACCOUNT}'"' '}' > ${CONFIGURATION}`,
     `chmod 0644 ${CONFIGURATION}`,
     `mkdir --parents ${CHECKOUT}`,
     `chown ${ACCOUNT}:${ACCOUNT} ${CHECKOUT}`,
@@ -324,19 +324,239 @@ function green(chosen: Options): void {
     `check 'verdict timed-out' /root/record-timeout.txt 'timed-out'`,
     `check 'in-flight unmount' /root/record-timeout.txt 'timed-out in flight unmount'`,
     `check 'last-finished move' /root/record-timeout.txt 'timed-out last finished move'`,
-    // M3's kill arm: the mode is killed while the worker is held, so the record stays started.
-    `env CLI_GIT_TEST_ONLY_START_PROBE=hold-mode ${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
-    'sleep 0.12',
+    // M3's kill arm: hold-unshare parks the worker before any mount,
+    // then a kill of the mode leaves the started record and no worker mount.
+    `CLI_GIT_TEST_ONLY_START_PROBE=hold-unshare ${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
+    'sleep 0.2',
     'kill -KILL "$mode" || true',
     'wait "$mode" 2>/dev/null || true',
+    `pkill --signal KILL --full "^${HANDLER} start-probe$" || true`,
+    'sleep 0.2',
     `cp ${RECORD} /root/record-killed.txt`,
     `check 'state started' /root/record-killed.txt 'killed mode left a started record'`,
-    'pkill --signal KILL --full "^/opt/git-policy-cli-start-probe/package/git-policy/cli/target/release/mount-git-worktree-clone-datasets start-probe$" || true',
-    'sleep 0.2',
     'echo "GREEN done"',
   ].join('\n');
   guest({ chosen, script, log: 'guest-green.log', timeout: ARM_TIMEOUT_MS, });
 }
+
+
+//region Added guest arms
+
+/** The shell header every added arm shares: the handler, the record, the source and the leak counter. */
+function probeScript(lines: readonly string[]): string {
+  return [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    `export LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib`,
+    `H=${HANDLER}`,
+    `REC=${RECORD}`,
+    `SRC='${PROBE_DATASET}@ready'`,
+    `PAT='^${HANDLER} start-probe$'`,
+    'now_us() { echo $(( $(date +%s%N) / 1000 )); }',
+    'leaks() { n=0; for ns in /proc/[0-9]*/ns/mnt; do if nsenter --mount="$ns" cat /proc/self/mountinfo 2>/dev/null | grep -q "git-worktree-probe@ready"; then n=$((n+1)); fi; done; echo "leaks=$n"; }',
+    ...lines,
+  ].join('\n');
+}
+
+/** M2's controls: an idle window, a deliberate mount, a deliberate write and a deliberate read. */
+function m2Controls(chosen: Options): void {
+  const script = probeScript([
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m2-table-before.txt',
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/m2-idle-before.txt`,
+    't0=$(awk \'NR > 2 { if ($1 > top) top = $1 } END { print top }\' /root/m2-idle-before.txt)',
+    'sleep 2',
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/m2-idle-after.txt`,
+    'if awk -v t0="$t0" \'NR > 2 && $1 >= t0 && ($4 != 0 || $6 != 0 || $8 != 0) { bad = 1 } NR > 2 && $1 >= t0 { seen = 1 } END { exit !(seen && !bad) }\' /root/m2-idle-after.txt; then echo "M2 idle-window-clean t0=$t0"; else echo "M2 idle-window-held-a-write"; exit 1; fi',
+    'mkdir --parents /root/m2-mount',
+    `mount -t zfs "$SRC" /root/m2-mount`,
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m2-table-mounted.txt',
+    'if cmp --silent /root/m2-table-before.txt /root/m2-table-mounted.txt; then echo "M2 deliberate-mount-not-seen"; exit 1; else echo "M2 deliberate-mount-seen"; fi',
+    'umount /root/m2-mount',
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m2-table-restored.txt',
+    'if cmp --silent /root/m2-table-before.txt /root/m2-table-restored.txt; then echo "M2 deliberate-mount-restored"; else echo "M2 mount-table-not-restored"; exit 1; fi',
+    `zfs create -o mountpoint=legacy ${POOL}/nosnap/m2-write 2>/dev/null || true`,
+    'mkdir --parents /root/m2-write',
+    `mount -t zfs ${POOL}/nosnap/m2-write /root/m2-write`,
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/m2-write-before.txt`,
+    't0=$(awk \'NR > 2 { if ($1 > top) top = $1 } END { print top }\' /root/m2-write-before.txt)',
+    'echo write > /root/m2-write/file',
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/m2-write-after.txt`,
+    'if awk -v t0="$t0" \'NR > 2 && $1 >= t0 && ($4 != 0 || $6 != 0 || $8 != 0) { seen = 1 } END { exit !seen }\' /root/m2-write-after.txt; then echo "M2 deliberate-write-seen"; else echo "M2 deliberate-write-not-seen"; exit 1; fi',
+    'umount /root/m2-write',
+    `zfs destroy ${POOL}/nosnap/m2-write`,
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/m2-read-before.txt`,
+    't0=$(awk \'NR > 2 { if ($1 > top) top = $1 } END { print top }\' /root/m2-read-before.txt)',
+    `unshare --mount sh -c "mkdir -p /root/m2-read; mount -t zfs -o ro ${PROBE_DATASET}@ready /root/m2-read; ls -a /root/m2-read > /dev/null; umount /root/m2-read"`,
+    `zpool sync ${POOL}`,
+    `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/m2-read-after.txt`,
+    'if awk -v t0="$t0" \'NR > 2 && $1 >= t0 && ($4 != 0 || $6 != 0 || $8 != 0) { bad = 1 } NR > 2 && $1 >= t0 { seen = 1 } END { exit !(seen && !bad) }\' /root/m2-read-after.txt; then echo "M2 deliberate-read-clean"; else echo "M2 deliberate-read-held-a-write"; exit 1; fi',
+    'echo "M2 controls done"',
+  ]);
+  guest({ chosen, script, log: 'guest-m2-controls.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/** M3's kill matrix: every named hold point, each process alone, and the raised-deadline control. */
+function m3Kill(chosen: Options): void {
+  const script = probeScript([
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m3-table-before.txt',
+    'rm -f /root/m3-summary.txt',
+    'check_after() { label="$1"; sleep 1.2; sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m3-table-after.txt; if cmp -s /root/m3-table-before.txt /root/m3-table-after.txt; then t=table-same; else t=TABLE-DIFFERS; fi; l=$(leaks | tail -n 1); left=$(pgrep -f "$PAT" | wc -l); st=$(grep -m1 "^state " $REC | cut -d" " -f2); $H start-probe > /root/m3-next.log 2>&1 || true; if grep -q "^verdict passed" $REC; then nx=next-run-passed; else nx=NEXT-RUN-DID-NOT-PASS; fi; echo "KILL $label $t $l leftover-processes=$left record-state-after-kill=$st $nx" | tee --append /root/m3-summary.txt; pkill -KILL -f "$PAT" || true; }',
+    'for step in unshare propagate-private scratch-tmpfs scratch-tree walk-slot walk-refusal-controls attach-context attach-source attach-options attach-exclusive-create attach-mount-descriptor attach-place verify-mount scan-while-held scan-after-holder move unmount; do',
+    '  CLI_GIT_TEST_ONLY_START_PROBE=hold-$step $H start-probe > /root/m3-control.log 2>&1 || true',
+    '  echo "CONTROL hold-$step last-finished=$(grep "^last-finished " $REC | cut -d" " -f2) in-flight=$(grep "^in-flight " $REC | cut -d" " -f2) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'done',
+    'for step in unshare propagate-private scratch-tmpfs scratch-tree walk-slot walk-refusal-controls attach-context attach-source attach-options attach-exclusive-create attach-mount-descriptor attach-place verify-mount scan-while-held scan-after-holder move unmount; do',
+    '  for target in mode worker both holder child; do',
+    '    CLI_GIT_TEST_ONLY_START_PROBE=hold-$step $H start-probe > /root/m3-run.log 2>&1 &',
+    '    mode=$!',
+    '    sleep 0.2',
+    '    worker=$(pgrep -P $mode -o || true)',
+    '    holder=$(pgrep -P $mode -n || true)',
+    '    child=""; if test -n "$worker"; then child=$(pgrep -P $worker -n || true); fi',
+    '    case $target in',
+    '      mode) kill -KILL $mode 2>/dev/null || true ;;',
+    '      worker) test -n "$worker" && kill -KILL $worker 2>/dev/null || true ;;',
+    '      both) kill -KILL $mode 2>/dev/null || true; test -n "$worker" && kill -KILL $worker 2>/dev/null || true ;;',
+    '      holder) if test -n "$holder" && test "$holder" != "$worker"; then kill -KILL $holder 2>/dev/null || true; else echo "SKIP hold-$step holder no-holder-yet" | tee --append /root/m3-summary.txt; fi ;;',
+    '      child) if test -n "$child"; then kill -KILL $child 2>/dev/null || true; else echo "SKIP hold-$step child no-child-yet" | tee --append /root/m3-summary.txt; fi ;;',
+    '    esac',
+    '    wait $mode 2>/dev/null || true',
+    '    check_after "hold-$step kill-$target"',
+    '  done',
+    'done',
+    'CLI_GIT_TEST_ONLY_START_PROBE=hold-unmount CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $H start-probe > /root/m3-raised.log 2>&1 || true',
+    'if grep -q "^verdict passed" $REC && grep -q "^step unmount passed" $REC; then echo "M3 raised-deadline-control-passed"; else echo "M3 raised-deadline-control-failed"; cat $REC; exit 1; fi',
+    '$H start-probe > /root/m3-run.log 2>&1 & mode=$!; kill -KILL $mode 2>/dev/null || true; wait $mode 2>/dev/null || true; check_after "kill-immediately mode"',
+    'echo "M3 kill matrix done"',
+  ]);
+  guest({ chosen, script, log: 'guest-m3-kill.log', timeout: 1_500_000, });
+}
+
+/** M7's failure branches: a mounted source before the run, a late mount during it, and a pinned empty namespace. */
+function m7Scan(chosen: Options): void {
+  const script = probeScript([
+    '$H start-probe > /root/m7-baseline.log 2>&1 || true',
+    'if grep -q "^step scan-while-held passed" $REC && grep -q "^step scan-after-holder passed" $REC && grep -q "^step closing-scan passed" $REC; then echo "M7 baseline-scans-passed"; else echo "M7 baseline-scans-failed"; cat $REC; exit 1; fi',
+    'mkdir --parents /root/m7-held-mount',
+    `unshare --mount sh -c 'mount -t zfs ${PROBE_DATASET}@ready /root/m7-held-mount && touch /root/m7-held.txt && sleep 30' &`,
+    'for wait in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do test -f /root/m7-held.txt && break; sleep 0.5; done',
+    'test -f /root/m7-held.txt',
+    '$H start-probe > /root/m7-held.log 2>&1 || true',
+    'if grep -q "^step attach-exclusive-create not-exercised" $REC && grep -q "reason source-held" $REC && grep -q "errno EBUSY" $REC; then echo "M7 held-source-not-exercised"; else echo "M7 held-source-not-seen"; cat $REC; exit 1; fi',
+    'pkill --signal KILL --full "^/sbin/mount.zfs" || true',
+    'wait || true',
+    'rm -f /root/m7-go.txt',
+    'mkdir --parents /root/m7-late',
+    `unshare --mount sh -c "while test ! -f /root/m7-go.txt; do sleep 0.01; done; mount -t zfs ${PROBE_DATASET}@ready /root/m7-late; sleep 30" > /dev/null 2>&1 & late=$!`,
+    '$H start-probe > /root/m7-late-run.log 2>&1 & probe=$!',
+    'touch /root/m7-go.txt',
+    'wait $probe || true',
+    'kill -KILL $late 2>/dev/null || true',
+    'wait $late 2>/dev/null || true',
+    'if grep -q "^step scan-while-held failed" $REC; then echo "M7 late-mount-failed-the-first-pass"; else echo "M7 late-mount-not-seen"; cat $REC; exit 1; fi',
+    'mkdir --parents /root/m7-pinned',
+    `unshare --mount sh -c "mount -t zfs -o ro ${PROBE_DATASET}@ready /root/m7-pinned; sleep 30" > /dev/null 2>&1 & pinned=$!`,
+    'for wait in 1 2 3 4 5 6 7 8 9 10; do if nsenter --mount=/proc/$pinned/ns/mnt cat /proc/self/mountinfo 2>/dev/null | grep -q "git-worktree-probe@ready"; then break; fi; sleep 0.2; done',
+    'exec 9</proc/$pinned/ns/mnt',
+    'kill -KILL $pinned 2>/dev/null || true',
+    'wait $pinned 2>/dev/null || true',
+    '$H start-probe > /root/m7-pinned-run.log 2>&1 || true',
+    'exec 9<&-',
+    'if grep -q "^verdict passed" $REC; then echo "M7 pinned-namespace-invisible"; else echo "M7 pinned-namespace-named"; cat $REC; exit 1; fi',
+    'echo "M7 scan arms done"',
+  ]);
+  guest({ chosen, script, log: 'guest-m7-scan.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/** M9's extra-descriptor fixture: the unmount must answer EBUSY with the switch on and pass with it off. */
+function m9Busy(chosen: Options): void {
+  const script = probeScript([
+    'rm -f $REC',
+    'CLI_GIT_TEST_ONLY_START_PROBE_KEEP_DESCRIPTOR=1 $H start-probe > /root/m9-on.log 2>&1 || true',
+    'cp $REC /root/m9-on-record.txt',
+    'if grep -q "^step unmount failed errno EBUSY" /root/m9-on-record.txt; then echo "M9 extra-descriptor-unmount-EBUSY"; else echo "M9 extra-descriptor-not-seen"; cat /root/m9-on-record.txt; exit 1; fi',
+    '$H start-probe > /root/m9-off.log 2>&1 || true',
+    'cp $REC /root/m9-off-record.txt',
+    'if grep -q "^verdict passed" /root/m9-off-record.txt; then echo "M9 switch-off-passes"; else echo "M9 switch-off-did-not-pass"; cat /root/m9-off-record.txt; exit 1; fi',
+    'echo "M9 fixture done"',
+  ]);
+  guest({ chosen, script, log: 'guest-m9-busy.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+/** Warm runs, cache-dropped runs and a guest with many mount namespaces, every round kept. */
+function timings(chosen: Options): void {
+  const script = probeScript([
+    'echo "TIMING start $(date --iso-8601=seconds)"',
+    'for round in 1 2 3 4 5; do',
+    '  p0=$(now_us); $H start-probe > /root/timing-probe.log 2>&1 || true; p1=$(now_us)',
+    '  c0=$(now_us); CLI_GIT_TEST_ONLY_START_PROBE=disabled $H start-probe > /root/timing-control.log 2>&1 || true; c1=$(now_us)',
+    '  echo "WARM round=$round probe=$((p1-p0)) control=$((c1-c0)) worker-estimate=$(( (p1-p0) - (c1-c0) )) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'done',
+    'for round in 1 2 3; do',
+    `  zpool export ${POOL}`,
+    '  sync; echo 3 > /proc/sys/vm/drop_caches',
+    `  zpool import -d /home -o cachefile=none ${POOL}`,
+    '  sync; echo 3 > /proc/sys/vm/drop_caches',
+    '  p0=$(now_us); $H start-probe > /root/timing-cold.log 2>&1 || true; p1=$(now_us)',
+    '  c0=$(now_us); CLI_GIT_TEST_ONLY_START_PROBE=disabled $H start-probe > /root/timing-control.log 2>&1 || true; c1=$(now_us)',
+    '  echo "COLD round=$round probe=$((p1-p0)) control=$((c1-c0)) worker-estimate=$(( (p1-p0) - (c1-c0) )) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    '  p0=$(now_us); $H start-probe > /root/timing-after-cold.log 2>&1 || true; p1=$(now_us)',
+    '  echo "AFTER-COLD round=$round probe=$((p1-p0)) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'done',
+    'ns_make() { count=$1; i=0; while test $i -lt $count; do unshare --mount sh -c "j=0; while test \\$j -lt 20; do mkdir -p /mnt/t\\$j; mount -t tmpfs t /mnt/t\\$j; j=\\$((j+1)); done; exec sleep 900" > /dev/null 2>&1 & i=$((i+1)); done; sleep 2; }',
+    'echo "SCALE namespaces=$(for p in /proc/[0-9]*/ns/mnt; do readlink $p; done 2>/dev/null | sort -u | wc -l)"',
+    'ns_make 100',
+    'for round in 1 2 3 4 5; do',
+    '  p0=$(now_us); $H start-probe > /root/timing-scale.log 2>&1 || true; p1=$(now_us)',
+    '  c0=$(now_us); CLI_GIT_TEST_ONLY_START_PROBE=disabled $H start-probe > /root/timing-control.log 2>&1 || true; c1=$(now_us)',
+    '  echo "MANY-NS namespaces=$(for p in /proc/[0-9]*/ns/mnt; do readlink $p; done 2>/dev/null | sort -u | wc -l) round=$round probe=$((p1-p0)) control=$((c1-c0)) worker-estimate=$(( (p1-p0) - (c1-c0) )) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'done',
+    'ns_make 200',
+    'for round in 1 2 3 4 5; do',
+    '  p0=$(now_us); $H start-probe > /root/timing-scale.log 2>&1 || true; p1=$(now_us)',
+    '  c0=$(now_us); CLI_GIT_TEST_ONLY_START_PROBE=disabled $H start-probe > /root/timing-control.log 2>&1 || true; c1=$(now_us)',
+    '  echo "MANY-NS namespaces=$(for p in /proc/[0-9]*/ns/mnt; do readlink $p; done 2>/dev/null | sort -u | wc -l) round=$round probe=$((p1-p0)) control=$((c1-c0)) worker-estimate=$(( (p1-p0) - (c1-c0) )) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'done',
+    'pkill -x sleep || true',
+    'echo "TIMING done"',
+  ]);
+  guest({ chosen, script, log: 'guest-timings.log', timeout: 1_500_000, });
+}
+
+/** Reboot the guest, then keep the first probe run after that boot and five warm rounds after it. */
+function timingsBootFirst(chosen: Options): void {
+  spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'systemctl reboot'], { stdio: 'ignore', timeout: 60_000, });
+  let ready = false;
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    const probe = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', 'true'], { stdio: 'ignore', timeout: 10_000, });
+    if (probe.status === 0) {
+      ready = true;
+      break;
+    }
+    spawnSync('sleep', ['1'], { stdio: 'ignore', });
+  }
+  if (!ready)
+    throw new Error(`the guest ${chosen.name} did not answer after its reboot`);
+  const script = probeScript([
+    'echo "BOOT-FIRST start $(date --iso-8601=seconds)"',
+    'p0=$(now_us); $H start-probe > /root/boot-first.log 2>&1 || true; p1=$(now_us)',
+    'echo "BOOT-FIRST probe=$((p1-p0)) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'for round in 1 2 3 4 5; do',
+    '  p0=$(now_us); $H start-probe > /root/timing-probe.log 2>&1 || true; p1=$(now_us)',
+    '  c0=$(now_us); CLI_GIT_TEST_ONLY_START_PROBE=disabled $H start-probe > /root/timing-control.log 2>&1 || true; c1=$(now_us)',
+    '  echo "AFTER-BOOT round=$round probe=$((p1-p0)) control=$((c1-c0)) worker-estimate=$(( (p1-p0) - (c1-c0) )) verdict=$(grep "^verdict " $REC | cut -d" " -f2)"',
+    'done',
+    'echo "BOOT-FIRST done"',
+  ]);
+  guest({ chosen, script, log: 'guest-timings-boot-first.log', timeout: ARM_TIMEOUT_MS, });
+}
+
+//endregion Added guest arms
 
 //endregion Steps
 
@@ -353,6 +573,32 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       await build(chosen);
     green(chosen);
   },
+  'm2-controls': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    m2Controls(chosen);
+  },
+  'm3-kill': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    m3Kill(chosen);
+  },
+  'm7-scan': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    m7Scan(chosen);
+  },
+  'm9-busy': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    m9Busy(chosen);
+  },
+  timings: async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    timings(chosen);
+  },
+  'timings-boot-first': timingsBootFirst,
   destroy: (chosen) => recipe({ chosen, step: 'destroy', }),
   all: async (chosen: Options): Promise<void> => {
     let failure: unknown = null;
@@ -362,9 +608,12 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       created = true;
       recipe({ chosen, step: 'prepare', });
       await build(chosen);
-      red(chosen);
       probeDataset(chosen);
       green(chosen);
+      m2Controls(chosen);
+      m3Kill(chosen);
+      m7Scan(chosen);
+      m9Busy(chosen);
     } catch (thrown) {
       failure = thrown;
     }

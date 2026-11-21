@@ -19883,13 +19883,14 @@ in this order:
   It opens the configured checkout read-only and reads no entry there.
 - It reads the source from
   `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`:
-  `gitWorktreeProbeDataset` names the dataset and the probe attaches its
-  `ready` snapshot,
-  and `gitWorktreeCheckout` names the folder the walk opens.
-  The name is checked as a name:
+  one `startProbe` object holds `dataset`,
+  which names the dataset whose `ready` snapshot the probe attaches,
+  and `checkout`,
+  which names the folder the walk opens.
+  The dataset is checked as a name:
   each component holds alphanumerics and `_ - . :`,
-  the name is under 256 bytes,
-  and it carries no `@` or `#`.
+  the dataset and its `@ready` suffix together are at most 255 bytes,
+  and the dataset carries no `@` or `#`.
 - It opens a `zfs` context,
   writes the source and the `ro`,
   `nosuid` and `nodev` options,
@@ -20004,12 +20005,19 @@ Until step 19 adds the `ExecStartPre=-`,
 no boot unit runs the probe,
 and it runs only from a transient unit in a guest.
 
-One test-only variable,
-`CLI_GIT_TEST_ONLY_START_PROBE`,
-is compiled into the release executable and inert unless set:
-`disabled` writes a skipped record for the timing control arm,
-and `hold-<step>` wedges the worker after that step so the deadline fires.
-Neither turns a refusal into a pass.
+Test-only variables are compiled into the release executable and inert unless
+set,
+and none turns a refusal into a pass:
+`CLI_GIT_TEST_ONLY_START_PROBE` takes `disabled`,
+which writes a skipped record for the timing control arm,
+or `hold-<step>`,
+which holds the worker after that step for twice the shipped deadline so the
+deadline fires;
+`CLI_GIT_TEST_ONLY_START_PROBE_KEEP_DESCRIPTOR=1` keeps one descriptor on the
+attached mount so the unmount arm must answer `EBUSY`;
+and `CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS` raises the bound for the
+raised-deadline control,
+which must then record the held step as passed.
 
 ### Compatibility and degradation
 

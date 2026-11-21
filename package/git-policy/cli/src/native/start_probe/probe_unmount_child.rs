@@ -49,10 +49,7 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
         Ok(()) => {
             say(status, StepLine::passed(ProbeStep::Move));
             if hold == Some(ProbeStep::Move) {
-                let mut byte: [u8; 1] = [0];
-                // SAFETY: the buffer is this call's own and the read waits for a byte this arm never sends.
-                let waited: libc::ssize_t = unsafe { libc::read(super::probe_child_prelude::CHILD_CONTROL_DESCRIPTOR, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
-                let _ = waited;
+                std::thread::sleep(super::probe_deadline::PROBE_DEADLINE * 2);
             }
         }
         Err(error) => {
@@ -67,6 +64,9 @@ pub fn run(status: std::os::fd::RawFd, slot: &Path, move_target: &Path, expected
     if !placed {
         say(status, StepLine::failed(ProbeStep::Unmount, None));
         crate::start_probe::probe_child_prelude::exit_now(1);
+    }
+    if hold == Some(ProbeStep::Unmount) {
+        std::thread::sleep(super::probe_deadline::PROBE_DEADLINE * 2);
     }
     match unmount(move_target) {
         Ok(()) => say(status, StepLine::passed(ProbeStep::Unmount)),

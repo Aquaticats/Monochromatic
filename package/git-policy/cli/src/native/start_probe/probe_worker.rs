@@ -111,7 +111,10 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     };
     let hold_after = |step: ProbeStep| {
         if start.hold == Some(step) {
-            let _waited = read_one_blocking(start.reply);
+            // Twice the shipped bound keeps the step long enough for the
+            // deadline to fire,
+            // and lets M3's raised-deadline control see the step finish.
+            std::thread::sleep(super::probe_deadline::PROBE_DEADLINE * 2);
         }
     };
     let _ = join_own_process_group();
