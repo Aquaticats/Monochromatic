@@ -16,7 +16,7 @@ use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 use crate::service_protocol_programs_of_a_request::programs_of;
-use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_FORGOTTEN_RECORDS, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
+use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
 
 /// What:
 ///  Reads and checks one client line.
@@ -98,25 +98,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             }
             return Ok(ClientMessage::Work { git_dir, review_key, push_programs });
         }
-        "forgetPrograms" => {
-            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
-            if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') {
-                return Err(String::from("forget request is not acceptable"));
-            }
-            let named: &Vec<Value> = value.get("records").and_then(Value::as_array).ok_or("records is missing")?;
-            if named.len() > MAX_FORGOTTEN_RECORDS {
-                return Err(String::from("number of records is not acceptable"));
-            }
-            let mut records: Vec<String> = Vec::new();
-            for entry in named {
-                let Some(id) = entry.as_str() else { return Err(String::from("a forget request names a record that is not text")) };
-                if !crate::work_item_ids_and_names::is_valid_id(id) {
-                    return Err(String::from("a forget request names a record that is no work record"));
-                }
-                records.push(id.to_string());
-            }
-            return Ok(ClientMessage::ForgetPrograms { git_dir, records });
-        }
+        "forgetPrograms" => return crate::service_protocol_forgetting_programs::forgetting_programs(&value),
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
     }

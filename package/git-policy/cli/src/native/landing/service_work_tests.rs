@@ -2547,13 +2547,15 @@ fn a_repository_proved_gone_gives_up_the_values_of_its_push_records() {
 ///  and the command's values stand in their place,
 ///  so a value the manager fixed never speaks for the command that asked.
 /// Why:
-///   Replacing only the names that travelled would let the manager's `GIT_SSH_COMMAND`, `GIT_SSH`,
+///   Replacing only the names that travelled would let the manager's `GIT_SSH_COMMAND`,
+/// `GIT_SSH`,
 /// `GIT_PROXY_COMMAND` or `GIT_EXEC_PATH` decide how a push whose command
 ///  set none of them reaches its remote,
 /// and its `PATH` decide which `git-lfs` the push runs,
 /// which is the defect the carried list exists for
 ///  (`service_push_programs_held_in_memory`).
-/// The names are the ones the service held, and the push is the one the command asked for.
+/// The names are the ones the service held,
+/// and the push is the one the command asked for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

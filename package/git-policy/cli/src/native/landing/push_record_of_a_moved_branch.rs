@@ -1,0 +1,192 @@
+//! What:
+//!  The push record a command that moves a branch leaves,
+//!  where no round runs it until its values have reached the service,
+//!  and the proof that such a record is this command's to make runnable.
+//! Why:
+//!  A merge,
+//! a cherry-pick,
+//! a revert,
+//! an applied patch or a pull's merge adds commits that the next commit would otherwise be the first to push,
+//! and the record of that push must outlive a command killed before its values travel
+//! (`service_push_programs_held_in_memory`).
+//! The hand-off therefore writes it into `held` first,
+//! where no round claims it,
+//! and a record whose id the queue already settled,
+//! whose gate blocked it,
+//! or which another command holds is not this hand-off's to publish.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const record = pushRecordItem(repo, gitDir, 'refs/heads/main', tip, parent); if (heldRecordIsThisCommands(workDir, record.id, holder)) promote(workDir, record.id);
+//! ```
+
+
+use crate::held_push_holder_and_verdict::holding_in;
+use crate::iso_time::now_iso;
+use crate::service_client::wake;
+use crate::service_messages::ClientFailure;
+use crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over;
+use crate::service_handoff::{ServiceHandoff, unqueued_branch_note};
+use crate::work_item::{WorkItem, WorkKind, enqueue, state_directory};
+use crate::service_work::work_directory;
+use std::io::Write;
+use std::path::PathBuf;
+
+/// What:
+///  The push record of one landed commit of a worktree,
+/// named by the item's own id:
+/// the kind,
+/// the commit,
+/// the branch,
+/// and whether this command chose a transport.
+/// Why:
+///  The hand-off needs the id before the record exists,
+/// so the values can reach the service while no round can claim the
+///  record (`hand_over_push`),
+/// and a record written here is written only for a branch whose name is text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pushRecordItem = (repository, gitDir, reference, tip, parent) => ({ kind: 'push', repository, gitDir, branchRef: reference, oid: tip, parent, created: nowIso(), tries: 0, transport: ofThisProcess().transport });
+/// ```
+pub(crate) fn push_record_item(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> WorkItem {
+    // The command that moved the branch is what asks for this push, so its own environment answers whether a transport was
+    //  chosen; the values themselves travel with the wake and are written nowhere (`service_push_programs_held_in_memory`).
+    return WorkItem {
+        kind: WorkKind::Push,
+        repository: repository.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
+        branch_ref: reference.to_string(),
+        oid: tip.to_string(),
+        parent: parent.to_string(),
+        created: now_iso(),
+        tries: 0,
+        transport: crate::service_push_programs_held_in_memory::of_this_process().transport,
+    };
+}
+
+/// What:
+///  Whether the record `id` waits in `held` naming the command `holder` as the one that left it.
+/// Why:
+///   A record whose id the queue already settled,
+/// whose gate blocked it,
+/// or which another command holds is not this hand-off's to make runnable,
+///  and the values of this command are not its either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heldRecordIsThisCommands = (workDir, id, holder) => holdingIn(readFileSync(join(workDir, 'held', id), 'utf8')).holder === holder;
+/// ```
+pub(crate) fn held_record_is_this_commands(work_dir: &std::path::Path, id: &str, holder: &str) -> bool {
+    let path: PathBuf = state_directory(work_dir, crate::work_item::HELD).join(id);
+    let Ok(text) = std::fs::read_to_string(path.as_path()) else { return false };
+    return holding_in(text.as_str()).holder == holder;
+}
+
+/// What:
+///  Makes the push record `id` runnable when this command left it in `held`,
+///  so the push waits for the next command that reaches the service.
+/// Why:
+///   A hand-off whose wake failed leaves a record that waits;
+/// one left in `held` would wait for a commit that may never come,
+///  and a record another command holds must not be published here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const releaseThisCommandsHold = (workDir, id, holder) => heldRecordIsThisCommands(workDir, id, holder) && promote(workDir, id);
+/// ```
+pub(crate) fn release_this_commands_hold(work_dir: &std::path::Path, id: &str, holder: &str) -> bool {
+    if !held_record_is_this_commands(work_dir, id, holder) {
+        return false;
+    }
+    return crate::work_item::promote(work_dir, id);
+}
+
+/// What:
+///  Writes the push record for a branch tip that a command other than a commit moved,
+/// before anything asks whether a service can be reached.
+/// Why:
+///   A merge,
+/// a cherry-pick,
+/// a revert,
+/// an applied patch or a pull's merge adds commits that the next commit would otherwise
+///  be the first to push.
+/// Only the push is left:
+/// the review and the upkeep belong to a commit.
+///   The record is a directory of this worktree's own Git directory,
+/// so writing it needs no service,
+/// no socket and no session bus,
+/// and a context with no route to the service still leaves the push on disk for the next wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writePushRecord({ repository, gitDir, reference, tip, parent })
+/// ```
+pub fn write_push_record(
+    repository: &std::path::Path,
+    git_dir: &std::path::Path,
+    reference: &crate::ref_name::RefName,
+    tip: &str,
+    parent: &str,
+) -> Result<Option<String>, ClientFailure> {
+    // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
+    //  whose name is not text has none; `hand_over_push` tells the person that instead.
+    let Some(name) = reference.text() else { return Ok(None) };
+    let item: WorkItem = crate::push_record_of_a_moved_branch::push_record_item(repository, git_dir, name, tip, parent);
+    let id: String = item.id();
+    enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+    return Ok(Some(id));
+}
+
+/// What:
+///  `write_push_record` for a handoff,
+/// and then the wake of the service.
+/// Why:
+///   The caller that already knows how to reach the service leaves both in one call;
+/// a caller that may find no route writes the record with `write_push_record` and wakes only when it has one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await handOverPush(handoff, tip)
+/// ```
+pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    if !handoff.reference.is_text() {
+        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
+        return Ok(());
+    }
+    let Some(reference) = handoff.reference.text() else { return Ok(()) };
+    let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = crate::push_record_of_a_moved_branch::push_record_item(handoff.repository.as_path(), handoff.git_dir.as_path(), reference, tip, handoff.parent.as_str());
+    let holder: String = crate::held_push_holder_and_verdict::this_command();
+    // What: The record is written where no round runs it, before its values travel.
+    // Why:  A record in `pending` can be claimed by a round already running, and that round would run the push with none of this
+    //  command's values and settle it (`service_push_programs_held_in_memory`); a held record is invisible to the queue and still
+    //  outlives a command killed before its values travel, which a later command releases when it finds this command gone.
+    crate::work_item::hold(work_dir.as_path(), &item, holder.as_str()).map_err(ClientFailure::WorkNotHandedOver)?;
+    if !crate::push_record_of_a_moved_branch::held_record_is_this_commands(work_dir.as_path(), item.id().as_str(), holder.as_str()) {
+        // The queue already settled this push, a gate blocked it, or another command holds it: nothing here to hand over, and no
+        //  value of this command belongs to that record.
+        return Ok(());
+    }
+    // What: The programs of this command, and whether it chose the transport the push speaks through, reach the service while the
+    //  record is invisible to the queue.
+    // Why:  Nothing of them may be written (the two command lines can hold a password), and the push runs after this command has
+    //  gone, so this message is the last moment they can reach the service that runs it
+    //  (`service_push_programs_held_in_memory`).
+    let carried: Result<(), ClientFailure> = wake(
+        &handoff.config,
+        handoff.git_dir.as_path(),
+        None,
+        &[(item.id(), crate::service_push_programs_held_in_memory::of_this_process())],
+        notices,
+    );
+    // The record becomes runnable whatever the wake did: a service that was not reached leaves the push queued for the next
+    //  command, as it does when a wake after a written record fails.
+    let runnable: bool = crate::push_record_of_a_moved_branch::release_this_commands_hold(work_dir.as_path(), item.id().as_str(), holder.as_str());
+    carried.map_err(not_handed_over)?;
+    if !runnable {
+        return Err(ClientFailure::WorkNotHandedOver(String::from("the push record could not be made runnable, so the next command that reaches the commit service writes it again")));
+    }
+    // The wake that runs it now, after its values are in the service's memory: the round this starts may claim the record at once.
+    return wake(&handoff.config, handoff.git_dir.as_path(), None, &[], notices).map_err(not_handed_over);
+}
