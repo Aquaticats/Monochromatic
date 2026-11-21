@@ -1115,6 +1115,19 @@ and neither stat data nor Git's status can tell.
 It is reproduced on `main`'s btrfs rungs 1 and 2 and on step 3's ZFS clone rung,
 so this step's snapshot clone carries it too unless the fence the project chooses applies to rung 1;
 the fence's design and measured cost go to the project first.
+They went on 2026-11-20:
+asked to choose between the fence before the clone with a decline rule,
+a whole-source refusal,
+Git rewriting every path,
+or building the fence beside the clone first,
+the project answered "Build B first" at 2026-11-20T22:37:00-05:00.
+So the fence run beside the clone is designed,
+built and measured
+(`doc/planning/cli-git-clone-rung-conversion-fence.md`,
+option B),
+and the question is put again with its numbers;
+step 3,
+the btrfs fix and this step wait on it.
 
 #### Depends on
 

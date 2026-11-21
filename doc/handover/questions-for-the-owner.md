@@ -757,6 +757,34 @@ you do.
 Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
 b buys lock-freedom at the cost of that consistency and a rewrite.
 
+## Open: should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads? (recorded 2026-11-20T23:40-05:00)
+
+What it is:
+step 6's start-time check reads the loaded ZFS module's type data through `btf-rs` 2.0.1, adopted on
+2026-11-20T20:18:04-05:00.
+That release reads an entry's kind in 5 bits and a record's member count in 16, so a kernel that widened either field
+would be read as the narrower one;
+the step 6 integration pass measured a kind-33 entry read as compatible, where the removed stand-in refused it
+(`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`, M1).
+No kernel on record uses a wider field,
+and the adoption record lists the lag as a revisit trigger.
+It does not hold step 6's merge: a round is making the docs say what the code does.
+
+- (a) Accept the lag as recorded and revisit when a kernel or a `btf-rs` release widens the fields (recommended): no new
+  code, and the gate's other checks stay.
+- (b) Add a reader-neutral check to the pre-scan that refuses any entry whose kind or member count exceeds what the reader
+  reads: keeps the old refusal, but it is a second small walker of the entry stream beside the adopted reader.
+- (c) Wait for a `btf-rs` release that reads the wider masks before merging step 6.
+
+Ranking a > b > c: a matches the adoption record and costs nothing while no kernel uses a wider field; b restores a
+refusal at the price of parsing the stream twice, near what the record declined as an in-house reader; c holds step 6 on
+another project's release.
+
+Also for information, not a choice:
+the record's rule that the request range's two endpoints are compared means a ZFS release that only appends a request,
+moving `ZFS_IOC_LAST` with no layout change, turns the raw route off until the expected range is updated;
+it fails safe, and neither the record nor the design examined that case.
+
 ## Answered: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
 
 Answered 2026-11-20 on the third asking, "A: merge with cloning on", recorded as

@@ -58,8 +58,7 @@ use crate::stopped_git_locks::LockLedger;
 use crate::scratch_location::scratch_file;
 use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
 use crate::lazy_runtime::run_on_runtime;
-/// The stop of a push and the sweep of the locks it leaves,
-/// and the pause between two looks at a running push.
+/// The stop of a push and the sweep of the locks it leaves.
 pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
@@ -266,7 +265,6 @@ fn shortened_output_line(label: &str) -> String {
          much, read the hook's own output by running it directly."
     );
 }
-
 
 /// What:
 ///  The line that names a run's wait for its remote.
