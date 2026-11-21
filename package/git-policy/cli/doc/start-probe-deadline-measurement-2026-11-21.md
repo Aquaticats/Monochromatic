@@ -121,8 +121,15 @@ Each round is followed by a warm round.
   difference 26,203;
   after-cold probe 90,527.
 
-Dropping the caches moved the whole probe by about the control's own spread,
-not by the 75 milliseconds the earlier draft attributed to a cold binary.
+Dropping the caches moved the whole probe by 4,842 to 14,385 microseconds over
+the warm round that followed it:
+less than the 75 milliseconds the probe's integration pass measured in its own
+cold arm,
+and far less than the 231 milliseconds the earlier draft attributed to a cold
+binary.
+Neither of those figures is this document's reading:
+the 75 milliseconds was taken on a host that pass's gate loaded,
+and this document does not reconcile it with these rounds.
 
 ### The first run after a guest boot
 
@@ -203,10 +210,14 @@ size.
 The slowest whole-probe round kept here is 211,176 microseconds,
 with 309 namespaces,
 and the slowest worker-phase estimate is 118,503 microseconds.
-The 350-millisecond bound is the slowest phase estimate plus the
-231-millisecond `PROBE_DEADLINE_MARGIN`,
-which is 349.5 milliseconds,
-and that margin is larger than the 109,642-microsecond spread between the
+The value is retained rather than derived:
+350 milliseconds was chosen in the earlier round and kept here,
+and the 231-millisecond `PROBE_DEADLINE_MARGIN` is back-solved from it,
+because 350 milliseconds minus the slowest phase estimate of 118.503
+milliseconds leaves 231.497 milliseconds,
+which the constant records as 231.
+The two add to 349.5 milliseconds.
+That margin is larger than the 109,642-microsecond spread between the
 slowest and fastest phase estimates.
 A run inside the range these rounds saw therefore does not fail closed on
 noise.

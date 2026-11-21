@@ -794,6 +794,28 @@ The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`.
 
 #### Open items
 
+The probe's guest arms are built and run in
+`package/git-policy/cli/e2e/start-probe-guest.ts`:
+M1's attach,
+its held-source `EBUSY` control,
+its unloaded-key `EACCES` control and its read-only against read-write control;
+M2's controls;
+M3's kill matrix and raised deadline;
+M5's refusal controls;
+M7's scan arms;
+M9's accepted release and filtered refusal;
+and M10's absent-source reading.
+One reading of M1 cannot be taken there:
+what a kernel older than 6.6 answers for the exclusive create.
+The guest boots `6.8.0-147-generic`,
+whose `fsconfig` knows `FSCONFIG_CMD_CREATE_EXCL`,
+so no arm in that guest answers `EOPNOTSUPP`.
+Such a run needs a throwaway guest whose kernel predates the command
+and an OpenZFS module built against that kernel,
+because the refusal is the kernel's and the module must load on it;
+until one runs,
+the wording for that arm stays the kernel source's reading rather than a measurement.
+
 Blocked by "The start probe a kernel-release answer asks for" and "The runtime layout checker",
 which are this step's own designs.
 The architecture,
