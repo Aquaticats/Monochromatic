@@ -40917,7 +40917,15 @@ stated in this entry. What follows from them, as work:
   mapping; lows: the sentence twice when a hook printed it, no control on `service_work.rs:528`, a mis-cited function.
   Held: M2's leak guard, M3's retry, the pure-move split, the fish form; gate 9313 of 9315, the cause-H pair. GOING:
   `pi-git-policy-cli-lfs-recheck-findings-fixed` (cap 450), suggested to read the unknown key positively from OpenSSH's own
-  words (brief under `~/temp/agent/git-policy-cli-lfs-recheck-findings-fixed-2026-11-20/`).
+  words (brief under `~/temp/agent/git-policy-cli-lfs-recheck-findings-fixed-2026-11-20/`). THE MISE RE-CHECK (Sonnet)
+  came back not fit on one point (its folder's `keep/review.md`): `.trimEnd()` in the root `parse_usage_args` strips a
+  trailing carriage return, U+2028, U+2029 and other trailing whitespace from the last word before the refusal looks, so
+  12 of 36 real-mise cases exit 0 with altered words (`-- --help $'a\r'` gives `["--help","a"]`), a new silent success;
+  deleting the call fixed all twelve in scratch. Held: the four core-exec suites, the real-mise catalog (two mutants fail
+  it), 31 of 32 sampled pairs as on `main`, the fuzz help path. The merge removed the author's worktree. GOING:
+  `pi-mise-usage-args-trailing-terminator-fixed` in the coordinator-made worktree
+  `.claude/worktrees/mise-usage-args-trailing-terminator` (brief under
+  `~/temp/agent/mise-usage-args-trailing-terminator-fixed-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
