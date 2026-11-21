@@ -10,11 +10,36 @@ It answers every item that
 left to a design.
 A gate review has read it and found two high,
 six medium and eleven low findings;
-this round fixes every one of them,
+this round fixed them,
 the section [This round](#this-round) at the end names what moved,
-and nothing is dismissed.
+and its recheck left eight low findings,
+R1 to R8,
+which the build answered as the [Built](#built) note says.
 Every choice inside an item is proposed with its options and a ranking,
 and none of them is decided until the owner accepts it.
+
+## Built
+
+This design was built on branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files`,
+on 2026-11-21,
+after the decision record accepted it,
+with these gates' low findings R1 to R8 answered in this text and in the code:
+R1 in the sweep's removal of known staging names and in sections 1,
+2,
+4 and 5,
+R2's citations,
+length and status sentences,
+R3's grammar argument,
+R5's wording about `O_EXCL`,
+R6's variant counts and option B's owed controls,
+R7's Limitations line,
+and R8's two evidence points.
+R4's missing per-option pros and cons are not added,
+because the owner has accepted the first-ranked option of every
+choice and a ranking nobody decides any more would be prose about nothing;
+each open choice keeps the one reasoned paragraph it already had.
+Nothing of this design is approved or final,
+and only the owner declares it so.
 
 ## The decision's six items, and the section that answers each
 
@@ -68,10 +93,14 @@ the store at `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-iden
 that same path,
 and a machine that never ran the root setup has neither shape to convert.
 
-Those words are kept literally,
-and this is the one place to say so plainly.
+Those words are kept in the letter the build can keep:
+the file is created with `O_EXCL`,
+and exclusion at the record's own name is `linkat`'s `EEXIST`,
+not the creation's,
+because the creation is under a random staging name that excludes no second recorder.
 The slot's record file is created with `O_EXCL`,
 under a staging name that begins with a dot,
+and one `linkat` is what makes the record's own name exclusive,
 and its record name is given to it by one `linkat` that never replaces,
 after which the staging name is removed (section 2).
 The option that section 2 ranks second makes the record instead with `O_TMPFILE` and one `linkat`,
@@ -93,7 +122,8 @@ because two first-recording sweeps that both rebuilt the file would let the late
 taken from a folder that changed in between,
 which is the refresh the accepted design forbids (`package/git-policy/cli/SPEC.md:5475`,
 and the design's own rule at
-[`doc/planning/cli-git-zfs-worktree-design-proposal.md:611`](cli-git-zfs-worktree-design-proposal.md)):
+[`doc/planning/cli-git-zfs-worktree-design-proposal.md:612` to
+`:613`](cli-git-zfs-worktree-design-proposal.md)):
 "Never refresh a slot identity just because a new inode or permissions appeared there."
 One file per slot removes that reason with the file:
 a slot's record is published once and never replaced,
@@ -153,7 +183,7 @@ so no later writer can take an identity from a folder that moved under it.
   `hold_clone_slot`,
   which reads the store at `:333`,
   refuses `NoParentRecord` at `:336`,
-  and compares the walked parent at `:338` before it compares the slot at `:342`,
+  and compares the walked parent at `:338` before it looks the slot up at `:342` and compares it at `:346`,
   and `hold_clone_slot_under_root_control` at `:384`.
   `HoldCloneSlotRequest.store` is a path,
   and almost every control in `clone_slot_walk_tests.rs`,
@@ -334,8 +364,10 @@ and the printed line that showed it:
   `staged-name-survives-that-refusal`),
   publishes onto an absent name and removes the staged name (`renameat2-RENAME_NOREPLACE-onto-an-absent-name`,
   `staged-name-after-that-publish`);
-  `RENAME_EXCHANGE` succeeds and each name holds the other's bytes (`renameat2-RENAME_EXCHANGE`,
-  `slot-b-bytes-after-the-exchange`);
+  `RENAME_EXCHANGE` succeeds and the name it was exchanged with holds the other's bytes (`renameat2-RENAME_EXCHANGE`,
+  `slot-b-bytes-after-the-exchange`,
+  which prints one of the two names' bytes,
+  so the other name's are not among the printed lines);
   a plain replacing rename replaces in one step (`renameat2-plain-replacing-rename`).
 - `O_EXCL` at a name that exists answers `EEXIST` (`openat-O_EXCL-onto-a-taken-name`).
 - A 255-byte name is created in that folder and a 256-byte one is refused `ENAMETOOLONG`
@@ -574,10 +606,9 @@ and one rule tells them apart:
   because a third form means a writer this design has not accounted for.
   A leading dot is what the slot grammar already refuses,
   so no slot can ever be named like one.
-  Who removes them is one answer,
-  stated in section 2:
+  Who removes them is section 2's answer:
   a writer removes its own,
-  and the adoption removes any left by a killed writer.
+  and the adoption and the sweep remove the two known forms a killed writer left.
 
 No suffix and no second level is needed,
 and the reason is the grammar of names that can arrive,
@@ -591,8 +622,12 @@ bounded by the slot component limit and the remaining dataset-name budget,
 and the probe created a 255-byte name in the store's folder and was refused a 256-byte one
 (`create-a-255-byte-name`,
 `create-a-256-byte-name`).
-So a name of up to 255 bytes really can reach the store,
-and a file named `<slot>.slot` could not record such a slot without a new refusal for a name Git made.
+How long a name the sweep can derive is not measured:
+the remaining dataset-name budget bounds it below 255 by the length of the parent dataset's path,
+and this design does not compute that maximum for a real path.
+A file named `<slot>.slot` would refuse any name near that limit,
+which is a refusal for a name Git made whichever way the budget falls,
+and option C's rejection therefore rests on not wanting a length rule at all rather than on a measured name.
 A subfolder of slots would fit every name too,
 and it is option B of this section.
 
@@ -817,16 +852,28 @@ and each is readable:
   the record alone.
 
 Nothing reads a staging entry,
-and exactly one party removes one that a kill left:
-the adoption,
-which lists the folder as its first step and removes every entry that matches either known staging form before
-it stages its own record.
-Its own precondition is that managed operations are quiesced,
-so no other writer is live to own those names,
-and that is the whole answer to who removes them:
-a writer removes its own on its normal path and on failure,
-the adoption removes what a killed writer left,
-and `doctor` reports what it finds and removes nothing.
+and three parties remove one that a kill left,
+each at a moment its own precondition makes safe:
+
+- a writer removes its own staging name on its normal path and on every failure path,
+  so a writer that returned never leaves one;
+- the adoption lists the folder as its first step and removes every entry matching either known staging form
+  before it stages its own record,
+  and its quiescence precondition is what makes that safe,
+  because no other writer is live to own those names;
+- the sweep removes the same two forms,
+  once the built one does,
+  before it does anything else,
+  and its removal is not quiesced:
+  a live writer whose staging name it removed answers a `Write` refusal naming the folder,
+  publishes nothing and loses nothing,
+  and the next sweep publishes that slot.
+
+`doctor` reports the known forms with their count and age and any dot entry that matches neither,
+and removes nothing,
+so a machine that runs neither an adoption nor a sweep keeps the litter and can see it in a report.
+That is the reach the decision asked for when it added the removal beside the adoption (R1),
+and it is why option A's cons say what a machine that runs neither remover keeps.
 No run needs a lock or a timeout to be sure another writer is gone.
 
 ### The alternative this design flags: a file with no name and one link
@@ -880,13 +927,17 @@ and a `.a1b2c3d4e5f60718293a4b5c6d7e8f90` entry exists only for the instant betw
 Pros:
 the file is made with `O_EXCL`,
 as the decision's own words say,
-one code path on every filesystem,
+the same one publication on every filesystem that makes a hard link,
 no unnamed-file support to assume,
 no partial record at the record's name,
 and the same staging remover the parent's replacement needs anyway.
 
 Cons:
-a kill leaves a dot entry for the adoption to remove,
+a kill leaves a dot entry,
+which the writer's own path and the adoption remove and the sweep removes too,
+but which no remover reaches on a machine that never runs one of those;
+one arm of the publication is the rename that never replaces,
+with its own two controls and its double-refusal arm;
 and the common path is two names and two calls more than a single create.
 
 #### Option B: a file with no name and one link, with the staged fallback
@@ -904,7 +955,12 @@ it departs from the decision's words,
 so the project must accept that explicitly,
 its empty-name spelling carries the capability and kernel-version boundary above,
 the store's dataset's unnamed-file support is unmeasured,
-and it is three publication variants to test where option A is one.
+and it owes four more arms than option A:
+both link spellings refusing (the staged path or a `Write` naming both calls),
+a filesystem that refuses the unnamed file (the staged path,
+with the file-making call a parameter),
+the `AT_EMPTY_PATH` spelling on its own,
+and each of those against a folder that refuses a hard link.
 
 #### Option C: `O_EXCL` at the record's name and a completeness marker
 
@@ -1027,7 +1083,9 @@ The design carries the specification's split into two writers:
   The plan's step 19 boot unit runs on every boot,
   so a second run is the normal case and must not report an error.
   The compare runs before the name is made,
-  so a first run and a second cannot both publish.
+  and the exclusivity is the publication's own no-replace step:
+  two first runs that both find `.parent` absent still publish once,
+  because the second `linkat` answers `EEXIST` and its run compares what it finds.
 - `replace_parent_identity_under_root_control` is the adoption's one writer,
   and it refuses where `.parent` is absent.
 
@@ -1037,8 +1095,10 @@ Both keep the root-control checks inside the step that writes.
 
 #### Option A: one file replaced by one rename
 
-On the example store the adoption leaves `.parent` holding
-`parent - 57:67990:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-`,
+On the example store the adoption leaves `.parent` holding this one record line:
+
+`parent - 57:67990:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-`
+
 and `add-cache-layer` and `fix-flaky-test` keep their inodes,
 their bytes and their modification times.
 
@@ -1243,6 +1303,9 @@ A staging entry (a leading dot that is not `.parent`) is ignored by every reader
 and a dot entry that matches neither of the two known staging forms is reported by `doctor` rather than
 refused or removed,
 because it means a writer this design has not accounted for.
+`doctor` reports the two known forms too,
+with their count and age,
+so a machine that runs neither an adoption nor a sweep shows what a killed writer left.
 
 A record whose own key is not the name it is filed under refuses,
 because the record line carries its key:
@@ -1348,7 +1411,7 @@ and nothing in the attach's checks needs another slot's identity.
     The publication's first step is the parent's compare:
     a sweep whose walked `.claude/worktrees` differs from `.parent` publishes nothing,
     and its attach refuses `ParentIdentity` before it compares the slot,
-    which is the order `hold_clone_slot` already keeps (`clone_slot_walk.rs:338` to `:342`).
+    which is the order `hold_clone_slot` already keeps (`clone_slot_walk.rs:338` to `:346`).
     So no record is written for a folder reached through a parent nobody compared,
     and that is the rule that keeps the adoption's listings free of records taken under the replacement.
 3.  It attaches through step 4,
@@ -1518,7 +1581,7 @@ and the timings are the ones the hooks of section 7 force:
     and refuses `ParentIdentity`,
     naming both inodes and the device.
     That compare is `clone_slot_walk.rs:338` to `:340`,
-    before the slot compare at `:342`,
+    before the slot lookup at `:342` and its compare at `:346`,
     so the sweep never reaches the slot and attaches nothing.
 3.  Sweep two reaches a new slot `rework-login`,
     reads no record for it,
@@ -1715,6 +1778,18 @@ this is the list the build follows and the review judges.
   step 19's setup run,
   which does not exist yet,
   is where the folder's creation at mode `0755` and `.parent`'s first publication belong.
+- The clone-mount sweep,
+  `package/git-policy/cli/src/native/worktree_clone_mount_handler/attaching_sweep_mode.rs`,
+  which removes the two known staging forms before it refuses its step,
+  so a machine that never adopts does not keep a killed writer's litter.
+- `doctor`'s store section,
+  which plan step 18 builds:
+  it reports the entry count,
+  a misfiled record,
+  a foreign entry,
+  the two known staging forms with their count and age,
+  and any dot entry matching neither form,
+  and removes nothing.
 - `package/git-policy/cli/e2e/README.md:838`,
   which says the guest adoption arm writes the store file,
   and `package/git-policy/cli/src/native/binary/binary_zfs_adoption_guest_tests.rs`,
@@ -1916,6 +1991,10 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     the two states the whole-store guard used to refuse,
     each reported by name,
     and the store left as it was.
+    This control is owed to `doctor`'s section,
+    which plan step 18 builds;
+    the listing refusal and the removal it depends on are controls 16 and 5 here,
+    and the report itself has no code yet.
 21. `the_specification_s_store_example_is_a_store_this_reader_reads`,
     over the three files of section 1,
     including the parent's access ACL that the specification's own control asserts.
@@ -2010,8 +2089,9 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
   so a `.parent` replacement that lands between that read and the link is not detected by the publisher;
   what notices it is the adoption's second listing and the next adoption's reconciliation.
 - Two adoptions that run at once are left with whichever renamed last,
-  exactly as `main` leaves them.
-  The mode's quiescence precondition forbids them,
+  exactly as `main` leaves them,
+  which is parity and not a loss.
+  The mode's quiescence precondition forbids them and no program checks it,
   and nothing in the store detects one.
 - This design does not decide whether a slot's record may be removed when its clone is destroyed and its
   registration settled,
