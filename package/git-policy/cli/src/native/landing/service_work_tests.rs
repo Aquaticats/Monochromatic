@@ -1070,7 +1070,8 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
 
 /// What:
 ///  Every push the service runs carries the mark that makes a missing-program refusal name the service's own
-///  `PATH`, never the shell's.
+///  `PATH`,
+///  never the shell's.
 /// Why:
 ///   Nothing of the committing shell travels with the service's push,
 /// so the refusal must say which list was searched;
