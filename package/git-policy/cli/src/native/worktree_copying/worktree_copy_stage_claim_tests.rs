@@ -2417,3 +2417,67 @@ fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left()
     crate::fs_btrfs_ioctl::subvolume_destroy_at(container.as_path()).expect("the control's snapshot");
     remove(root.as_path());
 }
+
+/// What:
+///  Settling an interrupted add removes the clone rung's waiting index and the lock a killed Git left beside it,
+/// whether the checkout is proven whole or not,
+///  and leaves every other file of the administrative directory where it is.
+/// Why:
+///   A rung killed between writing its index under its own name and giving it the worktree's name leaves
+/// `index.pending` and `index.pending.lock`,
+///  and the finish command the report prints writes the worktree's own `index` and knows nothing of them,
+/// so a person who lists the directory would find files of the add that no step will ever take (`N3` of the closure
+/// check).
+/// The shape before the settlement is the control:
+///  both names stand there,
+///  and a foreign name beside them does not go.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// registeredWorktree(destination, admin, 1); writeFileSync(join(admin, 'index.pending'), indexHolding(1));
+/// writeFileSync(join(admin, 'index.pending.lock'), ''); writeFileSync(join(admin, 'index.pending.hold'), '');
+/// const settled = settleInterruptedAdd(record);
+/// expect(existsSync(join(admin, 'index.pending'))).toBe(false); expect(existsSync(join(admin, 'index'))).toBe(true);
+/// expect(existsSync(join(admin, 'index.pending.hold'))).toBe(true);
+/// ```
+#[test]
+fn settling_an_interrupted_add_removes_the_rungs_waiting_index() {
+    for whole in [true, false] {
+        let (root, common, destination) = scene(if whole { "claim-waiting-index-whole" } else { "claim-waiting-index-open" });
+        let admin: PathBuf = common.join("worktrees/topic");
+        let pointer: Vec<u8> = registered_worktree(destination.as_path(), admin.as_path(), 1);
+        let pending: PathBuf = admin.join("index.pending");
+        let lock: PathBuf = admin.join("index.pending.lock");
+        let foreign: PathBuf = admin.join("index.pending.hold");
+        // The rung's own names, in the shape a kill inside the fallback or the write step leaves them.
+        std::fs::write(pending.as_path(), index_holding(1)).expect("the waiting index");
+        std::fs::write(lock.as_path(), b"").expect("the stale lock");
+        std::fs::write(foreign.as_path(), b"").expect("a name that is nobody's rung's");
+        if !whole {
+            // An add whose checkout is not proven whole: no index, so the report prints the finish command.
+            std::fs::remove_file(admin.join("index")).expect("no index yet");
+        }
+        let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+        let record: PathBuf = claim.path.with_extension("add");
+        std::fs::write(
+            record.as_path(),
+            crate::worktree_add_binding::registered_record_with(
+                &Binding { destination: destination.clone(), destination_id: crate::worktree_add_binding::path_identity(destination.as_path()).expect("the destination's identity"), admin: admin.clone(), admin_id: crate::worktree_add_binding::path_identity(admin.as_path()).expect("the admin's identity"), pointer },
+                None,
+                None,
+            )
+            .as_bytes(),
+        )
+        .expect("the add's record");
+        age_past_the_patience(record.as_path());
+        std::mem::forget(claim);
+        assert!(pending.exists() && lock.exists() && foreign.exists(), "the control: the shape holds the rung's names before the settlement ({whole})");
+        let settled: Settlement = settle_interrupted_add(record.as_path());
+        assert_eq!(settled.keep, !whole, "the record stays exactly while the checkout is not proven whole ({whole})");
+        assert!(!pending.exists(), "the rung's waiting index goes ({whole})");
+        assert!(!lock.exists(), "and the lock a killed Git left beside it ({whole})");
+        assert_eq!(admin.join("index").exists(), whole, "the worktree's own index stays exactly as the settlement found it ({whole})");
+        assert!(foreign.exists(), "a name nobody's rung wrote stays ({whole})");
+        remove(root.as_path());
+    }
+}

@@ -15,7 +15,8 @@ use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_ladder_run::begin_ladder;
 use crate::worktree_add_binding::Bound;
 use crate::worktree_copy_journal::journal_root;
-use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
+use crate::test_support::git_output;
+use crate::worktree_ladder_test_support::{OLDER_TARGET_OLD_PATHS, commit_all, main_identity, paths_below, plan_to, subvolume_repository, tracked};
 use std::cell::RefCell;
 use std::process::{Command, Stdio};
 
@@ -55,6 +56,12 @@ fn recording_runner(steps: &Steps, fail_reset: bool) -> impl FnMut(&GitStep<'_>)
 /// the steps and
 ///  what was printed.
 fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: bool, spoil: impl FnOnce(&Path)) -> (LadderResult, Vec<Vec<String>>, String) {
+    return add_through_the_ladder_at(repo, root, None, extra, fail_reset, spoil);
+}
+
+/// `add_through_the_ladder` with the commit the add targets named,
+/// so a fixture can add a worktree at a tree that differs from the source's `HEAD`.
+fn add_through_the_ladder_at(repo: &Path, root: &Path, target: Option<&str>, extra: &[&str], fail_reset: bool, spoil: impl FnOnce(&Path)) -> (LadderResult, Vec<Vec<String>>, String) {
     let destination: PathBuf = root.join("topic");
     let mut plan = plan_to(destination.clone());
     plan.quiet = extra.contains(&"--quiet");
@@ -63,6 +70,9 @@ fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: 
     let mut words: Vec<&str> = vec!["worktree", "add", "--no-checkout"];
     words.extend_from_slice(extra);
     words.extend(["-b", "topic", "../topic"]);
+    if let Some(commit) = target {
+        words.push(commit);
+    }
     git(repo, words.as_slice());
     spoil(destination.as_path());
     let steps: Steps = RefCell::new(Vec::new());
@@ -677,4 +687,158 @@ fn btrfs_a_configuration_rule_writes_gits_bytes_in_the_snapshot_rung() {
     assert_ne!(served, b"line one\nline two\n", "Git's checkout converts both text lines, so a rung that carried the source would fail here");
     assert_eq!(git_text(root.join("topic").as_path(), &["status", "--porcelain=v1"]), "", "the published worktree is clean");
     remove(root.as_path());
+}
+
+/// What:
+///  Every tracked path of a worktree with its bytes and whether it is executable,
+/// by path.
+/// Why:
+///   A control that compares two worktrees compares what each holds,
+/// and a path one holds and the other does not is as much a difference as another path's bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// trackedBytes(worktree); // [path, bytes, executable]
+/// ```
+fn tracked_bytes(worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt as _;
+    use std::os::unix::fs::PermissionsExt as _;
+    let listing: Vec<u8> = git_output(worktree, &["ls-files", "-z"]).stdout;
+    let mut files: Vec<(String, Vec<u8>, bool)> = Vec::new();
+    for name in listing.split(|byte: &u8| { return *byte == 0; }).filter(|name: &&[u8]| { return !name.is_empty(); }) {
+        let path: PathBuf = worktree.join(OsStr::from_bytes(name));
+        let executable: bool = std::fs::metadata(path.as_path()).map(|held: std::fs::Metadata| { return held.permissions().mode() & 0o111 != 0; }).unwrap_or(false);
+        files.push((String::from_utf8_lossy(name).into_owned(), std::fs::read(path.as_path()).unwrap_or_default(), executable));
+    }
+    return files;
+}
+
+/// What:
+///  An add to a commit whose tree lacks the paths the source's `HEAD` holds ends after the snapshot was taken,
+/// and the worktree it publishes equals Git's checkout of that commit:
+/// every tracked path's bytes and mode,
+/// a clean status,
+/// and no path of the snapshot the target tree lacks.
+/// Why:
+///   The snapshot rung writes the fence's paths in the stage before the exchange,
+/// so the same target tree ends the rung with the destination holding only Git's pointer and no path of the copies can stay;
+/// the control requires that of the rung as of the clone rung,
+/// so the two rungs' endings are held to the same tree
+/// (`m05` of the class controls leaves the clone rung with its copies).
+#[test]
+fn btrfs_a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_snapshot_behind() {
+    let Some(root) = btrfs_fixture("finish-older-target") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
+    tracked(repo.as_path(), "keep.dat", b"line one\n");
+    commit_all(repo.as_path(), "conversion");
+    git(repo.as_path(), &["update-ref", "refs/heads/other", "HEAD"]);
+    tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
+    for index in 0..OLDER_TARGET_OLD_PATHS {
+        tracked(repo.as_path(), format!("old/file-{index}.dat").as_str(), b"line one\n");
+    }
+    commit_all(repo.as_path(), "second");
+    let (result, _steps, _printed) = add_through_the_ladder_at(repo.as_path(), root.as_path(), Some("other"), &[], false, |_| {});
+    assert_eq!(result.git, GitStatus { code: Some(0) }, "Git's own checkout completed the worktree");
+    assert_eq!(result.carried, None, "the snapshot rung published no worktree");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference", "other"]);
+    let topic: PathBuf = root.join("topic");
+    let reference: PathBuf = root.join("reference");
+    assert_eq!(tracked_bytes(topic.as_path()), tracked_bytes(reference.as_path()), "every tracked path is Git's checkout's");
+    assert_eq!(git_text(topic.as_path(), &["status", "--porcelain=v1"]), "", "the worktree is clean");
+    // The snapshot's own trash folder is its `.claude`, which the reference has no reason to hold.
+    assert_eq!(paths_below(topic.as_path(), &[".git", ".claude"]), paths_below(reference.as_path(), &[".git"]), "a path the snapshot carried and the target tree lacks stays behind");
+    assert!(!topic.join("extra.txt").exists(), "the fenced path the older tree lacks is gone");
+    assert!(!topic.join("old").exists(), "the folder the older tree lacks is gone");
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository two commits deep under a `*.txt text eol=crlf` rule,
+///  the older of which lacks `extra.txt`,
+/// with a worktree at the older commit prepared the way the rung's steps leave one:
+/// the newer commit's files on disk,
+/// and its index written under the rung's own name,
+///  by a `git read-tree` that records no stat data.
+/// Why:
+///   The shape is the rung's last two states before the two-tree update refuses,
+/// so a control can run the exact fallback the rung runs without a clone-capable filesystem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, destination, admin, pending, newer } = failedTreeDifferenceShape(root, steps);
+/// ```
+fn failed_tree_difference_shape(root: &Path, runner: &mut impl FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    tracked(repo.as_path(), "notes.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "older");
+    let older: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "newer");
+    let newer: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let destination: PathBuf = root.join("topic");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", destination.to_str().expect("utf8"), older.as_str()]);
+    // The clones' output on disk: the newer commit's tracked files, byte for byte.
+    for name in [".gitattributes", "notes.txt", "extra.txt"] {
+        std::fs::copy(repo.join(name), destination.join(name)).expect("a copied file");
+    }
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    let pending: PathBuf = admin.join("index.pending");
+    let environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_INDEX_FILE"), pending.as_os_str().to_os_string())];
+    let arguments: Vec<OsString> = ["-C"].iter().map(OsString::from).chain([destination.as_os_str().to_os_string()]).chain(["read-tree"].iter().map(OsString::from)).chain([OsString::from(newer.as_str())]).collect();
+    runner(&GitStep::Other { arguments: arguments.as_slice(), environment: environment.as_slice() }).expect("the index the rung wrote");
+    assert!(pending.exists(), "the rung's index waits under its own name");
+    assert!(!admin.join("index").exists(), "and the worktree has no index yet");
+    return (repo, destination, admin, pending);
+}
+
+/// What:
+///  The fallback checkout runs against the rung's waiting index and rewrites the entries that hold no stat data,
+/// and the worktree's own `index` does not exist while it runs.
+/// Why:
+///   `git read-tree -m -u` refuses a zeroed entry,
+/// so the rung's fallback is Git's own `reset --hard` against the index the rung wrote under its own name;
+/// if that run merely refreshed such an entry instead of rewriting the file,
+/// the source's bytes would stay where Git's checkout writes others (issue 6323),
+/// and a published index before the run would vouch for them.
+/// The control is the same shape with the entry's stat data recorded by `git update-index --refresh`:
+/// the same measurement then shows the source's bytes and a clean status,
+///  so it can see the difference between a rewrite and a refresh.
+#[test]
+fn the_fallback_checkout_rewrites_a_zeroed_entry_and_leaves_a_recorded_one_trusted() {
+    for arm in ["zeroed", "recorded"] {
+        let root: PathBuf = fixture(format!("finish-fallback-{arm}").as_str());
+        let steps: Steps = RefCell::new(Vec::new());
+        let mut runner = recording_runner(&steps, false);
+        let (repo, destination, admin, pending) = failed_tree_difference_shape(root.as_path(), &mut runner);
+        if arm == "recorded" {
+            // The entry of `notes.txt` is refreshed over the source's LF bytes, which is the state a published index would
+            //  have reached before the write (the defect the waiting name prevents).
+            let environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_INDEX_FILE"), pending.as_os_str().to_os_string())];
+            let arguments: Vec<OsString> = ["-C"].iter().map(OsString::from).chain([destination.as_os_str().to_os_string()]).chain(["update-index", "--refresh"].iter().map(OsString::from)).collect();
+            runner(&GitStep::Other { arguments: arguments.as_slice(), environment: environment.as_slice() }).expect("refresh");
+        }
+        let plan = plan_to(destination.clone());
+        let bound: Bound = crate::worktree_add_binding::bind_registration(repo.join(".git").as_path(), destination.as_path()).expect("bound");
+        let status: GitStatus = super::checkout_like_git_with((&plan, &bound, &mut runner), Some(pending.as_path()), true);
+        assert_eq!(status, GitStatus { code: Some(0) }, "Git's own checkout ran ({arm})");
+        assert!(!admin.join("index").exists(), "the worktree's own name is the rung's to publish, after this run ({arm})");
+        // The publication the rung makes after the run, so `git status` here reads a published index as the person's would.
+        std::fs::rename(pending.as_path(), admin.join("index")).expect("the publication");
+        let served: Vec<u8> = std::fs::read(destination.join("notes.txt")).expect("the served path");
+        let entry: String = git_text(destination.as_path(), &["ls-files", "--debug", "--", "notes.txt"]);
+        if arm == "zeroed" {
+            assert_eq!(served, b"line one\r\nline two\r\n", "an entry without stat data is rewritten, not refreshed");
+            assert!(!destination.join("extra.txt").exists(), "an entry the target tree lacks is removed");
+            assert!(entry.contains("size: 20"), "the rewritten file's own stat data is recorded: {entry}");
+        } else {
+            assert_eq!(served, b"line one\nline two\n", "a recorded entry is trusted, so the source's bytes stay: the defect the ordering prevents");
+            assert!(entry.contains("size: 18"), "the recorded entry describes the source's bytes, not Git's: {entry}");
+            assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "and that state reads as a clean worktree, so the probe sees a refresh where a rewrite was needed");
+        }
+        remove(root.as_path());
+    }
 }

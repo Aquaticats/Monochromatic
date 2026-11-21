@@ -148,6 +148,51 @@ pub(crate) fn hide_an_edit(repo: &Path, relative: &str, original: &[u8], edited:
     return false;
 }
 
+/// How many paths the older-commit fixture adds under `old/`,
+/// so both rungs' controls copy one shape of a target tree that lacks files the source holds.
+pub(crate) const OLDER_TARGET_OLD_PATHS: usize = 40;
+
+/// What:
+///  Every path below `root`,
+/// as `/`-joined names relative to it,
+///  with the top-level names in `left_out` skipped,
+/// sorted.
+/// Why:
+///   A control that requires a rung's worktree to equal Git's checkout compares every entry the worktree holds,
+/// so a file a rung left over is named whether or not an index records it;
+/// the stack keeps a deep tree off the call stack,
+///  and one sorted list compares with another as one value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsBelow(root, new Set(['.git'])); // sorted relative names
+/// ```
+pub(crate) fn paths_below(root: &Path, left_out: &[&str]) -> Vec<String> {
+    // The directories still to read, each as the relative name of its own contents' parent.
+    let mut pending: Vec<String> = vec![String::new()];
+    let mut found: Vec<String> = Vec::new();
+    while let Some(parent) = pending.pop() {
+        let directory: PathBuf = if parent.is_empty() { root.to_path_buf() } else { root.join(parent.as_str()) };
+        let listing = match std::fs::read_dir(directory.as_path()) {
+            Ok(read) => read,
+            Err(_unreadable) => continue,
+        };
+        for entry in listing.flatten() {
+            let name: String = entry.file_name().to_string_lossy().into_owned();
+            let relative: String = if parent.is_empty() { name.clone() } else { format!("{parent}/{name}") };
+            if parent.is_empty() && left_out.contains(&name.as_str()) {
+                continue;
+            }
+            if entry.file_type().map(|kind: std::fs::FileType| return kind.is_dir()).unwrap_or(false) {
+                pending.push(relative.clone());
+            }
+            found.push(relative);
+        }
+    }
+    found.sort();
+    return found;
+}
+
 /// What:
 ///  The index `index` as a Git built without nanosecond support writes it:
 /// every entry's change and modification

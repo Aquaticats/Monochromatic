@@ -22,7 +22,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, porcelain, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
 use super::worktree_snapshot::{commit_all, tracked, tracked_content};
 use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
 use std::ffi::OsStr;
@@ -411,4 +411,112 @@ fn a_converting_share_one_path_past_a_quarter_declines_the_rung() {
     let other: usize = converting * DECLINE_SHARE_DIVISOR - converting - 2;
     let repo: PathBuf = decline_fixture(&fixture, "repo", converting, other);
     assert_rung_equals_git_expecting(&fixture, repo.as_path(), false, "so this rung declines and Git's checkout writes the worktree");
+}
+
+/// How many plain files the older commit's tree lacks under `old/`,
+/// so the fixture's shape is one constant rather than a literal at each use.
+const OLD_PATHS_ADDED: usize = 40;
+
+/// What:
+///  Every path below `root`,
+/// as `/`-joined names relative to it,
+///  with the top-level names in `left_out` skipped,
+/// sorted.
+/// Why:
+///   A control that requires the served worktree to equal Git's checkout compares every entry it holds,
+/// including one the worktree's own `.gitignore` hides from `git status`;
+/// the stack keeps a deep tree off the call stack,
+///  and one sorted list compares with another as one value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsBelow(root, new Set(['.git'])); // sorted relative names
+/// ```
+fn paths_below(root: &Path, left_out: &[&str]) -> Vec<String> {
+    let mut pending: Vec<String> = vec![String::new()];
+    let mut found: Vec<String> = Vec::new();
+    while let Some(parent) = pending.pop() {
+        let directory: PathBuf = if parent.is_empty() { root.to_path_buf() } else { root.join(parent.as_str()) };
+        let Ok(listing) = std::fs::read_dir(directory.as_path()) else { continue };
+        for entry in listing.flatten() {
+            let name: String = entry.file_name().to_string_lossy().into_owned();
+            let relative: String = if parent.is_empty() { name.clone() } else { format!("{parent}/{name}") };
+            if parent.is_empty() && left_out.contains(&name.as_str()) {
+                continue;
+            }
+            if entry.file_type().map(|kind: std::fs::FileType| { return kind.is_dir(); }).unwrap_or(false) {
+                pending.push(relative.clone());
+            }
+            found.push(relative);
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// What:
+///  A repository whose newer commit holds a converting path and a folder of paths the older commit lacks:
+/// a `*.txt text eol=crlf` rule,
+/// an LF `notes.txt`,
+/// a `keep.dat` no rule matches,
+/// and a commit `other` made before `extra.txt` and the `old/` folder were added.
+/// Why:
+///   The add targets `other`,
+/// so the clone copies the source's whole tracked set into a worktree whose tree lacks 41 of those paths,
+/// and the two-tree update refuses the zeroed entry of `extra.txt`:
+///  the one shape a clone rung can end in after its copies (`m05` of the class controls).
+fn older_target_fixture(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = conversion_fixture(fixture, "repo", b"*.txt text eol=crlf\n", b"line one\nline two\n", &|repo| {
+        std::fs::write(repo.join("keep.dat"), b"line one\n").expect("a path no rule matches");
+        super::worktree_snapshot::age(repo.join("keep.dat").as_path());
+        git(fixture, repo, &["add", "--", "keep.dat"]);
+        git(fixture, repo, &["update-index", "--refresh"]);
+        git(fixture, repo, &["update-ref", "refs/heads/other", "HEAD"]);
+    });
+    tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
+    for index in 0..OLD_PATHS_ADDED {
+        tracked(repo.as_path(), format!("old/file-{index}.dat").as_str(), b"line one\n");
+    }
+    commit_all(fixture, repo.as_path(), "second");
+    return repo;
+}
+
+/// What:
+///  An add to a commit whose tree lacks the paths the source's `HEAD` holds ends after its copies,
+/// and the worktree it publishes equals Git's checkout of that commit:
+/// every tracked path's bytes and mode,
+/// a clean status,
+/// and no path of any kind the clones copied.
+/// Why:
+///   The copied paths the target tree lacks are the leftover the class harness's `m05` reports on the branch and that `main`
+/// does not leave on either filesystem;
+/// a served worktree that ends after its copies owes the same tree Git's own checkout makes,
+/// so a leftover is a regression against `main` and not a limitation.
+#[test]
+fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() {
+    let fixture: Fixture = fixture("zfs-clone-conversion-older-target");
+    if !on_zfs_or_acknowledged(&fixture, "a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = older_target_fixture(&fixture);
+    let created: Observed = run_wrapped_verbose(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic", "other"]);
+    let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "control", "../control", "other"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
+    let topic: PathBuf = fixture.root.join("topic");
+    let reference: PathBuf = fixture.root.join("control");
+    assert!(!stderr_of(&created).contains("clones served"), "the tree difference ends the rung: {}", stderr_of(&created));
+    assert!(stderr_of(&created).contains("and Git's own checkout made the worktree"), "{}", stderr_of(&created));
+    assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, reference.as_path()), "every tracked path is Git's checkout's");
+    assert_eq!(porcelain(&fixture, topic.as_path()), "", "the served worktree is clean");
+    assert_eq!(paths_below(topic.as_path(), &[".git"]), paths_below(reference.as_path(), &[".git"]), "a path the clones copied and the target tree lacks stays behind");
+    assert!(!topic.join("extra.txt").exists(), "the fenced path the older tree lacks is gone");
+    assert!(!topic.join("old").exists(), "the folder the older tree lacks is gone");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    assert!(admin.join("index").is_file(), "the rung gives the index the worktree's name once Git's checkout is done");
+    assert!(!admin.join("index.pending").exists() && !admin.join("index.pending.lock").exists(), "nothing of the rung's waiting name stays in the administrative directory: {:?}", paths_below(admin.as_path(), &[]));
+    std::fs::remove_dir_all(topic.as_path()).expect("remove the worktree");
+    std::fs::remove_dir_all(reference.as_path()).expect("remove the control");
+    remove(&fixture);
 }

@@ -2753,9 +2753,16 @@ The index is written under a name of its own with the stat data of every path Gi
 Git's runs for the tree difference and for the one `git checkout-index --force -u` are pointed at that file with
 `GIT_INDEX_FILE`,
 and only after that write does the file take the worktree's name `index`.
-A process killed anywhere between the copies and that last step therefore leaves no index in the worktree at all,
+A process killed anywhere between the copies and that last step,
+the fallback checkout of a failed tree difference included,
+therefore leaves no index in the worktree at all,
 which the recovery names as an add that is possibly incomplete and follows with the commands that finish or remove it;
-an index published before the write could not vouch for a written path either,
+the recovery also removes the waiting index and the lock a killed Git left beside it,
+so the finish leaves nothing of the add's own in the administrative directory;
+a kill inside that fallback leaves the unfinished shape above,
+with the waiting file and its lock and no index,
+and whatever the run had already written stays on disk for the finish to complete.
+An index published before the write could not vouch for a written path either,
 because the clean form of the source's bytes equals the blob the entry names,
 so a `git status` would refresh such an
 entry and report the worktree clean while a converted path still held the source's bytes.
@@ -2771,12 +2778,16 @@ says
 `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
 An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
 because its zeroed entry cannot be verified as up to date;
-Git's own checkout then writes the worktree and the bytes are equal.
+Git's own checkout then writes the worktree against the rung's own index,
+which still holds the source's entries,
+so a path the new tree lacks is removed with the tracked ones and the bytes are equal.
 A source with an untracked or ignored `.gitattributes` anywhere above a tracked path refuses the rung,
 because Git read it when the files were added and the new worktree will not have it,
 and the refusal is taken before anything is copied.
-A source that sets `attr.tree` or `GIT_ATTR_SOURCE` refuses the rung,
-because the destination would read attributes from a tree the fence did not read.
+A source that sets `attr.tree` or `GIT_ATTR_SOURCE` is served when its stat data proves every tracked path,
+because the fence's `git check-attr` reads the same tree Git's checkout does and the bytes are equal;
+a source whose clean proof has to read content ends in Git's own checkout,
+because that proof reads the worktree's attribute files and cannot rule out the tree's.
 A refusal removes nothing,
 because a name cannot be checked and unlinked in one step:
 the tracked files of a run longer than the rung's break-even are cloned in up to the host's budget of slices at

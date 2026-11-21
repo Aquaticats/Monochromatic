@@ -25,7 +25,7 @@ use crate::worktree_clone_index::PendingIndex;
 #[cfg(feature = "measurement-routes")]
 use crate::worktree_clone::{Cloned, clone_tracked_files};
 use crate::worktree_clone_conversion_beside_the_clone::{fence_beside_the_clone, install_beside_the_clone};
-use crate::worktree_copy::GitRunner;
+use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_ladder_target::{Target, apply_difference_with_index, prepare_target};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::path::Path;
@@ -72,8 +72,29 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
         Err(reason) => Err(reason),
     };
     if let Err(reason) = applied {
-        warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(created.as_slice(), plan.destination.as_path())).as_str());
-        discard_the_pending_index(pending, &bound.admin);
+        // What:
+        //  Complete the worktree with Git's own checkout against the index this rung wrote under its own name.
+        // Why:
+        //  The two-tree update refuses an entry the fence left to Git (`error: Entry 'extra.txt' not uptodate. Cannot
+        //  merge.`), because that entry holds no stat data and the update verifies the entries of the paths it is about to
+        //  change. Git's own `reset --hard` against the same file is the checkout the rung owes: the file holds the source's
+        //  entries, so a path the target tree lacks is a tracked-then-deleted one there and the reset removes it, and a path
+        //  Git must write is checked out because its entry is not up to date. The index gains the worktree's name only after
+        //  that run, so a kill inside it leaves no index that could vouch for a path Git had not written; the ladder's own
+        //  fallback then runs the same checkout against the published index, whose entries describe what is on disk.
+        //  The run is silent because that fallback prints Git's line.
+        let Some(waits) = pending else {
+            // A fence that decided before the copies installed its index under the worktree's own name, so the ladder's
+            // fallback runs against that file and removes what the target tree lacks by itself.
+            return Err(reason);
+        };
+        let settled: GitStatus = super::checkout_like_git_with((plan, bound, run_git), Some(waits.path_in()), true);
+        if !settled.succeeded() {
+            warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(created.as_slice(), plan.destination.as_path())).as_str());
+            waits.discard(&bound.admin);
+            return Err(reason);
+        }
+        waits.publish(&bound.admin)?;
         return Err(reason);
     }
     if !decided.git_writes.is_empty() {

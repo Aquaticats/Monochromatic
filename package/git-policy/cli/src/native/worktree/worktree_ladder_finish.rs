@@ -46,7 +46,7 @@ use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
-use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment_with_index, prepare_target, run_step};
 use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
 use crate::worktree_slow_route::{SlowRoute, explain_clone_failure, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
@@ -241,16 +241,37 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// async function checkoutLikeGit(args): Promise<GitStatus>; // failure when the binding does not hold
 /// ```
 fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
+    return checkout_like_git_with((plan, bound, run_git), None, plan.quiet);
+}
+
+/// What:
+///  `checkout_like_git` against the index file `index` when it is named,
+///  and silent when `quiet` says the caller's own run prints Git's line.
+/// Why:
+///   The clone rung writes its index under a name of its own until the last write through Git is done
+/// (`worktree_clone_index::PendingIndex`),
+/// so a checkout of a worktree whose tree difference failed is pointed at that file with `GIT_INDEX_FILE`:
+/// the file holds the source's entries,
+/// which is what makes a path the target tree lacks a tracked-then-deleted one and removes it,
+///  and a path Git must write is checked out because its entry holds no stat data.
+/// The rung's own run is silent because the person reads the line of the fallback that follows,
+///  which runs after the index took the worktree's own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkoutLikeGitWith({ plan, bound, runGit }, index, quiet): Promise<GitStatus>;
+/// ```
+fn checkout_like_git_with((plan, bound, run_git): (&AddPlan, &Bound, &mut dyn GitRunner), index: Option<&Path>, quiet: bool) -> GitStatus {
     let destination: &Path = plan.destination.as_path();
     if let Err(reason) = verify_association(bound) {
         warn(TAG, format!("monochromatic-git-policy-cli: the checkout of {} was not started: {reason}", destination.display()).as_str());
         return GitStatus { code: Some(1) };
     }
     let mut arguments: Vec<OsString> = ["-C"].iter().map(OsString::from).chain([destination.as_os_str().to_os_string()]).chain(["reset", "--hard", "--no-recurse-submodules"].iter().map(OsString::from)).collect();
-    if plan.quiet {
+    if quiet {
         arguments.push(OsString::from("--quiet"));
     }
-    let environment: Vec<(OsString, OsString)> = checkout_environment(bound.binding.admin.as_path(), destination);
+    let environment: Vec<(OsString, OsString)> = checkout_environment_with_index((bound.binding.admin.as_path(), destination), index);
     let status: GitStatus = match run_step(run_git, arguments.as_slice(), environment.as_slice()) {
         Ok(status) => status,
         Err(reason) => {
