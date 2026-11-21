@@ -41249,7 +41249,11 @@ stated in this entry. What follows from them, as work:
   limit) and two low notes in the deadline document (the 75 ms cold arm ran on a shared host, not under a gate; the
   "231 milliseconds" comparison sets a difference against a whole round). The fuzz sidecar type check of
   `package/git-policy/cli.fuzz` passes on `main` (clippy `-D warnings` exit 0; cargo reused cached results from outside the
-  sidecar's own `target/`, valid because a path dependency is rechecked when its sources change).
+  sidecar's own `target/`, valid because a path dependency is rechecked when its sources change). GOING: ZFS step 7 (the
+  intent property, the receipts, the readiness record, the per-slot root claim, the wrapper's side) as
+  `pi-zfs-step-7-intent-receipts-readiness` on `feat/git-policy-cli-zfs-mount-intent-receipts-readiness` (its
+  dependencies, steps 1, 2, 5 and 6, are all on `main`; the mount-request deadline provisional until step 22 sizes it;
+  brief under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
