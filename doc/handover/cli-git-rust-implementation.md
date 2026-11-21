@@ -41112,7 +41112,15 @@ stated in this entry. What follows from them, as work:
   (lock records 32 to 34) say what `btf-rs` does with a widened field, no entry check added; L1 five controls, each red
   with its code removed; L2 one hop budget over aliases and array elements, a fourth contract duty, red as a stack
   overflow under a capped unit; L3; binding suite 228 of 228; no wrapper source touched. GOING: the integration reviewer's
-  closure check, merging today's `main` (which gained `c2881ce698`) and running the gate once, then the merge.
+  closure check, merging today's `main` (which gained `c2881ce698`) and running the gate once, then the merge. STEP 6'S
+  GATE AND LAYOUT CHECKER MERGED into `main` as `b427ec281e` at 2026-11-20T23:50:53-05:00 (closure check fit; its gate
+  9364 of 9367: the cause-H pair and `process_cpu_counters_guard::a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_ended`,
+  untouched by either branch, filed as issue 6330). The BTF entry-check question stays open in the owner file. GOING:
+  step 6's second part, the start probe, as `pi-zfs-step-6-start-probe` on `feat/git-policy-cli-zfs-start-probe`
+  (built to `doc/decision/cli-git-zfs-start-probe.md` and the accepted design; cap 640; brief under
+  `~/temp/agent/zfs-step-6-start-probe-2026-11-20/`); and issue 6330 as
+  `pi-git-policy-cli-process-cpu-counters-thread-race` (force the order, fix where it lives, record it beside causes G and
+  H; brief under `~/temp/agent/git-policy-cli-process-cpu-counters-thread-race-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
