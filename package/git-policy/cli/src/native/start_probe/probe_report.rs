@@ -249,6 +249,19 @@ impl ProbeReport {
         });
     }
 
+    /// Whether the report already says why the worker stopped:
+    /// a step failed,
+    /// or a step could not run.
+    /// Why:
+    ///  A worker that wrote either ended on purpose,
+    ///  and a missing teardown line is then its own account rather than a
+    ///  child that died without answering.
+    pub fn stopped_on_purpose(&self) -> bool {
+        return self.lines().iter().any(|line| {
+            return matches!(line.answer, StepAnswer::Failed { .. } | StepAnswer::NotExercised { .. });
+        });
+    }
+
     /// What became of one arm.
     pub fn arm_outcome(&self, arm: ProbeArm) -> ArmOutcome {
         let mut every_step_passed: bool = true;

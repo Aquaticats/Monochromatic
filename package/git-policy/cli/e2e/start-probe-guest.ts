@@ -246,6 +246,7 @@ function green(chosen: Options): void {
     '  fi',
     '  echo "PROBE $3"',
     '}',
+    `sed --in-place 's|${POOL}/nosnap/git-worktree-probe-absent|${PROBE_DATASET}|' ${CONFIGURATION}`,
     'cat /proc/self/mountinfo | sort > /root/mountinfo-before.txt',
     `zpool sync ${POOL}`,
     `cat /proc/spl/kstat/zfs/${POOL}/txgs > /root/txgs-before.txt`,
@@ -306,12 +307,12 @@ function green(chosen: Options): void {
     // M10's absent-source reading: the configuration names a dataset the pool does not hold.
     `sed --in-place 's|${PROBE_DATASET}|${POOL}/nosnap/git-worktree-probe-absent|' ${CONFIGURATION}`,
     `${HANDLER} start-probe > /root/probe-absent.log 2>&1 || true`,
+    `sed --in-place 's|${POOL}/nosnap/git-worktree-probe-absent|${PROBE_DATASET}|' ${CONFIGURATION}`,
     `cp ${RECORD} /root/record-absent.txt`,
     `check 'source-existed no' /root/record-absent.txt 'absent source recorded'`,
     `check 'reason missing-source' /root/record-absent.txt 'absent source names its cause'`,
     `check 'errno ENOENT' /root/record-absent.txt 'absent source answers ENOENT'`,
     `check 'verdict blocked' /root/record-absent.txt 'absent source blocks the route'`,
-    `sed --in-place 's|${POOL}/nosnap/git-worktree-probe-absent|${PROBE_DATASET}|' ${CONFIGURATION}`,
     // M9's refused arm: a filtered move_mount answers EPERM, which fails that step and refuses the probe.
     `systemd-run --unit=git-worktree-probe-test --quiet --wait --collect --property=SystemCallFilter=~move_mount --property=SystemCallErrorNumber=EPERM ${HANDLER} start-probe || true`,
     `cp ${RECORD} /root/record-refused.txt`,

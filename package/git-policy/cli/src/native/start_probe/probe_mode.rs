@@ -247,7 +247,7 @@ impl<'a> ProbeMode<'a> {
         let verdict: ProbeVerdict = if timed_out {
             ProbeVerdict::TimedOut { in_flight: report.in_flight(), last_finished: report.last_finished() }
         } else {
-            if report.first_failed_step().is_none() && report.lines().iter().all(|line| return line.step != super::probe_arms::ProbeStep::Teardown) {
+            if !report.stopped_on_purpose() && report.lines().iter().all(|line| return line.step != super::probe_arms::ProbeStep::Teardown) {
                 report.finish_with(match ending {
                     Exit::Signaled { signal } => ChildEnding::Signal { number: signal },
                     _ => ChildEnding::NoStatusLine,
