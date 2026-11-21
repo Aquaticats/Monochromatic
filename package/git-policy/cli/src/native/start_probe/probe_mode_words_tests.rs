@@ -14,6 +14,12 @@
 //! ```
 
 use super::{source_of, source_refusal_word, verdict_line};
+
+/// An empty report,
+/// which every verdict line reads without a step.
+fn report() -> ProbeReport {
+    return ProbeReport::new();
+}
 use super::super::probe_arms::{ProbeArm, ProbeStep};
 use super::super::probe_report::{ProbeReport, ProbeVerdict};
 use super::super::probe_status_line::StepLine;
@@ -21,13 +27,16 @@ use super::super::probe_status_line::StepLine;
 /// Every verdict's line names what the reader must act on.
 #[test]
 fn every_verdict_line_names_what_matters() {
-    assert!(verdict_line(ProbeVerdict::Passed, "none", "none").contains("enabled"));
-    assert!(verdict_line(ProbeVerdict::Failed { step: ProbeStep::Move }, "none", "none").contains("move"));
-    assert!(verdict_line(ProbeVerdict::Blocked { arm: ProbeArm::Source }, "none", "none").contains("source"));
-    assert!(verdict_line(ProbeVerdict::Blocked { arm: ProbeArm::Source }, "none", "none").contains("reflink"));
-    let timed_out: String = verdict_line(ProbeVerdict::TimedOut { in_flight: Some(ProbeStep::Move), last_finished: Some(ProbeStep::VerifyMount) }, "move", "verify-mount");
-    assert!(timed_out.contains("move") && timed_out.contains("verify-mount"), "{timed_out}");
-    assert!(verdict_line(ProbeVerdict::Skipped { gate_step: "member" }, "none", "none").contains("member"));
+    let mut failed: ProbeReport = ProbeReport::new();
+    failed.record(StepLine::failed(ProbeStep::Move, Some("EBUSY")));
+    assert!(verdict_line(ProbeVerdict::Passed, &report()).contains("enabled"));
+    let failure: String = verdict_line(ProbeVerdict::Failed { step: ProbeStep::Move }, &failed);
+    assert!(failure.contains("move") && failure.contains("EBUSY") && failure.contains("move-unmount"), "{failure}");
+    assert!(verdict_line(ProbeVerdict::Blocked { arm: ProbeArm::Source }, &report()).contains("source"));
+    assert!(verdict_line(ProbeVerdict::Blocked { arm: ProbeArm::Source }, &report()).contains("reflink"));
+    let timed_out: String = verdict_line(ProbeVerdict::TimedOut { in_flight: Some(ProbeStep::Unmount), last_finished: Some(ProbeStep::Move) }, &report());
+    assert!(timed_out.contains("unmount") && timed_out.contains("move"), "{timed_out}");
+    assert!(verdict_line(ProbeVerdict::Skipped { gate_step: "member" }, &report()).contains("member"));
 }
 
 /// The source and its refusal are read from the lines the worker sent.

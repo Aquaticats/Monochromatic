@@ -31,19 +31,44 @@ pub fn unstarted(what: &str, errno: i32) -> String {
 }
 
 /// The one line the mode says about its verdict.
-pub fn verdict_line(verdict: ProbeVerdict, in_flight: &str, last_finished: &str) -> String {
+/// It names the arm,
+/// the step and the errno a reader needs,
+/// the record that holds the rest,
+/// and the route an unused slot takes instead.
+pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
+    let record: &str = super::probe_record_files::RECORD_DIRECTORY;
     return match verdict {
-        ProbeVerdict::Passed => String::from("start probe passed: every arm passed, so managed attaches are enabled for this boot and module identity"),
-        ProbeVerdict::Failed { step } => format!("start probe failed at `{}`: the record names the arm, its errno and the route an unused slot takes", step.name()),
+        ProbeVerdict::Passed => format!("start probe passed: every arm passed, so managed attaches are enabled for this boot and module identity and the result is in {record}"),
+        ProbeVerdict::Failed { step } => {
+            let errno: &str = first_errno(report).unwrap_or("none");
+            format!(
+                "start probe failed at arm `{}`'s `{}` step (errno {errno}), so managed attaches are refused, an unused slot takes the reflink or ordinary Git route, and the result is in {record}",
+                step.arm().name(),
+                step.name()
+            )
+        }
         ProbeVerdict::Blocked { arm } => format!(
-            "start probe did not run its `{}` arm, so managed attaches stay blocked and an unused slot takes the reflink or ordinary Git route",
+            "start probe did not run its `{}` arm, so managed attaches stay blocked, an unused slot takes the reflink or ordinary Git route, and which arm did not run and why is in {record}",
             arm.name()
         ),
-        ProbeVerdict::TimedOut { .. } => format!(
-            "start probe missed its deadline: the step in flight was `{in_flight}` and the last one that finished was `{last_finished}`, so the record is not current and managed attaches stay blocked"
+        ProbeVerdict::TimedOut { in_flight, last_finished } => format!(
+            "start probe missed its deadline: the step in flight was `{}` and the last one that finished was `{}`, so the record in {record} is not current and managed attaches stay blocked",
+            in_flight.map_or("none", |step| return step.name()),
+            last_finished.map_or("none", |step| return step.name())
         ),
-        ProbeVerdict::Skipped { gate_step } => format!("start probe skipped: the compatibility gate refused at `{gate_step}`, so nothing was mounted and no probe verdict exists"),
+        ProbeVerdict::Skipped { gate_step } => format!("start probe skipped: the compatibility gate refused at `{gate_step}`, so nothing was mounted and no probe verdict exists in {record}"),
     };
+}
+
+/// The first failed step's errno name,
+/// where one answered.
+fn first_errno(report: &ProbeReport) -> Option<&'static str> {
+    return report.lines().iter().find_map(|line| {
+        return match &line.answer {
+            super::probe_status_line::StepAnswer::Failed { errno } => *errno,
+            super::probe_status_line::StepAnswer::Passed | super::probe_status_line::StepAnswer::NotExercised { .. } => None,
+        };
+    });
 }
 
 /// The source the worker's read-source-name line carried.
@@ -89,7 +114,7 @@ pub fn skip_after_gate_refusal(place: &RecordPlace, paths: &FingerprintPaths, ga
     let verdict: ProbeVerdict = ProbeVerdict::Skipped { gate_step };
     let record = ProbeRecord { fingerprint: &fingerprint, time: time.as_str(), source: None, source_refusal: None, report: &report, verdict, worker_namespace: None, holder_namespace: None };
     place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
-    return Ok(verdict_line(verdict, "none", "none"));
+    return Ok(verdict_line(verdict, &report));
 }
 
 

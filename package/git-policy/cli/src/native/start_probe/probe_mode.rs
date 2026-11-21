@@ -264,7 +264,7 @@ impl<'a> ProbeMode<'a> {
             holder_namespace: holder_namespace.as_deref(),
         };
         self.place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
-        return Ok(verdict_line(verdict, report.in_flight().map_or("none", |step| return step.name()), report.last_finished().map_or("none", |step| return step.name())));
+        return Ok(verdict_line(verdict, &report));
     }
 }
 
