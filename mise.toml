@@ -268,7 +268,7 @@ const forwardedArgumentWords = () => {
   const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length)
   if (forwarded === '') { return '' }
   if (!forwarded.startsWith(' ')) {
-    throw new Error('cannot read the arguments mise pasted into this script: the body continues past the forwarded-arguments marker comment, so mise appended its words after that code and they ran as source. End the task body with the marker comment.')
+    throw new Error('cannot read the arguments mise pasted into this script: the body continues past the forwarded-arguments marker comment, so any words mise appends would run as source after that code. End the task body with the marker comment.')
   }
   const lineBreak = forwarded.search(forwardedLineBreak)
   if (lineBreak !== -1) {
