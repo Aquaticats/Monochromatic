@@ -502,21 +502,29 @@ impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
 
     /// What:
     ///  Take a relink's kept reason back,
-    ///  now that its record is in `failed` and no later pass will tell again.
+    ///  now that its record is in `failed` and no later pass will tell again,
+    ///  and give up the programs and transport settings a push given up on held.
     /// Why:
     ///   The reason has to outlive the words:
     ///   a pass killed between them and the move to `failed` is told again by the next one,
     ///   and a reason forgotten at the first telling would make that second notice claim no tool ever answered.
     ///   Nothing reads a record in `failed`,
-    /// so keeping it longer would leave a file nothing removes.
+    /// so keeping it longer would leave a file nothing removes;
+    /// and the programs of a push live only in this service's memory and are keyed by that record
+    ///  (`service_push_programs_held_in_memory`),
+    /// so a push the recovery gave up on keeps none of them either,
+    ///  and one of them can hold a password.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// settled(item) { if (item.kind === 'relink') forget(item.gitDir, item.id()); }
+    /// settled(item) { if (item.kind === 'relink') forget(item.gitDir, item.id()); if (item.kind === 'push') forgetPrograms(item.gitDir, item.id()); }
     /// ```
     fn settled(&self, given_up: &WorkItem) {
         if given_up.kind == WorkKind::Relink {
             crate::package_repair_relink_failure::forget(given_up.git_dir.as_path(), given_up.id().as_str());
+        }
+        if given_up.kind == WorkKind::Push {
+            crate::service_push_programs_held_in_memory::forget(given_up.git_dir.as_path(), given_up.id().as_str());
         }
     }
 }

@@ -343,6 +343,69 @@ fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_wo
 }
 
 /// What:
+///  A push the recovery gives up on keeps none of the programs and transport settings the command that asked for it
+///  gave,
+///  because nothing will run that record again.
+/// Why:
+///   This is the one ending no handler performs:
+///   the recovery moves a record to `failed` once its tries run out,
+///   and the values live only in the service's memory (`service_push_programs_held_in_memory`),
+///   so a value that can hold a password would outlive every push the service ever ran.
+///   The positive control reads the values before the ending,
+///   so the instrument is shown able to see one that is there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const last = { ...push('p'), tries: MAX_TRIES - 1 }; enqueue(work, last); claimNext(work); remember(last.gitDir, last.id, programs);
+/// expect(recover(work, after, LEASE, MAX_TRIES, skipNotice(common)).givenUp).toEqual([last.id]); expect(held(last)).toBeUndefined();
+/// ```
+#[test]
+fn a_push_the_recovery_gives_up_on_gives_up_the_programs_it_held() {
+    let root: PathBuf = fixture("settling-given-up-push-programs");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(common.as_path()).expect("common");
+    std::fs::create_dir_all(root.join("worktree").as_path()).expect("worktree");
+    let work: PathBuf = work_directory(common.as_path());
+    let last_try: WorkItem = WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: root.join("worktree"),
+        git_dir: common.clone(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: String::from("0123456789abcdef0123456789abcdef01234567"),
+        parent: String::new(),
+        created: String::from("2026-11-03T05:40:00.000Z"),
+        tries: MAX_TRIES - 1,
+        transport: true,
+    };
+    enqueue(work.as_path(), &last_try).expect("the record is queued");
+    let _claimed = crate::work_item::claim_next(work.as_path(), &ClaimTime::read()).expect("a claim").expect("the record");
+    crate::service_push_programs_held_in_memory::remember(
+        last_try.git_dir.as_path(),
+        last_try.id().as_str(),
+        crate::service_push_programs_held_in_memory::of(&[(std::ffi::OsString::from("PATH"), std::ffi::OsString::from("/opt/git-lfs/bin:/usr/bin"))]),
+    );
+    assert!(
+        crate::service_push_programs_held_in_memory::held(last_try.git_dir.as_path(), last_try.id().as_str()).is_some(),
+        "the positive control: the record was given the values of the command that asked for its push"
+    );
+    let after_the_lease: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE * 2);
+    let recovered = crate::work_item_recovery::requeue_expired_reporting_telling(
+        work.as_path(),
+        &after_the_lease,
+        CLAIM_LEASE,
+        MAX_TRIES,
+        &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(common.as_path()),
+    );
+    assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()], "the recovery gave the record up");
+    assert_eq!(crate::service_push_programs_held_in_memory::held(last_try.git_dir.as_path(), last_try.id().as_str()),
+        None,
+        "a record nothing will run again keeps no value of the command that asked for its push"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(common.as_path());
+    remove(root.as_path());
+}
+
+/// What:
 ///  A relink record queued in a worktree of its own,
 ///  and the work directory its states are in.
 /// Why:
