@@ -243,6 +243,18 @@ path is not trusted:
   but descendants can inherit the variable;
 - dependency availability remains a separate prerequisite after trust succeeds.
 
+### [mise inline task arguments](mise-inline-task-arguments-land-in-the-script.md)
+
+mise appends the words after `--` to an inline `node -e` task's script when it bypasses its own usage parser,
+ so they land in the TypeScript instead of reaching the task:
+
+- the marker comment that ends every parser body,
+   and the recovery of the words from node's own eval source;
+- line feeds,
+   carriage returns and the Unicode separators in a forwarded word are refused,
+   because they would end that comment early;
+- package tasks that read no shared parser are tracked in issue 6328.
+
 ### [mise watch](mise-watch.md)
 
 mise watch flag forwarding bugs and dev-mode restart suppression:
@@ -445,6 +457,9 @@ For common issues:
 - **Mise inline Node task receives no declared usage arguments?
   ** →
   [Parse mise's `usage_args` value](mise-usage-args-inline-node.md)
+- **Mise task dies in TypeScript on its `-- --help` or `-- foo` arguments?
+  ** →
+  [Read the words mise appends to the inline script](mise-inline-task-arguments-land-in-the-script.md)
 - **Nested Wayland quit makes hosted winit client report broken pipes?
   ** →
   [Close the client before stopping the compositor](nested-wayland-client-shutdown-order.md)
