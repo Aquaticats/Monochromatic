@@ -12,8 +12,8 @@
 
  The forwarded-arguments marker is a third shared shape. mise appends the words a task forwards to its inline script
  (the `-h`/`--help` case after `--`) past the TypeScript, so every body that reads `vars.parse_usage_args` ends with the
- marker comment those words land in. One check holds each body to that ending, and two run the parser against a paste,
- so the words are shown to arrive as arguments rather than as source. The synthetic paste covers the shapes a
+ marker comment those words land in. One check holds each body to that ending, and the rest run the parser against a
+ paste, so the words are shown to arrive as arguments rather than as source. The synthetic paste covers the shapes a
  hand-written script can express; the catalog through real mise covers the boundary this code actually depends on,
  every shell-word shape mise can write into the script, including the words that carry a line terminator and must be
  refused. Package task files interpolate the same root variables, so the marker checks cover every package task file's
