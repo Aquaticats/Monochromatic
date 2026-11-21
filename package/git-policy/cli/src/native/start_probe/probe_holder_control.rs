@@ -26,7 +26,7 @@ use super::probe_processes::{Exit, fork, kill_process, pipe_pair, raw, reap_now,
 use super::probe_record_files::RecordPlace;
 use super::probe_report::ProbeReport;
 use super::probe_status_line::{LineFeed, StepAnswer};
-use std::os::fd::{AsRawFd, OwnedFd, RawFd};
+use std::os::fd::{OwnedFd, RawFd};
 
 /// What:
 ///  One holder the mode owns.
@@ -165,7 +165,6 @@ impl Holder {
     pub fn end(&mut self) {
         let _ = kill_process(self.pid);
         let _ = reap_now(self.pid);
-        let _ = self.control.as_raw_fd();
     }
 }
 

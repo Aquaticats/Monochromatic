@@ -98,7 +98,7 @@ impl<'a> ProbeMode<'a> {
         let time: String = crate::iso_time::now_iso();
         self.place.publish(started_text(&fingerprint, time.as_str()).as_str()).map_err(|refusal| return refusal.message())?;
         if switch == TestSwitch::HoldMode {
-            return self.hold_after_the_started_record(&fingerprint, time.as_str());
+            return self.hold_after_the_started_record();
         }
         let hold: Option<super::probe_arms::ProbeStep> = match switch {
             TestSwitch::Hold { step } => Some(step),
@@ -110,8 +110,7 @@ impl<'a> ProbeMode<'a> {
     /// Write the started record and block forever,
     /// which is the kill arm's own state:
     /// the record says the probe began and nothing finished it.
-    fn hold_after_the_started_record(&self, fingerprint: &ProbeFingerprint, time: &str) -> Result<String, String> {
-        let _ = (fingerprint, time);
+    fn hold_after_the_started_record(&self) -> Result<String, String> {
         let blocked = pipe_pair().map_err(|error| return unstarted("hold pipe", error.errno))?;
         let _ = read_one_blocking(raw(&blocked.read));
         return Err(String::from("the test-only hold ended without a signal"));

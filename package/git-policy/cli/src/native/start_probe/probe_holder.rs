@@ -95,8 +95,7 @@ pub fn run(control: RawFd, status: RawFd, source: &str, holder: &Path) -> ! {
     let _attach_written = write_all(status, StepLine::passed(ProbeStep::HolderAttach).encode().as_bytes());
     let mut byte: [u8; 1] = [0];
     // SAFETY: the buffer is this call's own and the call writes at most its length; the read waits for the mode's stop.
-    let read: libc::ssize_t = unsafe { libc::read(control, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
-    let _ = read;
+    let _read: libc::ssize_t = unsafe { libc::read(control, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
     let _wait_written = write_all(status, StepLine::passed(ProbeStep::HolderWait).encode().as_bytes());
     crate::start_probe::probe_child_prelude::exit_now(0);
 }
