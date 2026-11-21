@@ -350,6 +350,10 @@ pub mod ladder_step_ceilings;
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_run;
 
+/// The one read that lets a fast rung step aside when the tree the add names changes a path the fence must have Git write.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_target_tree_skip;
+
 /// Where the words of a Git run the wrapper or the service started on its own go,
 /// now that none carries `--quiet`.
 pub mod inner_git_words;
