@@ -34,6 +34,7 @@ fn request() -> CommitRequest {
         shadow: None,
         captured: 7_000_000_000,
         holder: String::new(),
+        programs: None,
     };
 }
 
@@ -45,6 +46,51 @@ fn a_commit_request_round_trips() {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(!line.contains('\n'), "one line per message");
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
+}
+
+/// What:
+///  The programs a request carries survive the socket as pairs,
+///  a request of an earlier release carries none,
+///  and a name outside the five,
+///  a value that is not text and a value holding a NUL are refused.
+/// Why:
+///   These values become a child's environment,
+/// so a name this release would never carry and a value a protocol line cannot hold whole are refused rather than
+///  passed on;
+/// and an earlier release's request carries no `programs` field at all,
+/// which must read as a push that searches the service's own list.
+#[test]
+fn a_request_carries_the_programs_its_command_set_and_refuses_anything_else() {
+    use std::ffi::OsString;
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
+        (OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin")),
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/key")),
+    ]);
+    let with: CommitRequest = CommitRequest { programs: Some(carried.clone()), ..request() };
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))));
+    // A request of an earlier release names no programs, and its push searches the service's own list.
+    let plain: String = encode_client(&ClientMessage::Commit(Box::new(request())));
+    assert!(matches!(decode_client(plain.as_str()), Ok(ClientMessage::Commit(sent)) if sent.programs.is_none()));
+    // Every other shape of the field is refused, and each of these is a line this control writes.
+    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let rewritten = |variables: serde_json::Value, transport: serde_json::Value| -> String {
+        let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
+        let programs = value.get_mut("programs").expect("the request carries programs").as_object_mut().expect("an object");
+        programs.insert(String::from("variables"), variables);
+        programs.insert(String::from("transport"), transport);
+        return value.to_string();
+    };
+    for (why, variables) in [
+        ("a name outside the five", parsed(r#"[["SSH_AUTH_SOCK", "/run/agent.sock"]]"#)),
+        ("a value that is not text", parsed(r#"[["PATH", 7]]"#)),
+        ("a value holding a NUL", parsed(r#"[["PATH", "/a\u0000b"]]"#)),
+        ("a pair that is not a name and a value", parsed(r#"[["PATH"]]"#)),
+        ("no list at all", serde_json::Value::Null),
+    ] {
+        let bad: String = rewritten(variables, serde_json::Value::Bool(false));
+        assert!(decode_client(bad.as_str()).is_err(), "{why}");
+    }
 }
 
 /// What:
@@ -292,14 +338,67 @@ fn a_welcome_without_a_release_reads_as_none() {
 /// are refused.
 #[test]
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
-    let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
+    let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None , push_programs: Vec::new()};
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
     for bad in ["relative/.git", "", "/\u{0}/.git"] {
-        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None };
+        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None , push_programs: Vec::new()};
         assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
+}
+
+/// What:
+///  A wake carries the programs of each push record it announces,
+///  a wake about other work carries none,
+///  and a record id that is no work record,
+///  a missing programs object and a name outside the five are refused.
+/// Why:
+///   The values live only in the service's memory and the record is a file,
+/// so this message is the only route they have to the push that will run;
+/// a wake that named other work's record would give one push another command's list.
+#[test]
+fn a_wake_carries_the_programs_of_each_record_it_announces_and_refuses_anything_else() {
+    use std::ffi::OsString;
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[(
+        OsString::from("PATH"),
+        OsString::from("/opt/lfs/bin:/usr/bin"),
+    )]);
+    let id: String = String::from("push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374");
+    let sent: ClientMessage = ClientMessage::Work {
+        git_dir: PathBuf::from("/srv/repo/.git"),
+        review_key: None,
+        push_programs: vec![(id.clone(), carried.clone())],
+    };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
+    let nothing: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new() };
+    assert_eq!(decode_client(encode_client(&nothing).as_str()), Ok(nothing));
+    let parsed = |text: &str| -> serde_json::Value { return serde_json::from_str(text).expect("a value this control wrote"); };
+    let rewritten = |entries: serde_json::Value| -> String {
+        let mut value: serde_json::Value = serde_json::from_str(
+            encode_client(&ClientMessage::Work {
+                git_dir: PathBuf::from("/srv/repo/.git"),
+                review_key: None,
+                push_programs: vec![(id.clone(), carried.clone())],
+            })
+            .as_str(),
+        )
+        .expect("a JSON line");
+        value.as_object_mut().expect("an object").insert(String::from("pushPrograms"), entries);
+        return value.to_string();
+    };
+    for (why, entries) in [
+        ("a record id that is no work record", parsed(r#"[{"id": "maintenance", "programs": {"transport": false, "variables": []}}]"#)),
+        ("an entry with no programs", parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374"}]"#)),
+        (
+            "a name outside the five",
+            parsed(r#"[{"id": "push-0123456789abcdef0123456789abcdef01234567-f921bd05e68b0374", "programs": {"transport": false, "variables": [["SSH_AUTH_SOCK", "/run/agent.sock"]]}}]"#),
+        ),
+        ("a list that is not a list", parsed("{}")),
+    ] {
+        let bad: String = rewritten(entries);
+        assert!(decode_client(bad.as_str()).is_err(), "{why}");
+    }
 }
 
 /// A warm message round-trips,
@@ -345,7 +444,7 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
     sent.commit = Some(String::from(BLOB));
     sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
     for message in [
-        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None },
+        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None , push_programs: Vec::new()},
         ClientMessage::Warm { git_dir: git_dir.clone(), repository },
         ClientMessage::Commit(Box::new(sent)),
     ] {
@@ -363,7 +462,7 @@ fn a_line_of_an_earlier_release_is_read_as_its_plain_paths() {
     let warm: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\",\"repository\":\"/srv/repo\"}}");
     assert_eq!(decode_client(warm.as_str()), Ok(ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") }));
     let work: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
-    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None }));
+    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None , push_programs: Vec::new()}));
 }
 
 /// A commit built elsewhere is named whole,
@@ -418,12 +517,12 @@ fn an_amend_carries_its_tree_and_only_an_amend_does() {
 #[test]
 fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     const SECRET: &str = "test-key-not-a-secret";
-    let with_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: ReviewKey::new(SECRET) };
+    let with_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: ReviewKey::new(SECRET) , push_programs: Vec::new()};
     let line: String = encode_client(&with_key);
     assert!(line.contains(SECRET), "the key travels in the message");
     assert_eq!(decode_client(line.as_str()), Ok(with_key.clone()));
     assert!(!format!("{with_key:?}").contains(SECRET));
-    let without_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
+    let without_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None , push_programs: Vec::new()};
     assert!(!encode_client(&without_key).contains("reviewKey"));
     let wrong_type: String = line.replace(&format!("\"{SECRET}\""), "42");
     assert!(decode_client(wrong_type.as_str()).is_err());
@@ -610,6 +709,39 @@ fn the_most_changes_fit_one_line_only_while_their_names_are_text() {
     assert!(!commit_request_fits(&sent), "the bytes beside the readable spelling are more than one line holds");
     sent.changes = of_names(None);
     assert!(commit_request_fits(&sent), "a text name of the same length fits the line the ceiling was measured for");
+}
+
+/// What:
+///  A request whose own line fits is measured with the program search list this command sends with it,
+///  and the same request with room to spare for that list is measured as fitting.
+/// Why:
+///   The client attaches this command's `PATH` and transport settings to every request it sends
+///  (`service_client::submit_traced`),
+/// so a request measured without them is one the service refuses as too long,
+///  and a commit fails for a list the person never chose to send;
+/// the two arms differ only in how much room the line leaves.
+#[test]
+fn a_request_at_the_ceiling_is_measured_with_the_programs_this_command_sends() {
+    let plain: usize = commit_line(&request()).len();
+    let carried: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of_this_process();
+    let with_programs: usize = commit_line(&CommitRequest { programs: Some(carried), ..request() }).len();
+    let room: usize = with_programs - plain;
+    assert!(room > 2, "the positive control: this command's list takes room on the line ({room} bytes), so the measurement can see it");
+    // A line that fits with less room to spare than the list takes: without the list it is inside the ceiling, with it outside.
+    let aimed: usize = MAX_LINE_BYTES - room / 2;
+    let named = |length: usize| -> CommitRequest {
+        return CommitRequest {
+            changes: vec![Change { path: PathBuf::from("p".repeat(length)), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }],
+            ..request()
+        };
+    };
+    let near: CommitRequest = named(aimed - commit_line(&named(0)).len());
+    assert_eq!(commit_line(&near).len(), aimed, "the control's line is the length it aimed for");
+    assert!(aimed + 1 <= MAX_LINE_BYTES && aimed + 1 + room > MAX_LINE_BYTES, "the two arms straddle the ceiling by construction");
+    assert!(!commit_request_fits(&near), "the line the service is sent is over the ceiling, so the commit must not be measured as fitting");
+    // The other arm: the same request with room for the list fits, so the answer is about the list and not about a broken fixture.
+    let roomy: CommitRequest = named(aimed - commit_line(&named(0)).len() - room - 1);
+    assert!(commit_request_fits(&roomy), "a request with room for this command's list fits");
 }
 
 /// The most changes a request may carry is the most the decoder accepts,

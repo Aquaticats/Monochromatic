@@ -31,6 +31,13 @@ use std::ffi::OsString;
 /// the value it writes is `1` and nothing reads that value.
 pub(crate) const PUSH_FROM_SERVICE: &str = "MONOCHROMATIC_PUSH_RUNS_IN_THE_COMMIT_SERVICE";
 
+/// The variable the commit service adds to a push it runs with the list the command that asked for it gave,
+/// so the refusal names that command's list rather than the service's.
+/// The mark is written by the service and read here as present or absent;
+/// where the service sets it,
+/// the value it writes is `1` and nothing reads that value.
+pub(crate) const PUSH_FROM_THE_REQUEST: &str = crate::service_push_programs_held_in_memory::FROM_THE_REQUEST;
+
 /// What:
 ///  The folders a push's children find their programs in,
 ///  and where that list came from.
@@ -60,8 +67,11 @@ pub struct ProgramSearch {
 pub enum ProgramSearchSource {
     /// The environment of the command that is pushing.
     ThisCommand,
+    /// The list the command that asked for the push gave,
+    /// carried in the memory of the service that runs it.
+    TheCommandThatAsked,
     /// The commit service's own environment,
-    /// because it runs the push of a commit.
+    /// because it runs the push of a commit and no list came with the request.
     ServiceEnvironment,
 }
 
@@ -80,11 +90,16 @@ impl ProgramSearch {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const source = env[PUSH_FROM_SERVICE] ? { kind: 'serviceEnvironment' } : { kind: 'thisCommand' };
+    /// const source = env[PUSH_FROM_THE_REQUEST] ? { kind: 'theCommandThatAsked' } : env[PUSH_FROM_SERVICE] ? { kind: 'serviceEnvironment' } : { kind: 'thisCommand' };
     /// ```
     pub fn of(environment: &[(OsString, OsString)]) -> ProgramSearch {
+        let from_the_request: Option<OsString> = crate::child_environment::environment_value(environment, PUSH_FROM_THE_REQUEST);
         let from_the_service: Option<OsString> = crate::child_environment::environment_value(environment, PUSH_FROM_SERVICE);
-        let source: ProgramSearchSource = if from_the_service.is_some() { ProgramSearchSource::ServiceEnvironment } else { ProgramSearchSource::ThisCommand };
+        let source: ProgramSearchSource = match (from_the_request, from_the_service) {
+            (Some(_), _) => ProgramSearchSource::TheCommandThatAsked,
+            (None, Some(_)) => ProgramSearchSource::ServiceEnvironment,
+            (None, None) => ProgramSearchSource::ThisCommand,
+        };
         let path: OsString = crate::child_environment::environment_value(environment, "PATH").unwrap_or_default();
         return ProgramSearch { path, source };
     }
@@ -114,6 +129,9 @@ impl ProgramSearch {
     fn origin(&self) -> String {
         return match &self.source {
             ProgramSearchSource::ThisCommand => String::from("The list is this command's own `PATH`"),
+            ProgramSearchSource::TheCommandThatAsked => {
+                String::from("The list is the `PATH` of the shell that asked for this push, which travelled with the request to the commit service that runs it")
+            }
             ProgramSearchSource::ServiceEnvironment => format!(
                 "No list of the shell that made the commit came with this push, so it searched the commit service's own `PATH`, which the manager that started the service fixed, and that `PATH` is not the one the shell that made the commit searches; that shell may hold `{LFS_PROGRAM}` anyway"
             ),
@@ -131,6 +149,8 @@ impl ProgramSearch {
     fn remedy(&self) -> String {
         return match &self.source {
             ProgramSearchSource::ThisCommand => String::from("on this command's `PATH` and push again"),
+            // Making the commit again is what brings that shell's list to the service, so it is the remedy that fits this list.
+            ProgramSearchSource::TheCommandThatAsked => String::from("on the `PATH` of the shell that commits, then make the commit again"),
             ProgramSearchSource::ServiceEnvironment => String::from(
                 "on the `PATH` of a shell and push by hand once from that shell (`git push`), which searches that shell's own `PATH`",
             ),

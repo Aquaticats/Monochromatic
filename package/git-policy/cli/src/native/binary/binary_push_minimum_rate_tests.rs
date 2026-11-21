@@ -621,6 +621,7 @@ fn push_record_id(branch: &str, commit: &str) -> String {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     };
     return item.id();
 }

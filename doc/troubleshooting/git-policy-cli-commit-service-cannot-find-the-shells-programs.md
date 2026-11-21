@@ -1,0 +1,122 @@
+# The commit service cannot find the programs the committing shell has
+
+## Symptom
+
+A commit lands and its automatic push is refused with
+`monochromatic-git-policy-cli: this push was stopped before it sent anything.`
+and,
+on the old text,
+`git-lfs was not found in any directory of PATH.`
+The same push typed by hand in the same shell succeeds.
+
+Measured on 2026-11-12 in two linked worktrees:
+the commit service's `PATH`,
+taken from the systemd user manager that started it,
+held no folder `git-lfs` is installed in,
+while the shell that made the commits had one.
+Both commits landed and both pushes were refused for a program their own shell could start.
+
+## Root cause
+
+The commit service runs the push as its own child,
+so the push searched the environment the manager started the service with.
+Nothing of the committing shell reached it:
+a wrapper command may start no program beyond the Git it forwards,
+and the service is a long-lived process of another cgroup and another environment.
+
+Two `GIT_*` variables make the same gap worse than a missing `git-lfs`:
+
+- `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` are whole command lines,
+  and a command line can hold a password,
+  so the working directory of a repository was never a place to copy them into.
+- `GIT_SSH` and `GIT_EXEC_PATH` name a program and a folder outright,
+  and the manager's values name programs the person never chose.
+
+An earlier fix wrote the five values into
+`<git-dir>/monochromatic-git-policy-cli/push-programs.json` at the start of every commit.
+That record was never removed,
+a typed push never refreshed it,
+and a killed write left it whole in a `.push-programs.json.<random>.partial` beside it,
+so a credential outlived the command that owned it and every process of the account could read it.
+
+## What the current release does
+
+The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
+
+- The five values (`PATH`,
+  `GIT_EXEC_PATH`,
+  `GIT_SSH`,
+  `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`)
+  travel with the commit request and with the wake that announces a push record,
+  are held in the service's memory against that record's own id,
+  and are dropped when the record can no longer run.
+  Nothing of them reaches a file,
+  a record,
+  a journal line or a log.
+- The five names the service's own environment held are removed from a push that carries a list,
+  so a value the manager fixed never stands in for one the shell set,
+  and a value the shell left unset never comes back from the manager.
+- A push record keeps one flag and no value:
+  whether the command that asked for the push chose `GIT_SSH`,
+  `GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND`.
+  The journal's intent keeps that flag per commit,
+  so a service that restarts re-holds the push with it.
+- A push whose transport the command chose,
+  and whose settings a restart took away,
+  stops before it runs,
+  says nothing was sent through another transport,
+  and prints the one command that pushes (the command the service itself would have run).
+  The words name both ways the settings can be gone:
+  a service started again since,
+  or a command that could not reach it.
+- The missing-program refusal names the program,
+  every folder of the list it searched,
+  and where that list came from.
+  A list that came with the request is remedied with a commit made again,
+  which hands that shell's list over again;
+  a push that searched the service's own list is remedied with a push by hand once from a shell that holds the program,
+  which searches that shell's own `PATH`.
+- The first command that meets a `push-programs.json`,
+  or a staging file of one of its writes,
+  removes it and says so in the wrapper's own log.
+  A link of that name is removed itself,
+  never what it points at,
+  and nothing else in the folder is touched.
+
+## Verification
+
+- `a_commit_and_a_typed_push_write_neither_command_line_anywhere` sweeps the fixture's Git directory,
+  runtime directory,
+  state directory and home for a planted command line,
+  and finds it before removing it,
+  so the search is proved able to see a value on a disk.
+- `each_push_uses_the_settings_of_the_command_that_asked_for_it` commits twice from two shells and reads,
+  through a stand-in `git-lfs`,
+  which `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` each push carried.
+- `a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command` kills a committing wrapper after it promoted
+  its push record,
+  starts a service that holds nothing,
+  reads the words on the next command,
+  and runs the command they print against a real bare remote.
+- `the_remedy_a_refusal_prints_pushes_from_the_shell` reads a refusal printed by a restarted service and runs the remedy
+  it names.
+- `the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command` writes both shapes of the old record,
+  runs one command,
+  and proves no value of either is left on any disk.
+
+## Limits
+
+- A service that restarted holds nothing,
+  so a push whose command chose a transport stops there.
+  That is the decision:
+  speaking another transport would use credentials nobody chose,
+  and writing the values is what this change removes.
+- A push an earlier release queued carries no list,
+  so it searches the service's own and its refusal says so.
+- The values are a few hundred bytes per push in flight;
+  a service that keeps running holds them until each record settles,
+  or until a plan that carries the push gives it up.
+- `GIT_ASKPASS` and `SSH_ASKPASS` are not carried:
+  the service's pushes set the never-prompt pair,
+  so a login prompt cannot be carried either.

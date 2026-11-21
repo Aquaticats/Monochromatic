@@ -23,7 +23,7 @@ use crate::service_built_checks::commit_content;
 use crate::service_journal::{Intent, write_intent};
 use crate::service_land_context::LandContext;
 use crate::service_land_follow::storage_failure;
-use crate::service_land_git_steps_and_import_stream::{holders_of, ids_of};
+use crate::service_land_git_steps_and_import_stream::{holders_of, ids_of, transports_of};
 use crate::service_land_reflog::{Committed, conclusion_copy, kind, message};
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::service_timing::LandTiming;
@@ -108,6 +108,9 @@ pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), Fail
         //  commit's push names the command that will decide it (`held_push_holder_and_verdict.rs`).
         commits: commits.to_vec(),
         holders: holders_of(batch),
+        // Whether each commit's command chose the transport its push speaks through; the values themselves live only in this
+        //  service's memory (`service_push_programs_held_in_memory`).
+        transports: transports_of(batch),
         paths,
         derived,
         cleanup: first.cleanup.clone(),

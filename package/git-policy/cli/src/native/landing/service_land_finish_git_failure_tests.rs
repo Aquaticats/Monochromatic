@@ -100,7 +100,7 @@ fn a_failed_ancestry_question_keeps_the_batch_and_a_clean_no_drops_it() {
     git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved on"]);
     // The branch is now past the new commit: the batch landed.
     assert_eq!(decisions(&recover(&world.context)), vec![(1, Recovery::Finish)]);
-    let unknown: Intent = Intent { seq: 2, new: "e".repeat(40), ..first.clone() };
+    let unknown: Intent = Intent { seq: 2, new: "e".repeat(40), transports: Vec::new(), ..first.clone() };
     write_intent(world.context.journal.as_path(), &unknown).expect("intent of a commit Git does not have");
     let reports: Vec<RecoveryReport> = recover(&world.context);
     assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "an object Git cannot find is no proof: {reports:?}");
@@ -108,7 +108,7 @@ fn a_failed_ancestry_question_keeps_the_batch_and_a_clean_no_drops_it() {
     git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=side"]);
     let side: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
-    let elsewhere: Intent = Intent { seq: 3, new: side, ..first };
+    let elsewhere: Intent = Intent { seq: 3, new: side, transports: Vec::new(), ..first };
     write_intent(world.context.journal.as_path(), &elsewhere).expect("intent of a commit off the branch");
     let after: Vec<(u64, Recovery)> = decisions(&recover(&world.context));
     assert!(after.contains(&(3, Recovery::Drop)), "{after:?}");

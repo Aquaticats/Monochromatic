@@ -296,7 +296,8 @@ async fn refuse_a_message_for(git_dir: &std::path::Path, write_half: &mut OwnedW
 
 /// What:
 ///  Answers a commit's question about the finished shadow drawn ahead of it:
-///  the tree, or that the stock holds none.
+///  the tree,
+/// or that the stock holds none.
 /// Why:
 ///   The question is answered here and not by the landing,
 ///  from a list held in memory,
@@ -341,9 +342,17 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             let deciding = is_foreign(shared, request.git_dir.clone());
             queue_a_commit(request, write_half, shared, accepted, deciding).await;
         }
-        Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
+        Ok(ClientMessage::Work { git_dir, review_key, push_programs }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => {
+                // What: The programs and transport settings of the command that wrote these push records are held here, for the
+                //  records it named.
+                // Why:  Nothing of them is written (the two command lines can hold a password), and the round that runs a push
+                //  looks them up by its record's id, so each push speaks and searches with the values of the command that asked
+                //  for it (`service_push_programs_held_in_memory`).
+                for (id, programs) in push_programs {
+                    crate::service_push_programs_held_in_memory::remember(git_dir.as_path(), id.as_str(), programs);
+                }
                 let _queued = shared.work.send((git_dir, review_key));
                 let _touched = shared.queue.send(Job::Activity);
             }

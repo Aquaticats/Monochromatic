@@ -45,6 +45,12 @@ pub mod work_item_state_directories_and_claim_names;
 
 pub mod work_item_recovery;
 
+/// Writing one producer's record,
+/// or a round of them,
+/// to the queue,
+/// and finding what is already there.
+pub mod work_item_enqueue;
+
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 
@@ -471,6 +477,10 @@ pub mod service_work_drain_deletes_subvolumes;
 /// What a drained push's verdict does to its records,
 /// its retry plan and the person.
 pub mod service_work_settling_a_verdict;
+
+/// The environment every Git child of a service push receives,
+/// and where its program search list comes from.
+pub mod service_work_push_environment;
 
 /// How one item whose kind answers with words is settled,
 /// with the line the person reads for it.

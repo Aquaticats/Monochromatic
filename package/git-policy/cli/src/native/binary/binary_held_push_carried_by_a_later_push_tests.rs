@@ -140,6 +140,7 @@ fn push_id(commit: &str) -> String {
         parent: String::new(),
         created: String::new(),
         tries: 0,
+        transport: false,
     }
     .id();
 }

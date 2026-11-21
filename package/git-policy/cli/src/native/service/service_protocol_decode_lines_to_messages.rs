@@ -15,6 +15,7 @@ use serde_json::Value;
 use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
+use crate::service_protocol_programs_of_a_request::programs_of;
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, LandingFigures, LandingSync, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path, ends_a_ref_name};
 
 /// What:
@@ -80,7 +81,22 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 Some(Value::String(text)) => ReviewKey::new(text.as_str()),
                 Some(_) => return Err(String::from("work request is not acceptable")),
             };
-            return Ok(ClientMessage::Work { git_dir, review_key });
+            let mut push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)> = Vec::new();
+            match value.get("pushPrograms") {
+                None | Some(Value::Null) => {}
+                Some(Value::Array(entries)) => {
+                    for entry in entries {
+                        let id: &str = field(entry, "id")?;
+                        if !crate::work_item_ids_and_names::is_valid_id(id) {
+                            return Err(String::from("a work request names a record that is no work record"));
+                        }
+                        let programs: &Value = entry.get("programs").ok_or("a work request names no programs")?;
+                        push_programs.push((id.to_string(), programs_of(programs)?));
+                    }
+                }
+                Some(_) => return Err(String::from("work request is not acceptable")),
+            }
+            return Ok(ClientMessage::Work { git_dir, review_key, push_programs });
         }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
@@ -135,6 +151,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 scratch: path_bytes::read_field(entry, "scratch")?,
                 reftable: entry.get("reftable").and_then(Value::as_bool).unwrap_or(false),
             }),
+            _ => None,
+        },
+        // A request of an earlier release carries none, and then the push it queues searches the service's own list.
+        programs: match value.get("programs") {
+            Some(entry) if !entry.is_null() => Some(programs_of(entry)?),
             _ => None,
         },
     };

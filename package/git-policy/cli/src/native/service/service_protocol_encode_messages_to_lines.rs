@@ -192,13 +192,25 @@ pub fn encode_client(message: &ClientMessage) -> String {
             path_bytes::write_field(&mut fields, "repository", repository.as_path());
             Value::Object(fields).to_string()
         }
-        ClientMessage::Work { git_dir, review_key } => {
+        ClientMessage::Work { git_dir, review_key, push_programs } => {
             let mut fields: Map<String, Value> = Map::new();
             put(&mut fields, "type", Value::from("work"));
             put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
             path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
             if let Some(key) = review_key {
                 put(&mut fields, "reviewKey", Value::from(key.expose()));
+            }
+            if !push_programs.is_empty() {
+                let entries: Vec<Value> = push_programs
+                    .iter()
+                    .map(|(id, programs)| {
+                        let mut entry: Map<String, Value> = Map::new();
+                        put(&mut entry, "id", Value::from(id.as_str()));
+                        put(&mut entry, "programs", programs_json(Some(programs)));
+                        return Value::Object(entry);
+                    })
+                    .collect();
+                put(&mut fields, "pushPrograms", Value::Array(entries));
             }
             Value::Object(fields).to_string()
         }
@@ -246,8 +258,38 @@ pub fn commit_line(request: &CommitRequest) -> String {
     put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
     put(&mut fields, "captured", Value::from(request.captured));
     put(&mut fields, "holder", Value::from(request.holder.as_str()));
+    put(&mut fields, "programs", programs_json(request.programs.as_ref()));
     put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
     return Value::Object(fields).to_string();
+}
+
+/// What:
+///  The programs and transport settings of a request as one JSON object,
+///  or null when it carries none.
+/// Why:
+///   The names travel as pairs rather than as an object's keys,
+/// so their order is the order the push's overlay adds them in,
+/// and a name cannot be lost to a
+///  duplicate key;
+/// `transport` is the flag alone,
+/// never a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const programsJson = (programs) => programs === null ? null : ({ transport: programs.transport, variables: programs.variables });
+/// ```
+fn programs_json(programs: Option<&crate::service_push_programs_held_in_memory::PushPrograms>) -> Value {
+    let Some(carried) = programs else {
+        return Value::Null;
+    };
+    let variables: Value = Value::Array(
+        carried
+            .variables
+            .iter()
+            .map(|(name, value)| { return Value::Array(vec![Value::from(name.as_str()), Value::from(value.as_str())]); })
+            .collect(),
+    );
+    return Value::Object(Map::from_iter([(String::from("transport"), Value::from(carried.transport)), (String::from("variables"), variables)]));
 }
 
 /// What:
@@ -258,14 +300,24 @@ pub fn commit_line(request: &CommitRequest) -> String {
 /// so a request at the ceiling is one whose line and break fit together.
 /// A request that does not fit is a commit the wrapper builds itself instead (`service_commit.rs`):
 /// "Commits should never fail."
+/// The request measured is the request the service is sent,
+/// so this command's program search list and transport flag are
+///  counted here too:
+/// they travel with every request (`service_client::submit_traced`),
+/// and a request measured without them could fit alone and be refused as too long once they travelled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const commitRequestFits = (request: CommitRequest) => Buffer.byteLength(commitLine(request)) + 1 <= MAX_LINE_BYTES;
+/// const commitRequestFits = (request: CommitRequest) => Buffer.byteLength(commitLine(withThisProcessPrograms(request))) + 1 <= MAX_LINE_BYTES;
 /// ```
 pub fn commit_request_fits(request: &CommitRequest) -> bool {
+    let mut delivered: CommitRequest = request.clone();
+    // A request that already carries a list keeps it, so a caller that gave one is not overruled by this process's environment.
+    if delivered.programs.is_none() {
+        delivered.programs = Some(crate::service_push_programs_held_in_memory::of_this_process());
+    }
     // The reader counts the line break it reads as part of the line, so the break is part of the budget here too.
-    return commit_line(request).len() + 1 <= MAX_LINE_BYTES;
+    return commit_line(&delivered).len() + 1 <= MAX_LINE_BYTES;
 }
 
 /// What:
