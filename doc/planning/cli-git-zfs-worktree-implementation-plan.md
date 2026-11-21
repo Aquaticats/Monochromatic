@@ -1152,6 +1152,19 @@ So B is the remedy and is built thoroughly,
 its remaining flaws are listed in the proposal's "Limitations" section rather than chased,
 and no further alternative to it is explored;
 the question is not put again.
+On 2026-11-21 the project answered one cost B leaves:
+a btrfs snapshot add of this repository took about twice `main`'s time in the guest
+(838 ms against 431 ms over five rounds with the identical-binary control,
+338 ms of it one `git ls-tree` reading every path's recorded size,
+which the snapshot's constant-time copy leaves nothing to overlap with).
+Asked whether to merge and then build a faster reader,
+merge and accept the cost,
+or build the reader first,
+the project answered "A:
+merge,
+then faster reader (Recommended)".
+So step 3 with the fence merges once its review passes,
+carrying that cost until a reader of the sizes from the object database replaces the `git ls-tree` run.
 
 #### Depends on
 
