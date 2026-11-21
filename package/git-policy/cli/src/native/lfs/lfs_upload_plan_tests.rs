@@ -328,7 +328,7 @@ fn a_mirror_is_read_through_git_and_never_from_a_list_of_spellings() {
 /// a change that asked anyway would slow every mirror push.
 #[test]
 fn a_mirror_push_asks_the_destination_nothing() {
-    let asks = |region: &[&str], settings: &[(&str, &str)]| -> (UploadPlan, Vec<String>) {
+    let asks = |region_words: &[&str], settings_pairs: &[(&str, &str)]| -> (UploadPlan, Vec<String>) {
         let mut asked: Vec<String> = Vec::new();
         let mut answering = |arguments: &[&str]| -> Result<String, String> {
             asked.push(arguments.join(" "));
@@ -338,8 +338,8 @@ fn a_mirror_push_asks_the_destination_nothing() {
                 _ => String::new(),
             });
         };
-        let settings: Settings = config(settings);
-        let region: Vec<OsString> = words(region);
+        let settings: Settings = config(settings_pairs);
+        let region: Vec<OsString> = words(region_words);
         let planned = plan_upload(&[], region.as_slice(), &[], Path::new("/work"), settings.as_slice(), &mut answering);
         return (planned.expect("the plan is worked out").expect("a plan"), asked);
     };
