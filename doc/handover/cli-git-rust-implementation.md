@@ -41281,7 +41281,12 @@ stated in this entry. What follows from them, as work:
   `pi-git-policy-cli-lfs-push-programs-two-worktree-push-retry` in
   `.claude/worktrees/git-policy-cli-lfs-push-programs-two-worktree-push` (forced reproduction on the branch and on `main`,
   fix red first or an issue, the empty cause named, two lows; brief under
-  `~/temp/agent/git-policy-cli-lfs-push-programs-two-worktree-push-retry-2026-11-21/`).
+  `~/temp/agent/git-policy-cli-lfs-push-programs-two-worktree-push-retry-2026-11-21/`). ISSUE 6330'S LOWS ROUND ended at
+  `b61b528b1b` on `docs/git-policy-cli-process-cpu-counters-review-lows` (F1 to F7 fixed in comments and cause I; kernel
+  lines versioned at v6.12 and v7.3; the probe committed as
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host-probe.rs` after the slint precedent; module test 1 of 1
+  in the gate image; no assertion changed). GOING: a narrow integration check on Sonnet (review to
+  `~/temp/agent/integration-check-git-policy-cli-process-cpu-counters-review-lows-2026-11-21/keep/review.md`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
