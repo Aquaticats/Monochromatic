@@ -140,7 +140,7 @@ MEASUREMENT store-hold adoption-widest-store bytes=1048534 samples=10 min_ms=44.
 ```
 
 The adoption arm read 44.146 to 46.676 ms,
-0.5 ms under the earlier runs' fastest figure (47.116 ms) and 6.1 ms under their slowest (52.750 ms),
+0.44 ms under the earlier runs' fastest figure (47.116 ms) and 6.07 ms under their slowest (52.750 ms),
 and every sample wrote and published the file:
 a refusal would have ended before the rename.
 The wide arms' `bytes` line reads 1,048,534,
