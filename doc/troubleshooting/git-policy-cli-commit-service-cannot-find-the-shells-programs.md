@@ -53,6 +53,7 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   and are dropped when the record can no longer run:
   when its push lands,
   fails for good or is skipped,
+  when a retry plan that carried it is dropped or replaced by another push's plan,
   when a batch that carries it is given back,
   when a repository the filesystem proves gone ends its plans,
   and when the committing wrapper settles or removes the record itself,
@@ -116,6 +117,17 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
 - `the_record_an_unreleased_branch_wrote_is_removed_by_the_first_command` writes both shapes of the old record,
   runs one command,
   and proves no value of either is left on any disk.
+- `a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels` and
+  `a_plan_replaced_by_a_later_pushs_plan_gives_up_the_values_of_the_record_it_carried` give a retryable push a plan
+  and then end that plan the two ways a later commit ends it,
+  by landing and by failing retryably in its place,
+  and prove the older record keeps no value while asserting it held one before.
+- `a_record_settled_where_no_service_runs_starts_none_to_tell_it` proves the message that gives a record's programs
+  up asks the manager for the unit's state first,
+  starts no service,
+  and waits for no start,
+  while `a_running_service_is_told_which_records_can_no_longer_run` proves a service that is running is told exactly
+  the records the command named.
 
 ## Limits
 
