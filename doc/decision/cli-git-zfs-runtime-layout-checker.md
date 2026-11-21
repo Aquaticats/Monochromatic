@@ -221,11 +221,17 @@ and the check-in was written.
 
 The vet report is `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`,
 at `1e6af850a8` (2026-11-20T19:47:58-05:00) on the branch `docs/planning-cli-git-zfs-layout-checker-reader-validation`,
-not yet on `main`.
+not yet on `main`
+(merged into `main` as `d498b79010` at 2026-11-20T21:00:35-05:00,
+carrying the branch at `93fe0d9779`).
 Its wording round after the final gate check was still running at adoption;
 that check found the report's words inaccurate in places,
 and its matrix,
 first place and suite reproduction sound.
+Two text rounds then corrected the words,
+and a diff check and its closure check on Sonnet found them fit,
+with every count reproduced and no score,
+rating or outcome changed.
 The governing skill is `.claude/skills/choosing-technology/SKILL.md`,
 an untracked file whose SHA-256 began `f4cfa6bc5d1d71f4` at adoption.
 The weights were frozen at 1 for each of the report's eight criteria,

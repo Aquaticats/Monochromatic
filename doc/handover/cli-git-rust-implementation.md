@@ -41016,7 +41016,11 @@ stated in this entry. What follows from them, as work:
   That round ended at `93fe0d9779` (report `df0106c13a`: N1 one compiler of three, N2 57 and 55, N3 renumbered, N4 the
   lead's reasons, L5 and N6 to N12, plus one sentence recording the adoption). GOING: the same reviewer's closure check,
   appended to its `keep/review.md`. `~/temp/agent` measured 10,195 MB at 2026-11-20T21:00-05:00, the fence's cost round
-  growing inside its 10 GiB cap.
+  growing inside its 10 GiB cap. THE VET REPORT MERGED into `main` as `d498b79010` (closure check fit; three non-gating
+  nits: report line 324 says every count reproduced though one was stale, line 221 "into this one", the "this is not
+  adoption" bullet beside the adoption sentence); the decision record's pointer now names the merge. The wrapper kept the
+  report's worktree for `kscreenlocker_greet` (issue 6321, commented) and kept its service journal for `rules-repository`
+  (issue 6322); the coordinator removed the worktree by hand.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
