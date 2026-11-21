@@ -13,10 +13,12 @@
  The forwarded-arguments marker is a third shared shape. mise appends the words a task forwards to its inline script
  (the `-h`/`--help` case after `--`) past the TypeScript, so every body that reads `vars.parse_usage_args` ends with the
  marker comment those words land in. One check holds each body to that ending, and the rest run the parser against a
- paste, so the words are shown to arrive as arguments rather than as source. The synthetic paste covers the shapes a
- hand-written script can express; the catalog through real mise covers the boundary this code actually depends on,
- every shell-word shape mise can write into the script, including the words that carry a line terminator and must be
- refused. Package task files interpolate the same root variables, so the marker checks cover every package task file's
+ paste, so the words are shown to arrive as arguments rather than as source. The recovery returns the words exactly as
+ mise wrote them, a trailing space, tab, U+00A0, U+FEFF, U+3000, U+2003, vertical tab or form feed included; it
+ refuses a word holding a line feed, a carriage return, U+2028 or U+2029 and names that word, the last one included;
+ and it refuses a body that continues past the marker with a message of its own. The catalog through real mise covers
+ every one of those shapes, so a recovery that trims the tail or miscounts the broken word fails it. Package task files
+ interpolate the same root variables, so the marker checks cover every package task file's
  parser bodies as well as the root file's, and the marker itself must stay declared in the root file alone.
  */
 
