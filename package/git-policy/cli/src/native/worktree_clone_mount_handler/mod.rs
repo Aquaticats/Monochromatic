@@ -46,6 +46,9 @@
 //! - `adopt_worktree_parent_mode.rs`:
 //!   the administrator's adoption,
 //!   decided by step 4's table and recorded here.
+//! - `per_slot_root_claim.rs`:
+//!   the root-owned directory of one claim file per slot,
+//!   and the exclusive lock a sweep holds while it acts.
 //! - `handler_mode_dispatch.rs`:
 //!   the command line,
 //!   the exit statuses and the lines each mode writes.
@@ -78,6 +81,9 @@ pub mod shutdown_unmount_mode;
 /// The administrator's adoption of a replacement parent folder.
 pub mod adopt_worktree_parent_mode;
 
+/// The per-slot claim every sweep takes before it acts on a clone.
+pub mod per_slot_root_claim;
+
 /// The command line and the statuses.
 pub mod handler_mode_dispatch;
 
@@ -90,5 +96,7 @@ pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode};
 pub use mode_awaiting_its_step::AwaitingItsStep;
 /// The administrator's adoption and why it recorded nothing.
 pub use adopt_worktree_parent_mode::AdoptFailure;
+/// The per-slot claim and its refusal.
+pub use per_slot_root_claim::{ClaimRefusal, HeldSlotClaim, SLOT_CLAIM_DIRECTORY, SlotClaimDirectory};
 /// The command line and the two statuses.
 pub use handler_mode_dispatch::{EXIT_DONE, EXIT_REFUSED, run};

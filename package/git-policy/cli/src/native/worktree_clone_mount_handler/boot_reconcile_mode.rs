@@ -11,8 +11,10 @@
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit").
 //!  Its first action is the gate the handler runs before its first ioctl,
-//!  which is plan step 6,
-//!  so this build refuses the mode before it reads any intent.
+//!  which plan step 6 built,
+//!  and the sweep that reads intent and publishes readiness is plan step 8,
+//!  so this build refuses the mode rather than publish a readiness record for
+//!  a boot it never verified.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,7 +27,7 @@ use super::mode_awaiting_its_step::AwaitingItsStep;
 /// its plan step and the work that step adds.
 pub const AWAITING: AwaitingItsStep = AwaitingItsStep {
     mode: "boot-reconcile",
-    step: 6,
+    step: 8,
     does: "verifies the start-time kernel compatibility gate, the keys and the checkout, reconciles the durable mount intent and publishes this boot's readiness",
 };
 

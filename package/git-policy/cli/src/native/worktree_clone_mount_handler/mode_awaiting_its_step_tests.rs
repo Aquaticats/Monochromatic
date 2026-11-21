@@ -10,7 +10,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(AWAITING.message()).toContain('boot-reconcile'); expect(AWAITING.step).toBe(6);
+//! expect(AWAITING.message()).toContain('boot-reconcile'); expect(AWAITING.step).toBe(8);
 //! ```
 
 use super::AwaitingItsStep;
@@ -37,7 +37,7 @@ fn the_refusal_names_the_mode_the_step_and_that_nothing_was_touched() {
 #[test]
 fn each_unbuilt_mode_refuses_with_its_own_step() {
     assert_eq!(attaching_sweep_mode::AWAITING.step, 8);
-    assert_eq!(boot_reconcile_mode::AWAITING.step, 6);
+    assert_eq!(boot_reconcile_mode::AWAITING.step, 8);
     assert_eq!(shutdown_unmount_mode::AWAITING.step, 9);
     assert_eq!(attaching_sweep_mode::run(), Err(attaching_sweep_mode::AWAITING));
     assert_eq!(boot_reconcile_mode::run(), Err(boot_reconcile_mode::AWAITING));
