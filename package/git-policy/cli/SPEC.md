@@ -19853,6 +19853,164 @@ No verdict is written to disk:
 the cross-process cache is the design's open question Q3,
 held until its owed cost measurement runs.
 
+#### The start probe beside the gate
+
+`mount-git-worktree-clone-datasets start-probe` is the functional probe the
+kernel-release answer asks for,
+run as `ExecStartPre=-` of the boot unit.
+It proves the running kernel and module can make the route's calls,
+and it replaces none of the gate above:
+the gate compares the module's declaration and request numbers,
+and the probe exercises the calls those numbers describe.
+It runs as root,
+in a private mount namespace of its own,
+and every mount it makes dies with that namespace.
+
+What it does,
+in this order:
+
+- It makes its mount namespace private and mounts a scratch tmpfs on
+  `/run/git-worktree-clone-mount-probe/scratch`,
+  then makes the slot,
+  the move target and the refusal tree inside it.
+- It walks from the tmpfs root to the slot with the wrapper's no-crossing
+  `openat2` flags and records the slot's identity,
+  then runs four refusal controls:
+  a symbolic link (`ELOOP`),
+  a `..` escape (`EXDEV`),
+  a bind mount across a component (`EXDEV`),
+  and a recorded identity that changed.
+  It opens the configured checkout read-only and reads no entry there.
+- It reads the source from
+  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`:
+  `gitWorktreeProbeDataset` names the dataset and the probe attaches its
+  `ready` snapshot,
+  and `gitWorktreeCheckout` names the folder the walk opens.
+  The name is checked as a name:
+  each component holds alphanumerics and `_ - . :`,
+  the name is under 256 bytes,
+  and it carries no `@` or `#`.
+- It opens a `zfs` context,
+  writes the source and the `ro`,
+  `nosuid` and `nodev` options,
+  creates the superblock with `FSCONFIG_CMD_CREATE_EXCL`,
+  makes a mount with `MOUNT_ATTR_RDONLY`,
+  `MOUNT_ATTR_NOSUID` and `MOUNT_ATTR_NODEV`,
+  and moves it onto the slot's held descriptor.
+- It reads the mount back:
+  the expected mount ID,
+  the `zfs` filesystem,
+  the exact source and the three flags in the worker's own table,
+  the ZFS magic from `fstatfs`,
+  and a bounded directory read.
+- It forks a holder in a second namespace that attaches the same source with
+  the plain create,
+  scans every mount namespace of its PID namespace while both mounts exist
+  and requires exactly the worker's and the holder's,
+  stops the holder and requires the worker's alone.
+- It closes every descriptor it holds on the mount,
+  forks a child that moves the mount to the move target and unmounts it by
+  path,
+  which must not answer `EBUSY`,
+  and scans once more,
+  requiring no namespace to list the source.
+
+A failed step stops the probe and the record names that step and its errno.
+A source another namespace holds is not a failure:
+the attach arm and every later arm are recorded as not exercised with
+`source-held`.
+A kernel older than 6.6 refuses the exclusive create with `EOPNOTSUPP`,
+which records the attach arm as not exercised rather than falling back to a
+plain create that could reuse a superblock,
+so the managed route's effective floor is Linux 6.6.
+The probe never opens `/dev/zfs`,
+never mounts by path on an account-controlled tree,
+never reads a file's content,
+never creates or destroys a dataset or snapshot,
+and offers no force flag.
+
+The record is `/run/git-worktree-clone-mount-probe/result`:
+a root-owned file,
+mode `0644`,
+in a root-owned directory of mode `0755` the mode creates itself,
+written by atomic rename,
+with a started record written before the fork.
+It holds `v1` and one fixed key per line:
+the kernel's release,
+the module's version,
+`srcversion` and build ID where the module carries them,
+this boot's identity,
+the handler's own identity,
+the time,
+the verdict,
+one line per arm,
+one line per step,
+the worker's and the holder's mount-namespace identities,
+the source,
+whether the kernel found it,
+and,
+for a skipped record,
+the gate step that refused.
+A record whose fingerprint differs from the running kernel,
+module or boot is stale.
+`first-attach` is a second file beside it with its own writer,
+which this build does not write.
+
+Every managed attach reads the record before it attaches.
+The verdicts are:
+
+- `passed` enables managed attaches for this boot and module identity.
+- `failed` refuses new managed attaches and keeps every other operation:
+  an unused slot takes the same-dataset reflink or ordinary Git route,
+  `boot-reconcile` attaches nothing and keeps every intent and registration,
+  and removal of a mounted clone is refused only when the failed step is the
+  move,
+  the unmount or a scan.
+- `blocked`,
+  for an arm that did not run,
+  keeps the route blocked with those same per-operation effects,
+  and `doctor` reports which arm did not run and why.
+- `timed-out` fails closed:
+  the record is not current,
+  it names the step in flight and the last step that finished,
+  a move,
+  unmount or scan in flight is treated as a failed arm for removal,
+  and every other timeout carries the failed-arm effects for new attaches
+  only.
+- `skipped` is the record a refused compatibility gate writes:
+  the probe was not entered,
+  nothing was mounted,
+  and no verdict either way exists.
+
+The mode enforces one deadline over the worker and the holder and kills both
+when it expires;
+a failed,
+timed-out or skipped probe is a verdict in the record,
+never a failed unit,
+so the mode exits successfully whenever it reaches its own end.
+The deadline is 350 milliseconds:
+the slowest of M4's interleaved guest rounds,
+a cold binary's first run at 231
+milliseconds,
+plus a 119-millisecond margin over the 114-millisecond range the
+rounds covered
+(`doc/planning/cli-git-zfs-start-probe-design.md`,
+"M4:
+what the probe costs";
+the rounds are in
+`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`),
+and step 19 re-cites it when the boot unit measures the login delay.
+Until step 19 adds the `ExecStartPre=-`,
+no boot unit runs the probe,
+and it runs only from a transient unit in a guest.
+
+One test-only variable,
+`CLI_GIT_TEST_ONLY_START_PROBE`,
+is compiled into the release executable and inert unless set:
+`disabled` writes a skipped record for the timing control arm,
+and `hold-<step>` wedges the worker after that step so the deadline fires.
+Neither turns a refusal into a pass.
+
 ### Compatibility and degradation
 
 The executable is tested with real Git 2.56.0,

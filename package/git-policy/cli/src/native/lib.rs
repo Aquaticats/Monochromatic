@@ -252,6 +252,18 @@ pub use worktree_clone_mount::*;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
 
+/// The root start probe the kernel-release answer asks for:
+/// the private namespace and the scratch tmpfs,
+/// the exclusive attach,
+/// the holder in a second namespace,
+/// the move and the unmount from a second process,
+/// the record under `/run` and the mode's one deadline.
+/// It sits beside the gate and replaces none of it,
+/// and it is Linux only,
+/// like the mount calls it makes.
+#[cfg(target_os = "linux")]
+pub mod start_probe;
+
 /// The start-time ZFS compatibility gate the root-run handler runs before its
 ///  first ioctl:
 /// the qualified target,
