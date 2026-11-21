@@ -3212,8 +3212,14 @@ which is what H6 asks for.
 The tool finalists are validated at their output boundary.
 Each ran on the same copies and its output carried the compared members,
 and a negative control showed the base file is required.
-Their own upstream suites were not run and are not the product's surface,
-because the product starts the packaged program.
+`pahole`'s own upstream suite ran too,
+in a capped container at the packaged tag with the packaged patches,
+and `bpftool`'s functional suite did not,
+because it needs root and a BPF-capable kernel.
+What did not run is `pahole`'s own CI path:
+a kernel build that supplies the `vmlinux` four of its cases skip for.
+The vet report records it with the one case that path would still leave open,
+and the project decides whether that gap leaves `pahole` a finalist.
 The product's own arms for a tool route,
 owed measurements 13 and 14,
 and the release-version matrix those items name,
@@ -3611,7 +3617,7 @@ priced at 92 of 104 while ineligible.
   The arithmetic agrees at 87 against 60.
 - `pahole` and `bpftool` are not ordered here.
   `bpftool` failed the skill's relevant-execution rule,
-  and at the report's frozen weights its pair with `pahole` ties on eleven rating steps and reverses
+  and at the report's frozen weights its pair with `pahole` ties on thirteen rating steps and reverses
   on none,
   so no evidence in this file turns those ties into an order.
 - The in-house reader is not ranked: the owner's answer of 2026-11-19 left it ineligible, and its
@@ -3921,7 +3927,8 @@ with the `aarch64` target built and unrun as H3's own limit.
 The vet report the same list named is written:
 [`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`][vet-report],
 with fingerprint `55c2be0183adaa6fbad912f852fb045a915c1593b344aa10095aa71bdec4677f`.
-It recommends none.
+It recommends none while the project holds `pahole` a finalist,
+and names what it recommends if it does not.
 Its refrozen baseline,
 every criterion at weight 1 because this project has stated no priority,
 orders the finalists
@@ -3932,20 +3939,29 @@ with `bpftool` 17.5 last and failed on the skill's relevant-execution rule,
 because its functional tests need root,
 a BPF-capable kernel and a VM harness,
 none of which ran here.
-The first place does not move under any input:
+The first place does not move under any input the skill defines:
 `btf-rs` is strictly first in every defined test at those weights,
-by at least 2 points over the runner-up and by at least 5 over `pahole`.
+by at least 2 points over the runner-up and by at least 5 over `pahole`,
+and at every weight from 1 to 5,
+one criterion at a time or all eight jointly.
+The lead is bounded:
+a maintenance weight of 10 with the rest at 1 ties it and 11 puts `pahole` first,
+which is outside the skill's range.
 What does move is the second place:
 a maintenance weight of 4 ties `ebeepf` with `pahole` at 30.5,
 and a weight of 5 puts `pahole` second at 34.5 and `ebeepf` third at 32.5.
 So the report's terminal result is the skill's "sensitivity unresolved",
-and what it hands the project is a conditional ranking plus the questions that can move an order:
+for as long as `pahole` is a finalist;
+if the project finds it not eligible the family is the two libraries,
+all 51 of their one-input tests keep the order,
+and the skill then permits a recommendation of `btf-rs`.
+What it hands the project is a conditional ranking plus the questions that can move an order:
 the priority between maintenance and deployment fit,
 which decides the second place,
 and the choice between a library and a program,
-which the arithmetic does not decide in the program's favour at any weight the project stated.
+which the arithmetic does not decide in the program's favour at any weight from 1 to 5.
 The report's own list carries those and the rest,
-including `bpftool`'s eligibility and the disk-cache question.
+including `pahole`'s and `bpftool`'s eligibility and the disk-cache question.
 The two limits stay beside that result:
 
 - the `aarch64` target builds and does not run for either library finalist,
@@ -4125,10 +4141,10 @@ child the handler starts,
 and the arithmetic agrees at 87 against 60 at this file's weights and at 24.5 against 18.5 at the
 report's;
 the maintenance weight ties or reverses that pair,
-which is what the report's second question asks.
+which is what the report's first question asks.
 Option 4 has no place in the order:
 it failed the report's relevant-execution rule,
-and at the report's weights its pair with option 3 ties on eleven rating steps.
+and at the report's weights its pair with option 3 ties on thirteen rating steps.
 The in-house reader has no place in this order: the owner's answer of 2026-11-19 left it
 ineligible, and [Scored comparison](#scored-comparison) keeps its price as what the route would
 have cost.
