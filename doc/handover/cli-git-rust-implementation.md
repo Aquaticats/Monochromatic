@@ -41128,7 +41128,15 @@ stated in this entry. What follows from them, as work:
   cause-H pair. Left for the owner: the service's bounded push goes from 1 connection to 2 (read from the code; one
   connection measured 205, 355, 1,017 ms at 0, 10, 50 ms one-way). GOING: the integration reviewer's closure check (merge
   `main`, rerun the stale-ref control and fixture, count connections, confirm the service path, gate once); then the
-  owner's question on the service push's connection, with the BTF entry-check question.
+  owner's question on the service push's connection, with the BTF entry-check question. THE CLOSURE CHECK found it fit
+  (stale ref 1.025 of `main`, 1 request, 1 object; a typed push 3 connections on both builds; the service push confirmed
+  1 to 2 from the code, no existing query on that path; gate 9383 of 9385, the cause-H pair; D5 the docs said "the
+  project accepts that cost" before any decision). THE OWNER ANSWERED both questions on 2026-11-21: the background push's
+  extra connection "A: accept the connection (Recommended)"; the BTF widened fields "A: accept, revisit later
+  (Recommended)". THE LFS UPLOAD FIX MERGED into `main` as `50c683047e` at 2026-11-21T03:58:29-05:00; the SPEC and the
+  troubleshooting note now cite the acceptance; the BTF answer is in the layout checker's decision record, section
+  "Widened entry fields, answered 2026-11-21", and the owner file marks it answered. NEXT for LFS: the memory-held push
+  programs carry (task 424), then deleting both old LFS branches.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

@@ -12767,7 +12767,10 @@ The step:
   measured at 205 ms,
   355 ms and 1017 ms for the added one-way delays of 0 ms,
   10 ms and 50 ms,
-  and the project accepts that cost.
+  and the project accepted that cost on 2026-11-21,
+  answering "A:
+  accept the connection",
+  because the push runs after the committing command has returned.
   A typed push measured 1.001 to 1.005 of `main` per round at the same three delays,
   inside the spread of the identical-binary control in every cell,
   with 3 connections on both binaries in every sample.

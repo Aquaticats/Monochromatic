@@ -757,7 +757,10 @@ you do.
 Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
 b buys lock-freedom at the cost of that consistency and a rewrite.
 
-## Open: should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads? (recorded 2026-11-20T23:40-05:00)
+## Answered: should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads? (recorded 2026-11-20T23:40-05:00)
+
+Answered 2026-11-21 in the question tool: "A: accept, revisit later (Recommended)".
+Recorded in `doc/decision/cli-git-zfs-runtime-layout-checker.md`, section "Widened entry fields, answered 2026-11-21".
 
 What it is:
 step 6's start-time check reads the loaded ZFS module's type data through `btf-rs` 2.0.1, adopted on
