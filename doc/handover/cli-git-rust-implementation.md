@@ -40910,7 +40910,14 @@ stated in this entry. What follows from them, as work:
   wording, the lock's hash chain. The skill's own rule decides the tools' eligibility, so it is applied, not asked.
   GOING: `pi-zfs-layout-checker-reader-vet-report-recheck-findings-fixed` (cap 400; brief under
   `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/`); the owner's question then is
-  the recommended reader and any priority the skill leaves open.
+  the recommended reader and any priority the skill leaves open. LFS'S RE-CHECK (Sonnet) came back not fit on two
+  mechanical mediums (its folder's `keep/review.md`): F1 the host-key reading is a deny-list, so a revoked key (`@revoked`
+  in `known_hosts` or a `RevokedHostKeys` file) still gets the unknown-key sentence beside OpenSSH's revoked warning; F4
+  `lfs_upload_plan.rs` (322 code lines) and `bounded_push.rs` (342) exceed `rust/max-lines`, invisible to the added-line
+  mapping; lows: the sentence twice when a hook printed it, no control on `service_work.rs:528`, a mis-cited function.
+  Held: M2's leak guard, M3's retry, the pure-move split, the fish form; gate 9313 of 9315, the cause-H pair. GOING:
+  `pi-git-policy-cli-lfs-recheck-findings-fixed` (cap 450), suggested to read the unknown key positively from OpenSSH's own
+  words (brief under `~/temp/agent/git-policy-cli-lfs-recheck-findings-fixed-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
