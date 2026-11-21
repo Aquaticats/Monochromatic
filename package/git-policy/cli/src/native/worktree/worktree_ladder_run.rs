@@ -66,8 +66,9 @@ pub(crate) enum Rung {
     /// Git running without a checkout first;
     /// the claim records the add durably,
     /// so
-    ///  an interrupted one is removed by the next command.
-    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim),
+    ///  an interrupted one is removed by the next command,
+    /// and the fence is the one this add's attributes and configuration already decided, before any of that work began.
+    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, crate::worktree_clone_conversion_fence::Fence),
     /// A snapshot of the source,
     /// Git running without a checkout first.
     Snapshot(Box<SnapshotSource>, StageClaim),
@@ -252,6 +253,28 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     }
     // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
     if clone_refusal.is_none() && source.dirty.is_none() {
+        // What:
+        //  The fence decides here, before the add's record is claimed and before real Git runs.
+        // Why:
+        //  A source the fence declines must cost only the reads the decision needs and Git's own checkout; decided any
+        //  later, the claim, Git's `--no-checkout` run and the second checkout are paid for a worktree Git could have
+        //  written in one run. A fence that cannot read its inputs is the same answer: Git's checkout is correct.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const fence = fenceTheClone(source, context); // throws the reason the rung cannot be proven
+        // ```
+        let conversion_fence_entered: bool = begin_step("conversionFence");
+        let conversion_fence_outcome = crate::worktree_clone_conversion_fence::fence_the_clone(&source, context);
+        end_step(conversion_fence_entered);
+        let fence: crate::worktree_clone_conversion_fence::Fence = match conversion_fence_outcome {
+            Ok(decided) => decided,
+            Err(reason) => {
+                note_timing("route", "Git's checkout after the clone rung ended");
+                log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+                return (Rung::Git(prepare_subvolume_destination(plan)), slow);
+            }
+        };
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         let claim_stage_again_entered: bool = begin_step("claimStage");
         let claim_stage_again_outcome = match held.take() {
@@ -260,7 +283,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         };
         end_step(claim_stage_again_entered);
         match claim_stage_again_outcome {
-            Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim), slow),
+            Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim, fence), slow),
             Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
         }
     }
@@ -416,7 +439,7 @@ impl Ladder {
     /// ```
     pub fn destination_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
         return match &self.rung {
-            Rung::Git(Some(made)) | Rung::Clone(_, Some(made), _) => made.identity,
+            Rung::Git(Some(made)) | Rung::Clone(_, Some(made), _, _) => made.identity,
             _ => None,
         };
     }

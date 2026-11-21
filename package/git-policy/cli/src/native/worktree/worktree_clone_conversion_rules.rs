@@ -46,8 +46,10 @@ pub enum TextAttribute {
     /// text,
     /// with the ending `core.autocrlf` or `core.eol` names.
     Set,
-    /// `-text` (or `!text`):
-    /// never convert.
+    /// `-text`, or the literal value `unset`: never convert, or an action Git does not name.
+    /// `git check-attr` prints both as `unset`,
+    /// so the fence reads it as Git's undefined action,
+    /// which is exact for `text=unset` and only more careful for `-text` (`git_path_check_crlf`).
     Unset,
     /// `text=input`:
     /// normalize on the way in,
@@ -238,7 +240,11 @@ impl ConversionRules {
 fn crlf_action_of(value: TextAttribute) -> CrlfAction {
     return match value {
         TextAttribute::Set => CrlfAction::Text,
-        TextAttribute::Unset => CrlfAction::Binary,
+        // The printed token is either `-text` (`CRLF_BINARY`) or the literal value `unset` (`CRLF_UNDEFINED`), and Git's
+        // two readings differ: the undefined one is refined by `eol` and then decided by `core.autocrlf`. The fence
+        // cannot tell them apart, so it takes the undefined reading: exact for `text=unset`, and only more careful where
+        // Git was given `-text` (`convert_attrs` at 2.56.1).
+        TextAttribute::Unset => CrlfAction::Undefined,
         TextAttribute::Input => CrlfAction::TextInput,
         TextAttribute::Auto => CrlfAction::Auto,
         TextAttribute::Unspecified | TextAttribute::Other => CrlfAction::Undefined,
@@ -374,16 +380,18 @@ pub fn checkout_converts(attributes: &PathAttributes, rules: &ConversionRules) -
 /// What:
 ///  The last value the listing gives `key`,
 /// as its own bytes,
-/// or nothing when no entry has the key.
+/// or nothing when no entry has the key,
+/// and as a missing value when the entry is written without one.
 /// Why:
 ///   Git reads later entries over earlier ones,
 /// so the search runs from the end,
 /// and a value is the bytes the file holds,
-///  which a decoding would shorten.
+///  which a decoding would shorten;
+/// a key written without `=` is a bare name to Git's boolean parser, not an absent key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lastValue = (entries, key) => entries.findLast((entry) => entry.key === key)?.value;
+/// const lastValue = (entries, key) => entries.findLast((entry) => entry.key === key);
 /// ```
 fn last_value<'entries>(entries: &'entries [ConfigEntry], key: &str) -> Option<Option<&'entries [u8]>> {
     for entry in entries.iter().rev() {
@@ -407,14 +415,17 @@ fn last_value<'entries>(entries: &'entries [ConfigEntry], key: &str) -> Option<O
 /// function conversionRulesFromConfig(entries): ConversionRules;
 /// ```
 pub fn conversion_rules_from_config(entries: &[ConfigEntry]) -> ConversionRules {
-    let auto_crlf: AutoCrlf = match last_value(entries, "core.autocrlf").flatten() {
-        Some(value) if value.eq_ignore_ascii_case(b"input") => AutoCrlf::Input,
-        Some(value) => match parse_bool(Some(value)) {
+    // `[core]` with a line holding only `autocrlf` is true to Git: `git_parse_maybe_bool_text(NULL)` is 1 and
+    // `core.autocrlf` goes through `git_config_bool` (`parse.c`, `config.c` at 2.56.1). The fence read the missing value
+    // as an absent key and carried the files before the gate re-check's `p01`.
+    let auto_crlf: AutoCrlf = match last_value(entries, "core.autocrlf") {
+        None => AutoCrlf::False,
+        Some(value) if value.is_some_and(|held| return held.eq_ignore_ascii_case(b"input")) => AutoCrlf::Input,
+        Some(value) => match parse_bool(value) {
             Some(true) => AutoCrlf::True,
             Some(false) => AutoCrlf::False,
             None => AutoCrlf::True,
         },
-        None => AutoCrlf::False,
     };
     let core_eol: EolSetting = match last_value(entries, "core.eol").flatten() {
         Some(value) if value.eq_ignore_ascii_case(b"lf") => EolSetting::Lf,

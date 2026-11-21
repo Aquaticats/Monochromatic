@@ -24,6 +24,7 @@
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
 use super::worktree_snapshot::{commit_all, tracked, tracked_content};
+use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -72,12 +73,23 @@ fn conversion_fixture(fixture: &Fixture, name: &str, attributes: &[u8], notes: &
 /// function assert_rung_equals_git(fixture, repo, served);
 /// ```
 fn assert_rung_equals_git(fixture: &Fixture, repo: &Path, served: bool) {
+    assert_rung_equals_git_expecting(fixture, repo, served, "");
+}
+
+/// What:
+///  As above,
+/// and the words the fence must have printed for the route it took.
+/// Why:
+///   A declining control must show the decline,
+/// not only that Git's checkout was the one that wrote the worktree.
+fn assert_rung_equals_git_expecting(fixture: &Fixture, repo: &Path, served: bool, expected: &str) {
     let created: Observed = run_wrapped_verbose(fixture, repo, &["worktree", "add", "-b", "topic", "../topic"]);
     let control: Observed = run_direct(fixture, repo, &["worktree", "add", "--quiet", "-b", "control", "../control"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
     let clones: bool = stderr_of(&created).contains("clones served");
     assert_eq!(clones, served, "the clone rung served the add: {}\n{}", served, stderr_of(&created));
+    assert!(stderr_of(&created).contains(expected), "the fence said {expected:?}: {}", stderr_of(&created));
     let topic: PathBuf = fixture.root.join("topic");
     assert_eq!(tracked_content(fixture, topic.as_path()), tracked_content(fixture, fixture.root.join("control").as_path()));
     assert_eq!(git(fixture, topic.as_path(), &["status", "--porcelain=v1"]).stdout, b"", "the new worktree of the wrapper is clean");
@@ -287,4 +299,112 @@ fn a_working_tree_encoding_carries_the_sources_bytes_as_gits_checkout_does() {
     let utf16: Vec<u8> = b"line one\nline two\n".iter().flat_map(|byte| return [*byte, 0]).collect();
     let repo: PathBuf = conversion_fixture(&fixture, "repo", b"notes.txt working-tree-encoding=UTF-16LE\n", &utf16, &|_repo| {});
     assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_core_autocrlf_key_written_without_a_value_is_written_by_git() {
+    // `git_parse_maybe_bool_text(NULL)` is 1 (`parse.c`) and `core.autocrlf` goes through `git_config_bool`
+    // (`config.c`), so `[core]` with a line holding only `autocrlf` is true and Git writes carriage returns here. The
+    // fence read the missing value as an absent key and carried these files before the gate re-check's `p01`.
+    let fixture: Fixture = fixture("zfs-clone-conversion-valueless-autocrlf");
+    if !on_zfs_or_acknowledged(&fixture, "a_core_autocrlf_key_written_without_a_value_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"", b"line one\nline two\n", &|repo| {
+        let config_path: PathBuf = repo.join(".git/config");
+        let mut config: Vec<u8> = std::fs::read(config_path.as_path()).expect("the source's configuration");
+        // A section of its own, so the write cannot depend on what `git init` left in `[core]`.
+        config.extend_from_slice(b"[core]\n\tautocrlf\n");
+        std::fs::write(config_path.as_path(), config).expect("a valueless core.autocrlf");
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git() {
+    // `git check-attr` prints the literal value `text=unset` as `unset`, exactly as it prints `-text`, and Git reads
+    // the literal value as `CRLF_UNDEFINED` (`git_path_check_crlf`), which `convert_attrs` gives to `core.autocrlf`;
+    // under `core.autocrlf=true` it therefore writes carriage returns here (the gate re-check's `p02`).
+    let fixture: Fixture = fixture("zfs-clone-conversion-text-unset-value");
+    if !on_zfs_or_acknowledged(&fixture, "a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = conversion_fixture(&fixture, "repo", b"*.txt text=unset\n", b"line one\nline two\n", &|repo| {
+        git(&fixture, repo, &["config", "core.autocrlf", "true"]);
+    });
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+/// What:
+///  A repository whose converting share stands where the decline rule's boundaries are:
+/// `converting` text paths under a carriage-return rule,
+/// `other` paths no rule matches,
+/// and the tracked `.gitattributes` the rule itself.
+/// Why:
+///   The rule is two boundaries,
+/// a floor and a share,
+/// and a source on each side of one must take the route the rule names.
+fn decline_fixture(fixture: &Fixture, name: &str, converting: usize, other: usize) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new(name));
+    tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    for index in 0..converting {
+        tracked(repo.as_path(), format!("convert-{index}.txt").as_str(), b"line one\nline two\n");
+    }
+    for index in 0..other {
+        tracked(repo.as_path(), format!("plain-{index}.dat").as_str(), b"line one\nline two\n");
+    }
+    commit_all(fixture, repo.as_path(), "fixture");
+    return repo;
+}
+
+#[test]
+fn a_converting_count_at_the_floor_keeps_the_clone_rung() {
+    // A thousand converting paths of a tiny tree are a share far past a quarter, and the floor is what keeps the rung.
+    let fixture: Fixture = fixture("zfs-clone-conversion-decline-floor-below");
+    if !on_zfs_or_acknowledged(&fixture, "a_converting_count_at_the_floor_keeps_the_clone_rung") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = decline_fixture(&fixture, "repo", DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR);
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_converting_count_one_past_the_floor_declines_the_rung() {
+    let fixture: Fixture = fixture("zfs-clone-conversion-decline-floor-above");
+    if !on_zfs_or_acknowledged(&fixture, "a_converting_count_one_past_the_floor_declines_the_rung") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = decline_fixture(&fixture, "repo", DECLINE_PATHS_FLOOR + 1, DECLINE_SHARE_DIVISOR);
+    assert_rung_equals_git_expecting(&fixture, repo.as_path(), false, "so this rung declines and Git's checkout writes the worktree");
+}
+
+#[test]
+fn a_converting_share_of_exactly_a_quarter_keeps_the_clone_rung() {
+    let fixture: Fixture = fixture("zfs-clone-conversion-decline-quarter-exact");
+    if !on_zfs_or_acknowledged(&fixture, "a_converting_share_of_exactly_a_quarter_keeps_the_clone_rung") {
+        remove(&fixture);
+        return;
+    }
+    let converting: usize = DECLINE_PATHS_FLOOR + 1;
+    // The tracked `.gitattributes` takes one non-converting path, so the rest are the plain files no rule matches.
+    let other: usize = converting * DECLINE_SHARE_DIVISOR - converting - 1;
+    let repo: PathBuf = decline_fixture(&fixture, "repo", converting, other);
+    assert_rung_equals_git(&fixture, repo.as_path(), true);
+}
+
+#[test]
+fn a_converting_share_one_path_past_a_quarter_declines_the_rung() {
+    let fixture: Fixture = fixture("zfs-clone-conversion-decline-quarter-above");
+    if !on_zfs_or_acknowledged(&fixture, "a_converting_share_one_path_past_a_quarter_declines_the_rung") {
+        remove(&fixture);
+        return;
+    }
+    let converting: usize = DECLINE_PATHS_FLOOR + 1;
+    let other: usize = converting * DECLINE_SHARE_DIVISOR - converting - 2;
+    let repo: PathBuf = decline_fixture(&fixture, "repo", converting, other);
+    assert_rung_equals_git_expecting(&fixture, repo.as_path(), false, "so this rung declines and Git's checkout writes the worktree");
 }

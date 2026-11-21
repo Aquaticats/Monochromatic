@@ -20,7 +20,7 @@
 //! so every source Git reads is answered by Git,
 //! macros and precedence included;
 //! sizes come from one `git ls-tree -r -l`,
-//! and only when a line-ending rule may strip carriage returns;
+//! for every path the fence may carry, because a path with no rule can still hold an earlier rule's form;
 //! and the paths Git must write go through one `git checkout-index` in the destination,
 //! which applies the destination's own conversion.
 //! The source's bytes must be the blob's,
@@ -66,23 +66,57 @@ const WRITTEN_PATHS_REPORTED: usize = 8;
 
 /// The share of the tracked paths past which the rung declines instead of writing them through Git,
 /// as `1 / DECLINE_SHARE_DIVISOR`.
-/// Why a quarter:
-///  the fence's own reads and clone cost about 1350 ms of this repository's 2018 ms `main` checkout,
-/// Git writes a path in about 0.084 ms,
-/// so A stays under `main` while Git writes fewer than roughly a third of 24,389 paths;
-/// a quarter leaves room for the spread,
-/// and the measured converting source (14,153 of 24,389 paths,
-/// 0.58) is far above either number.
-const DECLINE_SHARE_DIVISOR: usize = 4;
+/// Why this share:
+///  the write step prices a path through Git's own rules at about 0.06 to 0.08 ms for a text path and 0.41 to 0.57 ms
+///  for an LFS path (this round's `measure-recheck2-md-*` and `-real-*` runs, both classes in one `git checkout-index`),
+///  and a quarter is where a fenced add stops being separably faster than `main`'s own checkout;
+///  the measured converting source (15,731 of 24,389 paths,
+///  0.645) is far above it.
+pub const DECLINE_SHARE_DIVISOR: usize = 4;
 
 /// The counted paths below which the share is not worth a decline.
 /// Why:
-///  a written path costs about 0.084 ms,
-/// so a thousand of them is 84 ms,
-/// which is inside the run-to-run spread of an add this size;
-/// a small repository with a converting rule should keep its clone rung,
+///  the write of a thousand text paths (60 to 80 ms) is inside the run-to-run spread of an add this size,
+/// so a small repository with a converting rule should keep its clone rung,
 /// and the class controls of four paths must still reach the fence.
-const DECLINE_PATHS_FLOOR: usize = 1000;
+pub const DECLINE_PATHS_FLOOR: usize = 1000;
+
+/// What:
+///  Whether the rung declines the add instead of writing its converting paths through Git.
+/// Why:
+///   The rule is two boundaries a control can stand on: a repository below the path floor keeps its rung whatever its
+/// share, and a share must be strictly more than `1 / DECLINE_SHARE_DIVISOR` of the tracked paths.
+/// The share is counted from the attributes alone, before any blob is read and before anything is cloned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const declines = (converting, tracked) => converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > tracked;
+/// ```
+pub fn declines(converting: usize, tracked: usize) -> bool {
+    return converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > tracked;
+}
+
+/// What:
+///  How many tracked paths a rule of their own would convert,
+/// from the attributes and the configuration alone.
+/// Why:
+///   This is the count the decline rule prices before it reads a blob, and a link is never converted by its path's
+/// rules; a path Git answers nothing for keeps the defaults, which the configuration then decides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const convertingPaths = (entries, attributes, rules) => entries.filter((entry) => !isLink(entry) && checkoutConverts(attributes.get(entry.path), rules)).length;
+/// ```
+pub fn converting_paths(entries: &[StatEntry], attributes: &HashMap<Vec<u8>, PathAttributes>, rules: &ConversionRules) -> usize {
+    let mut converting: usize = 0;
+    for entry in entries {
+        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+        if entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && checkout_converts(&held, rules) {
+            converting += 1;
+        }
+    }
+    return converting;
+}
 
 /// What:
 ///  What one clone rung's fence decided.
@@ -406,16 +440,12 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
     //  blob is read and before anything is cloned.
     // Why:
     //  Writing many paths through Git makes the fence slower than `main`'s own checkout (the converting source measured
-    //  1.28 times `main`),
+    //  1.50 times `main` without the rule, `measure-r5-crlf-*`),
+    //  and the rule is decided here, before the add's record is claimed and before real Git runs, so a declining source
+    //  pays only these reads and Git's own single checkout.
     //  and a shape that is slower than the thing it replaces is not something to ship quietly.
-    let mut converting: usize = 0;
-    for entry in &entries {
-        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
-        if entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && checkout_converts(&held, &rules) {
-            converting += 1;
-        }
-    }
-    if measure_decline && converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > entries.len() {
+    let converting: usize = converting_paths(entries.as_slice(), &attributes, &rules);
+    if measure_decline && declines(converting, entries.len()) {
         return Err(format!(
             "a line-ending rule, a filter, an ident or an encoding can change {converting} of {} paths, more than a quarter of them, so this rung declines and Git's checkout writes the worktree",
             entries.len()

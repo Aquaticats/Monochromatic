@@ -107,16 +107,12 @@ description = "Type-check the native wrapper library, executable and test target
 run = "cargo check --locked --offline --all-targets"
 
 [tasks."native:build:measurement"]
-description = "Build the optimised wrapper executable with the clone conversion fence's measurement-only routes compiled in (`measurement-routes`: options C and D of doc/planning/cli-git-clone-rung-conversion-fence.md), for a report that times them; never installed, never released, and its switches are absent from every shipped build"
+description = "Build the optimised wrapper executable with the clone conversion fence's measurement-only routes compiled in (`measurement-routes`: options C and D of doc/planning/cli-git-clone-rung-conversion-fence.md), for a report that times them; the feature is off by default and no shipped build enables it, this task exists only beside that feature, the executable is never installed or released, and its switches are absent from every shipped build"
 run = "cargo build --locked --offline --release --bin monochromatic-git-policy-cli --features measurement-routes"
 
 [tasks."native:clippy:measurement"]
-description = "Lint the native wrapper with the fence's measurement-only routes compiled in, so no line of a measurement build goes unlinted"
+description = "Lint the native wrapper with the fence's measurement-only routes compiled in, so no line of a measurement build goes unlinted; the feature is off by default and this task exists only beside it"
 run = "cargo clippy --locked --offline --all-targets --features measurement-routes -- -D warnings"
-
-[tasks."native:test:host:cargo"]
-description = "Run the native wrapper's library unit tests with `cargo test` on a host without nextest (the gate's nextest run stays the authority): `-- <filter>...`"
-run = "cargo test --locked --offline --lib"
 
 [tasks."native:clippy"]
 description = "Lint the native wrapper on the host with the gate's Clippy flags; the container gate stays the authority"

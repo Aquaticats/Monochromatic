@@ -112,14 +112,16 @@ fn the_legacy_crlf_attribute_is_the_fallback_text_has_in_git() {
     let legacy = PathAttributes { crlf: TextAttribute::Set, ..PathAttributes::default() };
     assert_eq!(rules.action_of(legacy.text, legacy.crlf, legacy.eol), CrlfAction::TextCrlf);
     assert!(matches!(decide(&legacy, &rules, false, EQUAL.0, EQUAL.1), FenceVerdict::WriteThroughGit(_)));
-    // `text` wins where it names an action, even the binary one.
+    // What `text` names still decides first; where the printed token is `unset`, Git may have been given `-text`
+    // (binary, and the `crlf` attribute is then never read) or the literal value `unset` (undefined, so `crlf` is), and
+    // the fence takes the undefined reading, which sends this path to Git under `core.eol=crlf`.
     let both = PathAttributes { text: TextAttribute::Unset, crlf: TextAttribute::Set, ..PathAttributes::default() };
-    assert_eq!(rules.action_of(both.text, both.crlf, both.eol), CrlfAction::Binary);
-    assert_eq!(decide(&both, &rules, false, EQUAL.0, EQUAL.1), FenceVerdict::Carry);
+    assert_eq!(rules.action_of(both.text, both.crlf, both.eol), CrlfAction::TextCrlf);
+    assert!(matches!(decide(&both, &rules, false, EQUAL.0, EQUAL.1), FenceVerdict::WriteThroughGit(_)));
     // Its own values are read like `text`'s.
     assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Input, EolAttribute::Unspecified), CrlfAction::TextInput);
     assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Auto, EolAttribute::Crlf), CrlfAction::AutoCrlf);
-    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unset, EolAttribute::Crlf), CrlfAction::Binary);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unset, EolAttribute::Crlf), CrlfAction::TextCrlf);
 }
 
 #[test]
@@ -166,11 +168,13 @@ fn core_autocrlf_input_only_strips_carriage_returns_so_the_size_decides() {
 }
 
 #[test]
-fn text_unset_keeps_the_file_even_under_core_autocrlf_true() {
+fn a_printed_unset_under_core_autocrlf_true_is_written_by_git() {
+    // `check-attr`'s `unset` is `-text` or the literal `text=unset`, and Git writes the latter under
+    // `core.autocrlf=true`; the fence takes that reading for both, so this one is written by Git.
     let rules = rules_of(&[("core.autocrlf", Some("true"))]);
-    let held = attributes_of(TextAttribute::Unset, EolAttribute::Crlf);
-    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::Binary);
-    assert_eq!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::Carry);
+    let held = attributes_of(TextAttribute::Unset, EolAttribute::Unspecified);
+    assert_eq!(rules.action_of(held.text, held.crlf, held.eol), CrlfAction::AutoCrlf);
+    assert!(matches!(decide(&held, &rules, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
 
 #[test]
@@ -215,8 +219,43 @@ fn a_setting_git_does_not_know_is_read_as_the_careful_one() {
     let rules = rules_of(&[("core.autocrlf", Some("perhaps"))]);
     assert_eq!(rules.auto_crlf, AutoCrlf::True);
     assert_eq!(rules_of(&[("core.autocrlf", Some("no"))]).auto_crlf, AutoCrlf::False);
-    assert_eq!(rules_of(&[("core.autocrlf", None)]).auto_crlf, AutoCrlf::False);
     assert_eq!(rules_of(&[("core.eol", Some("native"))]).core_eol, EolSetting::Unset);
+}
+
+#[test]
+fn a_key_written_without_a_value_is_true_as_gits_boolean_parser_reads_it() {
+    // `git_parse_maybe_bool_text(NULL)` is 1 (`parse.c`) and `core.autocrlf` goes through `git_config_bool`
+    // (`config.c`), so a `[core]` line holding only `autocrlf` reads as true; the fence read it as false and carried
+    // CRLF-written files before the gate re-check's `p01`.
+    let rules = rules_of(&[("core.autocrlf", None)]);
+    assert_eq!(rules.auto_crlf, AutoCrlf::True);
+    assert_eq!(rules.action_of(TextAttribute::Unspecified, TextAttribute::Unspecified, EolAttribute::Unspecified), CrlfAction::AutoCrlf);
+}
+
+#[test]
+fn the_printed_unset_takes_gits_undefined_reading_so_a_converting_configuration_writes_it() {
+    // `git check-attr` prints `unset` both for `-text` (`ATTR_FALSE`, which `git_path_check_crlf` reads as
+    // `CRLF_BINARY`) and for the literal value `text=unset` (a string it does not know, which it reads as
+    // `CRLF_UNDEFINED` and `convert_attrs` then gives to `core.autocrlf`). The fence cannot tell the two apart, so it
+    // takes Git's undefined reading: exact for `text=unset`, and only more careful for `-text`.
+    let mut held = PathAttributes::default();
+    apply_attribute(&mut held, b"text", b"unset");
+    assert_eq!(held.text, TextAttribute::Unset);
+    let converting = rules_of(&[("core.autocrlf", Some("true"))]);
+    assert_eq!(rules_of(&[("core.autocrlf", None)]).action_of(held.text, held.crlf, held.eol), CrlfAction::AutoCrlf);
+    assert_eq!(converting.action_of(held.text, held.crlf, held.eol), CrlfAction::AutoCrlf);
+    assert_eq!(converting.output_ending(converting.action_of(held.text, held.crlf, held.eol)), OutputEnding::Crlf);
+    assert!(matches!(decide(&held, &converting, false, 18, Some(18)), FenceVerdict::WriteThroughGit(_)));
+    // An undefined action is refined by `eol` before `core.autocrlf` is read, exactly as `convert_attrs` does.
+    let crlf = PathAttributes { eol: EolAttribute::Crlf, ..held.clone() };
+    assert_eq!(rules_of(&[]).action_of(crlf.text, crlf.crlf, crlf.eol), CrlfAction::TextCrlf);
+    // Without a converting configuration the token still needs the size proof: `core.autocrlf=input` normalizes on
+    // the way in only, and unset is binary.
+    assert_eq!(rules_of(&[("core.autocrlf", Some("input"))]).action_of(held.text, held.crlf, held.eol), CrlfAction::AutoInput);
+    let quiet = rules_of(&[]);
+    assert_eq!(quiet.action_of(held.text, held.crlf, held.eol), CrlfAction::Binary);
+    assert_eq!(decide(&held, &quiet, false, 18, Some(18)), FenceVerdict::Carry);
+    assert!(matches!(decide(&held, &quiet, false, 20, Some(18)), FenceVerdict::WriteThroughGit(_)));
 }
 
 #[test]

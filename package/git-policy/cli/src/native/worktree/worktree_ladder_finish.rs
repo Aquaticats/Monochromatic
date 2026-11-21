@@ -236,10 +236,9 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 /// ```ts
 /// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
+fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_fence::Fence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    let fence: crate::worktree_clone_conversion_fence::Fence = crate::worktree_clone_conversion_fence::fence_the_clone(source, context)?;
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
     let applied: Result<(), String> = match verify_association(bound) {
         Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
@@ -384,7 +383,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_fence::Fence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
     }
@@ -396,7 +395,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
         }
     };
-    return match serve_clones(source, plan, &bound, run_git, context) {
+    return match serve_clones(source, fence, plan, &bound, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
@@ -527,14 +526,14 @@ impl Ladder {
                 release_claim(claim, false);
                 LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
-            (Rung::Clone(source, subvolume, claim), Some(plan)) => {
-                let result: LadderResult = finish_clones(&source, plan, git, claim, run_git, context, out, &mut slow);
+            (Rung::Clone(source, subvolume, claim, fence), Some(plan)) => {
+                let result: LadderResult = finish_clones(&source, fence, plan, git, claim, run_git, context, out, &mut slow);
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
                 result
             }
-            (Rung::Clone(_, subvolume, claim), None) => {
+            (Rung::Clone(_, subvolume, claim, _), None) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
