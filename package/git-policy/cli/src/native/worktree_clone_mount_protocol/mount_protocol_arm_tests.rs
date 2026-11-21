@@ -141,22 +141,21 @@ fn microseconds(duration: Duration) -> u128 {
 /// ```ts
 /// const arrived = waitForZedletLine(log, since);
 /// ```
-fn wait_for_zedlet_line(log: &Path, clone: &str, within: Duration) -> Duration {
+fn wait_for_zedlet_line(log: &Path, nonce: &RequestNonce, within: Duration) -> Duration {
     let started: Instant = Instant::now();
     let deadline: Instant = started + within;
     while Instant::now() < deadline {
         if let Ok(text) = std::fs::read_to_string(log) {
-            let seen: bool = text.lines().any(|line| {
-                let mut words = line.split_whitespace();
-                return words.next() == Some("zedlet") && words.any(|word| return word == clone);
-            });
+            let seen: bool = text
+                .lines()
+                .any(|line| return line.starts_with("zedlet ") && line.contains(nonce.as_str()));
             if seen {
                 return started.elapsed();
             }
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    panic!("the test zedlet wrote no line for {clone} within {within:?}; is zfs-zed running and the zedlet installed?");
+    panic!("the test zedlet wrote no line naming nonce {} within {within:?}; is zfs-zed running and the zedlet installed?", nonce.as_str());
 }
 
 /// Run one sweep-like answer for the current intent:
@@ -311,7 +310,7 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
     let value: String = format!("v1:{}:mount", event_nonce.as_str());
     let started: Instant = Instant::now();
     set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, value.as_str());
-    let event_to_zedlet: Duration = wait_for_zedlet_line(Path::new(zedlet_log.as_str()), clone.as_str(), Duration::from_secs(10));
+    let event_to_zedlet: Duration = wait_for_zedlet_line(Path::new(zedlet_log.as_str()), &event_nonce, Duration::from_secs(10));
     let (event_to_receipt, event_to_answer): (Duration, Duration) = answer_and_measure(sbin.as_str(), &device, clone.as_str(), &event_nonce, started);
     println!("MEASUREMENT mount-protocol event-to-zedlet-us={}", microseconds(event_to_zedlet));
     println!("MEASUREMENT mount-protocol event-to-receipt-us={}", microseconds(event_to_receipt));

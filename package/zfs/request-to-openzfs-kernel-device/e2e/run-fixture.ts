@@ -1016,7 +1016,7 @@ function step7Pool(options: Options): void {
     `zfs create -o mountpoint=legacy -o canmount=off ${STEP7_PARENT}`,
     `zfs snapshot ${STEP7_CLONE_SNAPSHOT}`,
     `zfs clone -o mountpoint=legacy ${STEP7_CLONE_SNAPSHOT} ${STEP7_CLONE}`,
-    `printf '%s\n' '#!/bin/sh' 'printf "zedlet %s %s %s %s\\n" "$(date +%s%N)" "$ZEVENT_CLASS" "$ZEVENT_HISTORY_DSNAME" "$ZEVENT_POOL" >> ${STEP7_ZEDLET_LOG}' > ${STEP7_ZEDLET}`,
+    `printf '%s\n' '#!/bin/sh' 'printf "zedlet %s %s %s %s %s\\n" "$(date +%s%N)" "$ZEVENT_CLASS" "$ZEVENT_HISTORY_DSNAME" "$ZEVENT_POOL" "$ZEVENT_HISTORY_CMD" >> ${STEP7_ZEDLET_LOG}' > ${STEP7_ZEDLET}`,
     `chmod 0755 ${STEP7_ZEDLET}`,
     'systemctl stop zfs-zed.service 2>/dev/null || true',
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PREFIX}/sbin:/usr/sbin:/usr/bin:/sbin:/bin systemctl start zfs-zed.service`,
