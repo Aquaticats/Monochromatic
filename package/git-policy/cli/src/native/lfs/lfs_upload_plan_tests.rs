@@ -318,6 +318,45 @@ fn a_mirror_is_read_through_git_and_never_from_a_list_of_spellings() {
     assert_eq!(ordinary_asked, 2, "a repository without a mirror setting asks Git nothing about one");
 }
 
+/// What:
+///  A mirror push asks the destination nothing,
+/// because every ref is uploaded and no tracking ref can hide an object;
+///  the configured mirror value itself is still read through Git.
+/// Why:
+///   The guard that skips the destination question for a mirror is what keeps a mirror push's plan from
+///  paying a round trip;
+/// a change that asked anyway would slow every mirror push.
+#[test]
+fn a_mirror_push_asks_the_destination_nothing() {
+    let asks = |region: &[&str], settings: &[(&str, &str)]| -> (UploadPlan, Vec<String>) {
+        let mut asked: Vec<String> = Vec::new();
+        let mut answering = |arguments: &[&str]| -> Result<String, String> {
+            asked.push(arguments.join(" "));
+            return Ok(match arguments[0] {
+                "symbolic-ref" => String::from("refs/heads/work"),
+                "config" => String::from("true"),
+                _ => String::new(),
+            });
+        };
+        let settings: Settings = config(settings);
+        let region: Vec<OsString> = words(region);
+        let planned = plan_upload(&[], region.as_slice(), &[], Path::new("/work"), settings.as_slice(), &mut answering);
+        return (planned.expect("the plan is worked out").expect("a plan"), asked);
+    };
+    let url: (&str, &str) = ("remote.origin.url", "https://example.invalid/r.git");
+    let destination_questions = |asked: &[String]| -> bool {
+        return asked.iter().any(|question| { return question.starts_with("for-each-ref") || question.starts_with("ls-remote"); });
+    };
+    let (commanded, commanded_asked) = asks(&["--mirror", "origin"], &[url]);
+    assert!(commanded.everything, "a typed --mirror uploads everything");
+    assert!(commanded.full_scan);
+    assert!(!destination_questions(commanded_asked.as_slice()), "{commanded_asked:?}");
+    let (configured, configured_asked) = asks(&["origin"], &[url, ("remote.origin.mirror", "2")]);
+    assert!(configured.everything, "Git reads mirror=2 as true");
+    assert!(!destination_questions(configured_asked.as_slice()), "{configured_asked:?}");
+    assert!(configured_asked.iter().any(|question| { return question.starts_with("config --type=bool"); }), "{configured_asked:?}");
+}
+
 /// Every query that fails,
 /// and a push whose refs cannot be listed,
 /// is an error and never "nothing to upload".

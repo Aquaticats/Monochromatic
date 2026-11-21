@@ -1068,6 +1068,23 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
     remove(repo.root.as_path());
 }
 
+/// What:
+///  Every push the service runs carries the mark that makes a missing-program refusal name the service's own
+///  `PATH`, never the shell's.
+/// Why:
+///   Nothing of the committing shell travels with the service's push,
+/// so the refusal must say which list was searched;
+///  a mark left out would tell the person to change a list the push never read.
+#[test]
+fn the_service_marks_its_push_environment_with_the_list_it_searched() {
+    let repo: Repo = repo("service-push-program-search");
+    let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
+    let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
+    let search: crate::lfs_pre_push::ProgramSearch = crate::lfs_pre_push::ProgramSearch::of(started.environment.as_slice());
+    assert_eq!(search.source, crate::lfs_pre_push::ProgramSearchSource::ServiceEnvironment, "the service's push is marked");
+    remove(repo.root.as_path());
+}
+
 /// The listings a drain of `count` pushes of one branch costs,
 /// with every item settled.
 fn listings_of_a_drain(count: usize) -> usize {
@@ -1284,7 +1301,8 @@ fn notices_of(git_dir: &Path) -> usize {
 /// A service killed between the removal of that file and the record of the refusal leaves the item in `failed`,
 /// which nothing scans,
 /// so the person keeps a promise nothing schedules instead of the refusal that needs them.
-/// The control makes the removal wait: the branch's own plan file is a pipe nobody writes to,
+/// The control makes the removal wait:
+/// the branch's own plan file is a pipe nobody writes to,
 /// and the process has one place of its blocking bound,
 /// so a record that is written while the removal waits was written first.
 ///
@@ -1335,9 +1353,11 @@ fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
 ///  The plan a worker keeps is written by a job of the process's blocking pool,
 ///  never on the task that decided it.
 /// Why:
-///  Keeping a plan lists the journal, reads the files of the branch and writes one,
+///  Keeping a plan lists the journal,
+///  reads the files of the branch and writes one,
 ///  and the worker that keeps it is a task of the runtime.
-///  A write that waited on a disk, a lock or a mount that stopped answering would hold the worker,
+///  A write that waited on a disk,
+///  a lock or a mount that stopped answering would hold the worker,
 ///  where no timer can end its wait,
 ///  which is the promise every storage step of a drain keeps
 /// (`service_work_storage_awaited.rs`,
@@ -1371,9 +1391,11 @@ fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
 ///  The file of a branch that needs no new try is removed by a job of the process's blocking pool,
 ///  never on the task that decided it.
 /// Why:
-///  The removal lists the journal, reads each file of the branch and unlinks it,
+///  The removal lists the journal,
+///  reads each file of the branch and unlinks it,
 ///  and the worker that forgot the branch is a task of the runtime,
-///  so a read that waited on a disk, a lock or a mount that stopped answering would hold the worker
+///  so a read that waited on a disk,
+///  a lock or a mount that stopped answering would hold the worker
 /// (`blocking_jobs_within_the_budget.rs`).
 ///  The control holds the process's only place and gives it back when a job asks for one,
 ///  so the ask is the proof that the removal took a place.
@@ -2028,7 +2050,9 @@ const ONE_ITEM_TAKES: Duration = Duration::from_millis(150);
 const A_BATCH: usize = 4;
 
 /// What:
-///  A handler of the drain's batches that a control makes slow, refusing, or stopping unexpectedly,
+///  A handler of the drain's batches that a control makes slow,
+///  refusing,
+///  or stopping unexpectedly,
 ///  naming each item by the branch its record carries,
 ///  and saying what the work directory held when that item's own work ended.
 /// Why:
