@@ -353,9 +353,20 @@ fn a_host_key_revoked_by_a_file_is_no_unknown_key() {
     );
 }
 
-/// The banner OpenSSH prints before its warning about a changed key,
-/// alone with the last line every host-key refusal ends in.
-const A_CHANGED_HOST_KEYS_BANNER_ALONE: &str = "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\nHost key verification failed.\n";
+/// The warning OpenSSH prints for a changed key
+/// (`warn_changed_key`,
+/// `sshconnect.c` at `V_10_6_P2` lines 1716 to 1726),
+/// as a whole block and without the lines about the `known_hosts` entry,
+/// with the last line every host-key refusal ends in.
+/// The banner never comes without the sentence about the host key that changed,
+/// because one function prints both.
+const A_CHANGED_HOST_KEYS_WARNING_ALONE: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n\
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\n\
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!\n\
+It is also possible that a host key has just been changed.\n\
+Host key verification failed.\n";
 
 /// The line that ends OpenSSH's warning about a changed key,
 /// alone with the same last line.
@@ -399,7 +410,7 @@ const A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION: &str =
 #[test]
 fn each_other_refusals_sentence_alone_is_no_unknown_key() {
     for text in [
-        A_CHANGED_HOST_KEYS_BANNER_ALONE,
+        A_CHANGED_HOST_KEYS_WARNING_ALONE,
         A_CHANGED_HOST_KEYS_STRICT_CHECKING_LINE_ALONE,
         A_REVOKED_HOST_KEYS_BANNER_ALONE,
         A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE,
