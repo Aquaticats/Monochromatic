@@ -1213,12 +1213,16 @@ with the evidence kept beside this round's records:
   the ignored-attributes control's pattern is corrected to one that matches
   (`c06b`),
   and the full gate was run at this round's final commit as its own capped unit:
-  its verdict is recorded in
-  the section below.
-  The class controls still cannot run in the gate image,
-  whose fixture root is a tmpfs,
-  so they print "CONTROL NOT RUN"
-  there and run on the host.
+  9,303 tests,
+  9,301 passed,
+  two failed,
+  and **all twelve of this module's binary class controls passed there**,
+  which the earlier round did not establish.
+  What still does not run in the image is the clone-capable set:
+  its fixture root is neither btrfs nor ZFS (`Ok(Other)`),
+  so every btrfs control prints "CONTROL NOT RUN" and names `native:test:host:btrfs` instead.
+  That is the gap the gate review's M5 named,
+  now stated with the controls that do run beside it.
 - **M6,
   no measurement switch in shipped code.**
   The three routes are behind an off-by-default `measurement-routes` feature which no shipped build enables:
@@ -1279,17 +1283,52 @@ What went wrong and is recorded so the numbers are not read for more than they s
 
 ### The gate at this round's final commit
 
-Run as its own capped unit through `mise run //package/git-policy/cli:native:gate`
+Run as its own capped unit at `a690379aa5`
+through `mise run //package/git-policy/cli:native:gate`
 (the image build,
 the compile,
 the suite and Clippy of `native:test:container`),
-at the proposal's final tip,
-with its verdict read through `native:gate:verdict`.
-The class controls do not run in that image (a tmpfs fixture root,
-so "CONTROL NOT RUN"),
-which is the gap the gate review's M5 named and this round states rather than closes:
-the image can run the unit controls (18 before this round's six additions),
-not the six binary ones.
+with its verdict read through `native:gate:verdict`,
+and its log kept as
+`~/temp/agent/clone-rung-conversion-fence-gate-review-findings-fixed-2026-11-20/scratch/gate-logs/gpc-gate-fence-final-a690379aa5-20261120T192719-0500.log`:
+
+- **9,303 tests run across 4 binaries:
+  9,301 passed (5 slow),
+  2 failed,
+  28 skipped**,
+  in 785 s.
+- Passed there:
+  the six new unit controls of the decision module,
+  the two new unit controls of the fence module,
+  and all twelve binary controls of `worktree_clone_conversion`
+  (the six this round added,
+  the five the earlier round committed,
+  and the ignored-attributes one with its corrected
+  pattern).
+- Failed there,
+  both in `native_binary`,
+  and neither in a module this round touched:
+  `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
+  (the fixture repository's `.git` held a `cli-git-lock-holders` directory the control did not expect:
+  "the repository the command ran in gained nothing",
+  left `("... ", [... "cli-git-lock-holders" ...])`,
+  right `("...", [...])`),
+  and
+  `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`.
+  The earlier round failed the same two at `39e12fdbc3`-era code and read them as naming the host;
+  this round did not re-run the gate at `74caa69e7a` to compare,
+  so the honest statement is "the same two fail before and after this change,
+  and neither is in the fence",
+  not "they are pre-existing" as a proof.
+- Clippy of the image did not run:
+  the gate stops at the first failing step,
+  and the suite failed first.
+  The host's Clippy is clean for both configurations (`native:clippy` and `native:clippy:measurement`).
+- The clone-capable controls do not run in that image (fixture root `Ok(Other)`,
+  so "CONTROL NOT RUN" for every btrfs
+  control,
+  each naming `native:test:host:btrfs`),
+  which is the gap the gate review's M5 named and this round states rather than closes.
 
 ## What this proposal does not do
 
@@ -1301,8 +1340,10 @@ not the six binary ones.
 - It does not build the in-process attribute and object reads.
   The claim that they would remove the fence's 239 ms is removed from this proposal,
   and the reason they are not a small change is measured (deltified objects and chains in this repository's pack).
-- It does not run the class controls in the gate image,
-  for the tmpfs reason above.
+- It does not run the clone-capable controls in the gate image,
+  whose fixture root is neither btrfs nor ZFS;
+  the image ran the binary class controls and the unit controls,
+  not those.
 - It does not measure rung 1 at this repository's size,
   in a guest or anywhere else:
   the earlier round's 15 of 15 equality at 90 files stands,
