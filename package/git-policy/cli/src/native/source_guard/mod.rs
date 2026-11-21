@@ -22,8 +22,8 @@ mod hook_self_invocation_tests;
 #[path = "service_lock_inventory_tests.rs"]
 mod service_lock_inventory_tests;
 
-/// The crate declares only the executable the release archive holds;
-/// a second `[[bin]]` breaks cargo-binstall installs.
+/// The crate declares only the two executables the release archive holds;
+/// a `[[bin]]` the archive lacks breaks every cargo-binstall install.
 #[cfg(test)]
 #[path = "release_bins_tests.rs"]
 mod release_bins_tests;

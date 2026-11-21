@@ -62,6 +62,41 @@ and `~/temp/agent/zfs-step-3-short-review-findings-after-guest-arm-2026-11-20/ke
   from step 3's guest arm:
   a clean add of the crate's `src` (2,456 files of 34,719,432 bytes) saved 22,979,072 bytes against Git's checkout.
 
+## The small-file clean-add cost, waived the same day
+
+Step 3's integration pass
+(`~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/keep/review.md`,
+finding H1)
+measured a second cost on ZFS:
+a clean add of a tree of many small files is slower than on `main`,
+because cloning a small file costs more than Git's write of it.
+Release builds,
+rounds in rotating order with a same-binary control:
+10,001 files of about 2.6 KB took a median 1.33 times `main`'s time
+(about 190 ms against 145 ms,
+every one of 30 rounds slower);
+about 8.8 KB per file,
+1.18 times;
+about 26 KB,
+parity;
+this repository's own tree,
+about 32 KB per file,
+0.64 times.
+Asked on 2026-11-20 whether step 3 merges with a size gate,
+with cloning off on ZFS,
+held,
+or with this cost waived too,
+the project answered "C:
+widen the waiver".
+So this record also waives,
+until the partial clone named in "When it ends" lands or is rejected,
+the slower clean add of a tree whose files are small enough that cloning loses:
+about 40 ms on a 140 ms add at 10,001 files of 2.6 KB,
+about 16 ms at 5,001,
+less below that.
+The partial-clone proposal was asked the same day to design and measure a per-file rule,
+cloning only the unchanged files large enough to win.
+
 ## When it ends
 
 The project also chose,

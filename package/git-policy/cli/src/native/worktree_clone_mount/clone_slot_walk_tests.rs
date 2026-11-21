@@ -8,6 +8,7 @@ use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
+use std::os::fd::AsRawFd as _;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -183,12 +184,17 @@ fn an_unrecorded_slot_or_parent_asks_for_the_run_that_writes_it() {
 }
 
 /// What:
-///  A checkout named through a link is refused before the walk starts,
+///  A checkout named through a link,
+///  or through a `/proc/self/fd` descriptor,
+///  is refused before the walk starts,
 ///  and the sentence names the canonical path that stands,
 ///  while the same checkout named by that path passes.
 /// Why:
 ///  Resolving the path would mean walking from whichever folder the account's link names,
 ///  and the design's first rule is that the mount never resolves a path the account can change.
+///  The descriptor path is item 2's measured `openat2` magic-link arm mapped onto this module:
+///  its only path input is the checkout,
+/// and a magic link there is no canonical path.
 #[test]
 fn a_checkout_named_through_a_link_is_refused() {
     let built: Fixture = fixture_slot("clone-walk-checkout-link");
@@ -201,6 +207,11 @@ fn a_checkout_named_through_a_link_is_refused() {
     assert!(refused.message().contains("not the canonical path"), "{}", refused.message());
     assert!(refused.message().contains(built.checkout.to_string_lossy().as_ref()), "the canonical path that stands is named: {}", refused.message());
     assert!(refused.message().contains("Ways forward"), "{}", refused.message());
+    let held: std::fs::File = std::fs::File::open(&built.checkout).expect("the checkout opens");
+    let through_a_descriptor: PathBuf = Path::new("/proc/self/fd").join(held.as_raw_fd().to_string());
+    let magic: CloneSlotRefusal = hold_clone_slot(&HoldCloneSlotRequest { checkout: through_a_descriptor.as_path(), slot: "one", store: built.store.as_path() }).expect_err("a checkout named through a /proc descriptor");
+    assert!(matches!(magic, CloneSlotRefusal::Walk(WalkRefusal { reason: WalkRefusalReason::NotTheCanonicalPath, .. })), "{magic:?}");
+    assert!(magic.message().contains("not the canonical path"), "{}", magic.message());
     std::fs::remove_file(&linked).expect("link away");
     remove(root.as_path());
 }

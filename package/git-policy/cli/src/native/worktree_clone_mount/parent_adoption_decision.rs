@@ -59,7 +59,7 @@ pub struct AdoptionFacts {
     /// Every surviving slot's reconciliation.
     pub slots: Vec<SlotState>,
     /// The store the adoption replaces the parent record in,
-    /// whose own slot names every state above must cover.
+    /// whose own slot names every state in `slots` must cover.
     /// A caller cannot hand in a list of its own:
     /// the names come from the store,
     /// never from the caller's account of it.

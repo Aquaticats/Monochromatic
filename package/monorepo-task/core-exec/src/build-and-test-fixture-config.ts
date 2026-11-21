@@ -146,6 +146,47 @@ export function variableSection(name: string,): string {
 }
 
 /**
+ Extract a root variable whose value fits on one line, quotes included.
+
+ `variableSection` expects a triple-quoted body and would swallow the rest of the file for a one-line
+ assignment, but a fixture section can interpolate such a variable too: the forwarded-arguments marker is
+ declared that way and `parse_usage_args` interpolates it.
+
+ @param name - single-line variable a copied root section interpolates
+
+ @returns the original TOML assignment line
+
+ @throws Error when the root configuration has no single-line assignment of that name
+
+ @example
+ ```ts
+ oneLineVariable('forwarded_arguments_marker');
+ ```
+ */
+export function oneLineVariable(name: string,): string {
+  /**
+   The opening of a one-line declaration, up to and including its first quote.
+   */
+  const prefix = `${name} = "`;
+  /**
+   The first line that starts like a declaration of this name, whichever form it takes.
+   */
+  const line = rootConfig
+    .split('\n',)
+    .find(function declares(entry,): boolean {
+      return entry.startsWith(prefix,);
+    },);
+  if (line === undefined) throw new Error(`Missing one-line root variable: ${name}`,);
+  /**
+   A triple-quoted declaration opens with a second quote right after the prefix, and its closing delimiter sits on
+   its own later line, so a line of that form would not end with a quote.
+   */
+  if ((line[prefix.length] === '"') || (!line.endsWith('"',)))
+    throw new Error(`Root variable is not a one-line assignment: ${name}`,);
+  return line;
+}
+
+/**
  Shared root config replaces only build/test implementations, not orchestration.
  */
 export const fixtureConfig: string = `experimental_monorepo_root = true
@@ -156,6 +197,7 @@ experimental = true
 task.disable_spec_from_run_scripts = true
 [vars]
 ${variableSection('mise_tasks_json_max_buffer',)}
+${oneLineVariable('forwarded_arguments_marker',)}
 ${variableSection('parse_usage_args',)}
 ${variableSection('run_test_files',)}
 ${taskSection('try',)}

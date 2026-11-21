@@ -52,6 +52,7 @@
 //! - `clone_slot_walk.rs`:
 //!   the walk that holds the checkout,
 //!   the `.claude/worktrees` folder and one slot,
+//!   the walk that holds the parent folder for an adoption,
 //!   and the second walk that reads the canonical slot.
 //! - `attach_post_check.rs`:
 //!   whether the mount the attach made is the mount the canonical slot shows.
@@ -63,6 +64,10 @@
 //!   the table that decides whether a recreated parent folder may be recorded.
 //! - `root_namespace_test_support.rs`:
 //!   the user namespace a control needs when the files it judges must be root's,
+//!   never in the release build.
+//! - `attach_arm_tests.rs`:
+//!   step 4's guest arms,
+//!   which mount a real clone at the slot the walk held,
 //!   never in the release build.
 //!
 //! In TS you'd write (pseudocode):
@@ -119,6 +124,16 @@ pub mod parent_adoption_decision;
 #[path = "root_namespace_test_support.rs"]
 pub(crate) mod root_namespace_test_support;
 
+/// Step 4's guest arms:
+/// the real mount at a held slot,
+/// the enforced flags,
+/// item 2's refusals and its rename trial,
+/// and the decoy control,
+/// all run in the throwaway guest the recipe makes.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "attach_arm_tests.rs"]
+mod attach_arm_tests;
+
 /// The identity fields and their compare.
 pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 /// The bound one ACL read accepts.
@@ -126,8 +141,9 @@ pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
 /// The store's path,
 /// its reader and the two writes the route makes.
 pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control};
-/// The store's record type and the key its parent record carries.
-pub use slot_identity_store_records::{PARENT_KEY, StoredIdentity};
+/// The store's header line,
+/// its record type and the key its parent record carries.
+pub use slot_identity_store_records::{PARENT_KEY, STORE_HEADER, StoredIdentity};
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.
@@ -135,7 +151,7 @@ pub use attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, MountIdenti
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
 /// The walks and what they hold.
-pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, look_again_at_the_slot};
+pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, hold_the_worktrees_parent, look_again_at_the_slot, mount_id_at_the_held_target};
 /// The post-attach check.
 pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
 /// The rollback plan and its report.

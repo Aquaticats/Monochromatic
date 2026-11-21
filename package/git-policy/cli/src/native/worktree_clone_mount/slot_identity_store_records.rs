@@ -21,7 +21,7 @@ use std::path::Path;
 /// The store's first line:
 /// the file's own name and the version of its grammar,
 /// so a later format cannot be read as this one.
-pub(super) const STORE_HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 1";
+pub const STORE_HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 1";
 
 /// The record kind of the `.claude/worktrees` parent folder.
 const PARENT_KIND: &str = "parent";

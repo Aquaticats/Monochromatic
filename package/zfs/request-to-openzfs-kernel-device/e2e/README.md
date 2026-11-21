@@ -32,6 +32,9 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
 # the step 3 arm, on a guest the two steps above prepared:
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- wrapper --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- arm --name my-guest
+# the step 4 attach arm, on the same guest:
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-pool --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --name my-guest
 ```
 
 - `create` makes the guest with `mvm`,
@@ -42,6 +45,8 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- arm --name my-gue
   The `hetzner` backend is never used:
   it rents an outside server.
 - `prepare` checks the guest runs the plan's kernel release,
+  stops and masks the image's unattended-upgrade services and timers,
+  waits for the `dpkg` lock they may still hold,
   installs the packages,
   copies the kernel's own BTF into the kernel build directory so the module is
   built with BTF,
@@ -460,6 +465,58 @@ and `step3-teardown.log` shows the pool gone and the datasets gone,
 and names the pool's `pool.img` file,
 which `zpool destroy` leaves behind in the guest's fixture root and which goes
 with the guest.
+
+## The step 4 attach arm
+
+`zfs-attach-arm` runs step 4's guest arms of the wrapper's descriptor attach
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 4,
+"VM measurements")
+in a guest this recipe prepared:
+the clone mounted at the slot the walk held,
+item 7's setuid control on that mount's enforced flags,
+item 2's refusals with an account-owned parent and slot,
+the rename that lands an attach beside its slot and its descriptor rollback,
+a mount made beside the held slot that the post-attach check's first proof refuses,
+and the decoy control of H1 gate 1.
+The check's first proof reads the mount at the held target's name beneath the held parent
+(a fresh `openat2` beneath that descriptor),
+never the held target's own descriptor,
+which keeps naming the mount it was opened on.
+`zfs-attach-pool` makes the arm's own pool and fixtures alone,
+so a run that only needs them does not repeat the build.
+
+The arm's pool is `zfsstep4`:
+a 1 GiB encrypted image at `/home/zfs-step-4-attach-fixture`,
+a `checkout` dataset the tests' checkouts stand on,
+an empty snapshot of it,
+and the unmounted clones `clone-one` and `clone-beside`,
+which are legacy mountpoints,
+so ZFS never mounts them by itself
+and an arm's own kernel mount is the only one they see.
+The arm's tests live in the wrapper crate,
+`src/native/worktree_clone_mount/attach_arm_tests.rs`,
+and are `#[ignore]`d;
+one that cannot reach its fixture prints `SKIP worktree_clone_mount::attach_arm_tests::...`
+and returns,
+and the step fails on that line,
+so an arm that never ran is never counted as passed.
+
+Everything in this arm is a root-run integration test of the wrapper's module,
+not part of the account-side suite:
+until step 5's `mount-git-worktree-clone-datasets` binary exists,
+the `fsopen`,
+`fsconfig`,
+`fsmount` and `move_mount` calls are the test's own,
+and the production copies are what the arms will drive after that step.
+
+The step leaves the guest as it found it:
+the teardown takes down every mount still below the fixture root
+(a killed test cannot run its own guard),
+destroys the pool,
+removes the fixture root,
+and records what is left,
+and the guest itself is destroyed by the run that made it.
 
 ## Teardown evidence
 
