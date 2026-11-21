@@ -41013,6 +41013,10 @@ stated in this entry. What follows from them, as work:
   `pi-zfs-layout-checker-reader-vet-report-diff-check-wording-fixed` (text only; brief under
   `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/`), then the same reviewer
   confirms its findings closed, then the docs branch merges and the adoption record's pointer moves to the merged revision.
+  That round ended at `93fe0d9779` (report `df0106c13a`: N1 one compiler of three, N2 57 and 55, N3 renumbered, N4 the
+  lead's reasons, L5 and N6 to N12, plus one sentence recording the adoption). GOING: the same reviewer's closure check,
+  appended to its `keep/review.md`. `~/temp/agent` measured 10,195 MB at 2026-11-20T21:00-05:00, the fence's cost round
+  growing inside its 10 GiB cap.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
