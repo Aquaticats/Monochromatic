@@ -4,7 +4,6 @@
 //! each case below reproduces one of its cases.
 
 use super::*;
-use crate::push_retry_cause_line::cause_or_silence;
 use crate::test_support::{fixture, git, git_text, remove};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -1075,9 +1074,8 @@ fn a_push_that_failed_without_a_word_names_its_status_and_its_signal() {
     assert!(reported_killed.shown.contains("was ended by signal 9"), "the record names the signal: {}", reported_killed.shown);
     assert!(reported_killed.shown.contains("status 137"), "and the status beside it: {}", reported_killed.shown);
     assert!(reported_killed.shown.contains("printed nothing"), "and says that the push itself said nothing: {}", reported_killed.shown);
-    // What the retry's journal line would name as the cause is that same sentence, never an empty field.
-    assert_eq!(cause_or_silence(reported_killed.shown.as_str()), reported_killed.shown.lines().next().unwrap_or_default(), "the cause is the record's first line");
-    assert!(!cause_or_silence(reported_killed.shown.as_str()).trim().is_empty(), "the cause is never empty");
+    // The first line is what the retry's journal line names as the cause, so the record must not start with a blank one.
+    assert_eq!(reported_killed.shown.lines().next().unwrap_or_default().trim(), reported_killed.shown.trim(), "the record's first line is its whole sentence");
     // A push that exited by itself, with no signal and no words.
     let exited: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::new() };
     let reported_exited: AutoPushResult = reported(exited, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");

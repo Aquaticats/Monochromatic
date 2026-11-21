@@ -2717,7 +2717,7 @@ fn the_line_a_planned_retry_writes_never_leaves_its_cause_empty() {
     });
     let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
     let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
-    assert!(line.contains(&format!("cause: {}", crate::push_retry_cause_line::SILENT_CAUSE)), "a push that said nothing is named as one: {line}");
+    assert!(line.contains("cause: the push said nothing about why it failed"), "a push that said nothing is named as one: {line}");
     assert!(!line.trim_end().ends_with("cause:"), "the cause is never left empty: {line}");
     // The control: a push whose output names its failure keeps those words as the cause.
     let mut second_replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
