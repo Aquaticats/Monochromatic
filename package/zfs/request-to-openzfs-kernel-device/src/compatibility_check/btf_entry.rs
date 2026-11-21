@@ -9,6 +9,10 @@
 //! the decode that reads one and the comparison that matches a member,
 //! so the
 //!  numbers and the value they decode to live before all of them and use none.
+//!  These kind numbers are the stand-in decoder's until the project's reader
+//!  pick lands,
+//! so the pick replaces this file and its controls,
+//! and `declaration.rs` states what the replacement owes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

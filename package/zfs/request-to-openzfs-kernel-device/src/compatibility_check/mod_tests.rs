@@ -1,5 +1,5 @@
 //! What:
-//!  The entry point both executables call:
+//!  The entry point the root-run handler calls:
 //! a pair of files the approved module's
 //!  declaration passes,
 //! and a missing base file,

@@ -17,6 +17,10 @@
 //! so a file this reader cannot walk is a
 //!  refusal rather than a misread,
 //! and every later lookup is one bounds-checked slice.
+//!  This decoder is the stand-in behind `declaration.rs` until the project's
+//!  reader pick lands,
+//! so the pick replaces it and its controls,
+//! and `declaration.rs` states what the replacement owes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -252,12 +252,39 @@ The reader is this crate's own minimal decoder for the two checked files.
 `src/compatibility_check/declaration.rs` states what the comparison,
 the expectations,
 the records and the entry point ask of a reader,
+and the three duties every reader owes them,
 and `src/compatibility_check/in_house_declaration.rs` is the one adapter that
 maps this decoder onto it.
 The project's reader pick (Q1 of the design) is still owed,
 and the design measured a dependency for it;
-until that pick lands this decoder serves the gate behind the declaration,
-and a picked reader replaces that one adapter file and nothing beside it.
+until that pick lands this decoder serves the gate behind the declaration.
+
+A picked reader replaces that adapter file and its own controls,
+`declaration_contract_tests.rs` excepted,
+and it touches these four places,
+because an adapter cannot change them alone:
+
+- the entry point's call in `check_module_layout.rs`,
+  which hands a reader the pre-scan's cut sections:
+  a reader that takes whole files,
+  as `btf-rs` 2.0.1 and `bpftool` and `pahole` do,
+  needs those files' bytes passed beside them;
+- `mod.rs`,
+  whose file list and test-module lines name the decoder's files;
+- the two decoder-side places a swap leaves items unread,
+  which `cargo clippy -D warnings` then refuses:
+  `btf_header.rs`'s `Sections` fields and `blob_fixture.rs`'s
+  `string_bytes`,
+  `alias` and `structure_with_bitfields`;
+- `Cargo.toml` and `Cargo.lock`.
+
+Nothing else moves:
+`comparison.rs`,
+`comparison_requests.rs`,
+`expectations.rs`,
+`declaration.rs` and its three contract controls read the declaration alone,
+so a swap keeps every verdict and every refusal sentence the comparison
+writes.
 
 ## The guest fixture
 

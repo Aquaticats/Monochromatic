@@ -11,6 +11,10 @@
 //!  the aliases' targets;
 //! keeping both in one place means a kind this file cannot
 //!  measure is also a kind nothing decodes.
+//!  This decoder is the stand-in behind `declaration.rs` until the project's
+//!  reader pick lands,
+//! so the pick replaces it and its controls,
+//! and `declaration.rs` states what the replacement owes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
