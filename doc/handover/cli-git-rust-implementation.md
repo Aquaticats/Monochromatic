@@ -41156,7 +41156,15 @@ stated in this entry. What follows from them, as work:
   `worktree_clone.rs` 483 code lines; gate 9407 of 9409, the cause-H pair; B stated as the chosen remedy, with
   Limitations. GOING: `pi-clone-rung-conversion-fence-b-decides-before-copying` (cap 780): the decline decided from
   `git check-attr` before the copies as A′ did, rung 1 fenced, the split, correctness and the three fixtures again (brief
-  under `~/temp/agent/clone-rung-conversion-fence-b-decides-before-copying-2026-11-21/`).
+  under `~/temp/agent/clone-rung-conversion-fence-b-decides-before-copying-2026-11-21/`). ISSUE 6330'S RESUMED ROUND
+  ended at `7036744484`: cause, the control assumed a joined thread's `/proc` entry is gone when `join` returns, while
+  the kernel wakes the join in `mm_release` and flushes the entry later in `release_task` (v6.12 `kernel/fork.c`,
+  `kernel/exit.c`); a scratch probe forces it every run with a barrier, no tracer; the fix is test-only (wait bounded for
+  the thread's own file); the incident is cause I in the gate troubleshooting note; issue 6331 filed for the driver's
+  undeletable buildah folder. GOING: its narrow integration pass on Sonnet (brief under
+  `~/temp/agent/integration-pass-git-policy-cli-process-cpu-counters-thread-race-2026-11-21/`); and the memory-held push
+  programs carry as `pi-git-policy-cli-lfs-push-programs-held-in-memory` (A1 to A11, A12 red first; brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-held-in-memory-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
