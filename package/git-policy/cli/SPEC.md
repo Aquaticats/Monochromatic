@@ -19989,18 +19989,21 @@ a failed,
 timed-out or skipped probe is a verdict in the record,
 never a failed unit,
 so the mode exits successfully whenever it reaches its own end.
-The deadline is 350 milliseconds:
-the slowest of M4's interleaved guest rounds,
-a cold binary's first run at 231
-milliseconds,
-plus a 119-millisecond margin over the 114-millisecond range the
-rounds covered
+The deadline is 350 milliseconds.
+The clock starts just before the worker's fork,
+so the bound covers the worker and holder phases and not the gate, the
+fingerprint or the started record.
+The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
+211,176 with 309 mount namespaces,
+and the control's difference gave worker-phase estimates from 8,861 to
+118,503 microseconds;
+the slowest estimate plus the 231-millisecond margin is 349.5 milliseconds
 (`doc/planning/cli-git-zfs-start-probe-design.md`,
 "M4:
 what the probe costs";
 the rounds are in
-`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`),
-and step 19 re-cites it when the boot unit measures the login delay.
+`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`).
+Step 19 re-cites it when the boot unit measures the login delay.
 Until step 19 adds the `ExecStartPre=-`,
 no boot unit runs the probe,
 and it runs only from a transient unit in a guest.
