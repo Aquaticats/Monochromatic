@@ -41365,7 +41365,17 @@ stated in this entry. What follows from them, as work:
   6335 (the out-of-memory killer in the 2 GiB suite container is a hypothesis; `journalctl --kernel` shows this account no
   entries for that window, so its empty search proves nothing). On record the SIGKILL hit only this branch's gates (three,
   none of `main`'s). GOING: the push programs reviewer's third closure check, measuring the suite container's peak memory
-  on this branch against `main` and ruling whether that blocks. Step 7's
+  on this branch against `main` and ruling whether that blocks. STEP 3 WITH THE FENCE'S CLOSURE CHECK said fit at
+  `cc03beadc1` (leftover closed: harness 26 of 26, older-commit add with 0 untracked at scale; the fallback kill keeps no
+  `index`; N1 to N3 closed; gate 9573 of 9575) with N4 low: the differing-tree add 508 ms against `main`'s 378 ms on a
+  10,002-file fixture (identical-binary 497 ms), covered by neither waiver. THE OWNER ANSWERED on 2026-11-21: "A: merge now,
+  fix it next (Recommended)" (recorded in the plan's step 10 notes). MERGED as `c423010a4e` at 2026-11-21T17:40:23-05:00:
+  ZFS step 3 (the clone rung takes ZFS) with the conversion fence is on `main`; issue 6323 closes with it. The merge left
+  the old `zfs-step-3-reflink-rung-recognition` worktree in place because its ignored
+  `.config/mise/conf.d/10-bin.local.toml` differs from the main checkout's. GOING: the up-front skip as
+  `pi-clone-rung-skips-a-differing-fenced-tree` (brief under `~/temp/agent/clone-rung-skips-a-differing-fenced-tree-2026-11-21/`).
+  NEXT: the faster size reader (the btrfs snapshot cost; same reads, so after the skip), the partial clone (task 415), and
+  the `worktree_remove_hand_over.rs` split (both blocking branches have now merged or are about to). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
