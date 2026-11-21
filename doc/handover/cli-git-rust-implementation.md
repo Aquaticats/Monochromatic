@@ -41253,7 +41253,17 @@ stated in this entry. What follows from them, as work:
   intent property, the receipts, the readiness record, the per-slot root claim, the wrapper's side) as
   `pi-zfs-step-7-intent-receipts-readiness` on `feat/git-policy-cli-zfs-mount-intent-receipts-readiness` (its
   dependencies, steps 1, 2, 5 and 6, are all on `main`; the mount-request deadline provisional until step 22 sizes it;
-  brief under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/`).
+  brief under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/`). ISSUE 6330'S INTEGRATION LOWS: F1 to F7
+  (docs and test comments claiming more than the control shows, kernel lines without a version, `detach_pid` not
+  `proc_flush_pid`, evidence under deleted scratch, `RELEASE_PATIENCE`'s basis, nits) go to
+  `pi-git-policy-cli-process-cpu-counters-review-lows` (brief under
+  `~/temp/agent/git-policy-cli-process-cpu-counters-review-lows-2026-11-21/`); F8 (the live-thread sum can go down when a
+  thread ends, under a `u64` subtraction) filed as issue 6333; `5b9381875f`'s overclaiming message has a corrective commit
+  comment. Issue 6310 closed: its reproduce command passes on `main` (cause of recovery not traced). ISSUE 6327 (the
+  identity store's adoption rewrite has no size check) goes to `pi-git-policy-cli-slot-identity-store-rewrite-size-check`
+  (brief under `~/temp/agent/git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/`). HELD: the
+  `worktree_remove_hand_over.rs` max-lines split waits until the fence and push programs branches merge, because both
+  touch that file and a split now would conflict with each.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
