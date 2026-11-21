@@ -395,18 +395,44 @@ Read-only commands,
   A push that adds no pointer starts no `git-lfs` and sends no request to the LFS server;
   a push that adds some runs
    `git-lfs push --object-id <remote> <oid>...` for exactly those objects.
-  The remote's tracking refs say what the destination already has only for a configured remote that is fetched from
-   and pushed to one place;
+  The remote's tracking refs say what the destination already has only while the destination itself says so:
+  the wrapper asks it for its branch heads (`git ls-remote --heads <remote>`,
+  through the same URL and rewrites the
+   push resolves) and keeps each ref only where it reports the same branch at the same commit,
+  so one ref the destination moved on or no longer has is dropped on its own
+  instead of making the push read the whole history.
+  A typed push pays no connection for that question when the manual-push policies run:
+  their discovery confirms the pushed refs with one `git ls-remote --refs <url>`,
+  which now lists every branch head too,
+  and the upload reads that answer.
+  A configuration that disables or escapes every manual-push policy runs no discovery,
+  so its upload asks the destination itself.
+  The commit service's own push runs no discovery,
+  so its upload asks the destination itself,
+  one connection more than `main` charged it.
+  A question that cannot be answered,
   a push URL,
-  a `pushInsteadOf` rewrite,
+  a `pushInsteadOf`
+   rewrite,
   a URL or path destination,
-  a mirror push or an
-   unconfigured remote makes the wrapper read the whole history of the pushed refs instead.
+  a remote Git writes to more than one URL,
+  a mirror push or an unconfigured
+   remote makes the wrapper read the whole history of the pushed refs instead;
+  a clone with no tracking refs for the
+   remote asks nothing.
+  `remote.<name>.mirror` is read through Git (`git config --type=bool --get`),
+  never by a list of
+   spellings kept here,
+  so `2`,
+  `-1` and `0x10` are the mirror Git performs and an unreadable value stops the push
+   Git would stop.
   A repository the readers decline,
   or an object missing from `.git/lfs`,
   falls back to `git-lfs push <remote> <refs>`
    (with `--all` in the untrusted cases),
-  which scans itself.
+  which scans itself;
+  a clone whose `.git/lfs` lacks an old object then
+   refuses the push with `git-lfs`'s words instead of publishing pointers nobody can fill.
   When `git-lfs push` fails,
   the wrapper does not run it again,
   whatever the cause.
@@ -473,9 +499,17 @@ Read-only commands,
   `--dry-run` pushes and the wrapper's own probes never upload.
   `--no-verify`,
   `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
-  Without `git-lfs` on `PATH` the push stops before anything starts and the message says to install it,
+  Without `git-lfs` in the folders the push searches the push stops before anything starts and the message names
+   the program,
+  every folder searched and where that list came from,
+  then says to put the program on that list,
+  install Git LFS,
   remove the
    LFS configuration or use `git push --no-verify`.
+  A push the commit service runs searches the service's own `PATH`,
+  which the manager that started the service fixed,
+  so its message offers a push by hand once from a shell that holds the program,
+  which searches that shell's own `PATH`.
   The other three hooks `git lfs install` writes (`post-checkout`,
   `post-commit`,
   `post-merge`) only keep lockable

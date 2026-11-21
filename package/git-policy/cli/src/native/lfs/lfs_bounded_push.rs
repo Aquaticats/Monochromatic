@@ -152,7 +152,7 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         let mut query: PushQuery<'_> = PushQuery { git };
         let read: Result<Settings, PlanError> = read_settings(&mut query);
         let planned: Result<Option<UploadPlan>, PlanError> = match read {
-            Ok(settings) => plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query),
+            Ok(settings) => plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), None, &mut query),
             Err(error) => Err(error),
         };
         match planned {
@@ -220,7 +220,7 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
         let mut query: PushQueryAwaiting<'_> = PushQueryAwaiting { git };
         let read: Result<Settings, PlanError> = read_settings_awaiting(&mut query).await;
         let planned: Result<Option<UploadPlan>, PlanError> = match read {
-            Ok(settings) => plan_upload_awaiting(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query).await,
+            Ok(settings) => plan_upload_awaiting(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), None, &mut query).await,
             Err(error) => Err(error),
         };
         match planned {

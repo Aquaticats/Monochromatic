@@ -267,32 +267,6 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 }
 
 /// What:
-///  The refusal printed when `git-lfs` is not on `PATH`.
-/// Why:
-///   Without the program the objects cannot be uploaded,
-/// and pushing anyway would publish pointers the server cannot
-///  serve;
-/// every valid way forward is named,
-/// including leaving LFS if the repository does not need it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ...`
-/// ```
-pub fn missing_program_message() -> String {
-    return format!(
-        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
-         keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large \
-         files the pushed commits point to before it publishes the pointer files, but `{LFS_PROGRAM}` was not found in \
-         any directory of PATH. Pushing without that upload would publish pointers whose content the LFS server does \
-         not have. Ways forward: install Git LFS so that `{LFS_PROGRAM}` is on PATH and push again; or, if this \
-         repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the `filter.lfs.*` \
-         and `lfs.*` keys); or accept pointers without objects for this push with `git push --no-verify` and upload \
-         the objects later with `git lfs push --all <remote>` once Git LFS is installed.\n"
-    );
-}
-
-/// What:
 ///  The refusal printed when `git-lfs` is found where the lookup looked and cannot be started.
 /// Why:
 ///   The lookup found an executable file,
@@ -530,6 +504,16 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  and nothing in a transcript can tell the two apart.
 ///  The sentence's way to add the key is then wrong for it and its way to connect once is right,
 ///  because the question plain `ssh` asks is OpenSSH's own about the address.
+///  A second case is read as an unknown key for a different reason:
+///  under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+///  (`do_log` writes `fatal` and `error` without a level word,
+///  `log.c` lines 354 to 393),
+///  so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+///  `Host key verification failed.` on standard error,
+///  exactly as an unknown key does,
+///  and `main` reads those two the same way.
+///  The sentence's way to add the key is wrong for them and its way to connect once is right,
+///  and no transcript of the words can tell them from an unknown key at that level.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

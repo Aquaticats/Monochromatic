@@ -364,7 +364,8 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     assert_eq!(moved.cause, ManualPushCause::RemoteMoved, "{moved}");
     let matching = reported(RemoteBefore::Known(base.clone()), "refs/heads/main");
     let confirmed = confirm_group(&git_for(&repo), location, "origin", matching.as_slice()).expect("confirms");
-    assert_eq!(confirmed[0].remote_oid.as_deref(), Some(base.as_str()));
+    assert_eq!(confirmed.updates[0].remote_oid.as_deref(), Some(base.as_str()));
+    assert!(confirmed.listing.contains("refs/heads/main"), "the confirmation lists the branch heads too: {}", confirmed.listing);
     let deleted_since = reported(RemoteBefore::Known(base), "refs/heads/gone");
     assert!(confirm_group(&git_for(&repo), location, "origin", deleted_since.as_slice()).is_err(), "the reported tip no longer exists");
     let appeared_since = reported(RemoteBefore::Absent, "refs/heads/main");
@@ -392,10 +393,10 @@ fn a_destination_that_holds_what_the_push_sends_is_confirmed_as_nothing_to_publi
         let said = format!("{before:?}");
         let confirmed = confirm_group(&git_for(&repo), location, "origin", reported(before).as_slice())
             .expect("a destination that holds the pushed object is no move at all");
-        assert_eq!(confirmed.len(), 1, "{said}");
-        assert_eq!(confirmed[0].local_oid.as_deref(), Some(pushed.as_str()), "{said}");
+        assert_eq!(confirmed.updates.len(), 1, "{said}");
+        assert_eq!(confirmed.updates[0].local_oid.as_deref(), Some(pushed.as_str()), "{said}");
         assert_eq!(
-            confirmed[0].remote_oid.as_deref(),
+            confirmed.updates[0].remote_oid.as_deref(),
             Some(pushed.as_str()),
             "the authoritative value bounds the scanned range to nothing: {said}"
         );
@@ -521,9 +522,34 @@ fn only_a_remote_name_needs_the_push_url_query() {
     let typed: String = starts_after(origin.to_str().expect("utf-8"));
     assert!(!typed.contains("remote get-url"), "{typed}");
     assert!(typed.contains("ls-remote"), "the destination is still confirmed: {typed}");
+    assert!(typed.contains(crate::manual_push_probe::ALL_HEADS_PATTERN), "the one confirmation reads the branch heads the upload plan asks about: {typed}");
     let named: String = starts_after("origin");
     assert!(named.contains("remote get-url --push --all origin"), "{named}");
     remove(&root);
+}
+
+/// What:
+///  The discovery carries the destination's branches,
+/// so the upload plan of the same push reads them from here.
+/// Why:
+///   The plan's tracking-refs question is answered by the confirmation's own connection;
+/// without this answer a typed
+///  push paid a fourth connection (the integration pass measured 1.30 to 1.35 of `main`'s time over SSH).
+#[test]
+fn the_discovery_carries_the_branches_its_confirmation_read() {
+    let (repo, _origin, base) = repository_with_origin("mp-probe-destination-heads");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let probed = crate::manual_push_probe::probe_manual_push_and_destination(&git_for(&repo), &[], &post(&["origin", "main"])).expect("probes");
+    assert_eq!(probed.updates.len(), 1, "the updates are the ones the confirmation read");
+    let destination = probed.destination.expect("one destination reported its branches");
+    let heads = destination.heads_for("origin").expect("the answer is for the remote this push goes to");
+    assert_eq!(
+        heads.get("refs/heads/main").map(String::as_str),
+        Some(base.as_str()),
+        "the branch head the destination reported, which is the commit this clone fetched"
+    );
+    assert!(destination.heads_for("elsewhere").is_none(), "another remote's branch heads are not this push's answer");
+    remove(repo.parent().expect("root"));
 }
 
 /// Text typed as the repository is told from a remote name by its shape.
@@ -574,7 +600,8 @@ fn the_query_estimate_is_the_measured_whole_history_peak_rounded_up_to_a_power_o
 /// Returns its path.
 fn git_that_lists_every_ref_asked_for(root: &Path) -> PathBuf {
     let stand_in = root.join("git-listing-stand-in");
-    let script = "#!/bin/sh\nfor word in \"$@\"; do\n  case \"$word\" in\n    refs/*) printf '%s\\t%s\\n' \"$word\" \"$word\" ;;\n  esac\ndone\n";
+    // A pattern is no ref the remote reports, as `git ls-remote` prints no line for one.
+    let script = "#!/bin/sh\nfor word in \"$@\"; do\n  case \"$word\" in\n    *\\**) ;;\n    refs/*) printf '%s\\t%s\\n' \"$word\" \"$word\" ;;\n  esac\ndone\n";
     std::fs::write(&stand_in, script).expect("stand-in");
     std::fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
     return stand_in;
@@ -612,7 +639,7 @@ fn confirming_a_destination_reads_each_listed_ref_once() {
         ));
     }
     let before: u64 = crate::collected_elements_looked_at::looked_at();
-    let confirmed: Vec<PushUpdate> = confirm_group(&coordinator, "origin", "origin", updates.as_slice()).expect("confirms");
+    let confirmed = confirm_group(&coordinator, "origin", "origin", updates.as_slice()).expect("confirms").updates;
     let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
     assert_eq!(confirmed.len(), width);
     for (index, update) in confirmed.iter().enumerate() {

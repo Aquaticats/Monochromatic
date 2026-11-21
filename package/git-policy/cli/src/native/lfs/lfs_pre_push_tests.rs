@@ -6,6 +6,10 @@
 //! the `PATH` lookup and the explanation texts.
 
 use super::*;
+/// The list,
+/// its sources and the refusal that names them,
+/// which the sibling file holds.
+use crate::lfs_program_search::{PUSH_FROM_SERVICE, ProgramSearch, missing_program_message};
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 
@@ -190,10 +194,12 @@ fn the_lookup_finds_only_an_executable_file_in_a_path_directory() {
 /// The missing-program refusal names the cause and each way forward.
 #[test]
 fn the_missing_program_message_names_the_cause_and_every_way_forward() {
-    let message: String = missing_program_message();
+    let search: ProgramSearch = ProgramSearch::of(&[(OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin"))]);
+    let message: String = missing_program_message(&search);
     for needle in [
         "stopped before it sent anything",
-        "`git-lfs` was not found in any directory of PATH",
+        "`git-lfs` was not found in the folders this push searches: /opt/lfs/bin, /usr/bin",
+        "The list is this command's own `PATH`",
         "install Git LFS",
         "git lfs uninstall",
         "git push --no-verify",
@@ -202,6 +208,37 @@ fn the_missing_program_message_names_the_cause_and_every_way_forward() {
         assert!(message.contains(needle), "{needle}: {message}");
     }
     assert!(!message.contains('\u{2014}') && !message.contains('\u{2013}'));
+}
+
+/// What:
+///  A push the commit service runs says which list it searched and where that list came from,
+///  so a person can tell the manager's list from their own.
+/// Why:
+///   A refusal that says only "not on PATH" leaves the reader unable to act:
+/// the service's list is not the shell's,
+///  and the shell's is the one they can change.
+///  The remedy may promise only what a push from that shell really does,
+/// because nothing of the committing shell travels with the service's push.
+#[test]
+fn the_missing_program_message_names_the_service_list_and_the_shell_it_offers() {
+    let from_the_service: ProgramSearch = ProgramSearch::of(&[
+        (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin")),
+        (OsString::from(PUSH_FROM_SERVICE), OsString::from("1")),
+    ]);
+    let without_a_list: String = missing_program_message(&from_the_service);
+    assert!(without_a_list.contains("the folders this push searches: /usr/local/bin, /usr/bin"), "{without_a_list}");
+    assert!(without_a_list.contains("No list of the shell that made the commit came with this push"), "{without_a_list}");
+    assert!(without_a_list.contains("the commit service's own `PATH`, which the manager that started the service fixed"), "{without_a_list}");
+    assert!(
+        without_a_list.contains("on the `PATH` of a shell and push by hand once from that shell (`git push`), which searches that shell's own `PATH`"),
+        "{without_a_list}"
+    );
+    assert!(!without_a_list.contains("records that list"), "a typed push records nothing: {without_a_list}");
+    assert!(!without_a_list.contains("make the commit again"), "nothing of the committing shell travels with the service's push: {without_a_list}");
+    let from_this_command: ProgramSearch = ProgramSearch::of(&[(OsString::from("PATH"), OsString::from("/opt/lfs/bin"))]);
+    let typed: String = missing_program_message(&from_this_command);
+    assert!(typed.contains("The list is this command's own `PATH`"), "{typed}");
+    assert!(typed.contains("on this command's `PATH` and push again"), "{typed}");
 }
 
 /// The failure explanation says nothing was published and names each way forward.

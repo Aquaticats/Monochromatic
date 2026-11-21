@@ -18,6 +18,11 @@ pub mod lfs_command_line_configuration;
 /// and the texts the parent prints around it.
 pub mod lfs_pre_push;
 
+/// The folders a push's children find their programs in,
+/// where that list came from,
+/// and the refusal that names both when `git-lfs` is not in it.
+pub mod lfs_program_search;
+
 /// What the Git LFS upload sends:
 /// the remote and the refs,
 /// read from the push and the configuration Git would read.
@@ -35,6 +40,10 @@ pub mod lfs_upload_refspecs;
 /// The configuration the Git LFS upload plan reads,
 /// and the default remote derived from it.
 pub mod lfs_upload_settings;
+
+/// Whether this clone's tracking refs for a remote describe the server a push goes to,
+/// asked of the destination itself.
+pub mod lfs_destination_confirms_tracking_refs;
 
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;

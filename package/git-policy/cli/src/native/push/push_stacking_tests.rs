@@ -386,6 +386,7 @@ fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
             environment: fixture_environment(),
             lfs: false,
             lfs_settings: None,
+            lfs_destination: None,
             stack: false,
         };
         let code: i32 = run_stacked_push(&forward);

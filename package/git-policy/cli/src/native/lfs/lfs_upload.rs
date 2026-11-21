@@ -50,7 +50,9 @@ use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The program lookup,
 /// the explanation after a failure,
 /// and the refusal a push without the program prints.
-use crate::lfs_pre_push::{find_program, missing_program_message, start_failed_message};
+use crate::lfs_pre_push::{find_program, start_failed_message};
+/// The folders searched and the refusal that names them.
+use crate::lfs_program_search::{ProgramSearch, missing_program_message};
 /// Every word about a failed,
 /// stopped or refused upload.
 use crate::lfs_upload_explanations::{
@@ -370,7 +372,7 @@ pub fn run_upload_interactive(
 ) -> Option<i32> {
     let Some(program) = find_program(environment_value(environment, "PATH").unwrap_or_default().as_os_str()) else {
         // Terminal output error: the exit status already carries the refusal.
-        let _written = diagnostics.write_all(missing_program_message().as_bytes());
+        let _written = diagnostics.write_all(missing_program_message(&ProgramSearch::of(environment)).as_bytes());
         return Some(1);
     };
     if plan.submodules {
@@ -526,7 +528,7 @@ pub fn submodule_notice() -> String {
 /// ```
 pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
     let Some(commands) = upload_commands(git, plan) else {
-        return Ok(Some(missing_program_attempt()));
+        return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice()))));
     };
     for (remote, command) in commands {
         // The lookup already found the program, so a start the system refused is not a missing program: its own error says why.
@@ -568,7 +570,7 @@ pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Re
         .await
         .map_err(refused_job)?
     else {
-        return Ok(Some(missing_program_attempt()));
+        return Ok(Some(missing_program_attempt(&ProgramSearch::of(git.environment.as_slice()))));
     };
     for (remote, command) in commands {
         let program: String = command.get_program().to_string_lossy().into_owned();

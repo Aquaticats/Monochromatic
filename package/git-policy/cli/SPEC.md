@@ -6766,6 +6766,16 @@ when the account leaves the question open (`CheckHostIP=yes` under `ask`):
 OpenSSH writes that warning into the askpass program's question and standard error holds the last line alone
 (`sshconnect.c:1429-1447` at `V_10_6_P2`),
 so the sentence's way to add the key is wrong for it and its way to connect once is right.
+A second case is read as an unknown one for a different reason:
+under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+(`do_log` writes `fatal` and `error` without a level word,
+`log.c:354-393` at the same tag),
+so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+`Host key verification failed.` on standard error,
+which is exactly an unknown key's transcript,
+and `main` reads those two the same way.
+The sentence's way to add the key is wrong for them and its way to connect once is right,
+and a transcript at that level cannot tell either from an unknown key.
 The sentence names the host when the wrapper can answer which one it is
 (`ssh_host` in `src/native/lfs/lfs_upload_explanations.rs`,
 from the program's own words or from a destination written as a URL),
@@ -12651,8 +12661,12 @@ The step:
   found by a walk ordered by committer time as `git rev-list` orders it,
   so the history
   behind a known tip is never read;
-  when the destination is untrusted (see below) nothing is known and every commit
-  of the pushed refs is read.
+  each of those refs is evidence about the destination only while the destination itself reports that branch at
+  that commit
+  (`git ls-remote --heads <remote>`,
+  see below),
+  and a ref it moved on or no longer has is dropped on its own,
+  so one stale tracking ref costs the ref and not the whole scan.
   Each commit is compared with each of its parents,
   descending only into trees that
   differ,
@@ -12689,7 +12703,10 @@ The step:
   a walk of more than 100000 commits or 3 seconds),
   leaves the
   next paragraph's `git-lfs` scan in charge,
-  which also words a missing object and honours `lfs.allowincompletepush`.
+  which also words a missing object and honours `lfs.allowincompletepush`;
+  its own standard output already names the setting
+  (`hint: You can disable this check with: git config lfs.allowincompletepush true`),
+  so the wrapper's explanation does not name it again.
   The `--object-id` form does not verify locks,
   as the scan form does.
   The scan form runs `git-lfs push [--all] <destination> [<ref>...]`,
@@ -12703,26 +12720,63 @@ The step:
   `git lfs push <remote> <ref>` alone skips every object that a remote-tracking ref of the remote mentions,
   so a push
   that adds no LFS object sends no batch request.
-  Those refs need not describe the destination being pushed to (a fetch
-  from one server and a push to another,
-  a changed push URL),
-  which would publish pointers without objects,
-  so `--all`
+  Those refs are what a fetch wrote down about the URL the remote had when it ran,
+  so they describe the
+  destination being pushed to only while the destination says so:
+  the plan asks it for its branch heads
+  (`git ls-remote --heads <remote>`,
+  through the same remote name and the same `insteadOf` rewrites the push
+  resolves)
+  and keeps a tracking ref only when it reports that branch at that commit,
+  so the refs it reports are the places the scan stops at,
+  and a ref it moved on or no longer has is dropped alone.
+  The scan form keeps `--all`
   (everything reachable from exactly those refs,
-  a superset and idempotent as objects are content addressed) is kept
-  whenever the configuration the plan already holds says the tracking refs may not describe the destination:
-  it is not
-  a configured remote (a URL,
+  a superset and idempotent as objects are content addressed)
+  whenever the destination does not confirm every one of those refs,
+  because its own skip list matches a cached ref by branch name alone,
+  and for every case the configuration already states (it is not a configured remote:
+  a URL,
   a path,
-  a name nobody configured),
-  the remote has any `pushurl`,
-  any
-  `url.<base>.pushInsteadOf` rewrite exists,
-  or the push is a mirror push.
-  A configured remote with no tracking refs
-  needs no check:
-  the bounded form then has nothing to skip and scans the whole refs itself.
-  Measured with git-lfs 3.8.1 (`commands/uploader.go`,
+  a name nobody configured;
+  the remote has any
+  `pushurl`;
+  Git writes to more than one URL;
+  any `url.<base>.pushInsteadOf` rewrite exists;
+  the push is a
+  mirror push),
+  and nothing the destination might lack can be left out.
+  A configured remote with no tracking refs needs no check:
+  the bounded
+  form then has nothing to skip and scans the whole refs itself,
+  so it asks the destination nothing.
+  The
+  question costs one local `for-each-ref` and one connection to the destination in the bounded case,
+  and the same
+  connection `git-lfs` would make anyway in the scan form;
+  a push that skips nothing pays nothing.
+  A typed push whose manual-push discovery ran pays no connection for it of its own:
+  that discovery already asks the destination for the pushed refs' values,
+  and its one `git ls-remote --refs <url>` now lists every branch head too,
+  so the answer travels from the discovery to the plan (`DestinationHeads`).
+  A typed push in a configuration that disables or escapes every manual-push policy has no discovery,
+  so its plan asks the destination and pays that one connection.
+  The service's bounded push runs no discovery,
+  so its upload plan asks the destination itself:
+  one connection more than `main` charged that push,
+  measured at 205 ms,
+  355 ms and 1017 ms for the added one-way delays of 0 ms,
+  10 ms and 50 ms,
+  and the project accepts that cost.
+  A typed push measured 1.001 to 1.005 of `main` per round at the same three delays,
+  inside the spread of the identical-binary control in every cell,
+  with 3 connections on both binaries in every sample.
+  One stale tracking ref on a 2000-commit fixture costs `main`'s scan again:
+  1 batch request and 1 object named,
+  measured at 0.983 of `main` (0.903 to 1.132),
+  where the all-or-nothing rule sent 21 batch requests and named 2052 objects at 52.106 of `main`.
+  Measured with
+  git-lfs 3.8.1 (`commands/uploader.go`,
   `uploadForRefUpdates`,
   `uploadRangeOrAll`):
   without `--all` the
@@ -12733,11 +12787,15 @@ The step:
   Both forms build the same scanner (`NewGitScannerForPush`),
   which
   runs `git show-ref` and `git ls-remote --heads` against the remote (`calcSkippedRefs`),
-  so dropping `--all` adds no
-  network round trip and no Git start.
-  No tighter bound exists without one:
+  which matches by
+  name only,
+  so it
+  treats a branch the destination still has as a place to stop whatever commit it holds there.
+  No tighter bound exists
+  without one:
   `git lfs push` takes no remote object name,
-  and the `exclude` list of `uploadForRefUpdates` is empty on this path.
+  and the `exclude` list of `uploadForRefUpdates` is empty on this
+  path.
   The child runs with the real Git's directory first on `PATH`,
   so a `git` that `git-lfs` starts is the real Git and not
   the wrapper,
@@ -12883,6 +12941,18 @@ The step:
   never every ref;
   `--mirror` and
   `remote.<name>.mirror` upload everything.
+  `remote.<name>.mirror` is read by Git itself
+  (`git config --type=bool --get remote.<name>.mirror`),
+  never by a list of spellings kept here:
+  Git reads `2`,
+  `-1` and `0x10` as true and the empty value as false,
+  and a mirror read as false publishes every other branch with no
+  object behind its pointers.
+  The question is asked only when the settings hold a value for the key,
+  so a
+  repository without a mirror setting costs no Git start for it,
+  and a value Git cannot read refuses the push as Git
+  itself would.
   A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
   `remote.pushDefault`,
   `branch.<name>.remote`,
@@ -12891,10 +12961,14 @@ The step:
   local branch with `push.default=matching`,
   else the current branch from the full ref `HEAD` names (`HEAD` when it is
   not a branch).
-  A remote with more than one `pushurl` is uploaded to once per URL,
+  A remote Git writes to more than once is uploaded to once per URL,
   passing each URL,
   because each may keep its
-  objects in its own place.
+  objects in its own place:
+  that is every `pushurl` the remote names,
+  and every `url` it names when it has no
+  `pushurl`,
+  because `git push` writes to all of them.
   A destination typed as a path (starting with `/`,
   `./` or `../`,
   or naming an existing
@@ -12922,6 +12996,22 @@ The step:
   with the file it found and the operating system's own error
   (`start_failed_message` in `src/native/lfs/lfs_pre_push.rs`),
   because a program that is there is not missing and its reader would go looking at a `PATH` that is right.
+  Which folders that search reads is the push's own list.
+  A typed push reads the environment of that command.
+  A push the commit service runs searches the service's own `PATH`,
+  which the manager that started the service fixed,
+  and no command of the person reaches that list:
+  nothing of the committing shell travels with the service's push
+  (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
+  and two runs' commits landed while their pushes were refused for a program their own shell could start).
+  The refusal names the program,
+  every folder of the list it searched,
+  and where that list came from,
+  so a person can tell the manager's list from their own;
+  the way forward it prints for a service push is a push by hand once from a shell that holds the program
+  (`git push`),
+  which searches that shell's own `PATH`,
+  because nothing of the committing shell travels with the service's push.
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,

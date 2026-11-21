@@ -17,6 +17,9 @@
 use crate::action::{Action, PushForward};
 use crate::command_push::stackable_option_tokens;
 use crate::external_hooks::external_hooks_warning;
+/// The branches the push's discovery already read from its destination.
+use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
+/// Whether this repository asks for the upload at all.
 use crate::lfs_pre_push::uses_lfs;
 use crate::lfs_upload_plan::settings_from_snapshot;
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
@@ -119,9 +122,9 @@ fn needs_lfs_upload(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stackIfPush(action: Action, environment): Action;
+/// function stackIfPush(action: Action, environment, pushDestination?: DestinationHeads): Action;
 /// ```
-pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action {
+pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)], push_destination: Option<DestinationHeads>) -> Action {
     let (real_git, arguments, overlay, copy, stderr) = match action {
         Action::Forward {
             real_git,
@@ -165,6 +168,7 @@ pub(crate) fn stack_if_push(action: Action, environment: &[(OsString, OsString)]
                 environment: environment.to_vec(),
                 lfs,
                 lfs_settings,
+                lfs_destination: push_destination,
                 stack,
             }),
             stderr: stderr_with_warning,
