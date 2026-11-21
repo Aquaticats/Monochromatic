@@ -450,11 +450,12 @@ function m1ReadWrite(chosen: Options): void {
     'cp $REC /root/m1-rw-record.txt',
     `check 'verdict passed' /root/m1-rw-record.txt 'snapshot-attach-passes-beside-a-read-write-superblock'`,
     `check 'step attach-exclusive-create passed' /root/m1-rw-record.txt 'snapshot-creates-a-fresh-superblock-beside-it'`,
+    `check 'source-existed yes' /root/m1-rw-record.txt 'snapshot-finds-the-source-beside-it'`,
     'umount /root/m1-rw-mount',
     'rmdir /root/m1-rw-mount /root/m1-ro-mount',
     'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/m1-rw-table-after.txt',
     'if cmp --silent /root/m1-rw-table-before.txt /root/m1-rw-table-after.txt; then echo "M1 table-restored"; else echo "M1 table-not-restored"; exit 1; fi',
-    'leaks | tail --lines=1',
+    'if test "$(leaks | tail --lines=1)" = "leaks=0"; then echo "M1 no-namespace-lists-the-source"; else echo "M1 a-namespace-still-lists-the-source"; exit 1; fi',
     'echo "M1 read-write control done"',
   ]);
   guest({ chosen, script, log: 'guest-m1-read-write.log', timeout: ARM_TIMEOUT_MS, });
