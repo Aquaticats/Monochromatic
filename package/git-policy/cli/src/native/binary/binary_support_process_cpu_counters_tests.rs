@@ -19,7 +19,8 @@
 //! `:248` at v7.3),
 //! where `__exit_signal` (`:258` at v6.12,
 //! `:272` at v7.3)
-//! runs `__unhash_process`, which detaches the pid (`:129` at v6.12,
+//! runs `__unhash_process`,
+//! which detaches the pid (`:129` at v6.12,
 //! `:140` at v7.3);
 //! `proc_flush_pid` (`:280` at v6.12,
 //! `:297` at v7.3) flushes cached entries after that,
@@ -48,7 +49,8 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
 /// How long the control waits for the kernel to remove a joined thread's own file.
-/// This is a ceiling, not a measured latency:
+/// This is a ceiling,
+/// not a measured latency:
 /// it sits far under the 300 s at which nextest stops a test
 /// (`slow-timeout = { period = "60s", terminate-after = 5 }` in
 /// `package/git-policy/cli/.config/nextest.toml`).

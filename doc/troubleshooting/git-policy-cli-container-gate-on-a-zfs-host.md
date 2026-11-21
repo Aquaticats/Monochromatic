@@ -829,7 +829,8 @@ The control asserted an order the kernel does not promise.
 A join returns when the kernel clears the child tid the join waits on and wakes that futex,
 which happens inside the thread's own exit:
 `mm_release` does both
-(`kernel/fork.c:1617-1627` at v6.12, `adc218676eef`;
+(`kernel/fork.c:1617-1627` at v6.12,
+`adc218676eef`;
 `:1490-1497` at v7.3),
 and it is reached from `exit_mm` in `do_exit`
 (`kernel/exit.c:926` at v6.12;
