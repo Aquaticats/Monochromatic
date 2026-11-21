@@ -723,7 +723,8 @@ fn tracked_bytes(worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
 /// Why:
 ///   The snapshot rung writes the fence's paths in the stage before the exchange,
 /// so the same target tree ends the rung with the destination holding only Git's pointer and no path of the copies can stay;
-/// the control requires that of the rung as of the clone rung, so the two rungs' endings are held to the same tree
+/// the control requires that of the rung as of the clone rung,
+/// so the two rungs' endings are held to the same tree
 /// (`m05` of the class controls leaves the clone rung with its copies).
 #[test]
 fn btrfs_a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_snapshot_behind() {

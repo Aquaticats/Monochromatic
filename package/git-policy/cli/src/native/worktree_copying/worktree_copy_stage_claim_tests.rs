@@ -2429,7 +2429,8 @@ fn a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left()
 /// so a person who lists the directory would find files of the add that no step will ever take (`N3` of the closure
 /// check).
 /// The shape before the settlement is the control:
-///  both names stand there, and a foreign name beside them does not go.
+///  both names stand there,
+///  and a foreign name beside them does not go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -350,8 +350,8 @@ pub(crate) fn registration_directory(destination: &Path) -> Option<PathBuf> {
 ///  Remove the clone rung's waiting index and the lock a killed Git left beside it,
 /// when they stand in the administrative directory `admin`.
 /// Why:
-///   A rung killed between writing its index under its own name and giving it the worktree's name leaves the file, and
-/// the finish command the report prints writes the worktree's own `index` and knows nothing of it,
+///   A rung killed between writing its index under its own name and giving it the worktree's name leaves the file,
+/// and the finish command the report prints writes the worktree's own `index` and knows nothing of it,
 /// so a person who lists the directory would find a file of the add's that no step will ever take.
 /// The names are this wrapper's own:
 /// the rung publishes the waiting index as its last step,
@@ -428,8 +428,8 @@ pub(crate) fn the_add_finished(claim: &Path) -> bool {
 ///  Report an add that was interrupted before it was marked complete,
 /// and change nothing of the person's.
 /// Why:
-///   The only thing it removes is the clone rung's own waiting index, which names nothing a person or a later step
-/// reads (`clear_the_waiting_index`).
+///   The only thing it removes is the clone rung's own waiting index,
+/// which names nothing a person or a later step reads (`clear_the_waiting_index`).
 ///   Recovery never deletes or unregisters a worktree:
 /// a path,
 /// a registration or a name can be changed by another process
