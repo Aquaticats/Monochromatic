@@ -1,13 +1,15 @@
 //! What:
 //!  The one adapter that maps `btf-rs` 2.0.1 onto the reader-neutral
 //! declaration:
-//!  the two files the gate read, parsed by the crate the project adopted,
+//!  the two files the gate read,
+//! parsed by the crate the project adopted,
 //! and the walk
 //!  that compares one module's declaration through them.
 //! Why:
 //!  The project adopted `btf-rs` 2.0.1 on 2026-11-20
 //! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
-//!  "The reader adopted: `btf-rs` 2.0.1"),
+//!  "The reader adopted:
+//!  `btf-rs` 2.0.1"),
 //! so this file is the reader behind
 //!  `declaration.rs` and the only file a later reader replaces.
 //!  `btf-rs` resolves a named type,

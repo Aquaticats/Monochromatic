@@ -19595,7 +19595,8 @@ the per-process verdict and the words a person reads.
 `btf-rs` 2.0.1 is the reader the project adopted on 2026-11-20 under
 `LGPL-2.1-or-later`
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
-"The reader adopted: `btf-rs` 2.0.1").
+"The reader adopted:
+`btf-rs` 2.0.1").
 It resolves a named type,
 a chained type,
 a record's members and an enumeration's values;

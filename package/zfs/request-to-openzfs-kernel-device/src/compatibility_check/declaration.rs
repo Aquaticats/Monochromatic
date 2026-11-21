@@ -13,7 +13,8 @@
 //! `btf_rs_declaration.rs` for the
 //!  adopted `btf-rs` 2.0.1
 //! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
-//!  "The reader adopted: `btf-rs` 2.0.1").
+//!  "The reader adopted:
+//!  `btf-rs` 2.0.1").
 //!  The vocabulary is the one the finalists give:
 //! `btf-rs` resolves a named type,
 //!  a chained type and a member's name and size,

@@ -250,7 +250,8 @@ The reader is `btf-rs` 2.0.1,
 the crate the project adopted on 2026-11-20 with its `LGPL-2.1-or-later`
 licence
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
-"The reader adopted: `btf-rs` 2.0.1";
+"The reader adopted:
+`btf-rs` 2.0.1";
 the vet report is
 `doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`).
 `src/compatibility_check/declaration.rs` states what the comparison,

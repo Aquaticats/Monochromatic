@@ -48,9 +48,6 @@
 //!   the reader-neutral declaration of one module's types,
 //!   the three duties every reader owes it,
 //!   and the vocabulary everything after it reads.
-//! - `btf_rs_declaration.rs`:
-//!   the one adapter that reads the two files with `btf-rs` 2.0.1 and maps
-//!   them onto the declaration.
 //! - `expectations.rs`:
 //!   the layout this crate's type compiles,
 //!   and the two records compared member by member.
@@ -63,6 +60,9 @@
 //!   the first difference.
 //! - `comparison_requests.rs`:
 //!   the request numbers and the range's two endpoints.
+//! - `btf_rs_declaration.rs`:
+//!   the one adapter that reads the two files with `btf-rs` 2.0.1 and maps
+//!   them onto the declaration.
 //! - `check_module_layout.rs`:
 //!   the entry point the root-run handler calls,
 //!   and what a pass read.
@@ -81,8 +81,6 @@ mod bounded_read;
 mod btf_header;
 /// The reader-neutral declaration everything after it reads.
 mod declaration;
-/// The one adapter that reads the two files with `btf-rs` 2.0.1.
-mod btf_rs_declaration;
 /// The layout this crate's type compiles.
 mod expectations;
 /// The request numbers this crate can send.
@@ -93,6 +91,8 @@ mod mismatch;
 mod comparison;
 /// The request numbers compared with the module's `enum zfs_ioc`.
 mod comparison_requests;
+/// The one adapter that reads the two files with `btf-rs` 2.0.1.
+mod btf_rs_declaration;
 /// The entry point the root-run handler calls.
 mod check_module_layout;
 
