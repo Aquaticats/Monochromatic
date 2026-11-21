@@ -142,17 +142,21 @@ fn a_service_is_running(config: &ClientConfig) -> bool {
 ///  and a service that is not there holds none of the values it would give up.
 /// A greeting that names no protocol this release writes ends it,
 ///  because an earlier service would refuse the line and only say so in its own log.
+/// The greeting is waited for no longer than the silence bound:
+///  the manager answered that this service is running,
+///  and it greets a connection before anything else,
+///  so one that sends nothing for that whole bound will not take the line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stream = connect(address); if (greeting(stream)?.version !== PROTOCOL_VERSION) return; writeWithin(stream, line); await closed(stream);
+/// const stream = connect(address); if (greeting(stream, silence)?.version !== PROTOCOL_VERSION) return; writeWithin(stream, line); await closed(stream);
 /// ```
 fn send_to_a_running_service(config: &ClientConfig, message: &ClientMessage) -> Result<(), ClientFailure> {
     let mut line: String = encode_client(message);
     line.push('\n');
     let mut reader: BufReader<UnixStream> = match reach(&config.address) {
         Reached::Ours(stream) => {
-            let _timeout = stream.set_read_timeout(Some(config.start_wait));
+            let _timeout = stream.set_read_timeout(Some(config.heartbeat_silence));
             BufReader::new(stream)
         }
         // Nothing listens at the address, or a process of another account took the connection: neither is this worktree's service.
