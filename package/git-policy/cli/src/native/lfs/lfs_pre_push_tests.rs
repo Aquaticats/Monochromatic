@@ -270,6 +270,28 @@ Host key verification failed.\n";
 const AN_UNKNOWN_HOST_KEY_UNDER_STRICT_CHECKING: &str =
     "No ED25519 host key is known for [127.0.0.1]:41783 and you have requested strict checking.\nHost key verification failed.\n";
 
+/// The words for a host whose key this machine's `known_hosts` marks `@revoked`,
+/// measured the same way as the two above:
+/// OpenSSH warns that a stolen key may be in use,
+/// says the key was revoked,
+/// and then prints the same last line an unknown key gets.
+const A_HOST_KEY_MARKED_REVOKED: &str = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+@       WARNING: REVOKED HOST KEY DETECTED!               @\n\
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n\
+The ED25519 host key for [127.0.0.1]:43055 is marked as revoked.\n\
+This could mean that a stolen key is being used to\n\
+impersonate this host.\n\
+ED25519 host key for [127.0.0.1]:43055 was revoked and you have requested strict checking.\n\
+Host key verification failed.\n";
+
+/// The words for a host whose key a `RevokedHostKeys` file lists,
+/// measured the same way:
+/// OpenSSH names the file that revoked it,
+/// and then prints the same last line an unknown key gets.
+const A_HOST_KEY_REVOKED_BY_A_FILE: &str = "Host key ED25519 SHA256:hxi5iW5hp0qrgMwSe0Hxb1aY0bOOHuIp6qZxsZ+Prf4 revoked by file \
+/home/someone/revoked-host-keys\n\
+Host key verification failed.\n";
+
 /// What:
 ///  A host key this machine does not know is read,
 ///  whether the account leaves the question open or asks for strict checking.
@@ -297,6 +319,37 @@ fn a_changed_host_key_keeps_opensshs_own_warning_and_is_no_unknown_key() {
     assert!(
         !reads_as_unknown_host_key(A_CHANGED_HOST_KEY),
         "a changed key is not an unknown one, and its transcript is OpenSSH's warning of a possible attack"
+    );
+}
+
+/// What:
+///  A host key this machine's `known_hosts` marks as revoked is not read as an unknown one.
+/// Why:
+///   OpenSSH has just said that the key it was given is revoked and that a stolen key may be in use;
+///  telling the person the key is unknown and to add it to `known_hosts` would answer that warning with advice to trust
+///  the key a theft was suspected of,
+///  and the push's record would promise a retry that adds nothing.
+///  OpenSSH's own words stay,
+/// as they do on `main`.
+#[test]
+fn a_host_key_marked_revoked_is_no_unknown_key() {
+    assert!(
+        !reads_as_unknown_host_key(A_HOST_KEY_MARKED_REVOKED),
+        "a revoked key is not an unknown one, and its transcript is OpenSSH's warning that a stolen key may be in use"
+    );
+}
+
+/// What:
+///  A host key a `RevokedHostKeys` file lists is not read as an unknown one.
+/// Why:
+///   The account said the key is revoked and OpenSSH named the file that says so;
+///  the way out above would send the person to add that very key,
+///  and this file is where the account took it away.
+#[test]
+fn a_host_key_revoked_by_a_file_is_no_unknown_key() {
+    assert!(
+        !reads_as_unknown_host_key(A_HOST_KEY_REVOKED_BY_A_FILE),
+        "a key revoked by a file is not an unknown one, and adding it is what the account forbade"
     );
 }
 
