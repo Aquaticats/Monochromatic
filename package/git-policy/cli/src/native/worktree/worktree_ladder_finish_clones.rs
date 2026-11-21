@@ -2,7 +2,8 @@
 //!  The clone rung's serving step:
 //! the copies,
 //! the fence beside them,
-//! the index install and the write step through Git.
+//! the index written under a name of its own,
+//! the write step through Git and the moment the index takes the worktree's name.
 //! Why:
 //!  The module that binds an add to the directories Git made is under the line limit,
 //! and this is the one rung whose steps are reordered around a concurrency
@@ -20,12 +21,14 @@ use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, verify_association};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clone::{ClonedBytes, clone_tracked_bytes_beside, leftover_report};
+use crate::worktree_clone_index::PendingIndex;
 #[cfg(feature = "measurement-routes")]
 use crate::worktree_clone::{Cloned, clone_tracked_files};
 use crate::worktree_clone_conversion_beside_the_clone::{fence_beside_the_clone, install_beside_the_clone};
 use crate::worktree_copy::GitRunner;
-use crate::worktree_ladder_target::{Target, apply_difference, prepare_target};
+use crate::worktree_ladder_target::{Target, apply_difference_with_index, prepare_target};
 use crate::worktree_snapshot_source::SnapshotSource;
+use std::path::Path;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeLadder";
@@ -34,9 +37,10 @@ const TAG: &str = "worktreeLadder";
 ///  The clone rung:
 /// copy the tracked files into the destination,
 /// have the fence answer,
-/// install the index,
+/// write the index under a name of its own,
 /// apply the tree difference,
-/// and write through Git every path the fence left to it.
+/// write through Git every path the fence left to it,
+/// and give the index the worktree's own name.
 /// Why:
 ///   The destination is filled in place;
 /// an error removes nothing:
@@ -48,7 +52,8 @@ const TAG: &str = "worktreeLadder";
 /// (`CloneFence`):
 /// beside the copies,
 ///  nothing is installed until the fence has answered,
-///  and the seed it hands the install holds no stat data for the paths Git still has to write;
+///  the seed it hands the install holds no stat data for the paths Git still has to write,
+///  and it is published under the worktree's own name only after that write;
 /// before the copies,
 ///  option A′ of the fence's report,
 ///  every copied path is proven and the index may vouch for all of them.
@@ -60,22 +65,36 @@ const TAG: &str = "worktreeLadder";
 pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    let beside: bool = matches!(fence, crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(ref _held));
-    let (created, decided): (Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence) = clone_with_the_fence(source, fence, bound, context)?;
+    let (created, decided, pending): (Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence, Option<PendingIndex>) = clone_with_the_fence((source, fence, target.admin.as_path(), bound, context))?;
+    let index_file: Option<std::path::PathBuf> = pending.as_ref().map(|held| return held.path_in().to_path_buf());
     let applied: Result<(), String> = match verify_association(bound) {
-        Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
+        Ok(()) => apply_difference_with_index((source, &target, plan.destination.as_path(), run_git), index_file.as_deref()),
         Err(reason) => Err(reason),
     };
     if let Err(reason) = applied {
         warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(created.as_slice(), plan.destination.as_path())).as_str());
+        discard_the_pending_index(pending, &bound.admin);
         return Err(reason);
     }
     if !decided.git_writes.is_empty() {
-        if beside {
-            crate::worktree_clone_conversion_fence::checkout_index_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length)?;
-        } else {
-            crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length)?;
+        let written: Result<(), String> = match pending.as_ref().map(|held| return held.path_in()) {
+            Some(index) => crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at((target.admin.as_path(), plan.destination.as_path(), context), index, decided.git_writes.as_slice(), source.clean.hash_length),
+            None => crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length),
+        };
+        if let Err(reason) = written {
+            discard_the_pending_index(pending, &bound.admin);
+            return Err(reason);
         }
+    }
+    // What:
+    //  The index takes the worktree's own name here, after the last write this rung makes through Git.
+    // Why:
+    //  A published index whose entry holds the clean form of the source's bytes makes `git status` refresh the entry instead of
+    //  reporting the path (issue 6323), so a kill between the publication and the write left a worktree that vouched for
+    //  bytes Git had not written. Written under a name of its own and published here, the file is not the worktree's index
+    //  while that window is open, and a kill there leaves no index at all: the unfinished shape the recovery already names.
+    if let Some(held) = pending {
+        held.publish(&bound.admin)?;
     }
     return Ok(target.line);
 }
@@ -83,7 +102,8 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
 /// What:
 ///  Copy the tracked files and get the fence's answer,
 /// in the order the rung's fence shape names,
-/// and install the index the fence's answer allows.
+/// and write the index the fence's answer allows,
+/// under a name of its own when the worktree's name must wait for Git's write.
 /// Why:
 ///   The order is the option.
 /// In the shipped shape the copies and the fence's remaining reads (`git ls-tree` and the decision) run together,
@@ -97,14 +117,14 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function cloneWithTheFence(args): Promise<[Created[], Fence]>; // throws a reason
+/// async function cloneWithTheFence(args): Promise<[Created[], Fence, PendingIndex?]>; // throws a reason
 /// ```
-pub(super) fn clone_with_the_fence(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, bound: &Bound, context: &GitContext) -> Result<(Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence), String> {
+pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context): (&SnapshotSource, crate::worktree_clone_conversion_beside_the_clone::CloneFence, &Path, &Bound, &GitContext)) -> Result<(Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence, Option<PendingIndex>), String> {
     return match fence {
         #[cfg(feature = "measurement-routes")]
         crate::worktree_clone_conversion_beside_the_clone::CloneFence::BeforeTheClone(decided) => {
             let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
-            Ok((cloned.into_created(), decided))
+            Ok((cloned.into_created(), decided, None))
         }
         crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(held) => {
             let beside_entered: bool = begin_step("conversionBesideTheClone");
@@ -117,8 +137,27 @@ pub(super) fn clone_with_the_fence(source: &SnapshotSource, fence: crate::worktr
                 Some(Err(reason)) => return Err(reason),
                 None => return Err(String::from("the fence beside the copies answered nothing")),
             };
-            install_beside_the_clone(&bound.admin, source, &decided, cloned.stats())?;
-            Ok((cloned.into_created(), decided))
+            let pending: PendingIndex = install_beside_the_clone((&bound.admin, admin_path), source, &decided, cloned.stats())?;
+            Ok((cloned.into_created(), decided, Some(pending)))
         }
     };
+}
+
+/// What:
+///  Remove the index this rung wrote under its own name,
+/// so the record of what is on disk is Git's checkout's to write.
+/// Why:
+///   A rung that ends before the publication leaves the file behind,
+/// and nothing but this run knows it is not the worktree's index;
+/// the removal checks the identity,
+///  so a name another process took stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (pending) pending.discard(admin);
+/// ```
+fn discard_the_pending_index(pending: Option<PendingIndex>, admin: &std::fs::File) {
+    if let Some(held) = pending {
+        held.discard(admin);
+    }
 }

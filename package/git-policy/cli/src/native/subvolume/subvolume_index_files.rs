@@ -42,7 +42,7 @@
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);
 //! ```
 
-pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
+pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, discard_index_under_a_name, install_index_in, install_index_in_with, publish_index_under_a_name, write_index_under_a_name};
 use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
 use crate::subvolume_sha::{sha1, sha256};
 use crate::subvolume_index::{HEADER, IndexOutcome, Located, RewriteContext, STAT, StatFields, StatLookup, StatTrust, StoredStat, checksum_kind, rewrite_index_stat_with, walk_entries};

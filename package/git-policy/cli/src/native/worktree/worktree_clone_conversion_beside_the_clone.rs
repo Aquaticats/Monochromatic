@@ -18,14 +18,20 @@
 //!  the attributes are read and the decline decided first,
 //! the bytes are copied next,
 //! the fence's remaining reads answer beside the copies,
-//! the index is installed with the stat data of every path Git still has to write zeroed
+//! the index is written under a name of its own with the stat data of every path Git still has to write zeroed
 //! (`subvolume_index::with_zeroed_stat`),
-//!  and only then are those paths written by Git.
-//! Nothing between the copy and Git's write records a written path clean:
-//!  no index exists before the fence answers,
-//!  and the index that exists after it holds no stat data for them,
-//!  so a `git status` in that window reads the bytes and finds them different instead of trusting them,
-//!  and a process killed there leaves an index that cannot vouch for the paths Git had not written.
+//!  Git is pointed at that file while it writes those paths,
+//!  and only then does the file take the worktree's own name.
+//! Nothing in that window vouches for a path Git had not written:
+//!  the worktree holds no index until the write is done,
+//!  so a `git status` there reads the bytes rather than a stat record,
+//!  a process killed there leaves the unfinished shape the recovery already names
+//! (`worktree_copy_interrupted_add_settlement::add_is_finished`),
+//!  and the index that appears afterwards is the one Git's own `-u` recorded.
+//! An index published before that write would be the defect:
+//! the clean form of the source's bytes equals the blob,
+//!  so a `git status` refreshes such an entry instead of reporting the path (issue 6323,
+//! reached by a kill).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,8 +40,9 @@
 //! const cloned = cloneTrackedBytes(source, destination); // throws a reason
 //! const fence = beside.join(); // throws the reason the rung cannot be proven
 //! const seed = seedWithoutStat(source, fence); // the source's index, the written paths' stat zeroed
-//! installTheIndex(admin, seed, cloned.stats, new Set(fence.gitWrites), hashLength);
-//! // after the tree difference: checkoutThroughGit(admin, destination, context, fence.gitWrites, hashLength)
+//! const pending = writeTheIndexUnderitsOwnName(admin, seed, cloned.stats, new Set(fence.gitWrites), hashLength);
+//! // the tree difference and checkoutThroughGit, both against pending.path
+//! pending.publish(admin);
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
@@ -44,6 +51,7 @@ use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::with_zeroed_stat;
 use crate::transaction_git::GitContext;
 use crate::worktree_clone_conversion_fence::{AttributeFence, Fence, decide_the_paths, fence_the_attributes};
+use crate::worktree_clone_index::{PendingIndex, install_the_index_beside_the_write};
 #[cfg(test)]
 use crate::worktree_clone_conversion_fence::fence_the_clone;
 use crate::worktree_snapshot_source::SnapshotSource;
@@ -184,22 +192,25 @@ pub fn seed_without_stat(source: &SnapshotSource, fence: &Fence) -> Result<Vec<u
 }
 
 /// What:
-///  Install the destination's index for one fence beside the clone:
+///  Write the destination's index for one fence beside the clone under a name of its own,
+/// waiting for the worktree's name:
 /// the source's index as a seed with the paths Git must write stripped of their stat data,
 ///  and the stat fields the copies recorded for the rest.
 /// Why:
 ///   This is the one place the order is decided after both sides answered,
-///  so a control can read the index it publishes and see that no path Git still has to write is vouched for.
+///  so a control can read the file it wrote and see that no path Git still has to write is vouched for;
+/// the file takes the worktree's own name only after those paths are written
+/// (`PendingIndex::publish`),
+///  so no window exists in which the worktree's index could vouch for a path Git had not written yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// installBesideTheClone(admin, source, fence, cloned.stats); // throws the reason the rung cannot be proven
+/// const pending = installBesideTheClone([admin, adminPath], source, fence, cloned.stats); // throws the reason the rung cannot be proven
 /// ```
-pub fn install_beside_the_clone(admin: &std::fs::File, source: &SnapshotSource, fence: &Fence, stats: &HashMap<Vec<u8>, StatFields>) -> Result<(), String> {
+pub(crate) fn install_beside_the_clone((admin, admin_path): (&std::fs::File, &std::path::Path), source: &SnapshotSource, fence: &Fence, stats: &HashMap<Vec<u8>, StatFields>) -> Result<PendingIndex, String> {
     let seed: Vec<u8> = seed_without_stat(source, fence)?;
     let written: HashSet<Vec<u8>> = fence.git_writes.iter().cloned().collect();
-    crate::worktree_clone::install_the_index(admin, seed.as_slice(), stats, &written, source.clean.hash_length)?;
-    return Ok(());
+    return install_the_index_beside_the_write((admin, admin_path), seed.as_slice(), stats, &written, source.clean.hash_length);
 }
 
 /// Fence-beside-the-clone controls stay out of the release executable.

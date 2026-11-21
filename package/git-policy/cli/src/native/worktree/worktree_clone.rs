@@ -21,9 +21,11 @@
 //!  size and modification time kept,
 //! only the inode,
 //! change time and device of every entry change.
-//! A path the conversion fence leaves to Git is installed with no stat data at all
-//! (`install_the_index`),
-//!  so no step between the copy and Git's own write records it clean.
+//! A path the conversion fence leaves to Git is written with no stat data at all
+//! (`install_the_index_beside_the_write`),
+//! and the index keeps a name of its own until Git has written those paths
+//! (`PendingIndex::publish`),
+//!  so no worktree index exists while a converted path still carries the source's bytes.
 //! The first failure ends
 //!  the rung with its reason,
 //! the entries this run created stay (a name cannot be checked and unlinked in one step),
@@ -58,6 +60,7 @@ use crate::worktree_clone_entries::clone_with;
 use crate::worktree_clone_entry::{Seams, do_nothing};
 pub use crate::worktree_clone_paths::Created;
 pub(crate) use crate::worktree_clone_paths::Directories;
+#[cfg(any(test, feature = "measurement-routes"))]
 pub(crate) use crate::worktree_clone_index::install_the_index;
 use crate::worktree_clone_slices::{clone_in_slices, clone_worker_count};
 use crate::worktree_clean::stored_stats;
@@ -114,7 +117,8 @@ impl Cloned {
 ///   The index install is a step of its own,
 /// so the fence beside the clone can answer between the copy and the install,
 /// and a path Git
-///  still has to write is installed with no stat data (`install_the_index`).
+///  still has to write is written with no stat data and published only after Git writes it
+/// (`worktree_clone_index`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,7 +290,7 @@ where
 ///  the installed index may vouch for all of them.
 /// It is kept only for a measurement build (`measurement-routes`);
 /// the shipped shape
-///  is `clone_tracked_bytes` and `install_the_index` around a fence that runs beside the copy.
+///  is `clone_tracked_bytes` and the install under a name of its own around a fence that runs beside the copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

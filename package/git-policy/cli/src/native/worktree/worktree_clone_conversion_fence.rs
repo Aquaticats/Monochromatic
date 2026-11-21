@@ -42,7 +42,7 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_clean::{StatEntry, stored_stats};
 use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, checkout_converts, conversion_rules_from_config, decide, needs_blob_size};
-use crate::worktree_ladder_target::checkout_environment;
+use crate::worktree_ladder_target::{checkout_environment, checkout_environment_with_index};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -530,21 +530,20 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 }
 
 /// What:
-///  The paths of the destination's index,
+///  The paths of the index at `index`,
 ///  as the set a write step intersects a fence's answer with.
 /// Why:
 ///   The tree difference can remove a path the new `HEAD` lacks,
 /// and `git checkout-index` fails the whole rung on a path its index does not hold
 ///  ("is not in the cache"),
-///  so both write steps ask the destination's own index which of the fenced paths are still there.
+///  so both write steps ask the index they are pointed at which of the fenced paths are still there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function pathsTheDestinationIndexHolds(admin, hashLength): Set<string>; // throws the reason
+/// function pathsTheIndexHolds(index, hashLength): Set<string>; // throws the reason
 /// ```
-fn paths_the_destination_index_holds(admin: &Path, hash_length: usize) -> Result<HashSet<Vec<u8>>, String> {
-    let index_path: PathBuf = admin.join("index");
-    let bytes: Vec<u8> = std::fs::read(index_path.as_path()).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
+fn paths_the_index_holds(index: &Path, hash_length: usize) -> Result<HashSet<Vec<u8>>, String> {
+    let bytes: Vec<u8> = std::fs::read(index).map_err(|error| return format!("the new worktree's index cannot be read ({error})"))?;
     let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     let Some(entries) = parse_index(bytes.as_slice(), format) else {
         return Err(String::from("the new worktree's index has a layout the reader does not know"));
@@ -631,21 +630,27 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
 /// ```
 pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
     let zeroed: Vec<Vec<u8>> = zero_the_entries(admin, destination, context, paths, hash_length)?;
-    return checkout_paths(admin, destination, context, zeroed.as_slice());
+    let index: PathBuf = admin.join("index");
+    return checkout_paths(admin, destination, context, zeroed.as_slice(), index.as_path());
 }
 
 /// What:
-///  Run the one `git checkout-index --force -u --stdin` of `paths`.
+///  Run the one `git checkout-index --force -u --stdin` of `paths`,
+/// against the index at `index`.
 /// Why:
 ///   Both write steps end in the same run,
 /// and each has already decided which paths its index holds,
-///  so the run itself asks nothing else.
+///  so the run itself asks nothing else;
+/// `GIT_INDEX_FILE` names the index,
+/// so a rung whose index awaits the worktree's own name records its `-u`
+///  stat data in the file that will become that index,
+/// and the worktree itself holds no index while the paths are written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkoutPaths(admin, destination, context, paths); // throws the reason
+/// function checkoutPaths(admin, destination, context, paths, index); // throws the reason
 /// ```
-fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>]) -> Result<(), String> {
+fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], index: &Path) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
@@ -654,7 +659,7 @@ fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths:
         input.extend_from_slice(path.as_slice());
         input.push(0);
     }
-    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
+    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment_with_index((admin, destination), Some(index)))?;
     return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
 }
 
@@ -675,9 +680,27 @@ fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths:
 /// function checkoutIndexThroughGit(admin, destination, context, paths, hashLength); // throws the reason
 /// ```
 pub fn checkout_index_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
-    let held: HashSet<Vec<u8>> = paths_the_destination_index_holds(admin, hash_length)?;
+    let index: PathBuf = admin.join("index");
+    return checkout_index_through_the_index_at((admin, destination, context), index.as_path(), paths, hash_length);
+}
+
+/// What:
+///  `checkout_index_through_git` with the index named,
+///  for a rung whose index awaits the worktree's own name
+/// (`worktree_clone_index::PendingIndex`).
+/// Why:
+///   Git is pointed at that file with `GIT_INDEX_FILE`,
+/// so its `-u` records the stat data of the bytes it wrote in the file that will become the worktree's index,
+///  and the worktree holds no index at all until then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkoutIndexThroughTheIndexAt({ admin, destination, context }, pendingPath, paths, hashLength); // throws the reason
+/// ```
+pub fn checkout_index_through_the_index_at((admin, destination, context): (&Path, &Path, &GitContext), index: &Path, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
+    let held: HashSet<Vec<u8>> = paths_the_index_holds(index, hash_length)?;
     let present: Vec<Vec<u8>> = paths.iter().filter(|path| return held.contains(path.as_slice())).cloned().collect();
-    return checkout_paths(admin, destination, context, present.as_slice());
+    return checkout_paths(admin, destination, context, present.as_slice(), index);
 }
 
 #[cfg(test)]
