@@ -40,6 +40,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean_content::ConversionEnvironment;
+use crate::worktree_clone_conversion_fence::Fence;
 use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
@@ -127,15 +128,18 @@ struct Served {
 /// ```ts
 /// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
-fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
+fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, fence: &Fence, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
     let prepare_target_outcome = prepare_target(source, plan, context, bound);
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
     let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
+    // The written paths are the fence's, so the snapshot's index names them without stat data and the checkout below
+    // writes them: no step between that install and that write vouches for the source's bytes there.
+    let written: std::collections::HashSet<Vec<u8>> = fence.git_writes.iter().cloned().collect();
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
-    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
+    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &written);
     end_step(take_snapshot_entered);
     let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
         Ok(taken) => {
@@ -168,22 +172,20 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     //  A snapshot carries the source's whole working tree, so where a line-ending rule, `core.autocrlf`, `ident`, an
     //  encoding or a filter applies, the stage holds the source's bytes and not the conversion of the blob, which neither
     //  the stat data nor `git status` can tell (issue 6323; the guest measured rung 1 wrong for a clean and a dirty
-    //  source). The fence is the clone rung's own decision, and the write is the same one Git run, with the stage as its
-    //  work tree; the index the snapshot installed keeps its own stat fields for the source's files, which no longer
-    //  match the paths Git rewrites, so the first status hashes them and finds them clean.
+    //  source). The fence is the clone rung's own decision, decided before the snapshot (rule: no path recorded clean
+    //  before its bytes are Git's), and the write is the clone rung's own checkout run, with the stage as its work tree.
+    //  The index the snapshot installed holds no stat data for these paths (`install_the_index`, the seed
+    //  with_zeroed_stat made), so no step between the install and this run vouches for the source's bytes there; `-u`
+    //  records each written path's own stat data.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const fence = fenceTheClone(source, context); // throws the reason the rung cannot be proven
-    // if (fence.gitWrites.length > 0) writeThroughGit(stage, bound.admin, context, fence.gitWrites);
+    // const fence = fenceTheClone(source, context); // decided before the snapshot (chooseRung)
+    // if (fence.gitWrites.length > 0) checkoutIndexThroughGit(stage, bound.admin, context, fence.gitWrites);
     // ```
-    let fence_entered: bool = begin_step("conversionFence");
-    let fence_outcome = crate::worktree_clone_conversion_fence::fence_the_clone(source, context);
-    end_step(fence_entered);
-    let fence: crate::worktree_clone_conversion_fence::Fence = fence_outcome?;
     if !fence.git_writes.is_empty() {
         let write_entered: bool = begin_step("writeConversions");
-        let write_outcome = crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), stage, context, fence.git_writes.as_slice(), source.clean.hash_length);
+        let write_outcome = crate::worktree_clone_conversion_fence::checkout_index_through_git(target.admin.as_path(), stage, context, fence.git_writes.as_slice(), source.clean.hash_length);
         end_step(write_entered);
         write_outcome?;
     }
@@ -347,7 +349,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, fence: crate::worktree_ladder_run::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
     }
@@ -393,7 +395,7 @@ fn finish_clones(source: &SnapshotSource, fence: crate::worktree_ladder_run::Clo
 /// ```ts
 /// async function finishSnapshot(args): Promise<LadderResult>;
 /// ```
-fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: StageClaim, fence: &Fence, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     let bound: Bound = match bind(&claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
@@ -403,7 +405,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
         }
     };
     let mut made: Option<ObjectId> = None;
-    return match serve_snapshot(source, plan, stage, &bound, &mut made, run_git, context) {
+    return match serve_snapshot(source, plan, stage, &bound, &mut made, fence, run_git, context) {
         Ok(served) => {
             debug(TAG, format!("the snapshot served {}", plan.destination.display()).as_str());
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
@@ -479,15 +481,15 @@ impl Ladder {
     pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write) -> LadderResult {
         let mut slow: Option<SlowRoute> = self.slow;
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
-            (Rung::Snapshot(source, claim), Some(plan)) => {
+            (Rung::Snapshot(source, claim, fence), Some(plan)) => {
                 if !git.succeeded() {
                     release_claim(claim, false);
                     return LadderResult { git, carried: None, placed: None, trash: None, claim: None };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
-                finish_snapshot(&source, plan, stage.as_path(), claim, run_git, context, out, note, &mut slow)
+                finish_snapshot(&source, plan, stage.as_path(), claim, &fence, run_git, context, out, note, &mut slow)
             }
-            (Rung::Snapshot(_, claim), None) => {
+            (Rung::Snapshot(_, claim, _fence), None) => {
                 release_claim(claim, false);
                 LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }

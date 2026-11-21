@@ -36,7 +36,6 @@
 //! if (fence.gitWrites.length > 0) writeThroughGit(destination, admin, context, fence.gitWrites);
 //! ```
 
-use crate::config_snapshot::ConfigEntry;
 use crate::diagnostic_log::debug;
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
@@ -347,63 +346,6 @@ fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap
     return Ok(sizes);
 }
 
-/// The configuration entries the fence reads its settings from.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const configOf = (source) => source.config.entries();
-/// ```
-fn config_of(source: &SnapshotSource) -> &[ConfigEntry] {
-    return source.config.entries();
-}
-
-/// What:
-///  Option C measured with the same binary:
-/// the rung declines whenever any conversion source could apply,
-/// and carries every path when none could,
-///  so neither answer costs a Git run.
-/// Why:
-///   The whole point of the option is that it reads a few small files and nothing else.
-/// It exists only in a measurement build (`measurement-routes`),
-/// because a route no shipped code takes is a defect waiting for a setting to turn it on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function declineWhenConversionCouldApply(source, entries): Fence; // throws the reason
-/// ```
-#[cfg(feature = "measurement-routes")]
-fn decline_when_conversion_could_apply(source: &SnapshotSource, entries: &[StatEntry]) -> Result<Fence, String> {
-    let rules: ConversionRules = conversion_rules_from_config(config_of(source));
-    let filter_setting: bool = config_of(source).iter().any(|entry| return entry.key.starts_with("filter."));
-    let shared_attributes: bool = source.common_dir.join("info/attributes").exists();
-    let named_attributes: bool = config_of(source).iter().any(|entry| return entry.key == "core.attributesfile");
-    if rules.auto_crlf != crate::worktree_clone_conversion_rules::AutoCrlf::False || filter_setting || shared_attributes || named_attributes || !source.clean.attribute_blobs.is_empty() {
-        return Err(String::from("the source has a conversion setting or an attributes file, and this build declines the rung rather than reading its paths (option C)"));
-    }
-    return Ok(Fence { git_writes: Vec::new(), carried: entries.len() });
-}
-
-/// What:
-///  Option D measured with the same binary:
-/// Git writes every tracked path,
-/// and no attribute is read.
-/// Why:
-///   The option's shape is exactly this,
-/// so its cost is the clone plus a checkout of the whole tree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const allPaths = (entries) => ({ gitWrites: entries.map((entry) => entry.path), carried: 0 });
-/// ```
-#[cfg(feature = "measurement-routes")]
-fn all_paths_through_git(entries: &[StatEntry]) -> Fence {
-    let mut git_writes: Vec<Vec<u8>> = Vec::with_capacity(entries.len());
-    for entry in entries {
-        git_writes.push(entry.path.clone());
-    }
-    return Fence { git_writes, carried: 0 };
-}
-
 /// What:
 ///  Refuse a source with an untracked or ignored `.gitattributes` above a tracked path,
 ///  with the reason the rung cannot be proven.
@@ -432,45 +374,57 @@ pub fn refuse_untracked_attributes(source: &SnapshotSource) -> Result<(), String
 }
 
 /// What:
-///  Decide every tracked path of the clean source:
-/// what the clones may carry and what Git must write.
+///  The half of the fence the attributes alone decide:
+/// the tracked entries,
+/// the attributes Git answers for each of them,
+/// the conversion rules,
+///  and nothing that needs a blob.
 /// Why:
-///   The answer is the fence,
-/// and every read it needs is taken here,
-/// so the caller only decides what to do with each path.
+///   This is the half that a decline needs,
+/// and the decline must be decided before the first copy
+///  (`doc/planning/cli-git-clone-rung-conversion-fence.md`,
+/// option B's first step):
+/// its two reads are `git check-attr` and the count over its answer,
+///  so a source above the quarter costs the add one Git checkout and this query and no copy at all.
+/// The rest of the fence needs `git ls-tree`,
+/// which is the expensive read,
+///  so it stays where the copies are (`decide_the_paths`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function fenceTheClone(source, context): Fence; // throws the reason the rung cannot be proven
+/// type AttributeFence = { entries: StatEntry[]; attributes: Map<string, PathAttributes>; rules: ConversionRules };
 /// ```
-pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<Fence, String> {
+#[derive(Clone)]
+pub struct AttributeFence {
+    /// The tracked entries of the source's frozen index,
+    /// in its order.
+    entries: Vec<StatEntry>,
+    /// The attributes Git answered for each path.
+    attributes: HashMap<Vec<u8>, PathAttributes>,
+    /// The conversion rules the answer is judged by.
+    rules: ConversionRules,
+}
+
+/// What:
+///  Read the attributes of every tracked path and decide the decline,
+/// before anything is copied.
+/// Why:
+///   The cheap refusal comes first (no Git run),
+/// then one `git check-attr` and the count of the paths a rule of
+///  their own would convert;
+/// a source above the quarter ends the rung here,
+/// which is what makes a declined add one Git checkout plus this query.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fenceTheAttributes(source, context): AttributeFence; // throws the reason the rung cannot be proven
+/// ```
+pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Result<AttributeFence, String> {
     refuse_untracked_attributes(source)?;
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
-    // What:
-    //  The measurement routes of a measurement build: `decline` is option C (refuse the rung whenever anything could
-    //  convert, with no Git run at all) and `all` is option D (Git writes every tracked path, with no attribute read).
-    // Why:
-    //  A report of options has to time the options, and neither needs a second behaviour in shipped code: the feature is
-    //  off in every shipped build, so the release binary holds no switch at all, and a route no shipped code takes can
-    //  never be turned on by a setting.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const sw = process.env.MONOCHROMATIC_CLONE_FENCE;
-    // ```
-    #[cfg(feature = "measurement-routes")]
-    let measure_decline: bool = match std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default().as_str() {
-        "decline" => return decline_when_conversion_could_apply(source, entries.as_slice()),
-        "all" => return Ok(all_paths_through_git(entries.as_slice())),
-        // The fence's own shape with the decline rule off, so a report can price the rule against its absence.
-        "nodecline" => false,
-        _ => true,
-    };
-    #[cfg(not(feature = "measurement-routes"))]
-    let measure_decline: bool = true;
-    let rules: ConversionRules = conversion_rules_from_config(config_of(source));
+    let rules: ConversionRules = conversion_rules_from_config(source.config.entries());
     let attributes: HashMap<Vec<u8>, PathAttributes> = attributes_of(context, source.root.as_path(), entries.as_slice())?;
     // What:
     //  The decline rule: how many paths a rule of their own would convert is known from the attributes alone, before any
@@ -481,6 +435,10 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
     //  and the rule is decided here, before the add's record is claimed and before real Git runs, so a declining source
     //  pays only these reads and Git's own single checkout.
     //  and a shape that is slower than the thing it replaces is not something to ship quietly.
+    #[cfg(feature = "measurement-routes")]
+    let measure_decline: bool = std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default() != "nodecline";
+    #[cfg(not(feature = "measurement-routes"))]
+    let measure_decline: bool = true;
     let converting: usize = converting_paths(entries.as_slice(), &attributes, &rules);
     if measure_decline && declines(converting, entries.len()) {
         return Err(format!(
@@ -488,6 +446,24 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
             entries.len()
         ));
     }
+    return Ok(AttributeFence { entries, attributes, rules });
+}
+
+/// What:
+///  Decide every tracked path the attributes left:
+/// what the clones may carry and what Git must write.
+/// Why:
+///   This is the half that costs `git ls-tree`,
+/// so it runs where the copies are,
+/// and a control can price it apart from
+///  the reads the decline needed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function decideThePaths(source, context, read): Fence; // throws the reason the rung cannot be proven
+/// ```
+pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: AttributeFence) -> Result<Fence, String> {
+    let AttributeFence { entries, attributes, rules }: AttributeFence = read;
     // One `git ls-tree` for every path whose checkout can write the blob unchanged, which is every path this fence may
     // carry: the blob's size is the proof the file holds it, and a file can hold another rule's form even when today it
     // has no rule at all (an unset `core.autocrlf`, a tracked attributes file a later commit deleted).
@@ -518,6 +494,24 @@ pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<
     }
     debug(TAG, format!("the fence carries {carried} paths and leaves {} to Git", git_writes.len()).as_str());
     return Ok(Fence { git_writes, carried });
+}
+
+/// What:
+///  Both halves of the fence,
+/// one after the other,
+/// for a rung that decides it before its copy (rung 1's snapshot).
+/// Why:
+///   The snapshot's index is installed by the snapshot itself,
+/// so the written paths must be known before it runs,
+///  and a snapshot rung copies everything anyway:
+/// there is no second thread for the reads to run beside.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fence = decideThePaths(source, context, fenceTheAttributes(source, context));
+/// ```
+pub fn fence_the_clone(source: &SnapshotSource, context: &GitContext) -> Result<Fence, String> {
+    return decide_the_paths(source, context, fence_the_attributes(source, context)?);
 }
 
 /// What:

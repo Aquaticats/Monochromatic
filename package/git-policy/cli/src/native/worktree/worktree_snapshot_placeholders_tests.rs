@@ -59,7 +59,7 @@ fn snapshot_into(root: &Path, repo: &Path, destination: &str, trash_ignored: boo
     let mut source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
     source.trash_ignored = trash_ignored;
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &content_environment()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &content_environment(), &std::collections::HashSet::new()).map_err(|failure| { return failure.reason; }).expect("snapshot");
     return (stage, taken.trash);
 }
 

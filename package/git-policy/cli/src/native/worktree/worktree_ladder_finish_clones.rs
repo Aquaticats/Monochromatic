@@ -57,10 +57,10 @@ const TAG: &str = "worktreeLadder";
 /// ```ts
 /// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_ladder_run::CloneFence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
+pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
-    let beside: bool = matches!(fence, crate::worktree_ladder_run::CloneFence::Beside);
+    let beside: bool = matches!(fence, crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(ref _held));
     let (created, decided): (Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence) = clone_with_the_fence(source, fence, bound, context)?;
     let applied: Result<(), String> = match verify_association(bound) {
         Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
@@ -86,10 +86,12 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_ladde
 /// and install the index the fence's answer allows.
 /// Why:
 ///   The order is the option.
-/// In the shipped shape the copies and the fence's reads run together,
+/// In the shipped shape the copies and the fence's remaining reads (`git ls-tree` and the decision) run together,
 /// the join is taken whatever the copy's answer was,
 /// and the index is installed from a seed that holds no stat data for a path Git still has to write,
 ///  so no step between the copy and Git's write records such a path clean;
+/// the attributes and the decline were decided before any copy,
+/// so a declined source never reaches this step;
 /// a fence that ends the rung leaves no index at all,
 ///  and Git's own checkout writes the whole worktree.
 ///
@@ -97,16 +99,16 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_ladde
 /// ```ts
 /// async function cloneWithTheFence(args): Promise<[Created[], Fence]>; // throws a reason
 /// ```
-pub(super) fn clone_with_the_fence(source: &SnapshotSource, fence: crate::worktree_ladder_run::CloneFence, bound: &Bound, context: &GitContext) -> Result<(Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence), String> {
+pub(super) fn clone_with_the_fence(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, bound: &Bound, context: &GitContext) -> Result<(Vec<crate::worktree_clone::Created>, crate::worktree_clone_conversion_fence::Fence), String> {
     return match fence {
         #[cfg(feature = "measurement-routes")]
-        crate::worktree_ladder_run::CloneFence::BeforeTheClone(decided) => {
+        crate::worktree_clone_conversion_beside_the_clone::CloneFence::BeforeTheClone(decided) => {
             let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
             Ok((cloned.into_created(), decided))
         }
-        crate::worktree_ladder_run::CloneFence::Beside => {
+        crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(held) => {
             let beside_entered: bool = begin_step("conversionBesideTheClone");
-            let (cloned, answered): (ClonedBytes, Option<Result<crate::worktree_clone_conversion_fence::Fence, String>>) = clone_tracked_bytes_beside(source, &bound.destination, fence_beside_the_clone(source, context))?;
+            let (cloned, answered): (ClonedBytes, Option<Result<crate::worktree_clone_conversion_fence::Fence, String>>) = clone_tracked_bytes_beside(source, &bound.destination, fence_beside_the_clone(source, context, held))?;
             end_step(beside_entered);
             // A fence's reason, or a pool that would not run it, ends the rung here before any index exists: Git's own
             // checkout writes the worktree.
