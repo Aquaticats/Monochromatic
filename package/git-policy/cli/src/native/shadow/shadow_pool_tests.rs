@@ -547,7 +547,13 @@ fn a_member_stays_usable_when_an_entry_no_commit_reads_appears() {
     for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-commit-timing.jsonl", "cli-git-captures"] {
         std::fs::write(common.join(name), b"state").expect("an entry no commit reads");
     }
-    std::fs::create_dir_all(common.join("worktrees").join("another")).expect("another worktree's state");
+    let another: PathBuf = root.join("another");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--detach", another.to_str().expect("fixture")]);
+    let registration: PathBuf = common.join("worktrees").join("another");
+    // The entry must still be there when the claim runs, and only a registration Git can read outlives the
+    //  repository's own upkeep (issue 6325): a folder written by hand is pruned, and the control would then assert
+    //  nothing about a `worktrees` entry being present.
+    assert!(registration.is_dir(), "the registration this control adds is still there before the claim");
     let destination: PathBuf = root.join("shadow");
     assert!(take(&template, destination.as_path()), "the member is still what this invocation's creation makes");
     for name in ["FETCH_HEAD", "monochromatic-git-policy-cli-commit-timing.jsonl", "cli-git-captures", "worktrees"] {

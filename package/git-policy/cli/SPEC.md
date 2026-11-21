@@ -16205,6 +16205,22 @@ other tools' files,
 `ORIG_HEAD`,
 `description`,
 and `lost-found`.
+`worktrees` is such state too:
+Git removes it without any wrapper step.
+Git 2.56.1 starts its automatic maintenance after each commit it makes
+(`maintenance run --auto`,
+detached by default,
+`prepare_auto_maintenance` in Git's `run-command.c`),
+and that run's `worktree-prune` task
+removes every `worktrees/<id>` that is not locked and holds no `gitdir` file,
+then the folder it leaves empty
+(`should_prune_worktree` in Git's `worktree.c`,
+`delete_worktrees_dir_if_empty` in `builtin/worktree.c`),
+and the wrapper's own landing runs the same upkeep
+(see "Maintenance that may run while a commit is made").
+So a member never depends on that folder,
+and a folder a person or a command writes there by hand
+is not there for the next command to read.
 A lock,
 and the file a command stages a lock in
 (`<lock name>.cli-git-marker-<pid>.<pid namespace>-<batch>-<token>`),
