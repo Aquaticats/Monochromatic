@@ -27,6 +27,11 @@ pub mod lfs_upload_plan;
 /// beside the plan itself so that neither file passes the package's length limit.
 pub mod lfs_upload_plan_awaiting;
 
+/// The refs one refspec names,
+/// which both faces of the plan expand,
+/// beside the plan itself so that neither file passes the package's length limit.
+pub mod lfs_upload_refspecs;
+
 /// The configuration the Git LFS upload plan reads,
 /// and the default remote derived from it.
 pub mod lfs_upload_settings;

@@ -803,7 +803,12 @@ An unknown host key is told to connect once with plain `ssh <host>` or to add th
 then to retry (`host_key_not_known_sentence` in the same file),
 and the sentence names the host when the destination or the program's own words give one,
 because OpenSSH's own `Host key verification failed.` says nothing about what to do either.
-A key that changed after OpenSSH's warning of a possible attack is no unknown key and keeps OpenSSH's own words.
+A key that changed after OpenSSH's warning of a possible attack is no unknown key and keeps OpenSSH's own words,
+and so does every other refusal OpenSSH makes over a host key:
+a key a `@revoked` line or a `RevokedHostKeys` file revokes,
+and a certificate that does not fit the host.
+The sentence is added only when every line of the transcript that names a host key or a certificate is an unknown key's own,
+so a refusal this release has never seen keeps OpenSSH's words rather than gaining a sentence that may mislead.
 The service keeps its usual retry schedule for an unknown host key
 (`retried_failure_record` in `src/native/push/push_retry_failure.rs`),
 so a person who adds the key needs no new commit to publish the branch.

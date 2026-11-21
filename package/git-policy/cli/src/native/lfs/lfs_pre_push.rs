@@ -472,38 +472,106 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  `sshconnect.c` at `V_10_6_P2` lines 603 to 627).
 ///  That refusal is neither a credential the push lacked nor a fault it can retry away,
 ///  so it gets its own sentence.
-///  OpenSSH prints that same last line for a key that changed,
-///  after its warning that someone may be attacking the connection,
-///  and for a host it does not know while the account asks for strict checking;
-///  the changed key is a different cause with its own warning and is left to OpenSSH's words,
-///  as `main` leaves it,
-///  and the strict-checking refusal is the unknown key this reading is for.
+///  OpenSSH prints that same last line for every refusal it makes over a host key,
+///  and the other refusals are different causes that must keep OpenSSH's own words alone,
+///  as `main` prints them:
+/// a changed key says someone may be attacking the connection,
+///  and a revoked key says a stolen key may be in use,
+///  so the sentence that says to add the key would answer either warning with advice to trust the very key it doubts.
+///  The reading is therefore a positive one about the words an unknown key leaves:
+///  every refusal prints a line that names a host key or a certificate,
+///  so a transcript is this refusal only when its host-key words are an unknown key's own:
+///  the last line by itself (the default `ask` path,
+///  where OpenSSH prints nothing of its own and the question is the askpass program's,
+///  `sshconnect.c` lines 1211 to 1246),
+///  the sentence for a key this machine has none of under strict checking (line 1204),
+///  or the wrapper's own sentence,
+/// which a pre-push hook may echo into the push's words.
+///  Anything else that names a host key or a certificate is another refusal:
+///  a changed key (`warn_changed_key`,
+///  lines 1716 to 1726,
+///  and `Host key for ... has changed and you have requested strict checking.`,
+///  lines 1358 to 1360),
+///  a key a `@revoked` line marks (the `HOST_REVOKED` case,
+///  lines 1287 to 1303)
+///  or a `RevokedHostKeys` file lists (lines 1552 to 1556),
+///  and a certificate that does not fit the host (`Certificate invalid: ...`,
+///  `sshkey.c`).
+///  So a refusal this release has never seen keeps OpenSSH's words rather than gaining a sentence that may mislead.
 ///  Each arm's transcript was measured against a throwaway `sshd` on `127.0.0.1` with OpenSSH 10.6p2
 ///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
-///  `SSH_ASKPASS_REQUIRE=force`).
+///  `SSH_ASKPASS_REQUIRE=force`);
+///  the certificate and the `CheckHostIP` words are from the source,
+///  because a `CheckHostIP` mismatch did not reproduce (the connection was allowed).
+///  A refusal that prints no host-key line at all is still read as this one:
+///  a new certificate and the quiet port-less check reach `fail` without a word
+///  (`sshconnect.c` lines 1154 and 1316),
+///  and nothing in a transcript can tell them from an unknown key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// text.includes('Host key verification failed') && !text.includes('REMOTE HOST IDENTIFICATION HAS CHANGED') && !text.includes('has changed and you have requested strict checking')
+/// text.includes('Host key verification failed') && text.split('\n').every((line) => !namesAHostKey(line) || isAnUnknownKeysOwnLine(line))
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
-    return text.contains(HOST_KEY_NOT_KNOWN_PHRASE)
-        && !text.contains(HOST_KEY_CHANGED_PHRASE)
-        && !text.contains(HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE);
+    if !text.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
+        return false;
+    }
+    // One fold of the constant, and one of each line: the comparison is the whole reason to read the lines.
+    let last_line: String = HOST_KEY_NOT_KNOWN_PHRASE.to_ascii_lowercase();
+    for line in text.lines() {
+        let folded: String = line.to_ascii_lowercase();
+        if !names_a_host_key(folded.as_str()) {
+            continue;
+        }
+        let an_unknown_keys_own: bool = folded.contains(last_line.as_str())
+            || (folded.contains(NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE) && folded.contains(STRICT_CHECKING_REQUESTED_PHRASE))
+            || folded.contains(HOST_KEY_NOT_KNOWN_SENTENCE_OPENING);
+        if an_unknown_keys_own {
+            continue;
+        }
+        return false;
+    }
+    return true;
 }
 
-/// The words OpenSSH prints when it will not connect to a host whose key this machine does not know.
+/// Whether one line,
+/// in lower case,
+/// names a host key or a certificate,
+/// which every refusal OpenSSH makes over a host key does in at least one line.
+fn names_a_host_key(folded: &str) -> bool {
+    return folded.contains(HOST_KEY_WORDS) || folded.contains(CERTIFICATE_WORD);
+}
+
+/// The last line OpenSSH prints when it will not connect because of the host key,
+/// whichever refusal it found (`sshconnect2.c` at `V_10_6_P2` lines 102 to 104,
+/// after `verify_host_key` answered non-zero).
 const HOST_KEY_NOT_KNOWN_PHRASE: &str = "Host key verification failed";
 
-/// The banner of OpenSSH's warning that the key a host offered is not the one this machine holds,
-/// which says that someone may be attacking the connection
-/// (`sshconnect.c` at `V_10_6_P2`,
-/// `hostkeys_foreach` and `verify_host_key`).
-const HOST_KEY_CHANGED_PHRASE: &str = "REMOTE HOST IDENTIFICATION HAS CHANGED";
+/// The words,
+/// in lower case,
+/// with which a line names the thing a host-key refusal is about.
+const HOST_KEY_WORDS: &str = "host key";
 
-/// The line that ends OpenSSH's warning about a changed key,
-/// which a transcript may carry without the banner.
-const HOST_KEY_CHANGE_UNDER_STRICT_CHECKING_PHRASE: &str = "has changed and you have requested strict checking";
+/// The word,
+/// in lower case,
+/// with which a line names the other thing a host-key refusal is about.
+const CERTIFICATE_WORD: &str = "certificate";
+
+/// The words of OpenSSH's sentence for a host key this machine has none of while the account asks for strict checking
+/// (`check_host_key`'s `HOST_NEW` case,
+/// `sshconnect.c` lines 1204 and 1205).
+const NO_HOST_KEY_KNOWN_UNDER_STRICT_CHECKING_PHRASE: &str = "host key is known for";
+
+/// The words that end that sentence,
+/// which no changed or revoked key's line carries beside `host key is known for`.
+const STRICT_CHECKING_REQUESTED_PHRASE: &str = "and you have requested strict checking";
+
+/// The opening words,
+/// in lower case,
+/// of the sentence this module prints for an unknown host key,
+/// which a pre-push hook may echo into the words of the push it refused,
+/// and which the service's record reads so that one refusal is told once.
+pub(crate) const HOST_KEY_NOT_KNOWN_SENTENCE_OPENING: &str = "this machine does not know the ssh host key";
 
 /// What:
 ///  The one sentence a refusal prints when the cause is a host key this machine does not know:

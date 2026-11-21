@@ -185,6 +185,31 @@ fn a_retried_failure_with_no_words_of_ours_keeps_the_programs_own() {
 }
 
 /// What:
+///  A push whose pre-push hook already printed the upload's explanation of an unknown host key gets that explanation
+///  once,
+/// with the promise above it and no second sentence.
+/// Why:
+///   An LFS upload inside the push is refused for the same unknown key,
+///  and the explanation it prints already says the key is unknown and names the host its destination gives;
+///  a record that put the sentence above it told one refusal twice,
+///  and its copy wrote `ssh <host>` where the words below named the machine.
+#[test]
+fn a_record_of_a_push_whose_hook_already_said_the_sentence_keeps_it_once_and_adds_the_promise() {
+    let explained: String = crate::lfs_upload_explanations::explanation_after_failure(
+        "exited with status 2",
+        std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git"),
+        b"Host key verification failed.\nfatal: Could not read from remote repository.",
+    );
+    let pushed: String = format!("Host key verification failed.\nfatal: Could not read from remote repository.\n{explained}error: failed to push some refs\n");
+    assert_eq!(final_failure(pushed.as_str()), None, "the upload's own sentence is no final failure: {pushed}");
+    let record: String = retried_failure_record(pushed.as_str());
+    assert_eq!(record.matches("does not know the SSH host key").count(), 1, "one refusal is told once: {record}");
+    assert!(record.contains("`ssh git.example.invalid`"), "the host the upload named is still named: {record}");
+    assert!(record.contains("keeps its usual retry schedule"), "the promise the plan keeps is added: {record}");
+    assert!(record.ends_with(pushed.as_str()), "the program's own words stay below ours: {record}");
+}
+
+/// What:
 ///  A server hook whose own message prints OpenSSH's words for a host key this machine does not know stays a hook's
 ///  decline.
 /// Why:
