@@ -40856,7 +40856,16 @@ stated in this entry. What follows from them, as work:
   `bpf 7.3.4-1`; `btf-rs`'s C1 lowered to medium. Open questions for the owner: library or spawned program (an
   unprivileged child is possible, the BTF files being mode `0444`); the priority of maintenance against deployment fit
   and privilege; whether to reopen the in-house route; the held disk cache. GOING: its narrow re-check on Sonnet (brief
-  under `~/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's question.
+  under `~/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's question. THE
+  MISE FIX'S INTEGRATION PASS (Sonnet) came back not fit (its folder's `keep/review.md`): H1 the branch breaks three
+  `monorepo-task/core-exec` suites that pass on `main` (two fixtures copy the root's parser without the new marker;
+  `assignmentAt` finds only `NAME = """`), a three-edit fix proved in scratch; M1 a forwarded word with a line break can
+  drop every word; M2 no adversarial cases; M3 `doc/troubleshooting/mise-usage-args-inline-node.md` still prescribes the
+  retired pattern; held: 109 of 110 task and argument pairs behave as on `main`, the decision-record correction is a fact
+  and changes no decision. Issue 6328 filed for the 60 package tasks without the shared parser and the inline node tasks
+  without a usage spec. GOING: `pi-mise-usage-args-integration-pass-findings-fixed` (cap 400; brief under
+  `~/temp/agent/mise-usage-args-integration-pass-findings-fixed-2026-11-20/`). `~/temp/agent/module-test-logs` (141 MB,
+  logs since 2026-11-17) is the module test harness's shared default log folder, left in place.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
