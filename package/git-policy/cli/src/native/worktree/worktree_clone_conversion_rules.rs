@@ -363,7 +363,8 @@ pub fn needs_blob_size(attributes: &PathAttributes, rules: &ConversionRules) -> 
 /// Why:
 ///   These are the paths a fence must hand to Git whatever their sizes say,
 /// so their count is the one a decline rule can price before reading a blob
-/// (`fence_the_clone`).
+///  (`fence_the_attributes`,
+/// which decides the decline before anything is copied).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
