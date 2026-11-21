@@ -72,10 +72,10 @@
 //!   the root-owned readiness directory,
 //!   its atomic publish and its read.
 //! - `clone_mount_intent_write.rs`:
-//!   the wrapper's request and nudge writes through the binding.
+//!   the wrapper's request and nudge payloads and the gated writes.
 //! - `mount_request_wait.rs`:
 //!   the wrapper's wait for a matching receipt,
-//!   the mount-request deadline and the timeout report.
+//!   the provisional mount-request deadline and the timeout report.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -135,6 +135,12 @@ pub mod clone_mount_readiness_parse;
 /// The root-owned readiness directory and its file.
 pub mod clone_mount_readiness_file;
 
+/// The wrapper's intent and nudge writes behind the gate.
+pub mod clone_mount_intent_write;
+
+/// The wrapper's wait for a matching receipt and its deadline.
+pub mod mount_request_wait;
+
 /// The property names,
 /// the version and operation words and the intent's byte bound.
 pub use clone_mount_property_names::{
@@ -171,3 +177,11 @@ pub use clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
 pub use clone_mount_readiness_parse::{ReadinessParseRefusal, parse_readiness};
 /// The root-owned readiness directory and its file.
 pub use clone_mount_readiness_file::{ReadinessFile, ReadinessFileRefusal};
+/// The wrapper's payloads and its gated writer.
+pub use clone_mount_intent_write::{CloneIntentWriter, IntentWriteRefusal, intent_property, nudge_property};
+/// The wrapper's wait,
+/// its stale-result rule and its provisional deadline.
+pub use mount_request_wait::{
+    MOUNT_REQUEST_POLL_INTERVAL, MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, ReceiptStanding, StaleReason, WaitClock, WaitRefusal,
+    standing_of, wait_for_answer, wait_for_answer_with,
+};

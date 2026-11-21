@@ -144,6 +144,7 @@ pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, appen
 /// The store's header line,
 /// its record type and the key its parent record carries.
 pub use slot_identity_store_records::{PARENT_KEY, STORE_HEADER, StoredIdentity};
+pub(crate) use slot_identity_store_records::slot_name_refusal;
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.

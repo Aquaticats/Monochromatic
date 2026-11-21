@@ -147,7 +147,7 @@ fn parse_record(path: &Path, number: usize, line: &str) -> Result<StoredIdentity
 ///  whose name is a branch name's last component;
 ///  Git refuses a name that starts with a dot,
 ///  so a leading dot here is a folder this route could only reach outside the add.
-pub(super) fn slot_name_refusal(name: &str) -> Option<String> {
+pub(crate) fn slot_name_refusal(name: &str) -> Option<String> {
     if name.is_empty() {
         return Some(String::from("it is empty"));
     }
