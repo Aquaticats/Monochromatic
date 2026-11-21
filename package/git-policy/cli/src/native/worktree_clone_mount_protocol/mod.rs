@@ -62,8 +62,15 @@
 //! - `clone_mount_readiness.rs`:
 //!   the readiness record's boot,
 //!   pool,
-//!   checkout and sweep fields,
-//!   and the refusal that names the field not ready.
+//!   checkout and sweep fields.
+//! - `clone_mount_readiness_admission.rs`:
+//!   the refusal that names the field not ready,
+//!   and the comparison every attach makes.
+//! - `clone_mount_readiness_parse.rs`:
+//!   the record's parse and its own refusals.
+//! - `clone_mount_readiness_file.rs`:
+//!   the root-owned readiness directory,
+//!   its atomic publish and its read.
 //! - `clone_mount_intent_write.rs`:
 //!   the wrapper's request and nudge writes through the binding.
 //! - `mount_request_wait.rs`:
@@ -113,6 +120,21 @@ pub mod clone_mount_receipts_folder_calls;
 /// The results directory, its publish and its read.
 pub mod clone_mount_receipts_folder;
 
+/// The readiness record's boot,
+/// pool,
+/// checkout and sweep fields.
+pub mod clone_mount_readiness;
+
+/// Why an attach is not admitted,
+/// and the one comparison that decides it.
+pub mod clone_mount_readiness_admission;
+
+/// The readiness record's parse.
+pub mod clone_mount_readiness_parse;
+
+/// The root-owned readiness directory and its file.
+pub mod clone_mount_readiness_file;
+
 /// The property names,
 /// the version and operation words and the intent's byte bound.
 pub use clone_mount_property_names::{
@@ -141,3 +163,11 @@ pub use clone_mount_receipt_parse::parse_receipt;
 /// The results directory and why it or a receipt was refused.
 pub use clone_mount_receipts_folder::ReceiptsFolder;
 pub use clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsRefusal};
+/// The readiness record and its four fields.
+pub use clone_mount_readiness::{MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_NAME, ReadinessExpectation, ReadinessRecord, ReadyState, SweepState};
+/// The admission decision and its refusal.
+pub use clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
+/// The readiness record's parse and its refusal.
+pub use clone_mount_readiness_parse::{ReadinessParseRefusal, parse_readiness};
+/// The root-owned readiness directory and its file.
+pub use clone_mount_readiness_file::{ReadinessFile, ReadinessFileRefusal};
