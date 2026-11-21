@@ -115,7 +115,58 @@ On a host whose pool disk has a volatile write cache the flush would appear in t
 
 ### The store's own dataset, in the throwaway guest, 2026-11-21
 
-GUEST-FSYNC-MEASUREMENT
+The guest's own `/var/lib` is on its ext4 root,
+which has no ZFS dataset behind it,
+so the guest's driver first makes a pool of its own
+(`git-policy-cli-store`,
+a 1 GiB file-backed vdev on `/dev/vda1`)
+and mounts its `store` dataset at the store's path and its `probe` dataset beside it.
+The store's arms and this probe therefore run on a ZFS dataset of one pool,
+which is what the design's assumption asked the guest to settle for `linkat`,
+`unlinkat`,
+`renameat2` and a folder's `fsync`.
+
+One run of 2026-11-21 in the throwaway `mvm` libvirt guest
+`git-policy-cli-store-per-slot-files-2`,
+Ubuntu 24.04 on kernel `6.8.0-147-generic`,
+OpenZFS 2.4.4,
+Rust 1.100.0,
+on the dataset `git-policy-cli-store/probe` of that pool,
+60 rounds,
+five arms interleaved:
+
+```text
+PROBE append with fsync of the file and the folder: n=60 ms min=0.554 median=1.207 max=6.613 | samples where any device moved=60 | samples where vda1 moved=60 | median vda1 sectors=64.0 | samples where vda completed a flush request=60 | samples with a ZIL commit of the home dataset=60 | median ZIL commits=2.0 | samples whose ZIL wrote bytes to the pool=60
+PROBE same append without fsync, window as short as the round's control: n=60 ms min=0.014 median=0.025 max=0.203 | samples where any device moved=0 | samples where vda1 moved=0 | median vda1 sectors=0.0 | samples where vda completed a flush request=0 | samples with a ZIL commit of the home dataset=0 | median ZIL commits=0.0 | samples whose ZIL wrote bytes to the pool=0
+PROBE same append without fsync, then a wait as long as the fsync sample: n=60 ms min=0.610 median=1.353 max=6.702 | samples where any device moved=0 | samples where vda1 moved=0 | median vda1 sectors=0.0 | samples where vda completed a flush request=0 | samples with a ZIL commit of the home dataset=0 | median ZIL commits=0.0 | samples whose ZIL wrote bytes to the pool=0
+PROBE nothing but a wait as long as the fsync sample: n=60 ms min=0.610 median=1.366 max=6.718 | samples where any device moved=0 | samples where vda1 moved=0 | median vda1 sectors=0.0 | samples where vda completed a flush request=0 | samples with a ZIL commit of the home dataset=0 | median ZIL commits=0.0 | samples whose ZIL wrote bytes to the pool=0
+PROBE publication of one slot record: stage, write, fsync, link, unlink, folder fsync: n=60 ms min=1.764 median=3.201 max=7.021 | samples where any device moved=60 | samples where vda1 moved=60 | median vda1 sectors=128.0 | samples where vda completed a flush request=60 | samples with a ZIL commit of the home dataset=60 | median ZIL commits=2.0 | samples whose ZIL wrote bytes to the pool=60
+```
+
+Read:
+
+- The publication's whole sequence took `1.764` to `7.021 ms`,
+  median `3.201 ms`,
+  and every one of the 60 samples moved the pool's partition by a median of 128 sectors and caused
+  two ZIL commits:
+  one for the staging file's bytes,
+  one for the folder's entries,
+  which is the same pair the append's two `fsync` calls commit.
+- The three controls of the same window length moved nothing,
+  committed nothing and flushed nothing,
+  so the seconds of the publication's figure are its two `fsync` calls and not the wait they took.
+- The figure is larger than the host's earlier append (`0.134 ms` median) because a guest's virtio disk
+  answers a flush for every `fsync`:
+  all 60 samples completed a flush request on `/dev/vda`,
+  where the host's `nvme1n1` completed none.
+- The log is `store-fsync.log` in this build's guest log folder,
+  and the probe's own output in a hand run is `keep/store-fsync-guest.log` of the same scratch folder.
+
+What this does not show is a real pool disk:
+the pool stands on a file in the guest's ext4 root,
+so the flush counter speaks for `/dev/vda` and not for an NVMe disk under a pool's vdev.
+The ZIL counters are the pool's own,
+because they are read from `/proc/spl/kstat/zfs/git-policy-cli-store`.
 
 ## What the numbers say
 
