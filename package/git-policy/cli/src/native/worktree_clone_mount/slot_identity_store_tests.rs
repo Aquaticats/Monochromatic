@@ -503,6 +503,70 @@ fn an_append_that_would_outgrow_the_store_is_refused() {
     remove(root.as_path());
 }
 
+/// What:
+///  An adoption that would make the store larger than one read accepts is refused,
+///  nothing is written,
+///  and the file keeps every record it held and still reads.
+/// Why:
+///  A store at the bound adopted with a wider parent record grew past its own read bound,
+///  and the next read refused it (issue 6327);
+///  the rewrite publishes a whole new file,
+///  so it refuses on the same terms the append does
+///  (`StoreRefusal::WouldNotFit`),
+///  and an adoption refused this way leaves the recorded parent identity in place.
+#[test]
+fn an_adoption_that_would_outgrow_the_store_is_refused() {
+    let root: PathBuf = fixture("slot-store-bound-adoption");
+    let path: PathBuf = root.join("slot-identities");
+    let recorded: CloneFolderIdentity = identity(700);
+    let adopted: CloneFolderIdentity = wide_identity(700);
+    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+    std::fs::write(&path, a_rewrite_of_whole_bytes(boundary, &recorded).as_str()).expect("a store of the whole bound");
+    let before: u64 = std::fs::metadata(path.as_path()).expect("metadata").len();
+    assert_eq!(before, STORE_MAXIMUM_BYTES, "the fixture is a store of the whole bound");
+    let refused: StoreRefusal = record_parent_identity(path.as_path(), &adopted).expect_err("the wider parent record has no room");
+    assert!(matches!(refused, StoreRefusal::WouldNotFit { .. }), "{refused:?}");
+    let grown: u64 = before + u64::try_from(parent_line(&adopted).len() - parent_line(&recorded).len()).expect("a wider parent record");
+    let message: String = refused.message();
+    assert!(message.contains(path.display().to_string().as_str()), "the store is named: {message}");
+    assert!(message.contains(grown.to_string().as_str()), "the size it would have held is named: {message}");
+    assert!(message.contains(STORE_MAXIMUM_BYTES.to_string().as_str()), "the bound is named: {message}");
+    assert!(message.contains("parent identity"), "what a refused adoption leaves is named: {message}");
+    assert!(message.contains("questions-for-the-owner"), "what the person does next is named: {message}");
+    assert_eq!(std::fs::metadata(path.as_path()).expect("metadata").len(), before, "nothing was written");
+    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("the store a refused adoption left still reads");
+    assert_eq!(read.parent(), Some(&recorded), "the recorded parent identity is the one that stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A rewrite that lands exactly on the bound succeeds and reads back.
+/// Why:
+///  The positive control of the refusal:
+///  the same adoption,
+///  one wider parent record narrower,
+///  publishes exactly the bytes one read accepts,
+///  so the refusal is the bound and not a broken fixture.
+#[test]
+fn an_adoption_that_lands_exactly_on_the_bound_writes_a_store_that_reads() {
+    let root: PathBuf = fixture("slot-store-bound-adoption-fits");
+    let path: PathBuf = root.join("slot-identities");
+    let recorded: CloneFolderIdentity = identity(700);
+    let adopted: CloneFolderIdentity = wide_identity(700);
+    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
+    let target: String = a_rewrite_of_whole_bytes(boundary, &adopted);
+    let before_text: String = target.replacen(parent_line(&adopted).as_str(), parent_line(&recorded).as_str(), 1);
+    assert_ne!(before_text, target, "the fixture records the narrower parent record");
+    std::fs::write(&path, before_text.as_str()).expect("a store below the bound");
+    record_parent_identity(path.as_path(), &adopted).expect("the rewrite lands exactly on the bound");
+    assert_eq!(std::fs::metadata(path.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the rewrite lands exactly on the bound");
+    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("the store the rewrite published reads");
+    assert_eq!(read.parent(), Some(&adopted), "the adopted parent identity is the one recorded");
+    let slots: usize = before_text.lines().filter(|line| { return line.starts_with("slot "); }).count();
+    assert_eq!(read.slot_names().len(), slots, "the rewrite keeps every slot record");
+    remove(root.as_path());
+}
+
 /// The truth table of the root-control check:
 /// root with no group or other write bit is under root control,
 /// an owner that is not root is not,
@@ -731,12 +795,19 @@ fn a_store_of_slots(count: usize) -> String {
     return text;
 }
 
+/// An identity carrying an access ACL of `MEASUREMENT_ACL_BYTES`,
+/// because a stored ACL is what makes one record wide.
+fn wide_identity(inode: u64) -> CloneFolderIdentity {
+    let mut wide: CloneFolderIdentity = identity(inode);
+    wide.access_acl = Some(vec![0x02; MEASUREMENT_ACL_BYTES]);
+    return wide;
+}
+
 /// A store text of exactly `bytes` bytes:
 /// one parent record,
 /// as many slot records as fit below that size,
 /// and a comment line that lands the file exactly on it.
-/// The slot records carry an ACL of `MEASUREMENT_ACL_BYTES`,
-/// because a stored ACL is what makes a record wide,
+/// The slot records are `wide_identity` records,
 /// and comment padding alone would measure a store whose lines the reader skips.
 fn a_store_of_whole_bytes(bytes: usize) -> String {
     let parent: CloneFolderIdentity = identity(700);
@@ -746,9 +817,7 @@ fn a_store_of_whole_bytes(bytes: usize) -> String {
     text.push('\n');
     let mut index: u64 = 0;
     loop {
-        let mut wide: CloneFolderIdentity = identity(2000 + index);
-        wide.access_acl = Some(vec![0x02; MEASUREMENT_ACL_BYTES]);
-        let line: String = slot_line(format!("slot-{index:05}").as_str(), &wide);
+        let line: String = slot_line(format!("slot-{index:05}").as_str(), &wide_identity(2000 + index));
         // A record and its newline, and the last comment keeps its own two characters and newline.
         if text.len() + line.len() + 1 + 2 > bytes {
             break;
@@ -771,6 +840,38 @@ fn a_store_of_whole_bytes(bytes: usize) -> String {
 fn the_widest_store() -> String {
     let bound: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
     return a_store_of_whole_bytes(bound);
+}
+
+/// What:
+///  A store text whose rewrite with `parent` is exactly `bytes` bytes.
+/// Why:
+///  The rewrite keeps every slot record and drops comment lines,
+///  so the file it publishes is the header, the parent record and the slot records alone;
+///  this builds that text,
+///  with the names of the last two slot records lengthened to land it exactly on the size a control asks for.
+///  Two names and not one,
+///  because one name of at most 255 bytes cannot fill every remainder below one record's width.
+fn a_rewrite_of_whole_bytes(bytes: usize, parent: &CloneFolderIdentity) -> String {
+    let fixed: String = format!("{}\n", slot_line("slot-0000", &wide_identity(3000)));
+    let shortest_tail: usize = format!("{}\n", slot_line("t", &identity(4000))).len();
+    // Two named records at their shortest, and two bytes of room so both names hold at least one byte.
+    let reserve: usize = 2 * shortest_tail + 2;
+    let mut text: String = String::from(HEADER);
+    text.push('\n');
+    text.push_str(parent_line(parent).as_str());
+    text.push('\n');
+    assert!(bytes >= text.len() + reserve, "a rewrite of {bytes} bytes leaves room for two slot records");
+    let mut index: u64 = 0;
+    while text.len() + fixed.len() + reserve <= bytes {
+        text.push_str(format!("{}\n", slot_line(format!("slot-{index:04}").as_str(), &wide_identity(3000 + index))).as_str());
+        index += 1;
+    }
+    let names: usize = bytes - text.len() - 2 * shortest_tail;
+    let first: usize = names / 2;
+    text.push_str(format!("{}\n", slot_line("t".repeat(first).as_str(), &identity(4000))).as_str());
+    text.push_str(format!("{}\n", slot_line("u".repeat(names - first).as_str(), &identity(4001))).as_str());
+    assert_eq!(text.len(), bytes, "the rewrite this fixture describes is exactly {bytes} bytes");
+    return text;
 }
 
 /// The holds of `samples` writes of `text` to `store`,
