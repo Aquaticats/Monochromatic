@@ -120,10 +120,10 @@ and no independent read has reviewed them.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T20:56:01-05:00,
-  the write time of the fifth revision.
+  2026-11-20T23:26:39-05:00,
+  the write time of the sixth revision.
 - Revisions:
-  five.
+  six.
   The first wrote the report;
   the second answered an independent gate review by a different vendor,
   Claude Sonnet 5.5,
@@ -144,6 +144,11 @@ and no independent read has reviewed them.
   what the third changed is listed in section "Changes in the third revision";
   what the fourth changed is listed in section "Changes in the fourth revision";
   what the fifth changed is listed in section "Changes in the fifth revision".
+  The sixth revision answers the integration pass on ZFS plan step 6 with the `btf-rs` reader,
+  kept at
+  `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`,
+  which measured one sentence of this report false against the binding's own pre-scan;
+  what it changed is listed in section "Changes in the sixth revision".
   The gate re-check found the matrix and the arithmetic reproducing and two high findings in what the
   report tells the project:
   a maintenance-first priority described as making a program "the rational pick" though the library
@@ -256,9 +261,24 @@ and no independent read has reviewed them.
   and record 31 named question 8's section as the record prints it and corrected one sentence's
   attribution.
   The chain runs unbroken from record 22 through record 31,
-  and record 31's `postEditSha256` is the report this round commits,
+  and record 31's `postEditSha256` is the report the fifth revision committed,
   from a copy at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  The sixth revision wrote it three times,
+  from the worktree `.claude/worktrees/zfs-step-6-integration-findings`,
+  where the file it edits lives,
+  so its lock key is the SHA-256 of that worktree's report path:
+  record 32's `preEditSha256` `668ae41a...` is record 31's `postEditSha256`,
+  so the chain crosses from the fifth revision into this one with no break.
+  Record 32 installed the corrected text with a clock reading this session's own arithmetic got
+  wrong,
+  `2026-11-21T04:26:05-05:00`,
+  a UTC date carrying a local offset;
+  record 33 replaced that reading with the write's own local time;
+  and record 34 carries the paragraph that reports these writes.
+  Record 34's `postEditSha256` is the report this round commits,
+  from a copy at
+  `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
 
   The chain does not hold inside the second revision,
   and the report says so rather than leaving it to a reader:
@@ -316,6 +336,32 @@ and no independent read has reviewed them.
   every finalist received execution evidence from this host's own BTF pair;
   and a required source class was blocked for a time
   before alternate enumeration finished it (section "Query schedule").
+
+## Changes in the sixth revision
+
+This round answers the integration pass on ZFS plan step 6 with the `btf-rs` reader,
+run by an agent of another vendor after reading the branch that wires the gate,
+and it changes one claim and the record of its own write:
+nothing was measured here,
+nothing re-rated,
+and no candidate's code ran.
+The pass measured the reader on fixtures the crate's own writer builds in a scratch copy
+(finding M1 of that review).
+
+- The `btf-rs` cons list said a future kernel's widened fields are refused by the binding's pre-scan.
+  They are not:
+  the pre-scan reads the header and the section list and no type entry,
+  and `btf-rs` 2.0.1 reads a type entry's kind in five bits and its member count in sixteen,
+  so a widened kind is read as the kind its low five bits name,
+  and only a widened member count that desynchronises the reader's own parse is refused.
+  The bullet now says what was measured,
+  that no file on this host sets a widened field,
+  and that the adoption record names the lag as a revisit trigger.
+  Whether the binding should check an entry before the reader sees it is the project's question,
+  and this report neither answers it nor waits on it.
+- The lock paragraph says what record 31's hash names,
+  names this revision's records 32 to 34,
+  and gives the worktree path its lock key hashes.
 
 ## Changes in the fifth revision
 
@@ -4189,7 +4235,22 @@ gathered here so nothing is buried:
   not a forecast.
 - `btf-rs`'s published archive ships no tests and the suite ran from the repository at the tag;
   its release lags its own main on the BTF masks,
-  so a future kernel's widened fields are refused by the binding's pre-scan until a release catches up.
+  and the lag is the reader's own:
+  2.0.1 reads a type entry's kind in five bits and its member count in sixteen,
+  so a kernel that widened either field is read as the narrower one where only a kind's high bits
+  are set,
+  and refused only when the spilling bytes stop its own parse,
+  because the binding's pre-scan reads the header and the section list and no type entry.
+  The integration pass measured both directions on fixtures the crate's own writer built:
+  a type entry whose kind field is 33 passes the comparison as the integer its five bits name,
+  a member count past sixteen bits stops the reader at the module file,
+  and the approved module passes either way
+  (`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/experiments.log`).
+  No file on this host sets a widened field,
+  and the adoption record names the lag as a revisit trigger
+  (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+  "Exit,
+  rollback and revisit triggers").
 - Neither library has a fuzz target,
   and no mutation testing exists for either;
   the negative controls are the only adversarial evidence.
