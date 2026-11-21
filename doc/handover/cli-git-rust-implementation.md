@@ -41209,7 +41209,15 @@ stated in this entry. What follows from them, as work:
   after boot 145,525 µs; F3 M2, M3 (86 kill cases), M7 and M9 arms built, M1's extra controls still open for fixture
   reasons; F5 one module-identity reader; F6 to F13; the holder control waits with a deadline, its order forced; gate
   9474 of 9476, the cause-H pair. GOING: the start probe reviewer's closure check (new integration branch
-  `integrate/git-policy-cli-zfs-start-probe-findings`, guest arms rerun, gate once).
+  `integrate/git-policy-cli-zfs-start-probe-findings`, guest arms rerun, gate once). THE PUSH PROGRAMS FINDINGS ROUND
+  ended at `1140a29eb5` (`main` merged as `b5cb456c29`): A12(b) fixed at every ending of a due retry (six controls red
+  first); dropped batches, a repository gone, and gate-blocked records (through a new one-way
+  `ClientMessage::ForgetPrograms`) give values up; `Debug` names variables only; `Skipped` order; A7 guarded; the
+  end-to-end control committed (4 of 4 in the gate image; skips on this host, whose `/usr/bin/git-lfs` shadows the
+  stand-in); notes exact. The race (a merge's push record written before the wake carrying its values) forced and NOT
+  fixed: the reorder broke `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`
+  and was reverted; no gate after the revert; one new `rust/max-lines` (322 against 321). GOING: the push programs
+  reviewer's closure check, ruling on whether the race blocks and running the gate.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
