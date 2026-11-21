@@ -497,6 +497,13 @@ const exactPasteCases: readonly PasteCase[] = [
   { name: 'shell metacharacters', words: ['--help', ';', '$(echo hi)', '`x`', '*', '&&', '|', '>',], },
   { name: 'comment openers and closers', words: ['--help', '*/', '/*', '//', '#',], },
   { name: 'a tab and unicode words', words: ['--help', 'tab\there', 'caf\u00E9 \u{1F600}',], },
+  { name: 'a last word ending with U+00A0', words: ['--help', 'a\u00A0',], },
+  { name: 'a last word that is only U+00A0', words: ['--help', '\u00A0',], },
+  { name: 'a last word ending with U+FEFF', words: ['--help', 'a\uFEFF',], },
+  { name: 'a last word ending with U+3000', words: ['--help', 'a\u3000',], },
+  { name: 'a last word ending with U+2003', words: ['--help', 'a\u2003',], },
+  { name: 'a last word ending with a vertical tab', words: ['--help', 'a\u000B',], },
+  { name: 'a last word ending with a form feed', words: ['--help', 'a\u000C',], },
   { name: 'the marker text itself', words: ['--help', '// mise appends forwarded arguments after this comment',], },
   { name: 'a word that begins with the marker', words: ['--help', '// mise appends forwarded arguments after this comment tail',], },
   { name: 'traversal tokens', words: ['--help', '../../etc/passwd', String.raw`..\..\x`,], },
@@ -521,6 +528,13 @@ const refusedPasteCases: readonly PasteCase[] = [
   { name: 'short help then a line feed and a line comment', words: ['-h', 'x\n// y',], },
   { name: 'short help then a line feed, the marker and more', words: ['--help', 'x\n// mise appends forwarded arguments after this comment y',], },
   { name: 'a break in the fourth word only', words: ['--help', 'one', 'two words', 'x\r//y',], },
+  { name: 'a last word ending with a carriage return', words: ['--help', 'a\r',], },
+  { name: 'a last word that is only a carriage return', words: ['--help', '\r',], },
+  // mise quotes this one for its space, so the break lands inside an unterminated quote rather than at a word start.
+  { name: 'a last word ending with a space and a carriage return', words: ['--help', 'a \r',], },
+  { name: 'a last word that is only a U+2028 separator', words: ['--help', '\u2028',], },
+  { name: 'a last word ending with U+2028', words: ['--help', 'a\u2028',], },
+  { name: 'a last word ending with U+2029', words: ['--help', 'a\u2029',], },
 ];
 
 /**
@@ -689,7 +703,7 @@ function exactProblems({
  Why a refused run is not what its case expects, or nothing when it is.
 
  The message must name the word that carries the line terminator, counted from the case's own words so the expectation
- does not restate the implementation.
+ does not restate the implementation, including when the break starts a word or lands inside a word mise quotes.
 
  @param options - the case and its outcome
 
@@ -851,7 +865,7 @@ await describe({
         const marker = forwardedMarker();
         const outcome = runParserBody({ marker, pasted: '', afterMarker: '\nconst after = 1;\n', },);
         expect(outcome.succeeded,).toBe(false,);
-        expect(outcome.stderr,).toContain(`${refusedPastePrefix} argument 1 contains a line break`,);
+        expect(outcome.stderr,).toContain(`${refusedPastePrefix} the body continues past the forwarded-arguments marker comment`,);
       },
     },),
     it({
