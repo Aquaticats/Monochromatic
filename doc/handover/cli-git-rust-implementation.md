@@ -41421,8 +41421,14 @@ stated in this entry. What follows from them, as work:
   memory (suite peak 38 to 49 percent of 2 GiB, `oom_kill 0` in four gates); issue 6335 corrected and closed for 6336.
   Low left: the forget seam's manager-first order has no control. Its last merge of `main` (108 commits, 7 shared files)
   was not gated, so the coordinator runs one gate on `daca2d60dc` before merging (log under
-  `~/temp/agent/coordinator-gate-of-the-push-programs-integration-tip-2026-11-21/`). The branch's troubleshooting note
-  still blames a memory-bound killer: correct after the merge. Step 7's
+  `~/temp/agent/coordinator-gate-of-the-push-programs-integration-tip-2026-11-21/`). That gate passed 9624 of 9626 (the
+  cause-H pair; its output is in the unit's user journal, `coord-gate-push-programs-integration-tip`). MERGED as
+  `541090e482` at 2026-11-21T18:48:34-05:00: the memory-held push programs are on `main`. The two old LFS branches it
+  replaced (`fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks`,
+  `fix/git-policy-cli-lfs-push-programs-are-held-in-memory-and-never-written`) deleted locally and on `origin`. The note
+  `doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md` corrected on `main` (the signal from the
+  fixture's teardown after the control's own race, issue 6336; the memory reading not supported). Low left: the forget
+  seam's manager-first order has no control. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
