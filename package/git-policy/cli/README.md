@@ -926,7 +926,11 @@ Read-only commands,
      the rest of the fence (`git ls-tree` and the decision) runs while the clones copy,
      and the index is written under a name of its own until that write is done,
      so a process killed in between leaves no index in the worktree at all,
-     which the next command reports as an add that is possibly incomplete and follows with the commands that finish it.
+     which the next command reports as an add that is possibly incomplete and follows with the commands that finish it,
+     and it removes the index's waiting name and the lock a killed Git left beside it.
+     An add to a commit whose tree differs can end the rung at the tree difference,
+     and Git's own checkout then completes the worktree against that waiting index,
+     so the worktree equals Git's and nothing the clones copied stays behind.
      A source whose attributes convert more than a quarter of its tracked paths,
      and more than a thousand of them,
      is declined before anything is copied,
