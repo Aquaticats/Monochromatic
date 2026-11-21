@@ -94,7 +94,7 @@ pub const FROM_THE_SERVICE: &str = "MONOCHROMATIC_PUSH_PROGRAMS_OF_THE_SERVICE";
 /// ```ts
 /// type PushPrograms = { variables: [string, string][]; transport: boolean };
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct PushPrograms {
     /// The variables that command set,
     /// in [`CARRIED`] order,
@@ -107,6 +107,30 @@ pub struct PushPrograms {
     /// read from the environment before a value that is not text is left out,
     /// so a transport this release cannot spell still stops a push whose settings are gone.
     pub transport: bool,
+}
+
+/// What:
+///  The names this list carries and the flag alone,
+///  never a value.
+/// Why:
+///   One of the values can be a whole command line with a password in it,
+/// and a panic,
+/// an assertion or a debug print
+///  would otherwise write it wherever that output goes;
+/// the names say which variables travel,
+/// which is all a reader needs to
+///  recognize a list (`service_review_key.rs` redacts its credential the same way).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const debug = (programs) => `PushPrograms { variables: [${programs.variables.map(([name]) => `"${name}"`).join(', ')}], transport: ${programs.transport} }`;
+/// ```
+impl std::fmt::Debug for PushPrograms {
+    /// Writes the names, and a placeholder for each value.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<&str> = self.variables.iter().map(|(name, _value)| { return name.as_str(); }).collect();
+        return write!(formatter, "PushPrograms {{ variables: {names:?}, transport: {} }}", self.transport);
+    }
 }
 
 /// What:
