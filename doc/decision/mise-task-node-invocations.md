@@ -181,7 +181,7 @@ Reopen if any of these change:
 - The dispatched entries are refactored to a uniform `export function main()` shape
   that makes in-process import robust without relying on top-level side effects.
 
-## Correction, 2026-11-20
+## Correction, 2026-11-20T14:40:43-05:00
 
 This decision's empirical finding that "A `usage` spec instead consumes the args into
 `usage_*` env vars and they do not append" holds only while mise runs its usage parser,

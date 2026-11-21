@@ -31,14 +31,17 @@ and works.
  Both catalogs are
 under [Verification](#verification).
 
-Two error variants exist,
- and the difference matters.
- A body whose last line is an
-expression fails while node parses the script,
- so nothing runs (18 of the 22 root tasks
-in this repository).
- A body that ends with a block or a statement instead reaches the
-pasted words as code:
+Three error variants exist,
+ and they decide whether the body's work happens first.
+ `--help` is not valid TypeScript after an expression,
+ so a body whose last line is
+an expression fails while node parses the script and nothing runs
+(18 of the 22 root tasks in this repository).
+ `-h` is valid there:
+ `show() -h` parses as the subtraction `show() - h`,
+ so the same body runs and then dies.
+ A body that ends with a block or a statement reaches the pasted word as a name instead,
+ whichever word it is:
 
 ```text
 [eval]:131
@@ -47,12 +50,13 @@ pasted words as code:
 ReferenceError: help is not defined
 ```
 
-That variant runs the body first,
+The variants that reach a name run the body first,
  so a `buildAndTest`,
- `test` or
-`fetch:rust-dependencies` invocation with `-- --help` builds,
- runs suites or fetches crates
-before failing.
+ `test` or `fetch:rust-dependencies`
+invocation with `-- --help`,
+ or one ending in an expression with `-- -h`,
+ builds,
+ runs suites or fetches crates before failing.
  See [What does not work](#what-does-not-work) for why the obvious fixes do
 not close this.
 
@@ -96,14 +100,14 @@ decides that,
     }
 ```
 
-([jdx/mise permalink, `src/task/mod.rs` lines 1926 to 1939](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/mod.rs#L1926-L1941).)
+([jdx/mise permalink, `src/task/mod.rs` lines 1926 to 1939](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/mod.rs#L1926-L1939).)
 
 The bypass was introduced for `mise run task -- --help` by
 [jdx/mise#9118](https://github.com/jdx/mise/pull/9118) (commit `c4b11b59`,
  2026-04-16),
 which also added `raw_args = true`.
  [jdx/mise#15573](https://github.com/jdx/mise/pull/15573)
-later taught the *pre-`--`* help check to consult the spec,
+later taught the **pre-`--`** help check to consult the spec,
  and left the post-`--` bypass
 as it was.
 
@@ -112,7 +116,7 @@ With the parser bypassed,
 the script text itself rather than passing argv:
 
 ```text
-// src/task/task_executor.rs:1954-1963
+// src/task/task_executor.rs:1953-1962
         // Shared (Unix, and Windows POSIX shells like `bash -c`): append the
         // forwarded args to the command string so they reach an inline `-c` shell
         // as part of the command — the documented behavior for inline TOML
@@ -125,17 +129,28 @@ the script text itself rather than passing argv:
         }
 ```
 
-([jdx/mise permalink, `src/task/task_executor.rs` lines 1954 to 1963](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/task_executor.rs#L1954-L1965).)
+([jdx/mise permalink, `src/task/task_executor.rs` lines 1953 to 1962](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/task_executor.rs#L1953-L1962).)
 
 `inline_args_style` decides that appending is a POSIX command text edit on Unix for every
-inline shell,
- because only Windows (and a `cmd.exe` program) branches into
-`SeparateArgv`:
+inline shell.
+ On Windows the answer depends on the program:
+ `cmd.exe` with `/c` or `/k` gets
+`CmdCommandText`,
+ another non-POSIX shell program gets `SeparateArgv`,
+ and a POSIX shell
+still gets `PosixCommandText`.
 
 ```text
-// src/task/task_executor.rs:349-355
+// src/task/task_executor.rs:339-355
+fn inline_args_style(program: &str, shell_args: &[String]) -> InlineArgsStyle {
     #[cfg(windows)]
     {
+        let runs_command = shell_args
+            .iter()
+            .any(|f| f.eq_ignore_ascii_case("/c") || f.eq_ignore_ascii_case("/k"));
+        if crate::path::is_cmd_shell_program(Path::new(program)) && runs_command {
+            return InlineArgsStyle::CmdCommandText;
+        }
         if !crate::path::is_posix_shell_program(Path::new(program)) {
             return InlineArgsStyle::SeparateArgv;
         }
@@ -143,7 +158,10 @@ inline shell,
     #[cfg(not(windows))]
     let _ = (program, shell_args);
     InlineArgsStyle::PosixCommandText
+}
 ```
+
+([jdx/mise permalink, `src/task/task_executor.rs` lines 339 to 355](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/src/task/task_executor.rs#L339-L355).)
 
 So on Unix the last shell argument is `node --input-type=module-typescript -e`'s payload,
 and the appended words land inside the evaluated TypeScript.
@@ -156,12 +174,17 @@ argv:
  and the eval source is what carries the words.
 
 The repository's own `doc/decision/mise-task-node-invocations.md` recorded an earlier
-reading that is wrong for this case:
+reading,
  "A task with a plain `run` and no `usage` spec
 receives post-`--` arguments from mise appended as a real argv vector,
  preserving spaces.
 A `usage` spec instead consumes the args into `usage_*` env vars and they do not append."
-That holds only while the usage parser runs.
+Its first sentence holds for the default shell and a plain `run = "node <entry>"`,
+ not for an
+inline `node -e` body,
+ where `shell_words::join` appends the words to the script text either way.
+ Its
+second holds only while the usage parser runs.
  The e2e test that pins the bypass says the
 opposite for help flags,
  and prints the mechanism our reproduction shows:
@@ -233,15 +256,22 @@ Commands that work cleanly:
 Commands that fail,
  by variant:
 
-- `mise run probe -- --help` and `mise run probe -- -h` where the body's last line is an
-  expression:
- `SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ';', '}' or <eof>`,
+- `mise run probe -- --help` where the body's last line is an expression:
+  `SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ';', '}' or <eof>`,
   with the pasted words visible in node's `[eval]` output,
  for example
   `show() --help`.
-- The same invocation where the body ends with a block or a `;` statement:
-  `ReferenceError: help is not defined`,
- printed after the body's own work finished.
+- `mise run probe -- -h` where that last line is a call expression:
+  the body runs first,
+ printing `[]` on the probe task,
+ then
+  `ReferenceError: h is not defined`,
+ because `show() -h` parses as the subtraction
+  `show() - h`.
+- The same invocation where the body ends with a block or a `;` statement,
+  for either word:
+  `ReferenceError: help is not defined` or `ReferenceError: h is not defined`,
+  printed after the body's own work finished.
 
 Repository-wide catalog,
  run with `-- --help` on the branch of this fix,
@@ -256,9 +286,12 @@ recovered `--help` into the argument vector that reaches their program (21 throu
 recorded child-process call,
  `lint:skills` by naming `--help` as a skill root).
  The
-details are in the report that accompanies the fix commit,
- and the durable checks live in
-`package/monorepo-task/core-exec/src/root-task-shared-shapes.unit.test.ts`.
+durable checks live in
+`package/monorepo-task/core-exec/src/root-task-shared-shapes.unit.test.ts`,
+ which runs every
+shell-word shape through real mise against the root's own marker and parser,
+ including the
+line terminators the recovery refuses.
 
 The follow-up round carried the marker to the package task files,
  which interpolate the same root
@@ -288,7 +321,9 @@ consumes no arguments) runs to its closing message and exits 0,
  whose exit 1 is
 that missing-path report.
 
-The same shape exists beyond those bodies and is still open on this branch:
+The same shape exists beyond those bodies and is still open on this branch,
+ tracked as
+[issue 6328](https://github.com/Aquaticats/Monochromatic/issues/6328):
  60 further package
 tasks declare a `usage` spec and run an inline `node -e` body without the shared parser or the
 marker,
@@ -324,11 +359,19 @@ words are comment text instead of code,
 ```ts
 // [vars].parse_usage_args, abridged; mise.toml in this repository
 const forwardedArgumentsMarker = '// mise appends forwarded arguments after this comment'
+const forwardedLineBreak = /[\n\r\u2028\u2029]/u
 const forwardedArgumentWords = () => {
   const source = process.execArgv.at(-1) ?? ''
-  const markerLine = source.slice(source.lastIndexOf('\n') + 1)
-  if (!markerLine.startsWith(forwardedArgumentsMarker)) { return '' }
-  return markerLine.slice(forwardedArgumentsMarker.length)
+  const markerStart = source.indexOf('\n' + forwardedArgumentsMarker)
+  if (markerStart === -1) { return '' }
+  const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length).trimEnd()
+  const lineBreak = forwarded.search(forwardedLineBreak)
+  if (lineBreak !== -1) {
+    // The parser counts every word it reaches, the broken last one included.
+    const position = Math.max(parseUsageArgs(forwarded.slice(0, lineBreak)).length, 1)
+    throw new Error('cannot read the arguments mise pasted into this script: argument ' + position + ' contains a line break ...')
+  }
+  return forwarded
 }
 const usageArgWords = () => process.env.usage_args ?? forwardedArgumentWords()
 ```
@@ -352,7 +395,14 @@ arguments reads its own `usage_<name>` first and the recovered words as the fall
 a body without the marker silently receives no words,
  which is only visible when mise
 appended some (it then fails as TypeScript,
- as before).
+ as before);
+ and a word that carries a line feed,
+a carriage return,
+ U+2028 or U+2029 cannot be delivered at all,
+ because it would end the marker
+comment early,
+ so the task refuses and names that argument instead of running with fewer or
+other arguments.
  Remove it when mise forwards
 arguments as separate argv to a non-shell interpreter.
 
@@ -410,8 +460,7 @@ program's;
   Forwarding works,
  the TypeScript does not.
 - Any `shell` whose program is a real shell,
- for example `shell = "sh -c 'node ... -e
-  \"$0\"'"`:
+ for example `shell = "sh -c 'node ... -e \"$0\"'"`:
  mise still appends to the script text,
  so the words still end up inside the
   evaluated code,
@@ -490,7 +539,7 @@ The six constraints,
    `test_task_raw_args` states the split as intended ("unlike inline TOML scripts where
    args are appended to the command string",
    [lines 49 to 50](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/e2e/tasks/test_task_raw_args#L49-L50)).
-   [`docs/contributing.md` lines 13 to 16](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/docs/contributing.md#L8-L16)
+   [`docs/contributing.md` lines 13 to 16](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/docs/contributing.md#L13-L16)
    also says bug reports are only for problems run into while using mise,
  which this one
    is,
@@ -501,7 +550,7 @@ The six constraints,
  For an issue,
  yes,
  with the disclosure line
-   [`docs/contributing.md` lines 21 to 26](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/docs/contributing.md#L8-L16)
+   [`docs/contributing.md` lines 21 to 26](https://github.com/jdx/mise/blob/55853bbade5f1194731b4a47d17b4c85b8378066/docs/contributing.md#L21-L26)
    requires,
  and not for a pull request:
  the same page says "mise does not accept external
@@ -537,3 +586,8 @@ reproduction and a maintainer-side patch sketch.
   carries a correction pointing here.
 - `doc/troubleshooting/node-eval-module-detection.md` covers why these bodies spell the
   shell as `node --input-type=module-typescript -e`.
+- `doc/troubleshooting/mise-usage-args-inline-node.md` covers the related older symptom,
+  a body that reads no arguments at all,
+  and now shows this doc's marker shape as its fix.
+- [Issue 6328](https://github.com/Aquaticats/Monochromatic/issues/6328) tracks the package tasks
+  that still paste forwarded words into their inline bodies.

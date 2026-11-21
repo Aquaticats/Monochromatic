@@ -4,6 +4,7 @@
 
 import {
   configurationSpan,
+  oneLineVariable,
   rootConfig,
   variableSection,
 } from './build-and-test-fixture-config.ts';
@@ -96,6 +97,7 @@ experimental = true
 task.disable_spec_from_run_scripts = true
 [vars]
 ${variableSection('mise_tasks_json_max_buffer',)}
+${oneLineVariable('forwarded_arguments_marker',)}
 ${variableSection('parse_usage_args',)}
 ${variableSection('is_inactive_test',)}
 ${variableSection('run_test_files',)}

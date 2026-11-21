@@ -12,10 +12,12 @@
 
  The forwarded-arguments marker is a third shared shape. mise appends the words a task forwards to its inline script
  (the `-h`/`--help` case after `--`) past the TypeScript, so every body that reads `vars.parse_usage_args` ends with the
- marker comment those words land in. One check holds each body to that ending and one runs the parser against a
- synthetic paste, so the words are shown to arrive as arguments rather than as source. Package task files interpolate
- the same root variables, so the marker checks cover every package task file's parser bodies as well as the root
- file's, and the marker itself must stay declared in the root file alone.
+ marker comment those words land in. One check holds each body to that ending, and the rest run the parser against a
+ paste, so the words are shown to arrive as arguments rather than as source. The synthetic paste covers the shapes a
+ hand-written script can express; the catalog through real mise covers the boundary this code actually depends on,
+ every shell-word shape mise can write into the script, including the words that carry a line terminator and must be
+ refused. Package task files interpolate the same root variables, so the marker checks cover every package task file's
+ parser bodies as well as the root file's, and the marker itself must stay declared in the root file alone.
  */
 
 import {
@@ -23,9 +25,22 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { execFileSync, } from 'node:child_process';
-import { glob, readFile, } from 'node:fs/promises';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import { spawnSync, } from 'node:child_process';
+import {
+  glob,
+  mkdtempDisposable,
+  readFile,
+  realpath,
+  writeFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
+
+import {
+  fixtureEnvironment,
+  resolveMise,
+} from './build-and-test-fixture.ts';
 
 //region The file and its shapes
 
@@ -193,6 +208,32 @@ function variableBody(name: string,): string {
 }
 
 /**
+ The raw TOML declaration of one `[vars]` entry, as a task file would carry it.
+
+ A scratch configuration must interpolate exactly what mise renders, so it copies the declaration rather than the
+ unescaped body `variableBody` returns.
+
+ @param name - variable whose declaration is wanted
+
+ @returns the declaration including any closing delimiter, or an empty text when it is absent
+
+ @example
+ ```ts
+ variableDeclaration('parse_usage_args').startsWith('parse_usage_args = """');
+ ```
+ */
+function variableDeclaration(name: string,): string {
+  const lines = sharedSnippets.split('\n',);
+  const start = lines.findIndex((line) => line.startsWith(`${name} = `,),);
+  if (start === (-1)) return '';
+  const opening = lines[start];
+  if (opening === undefined) return '';
+  if (!opening.endsWith('"""',)) return opening;
+  const end = lines.findIndex((line, index) => (index > start) && (line === '"""'),);
+  return end === (-1) ? '' : lines.slice(start, end + 1,).join('\n',);
+}
+
+/**
  The value of the `forwarded_arguments_marker` declaration.
 
  @returns the marker comment, or an empty text when the declaration is absent
@@ -245,17 +286,50 @@ function parserBodyEndings(text: string,): string[] {
 }
 
 /**
+ The line the shared parser's declaration opens on.
+ */
+const parserDeclarationStart = 'parse_usage_args = """';
+
+/**
+ The line range of the shared parser's own declaration.
+
+ The parser parses text it has already recovered, so its own calls are not readers of mise's variables and the
+ recovery check below must not count them. Package task files interpolate the declaration instead of carrying it, so
+ they have no such range and every call in them is a reader.
+
+ @param lines - the task file's lines
+
+ @returns the first and last line index of the declaration, both -1 when the file has none
+
+ @example
+ ```ts
+ parserDeclarationRange(text.split('\n')).first >= 0;
+ ```
+ */
+function parserDeclarationRange(lines: readonly string[],): {
+  readonly first: number;
+  readonly last: number;
+} {
+  const first = lines.findIndex((line) => line.startsWith(parserDeclarationStart,),);
+  if (first === (-1)) return { first: (-1), last: (-1), };
+  const last = lines.findIndex((line, index) => (index > first) && (line === '"""'),);
+  return { first, last, };
+}
+
+/**
  The lines that call the shared parser with an argument, so each can be checked for a recovery.
 
  @param text - contents of the root task file
 
- @returns calling lines, excluding the declaration and comments about it
+ @returns calling lines outside the parser's own declaration, excluding comments about the declaration
  */
 function parserCalls(text: string,): string[] {
+  const lines = text.split('\n',);
+  const { first, last, } = parserDeclarationRange(lines,);
   const calls: string[] = [];
-  for (const line of text.split('\n',)) {
+  for (const [index, line,] of lines.entries()) {
+    if ((first !== (-1)) && (index >= first) && (index <= last)) continue;
     if (!line.includes('parseUsageArgs(',)) continue;
-    if (line.includes('parseUsageArgs = ',)) continue;
     const trimmed = line.trimStart();
     if (trimmed.startsWith('#',)) continue;
     if (trimmed.startsWith('//',)) continue;
@@ -289,13 +363,81 @@ function parserRun(
 }
 
 /**
- Arguments the shared parser recovers from a synthetic body.
+ An exit status as a failure message reads it, naming a signal death instead of an absent status.
 
- The child's environment never carries a `usage_args` of its own, because this test's own task was given one.
+ @param status - the child's exit status, absent when a signal ended it
+
+ @returns the status as digits, or the signal case in words
+
+ @example
+ ```ts
+ exitText(1) === '1';
+ ```
+ */
+function exitText(status?: number,): string {
+  return status === undefined ? 'a signal rather than an exit status' : String(status,);
+}
+
+/**
+ One parser run: its exit status and both streams.
+ */
+type ParserOutcome = {
+  /**
+   Whether node ended on its own with status 0.
+   */
+  readonly succeeded: boolean;
+  /**
+   The exit status as a message reads it, naming a signal death when there is no status.
+   */
+  readonly exit: string;
+  readonly stdout: string;
+  readonly stderr: string;
+};
+
+/**
+ Run a synthetic body through node, with no `usage_args` inherited from this test's own task.
+
+ @param options - marker text, appended words, the line after the marker, and any `usage_args` value
+
+ @returns the child's exit status and both streams
+
+ @example
+ ```ts
+ runParserBody({ marker, pasted: ' --help', afterMarker: '' });
+ ```
+ */
+function runParserBody(
+  options: {
+    readonly marker: string;
+    readonly pasted: string;
+    readonly afterMarker: string;
+    readonly usageArgs?: string;
+  },
+): ParserOutcome {
+  const inherited = Object.entries(process.env,).filter(([name]) => name !== 'usage_args',);
+  const environment = Object.fromEntries(inherited,);
+  if (options.usageArgs !== undefined) environment.usage_args = options.usageArgs;
+  const result = spawnSync(
+    'node',
+    ['--input-type=module-typescript', '-e', parserRun(options,),],
+    { encoding: 'utf8', env: environment, },
+  );
+  return {
+    succeeded: result.status === 0,
+    exit: exitText(result.status ?? undefined,),
+    stdout: (result.stdout ?? '').trim(),
+    stderr: result.stderr ?? '',
+  };
+}
+
+/**
+ Arguments the shared parser recovers from a synthetic body.
 
  @param options - marker text, appended words, the line after the marker, and any `usage_args` value
 
  @returns the parsed argument vector the body printed
+
+ @throws Error when the body exits non-zero, carrying the child's diagnostics
  */
 function recoveredArguments(
   options: {
@@ -305,16 +447,301 @@ function recoveredArguments(
     readonly usageArgs?: string;
   },
 ): string[] {
-  const inherited = Object.entries(process.env,).filter(([name]) => name !== 'usage_args',);
-  const environment = Object.fromEntries(inherited,);
-  if (options.usageArgs !== undefined) environment.usage_args = options.usageArgs;
-  const stdout = execFileSync(
-    'node',
-    ['--input-type=module-typescript', '-e', parserRun(options,),],
-    { encoding: 'utf8', env: environment, },
-  );
-  return JSON.parse(stdout,) as string[];
+  const outcome = runParserBody(options,);
+  if (!outcome.succeeded)
+    throw new Error(`the parser body exited ${outcome.exit}: ${outcome.stderr}`,);
+  return JSON.parse(outcome.stdout,) as string[];
 }
+
+//endregion
+
+//region The paste boundary mise actually writes, through real mise
+
+/**
+ One paste case: the words a caller puts after `--`, and a name a failure message can use.
+ */
+type PasteCase = {
+  readonly name: string;
+  readonly words: readonly string[];
+  /**
+   Whether the words go before `--`, where mise's own usage parser reads them instead of pasting them.
+   */
+  readonly bare?: boolean;
+};
+
+/**
+ Every shell-word shape mise's paste can write into the script without a line terminator.
+
+ Each was taken from a real mise run, not hand-written, so the quotes, backslashes, empty words, marker text,
+ delimiters and traversal tokens are the ones mise produces. The recovery must return each list unchanged.
+ */
+const exactPasteCases: readonly PasteCase[] = [
+  { name: 'no arguments', words: [], },
+  { name: 'no arguments and no separator', bare: true, words: [], },
+  { name: 'ordinary arguments, one with two words', words: ['alpha', 'two words',], },
+  { name: 'ordinary arguments without a separator', bare: true, words: ['alpha', 'two words',], },
+  { name: 'a flag that is not help', words: ['--foo',], },
+  { name: 'a short flag', words: ['-x',], },
+  { name: 'help alone', words: ['--help',], },
+  { name: 'short help alone', words: ['-h',], },
+  { name: 'help not first', words: ['a', '--help', 'b',], },
+  { name: 'help then a two-word argument', words: ['--help', 'two words',], },
+  { name: 'help then an empty argument', words: ['--help', '',], },
+  { name: 'help then only empty arguments', words: ['--help', '', '',], },
+  { name: 'a single quote inside a word', words: ['--help', "it's",], },
+  { name: 'a double quote inside a word', words: ['--help', 'say "hi"',], },
+  { name: 'a backslash inside a word', words: ['--help', String.raw`back\slash`,], },
+  { name: 'a trailing backslash', words: ['--help', `trail${tomlBackslash}`,], },
+  { name: 'a lone quote word', words: ['--help', "'",], },
+  { name: 'two quote characters only', words: ['--help', '"\'"',], },
+  { name: 'shell metacharacters', words: ['--help', ';', '$(echo hi)', '`x`', '*', '&&', '|', '>',], },
+  { name: 'comment openers and closers', words: ['--help', '*/', '/*', '//', '#',], },
+  { name: 'a tab and unicode words', words: ['--help', 'tab\there', 'caf\u00E9 \u{1F600}',], },
+  { name: 'the marker text itself', words: ['--help', '// mise appends forwarded arguments after this comment',], },
+  { name: 'a word that begins with the marker', words: ['--help', '// mise appends forwarded arguments after this comment tail',], },
+  { name: 'traversal tokens', words: ['--help', '../../etc/passwd', String.raw`..\..\x`,], },
+  { name: 'a very long word', words: ['--help', 'x'.repeat(100_000,),], },
+  { name: 'a second separator', words: ['--help', '--', 'x',], },
+];
+
+/**
+ Every paste case whose word carries a line terminator and whose pasted lines still parse as source.
+
+ The break ends the marker comment, so the words after it are source lines; the recovery must refuse and name the word
+ that carries the break rather than return a shorter or a different list.
+ */
+const refusedPasteCases: readonly PasteCase[] = [
+  { name: 'a line feed then a line comment', words: ['--help', 'a\n// b',], },
+  { name: 'a line feed then the marker text', words: ['--help', 'a\n// mise appends forwarded arguments after this comment',], },
+  { name: 'a carriage return inside a word', words: ['--help', 'a\rb',], },
+  { name: 'a carriage return then a line comment', words: ['--help', 'a\r// b',], },
+  { name: 'a U+2028 line separator inside a word', words: ['--help', 'a\u2028b',], },
+  { name: 'a U+2028 line separator then a line comment', words: ['--help', 'a\u2028// b',], },
+  { name: 'a U+2029 paragraph separator then a line comment', words: ['--help', 'a\u2029// b',], },
+  { name: 'short help then a line feed and a line comment', words: ['-h', 'x\n// y',], },
+  { name: 'short help then a line feed, the marker and more', words: ['--help', 'x\n// mise appends forwarded arguments after this comment y',], },
+  { name: 'a break in the fourth word only', words: ['--help', 'one', 'two words', 'x\r//y',], },
+];
+
+/**
+ Paste cases whose pasted lines do not parse at all, so node refuses the whole script before the body runs.
+
+ These are the shapes no recovery code can see: the syntax error is the failure, and it is the one `main` gives.
+ */
+const unparsablePasteCases: readonly PasteCase[] = [
+  { name: 'a line feed then ordinary text', words: ['--help', 'a\nb',], },
+  { name: 'a line feed then a block comment opener', words: ['--help', 'a\n/*',], },
+];
+
+/**
+ The start of the message the recovery gives when a line terminator breaks the pasted words.
+ */
+const refusedPastePrefix = 'Error: cannot read the arguments mise pasted into this script:';
+
+/**
+ The text that precedes the word number in the refusal message.
+ */
+const refusedPositionPrefix = 'argument ';
+
+/**
+ Every JavaScript line terminator, each of which ends the marker comment on node's side of the paste.
+ */
+const lineTerminators: readonly string[] = ['\n', '\r', '\u2028', '\u2029',];
+
+/**
+ The word number a refusal message names.
+
+ @param message - the refusal line
+
+ @returns the digits after `argument `, or nothing when the message carries none
+
+ @example
+ ```ts
+ namedWord('argument 3 contains a line break') === '3';
+ ```
+ */
+function namedWord(message: string,): string {
+  const from = message.indexOf(refusedPositionPrefix,);
+  if (from === (-1)) return '';
+  const rest = message.slice(from + refusedPositionPrefix.length,);
+  return rest.slice(0, rest.search(' ',),);
+}
+
+/**
+ Whether one word carries a line terminator.
+
+ @param word - one forwarded word as the caller typed it
+
+ @returns true when the recovery must refuse it
+
+ @example
+ ```ts
+ carriesLineTerminator('a\nb') === true;
+ ```
+ */
+function carriesLineTerminator(word: string,): boolean {
+  return lineTerminators.some(function appears(terminator,): boolean {
+    return word.includes(terminator,);
+  },);
+}
+
+/**
+ A scratch configuration whose probe task prints what the root's own parser recovers.
+
+ @returns TOML for a disposable repository root
+ */
+function probeConfiguration(): string {
+  return `[vars]
+${variableDeclaration('forwarded_arguments_marker',)}
+${variableDeclaration('parse_usage_args',)}
+
+[tasks.probe]
+usage = 'arg "[args]" var=#true help="probe the forwarded-argument recovery"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+process.stdout.write(JSON.stringify(parseUsageArgs(usageArgWords())))
+{{vars.forwarded_arguments_marker}}
+"""
+`;
+}
+
+/**
+ What one nested mise run did with the words it was given.
+ */
+type ProbeOutcome = {
+  /**
+   Whether mise ended on its own with status 0.
+   */
+  readonly succeeded: boolean;
+  /**
+   The exit status as a message reads it, naming a signal death when there is no status.
+   */
+  readonly exit: string;
+  readonly stdout: string;
+  readonly stderr: string;
+};
+
+/**
+ Run each case's words through real mise in one disposable configuration.
+
+ The configuration interpolates the root file's own marker and parser declarations into a task body that ends with
+ the marker, so each case exercises mise's paste and this file's recovery together rather than a hand-written copy
+ of the paste. mise's state, home and trusted configuration path are the fixture root, so no outer configuration or
+ credential is read.
+
+ @param cases - words to put after `--`, one run each
+
+ @returns each case with the exit status and streams of its run
+ */
+async function probeThroughMise(
+  cases: readonly PasteCase[],
+): Promise<readonly { readonly pasteCase: PasteCase; readonly outcome: ProbeOutcome }[]> {
+  await using directory = await mkdtempDisposable(join(scratchRoot(), 'mise-forwarded-arguments-',),);
+  const root = await realpath(directory.path,);
+  const mise = await resolveMise();
+  await writeFile(join(root, 'mise.toml',), probeConfiguration(),);
+  const environment = fixtureEnvironment({ root, mise, },);
+  return cases.map((pasteCase) => {
+    const separators = pasteCase.bare === true ? [] : ['--',];
+    const result = spawnSync(mise, ['run', 'probe', ...separators, ...pasteCase.words,], {
+      cwd: root,
+      env: environment,
+      encoding: 'utf8',
+      timeout: 60_000,
+      maxBuffer: 8_000_000,
+    },);
+    return {
+      pasteCase,
+      outcome: {
+        succeeded: result.status === 0,
+        exit: exitText(result.status ?? undefined,),
+        stdout: (result.stdout ?? '').trimEnd(),
+        stderr: result.stderr ?? '',
+      },
+    };
+  },);
+}
+
+/**
+ Why a run of the exact cases is not what its cases expect, or nothing when it is.
+
+ @param options - the case and its outcome
+
+ @returns one diagnostic per failed expectation
+ */
+function exactProblems({
+  pasteCase,
+  outcome,
+}: {
+  readonly pasteCase: PasteCase;
+  readonly outcome: ProbeOutcome;
+}): readonly string[] {
+  const problems: string[] = [];
+  if (!outcome.succeeded)
+    problems.push(`${pasteCase.name}: exited ${outcome.exit} and said ${outcome.stderr}`,);
+  else if (outcome.stdout !== JSON.stringify(pasteCase.words,))
+    problems.push(`${pasteCase.name}: printed ${outcome.stdout === '' ? 'nothing' : outcome.stdout}`,);
+  return problems;
+}
+
+/**
+ Why a refused run is not what its case expects, or nothing when it is.
+
+ The message must name the word that carries the line terminator, counted from the case's own words so the expectation
+ does not restate the implementation.
+
+ @param options - the case and its outcome
+
+ @returns one diagnostic per failed expectation
+ */
+function refusalProblems({
+  pasteCase,
+  outcome,
+}: {
+  readonly pasteCase: PasteCase;
+  readonly outcome: ProbeOutcome;
+}): readonly string[] {
+  const problems: string[] = [];
+  if (outcome.succeeded) problems.push(`${pasteCase.name}: exited 0 and printed ${outcome.stdout}`,);
+  const carrying = pasteCase.words.findIndex(carriesLineTerminator,) + 1;
+  const message = outcome.stderr.split('\n',).find((line) => line.startsWith(refusedPastePrefix,),);
+  if (message === undefined) problems.push(`${pasteCase.name}: no refusal naming the broken word in ${outcome.stderr}`,);
+  else if (namedWord(message,) !== String(carrying,))
+    problems.push(`${pasteCase.name}: named a different word than the ${String(carrying,)}th, which carries the break`,);
+  return problems;
+}
+
+/**
+ Why an unparsable run is not what its case expects, or nothing when it is.
+
+ No body code may run, so nothing may be printed, and the failure must be node's own TypeScript syntax error.
+
+ @param options - the case and its outcome
+
+ @returns one diagnostic per failed expectation
+ */
+function unparsableProblems({
+  pasteCase,
+  outcome,
+}: {
+  readonly pasteCase: PasteCase;
+  readonly outcome: ProbeOutcome;
+}): readonly string[] {
+  const problems: string[] = [];
+  if (outcome.succeeded) problems.push(`${pasteCase.name}: exited 0 and printed ${outcome.stdout}`,);
+  if (outcome.stdout !== '') problems.push(`${pasteCase.name}: printed ${outcome.stdout} from a body that cannot parse`,);
+  if (!outcome.stderr.includes('ERR_INVALID_TYPESCRIPT_SYNTAX',))
+    problems.push(`${pasteCase.name}: not node's TypeScript syntax failure: ${outcome.stderr}`,);
+  return problems;
+}
+
+/**
+ Windows passes an inline task's forwarded words as separate argv, so no paste exists to check there.
+ */
+const notWindows = process.platform === 'win32'
+  ? 'mise on Windows passes a non-POSIX shell its words as a separate argv, so it writes no paste into the script'
+  : false;
 
 //endregion
 
@@ -419,12 +846,12 @@ await describe({
       },
     },),
     it({
-      name: 'parses no arguments when the marker is not on the last line of the script',
-      fn: async function markerNotLastMeansNoArguments() {
+      name: 'refuses when the script continues past the marker line, where mise appends nothing',
+      fn: async function refusesTextAfterTheMarker() {
         const marker = forwardedMarker();
-        expect(
-          recoveredArguments({ marker, pasted: '', afterMarker: '\nconst after = 1;\n', },),
-        ).toEqual([],);
+        const outcome = runParserBody({ marker, pasted: '', afterMarker: '\nconst after = 1;\n', },);
+        expect(outcome.succeeded,).toBe(false,);
+        expect(outcome.stderr,).toContain(`${refusedPastePrefix} argument 1 contains a line break`,);
       },
     },),
     it({
@@ -434,6 +861,36 @@ await describe({
         expect(
           recoveredArguments({ marker, pasted: ' --appended', afterMarker: '', usageArgs: '--parsed', },),
         ).toEqual(['--parsed',],);
+      },
+    },),
+    it({
+      skip: notWindows,
+      name: 'recovers every shell-word shape mise pastes or parses, through real mise',
+      fn: async function recoversEveryShellWordShape() {
+        const results = await probeThroughMise(exactPasteCases,);
+        const failures = results.flatMap(exactProblems,);
+        expect(results.length,).toBe(exactPasteCases.length,);
+        expect(failures,).toEqual([],);
+      },
+    },),
+    it({
+      skip: notWindows,
+      name: 'refuses a word carrying a line terminator, naming that word, through real mise',
+      fn: async function refusesLineTerminators() {
+        const results = await probeThroughMise(refusedPasteCases,);
+        const failures = results.flatMap(refusalProblems,);
+        expect(results.length,).toBe(refusedPasteCases.length,);
+        expect(failures,).toEqual([],);
+      },
+    },),
+    it({
+      skip: notWindows,
+      name: 'fails before any body code runs when the pasted lines cannot parse, through real mise',
+      fn: async function failsBeforeTheBodyRuns() {
+        const results = await probeThroughMise(unparsablePasteCases,);
+        const failures = results.flatMap(unparsableProblems,);
+        expect(results.length,).toBe(unparsablePasteCases.length,);
+        expect(failures,).toEqual([],);
       },
     },),
   ],
