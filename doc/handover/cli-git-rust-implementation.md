@@ -41299,7 +41299,46 @@ stated in this entry. What follows from them, as work:
   landing exactly on the bound reads back; SPEC and the lock-hold document updated (adoption hold 44.146 to 46.676 ms, the
   wait's basis unchanged); gate 9476 of 9478, the cause-H pair. To judge: its refusal sentence sends a user of the released
   binary to "the owner's open question (`doc/handover/questions-for-the-owner.md`)". GOING: its integration pass on Sonnet
-  (review to `~/temp/agent/integration-pass-git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/keep/`).
+  (review to `~/temp/agent/integration-pass-git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/keep/`). It
+  said fit (both writers checked before any write; the refusal control red without the check; gate 9476 of 9478) with F1
+  medium (the refusal sends a user of the released binary to a handover file and "the owner", and the open question it
+  names is about the format, not growth), F2 and F3 low. MERGED as `93f7a33a67` at 2026-11-21T16:22:29-05:00 (closes issue
+  6327). THE OWNER ANSWERED the store format question at 2026-11-21T16:24:40-05:00: "B: folder, one file per slot"
+  (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`; moved to Answered in the owner file). So the
+  wording round for F1 to F3 was stopped before any commit and its worktree and branch removed (the single file, its size
+  refusal and the lock-hold document are what B replaces); step 7 was steered to add no dependency on the single-file
+  format and to list where it touches the store. GOING: the design of B as `pi-zfs-slot-identity-store-per-slot-files-design`
+  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md` on
+  `docs/planning-cli-git-zfs-slot-identity-store-per-slot-files`; brief under
+  `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/`); then a gate review on Sonnet, the design to the
+  owner, and a build before step 8. The design round ended at `f18f98086c` (1387 lines): `.parent` plus one file named by
+  the slot in a root `0755` folder held by descriptor; publication by an `O_TMPFILE` and one `linkat` (fallback an
+  `O_EXCL` staging name and `RENAME_NOREPLACE`); the parent replaced by one rename; an attach reads two files; the adoption
+  lists twice; per-file bound 1 MiB on the `XATTR_SIZE_MAX` basis; the lock, `STORE_LOCK_WAIT` and the whole-store check go;
+  eight choices ranked, none taken. Probe on this host's `home` dataset as the account (root arms owed). GOING: its gate
+  review on Sonnet (to `~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`).
+  ZFS STEP 7'S ROUND ended at `43e618033f` (397 turns): the intent grammar (43-byte bound before parsing, local source
+  only), the sweep nonce as a nudge, receipts under `/run/git-worktree-clone-mount-results` named by GUID, the readiness
+  record at `/run/git-worktree-clone-mount-readiness/result` with `admit_attach`, a per-slot root claim by `flock` on
+  `<slot>.claim`, the wrapper's intent writer and receipt wait, `PROVISIONAL_MOUNT_REQUEST_DEADLINE` 30 s marked
+  provisional, the SPEC section; the store untouched (the slot-name rule moved to a neutral `slot_name.rs`); intent and
+  stale-result controls red then green; gate 9559 of 9561, the cause-H pair. NOT DONE: the guest arms and VM measurement
+  (it read "one guest at a time" as machine-wide while another session's guest ran; the rule bounds a round's own guests),
+  the nudge and readiness reds, and the ZFS binding's `lint:types:crate` died twice in the linker (signal 6). Its narrow
+  choices and questions (readiness by pool name and checkout path only; the sweep state gating nothing; the claim's
+  path, mode, `flock` and refuse-not-wait; receipt outcomes; the wait's synchronous read; readiness writers' ordering)
+  go to its integration pass. GOING: the same session resumed as `pi-zfs-step-7-intent-receipts-readiness-2` (guest arms
+  and measurement in its own guest, the two reds, the claim's lock against rule `NLK` and the store decision, the linker
+  cause; continuation under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/continuation-1.md`). THE
+  PER-SLOT STORE DESIGN'S GATE REVIEW (Sonnet; that folder's `keep/review.md`) said not ready: H1 the racing-adoption
+  example cannot happen and the sweep publishes a slot before comparing the parent (against the accepted design's line
+  625); H2 the kept probe's evidence is wrong (`O_TMPFILE` without `O_DIRECTORY`, a `fsync` check that always printed
+  "failed", facts it never measured), though the reviewer's corrected probe confirms the facts; M1 the lead option uses
+  `O_TMPFILE` and `linkat`, not the `O_EXCL` the chosen option named; M2 to M6 (staging cleanup, two dropped refusals,
+  section 6 incomplete, the attach's lost whole-store validation unsaid, choice reasoning); 11 lows. GOING:
+  `pi-zfs-slot-identity-store-per-slot-files-design-gate-findings` in the design worktree (brief
+  `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/prompt-gate-findings.md`); then the same reviewer
+  rechecks; then the design to the owner, with any departure from `O_EXCL` as its own flagged choice.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
