@@ -1687,16 +1687,13 @@ What this round measured on rung 1:
   (`worktree_snapshot_index_step_tests.rs`),
   red first with the previous order planted
   (`it records 18 bytes ... Git's checkout writes 20 bytes`).
-- The costs the rung pays are not measured at this repository's size.
-  The guest's btrfs image serves fixtures of a few paths,
-  and no round has timed a snapshot add of 24,435 files on btrfs:
-  what such an add pays is the fence's two reads (35 to 48 ms for the attributes and 190 to 345 ms for the sizes,
-  measured on the clone rung's runs),
-  the fence's per-path write step for its converting paths,
-  and the snapshot's own cost,
-  which `main` already pays on btrfs.
-  A decline there is now the cheap one:
-  the same reads and Git's own checkout.
+- The cost the rung pays at this repository's size is now measured,
+  and it is the fence's reads:
+  a snapshot add of 24,486 tracked files on a btrfs image took a median 838 ms against `main`'s 431,
+  and 415 ms of the fence's reads (338 of it one `git ls-tree`) is what the difference is
+  ("Limitations" carries the rounds,
+  the control's spread and the step medians).
+  The fence's per-path write step is not reached on a repository whose rules convert nothing.
 
 ## The options, with their measured cost
 
@@ -2950,6 +2947,7 @@ This round answers the integration pass on this branch on Sonnet
 (`~/temp/agent/integration-pass-zfs-step-3-with-the-conversion-fence-2026-11-21/keep/review.md`).
 It merges the step 3 fixes this branch never took,
 closes the kill window the review reproduced,
+measures the btrfs snapshot rung's cost by step,
 writes the fence into the crate's `SPEC.md` and `README.md`,
 and records each finding's outcome below.
 
@@ -3080,6 +3078,156 @@ the quarter decline rule,
 what the index's own name means for a kill,
 and the two sentences a person reads.
 
+### The btrfs snapshot rung's cost, split by step
+
+The review's H2 measured a btrfs rung-1 add at about twice `main`'s time in the guest and could not read the split.
+The guest run this round kept
+(`~/temp/agent/zfs-step-3-fence-integration-findings-fixed-2026-11-21/scratch/guest-logs/btrfs-rung1-timing.log`) gives
+it:
+this repository's 24,486 tracked files on a 6 GiB btrfs image,
+a subvolume source with the LFS attribute lines removed so every path takes the size proof,
+three arms rotating (`branch`,
+`main`,
+`branch` again as the identical-binary control),
+five rounds,
+`sync --file-system` before each,
+every add on the snapshot route.
+
+- `main`:
+  425,
+  425,
+  433,
+  464,
+  431 ms,
+  median 431.
+- `branch`:
+  993,
+  827,
+  838,
+  890,
+  826 ms,
+  median 838.
+- `branch` again:
+  839,
+  828,
+  844,
+  914,
+  867 ms,
+  median 844.
+- Per round,
+  `branch / main`:
+  2.34,
+  1.95,
+  1.94,
+  1.92,
+  1.92;
+  the control 1.97,
+  1.95,
+  1.97,
+  1.97,
+  2.01.
+  Round 1 was the run's only cold round (no warm-up);
+  without it the branch is 1.92 to 1.95 and the control 1.95 to 2.01,
+  so about twice `main`'s time is the binary's and not the round's.
+
+The split,
+medians of the add's own record:
+
+- this branch's fence:
+  `git ls-tree` 338 ms,
+  `git check-attr` 46 ms,
+  and the step that decides the paths 31 ms,
+  which is 415 ms.
+- The steps both arms pay,
+  this branch against `main`:
+  `checkSource` 99 against 102,
+  `walkSnapshot` 194 against 196,
+  `prune` 43 against 43,
+  `installIndexFile` 16 against 18,
+  `snapshotIoctl` 4 against 4,
+  `git check-ignore` 37 against 36,
+  `git ls-files` 9 against 9,
+  `gitAdd` 5 against 6.
+- So the 407 ms the medians differ by is the fence's 415 ms,
+  and 338 of that is the one `git ls-tree`.
+
+What B's ordering can reduce of it:
+nothing on this rung.
+The rung has no copies to run the fence beside,
+the snapshot is a constant-time subvolume copy (`snapshotIoctl` 4 ms),
+and the size proof is owed for every path a clone may carry,
+so no path's read can be skipped for a rule that cannot change its bytes:
+a path whose rule converts is written through Git without a size,
+but a path with no rule today can still hold a form an earlier rule wrote,
+which is exactly what the size proof catches.
+Real Git's own `--no-checkout` run is the only other work a read could overlap with,
+and it is decided before that run,
+because the rung cannot be chosen until the decline is answered.
+What remains is the cost:
+about twice `main`'s time on a btrfs snapshot add of this repository's size,
+named in "Limitations",
+and covered by no waiver.
+The cheaper proof that would cut most of it is named there too
+(the blob sizes read from the object database instead of one `git ls-tree`),
+and it is not built.
+
+### The guest controls
+
+One throwaway `libvirt` guest through `mvm`,
+`fence-step3-fixes-guest` (Ubuntu 24.04,
+kernel 6.8.0-147,
+OpenZFS 2.4.4,
+Git 2.43.0),
+made by the recipe's `create` and `prepare`,
+with this branch's crate built inside it,
+destroyed at the end.
+
+- Rung 2 on ZFS (a 1 GiB encrypted pool,
+  block cloning on):
+  the eighteen binary controls of `worktree_clone_conversion`,
+  18 of 18,
+  **no `ZFS CONTROL NOT RUN` line**,
+  among them `a_working_tree_encoding_carries_the_sources_bytes_as_gits_checkout_does`,
+  the four decline boundaries,
+  and `an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout`.
+- Rungs 1 and 2 on a 6 GiB btrfs image,
+  the library controls:
+  279 run,
+  277 passed,
+  2 failed,
+  **no `BTRFS CONTROL NOT RUN` line**.
+  The two failures are `worktree_clone_mount`'s two store controls that cannot fail as root,
+  the same two the earlier
+  rounds record.
+  The conversion controls that passed by name include
+  `btrfs_a_converting_path_is_written_by_git_and_the_snapshot_rung_is_clean`,
+  `btrfs_a_configuration_rule_writes_gits_bytes_in_the_snapshot_rung`,
+  `btrfs_the_slices_clone_every_entry_of_a_large_run`,
+  `the_fence_beside_the_clone_answers_what_the_fence_before_it_answers`,
+  `the_seed_zeroes_the_stat_data_of_the_path_the_fence_leaves_to_git` and
+  `the_installed_index_vouches_for_no_path_git_still_has_to_write`.
+- The binary controls of the dirty snapshot on btrfs (`worktree_dirty_snapshot::*`) ran in their own step.
+- btrfs end to end,
+  four classes (`*.txt text eol=crlf`;
+  `core.autocrlf=true` set after the files were written;
+  `ident` over `$Id$`;
+  `* text=auto eol=lf` over a CRLF file that was added) times three modes (rung 1 clean,
+  rung 1 dirty,
+  rung 2 clean),
+  once with this branch's binary and once with `main`'s,
+  compared with a real Git checkout of the same commit:
+  **this branch 12 of 12 equal**,
+  every add on the route it should take (8 snapshot,
+  4 clones);
+  `main` 12 of 12 different.
+- A btrfs rung-2 add killed inside its write step,
+  from a `setsid` probe whose readings survive the kill:
+  the administrative directory held `index.pending` and **no `index`**,
+  `git status` reported every tracked path `D` and every file `??`,
+  the recovery said the add was "possibly incomplete" and printed the commands that finish or remove it,
+  `a.txt` already held Git's 20 bytes and `z.txt` still the source's 18,
+  and the command the recovery prints left the worktree **equal to Git's own checkout**.
+
 ### The lows
 
 - The stale sentence about the decline happening after the clone,
@@ -3137,12 +3285,62 @@ with the evidence behind it.
   which ends the rung and leaves bytes equal to Git's),
   so the bytes are right but the add pays the copy and Git's checkout,
   where option A′ would finish the rung.
-- **Rung 1's fence reads sit on the add's waiting path and are not timed at this repository's size.**
-  A snapshot copies everything anyway,
-  so there is no second thread for the fence's reads to run beside;
-  and the guest's btrfs fixtures are a few paths,
-  so no kept run prices a 24,435-file snapshot add with the fence,
-  nor a decline there.
+- **Rung 1's fence reads sit on the add's waiting path,
+  and they are the whole of its cost above `main`.**
+  Measured in the guest on this repository's 24,486 tracked files,
+  a 6 GiB btrfs image,
+  three arms rotating,
+  five rounds,
+  `sync --file-system` before each,
+  every add on the snapshot route:
+  `main` 425,
+  425,
+  433,
+  464 and 431 ms (median 431);
+  this branch 993,
+  827,
+  838,
+  890 and 826 (median 838);
+  the identical binary again 839,
+  828,
+  844,
+  914 and 867 (median 844).
+  Per round this branch is 2.34,
+  1.95,
+  1.94,
+  1.92 and 1.92 of `main` (the first round is the run's only cold one),
+  and the identical binary 1.97,
+  1.95,
+  1.97,
+  1.97 and 2.01,
+  so the difference is the binary and not the round.
+  The split,
+  medians of each add's own record,
+  this branch against `main`:
+  `git ls-tree` 338 against none,
+  `git check-attr` 46 against none,
+  the fence's remaining step 31 against none,
+  and the steps both arms pay agree
+  (`checkSource` 99 against 102,
+  `walkSnapshot` 194 against 196,
+  `prune` 43 against 43,
+  `installIndexFile` 16 against 18,
+  `snapshotIoctl` 4 against 4,
+  `git check-ignore` 37 against 36).
+  So 415 ms of reads is the 407 ms the two medians differ by,
+  and 338 of it is the one `git ls-tree`.
+  Nothing in B's ordering can be overlapped or skipped here:
+  the rung has no copies for a second thread,
+  the snapshot is a constant-time subvolume copy (`snapshotIoctl` 4 ms),
+  and the size proof is owed for every path a clone may carry,
+  because a file can hold an earlier rule's form even where no rule matches it today.
+  The one reduction left is a cheaper reader of the same proof
+  (the blob sizes from the object database in this process instead of one `git ls-tree` over 24,486 paths);
+  it is not built,
+  not measured,
+  and it is not B's ordering.
+  Until then a btrfs snapshot add of this size is about twice `main`'s time,
+  and no waiver names it.
   The two conversions the guest does prove are `btrfs_a_converting_path_is_written_by_git_and_the_snapshot_rung_is_clean`
   and `btrfs_a_configuration_rule_writes_gits_bytes_in_the_snapshot_rung`,
   and the ordering rule behind them is
@@ -3184,6 +3382,15 @@ with the evidence behind it.
   What this round removed from that thread is the attribute read and the decline,
   which now run before anything is copied and before Git's own run.
   No in-process replacement is built or measured.
+- **A rung that ends after Git rewrote the waiting index leaves that file behind.**
+  The discard removes `index.pending` only when the name still holds the file this run wrote;
+  once Git's `read-tree -u` or `checkout-index -u` has rewritten it,
+  the identity differs and the file stays in the
+  administrative directory.
+  Nothing reads a file of that name,
+  the fallback writes `index`,
+  and the worktree is whole;
+  the file is clutter the next interrupted-add report does not name.
 - **Every byte-equality control runs below the clone's break-even.**
   The guest's eighteen class controls,
   the host's scenarios and the 150-combination sample use repositories of three to
