@@ -41164,7 +41164,23 @@ stated in this entry. What follows from them, as work:
   undeletable buildah folder. GOING: its narrow integration pass on Sonnet (brief under
   `~/temp/agent/integration-pass-git-policy-cli-process-cpu-counters-thread-race-2026-11-21/`); and the memory-held push
   programs carry as `pi-git-policy-cli-lfs-push-programs-held-in-memory` (A1 to A11, A12 red first; brief under
-  `~/temp/agent/git-policy-cli-lfs-push-programs-held-in-memory-2026-11-21/`).
+  `~/temp/agent/git-policy-cli-lfs-push-programs-held-in-memory-2026-11-21/`). MERGED: the start probe as `04ecd9e6d3`
+  (fit as an increment: nothing calls it until step 19; F1 to F13 open) and issue 6330's fix as `f6e76e4a3b` (fit; its
+  gate showed cause G's `package_repair::pnpm_runs_in_the_new_worktree_only` once, already recorded). THE OWNER ANSWERED
+  three start-probe points on 2026-11-21 (recorded in `doc/decision/cli-git-zfs-start-probe.md`, "Answers of
+  2026-11-21"): keys nested under `startProbe`; the companion's check code in step 10; `hold-mode` dropped. THE MEMORY-HELD
+  PUSH PROGRAMS ROUND ended at `a65a1fcc4c` (A1 to A11 carried, A11 reconciled with `main`'s refusal; A12(a) and (b) red
+  then green, (b) narrowed so a queued retry keeps its values; nothing-written controls kept; two end-to-end controls
+  dropped because the host's `git-lfs` ran instead of the stand-in). B'S DECIDE-FIRST ROUND ended at `bf4e1e6417`: the
+  decline decided from `git check-attr` before any copy or claim; rung 1 fenced; guest 18 of 18 ZFS and 176 of 176 btrfs;
+  the sample 300 of 300; this repository 0.96 of `main`, 0.199 at 1.01, 0.644 at 1.10 with B/A′ 0.99 (the decline's price
+  is its 130 ms of reads); Limitations written; gate 9470 of 9472, the cause-H pair. The fence branch contains step 3
+  (`74caa69e7a`). GOING: step 3 with the fence as one integration pass on Sonnet (brief under
+  `~/temp/agent/integration-pass-zfs-step-3-with-the-conversion-fence-2026-11-21/`); the push programs' integration pass on
+  Sonnet, asked for an end-to-end control in the gate image (brief under
+  `~/temp/agent/integration-pass-lfs-push-programs-held-in-memory-2026-11-21/`); and the start probe's findings round with
+  the three answers as `pi-zfs-step-6-start-probe-integration-findings-fixed` (brief under
+  `~/temp/agent/zfs-step-6-start-probe-integration-findings-fixed-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
