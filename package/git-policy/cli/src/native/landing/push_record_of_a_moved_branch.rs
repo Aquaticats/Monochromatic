@@ -1,7 +1,6 @@
 //! What:
 //!  The push record a command that moves a branch leaves,
-//!  where no round runs it until its values have reached the service,
-//!  and the proof that such a record is this command's to make runnable.
+//!  and the hand-off that wakes the service to run it with this command's programs.
 //! Why:
 //!  A merge,
 //! a cherry-pick,
@@ -9,28 +8,25 @@
 //! an applied patch or a pull's merge adds commits that the next commit would otherwise be the first to push,
 //! and the record of that push must outlive a command killed before its values travel
 //! (`service_push_programs_held_in_memory`).
-//! The hand-off therefore writes it into `held` first,
-//! where no round claims it,
-//! and a record whose id the queue already settled,
-//! whose gate blocked it,
-//! or which another command holds is not this hand-off's to publish.
+//! The record is written into the queue before anything asks whether a service can be reached,
+//! so a context with no route leaves the push on disk for the next wake,
+//! and the values that push must run with go with the wake that follows the record.
+//! A branch whose name is not text has no record, and the person is told that instead.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const record = pushRecordItem(repo, gitDir, 'refs/heads/main', tip, parent); if (heldRecordIsThisCommands(workDir, record.id, holder)) promote(workDir, record.id);
+//! const record = pushRecordItem(repo, gitDir, 'refs/heads/main', tip, parent); enqueue(workDir, record); await wake({ pushPrograms: [[record.id, programsOfThisProcess()]] });
 //! ```
 
 
-use crate::held_push_holder_and_verdict::holding_in;
 use crate::iso_time::now_iso;
 use crate::service_client::wake;
 use crate::service_messages::ClientFailure;
 use crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over;
 use crate::service_handoff::{ServiceHandoff, unqueued_branch_note};
-use crate::work_item::{WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{WorkItem, WorkKind, enqueue};
 use crate::service_work::work_directory;
 use std::io::Write;
-use std::path::PathBuf;
 
 /// What:
 ///  The push record of one landed commit of a worktree,
@@ -40,9 +36,10 @@ use std::path::PathBuf;
 /// the branch,
 /// and whether this command chose a transport.
 /// Why:
-///  The hand-off needs the id before the record exists,
-/// so the values can reach the service while no round can claim the
-///  record (`hand_over_push`),
+///  The hand-off names the record's id in the wake that carries the values the push must run with,
+/// so the id is made here,
+/// once,
+/// and the record is enqueued from it,
 /// and a record written here is written only for a branch whose name is text.
 ///
 /// In TS you'd write (pseudocode):
@@ -63,43 +60,6 @@ pub(crate) fn push_record_item(repository: &std::path::Path, git_dir: &std::path
         tries: 0,
         transport: crate::service_push_programs_held_in_memory::of_this_process().transport,
     };
-}
-
-/// What:
-///  Whether the record `id` waits in `held` naming the command `holder` as the one that left it.
-/// Why:
-///   A record whose id the queue already settled,
-/// whose gate blocked it,
-/// or which another command holds is not this hand-off's to make runnable,
-///  and the values of this command are not its either.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const heldRecordIsThisCommands = (workDir, id, holder) => holdingIn(readFileSync(join(workDir, 'held', id), 'utf8')).holder === holder;
-/// ```
-pub(crate) fn held_record_is_this_commands(work_dir: &std::path::Path, id: &str, holder: &str) -> bool {
-    let path: PathBuf = state_directory(work_dir, crate::work_item::HELD).join(id);
-    let Ok(text) = std::fs::read_to_string(path.as_path()) else { return false };
-    return holding_in(text.as_str()).holder == holder;
-}
-
-/// What:
-///  Makes the push record `id` runnable when this command left it in `held`,
-///  so the push waits for the next command that reaches the service.
-/// Why:
-///   A hand-off whose wake failed leaves a record that waits;
-/// one left in `held` would wait for a commit that may never come,
-///  and a record another command holds must not be published here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const releaseThisCommandsHold = (workDir, id, holder) => heldRecordIsThisCommands(workDir, id, holder) && promote(workDir, id);
-/// ```
-pub(crate) fn release_this_commands_hold(work_dir: &std::path::Path, id: &str, holder: &str) -> bool {
-    if !held_record_is_this_commands(work_dir, id, holder) {
-        return false;
-    }
-    return crate::work_item::promote(work_dir, id);
 }
 
 /// What:
