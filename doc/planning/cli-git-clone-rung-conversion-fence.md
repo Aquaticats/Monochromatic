@@ -711,13 +711,21 @@ not by what it would have cleaned up.
 - **A kill inside step 7 leaves the name `index.pending` and no `index`**,
   which is the state above.
 - **A kill anywhere from step 7 to step 10 leaves no index in the worktree at all.**
-  The worktree's name is taken only once the last path Git writes has its bytes.
+  The worktree's name is taken only once the last path Git writes has its bytes,
+  and the fallback checkout of a failed tree difference is inside that window:
+  it runs against the waiting file and the publication follows it.
   A worktree with no index is what `git status` reads as colossally changed
   (`D` for every tracked path and `??` for the files that are there),
   and `worktree_copy_interrupted_add_settlement::add_is_finished` calls such a destination unfinished,
   so the next command keeps the record and prints the commands that finish or remove the add
   (`git reset --no-enforce-worktree --hard`,
   whose hatch the sentence names).
+  The recovery also removes the waiting index and the lock a killed Git left beside it
+  (`clear_the_waiting_index`),
+  so the finish leaves nothing of the add's own in the administrative directory:
+  the file is the rung's bookkeeping,
+  nothing reads it,
+  and a rung of ours cannot be between the two names once the worktree's `index` exists.
   An index published earlier is exactly the wrong ordering this option exists to avoid:
   the clean form of the source's bytes equals the blob the entry names,
   so `git status` refreshes such an entry and reports the worktree clean while a converted path still holds the
@@ -740,8 +748,8 @@ not by what it would have cleaned up.
 - **A failure of step 8** (the tree difference) ends the rung before any index is published:
   the carried paths' entries match their files,
   the written paths' entries do not,
-  and the fallback's `reset --hard` writes the whole worktree.
-  One case is new and measured:
+  and the fallback completes the worktree.
+  One case is measured:
   `read-tree -m -u` verifies the entries of the paths it is about to change,
   and a written path whose clean form is not its blob
   (a rule that changed or was removed after the add) makes it refuse where option A′'s fresh stat data let it pass.
@@ -749,27 +757,40 @@ not by what it would have cleaned up.
   `error: Entry 'extra.txt' not uptodate. Cannot merge.`,
   the rung ends,
   and every tracked byte is Git's checkout's because the fallback writes them.
-  That file is the one thing a kill-free ending leaves behind that a finished add would not:
-  the clone created `extra.txt`,
-  the rung discards the index it wrote under its own name,
-  and the fallback's `reset --hard` therefore sees an untracked file where the older order's published index made it a
-  tracked-then-deleted one and removed it.
-  The rung names it in the same warning it gives every leftover (`N entries the clones created stay`,
-  with
-  `git -C <path> status`),
-  so nothing is silently wrong,
-  and `git status` in that worktree says `?? extra.txt`.
-  That failure is safe but costs the clone,
-  and it is option B's one known roteness regression against A′:
-  an add to a differing tree whose written path's clean form is not its blob ends the clone rung.
-  The three measured fixtures check out one commit in both trees,
-  so no timed arm reaches it;
-  the fix (run the tree difference against a copy of the index that still has its stat data,
-  then install the zeroed
-  seed from that result) is recorded as open work,
-  not shipped.
-  Rung 1 has the same exposure for the same reason,
-  and no fixture reaches it there either.
+  The fallback is Git's own `reset --hard` run against the index the rung wrote under its own name
+  (`GIT_INDEX_FILE` at `index.pending`):
+  the file holds the source's entries,
+  so every path the new `HEAD` lacks is a tracked-then-deleted one and the run removes it,
+  and a written path is rewritten because its entry holds no stat data,
+  which the rung's own control proves against the same shape whose entry records the file's stat data
+  (that one is trusted and keeps the source's bytes,
+  the state a published index would have reached:
+  `the_fallback_checkout_rewrites_a_zeroed_entry_and_leaves_a_recorded_one_trusted`).
+  The index takes the worktree's name only after that run,
+  so a kill inside it leaves no index that could vouch for a path Git had not written,
+  and the ladder's own fallback then runs the same checkout against the published index and prints Git's line.
+  The guest's kill inside that run
+  (the waiting file's own lock stood when the wrapper and the `reset` were killed)
+  left the waiting file and its lock and no index,
+  the recovery removed both names,
+  and the finish it printed wrote the worktree equal to Git's checkout with nothing untracked:
+  at that kill point the run had already removed the paths the new `HEAD` lacks.
+  The guest measured both rungs with the reviewer's older-commit fixture
+  (a converting rule,
+  `a.txt` and `keep.dat` in the older commit,
+  then `extra.txt` and 40 plain files under `old/`):
+  every tracked path's bytes and mode equal to Git's checkout of the target commit,
+  a clean status,
+  no entry of any kind below the destination,
+  and no file of the rung's own in the administrative directory.
+  The ending still costs the copies and Git's checkout,
+  where option A′ would finish the rung;
+  the three timed fixtures check out one commit in both trees,
+  so no timed arm reaches it ("What this round did not measure").
+  Rung 1 ends before the exchange,
+  so it publishes no worktree and leaves nothing of the snapshot;
+  its own control holds it to the same tree
+  (`btrfs_a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_snapshot_behind`).
 - **A failure of step 9** is a Git failure with Git's own words,
   and it ends the rung the same way.
 
@@ -1584,7 +1605,11 @@ because their `text` action applies before the size is looked at).
   the timed fixtures check out one commit in both trees,
   so no measured arm pays the clone-and-checkout the tree difference can force on option B;
   the class harness's `m05` reaches it at three files and shows the route,
-  not a price.
+  not a price,
+  and the reviewer's older-commit fixture (41 paths the target tree lacks) shows the same on both of the guest's
+  rungs.
+  The ending costs the copies and one checkout of the worktree,
+  where option A′ would have finished the rung.
 - A clone rung below the decline rule with a share between this repository's 0.065 and the measured 0.199:
   the band is priced by the two endpoints and no run sits inside it.
 - A repository with no conversion rules at all:
@@ -2002,12 +2027,16 @@ after the sentence about the clean-source requirement:
 > where the same rule decided after the copies measured 1.67 to 1.75).
 > An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
 > because its zeroed entry cannot be verified as up to date;
-> Git's own checkout then writes the worktree and the bytes are equal.
+> Git's own checkout then writes the worktree against the rung's own index,
+> which still holds the source's entries,
+> so a path the new tree lacks is removed with the tracked ones and the bytes are equal.
 > A source with an untracked or ignored `.gitattributes` anywhere above a tracked path refuses the rung,
 > because Git read it when the files were added and the new worktree will not have it,
 > and the refusal is taken before anything is copied.
-> A source that sets `attr.tree` or `GIT_ATTR_SOURCE` refuses the rung,
-> because the destination would read attributes from a tree the fence did not read.
+> A source that sets `attr.tree` or `GIT_ATTR_SOURCE` is served when its stat data proves every tracked path,
+> because the fence's `git check-attr` reads the same tree Git's checkout does and the bytes are equal;
+> a source whose clean proof has to read content ends in Git's own checkout,
+> because that proof reads the worktree's attribute files and cannot rule out the tree's.
 
 ### `package/git-policy/cli/SPEC.md`, rung 1
 
@@ -3060,13 +3089,11 @@ which now reads the waiting file,
 asserts the worktree holds no `index` and that `add_is_finished` says unfinished,
 asserts the published entry records Git's byte count,
 and asserts the worktree is whole only after the publication.
-The proposal's step order,
-its kill section and "Limitations" say what the code does.
-One visible consequence:
-the harness's `m05` (an add whose new `HEAD` lacks a fenced path) now leaves that file as an
-untracked leftover the rung names,
-where the older order's published index made `reset --hard` delete it;
-the tracked bytes are equal either way.
+The proposal's step order and its kill section say what the code does.
+The harness's `m05` (an add whose new `HEAD` lacks a fenced path) ends the rung at the tree difference and
+publishes a worktree with no path of the copies left behind,
+which is the tree the older order's published index reached by another route;
+the tracked bytes were equal either way.
 
 ### `SPEC.md` and `README.md`
 
@@ -3279,13 +3306,6 @@ with the evidence behind it.
   B against `main` is 0.98 to 1.08 across seven rounds,
   and its identical pair agrees at 0.86 to 1.00,
   so the add is at best `main`'s time and this is the band the quarter leaves.
-- **An add whose new `HEAD` differs in a path Git must write can end the clone rung.**
-  `git read-tree -m -u` refuses a zeroed entry whose clean form is not its blob
-  (`error: Entry 'extra.txt' not uptodate. Cannot merge.`,
-  the harness's `m05`,
-  which ends the rung and leaves bytes equal to Git's),
-  so the bytes are right but the add pays the copy and Git's checkout,
-  where option A′ would finish the rung.
 - **Rung 1's fence reads sit on the add's waiting path,
   and they are the whole of its cost above `main`.**
   Measured in the guest on this repository's 24,486 tracked files,
