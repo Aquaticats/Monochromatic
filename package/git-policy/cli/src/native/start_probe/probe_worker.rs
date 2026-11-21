@@ -84,8 +84,8 @@ fn say(status: RawFd, line: StepLine) {
 /// special errnos.
 fn attach_line(failure: AttachFailure) -> StepLine {
     return match (failure.step, failure.errno) {
-        (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(failure.step, "exclusive-create-unsupported"),
-        (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => StepLine::not_exercised(failure.step, "source-held"),
+        (ProbeStep::AttachExclusiveCreate, Some(libc::EOPNOTSUPP)) => StepLine::not_exercised(failure.step, "exclusive-create-unsupported", Some("EOPNOTSUPP")),
+        (ProbeStep::AttachExclusiveCreate, Some(libc::EBUSY)) => StepLine::not_exercised(failure.step, "source-held", Some("EBUSY")),
         _ => StepLine::failed(failure.step, failure.errno_name()),
     };
 }
@@ -148,15 +148,15 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     let checkout = configuration.as_ref().ok().and_then(|text| return checkout_from_configuration(text.as_str(), start.configuration).ok());
     match checkout.and_then(|path| return open_checkout(path.as_path()).ok()) {
         Some(_identity) => say(start.status, StepLine::passed(ProbeStep::CheckoutRoot)),
-        None => say(start.status, StepLine::not_exercised(ProbeStep::CheckoutRoot, "no-checkout-path")),
+        None => say(start.status, StepLine::not_exercised(ProbeStep::CheckoutRoot, "no-checkout-path", None)),
     }
     let text: String = match configuration {
         Ok(text) => text,
-        Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word())),
+        Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word(), None)),
     };
     let source: String = match source_from_configuration(text.as_str(), start.configuration) {
         Ok(source) => source.snapshot_name(),
-        Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word())),
+        Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word(), None)),
     };
     let mut read = StepLine::passed(ProbeStep::ReadSourceName);
     read.source = Some(source.clone());

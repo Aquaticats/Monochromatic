@@ -50,6 +50,6 @@ fn the_source_and_its_refusal_come_from_the_lines() {
     report.record(line);
     assert_eq!(source_of(&report), Some(String::from("pool/ds@ready")));
     let mut missing: ProbeReport = ProbeReport::new();
-    missing.record(StepLine::not_exercised(ProbeStep::ReadSourceName, "name-absent"));
+    missing.record(StepLine::not_exercised(ProbeStep::ReadSourceName, "name-absent", None));
     assert_eq!(source_refusal_word(&missing), Some("name-absent"));
 }

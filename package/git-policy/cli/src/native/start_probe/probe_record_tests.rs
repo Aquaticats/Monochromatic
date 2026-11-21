@@ -57,7 +57,7 @@ fn the_finished_record_names_verdict_arms_and_steps() {
     let mut report: ProbeReport = ProbeReport::new();
     for step in ProbeStep::WORKER_ORDER {
         if step == ProbeStep::CheckoutRoot {
-            report.record(StepLine::not_exercised(step, "no-checkout-path"));
+            report.record(StepLine::not_exercised(step, "no-checkout-path", None));
         } else {
             report.record(StepLine::passed(step));
         }

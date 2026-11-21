@@ -28,7 +28,7 @@ fn a_passing_report() -> ProbeReport {
     let mut report: ProbeReport = ProbeReport::new();
     for step in ProbeStep::WORKER_ORDER {
         if step == ProbeStep::CheckoutRoot {
-            report.record(StepLine::not_exercised(step, "no-checkout-path"));
+            report.record(StepLine::not_exercised(step, "no-checkout-path", None));
         } else {
             report.record(StepLine::passed(step));
         }
@@ -112,6 +112,6 @@ fn a_step_that_did_not_run_names_its_arm() {
     for step in [ProbeStep::Unshare, ProbeStep::PrivatePropagation, ProbeStep::ScratchTmpfs, ProbeStep::ScratchTree, ProbeStep::WalkSlot, ProbeStep::WalkRefusalControls, ProbeStep::CheckoutRoot] {
         report.record(StepLine::passed(step));
     }
-    report.record(StepLine::not_exercised(ProbeStep::ReadSourceName, "no-source-name"));
+    report.record(StepLine::not_exercised(ProbeStep::ReadSourceName, "no-source-name", None));
     assert_eq!(report.verdict(), ProbeVerdict::Blocked { arm: ProbeArm::Source });
 }

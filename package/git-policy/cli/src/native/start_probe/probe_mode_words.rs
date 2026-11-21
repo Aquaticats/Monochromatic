@@ -80,7 +80,7 @@ pub fn source_of(report: &ProbeReport) -> Option<String> {
 pub fn source_refusal_word(report: &ProbeReport) -> Option<&'static str> {
     return report.lines().iter().find_map(|line| {
         return match (&line.step, &line.answer) {
-            (super::probe_arms::ProbeStep::ReadSourceName, super::probe_status_line::StepAnswer::NotExercised { reason }) => Some(*reason),
+            (super::probe_arms::ProbeStep::ReadSourceName, super::probe_status_line::StepAnswer::NotExercised { reason, .. }) => Some(*reason),
             _ => None,
         };
     });

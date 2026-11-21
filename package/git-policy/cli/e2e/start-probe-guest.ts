@@ -300,6 +300,7 @@ function green(chosen: Options): void {
     `cp ${RECORD} /root/record-held.txt`,
     `check 'step attach-exclusive-create not-exercised' /root/record-held.txt 'held source not exercised'`,
     `check 'reason source-held' /root/record-held.txt 'held source names its cause'`,
+    `check 'errno EBUSY' /root/record-held.txt 'held source answers EBUSY'`,
     'pkill --signal KILL --full "^/sbin/mount.zfs" || true',
     'wait || true',
     // M10's absent-source reading: the configuration names a dataset the pool does not hold.
@@ -307,6 +308,9 @@ function green(chosen: Options): void {
     `${HANDLER} start-probe > /root/probe-absent.log 2>&1 || true`,
     `cp ${RECORD} /root/record-absent.txt`,
     `check 'source-existed no' /root/record-absent.txt 'absent source recorded'`,
+    `check 'reason missing-source' /root/record-absent.txt 'absent source names its cause'`,
+    `check 'errno ENOENT' /root/record-absent.txt 'absent source answers ENOENT'`,
+    `check 'verdict blocked' /root/record-absent.txt 'absent source blocks the route'`,
     `sed --in-place 's|${POOL}/nosnap/git-worktree-probe-absent|${PROBE_DATASET}|' ${CONFIGURATION}`,
     // M9's refused arm: a filtered move_mount answers EPERM, which fails that step and refuses the probe.
     `systemd-run --unit=git-worktree-probe-test --quiet --wait --collect --property=SystemCallFilter=~move_mount --property=SystemCallErrorNumber=EPERM ${HANDLER} start-probe || true`,

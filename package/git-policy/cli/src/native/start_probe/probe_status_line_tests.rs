@@ -41,7 +41,7 @@ fn a_failed_line_keeps_its_errno() {
 /// A step that did not run carries the word saying why.
 #[test]
 fn a_not_exercised_line_carries_its_reason() {
-    let line: StepLine = StepLine::not_exercised(ProbeStep::AttachExclusiveCreate, "source-held");
+    let line: StepLine = StepLine::not_exercised(ProbeStep::AttachExclusiveCreate, "source-held", Some("EBUSY"));
     assert!(line.encode().contains("reason=source-held"));
     assert_eq!(StepLine::parse(line.encode().as_str()), Ok(line));
 }

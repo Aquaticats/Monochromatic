@@ -146,10 +146,12 @@ impl ProbeRecord<'_> {
         for line in self.report.lines() {
             let errno: &str = match &line.answer {
                 StepAnswer::Failed { errno: Some(name) } => name,
-                StepAnswer::Passed | StepAnswer::Failed { errno: None } | StepAnswer::NotExercised { .. } => "none",
+                StepAnswer::Passed | StepAnswer::Failed { errno: None } => "none",
+                StepAnswer::NotExercised { errno: Some(name), .. } => name,
+                StepAnswer::NotExercised { errno: None, .. } => "none",
             };
             let reason: String = match &line.answer {
-                StepAnswer::NotExercised { reason } => format!(" reason {reason}"),
+                StepAnswer::NotExercised { reason, .. } => format!(" reason {reason}"),
                 StepAnswer::Passed | StepAnswer::Failed { .. } => String::new(),
             };
             lines.push(format!("step {} {} errno {errno}{reason}", line.step.name(), line.answer.word()));
@@ -191,8 +193,8 @@ impl ProbeRecord<'_> {
         };
         return match &line.answer {
             StepAnswer::Passed => SourcePresence::Yes,
-            StepAnswer::Failed { errno: Some("ENOENT") } => SourcePresence::No,
-            StepAnswer::Failed { errno: Some("EBUSY") } => SourcePresence::Yes,
+            StepAnswer::Failed { errno: Some("ENOENT") } | StepAnswer::NotExercised { errno: Some("ENOENT"), .. } => SourcePresence::No,
+            StepAnswer::Failed { errno: Some("EBUSY") } | StepAnswer::NotExercised { errno: Some("EBUSY"), .. } => SourcePresence::Yes,
             StepAnswer::Failed { .. } | StepAnswer::NotExercised { .. } => SourcePresence::Unknown,
         };
     }

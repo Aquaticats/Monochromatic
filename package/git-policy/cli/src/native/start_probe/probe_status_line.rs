@@ -54,10 +54,14 @@ pub enum StepAnswer {
         errno: Option<&'static str>,
     },
     /// The step did not run,
-    /// and the word says why.
+    /// the word says why,
+    /// and the errno its call answered where one did.
     NotExercised {
         /// One word naming the cause.
         reason: &'static str,
+        /// The errno name the call answered,
+        /// where it answered one.
+        errno: Option<&'static str>,
     },
 }
 
@@ -107,9 +111,10 @@ impl StepLine {
     }
 
     /// One step that did not run,
-    /// and the word saying why.
-    pub fn not_exercised(step: ProbeStep, reason: &'static str) -> Self {
-        return StepLine { step, answer: StepAnswer::NotExercised { reason }, source: None };
+    /// the word saying why,
+    /// and the errno its call answered where one did.
+    pub fn not_exercised(step: ProbeStep, reason: &'static str, errno: Option<&'static str>) -> Self {
+        return StepLine { step, answer: StepAnswer::NotExercised { reason, errno }, source: None };
     }
 
     /// The line as the pipe carries it,
@@ -119,12 +124,13 @@ impl StepLine {
             StepAnswer::Passed => "none",
             StepAnswer::Failed { errno: Some(name) } => name,
             StepAnswer::Failed { errno: None } => "none",
-            StepAnswer::NotExercised { .. } => "none",
+            StepAnswer::NotExercised { errno: Some(name), .. } => name,
+            StepAnswer::NotExercised { errno: None, .. } => "none",
         };
         let arm: &str = self.step.arm().name();
         let source: &str = self.source.as_deref().unwrap_or("-");
         let reason: String = match &self.answer {
-            StepAnswer::NotExercised { reason } => format!(" reason={reason}"),
+            StepAnswer::NotExercised { reason, .. } => format!(" reason={reason}"),
             StepAnswer::Passed | StepAnswer::Failed { .. } => String::new(),
         };
         return format!("{STATUS_PREFIX} arm={arm} step={} answer={} errno={errno} source={source}{reason}\n", self.step.name(), self.answer.word());
@@ -209,7 +215,7 @@ impl StepLine {
             "not-exercised" => match reason_field {
                 None => return Err(LineRefusal::MissingKey { key: String::from("reason") }),
                 Some(word) => match known_reason_word(word) {
-                    Some(reason) => StepAnswer::NotExercised { reason },
+                    Some(reason) => StepAnswer::NotExercised { reason, errno: errno_name },
                     None => return Err(LineRefusal::UnknownReason { word: String::from(word) }),
                 },
             },
