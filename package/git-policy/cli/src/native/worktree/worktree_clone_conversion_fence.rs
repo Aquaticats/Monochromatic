@@ -628,7 +628,31 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
 /// ```
 pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
     let zeroed: Vec<Vec<u8>> = zero_the_entries(admin, destination, context, paths, hash_length)?;
-    return checkout_index_through_git(admin, destination, context, zeroed.as_slice(), hash_length);
+    return checkout_paths(admin, destination, context, zeroed.as_slice());
+}
+
+/// What:
+///  Run the one `git checkout-index --force -u --stdin` of `paths`.
+/// Why:
+///   Both write steps end in the same run,
+/// and each has already decided which paths its index holds,
+///  so the run itself asks nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkoutPaths(admin, destination, context, paths); // throws the reason
+/// ```
+fn checkout_paths(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>]) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut input: Vec<u8> = Vec::new();
+    for path in paths {
+        input.extend_from_slice(path.as_slice());
+        input.push(0);
+    }
+    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
+    return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
 }
 
 /// What:
@@ -649,19 +673,8 @@ pub fn write_through_git(admin: &Path, destination: &Path, context: &GitContext,
 /// ```
 pub fn checkout_index_through_git(admin: &Path, destination: &Path, context: &GitContext, paths: &[Vec<u8>], hash_length: usize) -> Result<(), String> {
     let held: HashSet<Vec<u8>> = paths_the_destination_index_holds(admin, hash_length)?;
-    let mut input: Vec<u8> = Vec::new();
-    for path in paths {
-        if !held.contains(path.as_slice()) {
-            continue;
-        }
-        input.extend_from_slice(path.as_slice());
-        input.push(0);
-    }
-    if input.is_empty() {
-        return Ok(());
-    }
-    let output: GitOutput = run_in(context, destination, words(&["checkout-index", "--force", "-u", "-z", "--stdin"]).as_slice(), Some(input), checkout_environment(admin, destination))?;
-    return if output.code == Some(0) { Ok(()) } else { Err(run_reason("`git checkout-index`", &output)) };
+    let present: Vec<Vec<u8>> = paths.iter().filter(|path| return held.contains(path.as_slice())).cloned().collect();
+    return checkout_paths(admin, destination, context, present.as_slice());
 }
 
 #[cfg(test)]
