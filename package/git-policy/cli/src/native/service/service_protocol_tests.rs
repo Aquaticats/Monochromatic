@@ -338,10 +338,10 @@ fn a_welcome_without_a_release_reads_as_none() {
 /// are refused.
 #[test]
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
-    let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None , push_programs: Vec::new()};
+    let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new()};
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
     for bad in ["relative/.git", "", "/\u{0}/.git"] {
-        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None , push_programs: Vec::new()};
+        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None, push_programs: Vec::new()};
         assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
@@ -444,7 +444,7 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
     sent.commit = Some(String::from(BLOB));
     sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
     for message in [
-        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None , push_programs: Vec::new()},
+        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None, push_programs: Vec::new()},
         ClientMessage::Warm { git_dir: git_dir.clone(), repository },
         ClientMessage::Commit(Box::new(sent)),
     ] {
@@ -462,7 +462,7 @@ fn a_line_of_an_earlier_release_is_read_as_its_plain_paths() {
     let warm: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\",\"repository\":\"/srv/repo\"}}");
     assert_eq!(decode_client(warm.as_str()), Ok(ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") }));
     let work: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
-    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None , push_programs: Vec::new()}));
+    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new()}));
 }
 
 /// A commit built elsewhere is named whole,
@@ -522,7 +522,7 @@ fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     assert!(line.contains(SECRET), "the key travels in the message");
     assert_eq!(decode_client(line.as_str()), Ok(with_key.clone()));
     assert!(!format!("{with_key:?}").contains(SECRET));
-    let without_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None , push_programs: Vec::new()};
+    let without_key: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None, push_programs: Vec::new()};
     assert!(!encode_client(&without_key).contains("reviewKey"));
     let wrong_type: String = line.replace(&format!("\"{SECRET}\""), "42");
     assert!(decode_client(wrong_type.as_str()).is_err());
