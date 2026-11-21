@@ -40958,6 +40958,18 @@ stated in this entry. What follows from them, as work:
   at `31f3192c27`: the trim removed (mise's `append_inline_args` appends nothing after the words, cited), the twelve cases
   red then green, the continuation refusal and the broken-word count fixed, the six effect-first tasks named in the doc.
   GOING: its final narrow check on Sonnet (brief under `~/temp/agent/integration-final-check-mise-usage-args-2026-11-20/`).
+  THE MISE FIX MERGED into `main` as `f512a9b278` (final check fit: 57 real-mise cases, none with altered words; the trim
+  put back turns 13 wrong). Two wording lows follow (some terminators die in node's parser unnamed where the docs say
+  "refused and named"; the test header names trailing space and tab cases it lacks); issue 6328 holds the remaining
+  tasks. THE VET REPORT'S FINAL CHECK (Sonnet) found it not accurate yet, on words: H1 `pahole`'s CI path
+  (`test.yml` calling `vmtest.yml`) uninventoried and case 18, the only split read, skipped, so its eligibility is
+  contested and the outcome turns on it (eligible: none; not: `btf-rs`); H2 the libbpf is pinned by the tag, not
+  "unpinned"; M1 to M5 label and count slips, a stability claim unbounded (maintenance weight 11 alone puts `pahole`
+  first), the run's network overstated, the questions less separable than said. First place holds in every test at
+  weights 1 to 5. Per the advisor, the owner's question goes now and a text-only round runs beside it:
+  `pi-zfs-layout-checker-reader-vet-report-final-check-wording-fixed` (brief under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-final-check-wording-fixed-2026-11-20/`); that round blocks the
+  decision record citing the report and the docs branch's merge, not the pick.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
