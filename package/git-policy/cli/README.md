@@ -6354,6 +6354,28 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
     for a step that
     does no work),
     so the Containerfile keeps its step count low and puts the steps that rarely change first.
+  - Every container this gate starts carries its run's own name and label,
+    `gpc-gate-<run id>-<suite|clippy>` and `dev.monochromatic.git-policy.gate-run=<run id>`
+    (`bin/native-gate-container-identity.ts`),
+    the run id being the random name of the run's evidence directory.
+    The gate prints the run id before it builds anything,
+    each container's name and label before that container starts,
+    and each container's ID as podman writes it to the run's ID file,
+    which is before the container's own output,
+    and records all of it in `target/verification/<run id>/manifest.json`.
+    Several sessions gate this machine at once,
+    so stop your own gate and nothing else:
+    `systemctl --user stop gpc-gate-<label>-<stamp>.service` ends a gate `native:gate` started,
+    and the containers keep running after it,
+    as a probe on 2026-11-21 measured,
+    so stop each one by the name its log printed,
+    `podman stop gpc-gate-<run id>-<suite|clippy>`.
+    `podman ps --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists exactly one run's containers,
+    and a container whose label is another run's belongs to another session's gate,
+    which is never stopped (issue 6334,
+    and the outside stop this gate met on 2026-11-21 is
+    `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+    cause J).
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
   commits (explicit-path and service,
   unsigned and SSH-signed),
@@ -6457,6 +6479,10 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   and prints `<unit>.service=<log path>`.
   It answers as soon as systemd has queued the unit,
   so nothing waits an hour for a run.
+  Stopping that unit ends the gate and leaves its containers running,
+  so stop each one by the name its log printed,
+  as the `native:test:container` bullet of "Development" describes;
+  never stop a container whose label is not this run's.
   The label is what the gate covers,
   in lowercase letters,
   digits and hyphens:
