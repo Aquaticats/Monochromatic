@@ -789,7 +789,10 @@ function gateArm(options: Options, expectation: string, label: string): void {
 
 /**
  Run one gate arm that must refuse, so the arms are proved able to fail.
- The exit status must be non-zero and the measurement must name the field the arm expected.
+ The exit status must be non-zero, the measurement must name the field the arm expected, and the
+ log must carry the arm's own panic naming the module that passed where it should have refused:
+ a grep for the field alone is satisfied by the measurement line itself, so an arm that failed for
+ another reason would pass it.
  */
 function gateRed(options: Options, expectation: string, label: string, field: string): void {
   const script = [
@@ -802,7 +805,7 @@ function gateRed(options: Options, expectation: string, label: string, field: st
     `tail --lines=20 /root/${label}.log`,
     'test "$status" != 0',
     `grep --quiet '^MEASUREMENT gate ' /root/${label}.log`,
-    `grep --quiet '${field}' /root/${label}.log`,
+    `grep --quiet 'a module without ${field} passed the gate' /root/${label}.log`,
   ].join('\n');
   guest({ options, script, log: `${label}.log`, timeout: SUITE_TIMEOUT_MS });
 }
