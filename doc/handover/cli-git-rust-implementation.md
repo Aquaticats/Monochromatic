@@ -40969,7 +40969,16 @@ stated in this entry. What follows from them, as work:
   weights 1 to 5. Per the advisor, the owner's question goes now and a text-only round runs beside it:
   `pi-zfs-layout-checker-reader-vet-report-final-check-wording-fixed` (brief under
   `~/temp/agent/zfs-layout-checker-reader-vet-report-final-check-wording-fixed-2026-11-20/`); that round blocks the
-  decision record citing the report and the docs branch's merge, not the pick.
+  decision record citing the report and the docs branch's merge, not the pick. THE OWNER PICKED `btf-rs` on
+  2026-11-20T20:18:04-05:00 ("btf-rs (Recommended)"); the adoption is recorded in
+  `doc/decision/cli-git-zfs-runtime-layout-checker.md`, section "The reader adopted: `btf-rs` 2.0.1" (checksum, licence,
+  ranking, boundary, rollback, revisit triggers). NEXT, QUEUED ON THE RUNNING ROUND: when
+  `pi-zfs-step-6-recheck-findings-fixed` ends, a fresh round on its tip swaps the stand-in adapter for `btf-rs` 2.0.1
+  behind the new `declaration.rs` contract (array byte sizes in the binding; the review's scratch adapter in
+  `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/keep/` as a start), removes the in-house decoder,
+  then a gate re-check and the merge. It waits because both rounds edit the same files, not for a slot. The step 6
+  re-check also reported, as information for the owner: the record's endpoint rule refuses when `ZFS_IOC_LAST` moves by an
+  append with no layout change, a case neither record nor design examined.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
