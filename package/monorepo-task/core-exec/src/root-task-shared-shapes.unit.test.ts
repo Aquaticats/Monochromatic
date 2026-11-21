@@ -463,6 +463,10 @@ function recoveredArguments(
 type PasteCase = {
   readonly name: string;
   readonly words: readonly string[];
+  /**
+   Whether the words go before `--`, where mise's own usage parser reads them instead of pasting them.
+   */
+  readonly bare?: boolean;
 };
 
 /**
@@ -473,7 +477,9 @@ type PasteCase = {
  */
 const exactPasteCases: readonly PasteCase[] = [
   { name: 'no arguments', words: [], },
+  { name: 'no arguments and no separator', bare: true, words: [], },
   { name: 'ordinary arguments, one with two words', words: ['alpha', 'two words',], },
+  { name: 'ordinary arguments without a separator', bare: true, words: ['alpha', 'two words',], },
   { name: 'a flag that is not help', words: ['--foo',], },
   { name: 'a short flag', words: ['-x',], },
   { name: 'help alone', words: ['--help',], },
@@ -637,7 +643,8 @@ async function probeThroughMise(
   await writeFile(join(root, 'mise.toml',), probeConfiguration(),);
   const environment = fixtureEnvironment({ root, mise, },);
   return cases.map((pasteCase) => {
-    const result = spawnSync(mise, ['run', 'probe', '--', ...pasteCase.words,], {
+    const separators = pasteCase.bare === true ? [] : ['--',];
+    const result = spawnSync(mise, ['run', 'probe', ...separators, ...pasteCase.words,], {
       cwd: root,
       env: environment,
       encoding: 'utf8',
@@ -858,7 +865,7 @@ await describe({
     },),
     it({
       skip: notWindows,
-      name: 'recovers every shell-word shape mise pastes, through real mise',
+      name: 'recovers every shell-word shape mise pastes or parses, through real mise',
       fn: async function recoversEveryShellWordShape() {
         const results = await probeThroughMise(exactPasteCases,);
         const failures = results.flatMap(exactProblems,);
