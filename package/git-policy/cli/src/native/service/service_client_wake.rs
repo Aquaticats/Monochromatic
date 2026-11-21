@@ -126,7 +126,7 @@ pub fn forget_programs(config: &ClientConfig, git_dir: &std::path::Path, records
 /// ```ts
 /// const serviceIsRunning = (config) => !config.managerWatch || config.managerWatch.state(config.managerWatch.bus, config.managerWatch.unit) === 'active';
 /// ```
-fn a_service_is_running(config: &ClientConfig) -> bool {
+pub(crate) fn a_service_is_running(config: &ClientConfig) -> bool {
     let Some(watch) = config.start_watch.as_ref() else { return true };
     return (watch.state)(watch.bus.as_path(), watch.unit.as_str()).state() == Some(RUNNING);
 }
