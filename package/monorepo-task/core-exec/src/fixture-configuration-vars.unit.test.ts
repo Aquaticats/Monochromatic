@@ -9,6 +9,11 @@
 
  A `[vars]` entry is rendered with only the entries above it in scope, so the definition must also come before its first
  use. The checks read the generated configuration as text, which is what mise renders.
+
+ The third occurrence came with the forwarded-arguments marker: `parse_usage_args` and the two copied task sections began
+ interpolating it, no fixture declared it, and the three suites this file guards went red while every earlier check
+ stayed green, because they had run only against the root file. A copied one-line variable therefore counts the same as a
+ copied triple-quoted helper below.
  */
 
 import {
@@ -71,9 +76,12 @@ function interpolated({ text, }: { readonly text: string }): readonly string[] {
 /**
  Where a variable assignment begins, and nothing when the configuration assigns it nowhere.
 
+ A triple-quoted helper opens with `NAME = """` and a one-line variable such as the forwarded-arguments
+ marker with `NAME = "..."`; both begin with the same prefix, so one search covers either shape.
+
  @param options - generated configuration and the variable name
 
- @returns index of `NAME = """`, or -1
+ @returns index of `NAME = "`, or -1
 
  @example
  ```ts
@@ -84,7 +92,7 @@ function assignmentAt({ text, name, }: {
   readonly text: string;
   readonly name: string;
 }): number {
-  return text.indexOf(`${name} = """`,);
+  return text.indexOf(`${name} = "`,);
 }
 
 //endregion
