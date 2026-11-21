@@ -36,6 +36,12 @@ use std::path::{Path, PathBuf};
 /// The sibling a record is staged under before its rename.
 pub const READINESS_STAGING_NAME: &str = "result.staging";
 
+/// The staging sibling this writer uses,
+/// named for its process so a killed writer leaves a name no later run reuses.
+pub fn readiness_staging_name() -> String {
+    return format!("{READINESS_STAGING_NAME}.{}", std::process::id());
+}
+
 /// What:
 ///  Why the readiness directory or its record could not be used.
 /// Why:
@@ -188,7 +194,7 @@ impl ReadinessFile {
 
     /// The sibling a record is staged under.
     pub fn staging(&self) -> PathBuf {
-        return self.directory.join(READINESS_STAGING_NAME);
+        return self.directory.join(readiness_staging_name());
     }
 
     /// Publish one whole record,
@@ -202,13 +208,13 @@ impl ReadinessFile {
         let directory: std::fs::File = self.open_directory()?;
         let staged: Result<(), ReadinessFileRefusal> = (|| {
             let mut file: std::fs::File =
-                create_at(&directory, READINESS_STAGING_NAME, READINESS_MODE).map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
+                create_at(&directory, readiness_staging_name().as_str(), READINESS_MODE).map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.set_permissions(std::fs::Permissions::from_mode(READINESS_MODE))
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.write_all(record.text().as_bytes())
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.sync_all().map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
-            rename_at(&directory, READINESS_STAGING_NAME, READINESS_NAME)
+            rename_at(&directory, readiness_staging_name().as_str(), READINESS_NAME)
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             return sync_directory(&directory).map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() });
         })();
@@ -234,7 +240,7 @@ impl ReadinessFile {
         if facts.uid() != self.owner {
             return Err(ReadinessFileRefusal::FileOwner { found: facts.uid(), wanted: self.owner });
         }
-        let permission_bits: u32 = facts.mode() & 0o777;
+        let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != READINESS_MODE {
             return Err(ReadinessFileRefusal::FileMode { found: permission_bits });
         }
@@ -275,7 +281,7 @@ impl ReadinessFile {
         if facts.uid() != self.owner {
             return Err(ReadinessFileRefusal::DirectoryOwner { path: path.to_path_buf(), found: facts.uid(), wanted: self.owner });
         }
-        let permission_bits: u32 = facts.mode() & 0o777;
+        let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != READINESS_DIRECTORY_MODE {
             return Err(ReadinessFileRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
         }

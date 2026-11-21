@@ -187,10 +187,19 @@ impl SlotClaimDirectory {
         if let Err(error) = std::fs::create_dir_all(path) {
             return Err(ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
         }
-        if let Err(error) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(SLOT_CLAIM_DIRECTORY_MODE)) {
-            return Err(ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
+        // The descriptor is opened with no link followed and its owner is checked before its mode is changed,
+        // so a link or another account's folder is refused without being written.
+        let directory: std::fs::File = self.open_owned_directory()?;
+        directory.set_permissions(std::fs::Permissions::from_mode(SLOT_CLAIM_DIRECTORY_MODE)).map_err(|error| {
+            return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() };
+        })?;
+        let facts: std::fs::Metadata = directory
+            .metadata()
+            .map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
+        let permission_bits: u32 = facts.mode() & 0o7777;
+        if permission_bits != SLOT_CLAIM_DIRECTORY_MODE {
+            return Err(ClaimRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
         }
-        let directory: std::fs::File = self.open_directory()?;
         drop(directory);
         return Ok(());
     }
@@ -212,10 +221,20 @@ impl SlotClaimDirectory {
         let facts: std::fs::Metadata = file
             .metadata()
             .map_err(|error| return ClaimRefusal::File { slot: String::from(slot), reason: error.to_string() })?;
+        if !facts.is_file() {
+            return Err(ClaimRefusal::File { slot: String::from(slot), reason: String::from("the claim name is not a regular file") });
+        }
         if facts.uid() != self.owner {
             return Err(ClaimRefusal::File {
                 slot: String::from(slot),
                 reason: format!("the claim file is owned by user {} and this route requires user {}", facts.uid(), self.owner),
+            });
+        }
+        let permission_bits: u32 = facts.mode() & 0o7777;
+        if permission_bits != SLOT_CLAIM_FILE_MODE {
+            return Err(ClaimRefusal::File {
+                slot: String::from(slot),
+                reason: format!("the claim file has mode {permission_bits:04o} and this route requires {SLOT_CLAIM_FILE_MODE:04o}"),
             });
         }
         let locked: Result<(), rustix::io::Errno> = rustix::fs::flock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive);
@@ -228,6 +247,20 @@ impl SlotClaimDirectory {
 
     /// Open the directory and prove its owner and mode.
     fn open_directory(&self) -> Result<std::fs::File, ClaimRefusal> {
+        let directory: std::fs::File = self.open_owned_directory()?;
+        let path: &Path = self.directory.as_path();
+        let facts: std::fs::Metadata =
+            directory.metadata().map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
+        let permission_bits: u32 = facts.mode() & 0o7777;
+        if permission_bits != SLOT_CLAIM_DIRECTORY_MODE {
+            return Err(ClaimRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
+        }
+        return Ok(directory);
+    }
+
+    /// Open the directory with no link followed and prove its owner,
+    /// before any mode is read or changed.
+    fn open_owned_directory(&self) -> Result<std::fs::File, ClaimRefusal> {
         let path: &Path = self.directory.as_path();
         let text: CString =
             CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_nul| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: String::from("the path holds a NUL byte") })?;
@@ -242,10 +275,6 @@ impl SlotClaimDirectory {
             directory.metadata().map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
         if facts.uid() != self.owner {
             return Err(ClaimRefusal::DirectoryOwner { path: path.to_path_buf(), found: facts.uid(), wanted: self.owner });
-        }
-        let permission_bits: u32 = facts.mode() & 0o777;
-        if permission_bits != SLOT_CLAIM_DIRECTORY_MODE {
-            return Err(ClaimRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
         }
         return Ok(directory);
     }

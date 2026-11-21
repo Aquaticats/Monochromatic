@@ -45,13 +45,15 @@ use std::time::Duration;
 ///  and step 22),
 ///  so this value is provisional and cites the guest rounds that exist now
 ///  rather than claiming to be measured for the route.
-///  The guest measurement of one property event through a test zedlet,
-///  the product handler and the product receipt is kept in
+///  The guest measurement of one property event through a test zedlet and the
+///  product receipt is kept in
 ///  `package/git-policy/cli/doc/zfs-mount-receipt-deadline-measurement-2026-11-21.md`;
 ///  step 22 replaces this number when it sizes the wait.
-///  Until then the value is larger than every kept round by more than the
-///  spread those rounds saw,
-///  so a caller does not fail closed on the timings already observed.
+///  The number is not derived from that measurement:
+///  it is a provisional ceiling chosen to leave room far above the rounds the
+///  document records,
+///  and no round has yet exercised a product handler that attaches a mount,
+///  which step 8 adds.
 pub const PROVISIONAL_MOUNT_REQUEST_DEADLINE: Duration = Duration::from_millis(30_000);
 
 /// What:
@@ -101,6 +103,13 @@ pub struct MountRequest {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StaleReason {
+    /// The receipt was filed for another dataset.
+    Dataset {
+        /// The GUID the receipt carries.
+        found: String,
+        /// The GUID the request names.
+        expected: String,
+    },
     /// The receipt carries another nonce.
     Nonce {
         /// The nonce the receipt carries.
@@ -128,6 +137,7 @@ impl StaleReason {
     /// The reason in words.
     pub fn word(&self) -> String {
         return match self {
+            StaleReason::Dataset { found, expected } => format!("the receipt names dataset GUID {found}, and the request names {expected}"),
             StaleReason::Nonce { found, expected } => format!("the receipt's nonce is {found}, and the request's is {expected}"),
             StaleReason::Operation { found, expected } => format!("the receipt names `{found}`, and the request asked for `{expected}`"),
             StaleReason::Boot { found, expected } => format!("the receipt belongs to boot {found}, and this is boot {expected}"),
@@ -168,6 +178,12 @@ pub enum ReceiptStanding {
 /// const standing = standingOf(request, receipt);
 /// ```
 pub fn standing_of(request: &MountRequest, receipt: &CloneMountReceipt) -> ReceiptStanding {
+    if receipt.dataset != request.dataset {
+        return ReceiptStanding::Stale(StaleReason::Dataset {
+            found: receipt.dataset.file_name(),
+            expected: request.dataset.file_name(),
+        });
+    }
     if receipt.nonce != request.nonce {
         return ReceiptStanding::Stale(StaleReason::Nonce {
             found: String::from(receipt.nonce.as_str()),

@@ -109,6 +109,13 @@ pub enum ReceiptsRefusal {
         /// The file's name.
         name: String,
     },
+    /// The receipt's own dataset GUID is not the name it is filed under.
+    WrongDataset {
+        /// The file's name.
+        name: String,
+        /// The GUID the file carries.
+        found: String,
+    },
     /// The text is not a receipt this route wrote.
     NotAReceipt {
         /// The file's name.
@@ -149,9 +156,12 @@ impl ReceiptsRefusal {
                 format!("the receipt `{name}` is {bytes} bytes and a receipt is at most {MAXIMUM_RECEIPT_BYTES}")
             }
             ReceiptsRefusal::NotText { name } => format!("the receipt `{name}` is not UTF-8 text"),
+            ReceiptsRefusal::WrongDataset { name, found } => format!(
+                "the receipt `{name}` carries dataset GUID {found} and is filed under another GUID"
+            ),
             ReceiptsRefusal::NotAReceipt { name, refusal } => return format!("{}\nThe file is `{name}` in {RESULTS_DIRECTORY}.", refusal.message()),
             ReceiptsRefusal::Staging { name, reason } => format!(
-                "the sibling `{name}` a receipt is staged under could not be made or renamed ({reason}); the earlier receipt is unchanged"
+                "the sibling `{name}` a receipt is staged under could not be made or renamed ({reason}); a rename that completed before a failed directory sync may still be visible after a crash, so read the receipt before retrying"
             ),
         };
         return format!(

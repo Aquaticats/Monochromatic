@@ -85,8 +85,11 @@ impl ReceiptsFolder {
     }
 
     /// The sibling a receipt is staged under before its rename.
+    /// It carries this process's id,
+    /// so a writer killed before its rename leaves a name no later run reuses
+    /// and no receipt is ever read from.
     pub fn staging_name(&self, dataset: DatasetGuid) -> String {
-        return format!("{}{STAGING_SUFFIX}", dataset.file_name());
+        return format!("{}{STAGING_SUFFIX}.{}", dataset.file_name(), std::process::id());
     }
 
     /// What:
@@ -153,7 +156,7 @@ impl ReceiptsFolder {
         if facts.uid() != self.owner {
             return Err(ReceiptsRefusal::FileOwner { name, found: facts.uid(), wanted: self.owner });
         }
-        let permission_bits: u32 = facts.mode() & 0o777;
+        let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != RECEIPT_MODE {
             return Err(ReceiptsRefusal::FileMode { name, found: permission_bits });
         }
@@ -172,7 +175,8 @@ impl ReceiptsFolder {
             return Err(ReceiptsRefusal::NotText { name });
         };
         return match parse_receipt(text.as_str()) {
-            Ok(receipt) => Ok(Some(receipt)),
+            Ok(receipt) if receipt.dataset == dataset => Ok(Some(receipt)),
+            Ok(receipt) => Err(ReceiptsRefusal::WrongDataset { name, found: receipt.dataset.file_name() }),
             Err(refusal) => Err(ReceiptsRefusal::NotAReceipt { name, refusal }),
         };
     }
@@ -203,7 +207,7 @@ impl ReceiptsFolder {
         if facts.uid() != self.owner {
             return Err(ReceiptsRefusal::DirectoryOwner { path: path.to_path_buf(), found: facts.uid(), wanted: self.owner });
         }
-        let permission_bits: u32 = facts.mode() & 0o777;
+        let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != DIRECTORY_MODE {
             return Err(ReceiptsRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
         }

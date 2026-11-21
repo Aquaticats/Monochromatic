@@ -140,6 +140,9 @@ fn the_other_fields_are_compared_too() {
     let mut other_nonce: CloneMountReceipt = other_operation;
     other_nonce.nonce = RequestNonce::parse(OTHER_NONCE).expect("the other nonce is valid");
     assert!(matches!(standing_of(&request(), &other_nonce), ReceiptStanding::Stale(StaleReason::Nonce { .. })));
+    let mut other_dataset: CloneMountReceipt = receipt(NONCE, MountOperation::Mount);
+    other_dataset.dataset = DatasetGuid::parse("8").expect("8 is canonical");
+    assert!(matches!(standing_of(&request(), &other_dataset), ReceiptStanding::Stale(StaleReason::Dataset { .. })));
 }
 
 /// The provisional deadline is the plan's open value,

@@ -112,16 +112,14 @@ fn read_properties(device: &ZfsDevice, dataset: &str) -> DatasetIdentity {
 /// Whether any mount claims the dataset as its source,
 /// which is what an attach would have left.
 fn mounted(dataset: &str) -> bool {
-    let table: String = std::fs::read_to_string("/proc/self/mountinfo").unwrap_or_default();
+    let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the arm can read this process's mount table");
     return table.lines().any(|line| return line.contains(&format!(" - zfs {dataset} ")));
 }
 
 /// Whether the slot folder is still empty,
 /// which no attach would leave otherwise.
 fn slot_empty() -> bool {
-    let Ok(entries) = std::fs::read_dir(Path::new(SLOT)) else {
-        return true;
-    };
+    let entries = std::fs::read_dir(Path::new(SLOT)).expect("the arm can list its own empty slot folder");
     return entries.count() == 0;
 }
 
@@ -143,18 +141,22 @@ fn microseconds(duration: Duration) -> u128 {
 /// ```ts
 /// const arrived = waitForZedletLine(log, since);
 /// ```
-fn wait_for_zedlet_line(log: &Path, since: Instant, within: Duration) -> Duration {
-    let deadline: Instant = Instant::now() + within;
+fn wait_for_zedlet_line(log: &Path, clone: &str, within: Duration) -> Duration {
+    let started: Instant = Instant::now();
+    let deadline: Instant = started + within;
     while Instant::now() < deadline {
         if let Ok(text) = std::fs::read_to_string(log) {
-            let seen: bool = text.lines().any(|line| return line.contains(&format!("{}", since.elapsed().as_nanos())) || line.starts_with("zedlet "));
+            let seen: bool = text.lines().any(|line| {
+                let mut words = line.split_whitespace();
+                return words.next() == Some("zedlet") && words.any(|word| return word == clone);
+            });
             if seen {
-                return since.elapsed();
+                return started.elapsed();
             }
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    panic!("the test zedlet wrote no line within {within:?}; is zfs-zed running and the zedlet installed?");
+    panic!("the test zedlet wrote no line for {clone} within {within:?}; is zfs-zed running and the zedlet installed?");
 }
 
 /// Run one sweep-like answer for the current intent:
@@ -190,9 +192,9 @@ fn answer_and_measure(sbin: &str, device: &ZfsDevice, clone: &str, nonce: &Reque
     std::fs::set_permissions(RESULTS_DIRECTORY, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("the results directory takes its mode");
     folder.publish(&receipt).expect("the product files its receipt");
     let filed: Duration = started.elapsed();
-    let request: MountRequest = MountRequest { dataset: guid, operation: MountOperation::Mount, nonce: nonce.clone(), boot: receipt.boot.clone() };
+    let answer_request: MountRequest = MountRequest { dataset: guid, operation: MountOperation::Mount, nonce: nonce.clone(), boot: receipt.boot.clone() };
     let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().expect("the arm's runtime starts");
-    let answer: Result<CloneMountReceipt, WaitRefusal> = runtime.block_on(wait_for_answer(&folder, &request, Duration::from_secs(5)));
+    let answer: Result<CloneMountReceipt, WaitRefusal> = runtime.block_on(wait_for_answer(&folder, &answer_request, Duration::from_secs(5)));
     assert_eq!(answer.expect("the product wait finds its own receipt"), receipt);
     let _ = sbin;
     return (filed, started.elapsed());
@@ -218,8 +220,8 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
 
     // A malformed local intent is refused before anything acts on it.
     set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, "v1:nothex:mount");
-    let identity: DatasetIdentity = read_properties(&device, clone.as_str());
-    let malformed: IntentReading = read_intent(Some(&identity.properties), clone.as_str());
+    let malformed_identity: DatasetIdentity = read_properties(&device, clone.as_str());
+    let malformed: IntentReading = read_intent(Some(&malformed_identity.properties), clone.as_str());
     assert!(matches!(malformed, IntentReading::Refused(_)), "{malformed:?}");
     assert!(!mounted(clone.as_str()), "a malformed intent mounted nothing");
     assert!(slot_empty(), "a malformed intent wrote nothing into the slot");
@@ -227,25 +229,64 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
     // An oversized value is refused at the bound, not parsed.
     let oversized: String = format!("v1:{}:unmount!", "0".repeat(32));
     set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, oversized.as_str());
-    let identity: DatasetIdentity = read_properties(&device, clone.as_str());
-    let too_long: IntentReading = read_intent(Some(&identity.properties), clone.as_str());
+    let oversized_identity: DatasetIdentity = read_properties(&device, clone.as_str());
+    let too_long: IntentReading = read_intent(Some(&oversized_identity.properties), clone.as_str());
     assert!(matches!(too_long, IntentReading::Refused(crate::worktree_clone_mount_protocol::clone_mount_intent::IntentRefusal::TooLong { .. })), "{too_long:?}");
     assert!(!mounted(clone.as_str()), "an oversized intent mounted nothing");
 
     // An inherited value is ignored and authorizes nothing.
+    let (inherited_removed, _inherited_out, inherited_error): (bool, String, String) = zfs(sbin.as_str(), "zfs", &["inherit", DESIRED_STATE_PROPERTY, clone.as_str()]);
+    assert!(inherited_removed, "the clone's local intent could not be removed: {inherited_error}");
     let inherited: String = format!("v1:{}:mount", "1".repeat(32));
     set_property(sbin.as_str(), parent.as_str(), DESIRED_STATE_PROPERTY, inherited.as_str());
-    let identity: DatasetIdentity = read_properties(&device, clone.as_str());
-    let inherited_reading: IntentReading = read_intent(Some(&identity.properties), clone.as_str());
+    let inherited_identity: DatasetIdentity = read_properties(&device, clone.as_str());
+    let inherited_reading: IntentReading = read_intent(Some(&inherited_identity.properties), clone.as_str());
     assert!(matches!(inherited_reading, IntentReading::Inherited { .. }), "{inherited_reading:?}");
     assert!(!inherited_reading.asks_for_work(), "an inherited value asks for nothing");
     assert!(!mounted(clone.as_str()), "an inherited intent mounted nothing");
     let _ = zfs(sbin.as_str(), "zfs", &["inherit", DESIRED_STATE_PROPERTY, parent.as_str()]);
 
+    // A stale receipt is another request's answer and authorizes nothing.
+    let wanted: RequestNonce = RequestNonce::fresh().expect("the random source answers");
+    set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, format!("v1:{}:mount", wanted.as_str()).as_str());
+    let stale_identity: DatasetIdentity = read_properties(&device, clone.as_str());
+    let guid: DatasetGuid = DatasetGuid::parse(stale_identity.stats.dds_guid.to_string().as_str()).expect("the kernel's GUID is canonical");
+    let stale_nonce: RequestNonce = RequestNonce::fresh().expect("the random source answers");
+    let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("the boot identifier is readable").trim().to_string();
+    let stale: CloneMountReceipt = CloneMountReceipt {
+        dataset: guid,
+        operation: MountOperation::Mount,
+        nonce: stale_nonce,
+        outcome: ReceiptOutcome::Done,
+        mount: Some(ReceiptMountIdentity {
+            mount_id: 1,
+            device: 1,
+            inode: 1,
+            source: String::from(clone.as_str()),
+            canonical_path: String::from(SLOT),
+        }),
+        failed_step: None,
+        errno: None,
+        boot: boot.clone(),
+        time: crate::foundation::iso_time::now_iso(),
+    };
+    let folder: ReceiptsFolder = ReceiptsFolder::live();
+    std::fs::create_dir_all(RESULTS_DIRECTORY).expect("the results directory is made for the arm");
+    std::fs::set_permissions(RESULTS_DIRECTORY, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("the results directory takes its mode");
+    folder.publish(&stale).expect("the stale receipt is filed");
+    let stale_request: MountRequest = MountRequest { dataset: guid, operation: MountOperation::Mount, nonce: wanted, boot };
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().expect("the arm's runtime starts");
+    let refusal: WaitRefusal = runtime
+        .block_on(wait_for_answer(&folder, &stale_request, Duration::ZERO))
+        .expect_err("a stale receipt is not this request's answer");
+    assert!(matches!(refusal, WaitRefusal::TimedOut { last: Some(_), .. }), "{refusal:?}");
+    assert!(!mounted(clone.as_str()), "a stale receipt mounted nothing");
+    assert!(slot_empty(), "a stale receipt wrote nothing into the slot");
+
     // The nudge, under the design's proposed descendant grants only.
     let grant: Vec<&str> = vec!["-d", "-u", account.as_str(), "mount,userprop", parent.as_str()];
-    let (granted, _out, error): (bool, String, String) = zfs(sbin.as_str(), "zfs", &[vec!["allow"], grant].concat());
-    assert!(granted, "the proposed descendant grant was refused: {error}");
+    let (granted, _grant_out, grant_error): (bool, String, String) = zfs(sbin.as_str(), "zfs", &[vec!["allow"], grant].concat());
+    assert!(granted, "the proposed descendant grant was refused: {grant_error}");
     let nudge: RequestNonce = RequestNonce::fresh().expect("the random source answers");
     let assignment: String = format!("{SWEEP_NONCE_PROPERTY}={}", nudge.as_str());
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
@@ -254,8 +295,8 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
         .output()
         .expect("the delegated set runs");
     assert!(delivered.status.success(), "the account could not set its clone's nudge: {}", String::from_utf8_lossy(delivered.stderr.as_slice()));
-    let identity: DatasetIdentity = read_properties(&device, clone.as_str());
-    let read_back: NudgeReading = read_sweep_nonce(Some(&identity.properties), clone.as_str());
+    let nudge_identity: DatasetIdentity = read_properties(&device, clone.as_str());
+    let read_back: NudgeReading = read_sweep_nonce(Some(&nudge_identity.properties), clone.as_str());
     assert_eq!(read_back, NudgeReading::Nudge(nudge.clone()));
     let on_parent: String = format!("{SWEEP_NONCE_PROPERTY}={}", RequestNonce::fresh().expect("the random source answers").as_str());
     let refused: std::process::Output = Command::new("su")
@@ -270,7 +311,7 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
     let value: String = format!("v1:{}:mount", event_nonce.as_str());
     let started: Instant = Instant::now();
     set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, value.as_str());
-    let event_to_zedlet: Duration = wait_for_zedlet_line(Path::new(zedlet_log.as_str()), started, Duration::from_secs(10));
+    let event_to_zedlet: Duration = wait_for_zedlet_line(Path::new(zedlet_log.as_str()), clone.as_str(), Duration::from_secs(10));
     let (event_to_receipt, event_to_answer): (Duration, Duration) = answer_and_measure(sbin.as_str(), &device, clone.as_str(), &event_nonce, started);
     println!("MEASUREMENT mount-protocol event-to-zedlet-us={}", microseconds(event_to_zedlet));
     println!("MEASUREMENT mount-protocol event-to-receipt-us={}", microseconds(event_to_receipt));

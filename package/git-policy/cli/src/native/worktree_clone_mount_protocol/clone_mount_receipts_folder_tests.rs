@@ -180,6 +180,47 @@ fn each_unreadable_receipt_is_refused() {
     assert!(matches!(folder.read(receipt().dataset), Err(ReceiptsRefusal::NotAReceipt { .. })));
 }
 
+/// A receipt filed under a GUID but carrying another GUID is refused.
+#[test]
+fn a_receipt_for_another_dataset_is_refused() {
+    let folder: ReceiptsFolder = live_folder("receipts-wrong-dataset");
+    let mut receipt: CloneMountReceipt = receipt();
+    receipt.dataset = DatasetGuid::parse("43").expect("43 is canonical");
+    let text: String = receipt.text();
+    let path: PathBuf = folder.directory().join(GUID.to_string());
+    std::fs::write(path.as_path(), text).expect("the foreign receipt is written");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(RECEIPT_MODE)).expect("the foreign receipt takes the mode");
+    let refusal: ReceiptsRefusal = folder.read(DatasetGuid::parse("42").expect("canonical")).expect_err("another GUID's receipt is refused");
+    assert!(matches!(refusal, ReceiptsRefusal::WrongDataset { ref found, .. } if found == "43"), "{refusal:?}");
+}
+
+/// A FIFO at a GUID's name is refused without blocking the reader.
+#[test]
+fn a_fifo_at_a_receipt_name_is_refused() {
+    let folder: ReceiptsFolder = live_folder("receipts-fifo");
+    let path: PathBuf = folder.directory().join(GUID.to_string());
+    let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("the path is text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call in a fixture folder this test owns.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o644) };
+    assert_eq!(made, 0, "the control makes its FIFO: {}", std::io::Error::last_os_error());
+    let refusal: ReceiptsRefusal = folder.read(receipt().dataset).expect_err("a FIFO is not a receipt");
+    assert!(matches!(refusal, ReceiptsRefusal::NotRegular { .. }), "{refusal:?}");
+}
+
+/// A staging sibling is never read as a receipt,
+/// because no GUID's name is its name,
+/// and a killed writer's sibling carries its own process id,
+/// so the next writer's name is free.
+#[test]
+fn the_staging_sibling_is_never_a_receipt_name() {
+    let folder: ReceiptsFolder = live_folder("receipts-staging-leftover");
+    let receipt: CloneMountReceipt = receipt();
+    let stale_staging: PathBuf = folder.directory().join(format!("{}.staging.1", GUID));
+    std::fs::write(stale_staging.as_path(), "v1\n").expect("the killed writer's sibling is written");
+    folder.publish(&receipt).expect("a killed writer's sibling blocks no later publish");
+    assert_eq!(folder.read(receipt.dataset).expect("the new receipt is read"), Some(receipt));
+}
+
 /// A staging sibling is never read as a receipt,
 /// because no GUID's name is its name.
 #[test]

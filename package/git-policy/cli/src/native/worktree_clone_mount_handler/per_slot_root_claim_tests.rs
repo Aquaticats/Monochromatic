@@ -111,3 +111,24 @@ fn a_foreign_name_or_directory_is_refused() {
     std::fs::set_permissions(directory.directory(), std::fs::Permissions::from_mode(0o700)).expect("the directory takes another mode");
     assert!(matches!(directory.claim("one"), Err(ClaimRefusal::DirectoryMode { found: 0o700, .. })));
 }
+
+/// An existing claim file with another mode is refused before it is locked,
+/// and a link at the claim directory's path is refused without changing the
+/// folder it names.
+#[test]
+fn another_claim_file_or_a_linked_directory_is_refused() {
+    let directory: SlotClaimDirectory = claims("claim-file-mode");
+    let held: HeldSlotClaim = directory.claim("one").expect("the slot is free");
+    held.release();
+    std::fs::set_permissions(directory.claim_file("one"), std::fs::Permissions::from_mode(0o666)).expect("the claim file takes another mode");
+    assert!(matches!(directory.claim("one"), Err(ClaimRefusal::File { .. })));
+    let target: PathBuf = fixture("claim-linked-target");
+    std::fs::set_permissions(target.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the target takes a private mode");
+    let link_parent: PathBuf = fixture("claim-linked-parent");
+    let link: PathBuf = link_parent.join("claims");
+    std::os::unix::fs::symlink(target.as_path(), link.as_path()).expect("the link is made");
+    let linked: SlotClaimDirectory = SlotClaimDirectory::at(link, this_uid());
+    assert!(matches!(linked.prepare(), Err(ClaimRefusal::Directory { .. })));
+    let mode: u32 = std::fs::metadata(target.as_path()).expect("the target exists").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o700, "a refused prepare changed nothing");
+}

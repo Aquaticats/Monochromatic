@@ -84,7 +84,7 @@ pub(super) fn open_receipt_at(directory: &std::fs::File, name: &str) -> std::io:
     };
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
     let descriptor: libc::c_int =
-        unsafe { libc::openat(directory.as_raw_fd(), text.as_ptr(), libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
+        unsafe { libc::openat(directory.as_raw_fd(), text.as_ptr(), libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC) };
     if descriptor < 0 {
         let error: std::io::Error = std::io::Error::last_os_error();
         if error.raw_os_error() == Some(libc::ENOENT) {
