@@ -254,11 +254,22 @@ const parseUsageArgs = (raw) => {
 // The words mise appended past this script instead of setting usage_args; the tail of the
 // marker comment that ends the body, so they cannot break the TypeScript above them.
 const forwardedArgumentsMarker = '{{vars.forwarded_arguments_marker}}'
+// A word whose escaping still holds a line break ends the marker comment early, leaving the words after
+// it as source or as nothing; the recovery refuses rather than handing the body other arguments. The
+// message joins with `+` instead of a template so mise does not read its numbers as env-var references.
+const forwardedLineBreak = /[\\n\\r\\u2028\\u2029]/u
 const forwardedArgumentWords = () => {
   const source = process.execArgv.at(-1) ?? ''
-  const markerLine = source.slice(source.lastIndexOf('\\n') + 1)
-  if (!markerLine.startsWith(forwardedArgumentsMarker)) { return '' }
-  return markerLine.slice(forwardedArgumentsMarker.length)
+  const markerStart = source.indexOf('\\n' + forwardedArgumentsMarker)
+  if (markerStart === -1) { return '' }
+  const forwarded = source.slice(markerStart + 1 + forwardedArgumentsMarker.length).trimEnd()
+  const lineBreak = forwarded.search(forwardedLineBreak)
+  if (lineBreak !== -1) {
+    // The parser counts every word it reaches, the broken last one included, so its count is that word's position.
+    const position = Math.max(parseUsageArgs(forwarded.slice(0, lineBreak)).length, 1)
+    throw new Error('cannot read the arguments mise pasted into this script: argument ' + position + ' contains a line break at character ' + (lineBreak + 1) + ' of the pasted words, so the rest of them became script source instead of arguments. Rerun without that argument.')
+  }
+  return forwarded
 }
 // mise's shell-escaped argument string, or the words it appended to the script instead.
 const usageArgWords = () => process.env.usage_args ?? forwardedArgumentWords()
