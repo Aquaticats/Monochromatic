@@ -158,8 +158,8 @@ impl Blob {
         return self
             .names
             .iter()
-            .find(|(written, _)| written == name)
-            .map(|(_, offset)| *offset);
+            .find(|(written, _)| return written == name)
+            .map(|(_, offset)| return *offset);
     }
 
     /// One base integer type,

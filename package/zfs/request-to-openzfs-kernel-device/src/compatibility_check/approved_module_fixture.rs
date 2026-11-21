@@ -491,7 +491,7 @@ fn request_values(change: Change) -> Vec<(&'static str, i32)> {
     if change == Change::SignedEnumerator {
         let stats: &mut (&'static str, i32) = values
             .iter_mut()
-            .find(|(name, _)| *name == "ZFS_IOC_OBJSET_STATS")
+            .find(|(name, _)| return *name == "ZFS_IOC_OBJSET_STATS")
             .expect("the approved table names the stats request");
         stats.1 = NEGATIVE_REQUEST;
     }
