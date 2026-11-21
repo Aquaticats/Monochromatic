@@ -40892,7 +40892,15 @@ stated in this entry. What follows from them, as work:
   (`service_work.rs` `maintenance_awaiting`, `maintenance_run.rs`) and pins every citation to `v2.56.1`'s commit; the gate
   image ran `shadow::` and `source_guard::` (304 passed), no whole gate. GOING: its narrow re-check on Sonnet with one gate
   (brief under `~/temp/agent/integration-recheck-git-policy-cli-shadow-pool-after-findings-2026-11-20/`).
-  `~/temp/agent` measured 13 GB, the fence's findings round's folder 7.7 GB of it (cap 10 GiB).
+  `~/temp/agent` measured 13 GB, the fence's findings round's folder 7.7 GB of it (cap 10 GiB). THE MISE FINDINGS ROUND
+  ended at `2828a38f84` (`main` merged as `cb5967fcb7`): H1 the fixtures derive the marker from the root file
+  (`oneLineVariable`), three suites red on the old tip and green after; M1 the recovery refuses any line terminator and
+  names the word (through real mise, 26 exact, 10 refusals, 2 dying in node's parser as on `main`, none with wrong words);
+  M2 a real-mise catalog in the shapes test; M3 the older doc corrected and both indexed; fuzz `run` prints help instead
+  of making `corpus/--help`. Nine Rust packages' unit tasks could not run (no `cargo-nextest` installed here). It found
+  `playwright-image-version.unit.test.ts` failing on `main` (Dockerfile v1.65.0 against the locked 1.65.1 since
+  `aaf95005a2`): issue 6329. GOING: its narrow re-check on Sonnet (brief under
+  `~/temp/agent/integration-recheck-mise-usage-args-after-findings-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
