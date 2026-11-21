@@ -8,30 +8,57 @@ Status:
 complete as a report,
 at lifecycle phase 7,
 Scored.
-The skill's terminal outcome for the evidence is
+The skill's terminal outcome is
 [sensitivity unresolved](#terminal-result-sensitivity-unresolved),
 so the report gives conditional rankings and recommends none.
-Two of the four finalists' pairs still move on one input at a time at the frozen baseline,
-one weight moves a program past the second library,
-and the input that settles that pair is a preference the project has never stated.
-The choices the project has to make are put in
-[Open questions for the project](#open-questions-for-the-project).
-`btf-rs` 2.0.1 leads the refrozen baseline at 27.5 of 32,
-and the rank is conditional rather than recommended.
+Three finalists remain after every gate the skill applies:
+`btf-rs` 2.0.1 and `ebeepf` 0.1.0,
+two libraries,
+and `pahole` 1.32,
+a program whose upstream suite ran here.
+`bpftool` 7.8.0 failed the skill's relevant-execution rule:
+its functional tests need root,
+a BPF-capable kernel and a VM harness,
+and none of that runs in this container.
+
+What is settled,
+and what the second revision's text got wrong:
+`btf-rs` is strictly first in every defined test at the frozen weights,
+all 64 of them over the three finalists and all 71 or 77 in the recorded four-candidate families,
+with a smallest lead of 2 points over the runner-up and 5 over `pahole`.
+The maintenance weight reorders places 2 and 3 only:
+at weight 4 `ebeepf` ties `pahole` at 30.5,
+and at weight 5 `pahole` is second at 34.5 and `ebeepf` third at 32.5.
+That weight is a preference the project has never stated,
+and it decides nothing about the first place.
+No priority moves the first place,
+because `btf-rs` rates at least `ebeepf`'s and `pahole`'s equal on every criterion.
+The choices the project has to make are in
+[Open questions for the project](#open-questions-for-the-project),
+each with what it changes.
+
 Checked by this revision:
-every evidence record below was read against the kept log or the kept API response it names;
-the maintenance audit and the auditability measurements,
-which are this revision's own reads,
-with their commands kept;
-the score arithmetic and every sensitivity row below,
-recomputed from the published ratings;
-the fingerprint recomputed from its printed input;
-both libraries' archives measured against their tags and their manifests;
-the two tools' package provenance read from the distribution's own database;
-and the host facts re-read.
+the three-finalist and four-candidate matrices recomputed from the published ratings,
+with the script and its output kept;
+both libraries' crate archives downloaded again and measured,
+with the output kept;
+the programs' provenance read from the distribution's package recipes at the release and tag that
+built them,
+and from the kernel tree at `v7.3.4` that `bpf 7.3.4-1` builds from;
+`pahole`'s upstream suite run in a capped container with no home mount,
+built at the packaged tag with the packaged patches,
+76 cases with 65 passing,
+11 skipped and none failing,
+with the container's log kept;
+the two `bpftool` statements the gate re-check named as wrong,
+corrected against the source;
+and the report's own lock record reconciled against the commits its hashes name.
 Not checked:
-the suite runs themselves,
+the libraries' suite runs,
 which this revision did not repeat,
+the `bpftool` functional tests,
+which need root,
+a BPF-capable kernel and a VM harness,
 and an `aarch64` run,
 which no machine here can do.
 
@@ -50,17 +77,27 @@ which no machine here can do.
   2026-11-20T18:07:38-05:00,
   the clock reading taken as this session's work began.
   Last updated:
-  2026-11-20T18:57:15-05:00,
-  the write time of this revision.
+  2026-11-20T19:41:43-05:00,
+  the write time of the third revision.
 - Revisions:
-  two.
+  three.
   The first wrote the report;
-  the second is this one,
-  after an independent gate review by a different vendor,
+  the second answered an independent gate review by a different vendor,
   Claude Sonnet 5.5,
   kept at
-  `~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
-  What it changed is listed in section "Changes in this revision".
+  `~/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`;
+  the third is this one,
+  after that reviewer's gate re-check of the second revision,
+  kept at
+  `~/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/review.md`.
+  What the second changed is listed in section "Changes in the second revision";
+  what the third changed is listed in section "Changes in this revision".
+  The gate re-check found the matrix and the arithmetic reproducing and two high findings in what the
+  report tells the project:
+  a maintenance-first priority described as making a program "the rational pick" though the library
+  stays first by at least 5 in every test,
+  and the two programs kept as finalists through two departures from the skill that decided the
+  result.
 - Governing skill:
   [`.agents/skills/choosing-technology/SKILL.md`][skill] at commit
   `45d42d9b23d2f2752f9c512683b45905e13afe99`,
@@ -78,10 +115,12 @@ which no machine here can do.
   run twice in the first revision,
   the second at 2026-11-20T18:16:26-05:00,
   both exit 0 and both printing that value;
-  the rerun in this revision is
+  the rerun in the second revision is
   `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/compute-the-vet-report-fingerprint.ts`,
   a byte-for-byte copy of it,
-  run against this revision's printed input and printing the same value.
+  run against the second revision's printed input and printing the same value,
+  and the third revision recomputed it from the same printed input with the same result.
+  Nothing the third revision changed touches a fingerprint field.
   The value is unchanged because the subject,
   the scope,
   the hard constraints,
@@ -94,19 +133,59 @@ which no machine here can do.
   `~/temp/agent/technology-vet-locks/` + the SHA-256 of the absolute report path + `.lock`.
   The first revision created the report with create-new semantics,
   so its first lock record holds `preEditSha256: null`.
-  This revision took the same lock in update mode:
+  The second revision took the same lock in update mode:
   it wrote a sibling temporary file,
   re-read the report's SHA-256 under the lock,
   aborted if it had changed,
   and renamed the temporary file into place.
-  Every record of both revisions,
-  seven from the first and this revision's,
+  Every record of the three revisions,
+  seven from the first and five from the second,
   is kept together in
   `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
   That file began as a copy of the first revision's file,
   which still sits at
   `~/temp/agent/zfs-layout-checker-reader-vet-report-2026-11-20/keep/lock-record.json`,
-  and this revision's writer appended to it as the first one's did.
+  and the second revision's writer appended to it as the first one's did.
+  The third revision appended its records,
+  record 13 onwards,
+  to a copy of that file at
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/lock-record.json`.
+  Record 13's `preEditSha256` `965b95ecb0...` is record 12's `postEditSha256`,
+  so the chain crosses from the second revision into this one,
+  each write verifying the report's hash under the lock before it renames.
+  Record 14's `preEditSha256` `a730704b...` is the hash of this revision's own draft after it had
+  edited the working copy outside the lock,
+  which is the same defect the second revision has,
+  now on one edit of this one.
+  Every record after 14 records the previous record's `postEditSha256` as its `preEditSha256`,
+  and the last record's `postEditSha256` is the report this revision commits,
+  so the final write is locked and the chain holds from record 14 onward.
+
+  The chain does not hold inside the second revision,
+  and the report says so rather than leaving it to a reader:
+  records 8 to 12 each carry a `preEditSha256` that is not the previous record's `postEditSha256`,
+  so the report was rewritten outside the lock between those writes.
+  Where the content survives,
+  the break is identified:
+  record 12's `preEditSha256` `2135c1de...` equals the byte hash of the kept
+  `staged-report.md`,
+  so a staged copy was written over the report between the locked writes that records 11 and 12
+  name.
+  The kept `report-before-lint-fix.md` hashes `0bb6e8bc...`,
+  which is none of the recorded values.
+  What can still be checked is checked here:
+  record 7's `postEditSha256` `9600ac9ba4...` is the report at `6ed02591cf`,
+  record 8's `37efb1caae...` is the report at `e83c0de1c3`,
+  record 11's `2c64862183...` is the report at `c00b8adef2`,
+  and record 12's `965b95ecb0...` is the report at `d870b1786e` and at `main...HEAD` before this
+  revision.
+  The repair is forward,
+  not retrospective:
+  every write that produced the committed report read the report's hash under the lock,
+  verified it,
+  and recorded it,
+  and the record names the one edit this revision made outside the lock.
+  Nothing claims the second revision's out-of-lock edits were locked.
   One departure is recorded rather than hidden:
   the skill places a report directly in the main worktree,
   while this one sits in the branch worktree where the work happens,
@@ -141,7 +220,116 @@ which no machine here can do.
 
 ## Changes in this revision
 
-This revision answers the gate review named under "Revisions" above,
+This revision answers the gate re-check named under "Revisions" above,
+written by the same reviewer from another vendor after reading the second revision whole.
+It found the matrix and the arithmetic reproducing and the report's project-facing statement wrong.
+Each finding is listed with what became of it and the section that carries the change.
+Nothing was adopted and no crate was added to a manifest.
+
+- H1,
+  the open questions and the conditional rankings said a maintenance-first priority makes a program
+  "the rational pick",
+  while at the frozen weights `btf-rs` is strictly first in every defined test:
+  fixed.
+  The status block,
+  [Open questions for the project](#open-questions-for-the-project),
+  [Conditional rankings](#conditional-rankings),
+  [Terminal result](#terminal-result-sensitivity-unresolved)
+  and the design's Q1 now say what each question changes,
+  the maintenance weight is stated as reordering places 2 and 3 for the finalists,
+  and places 2 to 4 in the arm that keeps both programs.
+- H2,
+  the two programs stayed finalists through a provenance gate written as open and a suite gate the
+  skill fails one of them on:
+  fixed,
+  by reading their package recipes and the kernel tree they build from,
+  running `pahole`'s suite in a container,
+  and applying the skill's relevant-execution rule to what each suite shows.
+  `pahole`'s suite ran,
+  so it stays a finalist;
+  `bpftool`'s needs root,
+  a BPF-capable kernel and a VM harness,
+  so it fails.
+  The matrix is rerun over the three finalists,
+  and the outcome is unchanged:
+  the maintenance weight still ties and reverses the second and third
+  places,
+  so the skill's result is still "sensitivity unresolved"
+  ([The two programs' suites](#the-two-programs-suites)).
+- The two wrong `bpftool` statements:
+  fixed.
+  The version string comes from the numeric defaults in `main.c` that carry the bundled libbpf's
+  version,
+  not from a `BPFTOOL_VERSION` the build sets;
+  and the audited tree is the kernel's `tools/bpf/bpftool` at `v7.3.4`,
+  not the standalone
+  repository
+  ([Provenance of the two programs](#provenance-of-the-two-programs)).
+- M1,
+  C8's role unsaid:
+  fixed with the seven-criteria arm,
+  the anchors its ratings used,
+  and the corrected sentence about
+  why it is rated 4
+  ([C8](#c8-human-auditability-of-the-reader-surface-weight-1-higher-is-leaner)).
+- M2,
+  the design's Q1 and ranking carried the first revision's text beside the new numbers:
+  fixed in the design,
+  one score scale,
+  no `root-spawned` wording,
+  the C1,
+  C5 and C6 steps named,
+  and the rank labelled
+  conditional.
+- M3,
+  the programs' C5 confidence:
+  fixed by recording their release dates,
+  saying the audit measured mirrors while both projects develop elsewhere,
+  and labelling both programs' C3 and C5 medium,
+  in the arm that keeps them and in the finalist that stays,
+  `pahole`.
+  `bpftool`'s ratings are no longer used for any result.
+- M4,
+  two sentences mismatched the record:
+  fixed.
+  The standing answer is quoted as the record words it,
+  the sentence saying the pair would decide everything is gone,
+  and the in-house confidences and three-bucket counts are published
+  ([Sensitivity](#sensitivity)).
+- M5,
+  forks the report said it recorded were missing:
+  fixed.
+  Both are questions now,
+  C8's weight is stated as changing the library pair's stability and not the order,
+  and the program-pair ties are moot because `bpftool` failed and no pair between it and `pahole` is
+  published
+  ([Open questions for the project](#open-questions-for-the-project)).
+- M6,
+  saying the kept evidence was more than it is,
+  a wrong script path,
+  and a broken lock chain:
+  fixed.
+  The status block and the kept-evidence list say which outputs are kept and which are not,
+  the path is corrected,
+  and the lock record's break is disclosed and reconciled against the commits it names
+  ([Report metadata](#report-metadata)).
+- The lows:
+  L1 in the programs' provenance,
+  L2 in the maintenance audit,
+  L3 in the check-in's count,
+  L4 in the C8 wording,
+  L5 in the terminal result,
+  L6 in the arm that keeps the programs,
+  L7 in the file count,
+  L8 in the normalized gap
+  and L9 in the process-spawn count are all fixed where the sentence stands.
+  Lows the reviewer did not raise but that follow from the corrected source are named where they
+  belong,
+  including the suite description that cited two scripts the repository does not carry.
+
+## Changes in the second revision
+
+The second revision answers the gate review named under "Revisions" above,
 written by a reviewer from another vendor after reading the first revision whole.
 Each finding is listed with what became of it and the section that carries the change.
 
@@ -161,16 +349,16 @@ Each finding is listed with what became of it and the section that carries the c
   The rubric is refrozen at the skill's weights,
   the complete matrix is rerun at them,
   and the design writer's weights are reported as a sensitivity arm only
-  ([Refreeze of this revision](#refreeze-of-this-revision)).
+  ([Refreeze of the second revision](#refreeze-of-the-second-revision)).
 - M1,
   no maintenance audit:
-  fixed for all four finalists,
+  fixed for all four candidates,
   from the repository hosts' own records,
   with every request kept
   ([Maintenance audit](#maintenance-audit)).
 - M2,
   auditability unmeasured and unweighted:
-  fixed for the four finalists and carried by a new criterion,
+  fixed for the four candidates and carried by a new criterion,
   C8
   ([Human auditability](#human-auditability)).
 - M3,
@@ -180,7 +368,7 @@ Each finding is listed with what became of it and the section that carries the c
   C3's root-child premise is corrected,
   and the one omission that cannot be closed here is stated as a depth gap
   rather than hidden under "equal depth"
-  ([The two tools' provenance and suites](#the-two-tools-provenance-and-suites)).
+  ([The two programs' suites](#the-two-programs-suites)).
 - M4,
   `btf-rs` C1's confidence label:
   fixed by lowering it to medium,
@@ -318,9 +506,11 @@ not BTF types.
 ## Base components and overlays
 
 One base category,
-for all four eligible finalists and for the refused candidates that got as far as screening:
+for every candidate that reached finalist validation and for the refused candidates that got as far
+as screening:
 inspectable open-source local technology.
-Two are libraries the binding links (crates) and two are programs the gate starts;
+Two are libraries the binding links (crates) and two are programs the gate starts,
+and one of the programs failed the skill's relevant-execution rule after that validation;
 the skill's base category does not separate them,
 and criterion C2 does.
 
@@ -370,7 +560,7 @@ with reasons:
 
 Frozen before any candidate-specific soft evidence was rated,
 and applied to every finalist.
-The weights below are the refrozen ones (section "Refreeze of this revision"),
+The weights below are the refrozen ones (section "Refreeze of the second revision"),
 which are the skill's weights and not the design writer's.
 
 - C1,
@@ -424,7 +614,7 @@ The ratings for the in-house reader price code that does not exist,
 and the arithmetic marks that score as priced,
 not ranked.
 
-## Refreeze of this revision
+## Refreeze of the second revision
 
 The first revision froze the design writer's weights,
 5,
@@ -440,7 +630,7 @@ so its baseline was outside the skill and its matrix described another rubric.
 The gate review re-ran it at those weights and found
 a program passing a library.
 
-This revision refroze the rubric before rerunning anything,
+The second revision refroze the rubric before rerunning anything,
 and made three changes,
 all recorded here before the rerun below was run:
 
@@ -460,11 +650,35 @@ all recorded here before the rerun below was run:
     and the archive shows no bounds check of its own and no fuzz target
     (section "C1").
 
-None of the three was chosen after seeing a winner:
-C8's measurements favour `btf-rs`,
-which is already the leader,
-so it cannot be the reason for a different winner;
-the C1 change moves against `btf-rs`;
+All three changes were made after the first revision had named a winner,
+and the report states that plainly rather than arguing it away:
+C8 was added in answer to the first gate review,
+after the first revision had rated,
+scored and recommended `btf-rs`,
+and the C1 confidence change was made in the same round.
+Both are permitted corrections and both depart from the letter of the skill's freeze,
+which freezes criteria and weights "before candidate-specific soft evidence is rated" and lists
+changing weights after seeing a preferred winner as a violation signal.
+The project is told,
+because the criterion decides a result it would otherwise not see:
+C8 is why the library pair is stable at the frozen weights.
+With the seven original criteria and the same ratings at weight 1,
+`btf-rs` over `ebeepf` is 23.5 against 22.5 and ties on six one-input steps
+(`btf-rs` C1,
+C5 and C6 down;
+`ebeepf` C1,
+C5 and C6 up),
+and 14 tests of 60 flag instead of 10 of 71
+(section [C8](#c8-human-auditability-of-the-reader-surface-weight-1-higher-is-leaner)).
+What cannot be confirmed from anything kept is the order of the two events in the second revision:
+its claim that all three changes were recorded "before the rerun below was run" is a claim about its own
+sequence,
+not a measurement a reader can check.
+The claim that C8 cannot have changed the winner is right and does not settle the pair:
+it favours the leader,
+so it cannot create a leader,
+and it is still the reason the leader's lead is stable.
+The C1 change moves against `btf-rs`;
 and the weights are the skill's default rather than a reading of the evidence.
 No criterion rating other than that one confidence label changed,
 and no weight was chosen to make a preferred candidate win.
@@ -472,53 +686,126 @@ The complete matrix over the refrozen rubric is section "Sensitivity".
 
 ## Open questions for the project
 
-Two of these decide the ranking.
-Both are preferences the evidence cannot answer,
-and the skill says to ask rather than to invent a tiebreaker.
-The rest are carried so they stay visible,
-and nothing here needs them.
+Each question says what it changes.
+Two of them can change an order below the first place,
+and none of them changes the first place:
+`btf-rs` is first in every defined test at the frozen weights.
 
-1.  A library linked into the handler,
-    or a program the handler starts.
-    This is the design's Q1.
-    The standing answer of 2026-11-19 is that the parser need not be ours and that no second program is required;
-    it did not say that a second program is acceptable at run time in the root handler.
+1.  How much maintenance and upstream responsiveness should weigh.
+    This is the priority the second revision's question 2 carried,
+    and it is the controlling preference now:
+    at the skill's default weight of 1,
+    the order is `btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 of 32.
+    At weight 4,
+    `ebeepf` and `pahole` tie at 30.5.
+    At weight 5,
+    `pahole` is second at 34.5 and `ebeepf` third at 32.5.
+    What it changes:
+    whether the second library or the one surviving program is second.
+    What it does not change:
+    the first place,
+    which stays `btf-rs` at every weight from 1 to 5,
+    by at least 2 over the runner-up.
+    The report cannot answer it from evidence,
+    because a weight is a preference,
+    and the project has stated none.
+2.  A library the binding links,
+    or a program the gate starts.
+    This is the design's Q1,
+    and it is a live choice again because `pahole` remains a finalist.
     The two arms are not interchangeable:
     a library runs in the handler's address space,
     where a parser bug is a panic,
-    a hang or a large allocation inside the root process;
+    a hang or a large allocation inside the privileged process;
     a spawned program runs in a child,
     and both BTF files are mode `0444` on this host,
-    so that child need not run as root and can be given a hard resource limit and a sandbox.
-    The rubric prices the deployment and privilege criteria for this choice,
-    and `C3`'s premise is examined in
-    [C3](#c3-privilege-surface-in-the-root-handler-weight-1-higher-is-smaller).
-2.  A priority between the criteria.
-    The skill's default,
-    every criterion 1,
-    orders the four finalists
-    `btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 > `bpftool` 17.5 of 32.
-    That order is not stable under every one-input test:
-    a maintenance weight of 4 ties `ebeepf` with `pahole`,
-    and a maintenance weight of 5 puts `pahole` above `ebeepf`,
-    so a program passes the second library.
-    A project that ranks deployment fit and privilege above maintenance keeps the library arm ahead;
-    one that ranks maintenance above them does not.
-    Section "Sensitivity" gives the rows.
-3.  The scoring's baseline pair,
-    `btf-rs` against the declined in-house reader,
-    now ties at the skill's weights at 27.5 each.
-    That pair decides nothing while the project's answer of 2026-11-19 stands,
-    and it would decide everything if the project reopened the in-house route.
-4.  The disk-cache question,
+    so that child need not run as root and can carry a hard resource limit and a sandbox.
+    What it changes:
+    the deployment and privilege price the rubric already charges at C2 and C3,
+    and the operational shape of the gate.
+    What it does not change:
+    the arithmetic,
+    which puts `pahole` third at every weight the project has stated,
+    so choosing it is a preference for the program shape and not a reading of the scores.
+    If the project wants `pahole`,
+    question 1 is what would raise it,
+    and even at weight 5 it is 5 points behind `btf-rs`.
+3.  `bpftool`'s eligibility.
+    The report fails it under the skill's relevant-execution rule,
+    because its functional tests need root,
+    a BPF-capable kernel and a VM harness
+    ([The two programs' suites](#the-two-programs-suites)).
+    What it changes:
+    a departure that keeps it eligible adds the `pahole` and `bpftool` pair,
+    with eleven rating-step ties and no reversal,
+    and leaves the top of the order where it is;
+    the report's choice keeps that pair out of the ranking entirely.
+    `bpftool` scored 17.5 of 32,
+    last of the four.
+4.  The trust boundary and the child's privilege.
+    The first check-in did not put this fork,
+    although the skill lists a trust boundary among the
+    context inputs that can change the weights.
+    It is a question now,
+    not a settled fact:
+    whether the gate's program arm may run its child unprivileged and bounded,
+    or whether the design keeps the root-handler child shape it names.
+    What it changes:
+    the price of C3 and nothing else,
+    and only for a program candidate;
+    with the two libraries it changes no order.
+5.  Feature breadth against auditability.
+    Also not put at the first check-in.
+    This fork is C8's weight.
+    What it changes:
+    how much of `btf-rs`'s lead is auditability.
+    C8 at 1 through 5 leaves the order as it is,
+    because `btf-rs` rates 4 there against `ebeepf`'s 2 and `pahole`'s 2;
+    removing the criterion,
+    which is weight 0 and outside the skill's one-input tests,
+    ties the library pair on six steps
+    (section [C8](#c8-human-auditability-of-the-reader-surface-weight-1-higher-is-leaner)).
+    What it does not change:
+    who leads at any weight the skill tests.
+6.  H3,
+    the constraint that narrows the field.
+    H3 is the project's,
+    not a fact of nature.
+    What it changes:
+    dropping it re-admits `libbpf-rs` with its C build,
+    and a `dlopen` of the system's `libbpf`,
+    which is a new candidate set and a new round,
+    not a rescoring of this one.
+    Keeping it keeps the field this report screened and ranked.
+    It does not change this report's result.
+7.  Reopening the in-house reader.
+    The standing answer of 2026-11-19 was that it is not a hard requirement that the parser is the
+    project's own code and that the product starts no second program;
+    the project answered "No,
+    not required",
+    so no hard constraint admits an in-house reader and the skill's existing-tools rule keeps it out.
+    What it changes:
+    the question becomes a fresh comparison,
+    because the priced row ties `btf-rs` at 27.5 and its pair moves in 23 or 28 of 47 or 52 tests
+    (section [Sensitivity](#sensitivity)).
+    It does not produce an answer from this report's numbers.
+8.  The disk-cache question,
     Q3 of the decision record,
     is held and stays separate.
     Its thresholds,
     a 100 ms median above the parse's baseline and a 256 MiB resident peak,
     are the design's proposal from a single probe with no control,
     and measurement item 10 is the run that replaces them.
-    Nothing here needs its answer:
+    Nothing here needs its answer and no answer changes the ranking:
     the per-process cache ships either way.
+
+Two forks are recorded as unasked rather than settled,
+where the second revision's check-in section said they were recorded in this section and they were
+not:
+question 4,
+the trust boundary,
+question 5,
+feature breadth against auditability.
 
 ## Context
 
@@ -587,7 +874,8 @@ and the report says so rather than calling it pre-discovery.
 The order of events was:
 
 - the initial round,
-  twelve numbered queries plus the first web search,
+  twelve numbered queries,
+  the sixth of which is the first web search,
   ran on 2026-11-19 between 18:10:30 and 19:38:00-05:00,
   before any check-in (section "Query schedule",
   items 1 to 12);
@@ -639,7 +927,7 @@ the earlier twelve queries were already run when it was asked.
 Forks the skill lists among the context inputs were not put in that question either,
 namely the trust boundary and the feature-breadth-versus-auditability tradeoff;
 both bear on the weights,
-and this revision records them as unasked rather than as settled
+and the second revision records them as unasked rather than as settled
 (section "Open questions for the project").
 
 ## Query schedule
@@ -815,7 +1103,7 @@ where it is the third query of the 2026-11-20 round
 
 The class 3 result is an inferred exhaustion,
 not a reported one,
-and this revision keeps that reading.
+and the second revision keeps that reading.
 Its three pages ended below the provider's cap with no cursor,
 which is what a finished provider listing looks like and also what a silently capped one can look like.
 The gate review tested that risk directly rather than arguing it:
@@ -898,7 +1186,7 @@ so every candidate the listing names is either a row here or inside the screened
   archive SHA-256 `fa34ec915ede6b7eaeebcb38fdb749fcac1538ec1b94dcfde63a034ad8f7963b`,
   equal to the index `cksum`.
 - Provenance,
-  measured in this revision:
+  measured in the second revision:
   the archive's `src/`,
   `LICENSE` and `examples/` are byte-identical to the tag's
   (`diff -r --brief` printed nothing),
@@ -1063,13 +1351,29 @@ so every candidate the listing names is either a row here or inside the screened
 - Provenance:
   `/usr/bin/bpftool` is the distribution's `bpf 7.3.4-1` package
   (`pacman --query --owns /usr/bin/bpftool`),
-  installed 2026-11-16 with `Validated By : Signature`.
+  built 2026-11-12,
+  installed 2026-11-16 with `Validated By : Signature`,
+  and built by Arch's `linux-tools` PKGBUILD at its tag `7.3.4-1`
+  (`pkgver=7.3.4`,
+  `pkgrel=1`) from `linux-7.3.4.tar.xz`,
+  sha256 `b11b6df8295e8e991ff040b71aaa4994a8b55caa23b6b092907f195b5840fd1f`,
+  with a PGP signature beside it in the recipe's source list.
+  The recipe builds `tools/bpf/bpftool` from that tarball,
+  so the binary's source is the kernel tree at `7.3.4`,
+  not the standalone `libbpf/bpftool` repository.
   Its self-reported version and its package's version disagree,
-  and the reason is structural:
-  the version string comes from `BPFTOOL_VERSION`,
-  which the build sets from the kernel tree it was built in (`src/Makefile:80-81`),
-  not from the package.
-  So a check on the tool's self-reported version proves nothing about which package shipped it.
+  and the mechanism is now read from the source rather than guessed:
+  the kernel tree's `tools/bpf/bpftool/main.c:98-106` and `:180-184` fall back,
+  when `BPFTOOL_VERSION` is unset,
+  to the major number of the bundled libbpf plus 6,
+  the libbpf minor and a patch of 0;
+  `tools/lib/bpf/libbpf_version.h` at `v7.3.4` declares 1.8,
+  so the fallback prints `7.8.0`.
+  The Makefile only passes `-DBPFTOOL_VERSION` through when the variable is already set
+  (`tools/bpf/bpftool/Makefile:82-83`),
+  and the recipe sets nothing.
+  So the self-reported version carries the bundled libbpf's version and is not meaningless;
+  it just does not name the distribution package.
   The binary's SHA-256 is
   `475a53182f50231c40e40ce002f2e032dc418489d56a2f8f902aa317aed03d20`.
 - Screening:
@@ -1077,10 +1381,12 @@ so every candidate the listing names is either a row here or inside the screened
   H2 for a separate process,
   H4,
   H5;
-  H6 pass on the package record above;
+  H6 pass on the recipe above;
   H3 is not applicable as a library but the product needs the program at run time,
   which C2 prices.
-  Finalist.
+  Finalist on the hard gates,
+  then failed on relevant execution
+  ([The two programs' eligibility](#the-two-programs-suites)).
 
 ### `pahole` 1.32
 
@@ -1097,9 +1403,26 @@ so every candidate the listing names is either a row here or inside the screened
   `/usr/bin/pahole` is the distribution's `pahole 1:1.32-2` package
   (`pacman --query --owns /usr/bin/pahole`),
   not a package named `dwarves`,
+  built 2026-11-02,
   installed 2026-11-16 with `Validated By : Signature`;
   the binary's SHA-256 is
   `00acbd859cd0cca6e71dca93d885ed2483c5a52a78d3df1a9bcc9da82881503c`.
+  CachyOS's `pahole` PKGBUILD has `pkgver=1.32` and `pkgrel=2`,
+  which is the installed release,
+  and builds the signed git tag `v1.32` with three patches:
+  `0001` for the CMake install of `ostra.py`,
+  and `0002` and `0003` in `dwarf_loader.c` for merged LTO CUs and kept CUs.
+  So the binary is not upstream `v1.32` byte for byte.
+  The recipe builds libbpf in with `LIBBPF_EMBEDDED=ON`,
+  and it takes that libbpf from `git+https://github.com/libbpf/libbpf` unpinned,
+  overriding the tag's own submodule,
+  so the embedded libbpf's revision is whatever the branch
+  held on 2026-11-02 and the recipe does not record it.
+  `pacman --query --check --check pahole bpf` reports 0 altered files for each;
+  the manual describes the doubled flag as checking permissions,
+  file sizes and modification times
+  against the package's mtree,
+  and this report does not claim it compares content digests.
   Its BTF parser is libbpf's,
   built into the package rather than loaded from the distribution at run time:
   `readelf --dynamic /usr/bin/pahole` lists only `libdwarves`,
@@ -1111,7 +1434,7 @@ so every candidate the listing names is either a row here or inside the screened
   H2 for a separate process,
   H4,
   H5,
-  H6 on the package record above.
+  H6 on the recipe above.
   Finalist.
 
 ### The in-house reader
@@ -1238,23 +1561,24 @@ so every candidate the listing names is either a row here or inside the screened
   H3 not applicable as a library and recorded as a runtime requirement instead,
   H4 pass,
   H5 pass,
-  H6 pass on the package record:
-  `pahole 1:1.32-2`,
-  installed with its signature validated.
+  H6 pass on the package recipe:
+  `pahole 1:1.32-2` builds the signed tag `v1.32` with three patches,
+  and the installed binary's signature and hash match the package.
   Finalist,
-  validated at its output boundary.
+  validated at its output boundary and by its own suite,
+  which ran here with eleven recorded skips and no failure.
 - `bpftool` 7.8.0:
   H1 pass,
   H2 pass as a separate process,
   H3 not applicable as a library,
   H4 pass,
   H5 pass,
-  H6 pass on the package record:
-  `bpf 7.3.4-1`,
-  installed with its signature validated,
-  whose binary reports a different version of itself.
-  Finalist,
-  validated at its output boundary.
+  H6 pass on the package recipe:
+  `bpf 7.3.4-1` builds `tools/bpf/bpftool` from `linux-7.3.4.tar.xz`,
+  whose sha256 and detached signature the recipe pins,
+  and whose binary reports the bundled libbpf's version rather than the package's.
+  Not a finalist:
+  failed on relevant execution.
 - `btfparse`,
   `aya-obj`,
   `btf`,
@@ -1282,14 +1606,19 @@ No candidate passed a hard gate on metadata alone:
 every finalist's gate rests on a source path and,
 for the two libraries,
 on a run.
-For the two tools the provenance gate rests on the distribution's own package database,
-which is a primary record of who built the binary and which package carries it,
-and on nothing that maps the binary to a source revision;
-both packages build from a source archive their build scripts name,
-and neither package records that archive here.
-That is the provenance a distribution package can offer,
-and the depth gap it leaves is what
-[The two tools' provenance and suites](#the-two-tools-provenance-and-suites) records.
+For the two programs the provenance gate now rests on the packaging recipe that built the installed
+binary,
+which maps each binary to a named source archive or tag:
+`bpftool` to the kernel tarball `7.3.4` with its own sha256 and signature,
+and `pahole` to the signed tag `v1.32` with three recorded patches.
+The two mappings are not equally tight:
+`pahole`'s embedded libbpf comes from an unpinned branch the recipe does not record.
+The gate after it is relevant execution,
+and it decides the two programs differently:
+`pahole`'s suite ran here and it stays a finalist,
+while `bpftool`'s needs root,
+a BPF-capable kernel and a VM harness and it fails.
+[The two programs' suites](#the-two-programs-suites) records both.
 
 ## Host facts
 
@@ -1310,7 +1639,7 @@ so the validation evidence below describes today's module and not a file that ha
   modification time 2026-11-20T14:34:52-05:00.
 - Both files are mode `0444`,
   `-r--r--r--`,
-  read by every user (`stat --format='%A %a'` in this revision).
+  read by every user (`stat --format='%A %a'` in the second revision).
   A spawned reader therefore needs no privilege to read them,
   which is the fact C3's premise missed in the first revision
   ([C3](#c3-privilege-surface-in-the-root-handler-weight-1-higher-is-smaller)).
@@ -1512,9 +1841,9 @@ elapsed milliseconds and exit status per step.
   built,
   installed or ran a candidate.
 
-### Manifest: this revision's own reads
+### Manifest: the second revision's own reads
 
-This revision fetched,
+The second revision fetched,
 measured and read,
 and ran no candidate:
 
@@ -1530,7 +1859,7 @@ and ran no candidate:
   `pulls`,
   `commits` and `releases` endpoints,
   and one detail read per sampled issue or pull request with its comments and reviews.
-  Responses are kept as JSON under this revision's `keep/gh/`.
+  Responses are kept as JSON under the second revision's `keep/gh/`.
 - `curl` of three published crates.io archives,
   `btf-rs` 2.0.1,
   `btf-rs-derive` 2.0.1 and `ebeepf` 0.1.0,
@@ -1560,6 +1889,63 @@ and ran no candidate:
   `~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/`,
   with the kept reports,
   responses and measurements under its `keep/`.
+
+### Manifest: this revision's own runs
+
+This revision fetched,
+measured and ran,
+and executed one candidate's suite in a container:
+
+- Reads and measurements on this host,
+  read only:
+  `sha256sum` and `readelf --dynamic` on `/usr/bin/pahole` and `/usr/bin/bpftool`,
+  `pacman --query --info pahole bpf`,
+  and the line counts and file lists of the two libraries' published archives.
+- Three read-only `curl` downloads from `https://static.crates.io/`:
+  `btf-rs` 2.0.1,
+  `btf-rs-derive` 2.0.1 and `ebeepf` 0.1.0,
+  each hashed and compared with the report's recorded value,
+  each extracted under this revision's scratch folder.
+- Five read-only `curl` fetches from `raw.githubusercontent.com/gregkh/linux/v7.3.4`:
+  `tools/bpf/bpftool/btf.c`,
+  `tools/bpf/bpftool/main.c`,
+  `tools/bpf/bpftool/Makefile`,
+  `tools/lib/bpf/btf.c` and
+  `tools/lib/bpf/libbpf_version.h`.
+- Four read-only `gh repo clone ... -- --depth 1` clones:
+  `acmel/dwarves` at its default branch,
+  `acmel/dwarves` at tag `v1.32`,
+  `libbpf/libbpf` at its default branch,
+  and the three patch files from the CachyOS packaging repository by `curl`.
+- One container run of the candidate's suite:
+  image `docker.io/cachyos/cachyos:latest`,
+  `--cpus 2`,
+  `--memory 4g`,
+  `--pids-limit 1024`,
+  `--network host` for the one package install,
+  no home mount,
+  the source and the patches mounted read-only,
+  and the suite itself run with the proxy variables pointed at a closed port so that its
+  perf-tarball fetch failed instead of downloading.
+  Ceilings are the container's;
+  the driver is
+  `keep/build-and-run-the-pahole-suite-in-a-container-4.ts`
+  and the log is its `-output-4.txt`,
+  both under this revision's `keep/`.
+  The one undeclared network endpoint the run revealed,
+  the kernel.org perf mirror,
+  was found,
+  bounded and recorded rather than allowed.
+- Three script runs with `node`:
+  the matrix over the remaining finalists and the recorded arms,
+  the crate-archive measurement,
+  and the container driver,
+  each with its output kept.
+- Everything under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/`,
+  with the kept reports,
+  measurements,
+  logs and responses under its `keep/`.
 
 ## Validation results
 
@@ -1600,7 +1986,7 @@ and the consumer boundary that the product would use.
   so the archive maps to the source whose suite passed:
   that is provenance under H6,
   and it is the reason the archive's missing tests are recorded rather than scored.
-  This revision checked the claim on the bytes rather than on that file:
+  The second revision checked the claim on the bytes rather than on that file:
   `diff -r --brief` of the archive's `src/` against the tag's printed nothing,
   and the same holds for `LICENSE` and `examples/`
   (section "Discovery ledger").
@@ -1633,7 +2019,7 @@ and the consumer boundary that the product would use.
   but that is an inference and not a record.
 - Omits `aarch64` as a run:
   the gate review built the library for the target without `rustup`
-  and this revision cites that build
+  and the second revision cites that build
   ([The `aarch64` build](#the-aarch64-build-and-what-it-does-not-show));
   no run happened on any machine here.
 - No fuzz target exists in the crate,
@@ -1709,7 +2095,7 @@ and the consumer boundary that the product would use.
   so this is the distribution host's connect path and not the container's network policy.
   It happened twice.
   The gate review closed the build half without `rustup`,
-  and this revision cites that
+  and the second revision cites that
   ([The `aarch64` build](#the-aarch64-build-and-what-it-does-not-show));
   the run stays unavailable.
 - No fuzz target exists in the crate,
@@ -1736,112 +2122,215 @@ and the consumer boundary that the product would use.
   the host has no `aarch64` environment,
   so both binaries are `x86_64` evidence only.
 
-### The two tools' provenance and suites
+### Provenance of the two programs
 
-The first revision claimed equal depth for the four finalists.
-They are not equal,
-and this section says how far apart they are,
-because the project is being asked to choose between the two arms.
+The second revision left this gate open,
+writing that "neither maps the shipped binary to a source revision";
+the gate re-check closed it from the distribution's recipes,
+and this revision read those recipes again and records them here.
 
-Provenance:
-
-- `pahole` is the distribution's `pahole 1:1.32-2` package,
-  built 2026-11-02 and installed 2026-11-16,
-  with `Validated By : Signature` in the package database.
-  Its declared dependencies are `bash`,
-  `glibc`,
-  `libelf` and `zlib`,
-  and its binary needs only its own three libraries and `libc`.
-- `bpftool` is the distribution's `bpf 7.3.4-1` package,
-  built 2026-11-12 and installed 2026-11-16,
-  also `Validated By : Signature`,
-  declaring `glibc`,
-  `readline`,
-  `zlib`,
-  `libelf`,
-  `libcap`,
-  `zstd`,
-  `llvm-libs`,
-  `binutils` and `libsframe`;
-  its binary needs `libelf`,
-  `libcrypto`,
-  `libz`,
-  `libcap` and `libLLVM`.
-  It reports itself as `bpftool v7.8.0` on `libbpf v1.8`,
-  which is not its package's version,
-  because that string is set at build time from the kernel tree (`src/Makefile:80-81`).
-- Both are signatures a package manager verified at install,
-  which is what a distribution package can offer as provenance.
-  Neither maps the shipped binary to a source revision,
-  and neither package records the source archive its build used here,
-  so H6 for these two rests on the package record and stops there.
-
-The BTF parser both tools run is libbpf's:
-
-- `pahole` builds libbpf into its own libraries
-  (the clone's `lib/bpf` submodule at `6d0328e7`,
-  whose `src/btf.c` is 6,780 lines)
-  and reads through `btf_loader.c` (863 lines).
-- `bpftool` builds libbpf in as well,
-  and adds its own `src/btf.c` (1,895 lines) over the same parser.
-
-Upstream suites,
-recorded with the reasons they did not run here:
-
-- `pahole`:
-  the suite is 78 shell scripts,
-  18 of them BTF-focused,
-  driven by `tests/tests` after `buildcmd.sh` builds the whole tool set (`build-and-test-cmd.sh`).
-  It was not run here,
-  and the reason is not duration:
-  running it means building `pahole` and its libraries from a revision the package is not,
-  which is a build the product never performs,
-  and several cases need a `vmlinux`,
-  kernel sources or the project's own VM harness
-  (`.github/workflows/test.yml`,
-  `vmtest.yml`).
-  What that omits is a check of the encoder and printer over fixtures,
-  which can touch the BTF printer the product's `-C` arm would consume;
-  so the omission cannot be claimed harmless,
-  and it is recorded here as an unclosed gap rather than as a pass.
 - `bpftool`:
-  the repository's CI has build,
+  `/usr/bin/bpftool` is Arch's `bpf 7.3.4-1` split package,
+  built 2026-11-12 by the `linux-tools` PKGBUILD at its tag `7.3.4-1`
+  (`pkgver=7.3.4`,
+  `pkgrel=1`)
+  from `linux-7.3.4.tar.xz`,
+  sha256 `b11b6df8295e8e991ff040b71aaa4994a8b55caa23b6b092907f195b5840fd1f`,
+  beside a PGP signature in the recipe's source list.
+  The package's `build()` enters `tools/bpf` and runs `make -C bpftool all doc`,
+  so the binary comes from the kernel tree at `7.3.4` and not from the standalone
+  `libbpf/bpftool` repository.
+  Its installed SHA-256 is `475a5318...aed03d20`,
+  and `pacman --query --check --check bpf` reports 0 altered files.
+- `pahole`:
+  `/usr/bin/pahole` is CachyOS's `pahole 1:1.32-2` package,
+  built 2026-11-02,
+  and its recipe has `pkgver=1.32` and `pkgrel=2`,
+  which is the installed release.
+  It builds the signed tag `v1.32` with three patches:
+  `0001` for the CMake install of `ostra.py`,
+  `0002` and `0003` in `dwarf_loader.c` for merged LTO CUs and kept CUs,
+  and the second and third also add two test scripts.
+  So the binary is not upstream `v1.32` byte for byte,
+  and the report says so rather than calling it upstream.
+  Its installed SHA-256 is `00acbd85...281503c`,
+  and `pacman --query --check --check pahole` reports 0 altered files.
+  The recipe builds libbpf in with `LIBBPF_EMBEDDED=ON`,
+  and it takes that libbpf from `git+https://github.com/libbpf/libbpf` unpinned,
+  overriding the tag's own submodule,
+  so the embedded libbpf's revision is whatever that branch held on 2026-11-02 and the recipe does
+  not record it.
+  That is the one part of this mapping that stops at the package.
+
+The version string the second revision explained wrongly:
+
+- It said the string "comes from `BPFTOOL_VERSION`,
+  which the build sets from the kernel tree it
+  was built in (`src/Makefile:80-81`)".
+  The Makefile only passes `-DBPFTOOL_VERSION` through when the variable is already set
+  (`tools/bpf/bpftool/Makefile:82-83` at `v7.3.4`,
+  the same at `v7.3`),
+  and the recipe sets nothing.
+  What the binary prints is the other branch:
+  `tools/bpf/bpftool/main.c:98-106` defines the major as the bundled libbpf's major plus 6,
+  the minor as libbpf's minor and the patch as 0 when `BPFTOOL_VERSION` is unset,
+  and `:180-184` prints that as `%s v%d.%d.%d`.
+  `tools/lib/bpf/libbpf_version.h` at `v7.3.4` declares 1.8,
+  so the printed version is `7.8.0`.
+  A read of the shipped binary supports that path rather than a compiled-in literal:
+  `strings` finds `using libbpf %s` and no `7.8.0` string.
+  So the self-reported version carries the bundled libbpf's version.
+  It is not "nothing";
+  it names a libbpf line and not the distribution package,
+  and the practical point stands:
+  a version check on the tool proves nothing about which package shipped it.
+
+The source the second revision audited is not the source the package builds:
+
+- It printed `bpftool`'s `src/btf.c` at 1,895 lines and libbpf's at 6,780.
+  Those are the standalone `libbpf/bpftool` mirror and the `dwarves` submodule.
+  The package builds the kernel tree's copies,
+  which at `v7.3.4` are `tools/bpf/bpftool/btf.c` at 1,562 lines and
+  `tools/lib/bpf/btf.c` at 6,376 lines,
+  read from the stable tag and kept beside this report's measurements.
+  None of the scores moves on the correction,
+  and the C8 figure the report prints is now the packaged tree's.
+
+Both mappings are a provenance gate the skill accepts:
+a named source archive with its checksum and signature for `bpftool`,
+a signed tag plus three recorded patches for `pahole`.
+Neither is a reproducible-build proof,
+neither recipe pins compiler flags for a byte-identical rebuild,
+and `pahole`'s embedded libbpf is unpinned;
+the gate is source mapping,
+which is what H6 asks,
+and the reasons each mapping stops where it does are above.
+
+### The two programs' suites
+
+The skill's finalist validation requires every non-default suite relevant to the claimed behaviour,
+and it fails a candidate whose relevant suite cannot be inspected or run.
+This revision took each program in turn.
+
+`pahole`:
+
+- The suite is 76 numbered cases over the shell scripts under `tests/` at tag `v1.32`:
+  74 scripts at the tag plus the two the recipe patches add,
+  with one shared `test_lib.sh` beside them,
+  driven by `tests/tests`,
+  which needs the build directory at the front of `PATH` and writes under `/tmp/pahole-tests` inside
+  the container.
+  The recipe's own `check()` runs `ctest`,
+  and the build registers no tests:
+  this revision ran it and it printed "No tests were found!!!"
+  and exited 0,
+  so the distribution's build tests nothing about `pahole`.
+  That is a fact about the packaging,
+  not about the project,
+  and it is why the suite below was run by hand.
+- The run:
+  the signed tag `v1.32` at `fa725d687c`,
+  the three recipe patches applied cleanly,
+  built with CMake and Ninja,
+  and the suite run in a container
+  (`docker.io/cachyos/cachyos:latest`,
+  `--cpus 2`,
+  `--memory 4g`,
+  `--pids-limit 1024`,
+  no home mount,
+  a read-only mount of the source):
+  76 cases,
+  65 `Ok`,
+  11 `Skip`,
+  0 failures,
+  exit 0.
+  The log is `keep/build-and-run-the-pahole-suite-in-a-container-output-4.txt`,
+  and the driver that ran it is part of the same folder.
+  The libbpf built into this run is today's `libbpf` default branch,
+  because the recipe pins none,
+  which is the caveat above.
+- The eleven skips,
+  each with its reason and its distance from the consumed surface:
+  - 15,
+    22,
+    52 and 72 need a `vmlinux` with DWARF,
+    which this host does not have and this container
+    does not build;
+  - 18,
+    the split-BTF test,
+    needs a DWARF `vmlinux` and module debuginfo from `debuginfod`,
+    so the split *write* path and its `pfunct --btf_base` read are not exercised end to end here;
+  - 45 needs `dwz` for an alternate debug file;
+  - 56 needs `ld.lld` for LTO language filtering;
+  - 54 needs optimized code,
+    and the container builds unoptimized;
+  - 55,
+    69 and 70 try to download a perf tarball from
+    `https://mirrors.edge.kernel.org/pub/linux/kernel/tools/perf/`.
+    That fetch is the suite's own undeclared network endpoint:
+    this revision blocked it by pointing the proxy variables at a closed port,
+    so the run is offline after the package install,
+    and the three cases skipped on the failed download.
+  - The consumed route itself is covered by cases that ran:
+    12 (distilled base BTF,
+    which reads a base through `--btf_base`),
+    9,
+    11,
+    14,
+    17,
+    19,
+    20,
+    21 and 23.
+  So the relevant suite ran,
+  and the omissions are recorded with evidence that they sit outside the
+  printer route the product would call.
+
+`bpftool`:
+
+- Its repository CI has build,
   lint,
   docker,
-  static-build and release workflows and no functional test job
-  (`.github/workflows/`),
-  and its functional tests are the kernel's `tools/testing/selftests/bpf`,
+  static-build and release workflows and no functional test job.
+  Its functional tests are the kernel's `tools/testing/selftests/bpf`,
   which need root,
-  a BPF-capable kernel and a VM harness the project's own workflow drives (`vmtest` in libbpf).
-  No such run happened here,
-  and the surface it would exercise is `bpftool btf dump`'s output,
-  which is exactly the consumed surface,
-  so this omission is a gap too.
+  a BPF-capable kernel and a VM harness,
+  and no such run happened here or can happen in this container:
+  a container's kernel is this host's kernel,
+  and loading BPF programs needs privileges the run does not take.
 - Read strictly,
-  the skill fails a candidate whose relevant suite cannot be inspected or run.
-  This report does not fail the tools,
-  because each had a consumer-boundary validation with negative controls on this host's pair;
-  what it does instead is refuse the "equal depth" claim,
-  price the gap in the confidence of C5 and C6 for the tools,
-  and carry it as a limit the project can see.
+  the skill fails the candidate:
+  a relevant suite that cannot be inspected or run fails it,
+  and duration or a mirror's convenience does not justify omission.
+  This report therefore fails `bpftool`
+  and continues with the other survivors,
+  which is what the skill's "relevant execution unavailable" terminal rule says to do when others
+  remain.
 
-The C3 premise the first revision used is wrong in one respect:
+What that leaves:
 
-- It rated both tools' privilege surface 1 with high confidence on the premise that the child runs as root.
+- `pahole` remains a finalist.
+  Its suite ran with recorded skips,
+  and its output boundary was validated earlier with 323 checks and two negative controls.
+- `bpftool` is failed,
+  and its scores are no longer used for any result.
+  The arm that keeps it is printed in [Sensitivity](#sensitivity),
+  so the project can see what returning it would change:
+  it adds the `pahole` and `bpftool` pair,
+  whose eleven rating-step ties no evidence converts into an order,
+  and it changes nothing about the first place.
+- The C3 premise the first revision used is wrong,
+  and it moves here with the whole program discussion:
+  it rated both programs' privilege surface 1 with high confidence on the premise that the child runs
+  as root.
   Both BTF files are mode `0444` on this host,
   so a child could read them unprivileged,
   sandboxed and under a hard resource and wall-clock limit,
   which a library in the handler's own address space cannot be.
   Nothing in the product's design requires the child to be privileged;
   the root handler can drop to an unprivileged user for the child.
-  So the tools' C3 cost is a cost the program arm can shrink,
-  and the report prices the unshrunken form and says so.
-  The rating stays 1 for the spawned-program shape the design names
-  (a program the root handler starts),
-  because that is the shape being priced;
-  the unprivileged-child variant is the one the project should weigh,
-  and it is stated in
-  [Open questions for the project](#open-questions-for-the-project).
+  That is why the confidence is medium now and the rating prices the unshrunken shape only,
+  and it is what question 4 of [Open questions for the project](#open-questions-for-the-project)
+  puts to the project.
 
 ### The `aarch64` build and what it does not show
 
@@ -1857,7 +2346,7 @@ in capped containers with no home mount and the network off:
   the validation round's stable 1.100.0 plus the `rust-std-1.100.0-aarch64-unknown-linux-gnu` archive.
   The reviewer recorded that it took that archive from the channel manifest dated 2026-11-12 and that the
   archive's SHA-256 matches the manifest;
-  this revision did not repeat that fetch and does not rest a claim on the hash.
+  the second revision did not repeat that fetch and does not rest a claim on the hash.
   `rustup` was not used,
   which is what the `ebeepf` round's failed fetch needed.
 - `btf-rs` 2.0.1 archive:
@@ -1885,7 +2374,7 @@ What it does not close:
 nothing here executed the `aarch64` artifacts,
 so a target-specific miscompile would still be invisible,
 and the two tools have no `aarch64` artifact at all.
-The evidence is a cross-vendor reviewer's run that this revision did not repeat;
+The evidence is a cross-vendor reviewer's run that the second revision did not repeat;
 its logs and driver are cited where they are kept,
 and the report does not present them as its own measurements.
 
@@ -1894,7 +2383,7 @@ and the report does not present them as its own measurements.
 The skill asks for a specific audit,
 not an issue count,
 and the first revision asserted its C5 ratings without keeping the records.
-This revision ran it for all four finalists,
+The second revision ran it for all four candidates,
 on 2026-11-20,
 through the repository hosts' API,
 read only,
@@ -2015,7 +2504,7 @@ otherwise the 10 most recently updated.
   Nothing was merged,
   nothing was reviewed,
   and the repository has no `.github` directory,
-  which the API answers 404 for when re-read in this revision,
+  which the API answers 404 for when re-read in the second revision,
   so there is no CI to lean on.
 - Release record:
   one release,
@@ -2048,7 +2537,10 @@ otherwise the 10 most recently updated.
   57,
   33 and 24.
   In the window,
-  100 commits returned and `acmel` wrote 87 of them.
+  the most recent 100 commits (the page cap,
+  which the report states because the cap was reached),
+  covering 2026-06-19 to 2026-10-02,
+  and `acmel` wrote 87 of them.
 - Issues in the window:
   five,
   all sampled,
@@ -2073,6 +2565,10 @@ otherwise the 10 most recently updated.
   no release objects on the host;
   the tool releases from the project's own site and its distribution packages,
   and the package here is `1:1.32-2`.
+  The host's tags date the releases the audit could not take from a releases endpoint:
+  `v1.32` on 2026-09-13,
+  `v1.31` on 2025-11-07 and
+  `v1.30` on 2025-04-09.
 - Classification:
   active development in a single very experienced maintainer,
   with weak issue triage on the host and no merge path there;
@@ -2102,7 +2598,9 @@ otherwise the 10 most recently updated.
   `anakryiko` 33,
   `olsajiri` 32 and `borkmann` 17.
   In the window,
-  100 commits,
+  the most recent 100 commits (the page cap),
+  which the report states because the cap was reached:
+  100 rows covering 2026-06-19 to 2026-10-02,
   of which `dependabot` 22 and `qmonnet` 17;
   the rest is spread over 29 other authors,
   several of them one patch each.
@@ -2125,8 +2623,12 @@ otherwise the 10 most recently updated.
   `include: add u128 to linux/types.h`) was reviewed twice,
   and it merged in 0.7 days,
   so nothing external was merged unreviewed in this sample.
-  The periodic "Bpftool sync" pull request (`#301`) brings the kernel tree's state across and carries no review,
-  which is its normal shape.
+  The periodic "Bpftool sync" pull requests bring the kernel tree's state across and carry no review,
+  which is their normal shape;
+  the sample's three of them,
+  `#301`,
+  `#298` and `#294`,
+  are maintainer self-merges with no review.
   The one open external fix (`#299`,
   "fix line info offsets in CFG dump") has no review yet.
   Merge latency is short for the mechanical ones,
@@ -2134,9 +2636,10 @@ otherwise the 10 most recently updated.
 - Release record:
   releases on the host,
   driven by tags and a release workflow;
-  the binary here reports `7.8.0` while its package is `7.3.4-1`,
+  the audit's own releases response lists `v7.8.1` on 2026-10-20 and `v7.7.0` on 2026-03-21.
+  The binary here reports `7.8.0` while its package is `7.3.4-1`,
   which is the version-string finding
-  ([The two tools' provenance and suites](#the-two-tools-provenance-and-suites)).
+  ([Provenance of the two programs](#provenance-of-the-two-programs)).
 - Classification:
   active,
   well-staffed maintenance,
@@ -2159,12 +2662,20 @@ which is what the skill asks a C5 claim to have.
 
 The skill's high-trust overlay asks for measurements of the code a root process would run,
 and the first revision named the overlay and then measured nothing against it.
-This revision measured the four finalists from their own source,
-on 2026-11-20,
-with the commands kept.
+The second revision measured the four candidates from their own source,
+on 2026-11-20;
+this revision re-ran the two libraries' measurements from freshly downloaded archives,
+with the output kept
+(`keep/measure-the-three-crate-archives-output-2.txt`),
+so the numbers below are this revision's own reads and not citations only.
 
 - `btf-rs` 2.0.1:
-  2,749 lines of Rust in 7 files under `src/`,
+  2,749 lines of Rust in 8 files under `src/`
+  (`lib.rs`,
+  `btf.rs`,
+  `cbtf.rs`,
+  `error.rs`,
+  `section.rs` and three under `utils/`),
   of which the route the product calls,
   `from_bytes` and `from_split_bytes` through `btf.rs`,
   `cbtf.rs` and `section.rs`,
@@ -2203,11 +2714,20 @@ with the commands kept.
   `object` with `write`,
   `sha2`,
   `thiserror`);
-  five `Command::new` calls in `src/skel.rs` that run `clang`,
-  which the parsing route does not reach;
-  no network.
+  three `Command::new` sites in `src/skel.rs`,
+  at lines 603 (`clang`),
+  673 (`rustfmt`) and 3397
+  (`cargo`,
+  inside a test module),
+  plus one in `src/test_bpf.rs:37` (`clang`),
+  and none of them is reached by the parse route;
+  the earlier count of five `clang` calls in `skel.rs` was wrong.
+  No network.
 - `pahole` 1.32:
-  the BTF parse path is libbpf's `src/btf.c` at 6,780 lines of C plus the project's `btf_loader.c` at 863;
+  the packaged binary's parse path is the libbpf built in from the recipe's unpinned branch,
+  whose
+  `src/btf.c` is 6,376 lines at kernel `v7.3.4`,
+  plus the project's `btf_loader.c` at 863 lines at `v1.32`;
   there is no `unsafe` count to take,
   because all of it is unchecked by construction;
   the binary needs four shared libraries,
@@ -2215,7 +2735,12 @@ with the commands kept.
   the product never links it,
   so its lines are the child's and not the handler's.
 - `bpftool` 7.8.0:
-  the same 6,780 lines of libbpf C plus the project's `src/btf.c` at 1,895;
+  the same 6,376 lines of libbpf C plus the project's `tools/bpf/bpftool/btf.c` at 1,562 lines at
+  `v7.3.4`,
+  which is the tree the package builds;
+  the 1,895-line and 6,780-line figures the second revision printed describe the standalone mirror
+  and a `dwarves` submodule,
+  not the packaged code;
   C again,
   so no `unsafe` count applies;
   the binary needs `libelf`,
@@ -2239,7 +2764,7 @@ and the product would use 7 percent of `ebeepf`'s code.
 That is a real and large auditability difference,
 and it is what C8 prices.
 The tools are in the middle:
-their parser is one 6,780-line C file reading bytes,
+their parser is one 6,376-line C file reading bytes,
 which is a smaller surface to read than `ebeepf`'s crate but not memory-safe,
 and it does not run in the handler's address space at all,
 which is an auditability advantage a line count does not show.
@@ -2303,11 +2828,12 @@ with the run or path beside each claim.
   ([The `aarch64` build](#the-aarch64-build-and-what-it-does-not-show)).
   Effect:
   4 each.
-- Both tools 1 high:
+- Both tools 1 medium:
   each adds a program the product must find and version,
   and one of them in the root handler.
   Effect:
-  1 each.
+  1 each,
+  not scored for this report's result.
 
 ### C3: privilege surface in the root handler, weight 1, higher is smaller
 
@@ -2315,7 +2841,7 @@ with the run or path beside each claim.
   in-process code keeps the privileged handler to its own binary.
   Effect:
   4 each.
-- Both tools 1 high,
+- Both tools 1 medium,
   and the rating prices the shape the design names,
   a program the root handler starts:
   that shape adds a path and library resolution to the boundary.
@@ -2324,11 +2850,13 @@ with the run or path beside each claim.
   is wrong:
   both BTF files are mode `0444`,
   so the child can read them unprivileged and bounded
-  ([The two tools' provenance and suites](#the-two-tools-provenance-and-suites)).
+  ([The two programs' eligibility](#the-two-programs-suites)).
   The unprivileged-child shape is a variant the project can choose and this rubric does not price;
   it is one of the open questions.
+  The confidence is medium because the rating prices a shape the product need not take.
   Effect:
-  1 each.
+  1 each,
+  not scored for this report's result.
 
 ### C4: diagnostic precision, weight 1
 
@@ -2375,14 +2903,29 @@ Every claim here is now backed by the sample recorded in section "Maintenance au
   a README that declares the tree unreviewed.
   Effect:
   2.
-- Both tools 4 high:
+- Both tools 4 medium:
   both are packaged here and both follow a release cadence,
   and the audit shows a real merge path for `bpftool` and a single very active maintainer for `pahole`.
-  It also shows that `pahole`'s host pull requests are all open with no review,
-  because that project merges on a mailing list,
+  The release dates the audit's own responses carry,
+  and the second revision did not cite,
+  are
+  `pahole`'s tags `v1.32` on 2026-09-13,
+  `v1.31` on 2025-11-07 and `v1.30` on 2025-04-09,
+  and `bpftool`'s releases `v7.8.1` on 2026-10-20 and `v7.7.0` on 2026-03-21.
+  Two facts keep this out of the high-confidence set the second revision used:
+  the audit read GitHub mirrors while `pahole` develops on a mailing list and releases from the
+  project site,
+  and `bpftool` develops in the kernel tree,
+  whose releases are kernel releases;
+  and the project's own queue on the host is not the venue the packaged code comes from.
+  The audit also shows that `pahole`'s host pull requests are all open with no review,
   so the rating covers the release record and not the host's queue.
+  The label is medium here;
+  the arm that keeps the two programs scores them on that label
+  ([The two programs' eligibility](#the-two-programs-suites)).
   Effect:
-  4 each.
+  4 each,
+  not scored for this report's result.
 
 ### C6: integration and test cost, weight 1, higher is cheaper
 
@@ -2435,20 +2978,39 @@ Every claim here is now backed by the sample recorded in section "Maintenance au
   1 `unsafe` token outside the route the product calls,
   5 direct dependencies with one same-author proc-macro of 114 lines,
   no process execution and no network.
-  It does not rate higher because its dependencies are five rather than none,
-  and one of them runs at build time in the product's own build.
+  The rating scale this criterion was applied on is the anchors below,
+  which the second revision left implicit:
+  4 is a reader whose whole route is pure Rust,
+  under 3,000 lines,
+  with no `unsafe` on the route and a small,
+  single-author-visible dependency set;
+  3 is that shape with an `unsafe` block or a wider dependency surface between the caller and the
+  parse;
+  2 is a reader that is either not memory-safe,
+  or carries ten times the code the route uses,
+  or both;
+  1 is unchecked native code in the handler's address space with a runtime library load;
+  0 is no inspectable route at all.
+  `btf-rs` sits at 4 because every anchor of 3 is absent:
+  no `unsafe` on the route,
+  five dependencies including the 114-line proc-macro,
+  and no process or network site.
+  The five dependencies are the one thing that would have made this a 3 rather than a 4 on a stricter
+  reading;
+  the rating records that they are not none.
   Effect:
   4.
 - `ebeepf` 2 medium:
   28,769 lines of which the reader is 1,926,
   57 `unsafe` tokens,
   7 direct dependencies,
-  and five `clang` invocations in a module the parse route never calls.
+  and three `Command::new` sites in a module the parse route never calls
+  plus one in a test module.
   The product would link ten times the code it uses.
   Effect:
   2.
 - Both tools 2 medium:
-  the parser is one 6,780-line C file,
+  the parser is one 6,376-line C file,
   which is smaller than `ebeepf`'s crate but unchecked by construction,
   and `bpftool`'s child also loads `libLLVM`.
   They do not rate higher because the child's code is not memory-safe either,
@@ -2456,20 +3018,45 @@ Every claim here is now backed by the sample recorded in section "Maintenance au
   Effect:
   2 each.
 
+The criterion's role,
+stated because it decides a result a reader would not otherwise see:
+it is what makes the library pair stable at the frozen weights.
+The pair's 27.5 against 24.5 rests on a 3-point gap,
+and C8 alone contributes 2 of it;
+with C8 removed the same ratings put `btf-rs` at 23.5 and `ebeepf` at 22.5,
+and six one-input steps tie them
+(`btf-rs` C1,
+C5 and C6 down by one;
+`ebeepf` C1,
+C5 and C6 up by one)
+in a 60-test family where 14 tests flag instead of 10 of 71.
+That arm is a sensitivity and not a second baseline:
+the criterion is derivable from the skill's high-trust overlay,
+and the second revision added it after rating,
+which is the departure
+[Refreeze of the second revision](#refreeze-of-the-second-revision) records.
+
 The numbers behind every entry are section "Human auditability".
 
 The in-house reader's ratings price code that does not exist:
-C1 4,
-C2 4,
-C3 4,
-C4 4,
-C5 3,
-C6 2,
-C7 2.5,
-C8 4.
+C1 4 high,
+C2 4 high,
+C3 4 high,
+C4 4 high,
+C5 3 medium,
+C6 2 medium,
+C7 2.5 low,
+range 2 to 3,
+C8 4 high.
 Its 27.5 of 32 is a ceiling,
 not a measurement,
 and the design says so.
+The four high labels are why its pair with `btf-rs` is not perturbed on those criteria:
+labelling all four medium,
+which is what code that does not exist supports,
+gives a 52-test pair from which 28 tests order it,
+where the high labels give 47 tests from which 23 order it
+(section [Sensitivity](#sensitivity)).
 
 ## Score arithmetic
 
@@ -2486,9 +3073,13 @@ Every weight 1,
 maximum 32,
 normalized to one decimal place.
 Every figure below was recomputed by
-`~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/recompute-refrozen-rubric-matrix.ts`,
+`~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/recompute-the-matrix-over-the-remaining-candidates.ts`,
 whose output is kept beside it,
-from the ratings in section "Evidence for the scores".
+and the second revision's script is at
+`~/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/recompute-refrozen-rubric-matrix.ts`,
+not directly under `scratch/`,
+which is the path the second revision printed.
+Both run from the ratings in section "Evidence for the scores".
 
 - `btf-rs` 2.0.1:
   `1*3 + 1*4 + 1*4 + 1*4 + 1*3 + 1*3 + 1*2.5 + 1*4` = 27.5 of 32,
@@ -2499,7 +3090,8 @@ from the ratings in section "Evidence for the scores".
 - `pahole` 1.32:
   `1*3 + 1*1 + 1*1 + 1*3 + 1*4 + 1*3 + 1*1.5 + 1*2` = 18.5 of 32,
   57.8.
-- `bpftool` 7.8.0:
+- `bpftool` 7.8.0,
+  printed because the four-candidate arm needs it and not ranked:
   `1*3 + 1*1 + 1*1 + 1*2 + 1*4 + 1*3 + 1*1.5 + 1*2` = 17.5 of 32,
   54.7.
 - In-house reader,
@@ -2576,7 +3168,13 @@ It changed no ranking then and it changes none now,
 because that row is priced and never ranked.
 
 Both baselines place `btf-rs` ahead of `ebeepf`,
-and the writer's weights widen that gap from 3 points of 32 to 5 points of 108.
+and the writer's weights narrow that gap on a common scale:
+normalized,
+the frozen gap is 85.9 minus 76.6,
+which is 9.3 points,
+and the writer's is 87.0 minus 82.4,
+which is 4.6.
+The raw 3 of 32 against 5 of 108 compares different denominators and says the opposite.
 Neither baseline is a finding:
 the frozen one is the skill's and the other is a preference nobody has stated.
 
@@ -2590,51 +3188,129 @@ every medium-confidence and low-confidence exact rating one step down and up wit
 and both endpoints of every low-signal range.
 The ranges' endpoints are the plausible values,
 so no step is taken outside a range.
-That defines 71 tests over the four eligible finalists,
-and every one of them was run at both baselines.
 Ranking is by the unrounded fraction,
 and equal totals are an exact tie.
 
-### At the frozen baseline
+Two families are run and the difference matters:
+
+- over the finalists the skill leaves,
+  `btf-rs`,
+  `ebeepf` and `pahole`,
+  64 tests,
+  with `pahole`'s C3 and C5 confidence corrected to medium;
+  this is the set the report's result rests on;
+- over all four candidates as a recorded arm,
+  77 tests,
+  because the project may restore `bpftool` and then the earlier conditional rankings are what it
+  gets
+  ([The two programs' eligibility](#the-two-programs-suites)).
+
+### The finalists that remain
 
 Baseline:
-`btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 > `bpftool` 17.5 of 32.
+`btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 of 32.
 
 - `btf-rs` against `ebeepf`,
   51 tests:
   all 51 keep the order.
-  No rating step,
-  no weight step and no range endpoint closes the 3-point gap,
-  because `btf-rs`'s rating is at least `ebeepf`'s on every criterion,
-  so no weight increase on any criterion can favour `ebeepf` either.
+  Two facts make that structural rather than lucky:
+  `btf-rs`'s rating is at least `ebeepf`'s equal on every criterion,
+  so no weight increase can favour `ebeepf`;
+  and the only step that brings the margin below 3 is `btf-rs`'s C1 falling from 3 to 2,
+  which leaves 26.5 against 24.5.
 - `ebeepf` against `pahole`,
-  52 tests:
-  50 keep,
+  55 tests:
+  53 keep,
   1 ties and 1 reverses.
   - weight C5 from 1 to 4 ties at 30.5 each.
   - weight C5 from 1 to 5 reverses:
     `pahole` 34.5 over `ebeepf` 32.5.
-    This is the test that moves a program past a library,
-    and it is the most decision-relevant row in the matrix,
-    because the pick the project is asked to make is exactly library against program.
+    This is the row that decides whether this family recommends anything,
+    and it is a weight,
+    not a rating:
+    a weight is a preference,
+    the project has stated none,
+    and the skill says to ask rather than to invent one.
+
+Two of those 64 tests tie or reverse an adjacent order,
+and both are the same criterion's weight.
+So the skill's condition for ranking by the baseline is not met,
+and the report gives conditional rankings and recommends none
+([Terminal result](#terminal-result-sensitivity-unresolved)).
+The first place is not what moves:
+`btf-rs` is first in all 64 tests,
+by at least 2 over the runner-up and by at least 5 over `pahole`.
+The input that settles this family is how much maintenance and upstream responsiveness should
+count against deployment fit and privilege,
+and it reorders places 2 and 3 only.
+Stability here covers one input at a time and nothing else;
+simultaneous multi-input changes are not claimed.
+
+At the design writer's weights the same three finalists score 94,
+89 and 62 of 108,
+and two tests tie an adjacent order,
+both on the library pair:
+
+- `btf-rs` C1 from 3 to 2 ties at 89 each;
+- `ebeepf` C1 from 3 to 4 ties at 94 each.
+
+Those are C1 steps on the design writer's weights,
+which are not the baseline.
+
+### The arm that keeps both programs
+
+Baseline:
+`btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 > `bpftool` 17.5 of 32.
+This arm is recorded,
+not scored:
+it is what the project gets if it answers question 3 by keeping `bpftool` eligible.
+
+- `btf-rs` against `ebeepf`,
+  51 tests:
+  all 51 keep the order,
+  by the same argument as above.
+- `ebeepf` against `pahole`,
+  55 tests:
+  53 keep,
+  1 ties and 1 reverses,
+  at C5 weights 4 and 5,
+  as in the family above.
 - `pahole` against `bpftool`,
-  52 tests:
-  44 keep and 8 tie,
+  58 tests:
+  47 keep and 11 tie,
   with no reversal.
   - `pahole` C1 from 3 to 2 ties at 17.5 each.
+  - `pahole` C3 from 1 to 0 ties at 17.5 each.
   - `pahole` C4 from 3 to 2 ties at 17.5 each.
+  - `pahole` C5 from 4 to 3 ties at 17.5 each.
   - `pahole` C6 from 3 to 2 ties at 17.5 each.
   - `pahole` C8 from 2 to 1 ties at 17.5 each.
   - `bpftool` C1 from 3 to 4 ties at 18.5 each.
+  - `bpftool` C3 from 1 to 2 ties at 18.5 each.
   - `bpftool` C4 from 2 to 3 ties at 18.5 each.
   - `bpftool` C6 from 3 to 4 ties at 18.5 each.
   - `bpftool` C8 from 2 to 3 ties at 18.5 each.
 
-Ten of those 71 tests tie or reverse an adjacent order.
-Under the skill's rule,
-a tie asks for the controlling preference and invents no tiebreaker,
-and a reversal means the order is not stable;
-so no ranking at this baseline can be published as the report's order.
+Thirteen of those 77 tests tie or reverse an adjacent order.
+At the second revision's published labels the family was 71 tests and 10 flagged;
+the three extra are the two programs' C3 steps and `pahole`'s C5 step.
+The eight program-pair ties the gate re-check counted are eleven here.
+They are rating-step ties,
+which the skill resolves with evidence and not with a preference;
+they are also moot while `bpftool` is failed,
+because no order between it and `pahole` is published
+([The two programs' eligibility](#the-two-programs-suites)).
+
+The first place never moves in this arm,
+in any of the 77 tests.
+Its smallest lead over the runner-up is 2 points,
+and over the best program 5 points,
+at a maintenance weight of 5:
+`btf-rs` 39.5 > `pahole` 34.5 > `bpftool` 33.5 > `ebeepf` 32.5.
+That is the row the first revision's text called "the program arm becomes the rational pick";
+the row says the library is still first,
+by 5,
+and the weight reorders places 2 to 4.
 
 Only one of the eight weights moves the whole order,
 and only above 3:
@@ -2650,90 +3326,75 @@ and only above 3:
   an exact tie;
 - weight C5 at 5:
   `btf-rs` 39.5 > `pahole` 34.5 > `bpftool` 33.5 > `ebeepf` 32.5,
-  so both programs pass the second library.
+  so both programs pass the second library and neither approaches the first.
 
 Every other criterion's weight,
 at every value from 2 through 5,
 leaves the order exactly as the baseline has it.
-That is the sharpest statement this matrix makes about the decision:
-the only single input that changes what the project would pick
-is how much maintenance and upstream responsiveness should count.
-
-The in-house pair is priced and not ranked,
-and its matrix is recorded because the project could reopen it:
-at the frozen baseline it ties at 27.5 each,
-and 35 of its 47 tests move it,
-24 to a tie and 11 to a reversal.
-The reverses are the ones where `btf-rs` gains a step or the in-house ratings fall,
-for example `btf-rs` C1 3 to 4 at 28.5 against 27.5,
-and every C6 weight above 1,
-because the in-house reader rates 2 there against `btf-rs`'s 3.
-
-### At the design writer's weights
-
-Baseline:
-`btf-rs` 94 > `ebeepf` 89 > `pahole` 62 > `bpftool` 58 of 108.
-
-- `btf-rs` against `ebeepf`,
-  51 tests:
-  49 keep and 2 tie.
-  - `btf-rs` C1 from 3 to 2 ties at 89 each.
-  - `ebeepf` C1 from 3 to 4 ties at 94 each.
-  Both are the C1 confidence change this revision made visible:
-  at weight 5 that rating is worth 5 points per step,
-  which is exactly the pair's gap.
-- `ebeepf` against `pahole`,
-  52 tests:
-  all keep.
-  At these weights maintenance is 3 and the gap is 27 points,
-  so nothing single moves it.
-- `pahole` against `bpftool`,
-  52 tests:
-  48 keep,
-  2 tie and 2 reverse.
-  - `pahole` C1 from 3 to 2 reverses:
-    `bpftool` 58 over `pahole` 57.
-  - `pahole` C4 from 3 to 2 ties at 58 each.
-  - `bpftool` C1 from 3 to 4 reverses:
-    `bpftool` 63 over `pahole` 62.
-  - `bpftool` C4 from 2 to 3 ties at 62 each.
-
-Six of those 71 tests tie or reverse an adjacent order.
-So the writer's weights are unstable on two pairs and stable on one,
-the frozen weights are unstable on two pairs and stable on the library pair,
-and no single pair is stable at both baselines.
+At the design writer's weights this arm is 77 tests with eight flagged:
+`pahole` C3 and C4 ties and the two C1 reversals on the program pair,
+and the same two C1 ties on the library pair.
 
 ### What the evidence could and could not settle
 
 The skill's first remedy for a move is to gather decisive evidence,
 refreeze and rerun.
-This revision did the evidence half for three inputs:
+The second revision did the evidence half for three inputs:
 the maintenance audit for C5 (section "Maintenance audit"),
 the auditability measurements for C8 (section "Human auditability"),
 and the C1 confidence label for `btf-rs` (section "C1").
 It refroze and reran,
-and the rerun still moves:
+and the rerun still moved at four candidates.
+This revision ran the one suite that could still be run
+(`pahole`'s,
+in a container),
+which removed `bpftool` and kept `pahole`;
+the family is smaller and one weight still reorders two of the three.
 
-- the `ebeepf` and `pahole` pair still reverses,
-  and the input that moves it is a weight,
-  not a rating.
-  A weight is a preference.
-  No further source reading tells the project whether maintenance should count five times as much as deployment fit;
-  the skill says to ask,
-  and section "Open questions for the project" asks.
-- the `pahole` and `bpftool` pair still ties on eight one-input steps.
-  The C4 evidence orders `pahole` ahead when both are read carefully,
-  because `pahole` prints the compared members and `bpftool` needs a resolver;
-  but the skill does not let a report convert a tie into an order by argument,
-  so the tie stands until a preference settles it.
-- the library pair's two ties exist only at the writer's weights,
-  which are not the baseline.
+What could not be settled by evidence,
+and what the report therefore does not pretend to settle:
 
-The aggregate ranges are 27 to 28,
-24 to 25,
-18 to 19 and 17 to 18 at the frozen baseline.
-Stability here covers one input at a time and nothing else;
-simultaneous multi-input changes are not claimed.
+- the maintenance weight,
+  which is a preference and not a reading,
+  and which decides whether `ebeepf` or `pahole` is second;
+- `bpftool`'s functional tests,
+  which need root,
+  a BPF-capable kernel and a VM harness;
+- the start cost,
+  which no round measured and which C7 prices as a low-confidence range in every row;
+- the `aarch64` run,
+  which no machine here has.
+
+The in-house pair is priced and not ranked,
+and its matrix is recorded because the project could reopen it:
+at the frozen baseline it ties `btf-rs` at 27.5 each.
+The second revision printed "35 of its 47 tests move it,
+24 to a tie and 11 to a reversal";
+that counts a tie as movement,
+which is wrong,
+because a tie is the baseline.
+The three buckets,
+at the labels the second revision used
+(in-house C1 to C4 and C8 high,
+C5 and C6 medium,
+C7 low),
+are:
+
+- 24 of 47 stay tied;
+- 11 of 47 put `btf-rs` ahead;
+- 12 of 47 put the in-house row ahead.
+
+With every in-house rating labelled medium,
+which is what code that does not exist supports,
+the pair runs 52 tests:
+
+- 24 stay tied;
+- 16 put `btf-rs` ahead;
+- 12 put the in-house row ahead.
+
+So 23 or 28 tests order the pair,
+not 35,
+and the report prints both labellings rather than the flattering one.
 
 ## Pros and cons for every finalist
 
@@ -2770,8 +3431,9 @@ simultaneous multi-input changes are not claimed.
   27.5 of 32 at the frozen baseline,
   the highest of the eligible candidates,
   and 94 of 108 at the design writer's weights.
-- Why it leads when the stability test is set aside:
+- Why it leads even though the order below it moves:
   no other candidate's rating beats its own on any criterion,
+  so no weight can put another candidate first,
   and a library needs no program the product must find and version.
 
 ### `ebeepf` 0.1.0
@@ -2802,10 +3464,12 @@ simultaneous multi-input changes are not claimed.
   24.5 of 32 at the frozen baseline,
   three points behind on maintenance and auditability,
   and 89 of 108 at the design writer's weights.
-- Why it is second among the libraries:
-  the pair separates on maintenance,
+- Why it is second and not third at the baseline:
+  the pair with `btf-rs` separates on maintenance,
   auditability and the C1 confidence the archive supports,
-  and no single rated input at the frozen baseline moves it.
+  and no single rated input at the frozen baseline moves it;
+  its place against `pahole` is the one input that moves,
+  and it holds only while maintenance counts no more than three times deployment fit.
 
 ### `pahole` 1.32
 
@@ -2819,15 +3483,23 @@ simultaneous multi-input changes are not claimed.
   so a child needs no privilege.
 - Cons:
   a runtime package;
-  a program the root handler starts;
+  a program the root handler starts,
+  in the shape this rubric prices;
   a text format;
   an invocation each for the struct,
   the nested type and the enum;
   the product must find and version it;
-  its release matrix is unrun,
-  its upstream suite was not run here,
-  and its host pull requests get no review because the project merges on a mailing list;
-  its parser is libbpf's 6,780 lines of C.
+  its embedded libbpf comes from a branch its recipe does not pin;
+  its host pull requests get no review because the project merges on a mailing list;
+  its upstream suite skipped eleven cases here,
+  including its split-BTF case,
+  whose artefacts this machine does not have;
+  its parser is libbpf's 6,376 lines of C in the packaged tree.
+- Its suite:
+  76 cases at the packaged tag with the packaged patches,
+  66 passing and 10 skipped,
+  none failing
+  ([The two programs' suites](#the-two-programs-suites)).
 - Its score:
   18.5 of 32 at the frozen baseline,
   the runtime program costing the deployment and privilege points the libraries do not.
@@ -2835,7 +3507,7 @@ simultaneous multi-input changes are not claimed.
   the whole of its deficit is C2 and C3,
   and both are criteria a project can rank below maintenance.
 
-### `bpftool` 7.8.0
+### `bpftool` 7.8.0, failed on relevant execution
 
 - Pros:
   libbpf's reader;
@@ -2855,7 +3527,10 @@ simultaneous multi-input changes are not claimed.
 - Its score:
   17.5 of 32 at the frozen baseline,
   the lowest of the four,
-  for the resolver its output needs and its medium diagnostic rating.
+  for the resolver its output needs and its medium diagnostic rating;
+  the score is not used for any result,
+  because the candidate failed
+  ([The two programs' suites](#the-two-programs-suites)).
 
 ### The in-house reader, priced and not ranked
 
@@ -2882,14 +3557,15 @@ simultaneous multi-input changes are not claimed.
 
 No ranking here is the report's own.
 The skill's rule is to rank by the provisional baseline only when every defined one-input test preserves order,
-and at the frozen baseline ten of 71 tests do not.
+and at the frozen baseline two of 64 tests do not,
+both of them the maintenance weight on the second and third places.
 What follows is therefore conditional in the skill's sense:
 the order on each side of every input that moves it,
 with the reason each adjacent pair sits that way.
 
 ### With every criterion at weight 1, the frozen baseline
 
-`btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 > `bpftool` 17.5 of 32.
+`btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 of 32.
 
 - `btf-rs` leads `ebeepf` because both are libraries in the wrapper's address space,
   and the pair separates on maintenance and on auditability:
@@ -2906,33 +3582,36 @@ with the reason each adjacent pair sits that way.
   and no binary the handler starts;
   at a maintenance weight of 4 the pair ties,
   and at 5 it reverses.
-- `pahole` leads `bpftool` because its `-C` output carries the compared members
-  while `bpftool`'s raw dump needs a type-id resolver,
-  and because `bpftool`'s parser adds 1,895 lines over the same libbpf.
-  Eight one-input steps tie that pair and none reverses it,
-  so that order holds at the frozen baseline and its margin is one point of 32.
+- The `pahole` and `bpftool` pair has no published order:
+  `bpftool` failed the skill's relevant-execution rule,
+  so only the arm that keeps it prints that pair,
+  with eleven rating-step ties and no reversal
+  ([Sensitivity](#sensitivity)).
 
 ### If maintenance and responsiveness weigh 4
 
-`ebeepf` 30.5 ties `pahole` 30.5.
-No order between the second library and the first program is supportable at that weight,
+`btf-rs` 36.5 > `ebeepf` 30.5 = `pahole` 30.5 of 32.
+No order between the second library and the program is supportable at that weight,
 and the skill says to ask which the project prefers rather than to break the tie.
-That question is the second of [Open questions for the project](#open-questions-for-the-project).
+That is question 1 of [Open questions for the project](#open-questions-for-the-project).
 
 ### If maintenance and responsiveness weigh 5
 
-`btf-rs` 39.5 > `pahole` 34.5 > `bpftool` 33.5 > `ebeepf` 32.5.
-Both programs pass the second library,
-and the program arm becomes the rational pick under that priority.
-This is the row the first revision's matrix lacked and the gate review named as the most decision-relevant one.
+`btf-rs` 39.5 > `pahole` 34.5 > `ebeepf` 32.5.
+The program passes the second library and is still 5 behind the first,
+which is the fact the first revision's sentence about "the rational pick" got wrong.
+In the arm that keeps `bpftool`,
+the same weight puts it third at 33.5 and `ebeepf` fourth at 32.5.
 
 ### If the project reopens the in-house reader
 
 That row is priced and not ranked because it is ineligible,
 not because it lost.
 At the frozen baseline it ties `btf-rs` at 27.5 of 32,
-and 35 of its 47 tests move it,
-24 to ties and 11 to reversals,
+and 23 of its 47 tests order it at the labels the second revision used,
+11 to `btf-rs` ahead and 12 to the in-house row ahead,
+with 24 staying tied
+(section [Sensitivity](#sensitivity)),
 so a reopened in-house route would begin with an unresolved comparison rather than an answer.
 
 ## Confidence and evidence limits
@@ -2953,14 +3632,23 @@ gathered here so nothing is buried:
 - The weights are the skill's default because the project stated no priority.
   The design writer's weights are reported as a sensitivity arm and never ranked,
   and both arms are unstable on some pair.
-- The tools' validation is one layer,
+- `pahole`'s validation is two layers,
   not three:
-  their output boundary was exercised with negative controls on this host's pair,
-  and neither upstream suite was run.
-  Their C5 and C6 rest on the records in section "Maintenance audit" and on nothing they executed.
-- The tools' provenance is a distribution package and a signature,
-  not a binary-to-source mapping;
-  `bpftool`'s self-reported version differs from its package's,
+  its output boundary was exercised with negative controls on this host's pair,
+  and its upstream suite ran here with ten recorded skips and no failure.
+  `bpftool`'s is one layer,
+  its output boundary,
+  because its functional suite needs root,
+  a BPF-capable kernel and a VM harness;
+  that is why it failed.
+  Both C5 ratings rest on the records in section "Maintenance audit",
+  and both are labelled medium now.
+- The programs' provenance is a recipe that names its source and a signature:
+  `bpftool` maps to `linux-7.3.4.tar.xz` with its sha256,
+  `pahole` to the signed tag `v1.32` plus three patches.
+  Neither recipe proves a byte-identical rebuild,
+  and `pahole`'s embedded libbpf is unpinned.
+  `bpftool`'s self-reported version carries that libbpf's version,
   which is the same cost C2 prices,
   seen in a measurement.
 - `ebeepf`'s provenance is its weakest point:
@@ -2989,8 +3677,12 @@ gathered here so nothing is buried:
   not the product on every kernel.
 - The 32-byte BTF header shape is what these files carry;
   the 24-byte shape a 6.8 guest's tools emit is owed measurement item 6 and no run here covers it.
-- The independent review this revision answers was written by a different vendor from the authoring session,
-  so it counts under rule `IRW` as an independent read.
+- The gate re-check this revision answers was written by a different vendor from the authoring session,
+  so it counts under rule `IRW` as an independent read,
+  and so did the gate review before it.
+  The suite run,
+  the archive measurement and the two matrices are this revision's own,
+  and their logs are kept rather than cited.
   This revision's own edits are not independently reviewed:
   the same session made them,
   and a fresh cross-vendor read,
@@ -3001,51 +3693,62 @@ gathered here so nothing is buried:
 
 The skill's terminal outcome for this evidence is "sensitivity unresolved":
 record conditional rankings for each outcome-changing input and recommend none.
-That is this report's result.
+That is this report's result,
+and it is the same outcome as the second revision's for a different finalist set and a different
+reason,
+which the report states rather than implying.
 
 Why the recommendation the first revision made is withdrawn:
 
 - The skill allows a ranking only when every defined one-at-a-time test preserves order.
-  At the frozen baseline ten of 71 do not:
-  a weight of 4 ties the second library with the first program,
-  a weight of 5 reverses them and moves the other program ahead too,
-  and eight rating steps tie the two programs.
+  At the frozen weights two of 64 tests do not:
+  a maintenance weight of 4 ties the second library with the remaining program,
+  and a weight of 5 puts the program second and the library third.
+  Both move one preference,
+  not a rating,
+  and a preference is the project's to state.
 - The first revision's grounds do not survive the refreeze.
   Its refusal of one reversal left that rating's confidence untouched,
   so the matrix never changed;
-  two of the four ties it explained away as maintenance ties are C6 steps that no maintenance evidence touches;
+  two of the four ties it explained away as maintenance ties are C6 steps that no maintenance
+  evidence touches;
   and its separation of the libraries rested on evidence it had not recorded.
 - The evidence the skill's loop asks for was gathered and applied,
   and the rerun still moves.
   What is left is a preference:
   how much maintenance should weigh against deployment fit and privilege.
   That is the project's to state,
-  and section "Open questions" asks it.
+  and question 1 of [Open questions](#open-questions-for-the-project) asks it.
 
 What the report therefore carries:
 
 - the frozen baseline's order,
-  `btf-rs` > `ebeepf` > `pahole` > `bpftool`,
+  `btf-rs` 27.5 > `ebeepf` 24.5 > `pahole` 18.5 of 32,
   as the order at those weights and under no claim of stability;
 - the conditions that change it,
-  spelled out in section "Conditional rankings";
-- the two open questions the project has to answer for any order to become a recommendation.
+  spelled out in section [Conditional rankings](#conditional-rankings);
+- the two open questions that can change an order,
+  the maintenance weight and `bpftool`'s eligibility,
+  and the design's own choice between a library and a program.
 
-What does not change:
-`btf-rs` 2.0.1 is the leading option at both baselines,
-it is the only finalist whose pull requests are reviewed and merged by a second maintainer,
-and it is the leanest reader any of the four offers.
-Reading the evidence strictly,
-it is the option this report would recommend if a priority had to be assumed;
-the skill does not let a report assume one,
-so it recommends none.
+What does not change,
+stated as a fact and not as a recommendation in a conditional:
+
+- `btf-rs` 2.0.1 is first in every defined test at the frozen weights,
+  over all three finalists and over the recorded four-candidate family,
+  with a smallest lead of 2 points over the runner-up;
+- it is the only finalist whose pull requests are reviewed and merged by a second maintainer,
+  and the leanest reader any of the four offers;
+- `bpftool` failed the skill's relevant-execution rule and cannot be ranked,
+  and `pahole` stays a finalist because its upstream suite ran here.
 
 Beside the result,
 in the same breath:
 
 - `aarch64` is built and unrun for both libraries;
 - the start cost is unmeasured;
-- the tool arm's validation is one layer deep and its suites are unrun;
+- `pahole`'s suite skipped its `vmlinux`-based cases and its split-BTF case,
+  with the reasons and their distance from the consumed route recorded;
 - and this is not adoption:
   no crate is added to any manifest,
   and the decision record's Q1 section still says the pick is the project's.
@@ -3056,18 +3759,22 @@ in the same breath:
   added no crate to any manifest,
   edited no decision record,
   and wrote nothing under `doc/handover/`.
-- It ran no third-party code.
-  It read source,
-  archives,
-  package records and repository-host responses,
-  and every execution record above is a kept log of a round run earlier in this worktree or by the gate review.
+- It ran one candidate's code,
+  in a container with no home mount and capped resources:
+  `pahole`'s upstream suite,
+  built from the packaged tag with the packaged patches.
+  Nothing it ran could reach this machine's home directory,
+  and the proxy variables kept the suite's
+  own network fetch from downloading anything.
+  Every other execution record above is a kept log of a round run earlier in this worktree or by a
+  reviewer.
 - It ran nothing on `aarch64` and took no timing,
   and its `aarch64` build evidence is the gate review's,
   cited where it is kept.
-- It did not re-run the finalist suites,
-  the two tools' upstream suites,
+- It did not re-run the two libraries' suites,
+  `bpftool`'s functional suite,
   or the class 3 queries;
-  it corroborated the crates.io count only.
+  it re-ran the crate-archive measurements and `pahole`'s suite.
 - It did not open an issue,
   a pull request or a comment on any candidate's repository,
   and it sent no query carrying this repository's name or this machine's addresses.
@@ -3100,15 +3807,47 @@ Internal:
 
 Kept evidence:
 
-- `/home/user/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/`,
+- `/home/user/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/scratch/keep/`,
   this revision's own records:
+  the matrix over the remaining finalists,
+  its arms and its output,
+  the crate-archive measurement and its output,
+  the container driver,
+  the three pahole-suite logs and their outputs,
+  the five `v7.3.4` source files,
+  the three packaging patches,
+  the lock record copy,
+  the edit scripts this revision used,
+  and the lint mapping script.
+  The scratch folders that held the extracted archives,
+  the clones and the container's build are
+  not kept,
+  because they are reproducible from the kept records;
+  the archives' hashes and line counts are the kept output.
+- `/home/user/temp/agent/zfs-layout-checker-reader-vet-report-gate-review-findings-fixed-2026-11-20/scratch/keep/`,
+  the second revision's own records:
+  the recomputed matrix and its output,
+  the staged report and the pre-lint copy,
+  the repository-host responses under `gh/`,
+  the per-sample maintainer records under `gh/detail/`,
+  the fingerprint and lock scripts,
+  and the lint mapping script.
+- `/home/user/temp/agent/gate-recheck-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/`,
+  the gate re-check this revision answers:
+  its review,
+  its independent matrix and output,
+  its crate-archive measurement,
+  the packaging recipes it fetched,
+  the `v7.3` kernel sources,
+  the maintenance spot checks,
+  and the lint mapping.
   the recomputed matrix and its output,
   the repository-host responses under `gh/`,
   the per-sample maintainer records under `gh/detail/`,
   the fingerprint and lock scripts,
   and the lint mapping script.
 - `/home/user/temp/agent/gate-review-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/keep/`,
-  the independent review this revision answers,
+  the independent review the second revision answers,
   its recomputation of the first revision's matrix,
   the two `aarch64` build logs and their driver,
   its extra crates.io probe,
@@ -3137,7 +3876,14 @@ all read 2026-11-20:
   the `q=btf`,
   `q=split btf`,
   `q=btf kernel` and `q=libbpf` search endpoints,
-  and the three archives this revision downloaded and hashed.
+  and the three archives both revisions downloaded and hashed.
+- the kernel's stable tree at tag `v7.3.4`,
+  read through
+  `raw.githubusercontent.com/gregkh/linux/v7.3.4/` for the four files named under
+  [Provenance of the two programs](#provenance-of-the-two-programs).
+- the distribution packaging repositories:
+  Arch's `linux-tools` PKGBUILD at tag `7.3.4-1`,
+  and CachyOS's `pahole` PKGBUILD with its three patches.
 - [docs.rs][docs-rs] for both library crates.
 - the repository hosts' records for
   [`retis-org/btf-rs`](https://github.com/retis-org/btf-rs),
