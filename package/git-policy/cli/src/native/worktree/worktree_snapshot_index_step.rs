@@ -29,11 +29,12 @@ use crate::fs_beneath::{open_directory_at, open_file_at, open_root};
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_index::{StatFields, StatLookup};
-use crate::subvolume_index_files::install_index_in;
+use crate::subvolume_index_files::{install_index_in, with_zeroed_stat};
 use crate::worktree_clean::{ContentTarget, StatEntry, stored_stats, tree_fields_by_content};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_source::SnapshotSource;
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
@@ -183,12 +184,16 @@ pub(crate) fn prove_the_copy(source: &SnapshotSource, root: &Path, environment: 
 /// An entry no walk covered keeps the fields its own index recorded,
 /// so Git hashes the file instead of trusting
 ///  fields taken from it.
+/// The paths the conversion fence leaves to Git (`written`) are installed with their stat data zeroed,
+///  whatever `proven` or the walk recorded for them,
+/// so no step between this install and the fence's own checkout run vouches
+///  for the source's bytes there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await installIndex({ source, stage, admin, ownIndex, environment, proven }); // the state of the copy
+/// await installIndex({ source, stage, admin, ownIndex, environment, proven, written }); // the state of the copy
 /// ```
-pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>, environment: &ConversionEnvironment, proven: Option<Proof>) -> Result<CopyState, String> {
+pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index: Option<&[u8]>, environment: &ConversionEnvironment, proven: Option<Proof>, written: &HashSet<Vec<u8>>) -> Result<CopyState, String> {
     let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     // A clean source proved its index equal to its files, so it is compared with the snapshot. A source with changes has no such
     //  proof: the snapshot's own index, one instant with its files, is installed as it is and the restore settles the rest.
@@ -250,11 +255,21 @@ pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File,
     for (entry, fields) in entries.iter().zip(walked) {
         known.insert(entry.path.as_slice(), fields);
     }
+    // The fence's paths are installed without stat data: the seed's own entry for each of them is zeroed, and the walk's
+    //  fields are never written over it, so the published index cannot vouch for bytes Git has not written yet. The seed
+    //  walker refuses an index it cannot read, and that refusal is the rung's reason.
+    let mut seed_bytes: Vec<u8> = seed.to_vec();
+    if !written.is_empty() {
+        seed_bytes = match with_zeroed_stat(seed, written, source.clean.hash_length) {
+            Some(zeroed) => zeroed,
+            None => return Err(String::from("the source's index has a layout the reader does not know, so the paths Git must write cannot be installed without stat data")),
+        };
+    }
     // An entry the walk did not cover (a source with changes has no walk) keeps the stat fields the index it came from recorded:
     //  refreshed from the file, they would vouch for bytes no walk proved, and Git would trust them over the content the entry
     //  names. The restore settles those entries by content.
     let install_index_file_entered: bool = begin_step("installIndexFile");
-    let install_index_file_outcome = install_index_in(admin, seed, &mut WalkedStats { known: &known }, source.clean.hash_length);
+    let install_index_file_outcome = install_index_in(admin, seed_bytes.as_slice(), &mut WalkedStats { known: &known, written }, source.clean.hash_length);
     end_step(install_index_file_entered);
     let report: String = install_index_file_outcome?;
     crate::diagnostic_log::debug("takeSnapshot", report.as_str());
@@ -264,25 +279,34 @@ pub(crate) fn install_index(source: &SnapshotSource, stage: &Path, admin: &File,
 /// What:
 ///  The stat fields of the snapshot's files that the walk proved,
 /// by path,
-/// and none for an entry it did not cover.
+/// and none for an entry it did not cover or that the fence leaves to Git.
 /// Why:
 ///   One walk of the snapshot gave the fields of the files it covered;
 /// a source with changes has no walk,
 /// so every
 ///  one of its entries keeps the fields its index recorded and Git hashes its file.
+/// A path the fence leaves to Git keeps the zeroes its seed entry holds,
+/// so the install never writes a
+///  field over one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class WalkedStats implements StatLookup { statNow(path) { return this.known.get(path); } }
+/// class WalkedStats implements StatLookup { statNow(path) { return this.written.has(path) ? undefined : this.known.get(path); } }
 /// ```
 struct WalkedStats<'a> {
     /// The fields the walk returned,
     /// by path.
     known: &'a std::collections::HashMap<&'a [u8], StatFields>,
+    /// The paths the conversion fence leaves to Git,
+    /// whose entries keep no stat data.
+    written: &'a HashSet<Vec<u8>>,
 }
 
 impl StatLookup for WalkedStats<'_> {
     fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        if self.written.contains(path) {
+            return None;
+        }
         return self.known.get(path).copied();
     }
 }
