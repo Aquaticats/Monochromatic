@@ -267,12 +267,16 @@ fn btrfs_the_slices_clone_every_entry_of_a_large_run() {
     let (repo, destination, admin) = many_file_fixture(root.as_path());
     let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
     let entries: Arc<[StatEntry]> = Arc::from(stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries"));
+    // The fixture tracks `MANY_FILES` paths under `many/` and the `.gitignore` beside them, so the tracked count is the
+    // number of files every slice must make, not the constant (a control that counted the constant failed on btrfs the
+    // first time it ran there, 2026-11-20).
+    let tracked: usize = entries.len();
     let held: File = open_root(destination.as_path()).expect("destination");
     let administrative: File = open_root(admin.as_path()).expect("administrative directory");
     let mut created: Vec<Created> = Vec::new();
     let stats: HashMap<Vec<u8>, StatFields> = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL).expect("clones");
     install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
-    assert_eq!(created.iter().filter(|entry: &&Created| { return !entry.directory; }).count(), MANY_FILES, "every file of every slice was made");
+    assert_eq!(created.iter().filter(|entry: &&Created| { return !entry.directory; }).count(), tracked, "every file of every slice was made");
     for index in 0..MANY_FILES {
         let name: String = many_path(index);
         assert_eq!(std::fs::read(destination.join(name.as_str())).expect("clone"), std::fs::read(repo.join(name.as_str())).expect("source"), "{name}");
