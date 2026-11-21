@@ -92,9 +92,9 @@ Five interleaved rounds on the already-used binary and pool:
   control 75,889,
   difference 27,341.
 
-The warm green arm's own five rounds were probe 126,089 to 153,850 and
-control 93,313 to 126,929,
-differences 17,721 to 32,776.
+The warm green arm's own five rounds were probe 98,888 to 112,342 and
+control 79,754 to 87,688,
+differences 15,805 to 31,692.
 
 ### After dropping caches
 
