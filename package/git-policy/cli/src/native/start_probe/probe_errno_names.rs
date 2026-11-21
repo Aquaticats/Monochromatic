@@ -14,17 +14,24 @@
 
 /// The errno names a status line may carry,
 /// with the values they stand for.
-pub const ERRNO_NAMES: [(&str, i32); 14] = [
+pub const ERRNO_NAMES: [(&str, i32); 21] = [
     ("EACCES", libc::EACCES),
     ("EBUSY", libc::EBUSY),
     ("EEXIST", libc::EEXIST),
+    ("EFAULT", libc::EFAULT),
     ("EINVAL", libc::EINVAL),
+    ("EIO", libc::EIO),
     ("ELOOP", libc::ELOOP),
     ("EMFILE", libc::EMFILE),
+    ("ENAMETOOLONG", libc::ENAMETOOLONG),
+    ("ENODEV", libc::ENODEV),
     ("ENFILE", libc::ENFILE),
     ("ENOENT", libc::ENOENT),
     ("ENOMEM", libc::ENOMEM),
     ("ENOSPC", libc::ENOSPC),
+    ("ENOSYS", libc::ENOSYS),
+    ("ENOTDIR", libc::ENOTDIR),
+    ("ENXIO", libc::ENXIO),
     ("EOPNOTSUPP", libc::EOPNOTSUPP),
     ("EPERM", libc::EPERM),
     ("EROFS", libc::EROFS),

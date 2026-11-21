@@ -473,6 +473,23 @@ function m7Scan(chosen: Options): void {
   guest({ chosen, script, log: 'guest-m7-scan.log', timeout: ARM_TIMEOUT_MS, });
 }
 
+/** F10's gate refusal: the real gate refuses in a unit without `/dev/zfs`, and the mode writes a skipped record. */
+function gateSkip(chosen: Options): void {
+  const script = probeScript([
+    'rm -f $REC',
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/skip-table-before.txt',
+    'systemd-run --unit=git-worktree-probe-skip-test --quiet --wait --collect --pipe --property=InaccessiblePaths=/dev/zfs $H start-probe > /root/skip-run.log 2>&1; echo "SKIP exit=$?"',
+    'cat /root/skip-run.log',
+    'cat $REC',
+    'if grep -q "^verdict skipped" $REC && grep -q "^skip-reason device" $REC; then echo "SKIP gate-refusal-skipped"; else echo "SKIP gate-refusal-not-skipped"; exit 1; fi',
+    'sort /proc/self/mountinfo | sed "s/^[0-9]* //" > /root/skip-table-after.txt',
+    'if cmp --silent /root/skip-table-before.txt /root/skip-table-after.txt; then echo "SKIP host-table-unchanged"; else echo "SKIP host-table-changed"; exit 1; fi',
+    'leaks | tail -n 1',
+    'echo "SKIP done"',
+  ]);
+  guest({ chosen, script, log: 'guest-skip.log', timeout: ARM_TIMEOUT_MS, });
+}
+
 /** M9's extra-descriptor fixture: the unmount must answer EBUSY with the switch on and pass with it off. */
 function m9Busy(chosen: Options): void {
   const script = probeScript([
@@ -599,6 +616,11 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       await build(chosen);
     m9Busy(chosen);
   },
+  'gate-skip': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    gateSkip(chosen);
+  },
   timings: async (chosen: Options): Promise<void> => {
     if (!chosen.noBuild)
       await build(chosen);
@@ -620,6 +642,7 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       m3Kill(chosen);
       m7Scan(chosen);
       m9Busy(chosen);
+      gateSkip(chosen);
     } catch (thrown) {
       failure = thrown;
     }

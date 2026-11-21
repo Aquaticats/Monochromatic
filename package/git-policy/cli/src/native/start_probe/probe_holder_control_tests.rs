@@ -19,7 +19,10 @@ use super::{Arrival, Holder};
 use super::super::probe_record_files::RecordPlace;
 use super::super::probe_report::ProbeReport;
 use super::super::probe_status_line::LineFeed;
-use crate::testing::test_support::fixture;
+use std::cell::{Cell, RefCell};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use crate::testing::test_support::{fixture, wait_until};
 use std::path::PathBuf;
 
 /// A holder started without mount authority reports its attach as failed,
@@ -29,19 +32,47 @@ fn a_holder_without_mount_authority_reports_a_failed_attach() {
     let root: PathBuf = fixture("start-probe-holder");
     let place: RecordPlace = RecordPlace::at(root.join("records"));
     place.prepare().expect("the record place is made");
-    let mut holder: Holder = Holder::start(&place, "pool/ds@ready").expect("the holder forks");
-    let mut feed: LineFeed = LineFeed::new();
-    let mut report: ProbeReport = ProbeReport::new();
-    let mut arrival: Arrival = Arrival::Nothing;
-    for _ in 0..1000 {
-        arrival = holder.drain(&mut feed, &mut report);
-        if arrival != Arrival::Nothing {
-            break;
+    let holder: Holder = Holder::start(&place, "pool/ds@ready").expect("the holder forks");
+    let holder: RefCell<Holder> = RefCell::new(holder);
+    let feed: RefCell<LineFeed> = RefCell::new(LineFeed::new());
+    let report: RefCell<ProbeReport> = RefCell::new(ProbeReport::new());
+    let arrival: Cell<Arrival> = Cell::new(Arrival::Nothing);
+    let answered: bool = wait_until(&|| {
+        let next: Arrival = holder.borrow_mut().drain(&mut feed.borrow_mut(), &mut report.borrow_mut());
+        if next == Arrival::Nothing {
+            return false;
         }
-    }
-    assert_eq!(arrival, Arrival::Attach { passed: false }, "a holder that cannot unshare must not pass");
-    assert!(report.lines().iter().any(|line| return line.step == super::super::probe_arms::ProbeStep::HolderAttach));
+        arrival.set(next);
+        return true;
+    });
+    assert!(answered, "the holder did not answer within the control's deadline");
+    assert_eq!(arrival.get(), Arrival::Attach { passed: false }, "a holder that cannot unshare must not pass");
+    assert!(report.borrow().lines().iter().any(|line| return line.step == super::super::probe_arms::ProbeStep::HolderAttach));
+    let mut holder: Holder = holder.into_inner();
     holder.stop();
     let _ = holder.reap();
     holder.end();
+}
+
+/// The old count of polls cannot see an answer that arrives after the last
+/// poll,
+/// and the deadline wait does.
+/// This forces the failing order rather than repeating the control's run.
+#[test]
+fn a_late_answer_is_missed_by_a_count_of_polls_and_seen_by_the_deadline() {
+    let answered: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let mut seen: bool = false;
+    for _ in 0..1000 {
+        if answered.load(Ordering::SeqCst) {
+            seen = true;
+            break;
+        }
+    }
+    assert!(!seen, "the count of polls saw an answer before anything set it");
+    let late = Arc::clone(&answered);
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        late.store(true, Ordering::SeqCst);
+    });
+    assert!(wait_until(&|| answered.load(Ordering::SeqCst)), "the deadline wait did not see the late answer");
 }
