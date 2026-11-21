@@ -210,6 +210,27 @@ fn a_record_of_a_push_whose_hook_already_said_the_sentence_keeps_it_once_and_add
 }
 
 /// What:
+///  A push refused for an unknown host key gets the sentence and the promise
+///  even when the remote's URL names a certificate.
+/// Why:
+///   Git ends a push its hook refused with `failed to push some refs to '<url>'`,
+///  so a remote named for a certificate puts that word in the push's words;
+///  the word is the remote's name and not a refusal's,
+///  and the person still needs the way to add the key,
+///  with the promise that the service keeps trying.
+#[test]
+fn a_record_of_a_push_refused_for_an_unknown_key_whose_remote_names_a_certificate_gets_both() {
+    let pushed: &str = "Host key verification failed.\nfatal: Could not read from remote repository.\n\
+                        error: failed to push some refs to 'git@github.com:acme/certificate-manager.git'\n";
+    let record: String = retried_failure_record(pushed);
+    assert!(record.contains("does not know the SSH host key"), "{record}");
+    assert!(record.contains("Connect once with plain `ssh <host>`"), "{record}");
+    assert!(record.contains("keeps its usual retry schedule"), "{record}");
+    assert!(record.ends_with(pushed), "the program's own words stay below ours: {record}");
+    assert_eq!(final_failure(pushed), None, "the service keeps retrying this one: {pushed}");
+}
+
+/// What:
 ///  A server hook whose own message prints OpenSSH's words for a host key this machine does not know stays a hook's
 ///  decline.
 /// Why:
