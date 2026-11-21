@@ -25,7 +25,7 @@ use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
 /// The form word an audit line carries.
 use crate::discard_audit_record::DecidedForm;
 use crate::manual_push_cause::ManualPushCause;
-use crate::manual_push_lifecycle::manual_push_scope;
+use crate::manual_push_lifecycle::manual_push_scope_with_destination;
 use crate::policy_checks::ShippedChecks;
 /// What the command offers its content policies.
 use crate::policy_content::LifecycleContent;
@@ -483,7 +483,8 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 ///  The command is the named event that collects it,
 /// so the next command in the repository removes what the prune left,
 ///  and no timer and no age is needed for a folder that is provably dead.
-///  It reads the common directory, the pool folder and the folder of drawn shadows and starts no Git,
+///  It reads the common directory,
+///  the pool folder and the folder of drawn shadows and starts no Git,
 ///  so a command that has no pool pays two `read_dir`s that find nothing.
 ///  A folder that cannot be removed is left for the next command:
 ///  nothing here can fail the command the person asked for.
@@ -572,8 +573,10 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
         // The scope probe is a dry-run push; an upload during it would run before any policy has decided.
         lfs: false,
     };
-    let scope = manual_push_scope(&git, context.global_prefix.as_slice(), post_subcommand)?;
-    checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(scope));
+    let scope = manual_push_scope_with_destination(&git, context.global_prefix.as_slice(), post_subcommand)?;
+    let (pushed, destination) = scope;
+    checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(pushed));
+    checks.push_destination = destination;
     return Ok(());
 }
 

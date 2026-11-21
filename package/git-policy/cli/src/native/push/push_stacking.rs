@@ -222,6 +222,7 @@ pub fn stack_failed_push(
     let mut push_merge: StackedMergePush<'_> = StackedMergePush { request, git, tokens: tokens.as_slice() };
     let rejected = PushAttempt {
         exit_code: failed_code,
+        signal: None,
         output: String::new(),
     };
     match integrate_and_push(git, &plan, rejected, &mut push_merge) {
@@ -287,6 +288,7 @@ impl MergePusher for StackedMergePush<'_> {
         )?;
         return Ok(PushAttempt {
             exit_code: i64::from(code),
+            signal: None,
             output: String::new(),
         });
     }
@@ -321,6 +323,7 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
             environment: forward.environment.as_slice(),
             overlay: forward.overlay.as_slice(),
             settings: forward.lfs_settings.as_deref(),
+            destination: forward.lfs_destination.as_ref(),
         })
     {
         return code;

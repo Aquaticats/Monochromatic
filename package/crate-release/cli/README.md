@@ -379,8 +379,8 @@ A pin and a lock directory are found by scanning every tracked `Cargo.toml` and 
 (a dependency line,
 a `[dependencies.<crate>]` table,
 a lockfile package without a `source`);
-the unit test `release-workflow.unit.test.ts` checks the pin files against the repository,
-but only a scan finds a lock directory that is missing.
+the unit test `release-workflow.unit.test.ts` checks both lists against that scan,
+so an entry that misses a pin file or a lock directory fails there.
 To make another crate releasable,
 add its entry,
 add its name to the `crate` choices of `crate-release.yml`

@@ -352,7 +352,9 @@ fn a_missing_git_lfs_blocks_the_push_and_names_the_remedies() {
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
-    assert!(stderr.contains("`git-lfs` was not found in any directory of PATH"), "{stderr}");
+    assert!(stderr.contains("`git-lfs` was not found in the folders this push searches"), "{stderr}");
+    assert!(stderr.contains(&fixture.root.join("bin").display().to_string()), "the refusal names the folders it searched: {stderr}");
+    assert!(stderr.contains("The list is this command's own `PATH`"), "{stderr}");
     assert!(stderr.contains("install Git LFS"), "{stderr}");
     assert!(stderr.contains("git lfs uninstall"), "{stderr}");
     remove_settled(&fixture);

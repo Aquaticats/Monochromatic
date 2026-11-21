@@ -117,7 +117,9 @@ pub mod worktree_remove_outcome;
 pub mod worktree_remove_notices;
 
 /// The half of a removal that goes around a volume it did not make:
-/// the record a killed pass leaves, the continuation that record proves, and the pass.
+/// the record a killed pass leaves,
+/// the continuation that record proves,
+/// and the pass.
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 
@@ -261,7 +263,45 @@ pub mod worktree_snapshot_placeholders;
 #[cfg(target_os = "linux")]
 pub mod worktree_add_binding;
 
-/// The clone rung:
+/// The clone rung's files in dependency order,
+/// the entry point last:
+/// one indexed path's names and the destination directories a run holds
+/// (`worktree_clone_paths`),
+/// one tracked entry and its clone (`worktree_clone_entry`),
+/// one run of entries on this thread (`worktree_clone_entries`),
+/// the slices of the blocking pool (`worktree_clone_slices`),
+/// the index install (`worktree_clone_index`),
+/// and the rung itself,
+/// whose module doc names each of them.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_paths;
+
+/// One tracked entry of the frozen index,
+/// made in the destination with the checks that prove the source did not move.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_entry;
+
+/// One run of those entries on this thread:
+/// what it created,
+/// what it recorded for the index,
+///  and why it stopped.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_entries;
+
+/// Those entries cut into slices:
+/// contiguous runs,
+/// one job of the blocking pool each,
+///  and the worker count the host's budget allows.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_slices;
+
+/// The install of the rung's index:
+/// the stat fields the clones recorded,
+/// and none for the paths the conversion fence leaves to Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_index;
+
+/// The clone rung itself:
 /// tracked files cloned into the new worktree,
 /// the source's index installed with fresh stat fields.
 #[cfg(target_os = "linux")]
@@ -283,6 +323,35 @@ pub mod worktree_clone_partial_split;
 /// with the stat fields of the files the clones made.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_partial_index;
+
+/// Git's conversion rules for one path,
+/// read from its attributes and `core.autocrlf`/`core.eol`,
+/// as the decision whether a clone may carry the file.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_rules;
+
+/// The fence over a clone rung's bytes:
+/// which paths the clones may carry,
+/// and the one Git run that writes the rest.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_fence;
+
+/// The measurement-only shapes of that fence:
+/// option C,
+/// option D,
+/// and the switch that picks one of them.
+#[cfg(all(target_os = "linux", feature = "measurement-routes"))]
+pub mod worktree_clone_conversion_fence_measurement_routes;
+
+/// The same fence beside the clone:
+/// its reads on a thread of their own while the tracked files are copied,
+/// and the seed the index is installed from once both have answered.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_beside_the_clone;
+
+/// The pool's block-cloning switch and what the clone rung does when it reads off.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_block_cloning;
 
 /// What both filling rungs read from Git's `--no-checkout` result,
 /// and the one step that applies the tree difference.
@@ -311,13 +380,6 @@ pub mod worktree_slow_route;
 /// the snapshot rung and the fall back to Git's checkout.
 #[cfg(target_os = "linux")]
 pub mod worktree_ladder_finish;
-
-/// The clone rung's steps after real Git returned:
-/// the clones,
-/// the tree difference,
-/// and the proof of the worktree they leave.
-#[cfg(target_os = "linux")]
-pub mod worktree_ladder_finish_clone_rung;
 
 /// The record of the trash a snapshot's leave-out made,
 /// written before the rung that published the worktree returns.

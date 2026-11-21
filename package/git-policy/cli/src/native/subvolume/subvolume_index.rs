@@ -41,11 +41,11 @@ use crate::subvolume_sha::{sha1, sha256};
 /// The bytes of the header:
 /// signature,
 /// version and entry count.
-const HEADER: usize = 12;
+pub(crate) const HEADER: usize = 12;
 
 /// The bytes of the fixed stat fields of an entry,
 /// before the object name.
-const STAT: usize = 40;
+pub(crate) const STAT: usize = 40;
 
 /// The extension signatures that are dropped:
 /// derived state that Git rebuilds.
@@ -295,7 +295,7 @@ fn extensions_fit(bytes: &[u8], entries_end: usize, hash_length: usize) -> bool 
 /// ```ts
 /// function checksumLength(bytes: Uint8Array, known?: number): { length: number; zero: boolean } | { declined: string };
 /// ```
-fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), String> {
+pub(crate) fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), String> {
     let candidates: Vec<usize> = match known {
         Some(length) => vec![length],
         None => vec![20, 32],

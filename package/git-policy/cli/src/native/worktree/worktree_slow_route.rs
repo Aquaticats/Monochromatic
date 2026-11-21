@@ -259,6 +259,44 @@ pub fn explain_unsupported(reason: &str) -> SlowRoute {
 }
 
 /// What:
+///  The sentence for a clone rung that ended,
+///  the conversion fence's decline included.
+/// Why:
+///   The add is whole,
+/// made by Git's own checkout;
+/// the sentence names the rung that ended and gives the check's own words,
+///  which say whether the fence declined or could not read its inputs.
+/// It names no snapshot:
+/// a person reading it ran an add whose clone rung ended,
+///  and a sentence about a snapshot would send them looking at the other rung.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const route = explainCloneFailure('a line-ending rule ... so this rung declines');
+/// ```
+pub fn explain_clone_failure(reason: &str) -> SlowRoute {
+    return SlowRoute { word: "clone-ended", detail: reason.to_string(), sentence: format!("the clone rung could not finish ({}), and Git's own checkout made the worktree.", plain(reason)) };
+}
+
+/// What:
+///  The sentence for a rung the conversion fence declined before anything was copied.
+/// Why:
+///   A declined add is no failure:
+/// the fence read the attributes,
+/// decided that writing that many paths through Git would cost more than Git's checkout,
+///  and ended the rung;
+/// the sentence is the fence's own words,
+///  which name the count and what it read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const route = explainDecline('a line-ending rule ... so this rung declines');
+/// ```
+pub fn explain_decline(reason: &str) -> SlowRoute {
+    return SlowRoute { word: "declines", detail: reason.to_string(), sentence: format!("{}.", plain(reason)) };
+}
+
+/// What:
 ///  The sentence for a snapshot that started and could not be finished.
 /// Why:
 ///   The add is whole,

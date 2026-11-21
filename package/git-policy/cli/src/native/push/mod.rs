@@ -102,6 +102,13 @@ pub mod bounded_query_input;
 /// The auto-push's real `git push` with a deadline and its low-speed abort.
 pub mod bounded_push;
 
+/// The wait of a bounded run:
+/// it ends when the run does,
+/// or stops when the run shows no work,
+/// floods its output or the service is stopped,
+/// with the cap it is judged by and the words a wait adds.
+pub mod push_wait_until_done;
+
 /// The causes and reports of a stop,
 /// and the line a stalled push prints,
 /// which names the window that fired and a remedy that works.
@@ -254,6 +261,10 @@ pub mod manual_push_probe_error;
 /// The updates a manual `git push` would send,
 /// learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
+
+/// The probe's Git arguments and the destination locations it confirms,
+/// beside the discovery so that each file passes the package's length limit.
+pub mod manual_push_probe_arguments;
 
 /// Published-set and range computation for manual-push scans:
 /// which pushed commits a remote does not have.

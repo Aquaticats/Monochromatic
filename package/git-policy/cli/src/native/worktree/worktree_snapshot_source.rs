@@ -29,13 +29,14 @@ use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
-use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use crate::fs_kind::{FilesystemKind, filesystem_kind, may_clone, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
 use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, check_clean_awaiting, dirty_source};
-use crate::worktree_clone_domain::{clone_domain_refusal_of, clone_write_target, unclonable_filesystem};
+use crate::worktree_clone_block_cloning::{ZFS_BLOCK_CLONING_SWITCH, block_cloning_refusal_at};
+use crate::worktree_clone_domain::{clone_domain_refusal_of, clone_write_target, unclonable_filesystem_asked};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_trash_ignore_rule::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
 use std::os::unix::ffi::OsStrExt;
@@ -267,16 +268,66 @@ pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<S
 /// function cloneRefusal(identity: WorktreeIdentity, plan: AddPlan): string | undefined;
 /// ```
 pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<String> {
+    let mut questions: CloneRungQuestions<'_> = CloneRungQuestions { may_clone: &mut may_clone, block_cloning: &mut block_cloning_refusal_at_switch, domain_refusal: &mut clone_domain_refusal_of };
+    return clone_refusal_asked(identity, plan, &mut questions);
+}
+
+/// What:
+///  Why the pool of the filesystem that would receive the clones has block cloning off,
+///  asked of the kernel's own switch file.
+/// Why:
+///  The rung's real answer,
+///  named so the questions struct can hold a call and a control can stand in front of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const blockCloningAtSwitch = (target) => blockCloningRefusalAt(target, ZFS_BLOCK_CLONING_SWITCH);
+/// ```
+fn block_cloning_refusal_at_switch(target: &Path) -> Option<String> {
+    return block_cloning_refusal_at((target, Path::new(ZFS_BLOCK_CLONING_SWITCH)));
+}
+
+/// The questions the clone rung asks of the two filesystems before it tries a clone,
+/// as calls a control can answer on any filesystem.
+pub(crate) struct CloneRungQuestions<'a> {
+    /// Whether a path's filesystem may share data blocks between files at all.
+    pub(crate) may_clone: &'a mut dyn FnMut(&Path) -> bool,
+    /// Why the filesystem that would receive the clones cannot take them,
+    /// or nothing when it can.
+    pub(crate) block_cloning: &'a mut dyn FnMut(&Path) -> Option<String>,
+    /// Why the two paths are not one clone domain,
+    /// or nothing when they are.
+    pub(crate) domain_refusal: &'a mut dyn FnMut((&Path, &Path)) -> Option<String>,
+}
+
+/// What:
+///  The cheap reasons the clone rung cannot serve a planned add,
+/// asked through `questions` rather than of the kernel.
+/// Why:
+///  The rung's three questions (may either side clone,
+/// does the receiving pool have block cloning on,
+/// and are the two sides one clone domain) are answered by the kernel for a real add,
+/// and a
+///  control has to answer them itself to prove the rung asks each one on a filesystem it never runs on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function cloneRefusalAsked(identity, plan, questions): string | undefined;
+/// ```
+pub(crate) fn clone_refusal_asked(identity: &WorktreeIdentity, plan: &AddPlan, questions: &mut CloneRungQuestions<'_>) -> Option<String> {
     let (root, _git_dir, _common_dir): (&PathBuf, &PathBuf, &PathBuf) = match worktree_of(identity) {
         Ok(found) => found,
         Err(reason) => return Some(reason),
     };
     let Some(parent) = plan.destination.parent() else { return Some(String::from("the destination has no parent directory")) };
     let target: PathBuf = clone_write_target((plan.destination.as_path(), parent));
-    if let Some(reason) = unclonable_filesystem((root.as_path(), target.as_path())) {
+    if let Some(reason) = unclonable_filesystem_asked((root.as_path(), target.as_path()), questions.may_clone) {
         return Some(reason);
     }
-    return clone_domain_refusal_of((root.as_path(), target.as_path()));
+    if let Some(reason) = (questions.block_cloning)(target.as_path()) {
+        return Some(reason);
+    }
+    return (questions.domain_refusal)((root.as_path(), target.as_path()));
 }
 
 /// Which kind of check refused a source,

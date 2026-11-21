@@ -19,7 +19,6 @@
 use super::{Selection, plan_management, plan_management_with_section, retired_explanation, status_git_dir};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_for};
 use crate::action::Action;
-use crate::control_terminal::Terminal;
 use crate::config_file::CONFIG_FILE_NAME;
 use crate::management_arguments::{MANAGEMENT_HELP, MANAGEMENT_USAGE, RetiredCommand};
 use crate::policy_registry::PolicyId;
@@ -46,7 +45,6 @@ fn no_git(root: &Path) -> ResolutionInputs {
         own_executable: root.join("own-wrapper"),
         service_unit: None,
         // Management commands are answered by the wrapper and start no Git child, so the terminal decides nothing.
-        terminal: Terminal::Present,
     };
 }
 
@@ -904,7 +902,8 @@ impl GreetingService {
     /// Why:
     ///  A status asks a new connection each time it runs,
     ///  so the fixture takes every one of them and greets it,
-    ///  and answers nothing more: a status reads the greeting and returns.
+    ///  and answers nothing more:
+    /// a status reads the greeting and returns.
     fn at(socket: &Path) -> Self {
         let listener: std::os::unix::net::UnixListener =
             std::os::unix::net::UnixListener::bind(socket).expect("the fixture's service socket");

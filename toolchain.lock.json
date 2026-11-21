@@ -616,7 +616,8 @@
       "version": "0.6.1-alpha.44",
       "route": "archive",
       "bins": [
-        "monochromatic-git-policy-cli"
+        "monochromatic-git-policy-cli",
+        "mount-git-worktree-clone-datasets"
       ],
       "os": [
         "linux"
@@ -1654,5 +1655,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:0d5cc98262119ea1f47bf07aeef90508e4b91afbb1d2de641c40134c3e2ca8b5"
+  "digest": "sha256:3417ef7fad84cbe680c2bec4fefb3f75f2d4ef9c3a794aca83cf56a77eadb712"
 }

@@ -109,6 +109,16 @@ pub enum StoreRefusal {
         /// What the write answered.
         reason: String,
     },
+    /// A write would make the file larger than one read accepts,
+    /// so nothing was written.
+    WouldNotFit {
+        /// The path that was read.
+        path: PathBuf,
+        /// The size the file would have held after this write.
+        bytes: u64,
+        /// The largest store one read accepts.
+        bound: u64,
+    },
     /// Another run held the lock that keeps two writes to the store apart
     /// for longer than this run allows.
     Locked {
@@ -163,6 +173,10 @@ impl StoreRefusal {
             ),
             StoreRefusal::Write { path, reason } => format!(
                 "{} could not be written: {reason}. Nothing is attached on a record the store did not keep. Ways forward: when the line was written short, restore that file from the administrator's copy, because it may hold a torn record; then check the folder's free space and permissions and run the command again; nobody edits this file by hand.",
+                path.display()
+            ),
+            StoreRefusal::WouldNotFit { path, bytes, bound } => format!(
+                "{} would be {bytes} bytes after this write, and one store read accepts at most {bound} bytes, so nothing was written and the store still holds every record it held. Ways forward: no command in this repository removes a recorded slot or raises that bound, and a record format that lets a store grow past it is the owner's open question (`doc/handover/questions-for-the-owner.md`); report this store, its size and the write to the owner, and nobody edits this file by hand. An adoption that the bound refuses leaves the recorded parent identity in place, so every managed attach that compares the replacement folder against it keeps refusing until the store has room for the wider record.",
                 path.display()
             ),
             StoreRefusal::Locked { path, waited } => format!(

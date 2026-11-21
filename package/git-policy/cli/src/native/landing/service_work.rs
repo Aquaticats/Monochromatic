@@ -44,11 +44,13 @@ use crate::config_snapshot::read_config_snapshot_awaiting;
 #[cfg(test)]
 use crate::config_snapshot::read_config_snapshot;
 use crate::lfs_pre_push::uses_lfs;
+/// The mark the service puts on a push it runs.
+use crate::lfs_program_search::PUSH_FROM_SERVICE;
 use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_awaiting};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
-use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
+use crate::push_retry_failure::{final_failure, plain_words, retried_failure_record, unrecognised_rejection};
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -381,6 +383,11 @@ impl GitHandlers {
     ///  a login (`never_prompt_overlay`):
     /// the host's askpass program is in this environment,
     /// and a dialog nobody answers is a push that waits.
+    /// It also marks that the push runs in the service,
+    /// so a refusal that cannot find `git-lfs` names the
+    ///  service's own `PATH` rather than the shell's (`lfs_program_search::ProgramSearch`);
+    /// the mark is present and carries the value `1`,
+    /// which nothing reads.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -391,54 +398,16 @@ impl GitHandlers {
         let mut inherited: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
         #[cfg(test)]
         inherited.extend(self.push_environment.iter().cloned());
-        let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = service_child_overlay(inherited.as_slice());
+        let mut overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = service_child_overlay(inherited.as_slice());
+        overlay.push((std::ffi::OsString::from(PUSH_FROM_SERVICE), std::ffi::OsString::from("1")));
         return (inherited, overlay);
     }
 }
 
-/// What:
-///  The same question,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The question starts Git,
-/// and the synchronous query enters the runtime and is refused from there.
-/// The arguments and the reading of the exit status are the synchronous face's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const answer = await branchExistsOnTheRuntime(git, item.branch_ref);
-/// ```
-async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> Option<bool> {
-    let asked = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", branch_ref])).await.ok()?;
-    return match asked.code {
-        Some(0) => Some(true),
-        Some(1) => Some(false),
-        _ => None,
-    };
-}
-
-/// What:
-///  The commit a branch reference names,
-/// awaited by a caller that is itself a task of the runtime.
-/// Why:
-///   The question starts Git,
-/// and the synchronous query enters the runtime and is refused from there.
-/// A reference that names no commit is the answer "nothing",
-/// which is what a branch that was deleted reads as.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const tip = await branchTipOnTheRuntime(git, item.branchRef);
-/// ```
-async fn branch_tip_awaiting(git: &PushGit, branch_ref: &str) -> Option<String> {
-    let asked: String = format!("{branch_ref}^{{commit}}");
-    let answer = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", asked.as_str()])).await.ok()?;
-    if answer.code != Some(0) {
-        return None;
-    }
-    let named: String = String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_owned();
-    return (!named.is_empty()).then_some(named);
-}
+/// Whether a branch exists,
+/// and the commit it names,
+/// asked of Git on the runtime.
+use crate::service_work_branch_questions::{branch_exists_awaiting, branch_tip_awaiting};
 
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
@@ -508,8 +477,10 @@ impl WorkHandlers for GitHandlers {
             Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
                 Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
             }
-            // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
-            //  (a stall, the network, an LFS server error, a held lock).
+            // A conflict, a login the service does not have and a server hook's decline need the person and stop the retry;
+            //  every other failure can pass (a stall, the network, an LFS server error, a held lock, a host key this machine
+            //  does not know), and the record of one whose words ask something of the person says what to do and that the
+            //  service keeps its schedule.
             Ok(result) => match final_failure(result.shown.as_str()) {
                 Some(cause) => Verdict::Failed(match plain_words(cause) {
                     Some(words) => format!("{words}\n{}", result.shown),
@@ -523,7 +494,7 @@ impl WorkHandlers for GitHandlers {
                             crate::service_timing::in_the_repository_at(newest.repository.as_path())
                         );
                     }
-                    Verdict::Retry(result.shown)
+                    Verdict::Retry(retried_failure_record(result.shown.as_str()))
                 }
             },
             Err(error) => Verdict::Retry(format!("{error}")),
@@ -616,9 +587,12 @@ impl WorkHandlers for GitHandlers {
     ///  while a thread of the blocking pool still carries that runtime with it.
     ///  So the removal gets a thread of its own,
     ///  and the round awaits its answer no longer than a bulk Git step may take:
-    ///  a thread the system refuses, and one that gives no answer at the ceiling, are both a removal that did not run,
+    ///  a thread the system refuses,
+    /// and one that gives no answer at the ceiling,
+    /// are both a removal that did not run,
     ///  and the record keeps its lease for the next round.
-    ///  Before this, every removal the service made answered "the runtime that runs this command's waits was asked for
+    ///  Before this,
+    /// every removal the service made answered "the runtime that runs this command's waits was asked for
     ///  from inside itself",
     ///  which read as ignored files nothing could vouch for,
     ///  and the service kept every worktree it was handed.

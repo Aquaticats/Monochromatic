@@ -507,7 +507,7 @@ fn a_restore_replaces_an_edit_that_keeps_its_files_size_and_times() {
     let root: PathBuf = fixture("restore-hidden-edit");
     let (repo, admin, seed, source, target) = hidden_edit_fixture(root.as_path());
     let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory opens");
-    install_index(&source, repo.as_path(), &held, Some(seed.as_slice()), &crate::fixture_content_decision::content_environment(), None).expect("the index installs");
+    install_index(&source, repo.as_path(), &held, Some(seed.as_slice()), &crate::fixture_content_decision::content_environment(), None, &std::collections::HashSet::new()).expect("the index installs");
     drop(held);
     let mut steps = real_steps(root.as_path());
     let outcome: Result<(), String> = restore_dirty(&source, &target, repo.as_path(), &mut steps, &git_context(), &crate::fixture_content_decision::content_environment());
@@ -544,7 +544,7 @@ fn a_restore_replaces_a_hidden_edit_when_the_index_recorded_no_nanoseconds() {
     let without_nanoseconds: Vec<u8> = as_a_git_without_nanoseconds_wrote_it(seed.as_slice(), 20);
     source.clean.index_bytes = without_nanoseconds.clone();
     let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory opens");
-    install_index(&source, repo.as_path(), &held, Some(without_nanoseconds.as_slice()), &crate::fixture_content_decision::content_environment(), None).expect("the index installs");
+    install_index(&source, repo.as_path(), &held, Some(without_nanoseconds.as_slice()), &crate::fixture_content_decision::content_environment(), None, &std::collections::HashSet::new()).expect("the index installs");
     drop(held);
     // The installed entry is the one the fixture wrote: the counts are zero, so the entry's stat data proves nothing about the bytes.
     let installed: Vec<u8> = std::fs::read(admin.join("index")).expect("the installed index");

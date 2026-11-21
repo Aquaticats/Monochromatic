@@ -87,6 +87,12 @@ const FORBIDDEN: &str = "remote: forbidden\nfatal: unable to access 'http://127.
 /// real `ssh` against a loopback `sshd` that accepts no key.
 const SSH_REFUSED: &str = "user@127.0.0.1: Permission denied (publickey).\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
+/// OpenSSH's refusal of a host key this machine does not know,
+/// which Git relays:
+/// `confirm` (`sshconnect.c` at `V_10_6_P2` lines 603 to 627) sends the yes/no question to the no-answer program,
+/// and an empty answer is not "yes".
+const HOST_KEY_NOT_KNOWN: &str = "Host key verification failed.\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
+
 /// `http.c` through curl,
 /// for a port nothing listens on.
 const CONNECTION_REFUSED: &str = "fatal: unable to access 'http://127.0.0.1:1/r.git/': Failed to connect to 127.0.0.1:1 after 0 ms: Could not connect to server\n";
@@ -127,6 +133,116 @@ fn a_github_protected_branch_refusal_is_tried_again() {
         None,
         "a refusal the release knows is not reported as a reason it does not: {GITHUB_PROTECTED_BRANCH}"
     );
+}
+
+/// What:
+///  A host key this machine does not know leaves the retry scheduled,
+///  and the record says which refusal it was,
+///  how to add the key,
+///  and that the service pushes the branch by itself once it knows the key.
+/// Why:
+///   The project's answer of 2026-11-20 is "Keep retrying":
+///  no retry adds a host key,
+///  but a person who adds it later gets the push with no new commit,
+///  which a stop until the next commit would have cost them.
+///  The refusal must not be a `FinalFailure`,
+///  which is the reading the service stops on,
+///  and the record must still say what to do:
+///  the way out is the person's,
+/// the waiting is the service's.
+///  Plain `ssh` still asks its own question (`doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`).
+#[test]
+fn a_host_key_this_machine_does_not_know_is_retried_and_the_record_says_the_service_pushes_by_itself() {
+    assert_eq!(final_failure(HOST_KEY_NOT_KNOWN), None, "the retry stays scheduled: {HOST_KEY_NOT_KNOWN}");
+    assert!(!needs_the_person(HOST_KEY_NOT_KNOWN), "nothing stops the retry for it: {HOST_KEY_NOT_KNOWN}");
+    let record: String = retried_failure_record(HOST_KEY_NOT_KNOWN);
+    for said in [
+        "plain `ssh <host>`",
+        "`known_hosts`",
+        "push again",
+        "keeps its usual retry schedule",
+        "pushes this branch by itself once this machine knows the key",
+        "no new commit is needed",
+    ] {
+        assert!(record.contains(said), "{said} in {record}");
+    }
+    assert!(record.ends_with(HOST_KEY_NOT_KNOWN), "the program's own words stay below ours: {record}");
+    assert_eq!(
+        unrecognised_rejection(HOST_KEY_NOT_KNOWN),
+        None,
+        "a refusal this release knows is not named as a reason it does not: {HOST_KEY_NOT_KNOWN}"
+    );
+}
+
+/// What:
+///  A failure whose words ask nothing of the person is recorded exactly as the program printed it.
+/// Why:
+///   The record is what the person reads beside the journal's warning about an unknown rejection,
+///  and adding our words to a failure we know nothing about would label it as another cause.
+#[test]
+fn a_retried_failure_with_no_words_of_ours_keeps_the_programs_own() {
+    assert_eq!(retried_failure_record(UNRESOLVED), UNRESOLVED);
+}
+
+/// What:
+///  A push whose pre-push hook already printed the upload's explanation of an unknown host key gets that explanation
+///  once,
+/// with the promise above it and no second sentence.
+/// Why:
+///   An LFS upload inside the push is refused for the same unknown key,
+///  and the explanation it prints already says the key is unknown and names the host its destination gives;
+///  a record that put the sentence above it told one refusal twice,
+///  and its copy wrote `ssh <host>` where the words below named the machine.
+#[test]
+fn a_record_of_a_push_whose_hook_already_said_the_sentence_keeps_it_once_and_adds_the_promise() {
+    let explained: String = crate::lfs_upload_explanations::explanation_after_failure(
+        "exited with status 2",
+        std::ffi::OsStr::new("ssh://git@git.example.invalid/owner/repo.git"),
+        b"Host key verification failed.\nfatal: Could not read from remote repository.",
+    );
+    let pushed: String = format!("Host key verification failed.\nfatal: Could not read from remote repository.\n{explained}error: failed to push some refs\n");
+    assert_eq!(final_failure(pushed.as_str()), None, "the upload's own sentence is no final failure: {pushed}");
+    let record: String = retried_failure_record(pushed.as_str());
+    assert_eq!(record.matches("does not know the SSH host key").count(), 1, "one refusal is told once: {record}");
+    assert!(record.contains("`ssh git.example.invalid`"), "the host the upload named is still named: {record}");
+    assert!(record.contains("keeps its usual retry schedule"), "the promise the plan keeps is added: {record}");
+    assert!(record.ends_with(pushed.as_str()), "the program's own words stay below ours: {record}");
+}
+
+/// What:
+///  A push refused for an unknown host key gets the sentence and the promise
+///  even when the remote's URL names a certificate.
+/// Why:
+///   Git ends a push its hook refused with `failed to push some refs to '<url>'`,
+///  so a remote named for a certificate puts that word in the push's words;
+///  the word is the remote's name and not a refusal's,
+///  and the person still needs the way to add the key,
+///  with the promise that the service keeps trying.
+#[test]
+fn a_record_of_a_push_refused_for_an_unknown_key_whose_remote_names_a_certificate_gets_both() {
+    let pushed: &str = "Host key verification failed.\nfatal: Could not read from remote repository.\n\
+                        error: failed to push some refs to 'git@github.com:acme/certificate-manager.git'\n";
+    let record: String = retried_failure_record(pushed);
+    assert!(record.contains("does not know the SSH host key"), "{record}");
+    assert!(record.contains("Connect once with plain `ssh <host>`"), "{record}");
+    assert!(record.contains("keeps its usual retry schedule"), "{record}");
+    assert!(record.ends_with(pushed), "the program's own words stay below ours: {record}");
+    assert_eq!(final_failure(pushed), None, "the service keeps retrying this one: {pushed}");
+}
+
+/// What:
+///  A server hook whose own message prints OpenSSH's words for a host key this machine does not know stays a hook's
+///  decline.
+/// Why:
+///   A hook that reaches another host over SSH can print those words about its own connection,
+///  and the push's cause is then the server's refusal and not this machine's `known_hosts`;
+///  the reading of those words must not answer before the hook's decline,
+///  as `main` orders its readings,
+///  so the person is told the cause that is theirs and not a key this machine does know or cannot add.
+#[test]
+fn a_hook_that_prints_the_unknown_host_key_words_is_still_a_decline() {
+    let output: &str = "remote: Host key verification failed.\nTo /srv/remote.git\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to '/srv/remote.git'\n";
+    assert_eq!(final_failure(output), Some(FinalFailure::Declined), "the hook's echoed words decide nothing: {output}");
 }
 
 /// A server hook's decline is final,

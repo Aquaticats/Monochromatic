@@ -89,7 +89,7 @@ fn snapshot_of(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_s
     let plan = plan_to(destination);
     let source = choose_snapshot_source(&git_context(), &main_identity(repo), &plan).expect("a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    let taken = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &std::collections::HashSet::new()).map_err(|failure| { return failure.reason; }).expect("snapshot");
     return (stage, source, taken.trash);
 }
 
@@ -270,7 +270,7 @@ fn btrfs_a_snapshot_of_a_linked_worktree_sets_another_commands_stage_aside() {
     let plan = plan_to(destination);
     let source: SnapshotSource = choose_snapshot_source(&git_context(), &identity, &plan).expect("a linked worktree is a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-linked");
-    take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).map_err(|failure| { return failure.reason; }).expect("snapshot");
+    take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &std::collections::HashSet::new()).map_err(|failure| { return failure.reason; }).expect("snapshot");
     assert!(std::fs::symlink_metadata(stage.join(container.as_str())).is_err(), "the other command's stage container is not carried");
     assert!(stage.join("node_modules/pkg/index.js").is_file(), "what the linked worktree ignores stays");
     assert!(linked.join(container.as_str()).join("payload/credentials").is_file(), "the other command's payload is left where it was");

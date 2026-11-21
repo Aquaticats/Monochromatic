@@ -166,6 +166,27 @@ process.exit(done.status === null ? 1 : done.status);
 `;
 
 /**
+ The stand-in `mount-git-worktree-clone-datasets`: the release's second executable, which answers `--version` with the
+ line its own grammar prints and records that it was asked.
+
+ One archive carries both executables, so an install that found only the wrapper must fail, and a fixture that answered
+ nothing here would prove the check never ran.
+ */
+const standInHandler = `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const directory = process.env.${installStandInDirectoryVariable};
+const version = process.env.${installStandInVersionVariable} ?? '';
+const args = process.argv.slice(2);
+fs.appendFileSync(path.join(directory, 'mount-git-worktree-clone-datasets.jsonl'), JSON.stringify({ args, cwd: process.cwd() }) + '\\n');
+if (!args.includes('--version')) {
+  process.stderr.write('the stand-in mount-git-worktree-clone-datasets answers --version only\\n');
+  process.exit(2);
+}
+process.stdout.write('mount-git-worktree-clone-datasets ' + version + '\\n');
+`;
+
+/**
  The stand-in `journalctl`: records the call and prints one entry, so a test reads the bounds and the identifiers it was
  asked for without reading this machine's journal.
  */
@@ -220,7 +241,9 @@ export function lockRecordText({ version }: { readonly version: string; }): stri
    install of a release already recorded, `stagedLockVersion` writes that release into the lockfile and stages it before
    the install begins, `concurrentLockVersion` is a release another process writes into the lockfile while the install
    runs, `concurrentCommit` makes another process commit this release's lock first, `failStep` names the step whose
-   stand-in fails, and `timingLine` is one recorded timing line to write beside the common Git directory
+   stand-in fails, `timingLine` is one recorded timing line to write beside the common Git directory, and `withoutHandler`
+   leaves the release's second executable out of the fixture's `PATH`, which is an archive that carried only the
+   wrapper
 
  @returns the fixture; declare it with `await using`
 
@@ -241,6 +264,7 @@ export async function createInstallFixture({
     readonly concurrentCommit?: boolean;
     readonly failStep?: string;
     readonly timingLine?: string;
+    readonly withoutHandler?: boolean;
   };
 }): Promise<InstallFixture> {
   await mkdir(
@@ -304,6 +328,16 @@ export async function createInstallFixture({
       standInJournalctl,
       { mode: ownerOnlyMode, },
     ),
+    ...(options.withoutHandler === true ? [] : [
+      writeFile(
+        join(
+          programs,
+          'mount-git-worktree-clone-datasets',
+        ),
+        standInHandler,
+        { mode: ownerOnlyMode, },
+      ),
+    ]),
     writeFile(
       join(
         repository,

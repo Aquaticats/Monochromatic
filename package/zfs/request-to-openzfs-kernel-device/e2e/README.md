@@ -32,6 +32,12 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- destroy --name my
 # the step 3 arm, on a guest the two steps above prepared:
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- wrapper --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- arm --name my-guest
+# the step 4 attach arm, on the same guest:
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-pool --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-version-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-change-arm --name my-guest
 ```
 
 - `create` makes the guest with `mvm`,
@@ -42,6 +48,8 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- arm --name my-gue
   The `hetzner` backend is never used:
   it rents an outside server.
 - `prepare` checks the guest runs the plan's kernel release,
+  stops and masks the image's unattended-upgrade services and timers,
+  waits for the `dpkg` lock they may still hold,
   installs the packages,
   copies the kernel's own BTF into the kernel build directory so the module is
   built with BTF,
@@ -460,6 +468,119 @@ and `step3-teardown.log` shows the pool gone and the datasets gone,
 and names the pool's `pool.img` file,
 which `zpool destroy` leaves behind in the guest's fixture root and which goes
 with the guest.
+
+## The step 4 attach arm
+
+`zfs-attach-arm` runs step 4's guest arms of the wrapper's descriptor attach
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 4,
+"VM measurements")
+in a guest this recipe prepared:
+the clone mounted at the slot the walk held,
+item 7's setuid control on that mount's enforced flags,
+item 2's refusals with an account-owned parent and slot,
+the rename that lands an attach beside its slot and its descriptor rollback,
+a mount made beside the held slot that the post-attach check's first proof refuses,
+and the decoy control of H1 gate 1.
+The check's first proof reads the mount at the held target's name beneath the held parent
+(a fresh `openat2` beneath that descriptor),
+never the held target's own descriptor,
+which keeps naming the mount it was opened on.
+`zfs-attach-pool` makes the arm's own pool and fixtures alone,
+so a run that only needs them does not repeat the build.
+
+The arm's pool is `zfsstep4`:
+a 1 GiB encrypted image at `/home/zfs-step-4-attach-fixture`,
+a `checkout` dataset the tests' checkouts stand on,
+an empty snapshot of it,
+and the unmounted clones `clone-one` and `clone-beside`,
+which are legacy mountpoints,
+so ZFS never mounts them by itself
+and an arm's own kernel mount is the only one they see.
+The arm's tests live in the wrapper crate,
+`src/native/worktree_clone_mount/attach_arm_tests.rs`,
+and are `#[ignore]`d;
+one that cannot reach its fixture prints `SKIP worktree_clone_mount::attach_arm_tests::...`
+and returns,
+and the step fails on that line,
+so an arm that never ran is never counted as passed.
+
+Everything in this arm is a root-run integration test of the wrapper's module,
+not part of the account-side suite:
+until step 5's `mount-git-worktree-clone-datasets` binary exists,
+the `fsopen`,
+`fsconfig`,
+`fsmount` and `move_mount` calls are the test's own,
+and the production copies are what the arms will drive after that step.
+
+The step leaves the guest as it found it:
+the teardown takes down every mount still below the fixture root
+(a killed test cannot run its own guard),
+destroys the pool,
+removes the fixture root,
+and records what is left,
+and the guest itself is destroyed by the run that made it.
+
+## The step 6 gate arms
+
+The recipe carries step 6's guest arms of the start-time layout comparison
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 6,
+"VM measurements")
+beside the recipe itself:
+
+- `run` sets `MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=compatible`,
+  so its root suite runs the control against the guest's approved module,
+  fails on a `SKIP gate_arm` line,
+  and requires the `MEASUREMENT gate` line.
+- `zfs-gate-arm` runs that same control again on a prepared guest.
+- `zfs-gate-version-arm` patches the built module's release text from
+  `2.4.4-1` to `2.4.4-2` and reloads it,
+  then expects a compatible verdict.
+  The layout and every request number are the approved module's by
+  construction,
+  so this arm shows that no step reads the release string;
+  it is not a second release.
+- `zfs-gate-change-arm` first runs a red arm the approved layout must refuse
+  (it is told to expect `member:dds_flags`),
+  then swaps `zi_iotype` and `zi_duration` in the guest's own
+  `include/sys/zfs_ioctl.h`,
+  rebuilds and installs the module,
+  reboots,
+  reloads it,
+  and expects the exact member refusal naming `zi_iotype` at 2592 bits where
+  2560 was expected.
+  The swap moves no total size and no other offset,
+  which is the design's owed item 16.
+
+Every arm fails on a `SKIP gate_arm` line or a missing `MEASUREMENT gate`
+line,
+so an arm that never ran is never counted as passed.
+The red arm the change arm runs first also has to print the arm's own panic
+naming the module that passed where it should have refused,
+so a refusal for another reason fails it.
+
+Each of the two module-changing arms leaves the guest holding the module it
+made:
+`zfs-gate-change-arm` leaves the rebuilt module with `zi_iotype` and
+`zi_duration` swapped,
+and `zfs-gate-version-arm` leaves the approved module with its release text
+patched to `2.4.4-2` and every pool destroyed.
+Neither puts the approved module back,
+so `zfs-gate-arm`'s control sees a changed module if it follows either,
+and each module-changing arm needs its own guest unless the arm run after it
+rebuilds the module from source.
+`zfs-gate-change-arm` rebuilds it from the guest's own header,
+so it does not depend on the module text `zfs-gate-version-arm` patched:
+the integration pass ran the version arm and then the change arm in one guest
+and both passed,
+and it did not run the change arm before the version arm.
+These arms drive the binding's `check_module_layout` against the guest's two
+type-information files.
+They do not run the product's gate (`zfs_compatibility_gate::check`) or the
+handler binary,
+and they send no request:
+the product half belongs to the step that makes the handler's first request.
 
 ## Teardown evidence
 

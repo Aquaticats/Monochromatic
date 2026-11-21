@@ -86,12 +86,20 @@ The steps are in build order.
 A step whose entry says it is blocked waits for the named design,
 and a step marked as proceeding may ship with that gap named in its own output.
 
-Three designs block the route early,
-and none of them is code:
-the start probe and the runtime layout checker under "Open items the decisions leave",
-and the staging design in the entry beginning "Staging under `~/.cache` and the wrapper's cleanup".
-No production kernel request runs before the first two,
-and no unmount runs before the third.
+Two designs block the route early,
+and neither is code:
+the start probe and the runtime layout checker under "Open items the decisions leave".
+No production kernel request runs before them.
+The staging work in the entry beginning "Staging under `~/.cache` and the wrapper's cleanup"
+is designed and accepted as of 2026-11-20
+([record](../decision/cli-git-zfs-staging-under-cache.md)),
+and no unmount runs before step 9 builds it.
+
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+"no unmount runs before the third" covers the product's mounts only,
+and the probe's own move and unmount arms are built in step 6,
+inside the private namespace and tmpfs the probe makes for itself.)
 
 ## Dependencies and their state
 
@@ -231,6 +239,13 @@ or says which step must pick it.
   as [cli-cargo][] and `src/native/source_guard/release_bins_tests.rs` both state.
   Step 5 picks the handling;
   the plan's suggestion is in "Where the design is silent".
+  (Amended 2026-11-20T06:45:32-05:00:
+  step 5 built it,
+  so one release archive now holds both executables,
+  and the sentences above describe the plan as it stood.
+  `package/git-policy/cli/doc/step-5-second-executable-2026-11-20.md` is the record,
+  and "How the release carries two executables" under "Gaps the design's open-item list does not name"
+  states the resolution.)
 
 ### Wrapper code the design reuses
 
@@ -708,13 +723,99 @@ it.
 The clone rung's two limits are borrowed from btrfs measurements of the copy stage and `clone_tree`
  (`PARALLEL_BREAK_EVEN_ENTRIES`,
  `PARALLEL_COPY_MAX_WORKERS`),
- and nothing measures this rung on XFS, overlayfs or ZFS,
- nor between the break-even and the entry counts those measurements took,
+ and nothing measures this rung between the break-even and the entry counts those measurements took,
  which is where a small repository sits.
 An arm of a few hundred entries,
  interleaved against the same control,
  is owed before either limit is treated as measured here.
-The `worktree_clone.rs` doc of `clone_worker_count` states the borrow.
+The `worktree_clone_slices.rs` doc of `clone_worker_count` states the borrow.
+
+The btrfs,
+ XFS and overlayfs arms the review owed were taken on 2026-11-20 in one throwaway `mvm` guest
+ (`--backend libvirt`),
+ each filesystem a loop device inside it:
+ btrfs and XFS on their own loop devices,
+ and an overlay whose lower is a directory on the btrfs loop and whose upper and work are on the XFS one
+ (`mkfs.xfs -m reflink=1`).
+The guest's Git is `2.43.0`,
+ its kernel `6.8.0-147-generic`,
+ and it has four cores.
+Each shape is a fixture of small text files in ten directories,
+ committed and repacked;
+ each filesystem is the branch's release build against `main`'s,
+ fifteen rounds,
+ three arms per round in a rotating order (`branch`,
+ `main`,
+ `main`),
+ the second `main` a same-binary control,
+ and every ratio below is to that round's `main` pair.
+Nothing got slower:
+
+- btrfs,
+  1,000 files of about 2.6 KB:
+  branch median 57.7 ms against 87.1 ms,
+  ratio median 0.65 (0.57 to 0.96),
+  control 0.95 to 1.08;
+  5,000 of 2.6 KB:
+  170.0 against 329.1 ms,
+  0.51 (0.23 to 0.82),
+  control 0.31 to 1.13;
+  2,000 of 32 KB:
+  83.0 against 145.0 ms,
+  0.57 (0.44 to 0.77),
+  control 0.99 to 1.36.
+- XFS,
+  1,000 of 2.6 KB:
+  51.2 against 91.3 ms,
+  0.54 (0.21 to 0.91),
+  control 0.96 to 4.78;
+  5,000 of 2.6 KB:
+  154.4 against 371.5 ms,
+  0.41 (0.38 to 0.44),
+  control 0.90 to 1.13;
+  2,000 of 32 KB:
+  81.5 against 165.4 ms,
+  0.49 (0.45 to 0.75),
+  control 0.90 to 1.20.
+- overlayfs,
+  1,000 of 2.6 KB:
+  59.0 against 109.8 ms,
+  0.53 (0.27 to 0.71),
+  control 0.34 to 1.11;
+  5,000 of 2.6 KB:
+  178.8 against 449.9 ms,
+  0.39 (0.32 to 0.48),
+  control 0.67 to 1.45;
+  2,000 of 32 KB:
+  88.3 against 193.4 ms,
+  0.46 (0.44 to 0.54),
+  control 0.95 to 1.08.
+
+Every branch round recorded `cloneEntries` in its own add record and every `main` round did not:
+ `main` clones whole trees on one thread and this branch in slices,
+ which is the difference the arms measure.
+The fixtures were copied to each filesystem with `cp --archive`,
+ whose new inode and change times the copied index does not hold,
+ so one `git status` wrote the copied files' own data back before the rounds and the source was clean for every arm.
+The harness,
+ the script the guest ran and every round's record are
+ `~/temp/agent/zfs-step-3-waiver-pass-findings-fixed-2026-11-20/keep/`.
+
+Two more things the integration pass asked for are on this branch.
+`worktree_clone.rs` was over the linter's line limit and its doc comments sat above the wrong functions,
+ so it is now four sibling modules over one chain (`worktree_clone_paths.rs`,
+ `worktree_clone_entry.rs`,
+ `worktree_clone_slices.rs`,
+ and `worktree_clone.rs`),
+ re-exported from the folder's `mod.rs`,
+ with the linter's whitespace-only reflow applied.
+And a destination on ZFS whose pool has `zfs_bclone_enabled` at 0 is declined before the source proof
+ (`worktree_clone_block_cloning.rs`),
+ because every clone there is refused and Git's checkout follows anyway;
+ a switch file that cannot be read declines nothing.
+The controls that hold both calls,
+ and the non-empty clone,
+ are described with them in the code.
 
 #### Depends on
 
@@ -748,6 +849,10 @@ The setup run that writes the parent record is step 19's install and boot unit;
 the mode that runs the decision is step 5's dispatch.
 The attach code extends the walk `fs_beneath.rs` already implements.
 The plan's suggestion names the module `worktree_clone_mount` under `src/native/`.
+The host facts the fingerprint holds are read by the gate's own `ModuleIdentity`,
+which step 6's `ProbeFingerprint` reuses,
+so the `first-attach` writer this step adds reuses `ProbeFingerprint` rather than
+opening the module's sysfs files a second way.
 
 #### Design sections
 
@@ -802,8 +907,11 @@ that driver is the plan's suggestion.
 #### Open items
 
 None of the design's.
-Adoption needs administrator quiescence and the recorded parent identity,
-both built here;
+Adoption needs the recorded parent identity,
+built here,
+and administrator quiescence,
+which the design makes an operating rule of the `adopt-worktree-parent` mode step 5 wires,
+not a check this step's module makes;
 its end-to-end arm waits for step 5's mode.
 
 #### Depends on
@@ -884,7 +992,6 @@ Steps 1 and 4.
 #### What it builds
 
 The gate both binaries run before their first ioctl:
-module release,
 architecture,
 endianness,
 request contract and the kernel/module BTF layout,
@@ -897,6 +1004,9 @@ keeps registrations and durable recovery state,
 and leaves an unused slot to the applicable reflink or ordinary Git route.
 Also the start probe the kernel-release answer asks for,
 and the runtime layout checker.
+The account companion's check code is step 10's,
+by the project's answer of 2026-11-21,
+so this step ships without it.
 
 #### Design sections
 
@@ -923,18 +1033,51 @@ and the gate's decisions are this step's own tests.
 #### VM measurements
 
 Two arms in the throwaway guest:
-an untested release,
+an untested release with the approved layout,
+asserting that raw requests stay enabled,
+because the project's answer "Any version,
+layout decides" means the gate compares no release string
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The release string,
+Q2";
+this sentence changed 2026-11-20 to agree with it);
 and a module whose field layout differs from the approved one,
-each asserting that raw requests are disabled.
+asserting that raw requests are disabled.
 The BTF comparison runs against the guest's `/sys/kernel/btf/zfs`.
 
 #### Open items
 
+The probe's guest arms are built and run in
+`package/git-policy/cli/e2e/start-probe-guest.ts`:
+M1's attach,
+its held-source `EBUSY` control,
+its unloaded-key `EACCES` control and its read-only against read-write control;
+M2's controls;
+M3's kill matrix and raised deadline;
+M5's refusal controls;
+M7's scan arms;
+M9's accepted release and filtered refusal;
+and M10's absent-source reading.
+One reading of M1 cannot be taken there:
+what a kernel older than 6.6 answers for the exclusive create.
+The guest boots `6.8.0-147-generic`,
+whose `fsconfig` knows `FSCONFIG_CMD_CREATE_EXCL`,
+so no arm in that guest answers `EOPNOTSUPP`.
+Such a run needs a throwaway guest whose kernel predates the command
+and an OpenZFS module built against that kernel,
+because the refusal is the kernel's and the module must load on it;
+until one runs,
+the wording for that arm stays the kernel source's reading rather than a measurement.
+
 Blocked by "The start probe a kernel-release answer asks for" and "The runtime layout checker",
 which are this step's own designs.
-The release,
-architecture,
-endianness and request-contract checks are decided and can be written beside them.
+The architecture,
+endianness and request-contract checks are decided and can be written beside them;
+the module's release string is reported,
+not proved,
+by the project's answer of 2026-11-19,
+"Any version,
+layout decides".
 
 #### Depends on
 
@@ -1144,11 +1287,13 @@ in its boot namespace where a unit must see the mount.
 
 #### Open items
 
-Blocked by "Staging under `~/.cache` and the wrapper's cleanup",
+Waits on "Staging under `~/.cache` and the wrapper's cleanup",
+which is designed and accepted
+([record](../decision/cli-git-zfs-staging-under-cache.md)),
+and on the build that ships it,
 which also owes the interface that unmounts a staged mount from the held descriptor.
 Steps 14,
-16 and 17 wait on it as well,
-so also on that design.
+16 and 17 wait on that build as well.
 Open item 3's receiving path,
 how root's finding reaches the unprivileged wrapper,
 lands in step 17;
@@ -1185,6 +1330,9 @@ the pointer install,
 the verified fill and the dependency-repair queue;
 the durable binding record keyed on repository,
 registration and clone GUID;
+the account companion's check code,
+its skip arms and its own deadline,
+by the project's answer of 2026-11-21;
 and the resume states and `ENOSPC` behavior.
 
 #### Design sections
@@ -1257,6 +1405,73 @@ The dirty half stays step 11's,
 with the interim the owner decided on 2026-11-19,
 answering "Ship step 10 first (Recommended)".
 The binding record's home is a gap this plan names.
+Also blocked by issue 6323,
+found 2026-11-20:
+a snapshot or a clone keeps the source's bytes where Git's checkout would convert them
+(line endings,
+`ident`),
+and neither stat data nor Git's status can tell.
+It is reproduced on `main`'s btrfs rungs 1 and 2 and on step 3's ZFS clone rung,
+so this step's snapshot clone carries it too unless the fence the project chooses applies to rung 1;
+the fence's design and measured cost go to the project first.
+They went on 2026-11-20:
+asked to choose between the fence before the clone with a decline rule,
+a whole-source refusal,
+Git rewriting every path,
+or building the fence beside the clone first,
+the project answered "Build B first" at 2026-11-20T22:37:00-05:00.
+So the fence run beside the clone is designed,
+built and measured
+(`doc/planning/cli-git-clone-rung-conversion-fence.md`,
+option B),
+and the question is put again with its numbers;
+step 3,
+the btrfs fix and this step wait on it.
+At 2026-11-20T23:27:33-05:00 the project settled it,
+after an explanation of what the fence does:
+"Yeah,
+do B.
+But this is an edge case of an edge case so don't spend too much effort on it,
+and note whatever still isn't completely sane as a limitation."
+It then made the scope exact:
+"No need to make it have lower effort.
+You've already chosen B so be thorough with it.
+I was just talking about minimal efforts except what we've already chosen."
+So B is the remedy and is built thoroughly,
+its remaining flaws are listed in the proposal's "Limitations" section rather than chased,
+and no further alternative to it is explored;
+the question is not put again.
+On 2026-11-21 the project answered one cost B leaves:
+a btrfs snapshot add of this repository took about twice `main`'s time in the guest
+(838 ms against 431 ms over five rounds with the identical-binary control,
+338 ms of it one `git ls-tree` reading every path's recorded size,
+which the snapshot's constant-time copy leaves nothing to overlap with).
+Asked whether to merge and then build a faster reader,
+merge and accept the cost,
+or build the reader first,
+the project answered "A:
+merge,
+then faster reader (Recommended)".
+So step 3 with the fence merges once its review passes,
+carrying that cost until a reader of the sizes from the object database replaces the `git ls-tree` run.
+On 2026-11-21 the project answered a second cost the fence's closure check measured:
+an add at a commit whose tree differs from the source in a path the fence hands to Git
+(a converting path or any LFS path)
+copies the files,
+then falls back to Git's checkout,
+and took 508 ms against `main`'s 378 ms on a 10,002-file fixture
+(identical-binary control 497 ms),
+where `main` on ZFS makes that add with Git's checkout and is byte-correct;
+neither waiver covers it.
+Asked whether to merge now and then build a check that skips the clone rung before copying when the target differs in a
+fenced path,
+fix that first,
+or merge and keep the cost,
+the project answered "A:
+merge now,
+fix it next (Recommended)".
+So step 3 with the fence merges carrying that cost as a limitation,
+and the up-front skip is built and measured against `main` next.
 
 #### Depends on
 
@@ -1305,6 +1520,10 @@ Runs in the throwaway guest.
 #### Open items
 
 Blocked by "The dirty-main restore on rung 1".
+Also blocked by issue 6323,
+as step 10 is:
+the guest check of `main` found the dirty restore on btrfs keeping converted paths' source bytes too,
+because an entry whose stat data matches exactly never reaches the content judge.
 
 #### Depends on
 
@@ -1874,7 +2093,7 @@ which names "the protected `home-user-Monochromatic.mount` if using a generated 
 or `zfs-mount.service` where it mounts the checkout",
 and "Checkout boot mount protection" says
 to prove the failure control and production ordering before enabling the gate.
-The staging design blocks its boot arm through step 9's open item.
+Its boot arm waits on step 9's staging build through that step's open item.
 The migration itself is a runbook that needs no design beyond the design's own protection decision;
 that reading is the plan's suggestion.
 
@@ -2000,6 +2219,13 @@ stage by stage;
 what expiration,
 removal and the current guard can free;
 and every shipped limit cited beside its measurement.
+
+(Amended 2026-11-20,
+once [the start probe design](cli-git-zfs-start-probe-design.md) was accepted ([decision record](../decision/cli-git-zfs-start-probe.md)):
+"every shipped limit cited beside its measurement",
+and the acceptance text "to size any shipped deadline or optional scan interval",
+cover step 7's mount-request deadline and step 9's unmount deadline;
+the probe's deadline and the account companion's are sized by steps 6 and 10 beside their own runs.)
 
 #### Design sections
 
@@ -2180,13 +2406,14 @@ as the introduction of "Acceptance tests the build still owes" asks.
   22, 23.
 - Steps that cannot run their VM arm before another design exists:
   6 (the probe and the layout checker),
-  9 and the removal steps 14,
-  16 and 17 that unmount (the staging design),
   11 (the dirty restore),
   13 (the lock's distinction and release),
   15 (the deferred checks),
   17 (cancellation and the forced arm),
   and 19's propagation item.
+- Steps that cannot run their VM arm before step 9's staging interface is built:
+  9 and the removal steps 14,
+  16 and 17 that unmount.
 - Every step that changes `package/git-policy/cli` also runs the wrapper's container gate,
   which is the gate "Integration" discusses.
 - The binding package's steps run that package's own tasks,
@@ -2315,11 +2542,11 @@ These can run beside it without touching a file it touches:
   in a new folder under `package/git-policy/cli/src/native/`,
   with the module-level tests its root-run harness runs.
   Its VM arms wait for step 2's recipe.
-- The three blocking designs,
+- The two blocking designs,
   as documents:
-  the start probe,
-  the runtime layout checker and staging under `~/.cache`.
-  They are the critical path for steps 6 and 9,
+  the start probe
+  and the runtime layout checker.
+  They are the critical path for step 6,
   and nothing else in the plan unblocks them.
 
 Step 2's recipe is not on this list:
@@ -2335,13 +2562,12 @@ and steps 3,
 4 and 5 change the wrapper,
 so each merge waits for the container gate.
 
-While all three designs are unwritten,
+While the two designs are unwritten,
 the steps whose lists name no design are 1 to 5.
 Behind step 6,
  the start probe and the layout checker,
 sit steps 6 to 23;
-behind step 9,
- staging,
+behind step 9's staging interface,
 sit step 9 and steps 14 to 23.
 
 Parallel writers here need a worktree each.
@@ -2480,8 +2706,10 @@ and whether the answer is the owner's or a writer's design work.
   writer design work.
 - "Staging under `~/.cache` and the wrapper's cleanup":
   step 9,
-  blocking for every unmount,
-  writer design work.
+  blocking for every unmount until that step lands,
+  designed and accepted on 2026-11-20
+  ([record](../decision/cli-git-zfs-staging-under-cache.md)),
+  so it blocks on the build alone.
 - "What re-applies private propagation after a replacement mount":
   step 19,
   blocking for its acceptance item,
@@ -2514,6 +2742,9 @@ the fourth is an accepted cost that `doctor` reports.
   `## Single executable and shipped policies` in [spec][] states that the release artifact is one executable,
   while "Binding crate and compatibility" and "Decided defaults" keep a second binary in the same package.
   Step 5 changes this.
+  It did,
+  at `b2e231c17d` (2026-11-20T03:44:29-05:00):
+  the section is now `## The two executables and shipped policies`.
   One archive carrying both is forced rather than chosen:
   "Decided defaults" keeps the handler inside `package/git-policy/cli`
   ("Keep inside cli (Recommended)"),
@@ -2535,12 +2766,12 @@ the fourth is an accepted cost that `doctor` reports.
 Each entry says what the design states and what this plan suggests instead,
 and no entry changes a decision.
 
-- The order of the three blocking designs.
+- The order of the two blocking designs.
   The design states no order.
-  The plan suggests writing the start probe,
-  the layout checker and the staging design first,
+  The plan suggests writing the start probe
+  and the layout checker first,
   beside steps 1 to 5,
-  because steps 6 and 9 wait on them.
+  because step 6 waits on them.
 - Where the ZFS interface sits in [spec][].
   The design names no heading.
   The plan suggests one new section per area under `## Lifecycle`,

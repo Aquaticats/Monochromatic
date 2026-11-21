@@ -55,6 +55,10 @@ pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cl
 ///  so 4096 slots of 256 bytes fit with the header inside one mebibyte;
 ///  a checkout with more worktrees than that needs this bound raised,
 ///  not a larger read.
+///  An append that would make the file larger than this bound is refused
+///  (`StoreRefusal::WouldNotFit`),
+///  and so is the adoption's rewrite of the parent record,
+///  so no write grows a store past what its own read accepts.
 pub const STORE_MAXIMUM_BYTES: u64 = 1 << 20;
 
 /// The owner of a store,
@@ -275,6 +279,7 @@ fn check_control(path: &Path, what: &str, held: &std::fs::File) -> Result<(), St
 /// The read refusal of the store,
 /// the refusal of a name that is no plain name,
 /// the refusal of a slot that is already recorded,
+/// the refusal of a record that would outgrow the store,
 /// the refusal of a lock another run holds past the wait,
 /// or the write's own failure.
 pub fn append_slot_identity(store: &Path, name: &str, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
@@ -328,6 +333,8 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
         return Err(StoreRefusal::NoParentRecord { path: store.to_path_buf() });
     }
     let line: String = StoredIdentity::Slot { name: name.to_string(), identity: identity.clone() }.encode();
+    let grown: u64 = u64::try_from(text.len() + line.len() + 1).expect("a store's bytes fit a word");
+    check_the_store_fits_one_read(store, grown)?;
     #[cfg(test)]
     BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { if let Some(between) = hook.borrow().as_ref() { between(); } });
     debug(TAG, "record the identity of one clone slot");
@@ -359,6 +366,7 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
 ///
 /// # Errors
 /// The read refusal of the store,
+/// the refusal of a rewritten store that would be larger than one read accepts,
 /// or the write's own failure,
 /// which leaves the file as it was.
 pub fn record_parent_identity(store: &Path, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
@@ -390,8 +398,16 @@ pub fn record_parent_identity_under_root_control(store: &Path, identity: &CloneF
     return replace_the_parent_record(store, &read, identity);
 }
 
-/// Write the store `read` describes with the parent record `identity`,
-/// keeping every slot record and publishing the whole file by rename.
+/// What:
+///  Write the store `read` describes with the parent record `identity`,
+///  keeping every slot record and publishing the whole file by rename.
+/// Why:
+///  A rename publishes a whole file,
+///  so the size check comes before it:
+///  a store grown past the bound would refuse every read of itself,
+///  and the parent record would be the one the adoption replaced and nothing could read.
+///  The refusal leaves the file as it was,
+///  so the store still holds the identity every attach compares against.
 fn replace_the_parent_record(store: &Path, read: &SlotIdentityStore, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
     let mut lines: Vec<String> = vec![String::from(STORE_HEADER), StoredIdentity::Parent(identity.clone()).encode()];
     for record in &read.records {
@@ -402,6 +418,8 @@ fn replace_the_parent_record(store: &Path, read: &SlotIdentityStore, identity: &
     }
     let mut text: String = lines.join("\n");
     text.push('\n');
+    let published: u64 = u64::try_from(text.len()).expect("a store's bytes fit a word");
+    check_the_store_fits_one_read(store, published)?;
     debug(TAG, "replace the recorded identity of the worktrees parent folder");
     replace_private_file(store, text.as_bytes()).map_err(|error| return write_refusal(store, error))?;
     return Ok(());
@@ -440,19 +458,34 @@ const READABLE_OR_WRITABLE_BY_OTHERS: u32 = 0o077;
 ///  The holders are one append and the adoption's rewrite of this same store,
 ///  so the wait must cover a read,
 ///  a write and the `fsync` calls of either.
-///  Measured through this module's own writers on this host's ZFS `home` dataset on 2026-11-20,
-///  with a probe that reads `/proc/diskstats` around every sample:
-///  an append on a 1000-slot store held the lock 1.577 to 2.243 ms
-///  (median 1.748,
-///  40 samples),
-///  an append on the widest store one read accepts (1,011,406 bytes) 31.657 to 33.926 ms (10 samples),
-///  and an adoption of that store 33.483 to 35.976 ms (10 samples),
-///  the slowest holder measured;
-///  every one of those samples moved this host's pool device by its `fsync`,
-///  while the same append without the two `fsync` calls moved no device at all
-///  (0.009 to 0.080 ms,
-///  40 samples).
-///  The two seconds below are 55 times that slowest hold,
+///  Measured through this module's own writers on this host's ZFS file systems on 2026-11-20,
+///  in an unoptimized `test` profile build,
+///  by the ignored measurement control `a_store_write_s_hold_is_measured_for_the_lock_wait`,
+///  in two runs of it:
+///  an append on a 1000-slot store held the lock `1.600` to `2.159 ms` in the first run
+///  (median `1.647`,
+/// 40 samples)
+///  and reached `1.586 ms` at its fastest in the second
+///  (median `1.985`,
+/// 40 samples),
+///  whose slowest sample was `79.362 ms`,
+///  and no kept line measures a cause for that sample;
+///  an append on a store of the whole bound one read accepts (1,048,576 bytes) `19.462` to `39.369 ms` (10 samples each),
+///  and an adoption of that store `47.116` to `52.750 ms` (10 samples each),
+///  the arm that holds the lock longest.
+///  The wide arms measured a store of the whole bound,
+///  whose append this writer now refuses as too large (`StoreRefusal::WouldNotFit`);
+///  the probe's widest arm starts one record below the bound,
+///  the widest write the store accepts,
+///  so a repeat measures the same hold one record narrower.
+///  The store lives at `SLOT_IDENTITY_STORE_PATH` on this host's `root` dataset,
+///  and the probe writes on the same pool's `home` dataset,
+///  because the store itself is not a measurement's to write.
+///  A control whose window is as long as the `fsync` arm's shows each `fsync` moving the pool's device,
+///  and the method,
+///  every range and count and the probe's own source are in
+///  `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`.
+///  The two seconds `STORE_LOCK_WAIT` ships with are 25 times the slowest hold either run saw (79.362 ms),
 ///  which is the margin for a device that answers an `fsync` tens of times slower than this one,
 ///  and it ends the wait rather than holding a command open.
 pub const STORE_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
@@ -461,7 +494,7 @@ pub const STORE_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(
 /// Why:
 ///  A waiter gives the CPU up between asks,
 ///  and it takes the lock within one pause of its release;
-///  two milliseconds is a twentieth of the slowest hold measured above (35.976 ms),
+///  two milliseconds is about a fortieth of the slowest hold measured for `STORE_LOCK_WAIT` (79.362 ms),
 ///  so the added latency stays a fraction of a hold,
 ///  and the shipped wait holds at most a thousand asks.
 pub const STORE_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(2);
@@ -595,6 +628,22 @@ fn read_through(file: &std::fs::File, store: &Path) -> Result<String, StoreRefus
         });
     }
     return Ok(text);
+}
+
+/// What:
+///  Refuse a file of `bytes` bytes that one read would not accept,
+///  naming the size it would have held and the bound.
+/// Why:
+///  The append and the adoption's rewrite are the two writes to the store,
+///  and a file grown past `STORE_MAXIMUM_BYTES` refuses every read of itself,
+///  including the read that would repair it;
+///  so both check the size before they write,
+///  and one sentence states that refusal for both.
+fn check_the_store_fits_one_read(store: &Path, bytes: u64) -> Result<(), StoreRefusal> {
+    if bytes > STORE_MAXIMUM_BYTES {
+        return Err(StoreRefusal::WouldNotFit { path: store.to_path_buf(), bytes, bound: STORE_MAXIMUM_BYTES });
+    }
+    return Ok(());
 }
 
 /// What:

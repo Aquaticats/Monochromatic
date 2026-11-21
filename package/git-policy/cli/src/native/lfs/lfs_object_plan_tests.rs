@@ -57,16 +57,26 @@ fn world(root: &Path) -> (PathBuf, String, String, String) {
     return (repo, known, tip, with_pointer);
 }
 
-/// A plan for `origin` with these refs.
-fn plan(refs: &[&str], full_scan: bool, everything: bool) -> UploadPlan {
+/// A plan for `origin` with these refs,
+/// stopping at the tracking refs the destination confirmed.
+fn plan_stopping_at(refs: &[&str], confirmed: &[&str], full_scan: bool, everything: bool) -> UploadPlan {
     return UploadPlan {
         remotes: vec![OsString::from("origin")],
         refs: refs.iter().map(OsString::from).collect(),
         everything,
         submodules: false,
+        lfs_server: None,
         full_scan,
+        confirmed_tracking_refs: confirmed.iter().map(|name| { return (*name).to_owned(); }).collect(),
         objects: None,
     };
+}
+
+/// A plan for `origin` with these refs,
+/// stopping at `origin/main` unless it is asked to scan everything.
+fn plan(refs: &[&str], full_scan: bool, everything: bool) -> UploadPlan {
+    let confirmed: &[&str] = if full_scan { &[] } else { &["refs/remotes/origin/main"] };
+    return plan_stopping_at(refs, confirmed, full_scan, everything);
 }
 
 /// Narrow with the layout found from the repository's files.
@@ -113,6 +123,28 @@ fn an_untrusted_destination_scans_the_whole_history() {
     assert_eq!(narrowed.objects, Some(vec![oid(1), oid(2)]));
     let mirrored: UploadPlan = narrow(repo.as_path(), plan(&[], true, true)).expect("something to upload");
     assert_eq!(mirrored.objects, Some(vec![oid(1), oid(2)]), "a mirror push reads every ref");
+    remove(root.as_path());
+}
+
+/// What:
+///  A tracking ref the destination moved on drops itself and nothing else,
+/// so the push names only the object it adds
+///  even though `git-lfs` is asked to scan everything.
+/// Why:
+///   This is the path the integration pass found:
+///  a clone whose tracking ref for another branch is behind
+///  the destination read the whole history (21 batch requests and 2052 objects on a 2000-commit fixture) where
+/// `main`
+///  named one object in one request.
+#[test]
+fn a_stale_tracking_ref_does_not_drag_the_known_history_in() {
+    let root = fixture("lfs-object-plan-stale");
+    let (repo, _known, _tip, _with_pointer) = world(root.as_path());
+    store(repo.as_path(), 2);
+    // The destination reports `origin/main` at the commit held here and `origin/other` further on, so only the first
+    //  ref is evidence and only it may be stopped at.
+    let narrowed: UploadPlan = narrow(repo.as_path(), plan_stopping_at(&["feature"], &["refs/remotes/origin/main"], true, false)).expect("something to upload");
+    assert_eq!(narrowed.objects, Some(vec![oid(2)]), "only the object the push adds is named");
     remove(root.as_path());
 }
 

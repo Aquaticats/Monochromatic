@@ -82,7 +82,8 @@ explicit paths select only those files without changing its rule configuration.
 This task change still requires a successful real invocation.
 Do not attribute package-wide coverage to a selected-file check.
 
-On 2026-11-17, `mise run toolchain:install -- --help` failed with the same Node diagnostic.
+On 2026-11-17,
+`mise run toolchain:install -- --help` failed with the same Node diagnostic.
 Mise appended `--help` to the inline source after `runMpmShadow(['install'])`.
 Setting `usage_args` directly in the parent environment still launched an unscoped `mpm-shadow install`,
 as shown by the child process arguments.
@@ -90,7 +91,8 @@ The build used a separate scratch `toolchain:install` task whose command explici
 The scoped task finished with `2 installed, 64 unchanged, 0 failed`.
 
 The maintainer requested removal of the tools added by these runs.
-The cleanup removed the new toolchain store and checkout launchers, the pnpm and uv tools added by the runs,
+The cleanup removed the new toolchain store and checkout launchers,
+the pnpm and uv tools added by the runs,
 and the Rust components and Android targets added to the existing nightly.
 Both the removed managed pnpm and the CachyOS `pacman` package reported version `12.21.0`.
 The [distro package manager decision](../decision/mpm-toolchain-adoption.md#distro-package-manager-preference-2026-11-17t163103-0500)
@@ -128,17 +130,53 @@ Splitting that string on spaces would corrupt quoted paths and arguments.
 
 ## Fix
 
-Interpolate the shared parser and read mise's environment value:
+Interpolate the shared parser,
+end the body with the marker comment,
+ and read both of its
+sources:
 
 ```toml
 run = """
 {{vars.cargo_dispatch}}
 {{vars.parse_usage_args}}
 runCargo(['build', '--release'])
-const args = parseUsageArgs(process.env.usage_args ?? '')
+const args = parseUsageArgs(usageArgWords())
 execFileSync('./target/release/monochromatic-nested-wayland-session', args, { stdio: 'inherit' })
+{{vars.forwarded_arguments_marker}}
 """
 ```
+
+`usageArgWords()` returns mise's `usage_args` value when its usage parser ran,
+ and otherwise the
+words mise appended to the end of the script,
+ which land in the marker comment.
+ Reading
+`parseUsageArgs(process.env.usage_args ?? '')` alone is retired:
+ mise skips its own parser for
+`-h`/`--help` after `--`,
+ so that shape sees nothing and the task runs with no arguments at all.
+`root-task-shared-shapes.unit.test.ts` rejects it.
+The words come back exactly as mise wrote them:
+ a trailing space,
+ a tab,
+ U+00A0,
+ U+FEFF,
+ U+3000,
+ U+2003,
+ a vertical tab or a form feed.
+A word holding a line feed,
+ a carriage return,
+ U+2028 or U+2029 is refused and named,
+ the last word included.
+Text after the marker that is not mise's paste is refused as the body's own code.
+ The marker,
+ its recovery and the words
+it refuses together with the words it keeps are recorded in
+[mise inline task arguments](mise-inline-task-arguments-land-in-the-script.md).
+
+A task body that reads no shared parser still pastes forwarded words into its TypeScript;
+[issue 6328](https://github.com/Aquaticats/Monochromatic/issues/6328) tracks those package
+tasks.
 
 This preserves spaces,
 quotes,
@@ -159,3 +197,13 @@ mise run //package/nested-wayland-session/cli:run -- \
 The compositor must parse the socket,
 start its private appearance portal,
 and launch `app` rather than reporting that no client command was given.
+Run it once with `-- --help` as well:
+the words must reach the executable rather than the task body.
+
+## Related
+
+- [mise inline task arguments](mise-inline-task-arguments-land-in-the-script.md) explains why
+  mise appends post-`--` words to the inline script and records the marker shape this doc's
+  Fix section uses.
+- [Issue 6328](https://github.com/Aquaticats/Monochromatic/issues/6328) tracks the package
+  tasks that read no shared parser and still receive the pasted words.

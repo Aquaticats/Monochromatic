@@ -22,12 +22,14 @@
 
 /// The destination and the named refs of a push.
 use crate::command_push::{parse_push_region, push_shape};
+/// Whether the destination confirms this clone's tracking refs.
+use crate::lfs_destination_confirms_tracking_refs::{ConfirmedTrackingRefs, DestinationHeads, tracking_refs_confirmed_by_awaiting};
 /// The configuration the plan reads.
-use crate::lfs_upload_settings::{PlanError, QueryAwaiting, current_branch_awaiting, default_remote, reads_as_true, setting, values};
+use crate::lfs_upload_settings::{PlanError, QueryAwaiting, current_branch_awaiting, default_remote, git_says_true_awaiting, setting, values};
 /// The switch and the skip variable.
 use crate::lfs_pre_push::{hook_switched_off, skip_requested};
 use crate::lfs_upload_plan::{
-    Source, UploadPlan, configured_remotes, directory_of, has_push_rewrite, lfs_destination, names_of, refspec_source, star_split,
+    Source, UploadPlan, configured_remotes, directory_of, has_push_rewrite, lfs_destination, lfs_server_of, names_of, refspec_source, star_split,
 };
 /// Owned OS text for arguments.
 use std::ffi::{OsStr, OsString};
@@ -48,7 +50,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await planUploadOnTheRuntime(globalPrefix, region, environment, directory, settings, query);
+/// await planUploadOnTheRuntime(globalPrefix, region, environment, directory, settings, knownDestination, query);
 /// ```
 pub async fn plan_upload_awaiting(
     global_prefix: &[OsString],
@@ -56,6 +58,7 @@ pub async fn plan_upload_awaiting(
     environment: &[(OsString, OsString)],
     directory: &Path,
     all: &[(String, String)],
+    known_destination: Option<&DestinationHeads>,
     query: QueryAwaiting<'_>,
 ) -> Result<Option<UploadPlan>, PlanError> {
     if hook_switched_off(global_prefix, environment) || skip_requested(environment) {
@@ -83,7 +86,7 @@ pub async fn plan_upload_awaiting(
     let bare: bool = specs.is_empty() && !shape.branches && !shape.tags && !everything;
     if bare {
         let configured: Vec<&str> = values(all, &format!("remote.{remote_text}.push"));
-        if setting(all, &format!("remote.{remote_text}.mirror")).is_some_and(reads_as_true) {
+        if git_says_true_awaiting(all, format!("remote.{remote_text}.mirror").as_str(), query).await? {
             everything = true;
         } else if !configured.is_empty() {
             specs.extend(configured.into_iter().map(OsString::from));
@@ -124,21 +127,41 @@ pub async fn plan_upload_awaiting(
     }
     let configured: bool = configured_remotes(all).contains(&remote_text.as_str());
     let push_urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.pushurl")) } else { Vec::new() };
-    let push_url_count: usize = push_urls.len();
-    let remotes: Vec<OsString> = if push_url_count > 1 {
+    let urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.url")) } else { Vec::new() };
+    // Git pushes to every push URL of a remote, and to every URL of a remote that has no push URL, so each of those is a
+    //  destination of its own: each may keep its objects in its own place.
+    let places: &[&str] = if push_urls.is_empty() { urls.as_slice() } else { push_urls.as_slice() };
+    let remotes: Vec<OsString> = if places.len() > 1 {
         let mut destinations: Vec<OsString> = Vec::new();
-        for url in &push_urls {
+        for url in places {
             destinations.push(lfs_destination(OsStr::new(url), directory, false));
         }
         destinations
     } else {
         vec![lfs_destination(remote_name.as_os_str(), directory, configured)]
     };
-    // The tracking refs describe the destination only for a configured remote that is fetched from and pushed to the
-    //  same place: a push URL, a `pushInsteadOf` rewrite, a URL or path destination or a mirror breaks that.
-    let tracking_trusted: bool = configured && push_urls.is_empty() && !has_push_rewrite(all);
-    let full_scan: bool = everything || !tracking_trusted;
-    return Ok(Some(UploadPlan { remotes, refs: unique, everything, submodules, full_scan, objects: None }));
+    // The destination confirms this clone's tracking refs ref by ref: a configured remote that is fetched from and pushed
+    //  to the same place is asked, and the refs it reports at the commits held here are the only places the upload stops.
+    //  A push URL, several URLs, a `pushInsteadOf` rewrite, a URL or path destination and a mirror break that, so such a
+    //  destination is asked nothing and its upload stops nowhere.
+    let same_place: bool = !everything && configured && push_urls.is_empty() && urls.len() == 1 && !has_push_rewrite(all);
+    let evidence: ConfirmedTrackingRefs = if same_place {
+        tracking_refs_confirmed_by_awaiting(remote_text.as_str(), known_destination, query).await
+    } else {
+        ConfirmedTrackingRefs::unknown()
+    };
+    let full_scan: bool = everything || !evidence.every_tracking_ref_is_confirmed();
+    let lfs_server: Option<String> = lfs_server_of(remote_name.as_os_str(), all);
+    return Ok(Some(UploadPlan {
+        remotes,
+        refs: unique,
+        everything,
+        submodules,
+        full_scan,
+        confirmed_tracking_refs: evidence.names().to_vec(),
+        objects: None,
+        lfs_server,
+    }));
 }
 
 

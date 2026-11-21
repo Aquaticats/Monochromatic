@@ -8,6 +8,7 @@ import {
 
 import { runGateCommand } from './native-gate-run.ts';
 import {
+  handlerVersionLine,
   installSteps,
   journalIdentifiers,
   journalSince,
@@ -111,6 +112,12 @@ await describe({
       name: 'names the release text an installed wrapper prints',
       fn: async () => {
         expect(wrapperVersionLine({ version: releaseVersion, }),).toBe('monochromatic-git-policy-cli 0.6.1-alpha.10,',);
+      },
+    }),
+    it({
+      name: 'names the release text the installed handler prints',
+      fn: async () => {
+        expect(handlerVersionLine({ version: releaseVersion, }),).toBe('mount-git-worktree-clone-datasets 0.6.1-alpha.10',);
       },
     }),
     it({
@@ -227,6 +234,7 @@ await describe({
         expect(printed.stdout,).toContain(`+{"tools":{"cargo:monochromatic-git-policy-cli":"${releaseVersion}"}}`,);
         expect(printed.stdout,).toContain(`installed cargo:monochromatic-git-policy-cli ${releaseVersion}`,);
         expect(printed.stdout,).toContain(wrapperVersionLine({ version: releaseVersion, }),);
+        expect(printed.stdout,).toContain(handlerVersionLine({ version: releaseVersion, }),);
         expect(printed.stdout,).toContain('== the sample commit took ',);
         expect(printed.stdout,).toContain('== newest timing line (',);
         expect(printed.stdout,).toContain('== service journal since the sample commit began',);
@@ -402,6 +410,25 @@ await describe({
         expect(printed.status,).toBe(1,);
         expect(printed.stderr,).toContain(`does not name ${releaseVersion}`,);
         expect(printed.stderr,).toContain('mise run toolchain:install',);
+        expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
+      },
+    }),
+    it({
+      name: 'refuses when the release archive moved only the wrapper, and commits nothing',
+      fn: async () => {
+        await using fixture = await createInstallFixture({
+          version: releaseVersion,
+          options: { withoutHandler: true, },
+        });
+        /**
+         How the refused install ended.
+         */
+        const printed = await install({
+          fixture,
+          args: [releaseVersion,],
+        });
+        expect(printed.status,).toBe(1,);
+        expect(printed.stderr,).toContain('mount-git-worktree-clone-datasets',);
         expect(await commitSubjects({ repository: fixture.repository, }),).toEqual(['first',],);
       },
     }),

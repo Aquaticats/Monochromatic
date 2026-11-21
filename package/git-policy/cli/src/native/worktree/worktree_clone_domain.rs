@@ -23,7 +23,6 @@
 //! const refusal = cloneDomainRefusal(cloneSideOf(source), cloneSideOf(target)); // throws the reason
 //! ```
 
-use crate::fs_kind::may_clone;
 use crate::fs_kind::{FilesystemKind, filesystem_kind};
 use crate::fs_mount_options::read_mount_facts;
 use std::os::unix::fs::MetadataExt;
@@ -136,7 +135,8 @@ pub(crate) fn clone_write_target((destination, parent): (&Path, &Path)) -> PathB
 /// What:
 ///  Why a filesystem cannot take or give a reflink,
 /// naming the path that cannot,
-/// or nothing when both sides can.
+/// or nothing when both sides can,
+/// with the question "may this path clone" supplied as a call.
 /// Why:
 ///   The answer asks the filesystem that would receive the clones first,
 /// which is the destination when
@@ -144,16 +144,18 @@ pub(crate) fn clone_write_target((destination, parent): (&Path, &Path)) -> PathB
 /// so the refusal names the path whose filesystem was asked and not one whose
 ///  filesystem never mattered,
 /// and a control can tell the destination from its parent by the name the refusal gives.
+/// The question is a call so the rung answers it with `may_clone`
+/// and a control answers it for a filesystem the rung never runs on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unclonable = ([source, target]) => !mayClone(target) ? `${target} cannot receive a clone` : !mayClone(source) ? `${source} cannot give one` : undefined;
+/// const unclonableAsked = ([source, target], may) => !may(target) ? `${target} cannot receive a clone` : !may(source) ? `${source} cannot give one` : undefined;
 /// ```
-pub(crate) fn unclonable_filesystem((source, target): (&Path, &Path)) -> Option<String> {
-    if !may_clone(target) {
+pub(crate) fn unclonable_filesystem_asked((source, target): (&Path, &Path), may: &mut dyn FnMut(&Path) -> bool) -> Option<String> {
+    if !may(target) {
         return Some(format!("{} would receive the clones and its filesystem does not share data blocks between files", target.display()));
     }
-    if !may_clone(source) {
+    if !may(source) {
         return Some(format!("{} holds the files to clone and its filesystem does not share data blocks between files", source.display()));
     }
     return None;

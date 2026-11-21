@@ -246,11 +246,41 @@ XFS,
 overlayfs and ZFS" for the conversion,
 the removal and the migration.
 
-## Single executable and shipped policies
+## The two executables and shipped policies
 
-The release artifact is one executable,
- `monochromatic-git-policy-cli`.
-Every policy is compiled into it;
+One release archive carries two executables,
+ and they are the whole of it:
+`monochromatic-git-policy-cli`,
+ which is the program a caller runs as `git`,
+ and `mount-git-worktree-clone-datasets`,
+ which is the root-run clone-mount handler of the ZFS worktree route
+ (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+ "Binding crate and compatibility").
+One archive and not two because cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate,
+ so the manifest,
+ the release job,
+ the release list and the toolchain lock name both executables and nothing else
+ (`src/native/source_guard/release_bins_tests.rs`,
+ `bin/native-release-bins.unit.test.ts`).
+The handler answers three modes and a default invocation,
+ is installed at `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
+ and at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`,
+ is never linked as `git`,
+ and carries no policy:
+ it owns clone attachment,
+ unmount and the recorded folder identities,
+ and it shares the ZFS binding and the compatibility gate with the wrapper.
+The default invocation,
+ which is how the installed ZED event starts it,
+ runs the clone-mount sweep;
+`boot-reconcile`,
+`shutdown-unmount`
+ and `adopt-worktree-parent` are the named modes,
+ and each refuses until the plan step that builds it lands
+ (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 5).
+Both executables start on a machine whose kernel has no ZFS device and neither links one of OpenZFS's CDDL libraries.
+Every policy is compiled into the wrapper;
  no configuration loads code,
  and there are no plugins.
 The built-in policies run at their default severity without being listed.
@@ -1399,6 +1429,7 @@ installs the index with `rewrite_index_stat_with` (extensions `UNTR` and `FSMN`
 dropped),
 applies the tree difference with `git read-tree -m -u <source commit> <new commit>` under Git's
 `GIT_DIR` and `GIT_WORK_TREE`,
+writes through Git the paths the conversion fence leaves to it,
 gives the stage the source's mode and swaps it with the destination
 (`RENAME_EXCHANGE`).
 The directory real Git made,
@@ -1408,6 +1439,23 @@ Git's pointer and the empty
 directory go,
 and anything another process added to it meanwhile stays there and is named in a warning.
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
+The same conversion fence decides the snapshot rung,
+before the snapshot and before its stage name is claimed:
+the attributes are read and the decline decided first,
+the rest of the fence (`git ls-tree` and the per-path decision) is decided in the same step,
+and the index the snapshot installs holds the fenced paths with no stat data,
+so no path is recorded clean before Git's own write records the bytes it checked out.
+In the stage,
+and before it is swapped in,
+those paths are written by one
+`git checkout-index --force -u --stdin`,
+intersected with the index the tree difference left.
+A fence that cannot read its inputs ends the rung and Git's own checkout completes the worktree,
+and so does the fence's decline rule,
+before the snapshot rather than after it.
+The fence's two reads run on the add's waiting path in this rung:
+a snapshot copies everything anyway,
+so there is no copy for them to run beside.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
 The swap this command made itself proves the worktree is its own,
@@ -2640,21 +2688,106 @@ because the clones would land in that clone's dataset and not in the source's;
 so is a mounted clone used as the source of a slot in the checkout's dataset,
 and so is any destination on another dataset than the source,
 which a destination on a dataset mounted inside the source's own is,
-such as `~/.cache`, which this host's layout gives a dataset of its own
-(`zpcachyos/nosnap/user-cache`, which `findmnt -t zfs` lists).
+such as `~/.cache`,
+which this host's layout gives a dataset of its own
+(`zpcachyos/nosnap/user-cache`,
+which `findmnt -t zfs` lists).
 What a reflink needs is why:
 a clone shares data blocks only inside one dataset,
 `FICLONE` answers `EXDEV` across filesystems,
 and a `copy_file_range` that shares blocks across two datasets with one data key does not qualify.
 A refused or failed `FICLONE` ends the rung and never becomes a copy of the bytes;
 rung 3 fills the worktree.
+On ZFS a destination whose pool has block cloning off (`zfs_bclone_enabled` reads 0) is declined before the source
+proof,
+because every clone into that dataset would be refused and Git's checkout would follow anyway;
+a switch file that cannot be read declines nothing.
+Two costs of this rung on ZFS are waived in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`
+until the partial-clone proposal that record names lands or is rejected.
+A source with uncommitted changes pays the proof and ends in Git's checkout,
+about 0.2 s more than the same add on `main`
+(0.80 to 1.59 times as long over 24,313 tracked files in twenty rounds,
+medians 0.93 to 1.25).
+A clean add of a tree of many small files is slower than on `main`,
+because cloning a small file costs more than Git's write of it
+(1.33 times at 10,001 files of about 2.6 KB,
+1.18 times at about 8.8 KB,
+parity at about 26 KB,
+0.64 times on this repository's own tree of 24,383 files of about 32 KB).
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept;
 links
 recreated),
 a second comparison of the source with its own index,
+the conversion fence below,
 the installation of the index,
 and the same tree
 difference.
+The conversion fence decides which tracked paths a clone may carry,
+so that no path is ever recorded clean while its bytes are not Git's own checkout's
+(GitHub issue 6323:
+a clone keeps the source's bytes where the checkout would convert line endings or `ident`).
+Git carries a path only where the checkout of its blob is the blob itself and the source's file is proven to hold that
+blob.
+The proof is Git's own conversion rules,
+read from the path's attributes (`text`,
+the legacy `crlf`,
+`eol`,
+`filter`,
+`ident`,
+`working-tree-encoding`),
+`core.autocrlf` and `core.eol`,
+in the order `convert.c` reads them:
+a path whose checkout could add a carriage return,
+expand an `ident` keyword,
+convert a
+`working-tree-encoding` or run a filter's smudge is written by Git in the new worktree through one
+`git checkout-index --force -u`;
+every other path is carried when the size its index records equals the size of its blob,
+which one `git ls-tree -r -l` reads,
+because a rule can only shrink a file on the way into the index and a file with no rule today can still hold a form
+an earlier rule wrote.
+The attributes are read (`git check-attr --all --stdin`) and the decline is decided before the copies;
+the rest of the fence (`git ls-tree` and the per-path decision) runs on the add's own thread while the clones copy,
+and both answers are joined before anything is installed.
+The index is written under a name of its own with the stat data of every path Git must write zeroed,
+Git's runs for the tree difference and for the one `git checkout-index --force -u` are pointed at that file with
+`GIT_INDEX_FILE`,
+and only after that write does the file take the worktree's name `index`.
+A process killed anywhere between the copies and that last step,
+the fallback checkout of a failed tree difference included,
+therefore leaves no index in the worktree at all,
+which the recovery names as an add that is possibly incomplete and follows with the commands that finish or remove it;
+the recovery also removes the waiting index and the lock a killed Git left beside it,
+so the finish leaves nothing of the add's own in the administrative directory;
+a kill inside that fallback leaves the unfinished shape above,
+with the waiting file and its lock and no index,
+and whatever the run had already written stays on disk for the finish to complete.
+An index published before the write could not vouch for a written path either,
+because the clean form of the source's bytes equals the blob the entry names,
+so a `git status` would refresh such an
+entry and report the worktree clean while a converted path still held the source's bytes.
+Where more than a quarter of the tracked paths,
+and more than a thousand,
+have a rule of their own that converts them,
+the rung declines before any copy and Git's checkout writes the worktree,
+with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
+a declined add is Git's own checkout plus one `git check-attr` and the count over it.
+A rung that ends after the fence,
+for any other reason,
+says
+`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
+because its zeroed entry cannot be verified as up to date;
+Git's own checkout then writes the worktree against the rung's own index,
+which still holds the source's entries,
+so a path the new tree lacks is removed with the tracked ones and the bytes are equal.
+A source with an untracked or ignored `.gitattributes` anywhere above a tracked path refuses the rung,
+because Git read it when the files were added and the new worktree will not have it,
+and the refusal is taken before anything is copied.
+A source that sets `attr.tree` or `GIT_ATTR_SOURCE` is served when its stat data proves every tracked path,
+because the fence's `git check-attr` reads the same tree Git's checkout does and the bytes are equal;
+a source whose clean proof has to read content ends in Git's own checkout,
+because that proof reads the worktree's attribute files and cannot rule out the tree's.
 A refusal removes nothing,
 because a name cannot be checked and unlinked in one step:
 the tracked files of a run longer than the rung's break-even are cloned in up to the host's budget of slices at
@@ -5409,6 +5542,18 @@ because a skipped or doubled line would let a slot be compared against nothing o
 The read is bounded at one mebibyte,
 which a header and thousands of slot lines fit inside,
 and a larger file is refused by that bound rather than read into memory.
+An append that would make the file larger than that bound is refused before anything is written,
+so an append never grows a store past what its own read accepts;
+the widest store an append grows is one record below the bound.
+The adoption's rewrite of the parent record is refused on the same terms before anything is written,
+so a rewrite publishes a store of the bound at most,
+and the widest store it publishes is the bound itself.
+An adoption the bound refuses leaves the recorded parent identity in place,
+so every managed attach that compares the replacement folder against it keeps refusing,
+and nothing in this repository removes a recorded slot or raises the bound;
+the record format that lets a store grow past it is the owner's open question,
+and the refusal asks the person to report the store,
+its size and the adoption rather than edit the file.
 A missing file refuses and names the setup run that writes it.
 
 The route reads the store through `SlotIdentityStore::read_under_root_control`,
@@ -5445,13 +5590,19 @@ an exclusive `flock` needs no write bit of the file it locks,
 so a lock on the store is one every account that may read the store could hold,
 and that account would stall root's own sweep.
 The lock is asked for without waiting (`LOCK_NB`) and given up after two seconds,
-which is 55 times the slowest hold measured through these two writers on this host's ZFS home dataset:
-1.577 to 2.243 ms for an append on a 1000-slot store,
-31.657 to 33.926 ms for an append on the widest store one read accepts,
-and 33.483 to 35.976 ms for that store's adoption,
-the slowest holder
+which is 25 times the slowest hold either run of the probe measured through these two writers
+on this host's ZFS `home` dataset in an unoptimized `test` profile build (`79.362 ms`):
+`1.600` to `2.159 ms` for one run's appends on a 1000-slot store and `1.586 ms` at the fastest in the other's
+(the medians were `1.647` and `1.985 ms`),
+`19.462` to `39.369 ms` for an append on a store of the whole bound one read accepts,
+and `47.116` to `52.750 ms` for that store's adoption,
+the arm that holds the lock longest (`37.9` times the wait)
 (the method,
-every sample and the `fsync` that reached the pool's device stand beside `STORE_LOCK_WAIT`),
+the ranges and counts,
+the append's size check that moved the probe's widest arm one record below the bound,
+and the control that shows each `fsync` reaching the pool's device,
+are in `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`,
+which `STORE_LOCK_WAIT` names),
 so a holder that never finishes refuses the write and says which lock file stood in the way
 instead of holding the command open.
 The kernel releases the lock when the descriptor closes however the run ends,
@@ -5503,8 +5654,8 @@ because item 7 measured a root-owned setuid executable gaining effective UID 0 o
 and keeping the account's UID with the restriction.
 `fsmount` needs Linux 5.2,
 as does `move_mount`.
-The guest arm reads both flags back from `/proc/self/mountinfo` for the mount at the slot;
-that read-back is owed ("What the guest still owes").
+The guest arm reads both flags back from `/proc/self/mountinfo` for the mount at the slot
+(`attach_arm_the_clone_lands_at_the_held_slot_with_the_enforced_flags`).
 
 #### The post-attach check
 
@@ -5514,12 +5665,20 @@ the check repeats the walk from the checkout and compares five facts:
 - The walk reaches a parent folder whose identity is the one the attach held.
   A parent folder replaced after the attach is a refusal,
   and so is a walk that no longer reaches the slot.
-- The held target's own descriptor is on the mount the attach recorded,
-  read from it after `move_mount` returned.
+- The mount the kernel resolves at the held target's name beneath the held parent
+  is the mount the attach recorded,
+  read by a fresh `openat2` of that name beneath the held parent after `move_mount` returned
+  (`mount_id_at_the_held_target`).
   The design's first proof is this one taken literally:
   the folder the attach acted through is the folder that had to receive the mount,
   whatever a later lookup of the slot finds,
-  and a held target on another mount is a refusal.
+  and a mount that landed beside that name is a refusal.
+  The held target's own descriptor is not that reader:
+  a descriptor keeps naming the mount it was opened on,
+  so it answers the parent's mount after a real attach,
+  and the guest measured exactly that.
+  The guest arm therefore reads this number through the module's own reader,
+  not through a path.
 - The mount the slot is on is the mount the attach recorded,
   read from the descriptor `fsmount` returned.
   Another mount at the slot is a refusal.
@@ -5536,14 +5695,17 @@ inode and observed path.
 When all five hold it answers that the mount is the attach's own;
 one that does not is rolled back.
 
-The real `move_mount` onto a clone's mount and the five comparisons against a real mount are owed to the guest.
+The real `move_mount` onto a clone's mount and the five comparisons against a real mount ran in the guest,
+the held target's comparison among them,
+through the module's own reader.
 The host controls prove the comparisons on fixture folders:
 a renamed `.claude`,
 a replaced parent folder,
 a held target on another mount and a different mount number are each refused,
 and an untouched slot passes.
-The held target's comparison is shown with the numbers a real mount would report,
-because a fixture folder cannot change mounts.
+The host control for the held target's comparison uses the numbers a fixture folder reports,
+because a fixture folder cannot change mounts;
+the guest arm is the one that reads a real mount through the module's reader.
 
 #### The rollback of a misplaced attach
 
@@ -5573,9 +5735,9 @@ by a fresh process that verifies the mount number and the clone's source first.
 That is the stranded state the acceptance asks a report to show,
 and a second move against an unverified mount is never issued.
 
-The rollback's own unmount,
-and a rollback that really fails,
-are owed to the guest.
+The rollback's own unmount ran in the guest,
+on a real misplaced attach through three rename trials;
+a rollback that really fails with the mount retained is owed to the guest.
 The host controls prove the plan and the descriptor it carries,
 the refusal of an identity that proves no attach,
 and both reports.
@@ -5618,7 +5780,10 @@ Every refusal names the failing component or field and every way forward:
 
 Only an administrator may record a replacement `.claude/worktrees` folder after a checkout restore
 or a controlled recreation,
-and the mode runs with managed operations quiesced.
+and the mode that runs the adoption keeps managed operations quiesced:
+that quiescence is the operating rule the mode holds (the plan's step 5),
+not a check this module makes,
+because the decision holds no device and reads no record of another managed operation running.
 The decision holds no device and starts no mount:
 its inputs are the no-crossing walk's answer,
 the device and inode the administrator identified independently from the restored checkout,
@@ -5657,25 +5822,47 @@ this section owns the decision table and the store write it leads to.
 
 #### What the guest still owes
 
-Every arm below needs mount authority in a throwaway mount namespace over a file-backed pool,
-which is why none of them runs on this host:
+The guest arms ran on 2026-11-20 in a throwaway `mvm` guest through
+`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`
+(`zfs-attach-pool`,
+`zfs-attach-arm`),
+as the `attach_arm_*` tests in
+`src/native/worktree_clone_mount/attach_arm_tests.rs`.
+What they ran,
+each with its `MEASUREMENT attach-arm` line in the recipe's suite log:
 
 - `fsmount` with `nosuid,nodev`,
   `move_mount` onto the held target,
-  and the read-back of both flags in `mountinfo` after the attach.
+  and the read-back of both flags in `mountinfo` after the attach (the `lands` line).
 - The five post-attach comparisons against a real mount,
   the held target's own mount among them,
-  and the decoy control of H1 gate 1:
-a path mount that reaches a disposable decoy,
-  proved to be observed before any no-mount assertion is trusted.
-- The rollback of a real misplaced attach,
-  a rollback that really fails with a retained mount,
-  and the stranded state's report.
-- Repeated bounded slot renames during real mounts,
-  with schedules not synchronized to the handler's checks,
-  and the replacement of the staging and checkout mounts until a private setup is verified.
-- The setuid and device controls of item 7 against the built attach,
-  including a confined user namespace that may not attach with other flags.
+  and a mount made beside the held slot that the first proof refuses (the `beside-proof` line).
+- The decoy control of H1 gate 1:
+  a path mount that reached a disposable decoy,
+  observed away from the checked slot (the `decoy` line).
+- The rollback of a real misplaced attach through three rename trials (the `rename-trial` lines).
+- Item 2's refusals with an account-owned parent and slot,
+  a clone mounted at another slot left alone through every one,
+  and a real clone mounted at the slot refused as a boundary (the `refusals` line).
+- Item 7's setuid control on the mount's enforced flags (the `setuid` line).
+
+What stays owed:
+
+- A rollback that really fails,
+  with the mount retained and the stranded state's report.
+- Slot renames during real mounts with schedules not synchronized to the handler's checks:
+  the arm's three trials are deterministic.
+- The replacement of the staging and checkout mounts,
+  until a private setup is verified.
+- Item 7's device control,
+  and a confined user namespace that may not attach with other flags.
+
+Item 2's measured arms map onto this module as follows:
+`openat2` through a `/proc/self/fd` path is refused as no canonical checkout path
+(`clone_slot_walk_tests::a_checkout_named_through_a_link_is_refused`,
+extended for the magic link),
+and a slot that already holds the clone's mount is refused as a boundary
+by the `refusals` arm with a real clone mounted there.
 
 The root-run integration test the plan suggests calls this module directly,
 because no account-side binary dispatch exists until step 5;
@@ -6537,6 +6724,8 @@ with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
 until it lands or the person must act (`src/native/push/push_retry.rs`,
 and what a failure's own words mean in `src/native/push/push_retry_failure.rs`).
+A host key this machine does not know is tried on that same schedule,
+with the record saying how to add it and that the service pushes the branch by itself once it is known.
 One cause is tried a fixed number of times instead of until it passes:
 a refusal GitHub answers with `GH006: Protected branch update failed for <ref>`
 is the hosting service's own protected-branch rule,
@@ -6592,24 +6781,190 @@ since a decline says what the server answered then and nothing about a later try
 for a refusal that outlasted its tries the record also names how many tries the service gave it and how long they
 covered,
 and the two ways out of a rule that refuses every push.
-The service never asks anyone for a login (owner decision,
-2026-11-07:
-"Never prompt (Recommended)"):
-every Git and `git-lfs`
-child it starts gets `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0` from one list
-(`service_child_overlay` in `src/native/invocation/child_environment.rs`,
-used for the service's landing and upkeep context and for
-each push's environment in `src/native/landing/service_work.rs`).
+A host key this machine does not know is no stop:
+the service keeps its usual retry schedule for it,
+and its record says that it pushes the branch by itself once the key is known
+(owner answer of 2026-11-20,
+"Keep retrying";
+"the service keeps its usual retry schedule;
+the message says the host key is unknown,
+how to fix it,
+and that the
+service will push by itself once the key is known"),
+which the refusal's own words above carry.
+No command the wrapper runs or forwards asks a person for a credential
+(owner decision,
+2026-11-19T16:58:00-05:00:
+"Avoid ever asking for someone to type a username or password.",
+with an SSH key's passphrase counted as a credential:
+"Passphrases count too (Recommended)";
+recorded in `doc/handover/cli-git-rust-implementation.md`,
+the entry beginning "owner answered H1 and M4").
+The decision widens the service's "Never prompt (Recommended)" of 2026-11-07 to every command,
+and it supersedes the earlier answer that a command a person typed keeps Git's own prompting for credentials,
+so the controlling terminal decides nothing about a prompt any more.
+Every Git and `git-lfs` child gets one list,
+`no_prompt_overlay` in `src/native/invocation/child_environment.rs`:
+`GIT_ASKPASS` set to the empty string,
+`GIT_TERMINAL_PROMPT=0`,
+`SSH_ASKPASS=false`,
+and `SSH_ASKPASS_REQUIRE=force`.
+The service's children take it through `service_child_overlay`,
+which `service_work.rs` uses for the service's landing and upkeep context and for each push's environment,
+and a command the person typed takes it through `invocation_overlay`,
+so the push,
+its LFS upload and the upload plan's own questions all start from the same rule.
 Git and `git-lfs` try `GIT_ASKPASS`,
 `core.askPass` and `SSH_ASKPASS` before they read `GIT_TERMINAL_PROMPT`,
-so the terminal
-setting alone left the desktop's password dialog open for nobody to answer;
-a push with no credential from a helper fails at once
+so the terminal setting alone left the desktop's password dialog open for nobody to answer;
+a command with no credential from a helper fails at once
 with "terminal prompts disabled",
 which is the login failure above.
-`SSH_ASKPASS` stays in the environment for OpenSSH.
-A command the person typed is forwarded with the prompting Git has.
-Evidence and the source trace:
+The other two variables are OpenSSH's own,
+because `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are Git's and `git-lfs`'s and OpenSSH reads neither,
+and the account's own `SSH_ASKPASS` is replaced for these children only,
+so the account's own `ssh` still runs the program it names.
+`SSH_ASKPASS_REQUIRE=never` alone was not enough:
+OpenSSH 10.6p2 `read_passphrase` clears only `allow_askpass` for `never`
+(`readpass.c:130-138`),
+a passphrase question neither asks for the program nor may read standard input
+(`readpass.c:143-167`),
+and so it opened `/dev/tty` and asked (`readpass.c:185`);
+the integration pass measured that at a real pseudo-terminal through the wrapper,
+with only these variables set.
+`force` sets `use_askpass` and `allow_askpass` both (`readpass.c:131-133`),
+which sends the question to the program (`readpass.c:172-182`),
+a program that prints nothing and exits non-zero leaves no answer (`readpass.c:179-181`),
+and `load_identity_file` reads an empty passphrase as one nobody gave and tries the next key
+(`sshconnect2.c:1549-1558`).
+`ssh_askpass` finds the program with `execlp` (`readpass.c:77`),
+so a `PATH` without `false` fails the same way:
+the child cannot start it and exits non-zero.
+`false` is the standard program that prints nothing and reports failure;
+the wrapper ships for Linux only (`README.md`,
+"Requirements"),
+where coreutils or busybox puts it on `PATH`.
+A key the agent holds asks for no passphrase,
+so it still opens the connection.
+A key without a passphrase needs no agent at all:
+it opens the connection with none,
+at a terminal and without one,
+which a control against a throwaway `sshd` proves
+(`a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
+A key whose passphrase no agent holds therefore fails at once,
+at a terminal or without one,
+and the words a person reads say how to start an agent and load the key
+(`eval "$(ssh-agent)"`,
+or `eval (ssh-agent -c)` in fish,
+whose own syntax the Bourne form is not,
+then `ssh-add`,
+or `ssh-add <key file>` for a key outside the agent's default list),
+or to use a key without a passphrase
+(`reads_as_a_key_failure` and `login_needed_message` in `src/native/lfs/lfs_pre_push.rs`,
+from OpenSSH's own `Permission denied (publickey)`,
+which a server that simply does not accept the key prints as well,
+so the sentence says the key was refused or could not be unlocked).
+What the two variables also turn off:
+the yes/no question for a host key that is not known,
+which is answered "no" from the program that fails and refused (`Host key verification failed.`,
+`confirm` reads it with `read_passphrase` at `sshconnect.c:603-627`
+and an empty answer is not "yes"),
+where the same command with no such program asked the question at a terminal;
+and the permission questions of a shared connection (`ControlMaster`),
+of a key an agent is asked to confirm,
+and of `AddKeysToAgent=ask`,
+whose `ask_permission` treats a missing answer as "no"
+(`readpass.c:196-221`,
+`mux.c:437`,
+`sshconnect.c:1794`).
+That refusal needs words of its own:
+a host key is not a credential the push lacked,
+and no retry adds one.
+Where the wrapper owns the child,
+the upload's explanation and the push's failure record print one sentence
+(`host_key_not_known_sentence` in `src/native/lfs/lfs_pre_push.rs`,
+read from OpenSSH's own words by `reads_as_unknown_host_key`,
+which holds only when every line of the transcript that names a host key or a certificate is an unknown key's own,
+leaving out OpenSSH's own debug lines and the words inside single quotes
+(OpenSSH writes a host name,
+an address or a path there,
+and Git writes the remote's URL),
+so a changed key,
+a key a `@revoked` line or a `RevokedHostKeys` file revokes,
+and a certificate that does not fit the host keep
+OpenSSH's own words alone as `main` prints them,
+and reads the reading after the hook-decline loop,
+as `main` orders its readings):
+connect once with plain `ssh <host>`,
+which the wrapper does not touch and which still asks its own question,
+or add the host key to `known_hosts`,
+and then push again.
+The reading passes over OpenSSH's own debug lines
+(`debug1: ` to `debug3: `),
+at which no refusal is printed,
+and the words inside single quotes,
+and it still reads a host key that differs from the one this machine knows for the host's address as an unknown one
+when the account leaves the question open (`CheckHostIP=yes` under `ask`):
+OpenSSH writes that warning into the askpass program's question and standard error holds the last line alone
+(`sshconnect.c:1429-1447` at `V_10_6_P2`),
+so the sentence's way to add the key is wrong for it and its way to connect once is right.
+A second case is read as an unknown one for a different reason:
+under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+(`do_log` writes `fatal` and `error` without a level word,
+`log.c:354-393` at the same tag),
+so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+`Host key verification failed.` on standard error,
+which is exactly an unknown key's transcript,
+and `main` reads those two the same way.
+The sentence's way to add the key is wrong for them and its way to connect once is right,
+and a transcript at that level cannot tell either from an unknown key.
+The sentence names the host when the wrapper can answer which one it is
+(`ssh_host` in `src/native/lfs/lfs_upload_explanations.rs`,
+from the program's own words or from a destination written as a URL),
+because an LFS server may live on another host than the Git remote;
+a push's own words for this refusal name no host,
+so its record writes the placeholder,
+and when a pre-push hook's own explanation already printed the sentence with the host it read,
+the record adds only the promise and tells the refusal once.
+The refusal is not one of the stops below:
+the service keeps its usual retry schedule,
+and the record it leaves says that it pushes the branch by itself once this machine knows the key,
+so no new commit is needed to publish it
+(`retried_failure_record` in `src/native/push/push_retry_failure.rs`,
+the project's answer of 2026-11-20,
+"Keep retrying").
+A command the wrapper forwards is replaced by real Git
+(`replace_process_with_real_git` in `src/native/invocation/forwarding.rs`),
+so nothing of the wrapper's can print beside it,
+and its reader gets OpenSSH's and Git's own words alone.
+Signing a commit or a tag with an SSH key whose passphrase no agent holds fails the same way,
+with OpenSSH's own `incorrect passphrase supplied to decrypt private key?`
+(`load_identity` reads `read_passphrase(prompt, RP_ALLOW_STDIN)` at `ssh-keygen.c:309`,
+and `force` sends that question to the program,
+which answers nothing),
+and the same remedies apply:
+start an agent and load the key,
+or sign with a key without a passphrase.
+A control at a real pseudo-terminal shows the host-key refusal
+(`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
+Both variables also cover OpenSSH's own password and keyboard-interactive questions and a PKCS#11 token's PIN,
+which read the same function (`sshconnect2.c:1057`,
+`sshconnect2.c:1275`,
+`sshconnect2.c:2130`):
+with the program failing they are empty answers and the login fails at once.
+What they do not cover:
+OpenSSH's notification that a security key must be touched,
+which is not a question.
+It is written to standard error when standard error is a terminal
+(`notify_start` in `readpass.c:252-255`);
+otherwise `force` starts the named program anyway (`readpass.c:262-267`),
+which is `false` here and prints nothing,
+so a session with no terminal on standard error shows no touch notice,
+and the key still waits for the touch.
+Evidence,
+the source trace and the measurements:
 `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
 Being offline,
 a stall,
@@ -7740,10 +8095,14 @@ and the upload is then stopped and named,
 with `git lfs push --all <remote>` as its way forward because a typed push has no retry plan.
 What closes that shape's login case is the never-prompt pair:
 a missing login fails at once instead of leaving the connection's wait with nothing to answer it.
-The refusal that follows a login failure says what the wrapper did about prompting,
-read from the pair the child was given (`prompting_disabled` in `src/native/invocation/child_environment.rs`):
-a command at a terminal is told that the wrapper left Git's and `git-lfs`'s own prompting,
-and no refusal claims a terminal was absent when it was there.
+The refusal that follows a login failure says what the wrapper did about prompting:
+`login_needed_message` (`src/native/lfs/lfs_pre_push.rs`) reads as a key failure when OpenSSH refused a key
+(`reads_as_a_key_failure`),
+and every refusal says the wrapper never lets a command ask for a credential,
+with `GIT_ASKPASS` set to the empty string,
+`GIT_TERMINAL_PROMPT=0`,
+`SSH_ASKPASS=false` and `SSH_ASKPASS_REQUIRE=force`,
+whether or not a terminal is there.
 The upload still owns its child through `SignalGuard::start_relayed`,
 which hands it over still published,
 so a signal a process sends to the wrapper reaches the program for the whole wait,
@@ -8717,7 +9076,8 @@ on the commit path:
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
   because the unit names its address from the manager's own runtime directory.
   A runtime directory too long for a socket path is not such a cause:
-  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  the service is listened at an abstract name there,
+  and the commit is made (`SPEC.md`,
   "Where the service listens").
   A socket unit the manager already holds at another address is asked about before this command starts anything,
   so a runtime directory of its own leaves no unit listening for a worktree it never looks at.
@@ -10060,7 +10420,11 @@ in-process reader can) gives every value of the multi-valued keys.
   and is said once,
   as a line that starts with `monochromatic-git-policy-cli: <program> <subcommand> is waiting for the server`
   (`git push`,
-  `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log.
+  `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log;
+  the diagnostic line names this program once in its own prefix and tags the wait itself (`wait_with_clock`),
+  so the words it carries start at the program and the subcommand,
+  and the attempt's own line puts the name in front of them
+  (`wait_line_words` and `wait_line` in `src/native/push/bounded_push.rs`).
   Silence during the wait is not counted against the window,
   so when the connection closes
   (no process of the tree holds an established socket) the stall window runs again from that moment,
@@ -10191,11 +10555,63 @@ in-process reader can) gives every value of the multi-valued keys.
   which the run reads from its destination only when a stop needs it:
   a destination written as a URL answers with its own host,
   and a remote name with one bounded `git remote get-url --push` query.
+  The upload is the exception,
+  because its server is not the push's destination:
+  a stop of an upload names the LFS endpoint git-lfs itself picks for a push
+  (`lfs_server_of` in `src/native/lfs/lfs_upload_plan.rs`),
+  in git-lfs 3.8.1's own order
+  (`lfsapi/endpoint_finder.go:93-140` for `getEndpoint` and `RemoteEndpoint`,
+  `:190-201` for `GitRemoteURL`):
+  `lfs.pushurl`,
+  then `lfs.url`,
+  then the named remote's `remote.<name>.lfspushurl`,
+  `remote.<name>.lfsurl`,
+  the last `remote.<name>.pushurl` and `remote.<name>.url`,
+  then the same four of `origin` when the named remote answered nothing.
+  Each endpoint is rewritten through `url.<base>.pushInsteadOf` and then `url.<base>.insteadOf` before its host is read,
+  as git-lfs rewrites it before parsing (`:234-235` and `:345-357`),
+  and a later value of one key wins,
+  as git-lfs reads its configuration (`config/git_fetcher.go:121-128`).
+  An empty `url.<base>.insteadOf` value rewrites nothing here,
+  because git-lfs itself applies only a matched alias longer than nothing
+  (`replaceUrlAlias`,
+  `:361-378`),
+  while Git rewrites with it:
+  measured with git-lfs 3.8.1,
+  `git lfs env` printed `Endpoint=https://alias.invalid/repo.git/info/lfs` for an empty alias under
+  `https://127.0.0.1:13/`,
+  and `git remote get-url --push` printed `https://127.0.0.1:13/https://alias.invalid/repo.git`.
+  A base that is empty is a replacement of nothing,
+  and git-lfs applies it:
+  the endpoint is the URL with the alias taken off its front,
+  and the host read from it is the one inside whatever follows the alias.
+  Measured with git-lfs 3.8.1:
+  `lfs.url=https://alias.invalid/https://127.0.0.1:39506/lfs` under an empty base
+  `https://alias.invalid/` gave `Endpoint=https://127.0.0.1:39506/lfs`,
+  so the alias's own host is one git-lfs does
+  not contact.
+  The plan keeps git-lfs's answer because git-lfs is the program that makes the request.
+  Measured against git-lfs 3.8.1 on this host:
+  with `lfs.pushurl` and `lfs.url` both set the batch request went to `lfs.pushurl`,
+  and with `lfs.url` and `remote.origin.lfsurl` both set it went to `lfs.url`.
+  A destination written as a URL is no endpoint of its own here,
+  because `git lfs push` takes a remote name and not a URL (`commands/command_push.go`).
+  The program's own words name the server only when they name that same host,
+  or when the configuration read none at all,
+  because a run prints documentation links and other hosts before its error
+  (`ServerNaming::consider_output` in `src/native/push/push_server_naming.rs`);
+  its program has no `remote get-url` command at all
+  (`git-lfs remote get-url` answers `unknown command "remote"`),
+  so the push's query is never asked for an upload.
   A push that lands reads nothing for the name,
   and the wait line a live run prints says "the remote".
   The stall setting is named only where the stall window ended the run:
   the connected window is fixed,
   so a connected stop says that the variable does not change it and names the retry that settles it.
+  The floor (`CLI_GIT_PUSH_MINIMUM_RATE_BYTES`) is named only where the connection carried something:
+  a server that sent nothing has no line speed to lower,
+  and a smaller floor would only remove the bound
+  (`floor_clause` in `src/native/push/stop_cause_and_words.rs` and the upload's own stop words).
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`,
   such as macOS,
   or a kernel without task I/O accounting)
@@ -10319,17 +10735,18 @@ in-process reader can) gives every value of the multi-valued keys.
   (`reap_abandoned_children` in `src/native/push/stop_of_a_push_and_sweep_of_its_locks.rs`).
   The judgement takes no lock of its own.
   A push whose output grows past 4 MiB (`MAX_PUSH_OUTPUT`) is stopped the same way,
-  and only the first 4 MiB are kept;
-  a push that ended between two looks with more printed than that keeps its own status,
+  and only whole lines that fit in the first 4 MiB are kept;
+  a line the cap ends inside is dropped whole,
+  because a cap applied to the raw bytes cuts a URL in half and half a URL hides no secret.
+  A push that ended between two looks with more printed than that keeps its own status,
   and the attempt says that only the head of its output is kept
   (`shortened_output_line` in `src/native/push/bounded_push.rs`).
-  The check of the output's size and the read of the output are two steps,
-  so a helper that keeps writing after the push exited can still pass the cap between them,
-  and that attempt then misses the line that says its output was cut.
-  It is left as it is:
-  reaching it needs a background helper writing inside that window,
-  and what it can cost is that line and nothing else
-  (`run_bounded_push_awaiting` in `src/native/push/bounded_push.rs`).
+  That line comes from the read and not from the size the wait last looked at:
+  one byte past the cap is read (`read_output` in `src/native/push/bounded_push.rs`),
+  so a helper that keeps writing after the push exited cannot make an attempt miss it,
+  and the line names the run that printed it (`git push`,
+  `git-lfs push`,
+  `git fetch`).
   Citation of the 4 MiB:
   none;
   the owner decided "Keep all lines" for push output and no
@@ -10365,6 +10782,10 @@ in-process reader can) gives every value of the multi-valued keys.
 - A failed push is reported with its complete output and the note
   ``monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.``
   unless the reconcile already said why the commit is unpublished.
+  A push a signal ended is recorded with `128 + N` for signal `N`,
+  and the attempt keeps that signal beside the code,
+  as a failed upload's does,
+  so the record says which of the two endings it was.
   A successful push shows only the `remote:` lines,
   the lines of the reconcile and that refusal,
   and the record a later command shows carries them.
@@ -10555,11 +10976,15 @@ with `carried_bytes=<n>` and `minimum_bytes_per_window=<n>`,
 the rate those stand for in bytes per second,
 the sentence that a server's own keepalive packets are that kind of traffic,
 `CLI_GIT_PUSH_DEADLINE_SECONDS` named as the setting that does not move this window,
-and `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` named as the one that does,
+and,
+only when the connection carried something,
+`CLI_GIT_PUSH_MINIMUM_RATE_BYTES` named as the one that does,
 with the direction (a smaller number lets a slower line through).
-A connection that carried nothing keeps the older wording,
-which is the true one there:
-nothing moved.
+A connection that carried nothing names no rate setting at all:
+no line speed is what stopped it,
+so its ways forward start with the true sentence that nothing moved,
+and a smaller floor would only remove the bound that did stop it
+(`floor_clause` in `src/native/push/stop_cause_and_words.rs`).
 A stop ended as before:
 the push is asked to end,
 killed after the grace,
@@ -12239,6 +12664,109 @@ and the man page `git-lfs-pre-push`):
   The wrapper runs none of the three,
   and a shim file for any of them never runs through the wrapper either.
 
+`git lfs install` inside a repository runs with `--skip-repo`
+(`with_skip_repo` in `src/native/invocation/lfs_install_arguments.rs`),
+which git-lfs's own `install --help` describes as "Skips installation of hooks into the local repository;
+use if you want to install the LFS filters but not make changes to the hooks".
+Without it the command wrote its shims into the hooks directory the wrapper disables,
+which fails with `mkdir /dev/null: not a directory`,
+ends the command with status 2,
+and advises `git lfs update --manual` or `--force`,
+neither of which can work while that directory cannot exist.
+The `filter.lfs.*` keys are what the wrapper's own upload needs,
+and one notice before git-lfs runs states the request the caller's words make rather than a completed write:
+this command asks git-lfs to put the keys in the scope it names,
+the wrapper runs the upload itself before each push,
+no `pre-push` hook is installed in this repository and none is needed,
+and the `post-checkout`,
+`post-commit` and `post-merge` hooks are not needed either.
+The request is the only claim a notice built from the words alone can make:
+git-lfs can still stop after it reads them well,
+for example on a global `filter.lfs.clean` that differs from what it writes,
+with status 2 and no `filter.lfs.*` key written (measured),
+and its own message answers that.
+The notice names the scope the caller asked for,
+because git-lfs does not always put the keys in the global file:
+`--local` writes this repository's `.git/config`,
+`--system` the system file,
+`--file <path>` that file,
+and `--worktree` writes `config.worktree` in this worktree's Git directory while `extensions.worktreeConfig` is set
+(`<repo>/.git/config.worktree` in the main worktree and `<repo>/.git/worktrees/<name>/config.worktree` in a linked one),
+or this repository's `.git/config` when it is not and the repository holds one worktree;
+when it is not and the repository holds several,
+no file is written at all,
+because Git refuses the write and git-lfs ends with status 2
+(`commands/command_install.go:37-59`,
+`lfs/attribute.go:154-190` and `git/config.go:137-140`;
+measured with git-lfs 3.8.1 and plain `git` 2.56.1,
+every file read back through `git config --file <p> --list`,
+and `src/native/binary/binary_lfs_install_tests.rs` pins all four layouts against Git's own
+`git config --worktree`).
+A command git-lfs refuses before it writes a `filter.lfs.*` key is told the refusal,
+never a destination,
+because the words alone show that nothing reaches one:
+more than one of `--local`,
+`--system`,
+`--worktree` and `--file`,
+a boolean option whose `=value` is no `strconv.ParseBool` spelling (`-l=yes`,
+`-l=`,
+`--local=yes`),
+and `--file` with no word after it are refused by git-lfs 3.8.1 itself,
+with statuses 2,
+127 and 127 measured through the wrapper,
+every configuration file read before and after each run;
+the notice then names the word or the count git-lfs refuses,
+except where a word this reading does not name came
+first,
+and says that no `filter.lfs.*` key is written to any configuration file,
+and the multi-destination refusal still records `lfs.repositoryformatversion` in this repository's `.git/config`
+before it stops.
+An option this reading does not name is passed through as typed,
+so a command git-lfs refuses for another reason (`--bogus`,
+an unknown short letter) still prints the destination its
+words select;
+the flag parser's own message is the answer there,
+and a list of every option git-lfs registers would go stale as
+git-lfs adds one.
+When such an option comes before a word this reading refuses,
+the notice states the refusal and names no reason,
+because pflag stops at the earlier word,
+which the parser's own message names (`git lfs install -z -l=yes` answers
+`unknown shorthand flag: 'z' in -z` while the reading refuses `-l=yes`,
+measured),
+and a count of destinations is decided only after every word is read,
+so a word this reading does not name anywhere drops that reason too.
+A run with `--manual` that git-lfs runs is told why the hook instructions it asked for are not printed:
+they are instructions for merging a hook this wrapper installs nowhere and never runs,
+and a refused command prints none of them for the refusal's own reason,
+so its notice adds no such sentence.
+Outside a repository the command is forwarded as it was typed (git-lfs writes no hook there).
+A help query is answered as it was typed,
+however it is spelled:
+`--help`,
+`-h`,
+`--help=true` and a group that carries `h` (`-lh`) all print help with status 0 and write no key,
+so none of them gets the option or the notice,
+while `--help=false` and `-lh=false` run the command,
+a word the parser refuses beats help (`-lh --local=yes` is refused),
+and a word after `--` is no help query
+(`git lfs install -- -h` ran into the hook write with status 2 until this was read).
+A `--skip-repo` after `--` is no option either,
+so the wrapper adds its own copy there too.
+A caller who wrote `--skip-repo` with a true value keeps one copy and gets the same notice.
+A caller who wrote it false gets the wrapper's copy right after that word,
+because git-lfs keeps the last value of a repeated flag,
+so a copy before it would be undone:
+`git lfs install --skip-repo=false` wrote the global keys and then ended with status 2 and
+`mkdir /dev/null: not a directory` until this was read,
+and the notice says that the caller's word did not win.
+What this does not cover,
+left as it was and recorded here:
+`git lfs update` and `git lfs install hooks` still write the shims into that directory,
+so both end with status 2 and the same advice that cannot work,
+and `git lfs uninstall` removes the shims and the account's LFS configuration with status 0
+while printing `open /dev/null/cli-git-no-hooks/pre-push: not a directory`.
+
 The step:
 
 - Trigger.
@@ -12253,8 +12781,10 @@ The step:
   local file.
   The decision costs no extra process on the commit path:
   the configuration snapshot the commit already reads is searched in memory.
-  A forwarded `git push` reads the configuration once (one `git config --list` start) before it runs;
-  every other forwarded command is unchanged.
+  A forwarded `git push` reads the configuration once (one `git config --list` start) before it runs.
+  A forwarded command runs with the wrapper's own `-c`-style options before the caller's words,
+  and a `git lfs install` inside a repository also runs with the `--skip-repo` the subsection above describes;
+  nothing else of the caller's words is changed.
   When the configuration cannot be read,
   the upload is attempted.
 - Mechanism.
@@ -12274,8 +12804,12 @@ The step:
   found by a walk ordered by committer time as `git rev-list` orders it,
   so the history
   behind a known tip is never read;
-  when the destination is untrusted (see below) nothing is known and every commit
-  of the pushed refs is read.
+  each of those refs is evidence about the destination only while the destination itself reports that branch at
+  that commit
+  (`git ls-remote --heads <remote>`,
+  see below),
+  and a ref it moved on or no longer has is dropped on its own,
+  so one stale tracking ref costs the ref and not the whole scan.
   Each commit is compared with each of its parents,
   descending only into trees that
   differ,
@@ -12312,7 +12846,10 @@ The step:
   a walk of more than 100000 commits or 3 seconds),
   leaves the
   next paragraph's `git-lfs` scan in charge,
-  which also words a missing object and honours `lfs.allowincompletepush`.
+  which also words a missing object and honours `lfs.allowincompletepush`;
+  its own standard output already names the setting
+  (`hint: You can disable this check with: git config lfs.allowincompletepush true`),
+  so the wrapper's explanation does not name it again.
   The `--object-id` form does not verify locks,
   as the scan form does.
   The scan form runs `git-lfs push [--all] <destination> [<ref>...]`,
@@ -12326,26 +12863,66 @@ The step:
   `git lfs push <remote> <ref>` alone skips every object that a remote-tracking ref of the remote mentions,
   so a push
   that adds no LFS object sends no batch request.
-  Those refs need not describe the destination being pushed to (a fetch
-  from one server and a push to another,
-  a changed push URL),
-  which would publish pointers without objects,
-  so `--all`
+  Those refs are what a fetch wrote down about the URL the remote had when it ran,
+  so they describe the
+  destination being pushed to only while the destination says so:
+  the plan asks it for its branch heads
+  (`git ls-remote --heads <remote>`,
+  through the same remote name and the same `insteadOf` rewrites the push
+  resolves)
+  and keeps a tracking ref only when it reports that branch at that commit,
+  so the refs it reports are the places the scan stops at,
+  and a ref it moved on or no longer has is dropped alone.
+  The scan form keeps `--all`
   (everything reachable from exactly those refs,
-  a superset and idempotent as objects are content addressed) is kept
-  whenever the configuration the plan already holds says the tracking refs may not describe the destination:
-  it is not
-  a configured remote (a URL,
+  a superset and idempotent as objects are content addressed)
+  whenever the destination does not confirm every one of those refs,
+  because its own skip list matches a cached ref by branch name alone,
+  and for every case the configuration already states (it is not a configured remote:
+  a URL,
   a path,
-  a name nobody configured),
-  the remote has any `pushurl`,
-  any
-  `url.<base>.pushInsteadOf` rewrite exists,
-  or the push is a mirror push.
-  A configured remote with no tracking refs
-  needs no check:
-  the bounded form then has nothing to skip and scans the whole refs itself.
-  Measured with git-lfs 3.8.1 (`commands/uploader.go`,
+  a name nobody configured;
+  the remote has any
+  `pushurl`;
+  Git writes to more than one URL;
+  any `url.<base>.pushInsteadOf` rewrite exists;
+  the push is a
+  mirror push),
+  and nothing the destination might lack can be left out.
+  A configured remote with no tracking refs needs no check:
+  the bounded
+  form then has nothing to skip and scans the whole refs itself,
+  so it asks the destination nothing.
+  The
+  question costs one local `for-each-ref` and one connection to the destination in the bounded case,
+  and the same
+  connection `git-lfs` would make anyway in the scan form;
+  a push that skips nothing pays nothing.
+  A typed push whose manual-push discovery ran pays no connection for it of its own:
+  that discovery already asks the destination for the pushed refs' values,
+  and its one `git ls-remote --refs <url>` now lists every branch head too,
+  so the answer travels from the discovery to the plan (`DestinationHeads`).
+  A typed push in a configuration that disables or escapes every manual-push policy has no discovery,
+  so its plan asks the destination and pays that one connection.
+  The service's bounded push runs no discovery,
+  so its upload plan asks the destination itself:
+  one connection more than `main` charged that push,
+  measured at 205 ms,
+  355 ms and 1017 ms for the added one-way delays of 0 ms,
+  10 ms and 50 ms,
+  and the project accepted that cost on 2026-11-21,
+  answering "A:
+  accept the connection",
+  because the push runs after the committing command has returned.
+  A typed push measured 1.001 to 1.005 of `main` per round at the same three delays,
+  inside the spread of the identical-binary control in every cell,
+  with 3 connections on both binaries in every sample.
+  One stale tracking ref on a 2000-commit fixture costs `main`'s scan again:
+  1 batch request and 1 object named,
+  measured at 0.983 of `main` (0.903 to 1.132),
+  where the all-or-nothing rule sent 21 batch requests and named 2052 objects at 52.106 of `main`.
+  Measured with
+  git-lfs 3.8.1 (`commands/uploader.go`,
   `uploadForRefUpdates`,
   `uploadRangeOrAll`):
   without `--all` the
@@ -12356,11 +12933,15 @@ The step:
   Both forms build the same scanner (`NewGitScannerForPush`),
   which
   runs `git show-ref` and `git ls-remote --heads` against the remote (`calcSkippedRefs`),
-  so dropping `--all` adds no
-  network round trip and no Git start.
-  No tighter bound exists without one:
+  which matches by
+  name only,
+  so it
+  treats a branch the destination still has as a place to stop whatever commit it holds there.
+  No tighter bound exists
+  without one:
   `git lfs push` takes no remote object name,
-  and the `exclude` list of `uploadForRefUpdates` is empty on this path.
+  and the `exclude` list of `uploadForRefUpdates` is empty on this
+  path.
   The child runs with the real Git's directory first on `PATH`,
   so a `git` that `git-lfs` starts is the real Git and not
   the wrapper,
@@ -12386,11 +12967,31 @@ The step:
   the wrapper reads it back after each run and relays it
   with the secrets of every URL replaced by `<credentials>` (standard output stays
   the caller's).
+  At most 4 MiB of it is relayed (`MAX_RELAYED_BYTES`,
+  `src/native/lfs/lfs_upload_explanations.rs`),
+  and the cut falls on a line break:
+  only whole lines are relayed,
+  and a line the cap ends inside is dropped whole,
+  because a cap applied to the raw bytes cuts a URL in half and half a URL hides no secret
+  (a cut in front of its `@` keeps the front of a password,
+  and a mask that runs afterwards
+  cannot see a userinfo that is not there).
+  One byte past the cap is read,
+  so the read itself answers whether there was more,
+  and a run that ends between two looks of the wait says so too.
+  When the text was cut,
+  a line after it says that only the whole lines that fit were relayed,
+  that the rest was dropped and that the upload itself was not stopped.
+  The explanation after a failed or stopped upload starts on a line of its own,
+  even when the program's last line carried no line break.
+  The mask is idempotent:
+  masking text that was already masked changes nothing and writes no mask twice,
+  because the auto-push masks an attempt where it is made and again where it is written down.
   What counts as a secret is one rule for every line the wrapper prints or journals,
   in `src/native/lfs/lfs_output_mask.rs`:
   the userinfo of the URL,
   which ends at the last `@` of its authority;
-  every path segment that is not a plain label,
+  every path segment that is not a plain label of short words,
   a label being the letters `a` to `z` and the separators `-`,
   `.`,
   `_` and `~` alone,
@@ -12399,7 +13000,9 @@ The step:
   `batch` and `info` are,
   so a capital,
   a digit,
-  a percent encoding or another punctuation mark is hidden;
+  a percent encoding or another punctuation mark is hidden,
+  and so is a path word of 20 or more unbroken lowercase letters
+  (`LONGEST_PLAIN_WORD` in `src/native/lfs/lfs_output_mask.rs`);
   and every value of its query and of its fragment,
   with a key kept only while it is a plain label,
   as the incident's `lfs.<url>.locksverify` key name was not.
@@ -12410,8 +13013,17 @@ The step:
   The owner's rule,
   quoted:
   "Never print or commit secrets".
-  A token made only of lowercase letters reads as a label and is not hidden;
-  whether the whole path of an LFS URL should be hidden instead is an open question for the owner.
+  A token of fewer than 20 lowercase letters alone still reads as a label and is not hidden,
+  which the owner accepted when choosing this rule on 2026-11-19T16:58:00-05:00
+  ("Hide long words only",
+  `doc/handover/cli-git-rust-implementation.md`,
+  the entry beginning "owner answered H1 and M4"):
+  the whole path after the host is not hidden,
+  because `objects`,
+  `info` and a repository's own name must stay readable,
+  and a long real folder name is hidden by the same rule.
+  A query or fragment key of that shape is not hidden either:
+  the rule is about path words.
   When that file cannot be made,
   the push is refused with the ways forward.
   A run that fails is never run again by the wrapper,
@@ -12475,6 +13087,18 @@ The step:
   never every ref;
   `--mirror` and
   `remote.<name>.mirror` upload everything.
+  `remote.<name>.mirror` is read by Git itself
+  (`git config --type=bool --get remote.<name>.mirror`),
+  never by a list of spellings kept here:
+  Git reads `2`,
+  `-1` and `0x10` as true and the empty value as false,
+  and a mirror read as false publishes every other branch with no
+  object behind its pointers.
+  The question is asked only when the settings hold a value for the key,
+  so a
+  repository without a mirror setting costs no Git start for it,
+  and a value Git cannot read refuses the push as Git
+  itself would.
   A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
   `remote.pushDefault`,
   `branch.<name>.remote`,
@@ -12483,10 +13107,14 @@ The step:
   local branch with `push.default=matching`,
   else the current branch from the full ref `HEAD` names (`HEAD` when it is
   not a branch).
-  A remote with more than one `pushurl` is uploaded to once per URL,
+  A remote Git writes to more than once is uploaded to once per URL,
   passing each URL,
   because each may keep its
-  objects in its own place.
+  objects in its own place:
+  that is every `pushurl` the remote names,
+  and every `url` it names when it has no
+  `pushurl`,
+  because `git push` writes to all of them.
   A destination typed as a path (starting with `/`,
   `./` or `../`,
   or naming an existing
@@ -12509,7 +13137,27 @@ The step:
   Before anything starts,
   one stat per `PATH` directory finds `git-lfs`;
   when it is absent the wrapper prints the
-  install-or-remove explanation and exits with status 1.
+  install-or-remove explanation and exits with status 1,
+  and a `git-lfs` the lookup found and the system refused to start is reported as found,
+  with the file it found and the operating system's own error
+  (`start_failed_message` in `src/native/lfs/lfs_pre_push.rs`),
+  because a program that is there is not missing and its reader would go looking at a `PATH` that is right.
+  Which folders that search reads is the push's own list.
+  A typed push reads the environment of that command.
+  A push the commit service runs searches the service's own `PATH`,
+  which the manager that started the service fixed,
+  and no command of the person reaches that list:
+  nothing of the committing shell travels with the service's push
+  (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
+  and two runs' commits landed while their pushes were refused for a program their own shell could start).
+  The refusal names the program,
+  every folder of the list it searched,
+  and where that list came from,
+  so a person can tell the manager's list from their own;
+  the way forward it prints for a service push is a push by hand once from a shell that holds the program
+  (`git push`),
+  which searches that shell's own `PATH`,
+  because nothing of the committing shell travels with the service's push.
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,
@@ -12522,11 +13170,32 @@ The step:
   or remove the LFS configuration),
   does not start the push,
   and
-  exits with the upload's status (1 when it had none).
-  The auto-push runs the upload as a bounded child with captured output and appends the explanation to the recorded
-  output of the failed attempt,
-  so a commit that joined that push shows it too;
-  a stop by deadline says so.
+  exits with the upload's status,
+  or with `128 + N` for a signal numbered `N` that ended it,
+  which is the push path's own convention for a run a signal ended
+  (1 when the upload reported no status at all).
+  The auto-push runs the upload as a bounded child with captured output,
+  keeps the ending the upload had,
+  appends the explanation to the recorded output of the failed attempt,
+  so a commit that joined that push shows it too,
+  and says "was ended by signal N" for an upload a signal ended rather than reporting it as a status the program chose:
+  `128 + N` is also a status a program can choose,
+  so the attempt carries the signal beside the code
+  (`PushAttempt` in `src/native/push/auto_push_single_flight.rs`).
+  A stopped upload names the limit that stopped it,
+  and a stop by the connected window names the server it waited for:
+  the upload's own server,
+  which is the LFS endpoint and not the push's destination.
+  It is the endpoint git-lfs itself picks
+  (`lfs_server_of` in `src/native/lfs/lfs_upload_plan.rs`,
+  in the order stated under "A connected stop names the server it waited for"),
+  read by the upload plan from the configuration it already reads,
+  with any userinfo left out.
+  The stop's own sentence ends with one full stop and the tail follows it,
+  so the two never meet at two dots.
+  The stop's own words name every way forward,
+  so the tail after a stop does not list them again:
+  it says that the push was not started and that a partial upload is harmless.
 - Paths.
   A typed `git push` is preceded by the upload,
   on the exec path and on the path that integrates a lost race;
@@ -16160,6 +16829,22 @@ other tools' files,
 `ORIG_HEAD`,
 `description`,
 and `lost-found`.
+`worktrees` is such state too:
+Git removes it without any wrapper step.
+Git 2.56.1 starts its automatic maintenance after each commit it makes
+(`maintenance run --auto`,
+detached by default,
+`prepare_auto_maintenance` in Git's `run-command.c`),
+and that run's `worktree-prune` task
+removes every `worktrees/<id>` that is not locked and holds no `gitdir` file,
+then the folder it leaves empty
+(`should_prune_worktree` in Git's `worktree.c`,
+`delete_worktrees_dir_if_empty` in `builtin/worktree.c`),
+and the wrapper's own landing runs the same upkeep
+(see "Maintenance that may run while a commit is made").
+So a member never depends on that folder,
+and a folder a person or a command writes there by hand
+is not there for the next command to read.
 A lock,
 and the file a command stages a lock in
 (`<lock name>.cli-git-marker-<pid>.<pid namespace>-<batch>-<token>`),
@@ -16272,7 +16957,8 @@ quoting every path value under git-config value syntax at the final interpolatio
 
 The creation of a shadow is about forty calls that create a directory entry on the volume a commit already waits on,
 and the owner chose to stop paying it on every commit
-(this section; the questions file's section "May a commit take its private repository from a pool made ahead?"
+(this section;
+the questions file's section "May a commit take its private repository from a pool made ahead?"
 left for it on 2026-11-19,
 with the answer
 "Pool made ahead (Recommended),
@@ -19135,6 +19821,350 @@ Version 8 was the first that carries a changed path's bytes;
 a version 7 service takes the readable spelling of a name that is not text
 and reports a successful commit of another file.
 
+### The start-time ZFS compatibility gate
+
+The root-run handler `mount-git-worktree-clone-datasets` runs one gate before
+its first request to `/dev/zfs`,
+and no raw request is made until it passes.
+The wrapper `monochromatic-git-policy-cli` makes no request in this build and
+runs no gate;
+the step that gives the wrapper a ZFS request route adds that call.
+The gate is this repository's own code except for the type reader:
+`compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
+holds the bounded read,
+the pre-scan,
+the declaration and its adapter over `btf-rs` 2.0.1,
+the expectation table compiled from its own `repr(C)` type,
+the comparison and one refusal value,
+and `src/native/zfs_compatibility_gate/` in this package holds the paths,
+the read order,
+the module's identity,
+the target allowlist,
+the per-process verdict and the words a person reads.
+`btf-rs` 2.0.1 is the reader the project adopted on 2026-11-20 under
+`LGPL-2.1-or-later`
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The reader adopted:
+`btf-rs` 2.0.1").
+It resolves a named type,
+a chained type,
+a record's members and an enumeration's values;
+the binding multiplies out each array's byte size,
+and the pre-scan stays here because that crate validates no section list.
+That pre-scan reads the header and the section list and no type entry,
+and `btf-rs` 2.0.1 reads a type entry's kind in five bits and its member count
+in sixteen,
+so a kernel that widened either field is misread where the high bits only
+extend a kind,
+and refused only when that reader's own parse fails;
+no kernel on record writes one,
+and the adoption record names the lag as a revisit trigger
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"Exit,
+rollback and revisit triggers").
+
+What it proves,
+in this order:
+
+- The binary runs on a target the managed route is qualified for.
+  `x86_64` is the only entry in `QUALIFIED_TARGETS`,
+  and no guest has qualified another target,
+  so `linux-arm64` refuses before any file is read.
+  BTF records no architecture,
+  so the compiled target is the only evidence there is.
+- `/dev/zfs` exists and this process can open it.
+  A missing or unopenable device refuses at that step and starts no read.
+- The loaded module's identity is read once:
+  `/sys/module/zfs/version`,
+  `srcversion` and the build ID note,
+  each bound to one page and stripped of one trailing newline.
+  The identity is never a rule:
+  no step compares the release string with an approved one.
+- `/sys/kernel/btf/vmlinux` and `/sys/kernel/btf/zfs` are read,
+  each through one open that follows no link and one bound,
+  and each file's magic,
+  byte order,
+  version,
+  flags,
+  header length and section list are checked before any type is decoded.
+  Both header shapes are read:
+  the 24 bytes Linux 6.8 wrote and the 32 bytes a current tool writes.
+- The module's `zfs_cmd` is compared with the declaration this package compiles:
+  the struct's size,
+  every member's bit offset and type size,
+  the anonymous union and the anonymous structure inside it,
+  every member of `dmu_objset_stats` and `zinject_record`,
+  each array's element size,
+  and every request number this package can send with `ZFS_IOC_FIRST` and
+  `ZFS_IOC_LAST`.
+  The walk has a fixed order and stops at the first difference,
+  naming the field path with both values.
+  The two endpoints are part of that contract,
+  so a release that moves `ZFS_IOC_LAST` refuses even though no layout moved,
+  which is what the record's Decision section requires:
+  its expectations list ends with
+  "every request number the binding can send with the range's two endpoints",
+  and any mismatch there refuses.
+  The accepted design states the same in its request contract:
+  "Every request number the binding can send has the value the approved
+  `zfs_ioc` enum gives it,
+  and the range's endpoints match".
+  A release that adds a request inside a reserved number moves no endpoint and
+  no layout,
+  which `zfs-2.3.0` did,
+  so the endpoints catch an append past the last number and not every append.
+- The identity is read again.
+  A module that unloaded or was replaced under the check retries the whole
+  check once,
+  and refuses with "module changed while checking" only when the retry's own
+  two identity reads also differ.
+  A module that carries no release string,
+  `srcversion` or build ID weakens the reload check instead of refusing:
+  the two identity reads then compare the values it does carry with each
+  file's device,
+  inode,
+  size and modification time,
+  and a module carrying none of the three compares no term at all,
+  which `doctor` says.
+  This build's `doctor` reads no gate;
+  step 18 adds its gate read and the sentence naming the absent attribute.
+
+The gate proves no module release.
+The project's answer of 2026-11-19,
+"Any version,
+layout decides",
+leaves the layout comparison and the request numbers to decide,
+so a module reporting `2.2.2-0ubuntu9.5` or `2.4.4-1_g1a2b3c4` reaches the
+comparison,
+and only a difference in the declaration or a number refuses it.
+It cannot prove handler behaviour,
+a property or nvlist key name,
+or a patch that keeps the same layout,
+and "Limits" of
+`doc/planning/cli-git-zfs-runtime-layout-checker-design.md` states each.
+
+A refusal disables every raw request,
+reads included,
+and there is no force flag and no environment variable that turns it into a
+pass.
+A missing device,
+a missing or unreadable file,
+a short read,
+a header or type entry the reader cannot represent,
+any difference and a module that changed under the check all refuse the same
+way:
+
+- The handler does not enter the mode,
+  so that mode opens nothing,
+  makes no request,
+  mounts nothing,
+  unmounts nothing and records nothing,
+  and registrations and durable recovery state stay as they were.
+- The wrapper has no ZFS route and makes no request in this build,
+  so its commands take the same-dataset reflink route or the ordinary Git
+  route as they do today.
+  The step that gives the wrapper a request route adds its gate call and the
+  fallback for an unused slot,
+  which is the ladder's route for a slot nothing is attached to.
+  A clone that is already attached keeps its binding:
+  a refusal never authorizes an unrelated mount or cleanup.
+
+The refusal prints a line naming the failing step,
+the file it read and the detail,
+then states that every raw request,
+reads included,
+stays disabled,
+that registrations and durable recovery state stay as they were,
+and that no flag and no environment turns the refusal into a pass.
+The handler adds a line saying that no mode was entered,
+so that mode opened nothing,
+made no request,
+mounted nothing,
+unmounted nothing and recorded nothing.
+It never offers a bypass.
+A compatible verdict prints one line naming the target,
+the module's release text,
+each file's size and header length,
+and the sentence that says a release text other than the tested `2.4.4-1`
+was read,
+not a different version.
+
+The verdict is remembered per process and compared with the module's identity
+before each reuse,
+so a reload is noticed between two uses in one long process.
+No verdict is written to disk:
+the cross-process cache is the design's open question Q3,
+held until its owed cost measurement runs.
+
+#### The start probe beside the gate
+
+`mount-git-worktree-clone-datasets start-probe` is the functional probe the
+kernel-release answer asks for,
+run as `ExecStartPre=-` of the boot unit.
+It proves the running kernel and module can make the route's calls,
+and it replaces none of the gate above:
+the gate compares the module's declaration and request numbers,
+and the probe exercises the calls those numbers describe.
+It runs as root,
+in a private mount namespace of its own,
+and every mount it makes dies with that namespace.
+
+What it does,
+in this order:
+
+- It makes its mount namespace private and mounts a scratch tmpfs on
+  `/run/git-worktree-clone-mount-probe/scratch`,
+  then makes the slot,
+  the move target and the refusal tree inside it.
+- It walks from the tmpfs root to the slot with the wrapper's no-crossing
+  `openat2` flags and records the slot's identity,
+  then runs four refusal controls:
+  a symbolic link (`ELOOP`),
+  a `..` escape (`EXDEV`),
+  a bind mount across a component (`EXDEV`),
+  and a recorded identity that changed.
+  It opens the configured checkout read-only and reads no entry there.
+- It reads the source from
+  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`:
+  one `startProbe` object holds `dataset`,
+  which names the dataset whose `ready` snapshot the probe attaches,
+  and `checkout`,
+  which names the folder the walk opens.
+  The dataset is checked as a name:
+  each component holds alphanumerics and `_ - . :`,
+  the dataset and its `@ready` suffix together are at most 255 bytes,
+  and the dataset carries no `@` or `#`.
+- It opens a `zfs` context,
+  writes the source and the `ro`,
+  `nosuid` and `nodev` options,
+  creates the superblock with `FSCONFIG_CMD_CREATE_EXCL`,
+  makes a mount with `MOUNT_ATTR_RDONLY`,
+  `MOUNT_ATTR_NOSUID` and `MOUNT_ATTR_NODEV`,
+  and moves it onto the slot's held descriptor.
+- It reads the mount back:
+  the expected mount ID,
+  the `zfs` filesystem,
+  the exact source and the three flags in the worker's own table,
+  the ZFS magic from `fstatfs`,
+  and a bounded directory read.
+- It forks a holder in a second namespace that attaches the same source with
+  the plain create,
+  scans every mount namespace of its PID namespace while both mounts exist
+  and requires exactly the worker's and the holder's,
+  stops the holder and requires the worker's alone.
+- It closes every descriptor it holds on the mount,
+  forks a child that moves the mount to the move target and unmounts it by
+  path,
+  which must not answer `EBUSY`,
+  and scans once more,
+  requiring no namespace to list the source.
+
+A failed step stops the probe and the record names that step and its errno.
+A source another namespace holds is not a failure:
+the attach arm and every later arm are recorded as not exercised with
+`source-held`.
+A kernel older than 6.6 refuses the exclusive create with `EOPNOTSUPP`,
+which records the attach arm as not exercised rather than falling back to a
+plain create that could reuse a superblock,
+so the managed route's effective floor is Linux 6.6.
+The probe never opens `/dev/zfs`,
+never mounts by path on an account-controlled tree,
+never reads a file's content,
+never creates or destroys a dataset or snapshot,
+and offers no force flag.
+
+The record is `/run/git-worktree-clone-mount-probe/result`:
+a root-owned file,
+mode `0644`,
+in a root-owned directory of mode `0755` the mode creates itself,
+written by atomic rename,
+with a started record written before the fork.
+It holds `v1` and one fixed key per line:
+the kernel's release,
+the module's version,
+`srcversion` and build ID where the module carries them,
+this boot's identity,
+the handler's own identity,
+the time,
+the verdict,
+one line per arm,
+one line per step,
+the worker's and the holder's mount-namespace identities,
+the source,
+whether the kernel found it,
+and,
+for a skipped record,
+the gate step that refused.
+A record whose fingerprint differs from the running kernel,
+module or boot is stale.
+`first-attach` is a second file beside it with its own writer,
+which this build does not write.
+
+Every managed attach reads the record before it attaches.
+The verdicts are:
+
+- `passed` enables managed attaches for this boot and module identity.
+- `failed` refuses new managed attaches and keeps every other operation:
+  an unused slot takes the same-dataset reflink or ordinary Git route,
+  `boot-reconcile` attaches nothing and keeps every intent and registration,
+  and removal of a mounted clone is refused only when the failed step is the
+  move,
+  the unmount or a scan.
+- `blocked`,
+  for an arm that did not run,
+  keeps the route blocked with those same per-operation effects,
+  and `doctor` reports which arm did not run and why.
+- `timed-out` fails closed:
+  the record is not current,
+  it names the step in flight and the last step that finished,
+  a move,
+  unmount or scan in flight is treated as a failed arm for removal,
+  and every other timeout carries the failed-arm effects for new attaches
+  only.
+- `skipped` is the record a refused compatibility gate writes:
+  the probe was not entered,
+  nothing was mounted,
+  and no verdict either way exists.
+
+The mode enforces one deadline over the worker and the holder and kills both
+when it expires;
+a failed,
+timed-out or skipped probe is a verdict in the record,
+never a failed unit,
+so the mode exits successfully whenever it reaches its own end.
+The deadline is 350 milliseconds.
+The clock starts just before the worker's fork,
+so the bound covers the worker and holder phases and not the gate,
+the fingerprint or the started record.
+The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
+211,176 with 309 mount namespaces,
+and the control's difference gave worker-phase estimates from 8,861 to
+118,503 microseconds;
+the slowest estimate plus the 231-millisecond margin is 349.5 milliseconds
+(`doc/planning/cli-git-zfs-start-probe-design.md`,
+"M4:
+what the probe costs";
+the rounds are in
+`package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`).
+Step 19 re-cites it when the boot unit measures the login delay.
+Until step 19 adds the `ExecStartPre=-`,
+no boot unit runs the probe,
+and it runs only from a transient unit in a guest.
+
+Test-only variables are compiled into the release executable and inert unless
+set,
+and none turns a refusal into a pass:
+`CLI_GIT_TEST_ONLY_START_PROBE` takes `disabled`,
+which writes a skipped record for the timing control arm,
+or `hold-<step>`,
+which holds the worker after that step for twice the shipped deadline so the
+deadline fires;
+`CLI_GIT_TEST_ONLY_START_PROBE_KEEP_DESCRIPTOR=1` keeps one descriptor on the
+attached mount so the unmount arm must answer `EBUSY`;
+and `CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS` raises the bound for the
+raised-deadline control,
+which must then record the held step as passed.
+
 ### Compatibility and degradation
 
 The executable is tested with real Git 2.56.0,
@@ -20573,7 +21603,8 @@ The warning never changes the landing.
 ### The remote settings every worktree shares
 
 The owner answered "Refuse in worktrees (Recommended)" on 2026-11-10
-(this section; the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19),
+(this section;
+the questions file's section "A push URL changed from a worktree" left for it on 2026-11-19),
 after a worktree of this repository ran `git remote set-url --push origin DISABLED` as if it were a clone.
 Every worktree of a repository shares one `.git/config`,
 so that change broke every push of the main checkout until someone removed the entry,
@@ -21324,7 +22355,9 @@ Before release readiness:
 - Clippy reports no warning and the crate's tests pass in the bounded container
   (`mise run //package/git-policy/cli:native:test:container`),
   with Clippy running the Rust toolchain `toolchain.lock.json` records
-  (the gate refuses, naming the missing component, when that toolchain has no Clippy);
+  (the gate refuses,
+  naming the missing component,
+  when that toolchain has no Clippy);
 - the btrfs controls pass on this host,
   which a release that is not an alpha waits for before it dispatches
   (`mise run //package/git-policy/cli:native:release:host-controls`):

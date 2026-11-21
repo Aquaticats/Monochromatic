@@ -235,6 +235,47 @@ pub mod worktree_clone_mount;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount::*;
 
+/// The root-run clone-mount handler,
+/// `mount-git-worktree-clone-datasets`:
+///  its mode grammar,
+///  the two installed paths,
+///  the modes whose plan steps have not landed,
+///  and the administrator's parent adoption.
+/// It is the crate's second executable,
+///  so it is named through this path rather than a glob re-export:
+///  the program's words (`PROGRAM_NAME`,
+/// `run`,
+/// the install paths) belong to the handler,
+///  and no old flat path of the wrapper names them.
+/// It is Linux only,
+/// like the module it builds on.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_handler;
+
+/// The root start probe the kernel-release answer asks for:
+/// the private namespace and the scratch tmpfs,
+/// the exclusive attach,
+/// the holder in a second namespace,
+/// the move and the unmount from a second process,
+/// the record under `/run` and the mode's one deadline.
+/// It sits beside the gate and replaces none of it,
+/// and it is Linux only,
+/// like the mount calls it makes.
+#[cfg(target_os = "linux")]
+pub mod start_probe;
+
+/// The start-time ZFS compatibility gate the root-run handler runs before its
+///  first ioctl:
+/// the qualified target,
+/// the device,
+/// the module's identity,
+/// the binding's layout comparison,
+/// the per-process verdict and the words a person reads.
+/// It is Linux only,
+/// like the binding it calls.
+#[cfg(target_os = "linux")]
+pub mod zfs_compatibility_gate;
+
 /// Btrfs subvolume worktrees and the filesystem primitives under them.
 pub mod subvolume;
 

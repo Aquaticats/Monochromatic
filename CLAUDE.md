@@ -923,11 +923,11 @@ NLD:
  `systemctl --user list-units`).
 
 NQH:
- Never wait for a quiet host or call one quiet:
- other sessions keep the load average up.
-Measure under the load there is,
- alternating arms with a same-binary control for the spread,
- and report counts.
+ Never wait for a quiet host or clean checkout:
+ other sessions load one and dirty the other.
+Design and measure for both as found,
+ alternating arms with a same-binary control;
+ report counts.
 
 NHR:
  Normal here,

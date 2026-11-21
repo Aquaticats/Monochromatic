@@ -8,11 +8,14 @@
 //! and then no `git-lfs` process and no request to the LFS server is needed.
 //! The tips come
 //!  from the plan's refs;
-//! the commits already known to the destination are the remote's tracking refs when the plan
-//!  trusts them,
-//! else none (the whole history of the pushed refs is scanned,
-//! which keeps the case where the tracking
-//!  refs may not describe the destination correct).
+//! the commits already known to the destination are the tracking refs the destination itself reports at the
+//!  commits held here,
+//! ref by ref,
+//! so a ref a teammate moved on or a merged branch left behind drops only itself;
+//! with none of them
+//!  the whole history of the pushed refs is scanned,
+//! which keeps the case where no tracking ref describes the
+//!  destination correct.
 //! When the readers decline,
 //! or an object the scan found is missing
 //!  from `.git/lfs` (where `git-lfs push` words the failure and honours `lfs.allowincompletepush`),
@@ -187,13 +190,12 @@ mod unix {
             include.push(peel(&database, layout, hex)?);
         }
         let mut stop: Vec<Vec<u8>> = Vec::new();
-        if !plan.full_scan {
-            let remote: &str = plan.remotes.first()?.to_str()?;
-            let prefix: String = format!("refs/remotes/{remote}/");
-            for (name, value) in &listing {
-                if let (true, RefValue::Direct(hex)) = (name.starts_with(prefix.as_str()), value) {
-                    stop.push(from_hex(hex.as_bytes(), layout.object_format)?);
-                }
+        for (name, value) in &listing {
+            if !plan.confirmed_tracking_refs.iter().any(|confirmed| { return confirmed == name; }) {
+                continue;
+            }
+            if let RefValue::Direct(hex) = value {
+                stop.push(from_hex(hex.as_bytes(), layout.object_format)?);
             }
         }
         let objects: Vec<String> = new_pointer_objects(&database, layout.object_format, include.as_slice(), stop.as_slice(), SCAN_BUDGET)?;

@@ -3,7 +3,7 @@ import {
   glob,
   readFile,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import {
   describe,
@@ -27,6 +27,7 @@ import {
   registryCrateNames,
 } from './crate-registry.ts';
 import { replaceDependencyPin } from './manifest-edit.ts';
+import { splitManifest } from './toml-line.ts';
 import { commitPaths } from './release-steps.ts';
 import { findRepositoryRoot } from './repository-root.ts';
 import {
@@ -91,6 +92,46 @@ function namesDependency({ line, name }: { line: string; name: string }): boolea
     return false;
   const afterName = line.slice(name.length).trimStart();
   return afterName.startsWith('=') && afterName.slice('='.length).trimStart().startsWith('{');
+}
+
+/**
+ Whether a lockfile reaches the crate as one of the workspace's own folders: a `[[package]]` block naming it with no
+ `source` line, which is how Cargo writes a path dependency and never a copy from a registry or a repository.
+
+ @param text - lockfile text
+ @param name - package name of the crate
+ @returns true when such a block exists
+ */
+function lockNamesCrateAsPath({ text, name }: { text: string; name: string }): boolean {
+  /**
+   Whether the block being read is a `[[package]]` one.
+   */
+  let inPackage = false;
+  /**
+   Whether that block names the crate.
+   */
+  let namesTheCrate = false;
+  /**
+   Whether that block carries a source, which makes it a copy from somewhere else.
+   */
+  let hasSource = false;
+  for (const body of splitManifest(text).bodies) {
+    if (body.startsWith('[')) {
+      if (inPackage && namesTheCrate && !hasSource)
+        return true;
+      inPackage = body.trim() === '[[package]]';
+      namesTheCrate = false;
+      hasSource = false;
+      continue;
+    }
+    if (!inPackage)
+      continue;
+    if (body === `name = "${name}"`)
+      namesTheCrate = true;
+    else if (body.startsWith('source = '))
+      hasSource = true;
+  }
+  return inPackage && namesTheCrate && !hasSource;
 }
 
 /**
@@ -420,6 +461,23 @@ await describe({
                   const lines = (await readRepositoryFile(manifestPath)).split('\n');
                   for (const bin of entry.checkBins)
                     expect(lines).toContain(`name = "${bin}"`);
+                },
+              }),
+              it({
+                name: 'the lock directories are exactly the lockfiles that reach the crate as a path dependency',
+                fn: async () => {
+                  const locks = await repositoryFiles(`**/${lockFileName}`);
+                  // The crate's own lockfile sits beside its manifest, so a scan that reached no lockfile cannot
+                  // pass for a crate that nothing else locks.
+                  expect(locks).toContain(`${entry.crateDirectory}/${lockFileName}`);
+                  const reaching = (await Promise.all(locks.map(async function reachesTheCrate(lock) {
+                    // The crate's own lockfile names the crate too, and that one is committed beside the manifest.
+                    if (posix.dirname(lock) === entry.crateDirectory)
+                      return [];
+                    const text = await readRepositoryFile(lock);
+                    return lockNamesCrateAsPath({ text, name }) ? [posix.dirname(lock)] : [];
+                  }))).flat();
+                  expect(reaching.toSorted()).toEqual([...entry.lockDirectories].toSorted());
                 },
               }),
             ],

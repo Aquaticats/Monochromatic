@@ -1,9 +1,10 @@
 //! What:
 //!  The clone rung for a source with uncommitted changes:
 //! clone every tracked path the proof settles,
-//! build the new
-//!  worktree's index from the tree of `HEAD`,
-//! and let Git write the paths the changes reach.
+//! build the
+//!  new worktree's index from the tree of the source's `HEAD`,
+//! and let Git write every other path,
+//!  the changed ones and the one the conversion fence takes.
 //! Why:
 //!  A source checkout that is not clean used to end the clone rung,
 //! so the machine whose main checkout other
@@ -20,42 +21,51 @@
 //! a staged deletion is missing from it,
 //! and a staged addition
 //!  names a path no tree has,
-//! so the index is built from the tree with the stat fields of the files the clones made.
-//! Git writes
-//!  the rest with one `git checkout-index --stdin`,
-//! which runs the checkout's conversion filters exactly as Git's own
-//!  checkout does,
-//! and the rung then proves the worktree with one `git status` and one index comparison.
+//! so the index is built from the tree with the stat fields of the files the clones made,
+//!  and written under the fence's own waiting name (`worktree_clone_index`).
+//! Git writes the rest through the fence's one
+//!  `git checkout-index`,
+//! which runs the checkout's conversion filters exactly as Git's own checkout does,
+//! and the index takes the
+//!  worktree's name only after that run,
+//! so a kill in the window leaves no index that could vouch for a path Git had not
+//!  written.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const part = cloneTheUnchanged({ context, source, target, destination, admin }); // throws the reason Git's checkout is needed
+//! const part = cloneTheUnchanged({ context, source, destination, adminPath, fence, rules }); // throws the reason Git's checkout is needed
 //! ```
 
-use crate::add_timing::begin_step;
-use crate::add_timing::end_step;
+use crate::add_timing::{begin_step, end_step};
 use crate::diagnostic_log::debug;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_index::parse_index;
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{FlatEntry, flatten_tree};
 use crate::subvolume_index::StatFields;
-use crate::subvolume_index_files::install_index_in;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clone::Created;
-use crate::worktree_clone::clone_the_entries_of;
+use crate::worktree_clone::clone_these_bytes_beside;
+use crate::worktree_clone_conversion_beside_the_clone::fence_beside_the_clone;
+use crate::worktree_clone_conversion_fence::{AttributeFence, Fence};
+use crate::worktree_clone_index::{PendingIndex, install_the_index_beside_the_write};
 use crate::worktree_clone_partial_index::{fields_the_source_recorded, index_of_the_tree};
-use crate::worktree_clean::stored_stats;
 use crate::worktree_clone_partial_split::Split;
 use crate::worktree_clone_partial_split::split_the_tree;
-use crate::worktree_ladder_target::{Target, checkout_environment};
+use crate::worktree_clean::stored_stats;
 use crate::worktree_snapshot_source::SnapshotSource;
-use std::ffi::OsString;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::Path;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeClonePartial";
+
+/// The mode bits that say an entry is a link rather than a file.
+const MODE_SYMLINK: u32 = 0o120_000;
+
+/// The type bits of an entry's mode.
+const MODE_TYPE: u32 = 0o170_000;
 
 /// The variable that sets the smallest unchanged file this prototype clones;
 /// it exists only to measure where cloning wins on this host and is not the shipped rule.
@@ -146,29 +156,47 @@ impl PartCloned {
 }
 
 /// What:
-///  The stat fields of no path:
-/// the index built from the tree already holds the fields of every file the clones
-/// made.
+///  One partial clone's inputs:
+/// what it reads from Git,
+/// what the source check proved,
+/// where its bytes go,
+/// the fence the attributes half already answered,
+/// and the prototype's size rules.
 /// Why:
-///   `install_index_in` refreshes the fields of the entries it is given,
-/// and a partial clone hands it bytes whose
-///  fields are already the objects it made,
-/// so it refreshes none of them.
+///   The rung reads the source,
+/// the destination and the administrative directory of the new worktree,
+/// and it must not choose the conversion fence itself:
+/// the ladder decided the decline and read the attributes before any copy (`the_fence_of_this_build`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class NoStats implements StatLookup { statNow() { return undefined; } }
+/// type PartialClone = { context: GitContext; source: SnapshotSource; destination: File; admin: File; adminPath: Path; fence: AttributeFence; rules: SizeRules };
 /// ```
-struct NoStats;
-
-impl crate::subvolume_index::StatLookup for NoStats {
-    fn stat_now(&mut self, _path: &[u8]) -> Option<StatFields> {
-        return None;
-    }
+pub(crate) struct PartialClone<'a> {
+    /// The Git face the rung's own runs go through.
+    pub context: &'a GitContext,
+    /// What the source check proved about the source.
+    pub source: &'a SnapshotSource,
+    /// The directory Git made for the new worktree,
+    /// with no checkout,
+    /// held open.
+    pub destination: &'a File,
+    /// The new worktree's administrative directory,
+    /// held open.
+    pub admin: &'a File,
+    /// The new worktree's administrative directory,
+    /// as the path a Git run is given.
+    pub admin_path: &'a Path,
+    /// The attributes the fence answered before the copies,
+    /// and the rules it judged them by.
+    pub fence: AttributeFence,
+    /// The prototype's size rules;
+    /// no rule at all is the shipped shape of this rung.
+    pub rules: SizeRules,
 }
 
 /// What:
-///  The tracked paths the source's index and the tree of `HEAD` name,
+///  The tracked paths the source's index and the tree of the source's `HEAD` name,
 /// and the tree itself.
 /// Why:
 ///   The split compares three things (the index entry,
@@ -186,7 +214,7 @@ struct Tracked {
     /// The same entries as the plain index reader gives them,
     /// with their stage and extended flags.
     indexed: Vec<crate::repo_read_index::IndexEntry>,
-    /// The flattened tree of `HEAD`.
+    /// The flattened tree of the source's `HEAD`.
     tree: Vec<FlatEntry>,
 }
 
@@ -196,7 +224,9 @@ struct Tracked {
 ///   The split judges every tree path against the index entry and the file,
 /// and the index build takes
 ///  the tree,
-/// so one reading answers both.
+/// so one reading answers both,
+/// and the tree is the source's `HEAD`'s because that is what the split and the index name;
+/// the ladder's `read-tree -m -u` carries a differing new `HEAD` in afterwards.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,140 +241,6 @@ fn read_tracked(source: &SnapshotSource) -> Result<Tracked, String> {
     let Some(database) = ObjectDatabase::open(source.common_dir.as_path(), None, format) else { return Err(String::from("the object database has a layout the reader does not know")) };
     let Some(tree) = flatten_tree(&database, source.clean.head_tree.as_slice(), format) else { return Err(String::from("the tree of HEAD is unreadable")) };
     return Ok(Tracked { entries, indexed, tree });
-}
-
-/// What:
-///  The request that writes `paths` in the new worktree from its index.
-/// Why:
-///   `git checkout-index` is the scripted form of Git's own checkout:
-/// it writes the entry's object through the
-///  checkout's conversion filters and records the new stat data in the index,
-/// and it takes the paths on its standard input,
-///  so a source with many changed paths names none of them in the argument list.
-/// `--index` is what makes the first `git status` of the
-///  worktree cheap.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const request = checkoutIndexRequest({ destination, admin, paths });
-/// ```
-fn checkout_index_request(destination: &Path, admin: &Path, paths: &[Vec<u8>]) -> GitRequest {
-    let mut input: Vec<u8> = Vec::with_capacity(paths.iter().map(Vec::len).sum::<usize>() + paths.len());
-    for path in paths {
-        input.extend_from_slice(path.as_slice());
-        input.push(0);
-    }
-    return GitRequest {
-        cwd: destination.to_path_buf(),
-        arguments: ["checkout-index", "--stdin", "-z", "--index"].iter().map(OsString::from).collect(),
-        without_prefix: true,
-        environment: checkout_environment(admin, destination),
-        input: Some(input),
-        ..GitRequest::default()
-    };
-}
-
-/// What:
-///  Let Git write `paths` in the new worktree from its index.
-/// Why:
-///   The paths are the ones the proof handed to Git,
-/// and every one of them is in the tree the index was built from.
-/// A run that fails ends the rung,
-/// and the checkout that completes the worktree writes the same bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// writeTheRest({ context, destination, admin, paths }); // throws Git's words
-/// ```
-fn write_the_rest(context: &GitContext, destination: &Path, admin: &Path, paths: &[Vec<u8>]) -> Result<(), String> {
-    if paths.is_empty() {
-        return Ok(());
-    }
-    let request: GitRequest = checkout_index_request(destination, admin, paths);
-    let output = match run_git(context, &request) {
-        Ok(finished) => finished,
-        Err(error) => return Err(format!("`git checkout-index` could not start ({error})")),
-    };
-    if output.code == Some(0) {
-        return Ok(());
-    }
-    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
-    return Err(format!("`git checkout-index` ended with {:?}: {said}", output.code));
-}
-
-/// What:
-///  Run one captured Git query in the new worktree and answer its status and standard output,
-/// or the reason it
-///  could not be run at all.
-/// Why:
-///   The proof of a partial clone asks Git twice,
-/// and both runs name the worktree's own Git directory and
-///  work tree,
-/// so neither can read the source's.
-///A run that reports a failure through its status is an answer,
-///  not an error:
-/// a quiet
-///  difference check says "they differ" with status 1.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { code, stdout } = askInTheWorktree({ context, target, workTree, words }); // throws the reason it did not start
-/// ```
-fn ask_in_the_worktree(context: &GitContext, target: &Target, work_tree: &Path, words: &[&str]) -> Result<(Option<i32>, Vec<u8>), String> {
-    let request: GitRequest = GitRequest {
-        cwd: work_tree.to_path_buf(),
-        arguments: words.iter().copied().map(OsString::from).collect(),
-        without_prefix: true,
-        environment: checkout_environment(target.admin.as_path(), work_tree),
-        ..GitRequest::default()
-    };
-    let output = match run_git(context, &request) {
-        Ok(finished) => finished,
-        Err(error) => return Err(format!("`git {}` could not start ({error})", words.join(" "))),
-    };
-    return Ok((output.code, output.stdout));
-}
-
-/// What:
-///  Prove that the new worktree holds what Git's own `worktree add` would have written:
-/// no worktree file
-///  differs from the index entry Git's own status judges,
-/// and the index equals the new `HEAD`'s tree.
-/// Why:
-///   The clones and the paths Git wrote must leave the state Git's checkout leaves,
-/// and Git's status is the
-///  judge a person would ask,
-/// so the proof is Git's own answer and not this process's opinion of it.
-/// `--no-optional-locks` is
-///  what keeps the proof from writing an index:
-/// a read-only proof must not leave a mark on the worktree it
-///  judges,
-/// and an entry whose fields stayed stale costs the person one hash later,
-/// never a wrong byte.
-/// The status is
-///  also the honest judge of the entries whose recorded fields a link keeps from its source,
-/// which a quiet
-///  `git diff-files` reports as changed without ever comparing the target.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// proveTheWorktree({ context, target, workTree }); // throws the reason it is not Git's result
-/// ```
-pub fn prove_the_worktree(context: &GitContext, target: &Target, work_tree: &Path) -> Result<(), String> {
-    let (listed_code, listed) = ask_in_the_worktree(context, target, work_tree, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"])?;
-    if listed_code != Some(0) {
-        return Err(format!("`git status` ended with {listed_code:?} in the new worktree"));
-    }
-    if let Some(first) = listed.split(|byte: &u8| { return *byte == 0; }).find(|entry| { return !entry.is_empty(); }) {
-        let shown: String = String::from_utf8_lossy(&first[3.min(first.len())..]).into_owned();
-        return Err(format!("the new worktree is not what Git's checkout makes: {} differs", crate::worktree_snapshot_source::plain(shown.as_str())));
-    }
-    // The index's own side: every path of the new `HEAD`'s tree, and nothing else.
-    let (compared_code, _quiet) = ask_in_the_worktree(context, target, work_tree, &["--no-optional-locks", "diff-index", "--cached", "--quiet", target.commit.as_str()])?;
-    if compared_code != Some(0) {
-        return Err(String::from("the new worktree's index does not equal the tree of the new HEAD"));
-    }
-    return Ok(());
 }
 
 /// What:
@@ -382,7 +278,7 @@ fn apply_the_size_rules(split: Split, entries: &[crate::worktree_clean::StatEntr
         }
         clones.push(at);
     }
-    // The write step and the proof ask nothing of the order,
+    // The write step and the index ask nothing of the order,
     // but a record of what the rung did reads better in path order.
     writes.sort();
     return Ok(Split { clones, writes });
@@ -430,7 +326,7 @@ fn staged_paths(context: &GitContext, source: &SnapshotSource) -> Result<Vec<Vec
 ///   A staged path holds another blob than the tree names,
 /// so a clone of it would put the person's bytes where
 ///  the commit's belong,
-/// and the proof cannot see it:
+/// and no later step sees it:
 /// the new index records the stat data of the file the clone
 ///  made,
 /// so `git status` trusts it.
@@ -451,37 +347,81 @@ fn a_staged_path_among_the_clones(staged: &[Vec<u8>], entries: &[crate::worktree
 }
 
 /// What:
-///  The stat fields of the paths the clones made,
-/// with a link's entry keeping the fields its source recorded.
+///  The stat fields the new index records:
+/// those of the files the clones made,
+/// with a link's entry keeping the
+///  fields its source recorded,
+/// and none at all for a path Git writes,
+/// so nothing records a path Git has not written.
 /// Why:
-///   A link is cloned by making another link with the same target,
-/// and the object made is a different inode with a new change time,
-/// so fields taken from it would certify a name another process may have replaced since;
-/// the source's fields name the target's length,
-/// which is what Git compares a link by.
+///   An entry whose stat data matches the file is exactly what makes Git skip it,
+/// so a path the
+///  index may not vouch for yet keeps the zero stat data the tree's own entry holds;
+/// the index then takes the
+///  worktree's name only after Git wrote those paths (`worktree_clone_index`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stats = statsOfTheClones({ made, split, entries });
+/// const recorded = withoutTheWritten(statsOfTheClones({ made, split, entries }), written);
 /// ```
-fn stats_of_the_clones(made: std::collections::HashMap<Vec<u8>, StatFields>, split: &Split, entries: &[crate::worktree_clean::StatEntry]) -> std::collections::HashMap<Vec<u8>, StatFields> {
-    let mut stats: std::collections::HashMap<Vec<u8>, StatFields> = made;
+fn the_recorded_stats(made: HashMap<Vec<u8>, StatFields>, split: &Split, entries: &[crate::worktree_clean::StatEntry], written: &HashSet<Vec<u8>>) -> HashMap<Vec<u8>, StatFields> {
+    let mut stats: HashMap<Vec<u8>, StatFields> = made;
     for at in &split.clones {
         let Some(entry) = entries.get(*at) else { continue };
-        if entry.mode & 0o170_000 == 0o120_000 {
+        if entry.mode & MODE_TYPE == MODE_SYMLINK {
             stats.insert(entry.path.clone(), fields_the_source_recorded(entry.stored));
         }
     }
+    stats.retain(|path: &Vec<u8>, _fields: &mut StatFields| { return !written.contains(path); });
     return stats;
 }
 
 /// What:
+///  The paths Git writes:
+/// the paths a change reaches,
+/// and the paths the conversion fence takes because a clone
+///  would keep bytes Git's checkout would write others for,
+/// in path order.
+/// Why:
+///  Both lists are sorted by path,
+/// and the index, the tree and both steps read them in that order;
+/// a path on both lists is written once,
+/// which is what the fence's own answer for a path a change also reaches needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = [...new Set([...split.writes, ...fence.gitWrites])].sort(compareBytes);
+/// ```
+fn the_written_paths(split: &Split, fence: &Fence) -> Vec<Vec<u8>> {
+    let mut written: HashSet<Vec<u8>> = split.writes.iter().cloned().collect();
+    for path in &fence.git_writes {
+        written.insert(path.clone());
+    }
+    let mut ordered: Vec<Vec<u8>> = written.into_iter().collect();
+    ordered.sort();
+    return ordered;
+}
+
+/// What:
 ///  Clone the unchanged tracked paths of a source with changes into the destination,
-/// install the index built from
-///  the tree of `HEAD`,
-/// and let Git write the paths the changes reach.
+/// write the index built from
+///  the tree of the source's `HEAD` under the fence's waiting name,
+/// let the fence answer beside the copies,
+/// and answer the
+///  entries the clones made,
+/// the fence's decision widened by the changed paths,
+/// and the waiting index.
 /// Why:
 ///   See the module description.
+/// The order is the fence's own (`worktree_clone_conversion_beside_the_clone`):
+/// the attributes and the decline were
+///  decided before anything was copied,
+/// the remaining reads run beside the copies,
+/// the index is written under a name of its own with no
+///  stat data for a path Git still has to write,
+/// and it takes the worktree's name only after that write,
+/// which the
+///  ladder's serving step does.
 /// Nothing is removed on a failure:
 /// the entries the clones created stay and are counted by the
 ///  caller,
@@ -489,9 +429,10 @@ fn stats_of_the_clones(made: std::collections::HashMap<Vec<u8>, StatFields>, spl
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const part = cloneTheUnchanged({ context, source, target, destination, admin }); // throws the reason
+/// const { created, decided, pending } = cloneTheUnchanged({ context, source, destination, adminPath, fence, rules }); // throws the reason
 /// ```
-pub fn clone_the_unchanged(context: &GitContext, source: &SnapshotSource, target: &Target, destination: &Path, held: &File, admin: &File, rules: &SizeRules) -> Result<PartCloned, String> {
+pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned, Fence, PendingIndex), String> {
+    let PartialClone { context, source, destination, admin, admin_path, fence, rules }: PartialClone<'_> = work;
     let read_entered: bool = begin_step("partRead");
     let read_outcome = read_tracked(source);
     end_step(read_entered);
@@ -500,7 +441,7 @@ pub fn clone_the_unchanged(context: &GitContext, source: &SnapshotSource, target
     let classify_outcome = split_the_tree(tracked.entries.as_slice(), tracked.indexed.as_slice(), tracked.tree.as_slice(), source.root.as_path(), source.clean.index_seconds);
     end_step(classify_entered);
     let settled: Split = classify_outcome.map_err(|refusal| { return refusal.reason; })?;
-    let split: Split = apply_the_size_rules(settled, tracked.entries.as_slice(), rules)?;
+    let split: Split = apply_the_size_rules(settled, tracked.entries.as_slice(), &rules)?;
     let staged_entered: bool = begin_step("partStaged");
     let staged_outcome = staged_paths(context, source).and_then(|staged| {
         return match a_staged_path_among_the_clones(staged.as_slice(), tracked.entries.as_slice(), split.clones.as_slice()) {
@@ -510,23 +451,106 @@ pub fn clone_the_unchanged(context: &GitContext, source: &SnapshotSource, target
     });
     end_step(staged_entered);
     staged_outcome?;
-    let cloned: usize = split.clones.len();
-    let written: usize = split.writes.len();
-    let mut created: Vec<Created> = Vec::new();
-    let taken = split.cloned_entries(tracked.entries.as_slice());
-    let made: std::collections::HashMap<Vec<u8>, StatFields> = clone_the_entries_of(source, taken, held, &mut created)?;
-    let stats: std::collections::HashMap<Vec<u8>, StatFields> = stats_of_the_clones(made, &split, tracked.entries.as_slice());
+    let cloned_count: usize = split.clones.len();
+    let beside_entered: bool = begin_step("conversionBesideTheClone");
+    let (cloned, answered) = clone_these_bytes_beside(source, split.cloned_entries(tracked.entries.as_slice()), destination, fence_beside_the_clone(source, context, fence))?;
+    end_step(beside_entered);
+    // A fence's reason, or a pool that would not run it, ends the rung here before any index exists: Git's own checkout
+    // writes the worktree.
+    let decided: Fence = match answered {
+        Some(Ok(decided)) => decided,
+        Some(Err(reason)) => return Err(reason),
+        None => return Err(String::from("the fence beside the copies answered nothing")),
+    };
+    let written: Vec<Vec<u8>> = the_written_paths(&split, &decided);
+    let written_count: usize = written.len();
+    let set: HashSet<Vec<u8>> = written.iter().cloned().collect();
+    let recorded: HashMap<Vec<u8>, StatFields> = the_recorded_stats(cloned.stats().clone(), &split, tracked.entries.as_slice(), &set);
     let index_entered: bool = begin_step("partIndex");
-    let index_outcome = index_of_the_tree(tracked.tree.as_slice(), &stats, source.clean.hash_length).and_then(|bytes| { return install_index_in(admin, bytes.as_slice(), &mut NoStats, source.clean.hash_length); });
+    let seed: Result<Vec<u8>, String> = index_of_the_tree(tracked.tree.as_slice(), &recorded, source.clean.hash_length);
+    let index_outcome = seed.and_then(|bytes| { return install_the_index_beside_the_write((admin, admin_path), bytes.as_slice(), &recorded, &set, source.clean.hash_length); });
     end_step(index_entered);
-    let report: String = index_outcome?;
-    debug(TAG, report.as_str());
-    let write_entered: bool = begin_step("partWrite");
-    let write_outcome = write_the_rest(context, destination, target.admin.as_path(), split.writes.as_slice());
-    end_step(write_entered);
-    write_outcome?;
-    debug(TAG, format!("cloned {cloned} of {} tracked paths and had Git write {written} of them", tracked.tree.len()).as_str());
-    return Ok(PartCloned { cloned, written, created });
+    let pending: PendingIndex = index_outcome?;
+    debug(TAG, format!("cloned {cloned_count} of {} tracked paths and had Git write {written_count} of them", tracked.tree.len()).as_str());
+    let part: PartCloned = PartCloned { cloned: cloned_count, written: written_count, created: cloned.into_created() };
+    return Ok((part, Fence { git_writes: written, carried: decided.carried }, pending));
+}
+
+/// What:
+///  Prove that the new worktree holds what Git's own `worktree add` would have written:
+/// no worktree file
+///  differs from the index entry Git's own status judges,
+/// and the index equals the new `HEAD`'s tree.
+/// Why:
+///   The clones and the paths Git wrote must leave the state Git's checkout leaves,
+/// and Git's status is the
+///  judge a person would ask,
+/// so the proof is Git's own answer and not this process's opinion of it.
+/// `--no-optional-locks` is
+///  what keeps the proof from writing an index:
+/// a read-only proof must not leave a mark on the worktree it
+///  judges,
+/// and an entry whose fields stayed stale costs the person one hash later,
+/// never a wrong byte.
+/// It is a control's answer,
+/// not a step of the rung:
+/// the shipped rung's guarantee is the index it wrote and the fence's write,
+/// and this reads the result the
+///  way the measurement harness does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// proveTheWorktree({ context, destination, newCommit }); // throws the reason it is not Git's result
+/// ```
+#[cfg(test)]
+pub fn prove_the_worktree(context: &GitContext, destination: &Path, admin_path: &Path, new_commit: &str) -> Result<(), String> {
+    let (listed_code, listed) = ask_in_the_worktree(context, destination, admin_path, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"])?;
+    if listed_code != Some(0) {
+        return Err(format!("`git status` ended with {listed_code:?} in the new worktree"));
+    }
+    if let Some(first) = listed.split(|byte: &u8| { return *byte == 0; }).find(|entry| { return !entry.is_empty(); }) {
+        let shown: String = String::from_utf8_lossy(&first[3.min(first.len())..]).into_owned();
+        return Err(format!("the new worktree is not what Git's checkout makes: {} differs", crate::worktree_snapshot_source::plain(shown.as_str())));
+    }
+    let (compared_code, _quiet) = ask_in_the_worktree(context, destination, admin_path, &["--no-optional-locks", "diff-index", "--cached", "--quiet", new_commit])?;
+    if compared_code != Some(0) {
+        return Err(String::from("the new worktree's index does not equal the tree of the new HEAD"));
+    }
+    return Ok(());
+}
+
+/// What:
+///  Run one captured Git query in the new worktree and answer its status and standard output,
+/// or the reason it
+///  could not be run at all.
+/// Why:
+///   The proof asks Git twice,
+/// and both runs name the worktree's own Git directory and work tree,
+/// so neither
+///  can read the source's.
+/// A run that reports a failure through its status is an answer,
+/// not an error:
+/// a quiet difference
+///  check says "they differ" with status 1.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, stdout } = askInTheWorktree({ context, destination, adminPath, words }); // throws the reason it did not start
+/// ```
+#[cfg(test)]
+fn ask_in_the_worktree(context: &GitContext, destination: &Path, admin_path: &Path, words: &[&str]) -> Result<(Option<i32>, Vec<u8>), String> {
+    let request: GitRequest = GitRequest {
+        cwd: destination.to_path_buf(),
+        arguments: words.iter().copied().map(std::ffi::OsString::from).collect(),
+        without_prefix: true,
+        environment: crate::worktree_ladder_target::checkout_environment(admin_path, destination),
+        ..GitRequest::default()
+    };
+    let output = match run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(format!("`git {}` could not start ({error})", words.join(" "))),
+    };
+    return Ok((output.code, output.stdout));
 }
 
 /// Partial-clone controls stay out of the release executable.

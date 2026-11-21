@@ -145,13 +145,14 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
         if let Some(refusal) = lfs_refusal(&[], region, git.environment.as_slice()) {
             return Ok(PushAttempt {
                 exit_code: REFUSED_EXIT_CODE,
+                signal: None,
                 output: strip_one_line_break(refusal.as_str()).to_owned(),
             });
         }
         let mut query: PushQuery<'_> = PushQuery { git };
         let read: Result<Settings, PlanError> = read_settings(&mut query);
         let planned: Result<Option<UploadPlan>, PlanError> = match read {
-            Ok(settings) => plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query),
+            Ok(settings) => plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), None, &mut query),
             Err(error) => Err(error),
         };
         match planned {
@@ -170,6 +171,7 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
             Err(error) => {
                 return Ok(PushAttempt {
                     exit_code: REFUSED_EXIT_CODE,
+                    signal: None,
                     output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str()).to_owned(),
                 });
             }
@@ -213,12 +215,12 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
         .await
         .map_err(refused_job)?;
         if let Some(refused) = refusal {
-            return Ok(PushAttempt { exit_code: REFUSED_EXIT_CODE, output: strip_one_line_break(refused.as_str()).to_owned() });
+            return Ok(PushAttempt { exit_code: REFUSED_EXIT_CODE, signal: None, output: strip_one_line_break(refused.as_str()).to_owned() });
         }
         let mut query: PushQueryAwaiting<'_> = PushQueryAwaiting { git };
         let read: Result<Settings, PlanError> = read_settings_awaiting(&mut query).await;
         let planned: Result<Option<UploadPlan>, PlanError> = match read {
-            Ok(settings) => plan_upload_awaiting(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query).await,
+            Ok(settings) => plan_upload_awaiting(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), None, &mut query).await,
             Err(error) => Err(error),
         };
         match planned {
@@ -241,6 +243,7 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
             Err(error) => {
                 return Ok(PushAttempt {
                     exit_code: REFUSED_EXIT_CODE,
+                    signal: None,
                     output: strip_one_line_break(plan_failed_message(error.0.as_str()).as_str()).to_owned(),
                 });
             }

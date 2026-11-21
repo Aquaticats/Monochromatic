@@ -198,6 +198,108 @@ let listed = device.snapshot_list_next("pool/dataset", 0)?; // None at the end
   Its refusal carries the conflicting snapshot's name the kernel leaves in
   `zc_string`.
 
+## The start-time layout check
+
+A module whose `zfs_cmd_t` moved a field reads another request's bytes once a
+request is sent,
+and nothing in userspace can see that without a device,
+so `compatibility_check` compares the loaded module's declaration before the
+first ioctl:
+
+- `check_module_layout` reads `/sys/kernel/btf/vmlinux` and the loaded module's
+  `/sys/kernel/btf/zfs`,
+  each through one bounded open that follows no link,
+  and a file past its bound is a refusal.
+- Before any type is decoded,
+  each file's magic,
+  byte order,
+  version,
+  flags,
+  header length and section list are checked,
+  so a file whose sections do not add up is refused before the reader sees it.
+- The comparison walks the module's `zfs_cmd` in a fixed order:
+  the struct's size,
+  one pass over its members,
+  the member count,
+  then the interiors of `dmu_objset_stats`,
+  of the anonymous union and of `zinject_record`,
+  and finally every request number this crate sends with the range's two
+  endpoints.
+  It stops at the first difference and names the field path with both values.
+- A missing device,
+  a missing or unreadable file,
+  a short read,
+  a header it cannot represent,
+  a mismatch or a module that changed under the check disables every raw
+  request,
+  reads included.
+  There is no force flag and no environment override,
+  and the caller takes its same-dataset reflink or ordinary Git route for an
+  unused slot.
+
+The two programs hold what this crate does not:
+the device check,
+the module's version string,
+`srcversion` and build ID as identity for one check and its recheck,
+the `x86_64` allowlist,
+and the words a person reads.
+The verdict is remembered per process and never written to disk
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`).
+
+The reader is `btf-rs` 2.0.1,
+the crate the project adopted on 2026-11-20 with its `LGPL-2.1-or-later`
+licence
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The reader adopted:
+`btf-rs` 2.0.1";
+the vet report is
+`doc/audit/tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md`).
+`src/compatibility_check/declaration.rs` states what the comparison,
+the expectations,
+the records and the entry point ask of a reader,
+and the four duties every reader owes them,
+and `src/compatibility_check/btf_rs_declaration.rs` is the one adapter that
+maps `btf-rs` onto it.
+`btf-rs` leaves one piece of arithmetic to this crate:
+an array's byte size,
+which the adapter multiplies out of the element's own size and the count.
+`btf-rs` validates no section list of its own,
+so `bounded_read.rs` and `btf_header.rs` keep the pre-scan that refuses a
+header or a section list before a byte is parsed.
+That pre-scan reads the header and the section list and no type entry,
+and `btf-rs` 2.0.1 reads a type entry's kind in five bits and its member count
+in sixteen,
+so a kernel that widened either field is misread where the high bits only
+extend a kind,
+and refused only when that reader's own parse fails;
+no kernel on record writes one,
+and the adoption record names the lag as a revisit trigger
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"Exit,
+rollback and revisit triggers").
+
+A later reader replaces that adapter file and its own controls,
+`declaration_contract_tests.rs` excepted,
+and it touches these three places,
+because an adapter cannot change them alone:
+
+- the entry point's call in `check_module_layout.rs`,
+  which hands a reader both files' bytes beside the pre-scan's header length;
+- `mod.rs`,
+  whose file list and test-module lines name the adapter's files;
+- `Cargo.toml` and `Cargo.lock`.
+
+Nothing else moves:
+`comparison.rs`,
+`comparison_requests.rs`,
+`expectations.rs`,
+`declaration.rs` and its four contract controls read the declaration alone,
+so a swap keeps every verdict and every refusal sentence the comparison
+writes.
+The swap to `btf-rs` was measured on the fourteen real-byte pairs the first
+step 6 review built:
+every verdict and every sentence is the one the gate gave before it.
+
 ## The guest fixture
 
 A live request must never reach this host's pool,
@@ -266,13 +368,17 @@ and
 
 ## What this crate does not do
 
-- It checks no kernel compatibility at start.
-  The start-time gate that compares the loaded module's release,
-  architecture,
-  endianness and layout is step 6;
-  the guest tests compare the fields and
-  request numbers now,
-  and no program refuses to start on a mismatch yet.
+- It proves no module release.
+  The module's release string is not part of the gate:
+  by the project's answer of 2026-11-19,
+  "Any version,
+  layout decides",
+  the layout comparison and the request numbers decide,
+  and `doctor` prints the release string and says when it is not the tested text,
+  `2.4.4-1`.
+  The layout and the request numbers decide,
+  in `compatibility_check`,
+  which the two programs call before their first ioctl.
 - It never retries a mutating request.
   A reply buffer grows only for reads;
   a write whose outcome is unknown is
