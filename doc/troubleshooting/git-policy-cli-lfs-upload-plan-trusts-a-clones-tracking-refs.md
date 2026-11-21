@@ -56,7 +56,9 @@ The question is also paid once:
 a typed push's manual-push discovery already confirms the pushed refs with one `git ls-remote --refs <url>`,
 that query now lists every branch head too,
 and the discovery carries the answer to the upload plan,
-so a typed push opens no connection for it.
+so a typed push whose discovery ran opens no connection for it.
+A configuration that disables or escapes every manual-push policy has no discovery,
+and its upload asks the destination itself.
 A service push runs no discovery and asks the destination itself,
 one connection more than `main` charged it,
 which the same round measured at 205 ms,

@@ -401,10 +401,12 @@ Read-only commands,
    push resolves) and keeps each ref only where it reports the same branch at the same commit,
   so one ref the destination moved on or no longer has is dropped on its own
   instead of making the push read the whole history.
-  A typed push pays no connection for that question:
-  the discovery the manual-push policies already run confirms the pushed refs with one `git ls-remote --refs <url>`,
+  A typed push pays no connection for that question when the manual-push policies run:
+  their discovery confirms the pushed refs with one `git ls-remote --refs <url>`,
   which now lists every branch head too,
   and the upload reads that answer.
+  A configuration that disables or escapes every manual-push policy runs no discovery,
+  so its upload asks the destination itself.
   The commit service's own push runs no discovery,
   so its upload asks the destination itself,
   one connection more than `main` charged it.

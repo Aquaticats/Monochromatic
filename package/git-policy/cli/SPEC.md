@@ -12755,10 +12755,12 @@ The step:
   and the same
   connection `git-lfs` would make anyway in the scan form;
   a push that skips nothing pays nothing.
-  A typed push pays no connection for it of its own:
-  its manual-push discovery already asks the destination for the pushed refs' values,
-  and that one `git ls-remote --refs <url>` now lists every branch head too,
+  A typed push whose manual-push discovery ran pays no connection for it of its own:
+  that discovery already asks the destination for the pushed refs' values,
+  and its one `git ls-remote --refs <url>` now lists every branch head too,
   so the answer travels from the discovery to the plan (`DestinationHeads`).
+  A typed push in a configuration that disables or escapes every manual-push policy has no discovery,
+  so its plan asks the destination and pays that one connection.
   The service's bounded push runs no discovery,
   so its upload plan asks the destination itself:
   one connection more than `main` charged that push,
