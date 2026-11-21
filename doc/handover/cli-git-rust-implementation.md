@@ -40900,7 +40900,64 @@ stated in this entry. What follows from them, as work:
   of making `corpus/--help`. Nine Rust packages' unit tasks could not run (no `cargo-nextest` installed here). It found
   `playwright-image-version.unit.test.ts` failing on `main` (Dockerfile v1.65.0 against the locked 1.65.1 since
   `aaf95005a2`): issue 6329. GOING: its narrow re-check on Sonnet (brief under
-  `~/temp/agent/integration-recheck-mise-usage-args-after-findings-2026-11-20/`).
+  `~/temp/agent/integration-recheck-mise-usage-args-after-findings-2026-11-20/`). THE VET REPORT'S RE-CHECK (Sonnet)
+  came back not ready, on words, not numbers (its folder's `keep/review.md`): the matrix reproduces (`btf-rs` 27.5,
+  `ebeepf` 24.5, `pahole` 18.5, `bpftool` 17.5 of 32; 10 of 71 tests tie or reverse); H1 the open questions misstate the
+  maintenance weight (it moves places 2 to 4 only; `btf-rs` is strictly first in all 71, its smallest lead 5); H2 the two
+  tools stayed finalists through two departures from the skill (provenance unrecorded, which the reviewer closed from
+  the package recipes, and upstream suites unrun, which the skill fails a candidate for); with both tools out `btf-rs`
+  over `ebeepf` holds in all 51 tests and the skill allows a recommendation; mediums on C8's role, mixed scales,
+  wording, the lock's hash chain. The skill's own rule decides the tools' eligibility, so it is applied, not asked.
+  GOING: `pi-zfs-layout-checker-reader-vet-report-recheck-findings-fixed` (cap 400; brief under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-recheck-findings-fixed-2026-11-20/`); the owner's question then is
+  the recommended reader and any priority the skill leaves open. LFS'S RE-CHECK (Sonnet) came back not fit on two
+  mechanical mediums (its folder's `keep/review.md`): F1 the host-key reading is a deny-list, so a revoked key (`@revoked`
+  in `known_hosts` or a `RevokedHostKeys` file) still gets the unknown-key sentence beside OpenSSH's revoked warning; F4
+  `lfs_upload_plan.rs` (322 code lines) and `bounded_push.rs` (342) exceed `rust/max-lines`, invisible to the added-line
+  mapping; lows: the sentence twice when a hook printed it, no control on `service_work.rs:528`, a mis-cited function.
+  Held: M2's leak guard, M3's retry, the pure-move split, the fish form; gate 9313 of 9315, the cause-H pair. GOING:
+  `pi-git-policy-cli-lfs-recheck-findings-fixed` (cap 450), suggested to read the unknown key positively from OpenSSH's own
+  words (brief under `~/temp/agent/git-policy-cli-lfs-recheck-findings-fixed-2026-11-20/`). THE MISE RE-CHECK (Sonnet)
+  came back not fit on one point (its folder's `keep/review.md`): `.trimEnd()` in the root `parse_usage_args` strips a
+  trailing carriage return, U+2028, U+2029 and other trailing whitespace from the last word before the refusal looks, so
+  12 of 36 real-mise cases exit 0 with altered words (`-- --help $'a\r'` gives `["--help","a"]`), a new silent success;
+  deleting the call fixed all twelve in scratch. Held: the four core-exec suites, the real-mise catalog (two mutants fail
+  it), 31 of 32 sampled pairs as on `main`, the fuzz help path. The merge removed the author's worktree. GOING:
+  `pi-mise-usage-args-trailing-terminator-fixed` in the coordinator-made worktree
+  `.claude/worktrees/mise-usage-args-trailing-terminator` (brief under
+  `~/temp/agent/mise-usage-args-trailing-terminator-fixed-2026-11-20/`). THE VET REPORT'S THIRD ROUND ended at
+  `1e6af850a8`: `pahole`'s upstream suite ran in a capped container at `v1.32` with the recipe's patches (76 cases, 65
+  `Ok`, 11 `Skip`, 0 fail), so `pahole` passes the skill and stays; `bpftool` fails (its tests are the kernel selftests);
+  provenance from the package recipes; over `btf-rs` 27.5, `ebeepf` 24.5, `pahole` 18.5 of 32, `btf-rs` is first in all
+  64 tests and only the maintenance weight swaps second and third, so the skill's outcome stays "sensitivity unresolved,
+  recommend none"; eight open questions, each with what it changes. GOING: a narrow final check on Sonnet of the new suite
+  claim and the outcome's wording (brief under
+  `~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's pick. THE
+  ISSUE 6325 FIX MERGED into `main` as `e72caf6c0d` (re-check on Sonnet fit, its gate 9280 of 9282 with the cause-H pair;
+  the changed Rust is test-only). Four lows on the troubleshooting record follow: the prune loop scans until `limit`
+  entries, the link entry holds for one layout only, two positional pointers, a Symptom quote's thread number and column
+  not in the issue. Left open for the owner to close. THE FENCE'S THIRD ROUND ended at `87dbb1b035`: H1 the decision
+  follows Git 2.56.1's `convert.c` (the review's `m01` to `m06` red on the old prototype, all 16 equal now); H2 the size
+  proof unconditional (202.8 ms of `git ls-tree` here); H3 LFS paths written by Git as their proof (0.64 to 0.91 s for
+  this repository's 1,578); H4 a decline rule (converting paths past a quarter of the tree and past 1,000 give the add to
+  Git's checkout); measured with the real attribute set: the fence 1.11 of `main` against its control's 1.03 (spread 0.35
+  to 1.64 over five rounds), step 3 without it 0.59 but wrong; a converting source A′ 1.09 with the rule, 1.50 without;
+  ranking A′ > C > D > E, B unbuilt; a fenced partial clone with this repository's LFS files would be 1.3 to 1.5 of
+  `main`, so the partial clone's gain does not survive here; whole gate at `a690379aa5` 9301 of 9303, the cause-H pair,
+  the twelve class controls running in the image; M4 (rung 1 at size in a guest) left open, M3's in-process reads removed
+  as a claim. GOING: its narrow re-check on Sonnet (brief under
+  `~/temp/agent/gate-recheck-of-the-clone-conversion-fence-on-sonnet-2026-11-20/`), then the owner's question on the
+  remedy, with step 3's merge and the partial clone depending on it. STEP 6'S RE-CHECK (Sonnet) came back not fit by
+  one finding (its folder's `keep/review.md`): M1 the binding's `lint:types` fails on `clippy::implicit_return` at
+  `live_gate_tests.rs:62`; the seam holds (a scratch `btf-rs` adapter passed the binding's tests, 215 of 215); L2 three
+  reader duties (a zero width is no bitfield, alias chains bounded, an unreadable member refused) are in no contract or
+  surviving test; L3 the in-house adapter drops an unreadable member; L1 and L4 to L9; gate 9309 of 9311, the cause-H
+  pair; the append-only case under the record's endpoint rule reported to the owner as information. GOING:
+  `pi-zfs-step-6-recheck-findings-fixed` in the coordinator-made worktree `.claude/worktrees/zfs-step-6-recheck-findings`
+  (brief under `~/temp/agent/zfs-step-6-recheck-findings-fixed-2026-11-20/`). THE MISE TRAILING-TERMINATOR ROUND ended
+  at `31f3192c27`: the trim removed (mise's `append_inline_args` appends nothing after the words, cited), the twelve cases
+  red then green, the continuation refusal and the broken-word count fixed, the six effect-first tasks named in the doc.
+  GOING: its final narrow check on Sonnet (brief under `~/temp/agent/integration-final-check-mise-usage-args-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
