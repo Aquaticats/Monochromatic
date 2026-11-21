@@ -167,21 +167,40 @@ and the candidates the sources rule out are these:
 - The wrapper's own stop of a push appends its reason,
   so a stop is never silent (`bounded_push.rs`,
 `stop_cause_and_words.rs`).
-- The fixture's teardown kills a service and the processes of its group with `SIGKILL`
-  (`kill_with_everything_it_started`),
-  and the service logged the retry 60 ms before it was told to stop,
-  so the push was not in a group that teardown ended then.
 - A failed upload is explained with words before it becomes an attempt
   (`lfs_upload_explanations.rs`,
 `explained`),
   so the child that died was the push and not `git-lfs`.
 
-What is left is a `SIGKILL` from outside those paths,
-and a container at its memory bound is the shape that fits
-(issue 6335 is filed for the killer,
-naming the seam below):
-this failure happened in two full gates and never in twelve runs of the same control alone
-(`keep/closure2-lfs-hang-alone-in-the-gate-image.log` in the round's folder).
+The third closure check of the branch
+(`~/temp/agent/integration-pass-lfs-push-programs-held-in-memory-2026-11-21/keep/review.md`,
+section "Closure check of f7d4e77c35")
+corrected the first reading of this incident in two ways.
+
+- The fixture's teardown is where the signal came from.
+  The fixture kills a service and the processes of its group with `SIGKILL`
+  (`kill_with_everything_it_started`),
+  and in all five failure logs that check read,
+  the push's retry line lands within 2 ms of a service's exit line;
+  in `keep/gate.log` of the diagnosis round the retry line comes after the first service's exit line,
+  so the earlier sentence here that the retry came 60 ms before the stop was wrong.
+  Whether the service's own stop of the push or the fixture's group kill sent the signal was not traced.
+- The teardown runs because the control had already failed,
+  and the control fails because of a race in the control itself:
+  it never waits for the push of its second worktree,
+  whose `.git` is a file,
+  so the assertion can run before that push lands.
+  `main` has the same race (issue 6336).
+
+An earlier reading here named a container at its memory bound as the killer.
+Measurement does not support it:
+the suite container peaked at 38 to 49 percent of its 2 GiB bound,
+with `oom_kill 0`,
+in four gates,
+two of this branch and two of `main`.
+Issue 6335,
+filed for that reading,
+is closed in favour of 6336.
 
 ## Verification
 
@@ -242,8 +261,10 @@ While those arms were being run,
 a `rustc` compiling the crate in a container bound to 2 GiB was ended with `SIGKILL` and nothing written
 (`keep/red-main-code.log`);
 the same command with 6 GiB compiled.
-That is the same ending the push met,
-so a container at its bound is the plausible killer of a process nothing else in the tree signals.
+That shows a compile can meet that bound;
+it does not show the push did,
+and the suite container's own measurements in "Found again,
+with the cause named" show it did not.
 
 ## What does not work
 
