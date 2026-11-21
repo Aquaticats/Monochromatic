@@ -287,6 +287,7 @@ pub struct ClonedBytes {
 /// ```ts
 /// type Beside<T> = { ran: T } | { notRun: string };
 /// ```
+#[derive(Debug, Eq, PartialEq)]
 pub enum Beside<T> {
     /// The job ran and answered.
     Ran(T),

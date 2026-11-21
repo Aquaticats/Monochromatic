@@ -198,6 +198,75 @@ fn the_slices_clone_every_empty_entry_without_a_reflink() {
 }
 
 /// What:
+///  The work beside the copies answers on the join the slices are awaited on,
+///  and the index installed afterwards leaves the destination clean.
+/// Why:
+///   This is the concurrent order option B ships,
+/// and the class controls' fixtures are below the clone's break-even,
+/// so they take the one-thread path;
+/// only this control and the whole-repository runs reach the join.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [stats, answer] = cloneInSlices(source, entries, held, created, 3, [41, double]);
+/// expect(answer).toEqual({ ran: 42 });
+/// ```
+#[test]
+fn the_slices_answer_beside_a_job_that_runs_with_the_copies() {
+    let root: PathBuf = crate::test_support::fixture("clone-slices-beside");
+    let (repo, destination, admin) = empty_many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let (entries, held, administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
+    let mut created: Vec<Created> = Vec::new();
+    let (stats, answer): (HashMap<Vec<u8>, StatFields>, Option<Beside<usize>>) = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, Some((41usize, double_it))).expect("clones");
+    assert_eq!(answer, Some(Beside::Ran(82)), "the job beside the copies answered on the same join");
+    install_the_index(&administrative, source.clean.index_bytes.as_slice(), &stats, &HashSet::new(), source.clean.hash_length).expect("index");
+    assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the clone is clean");
+    remove(root.as_path());
+}
+
+/// The job of the control above:
+/// one number in,
+/// twice the number out.
+fn double_it(state: usize) -> usize {
+    return state * 2;
+}
+
+/// What:
+///  A job beside the copies that panics is a reason the add hears,
+///  not a crash of the add and not a silent pass.
+/// Why:
+///   The fence's job is the one such item,
+/// and a panic in it must end the rung before any index is installed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [stats, answer] = cloneInSlices(..., [(), () => { throw new Error('x'); }]);
+/// expect(answer).toMatchObject({ notRun: '...Panicked...' });
+/// ```
+#[test]
+fn a_job_beside_the_copies_that_panics_is_a_reason_not_a_crash() {
+    let root: PathBuf = crate::test_support::fixture("clone-slices-beside-panic");
+    let (repo, destination, admin) = empty_many_file_fixture(root.as_path());
+    let source = common_source(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    let (entries, held, _administrative) = sliced_handles(&source, destination.as_path(), admin.as_path());
+    let mut created: Vec<Created> = Vec::new();
+    let (stats, answer): (HashMap<Vec<u8>, StatFields>, Option<Beside<()>>) = clone_in_slices(&source, entries, &held, &mut created, SLICES_OF_A_CONTROL, Some(((), panic_beside))).expect("clones");
+    assert!(!stats.is_empty(), "the copies still answered");
+    match answer {
+        Some(Beside::NotRun(refusal)) => assert!(refusal.contains("did not run"), "{refusal}"),
+        other => panic!("a panicked job must be a reason: {other:?}"),
+    }
+    remove(root.as_path());
+}
+
+/// The job of the control above:
+/// a panic where the fence would read.
+fn panic_beside(_state: ()) {
+    panic!("a control's job panics beside the copies");
+}
+
+/// What:
 ///  The wait for the slices is a step of the add's own record,
 /// entered where the thread that waits for them holds the recording.
 /// Why:
