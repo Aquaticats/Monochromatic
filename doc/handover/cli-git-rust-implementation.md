@@ -41223,7 +41223,15 @@ stated in this entry. What follows from them, as work:
   are all on `main`. Left: M1's unloaded-key and read-only against read-write controls (both buildable; the reviewer built
   the first in its guest), the older-than-6.6 control (not on a 6.8 guest), two low notes on the deadline document, and
   the holder control's companion test. GOING: `pi-zfs-step-6-start-probe-m1-controls` (brief under
-  `~/temp/agent/zfs-step-6-start-probe-m1-controls-2026-11-21/`).
+  `~/temp/agent/zfs-step-6-start-probe-m1-controls-2026-11-21/`). THE PUSH PROGRAMS CLOSURE CHECK (Sonnet) found it not
+  fit on two narrow points: the revert left two dead helpers that fail Clippy (and the gate's Clippy step), plus residue
+  (docs, a reordered `hand_over_if_ahead`, a failure-path `promote` that could release another command's held record); and
+  a retry plan cancelled by a later landed push keeps its values (`PushRetries::forget`). The race is ruled not blocking
+  (200 merges in the gate image, all pushed) and filed as issue 6332 with the ranked fix shapes (service-side wait first).
+  `ForgetPrograms` can start a cold service to tell it nothing. Gate tests 9507 of 9509, the cause-H pair. GOING:
+  `pi-git-policy-cli-lfs-push-programs-closure-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-closure` (brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
