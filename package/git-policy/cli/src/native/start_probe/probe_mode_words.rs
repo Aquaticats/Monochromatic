@@ -112,7 +112,17 @@ pub fn skip_after_gate_refusal(place: &RecordPlace, paths: &FingerprintPaths, ga
     let time: String = crate::iso_time::now_iso();
     let report: ProbeReport = ProbeReport::new();
     let verdict: ProbeVerdict = ProbeVerdict::Skipped { gate_step };
-    let record = ProbeRecord { fingerprint: &fingerprint, time: time.as_str(), source: None, source_refusal: None, report: &report, verdict, worker_namespace: None, holder_namespace: None };
+    let record = ProbeRecord {
+        fingerprint: &fingerprint,
+        time: time.as_str(),
+        source: None,
+        source_refusal: None,
+        report: &report,
+        verdict,
+        worker_namespace: None,
+        holder_namespace: None,
+        skip_reason: Some(gate_step),
+    };
     place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
     return Ok(verdict_line(verdict, &report));
 }

@@ -113,6 +113,9 @@ pub struct ProbeRecord<'a> {
     pub worker_namespace: Option<&'a str>,
     /// The holder's mount-namespace identity.
     pub holder_namespace: Option<&'a str>,
+    /// The gate's failing step,
+    /// where a refused gate skipped the probe.
+    pub skip_reason: Option<&'a str>,
 }
 
 impl ProbeRecord<'_> {
@@ -131,6 +134,7 @@ impl ProbeRecord<'_> {
         lines.push(format!("source {}", self.source.unwrap_or("none")));
         lines.push(format!("source-refusal {}", self.source_refusal.unwrap_or("none")));
         lines.push(format!("source-existed {}", self.source_presence().word()));
+        lines.push(format!("skip-reason {}", self.skip_reason.unwrap_or("none")));
         for outcome in self.report.arms() {
             let answer: &str = match outcome.answer {
                 ArmAnswer::Passed => "passed",
@@ -206,6 +210,7 @@ pub fn started_text(fingerprint: &ProbeFingerprint, time: &str) -> String {
         verdict: ProbeVerdict::Blocked { arm: super::probe_arms::ProbeArm::Namespace },
         worker_namespace: None,
         holder_namespace: None,
+        skip_reason: None,
     };
     let mut lines: Vec<String> = record.fingerprint_lines();
     lines.insert(2, String::from("state started"));

@@ -75,6 +75,7 @@ fn the_finished_record_names_verdict_arms_and_steps() {
         verdict,
         worker_namespace: Some("mnt:[4026531840]"),
         holder_namespace: Some("mnt:[4026532001]"),
+        skip_reason: None,
     };
     let text: String = record.text();
     assert!(text.starts_with("v1\nkind probe-result\nstate finished\n"));
@@ -95,7 +96,7 @@ fn the_source_presence_follows_the_exclusive_create() {
     for (errno, presence) in [(Some("ENOENT"), SourcePresence::No), (Some("EBUSY"), SourcePresence::Yes)] {
         let mut report: ProbeReport = ProbeReport::new();
         report.record(StepLine::failed(ProbeStep::AttachExclusiveCreate, errno));
-        let record = ProbeRecord { fingerprint: &fingerprint(), time: "t", source: None, source_refusal: None, report: &report, verdict: ProbeVerdict::Failed { step: ProbeStep::AttachExclusiveCreate }, worker_namespace: None, holder_namespace: None };
+        let record = ProbeRecord { fingerprint: &fingerprint(), time: "t", source: None, source_refusal: None, report: &report, verdict: ProbeVerdict::Failed { step: ProbeStep::AttachExclusiveCreate }, worker_namespace: None, holder_namespace: None, skip_reason: None };
         let word: &str = match presence {
             SourcePresence::Yes => "yes",
             SourcePresence::No => "no",

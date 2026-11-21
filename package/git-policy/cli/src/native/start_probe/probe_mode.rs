@@ -143,7 +143,7 @@ impl<'a> ProbeMode<'a> {
             }
         };
         let _ = set_process_group(worker);
-        let worker_namespace: Option<String> = namespace_of(worker);
+        let mut worker_namespace: Option<String> = None;
         drop(request.write);
         drop(reply.read);
         drop(status.write);
@@ -178,6 +178,9 @@ impl<'a> ProbeMode<'a> {
             }
             if watched.first().is_some_and(|entry| return entry.revents != 0) {
                 let _ = drain_status(raw(&status.read), &mut feed, &mut report);
+            }
+            if worker_namespace.is_none() && report.lines().iter().any(|line| return line.step == super::probe_arms::ProbeStep::Unshare) {
+                worker_namespace = namespace_of(worker);
             }
             if watched.get(1).is_some_and(|entry| return entry.revents != 0) && awaiting.is_none() {
                 let mut byte: [u8; 1] = [0];
@@ -262,6 +265,7 @@ impl<'a> ProbeMode<'a> {
             verdict,
             worker_namespace: worker_namespace.as_deref(),
             holder_namespace: holder_namespace.as_deref(),
+            skip_reason: None,
         };
         self.place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
         return Ok(verdict_line(verdict, &report));
