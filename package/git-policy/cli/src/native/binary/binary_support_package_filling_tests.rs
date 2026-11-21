@@ -141,6 +141,7 @@ fn a_filling_that_did_not_run_to_its_end_quotes_where_it_stands_and_what_the_ser
         parent: String::from("[]"),
         created: git_policy_cli::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
     let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");
@@ -196,6 +197,7 @@ fn a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure() {
         parent: String::from("[]"),
         created: git_policy_cli::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
     let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
     enqueue(work.as_path(), &item).expect("the record is queued");

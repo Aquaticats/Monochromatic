@@ -41,6 +41,7 @@ fn intent_of(sequence: u64, old: &str, new: &str, commits: &[&str]) -> Intent {
         cleanup: None,
         index: PathBuf::from("/repo/.git/index"),
         git_dir: PathBuf::from("/repo/.git"),
+transports: Vec::new(),
     };
 }
 

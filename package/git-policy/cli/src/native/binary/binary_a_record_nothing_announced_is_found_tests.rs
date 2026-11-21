@@ -233,6 +233,7 @@ fn every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound() {
             parent: parent.clone(),
             created: git_policy_cli::iso_time::now_iso(),
             tries: 0,
+            transport: false,
         };
         written.push(item.id());
         enqueue(work_dir(&setup).as_path(), &item).expect("the record is written");

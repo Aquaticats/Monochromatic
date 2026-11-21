@@ -110,6 +110,7 @@ fn a_request(world: &World, id: &str, message: &str) -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

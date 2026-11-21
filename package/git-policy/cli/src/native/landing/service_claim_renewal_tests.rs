@@ -69,6 +69,7 @@ fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_dir.as_path(), &item).expect("enqueue");
     let claimed: Claimed = claim_next_of(work_dir.as_path(), stamp, &[WorkKind::Push]).expect("claim").expect("one claim");
@@ -266,13 +267,14 @@ fn settlements_racing_renewals_lose_no_claim() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     let (held, renewer) = held_claims(work_dir.as_path());
     let driver: DrivenRenewal = DrivenRenewal::default();
     let renewal: ClaimRenewal = ClaimRenewal::driven(renewer, &driver);
     let mut ids: Vec<String> = Vec::new();
     for number in 0..RACED_CLAIMS {
-        let queued: WorkItem = WorkItem { oid: format!("{number:040x}"), ..item.clone() };
+        let queued: WorkItem = WorkItem { oid: format!("{number:040x}"), transport: false, ..item.clone() };
         enqueue(work_dir.as_path(), &queued).expect("enqueue");
         let claimed: Claimed = claim_next_of(work_dir.as_path(), &clock(), &[WorkKind::Push]).expect("claim").expect("one claim");
         held.hold(&claimed);

@@ -27,6 +27,7 @@ fn intent(seq: u64) -> Intent {
         index: PathBuf::from("/work/repo/.git/index"),
         git_dir: PathBuf::from("/work/repo/.git"),
         cleanup: None,
+transports: Vec::new(),
     };
 }
 

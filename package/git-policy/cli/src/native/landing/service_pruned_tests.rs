@@ -46,6 +46,7 @@ fn request(blob: &str) -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

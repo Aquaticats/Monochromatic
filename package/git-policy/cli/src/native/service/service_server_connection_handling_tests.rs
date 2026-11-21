@@ -181,6 +181,7 @@ fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequ
         shadow: None,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

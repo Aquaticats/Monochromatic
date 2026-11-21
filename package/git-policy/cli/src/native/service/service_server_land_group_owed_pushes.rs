@@ -26,9 +26,35 @@ use crate::service_protocol::CommitRequest;
 /// ```ts
 /// whatABatchOwes(intent) // owed-index record, held pushes
 /// ```
-pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent) {
+pub(crate) fn what_a_batch_owes(intent: &crate::service_journal::Intent, programs: &[Option<crate::service_push_programs_held_in_memory::PushPrograms>]) {
     crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
     hold_the_pushes_of(intent);
+    remember_the_programs_of(intent, programs);
+}
+
+/// What:
+///  Holds the programs and transport settings of every request of `intent` against the push record its commit became.
+/// Why:
+///   Those values are never written (the owner's "Memory only", `service_push_programs_held_in_memory`),
+/// and the push runs in a round of its own,
+/// possibly after this landing's thread is gone:
+/// the memory of this service is the only place both sides share.
+/// The record's own id is the key,
+/// so a push of another commit of the same branch never takes these values.
+/// A batch a restart finishes has no request in memory and passes nothing,
+/// and the record that already exists keeps the flag it was written with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rememberTheProgramsOf = (intent, programs) => intent.commits.forEach((commit, at) => { const held = programs[at]; if (held) remember(intent.gitDir, pushIdOf(intent, commit), held); });
+/// ```
+fn remember_the_programs_of(intent: &crate::service_journal::Intent, programs: &[Option<crate::service_push_programs_held_in_memory::PushPrograms>]) {
+    let Some(reference) = intent.reference.text() else { return };
+    for (at, commit) in intent.commits.iter().enumerate() {
+        let Some(held) = programs.get(at).and_then(Option::as_ref) else { continue };
+        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), false);
+        crate::service_push_programs_held_in_memory::remember(intent.git_dir.as_path(), item.id().as_str(), held.clone());
+    }
 }
 
 /// What:
@@ -57,7 +83,10 @@ pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
         // The command that will decide this commit's checks is the one the request named, and the batch recorded it: a restart's
         //  hold says who will answer, so a later command can prove that one gone instead of saying nothing will ever answer.
         let holder: &str = intent.holders.get(at).map_or("", String::as_str);
-        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), holder);
+        // Whether that command chose a transport is recorded with the batch, so a push a restart holds again knows that it must
+        //  not run through the manager's transport when the values that chose it are gone (`push_without_its_transport`).
+        let transport: bool = intent.transports.get(at).copied().unwrap_or(false);
+        hold_one(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), holder, transport);
     }
 }
 
@@ -86,7 +115,7 @@ fn say_no_push_record_was_held(reference: &crate::ref_name::RefName, commits: &[
 /// ```ts
 /// const item = { kind: 'push', repository, gitDir, branchRef: reference, oid: commit, parent, created: nowIso(), tries: 0 };
 /// ```
-fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) -> crate::work_item::WorkItem {
+fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str, transport: bool) -> crate::work_item::WorkItem {
     return crate::work_item::WorkItem {
         kind: crate::work_item::WorkKind::Push,
         repository: repository.to_path_buf(),
@@ -96,6 +125,7 @@ fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, referen
         parent: parent.to_string(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        transport,
     };
 }
 
@@ -106,7 +136,7 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
     let Some(reference) = intent.reference.text() else { return };
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
     for commit in &intent.commits {
-        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str());
+        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), reference, commit.as_str(), intent.old.as_str(), false);
         for name in [item.id(), item.id_before_the_branch()] {
             crate::work_item::forget_held(work_dir.as_path(), name.as_str());
         }
@@ -121,8 +151,8 @@ pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
 /// the answer loop writes it into the same record with the item's own words once the branch has moved (`hold_the_push`),
 /// and a batch a restart finishes names the command the request named,
 /// because no process table of the restart can tell which command owes the gate.
-fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str, holder: &str) {
-    let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent);
+fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str, holder: &str, transport: bool) {
+    let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent, transport);
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
     if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item, holder) {
         crate::service_error!(
@@ -166,6 +196,9 @@ pub(crate) fn hold_the_push(request: &CommitRequest, commit: &str) {
         parent: request.base.clone(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        // The command that asked for this commit is the one whose push this record is, so it is the one whose transport
+        //  choice the record remembers.
+        transport: request.programs.as_ref().is_some_and(|programs| { return programs.transport; }),
     };
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
     // The record this batch already held names no command; naming this request's command here is what lets a later command

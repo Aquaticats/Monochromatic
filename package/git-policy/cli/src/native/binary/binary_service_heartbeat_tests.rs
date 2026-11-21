@@ -115,6 +115,7 @@ fn request() -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

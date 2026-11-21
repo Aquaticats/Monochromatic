@@ -70,6 +70,16 @@ pub struct Intent {
     ///  the command that would have promoted them is the one the request named,
     /// which no process table of the restart can tell.
     pub holders: Vec<String>,
+    /// What:
+    ///  Whether the command of each request chose the transport its commit's push speaks through,
+    ///  in the same order as the commits.
+    /// Why:
+    ///   Those settings live only in the memory of the service that received them
+    /// (`service_push_programs_held_in_memory`),
+    /// so this record says that one was chosen and never which:
+    /// a restart re-holds these pushes,
+    /// and one whose values are gone stops instead of speaking a transport nobody asked for.
+    pub transports: Vec<bool>,
     /// Paths whose index entries the batch updates.
     pub paths: Vec<Vec<u8>>,
     /// Whether the index entries to update are the paths that differ between `old` and `new`,
@@ -221,6 +231,9 @@ pub fn intent_text(intent: &Intent) -> String {
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
         format!("holders={}", intent.holders.iter().map(String::as_str).map(holder_text).collect::<Vec<String>>().join("\t")),
+        // One item per commit, so a request whose command chose no transport keeps the later commits' items on their own
+        //  commits (`NO_HOLDER`'s reason, one field over).
+        format!("transports={}", intent.transports.iter().map(|set| { return u8::from(*set).to_string(); }).collect::<Vec<String>>().join("\t")),
         format!("paths={}", intent.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>().join("\t")),
         format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>().join("\t")),
         format!("derived={}", u8::from(intent.derived)),
@@ -464,6 +477,9 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         commits: intent_list(text, "commits")?,
         // Intents written before this field existed name no command.
         holders: holders_of(text).unwrap_or_default(),
+        // An intent written before this field existed was made by a release whose pushes could not carry a transport at all, so
+        //  every commit of it says that its command chose none.
+        transports: intent_list(text, "transports").unwrap_or_default().iter().map(|set| { return set == "1"; }).collect(),
         paths: intent_path_list(text, "paths").ok()??,
         // Intents written before these fields existed name neither.
         derived: intent_value(text, "derived") == Some("1"),

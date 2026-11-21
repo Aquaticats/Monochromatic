@@ -472,6 +472,10 @@ pub mod service_work_drain_deletes_subvolumes;
 /// its retry plan and the person.
 pub mod service_work_settling_a_verdict;
 
+/// The environment every Git child of a service push receives,
+/// and where its program search list comes from.
+pub mod service_work_push_environment;
+
 /// How one item whose kind answers with words is settled,
 /// with the line the person reads for it.
 pub mod service_work_settling_with_words;

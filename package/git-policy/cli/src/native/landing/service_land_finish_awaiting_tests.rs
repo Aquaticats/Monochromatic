@@ -42,6 +42,7 @@ fn an_intent(repository: &Path, reference: &str, old: &str, new: &str) -> Intent
         cleanup: None,
         index: common.join("index"),
         git_dir: common,
+transports: Vec::new(),
     };
 }
 

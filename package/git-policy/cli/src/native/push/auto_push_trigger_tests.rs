@@ -259,7 +259,7 @@ fn a_handover_with_no_route_still_leaves_the_push_queued() {
     let queued: Vec<String> = std::fs::read_dir(crate::work_item::state_directory(work.as_path(), crate::work_item::PENDING))
         .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
         .unwrap_or_default();
-    let wanted: String = crate::work_item::WorkItem { kind: crate::work_item::WorkKind::Push, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: String::from("refs/heads/main"), oid: tip, parent: String::new(), created: String::new(), tries: 0 }.id();
+    let wanted: String = crate::work_item::WorkItem { kind: crate::work_item::WorkKind::Push, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: String::from("refs/heads/main"), oid: tip, parent: String::new(), created: String::new(), tries: 0 , transport: false}.id();
     assert_eq!(queued, vec![wanted], "the push is queued although no route was found");
     remove(&root);
 }

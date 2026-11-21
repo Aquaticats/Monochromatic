@@ -34,6 +34,7 @@ fn record_text() -> String {
         parent: String::from("fedcba9876543210fedcba9876543210fedcba98"),
         created: String::from("2026-11-10T17:50:25.196Z"),
         tries: 0,
+        transport: false,
     }
     .encode();
 }

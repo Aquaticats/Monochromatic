@@ -27,6 +27,7 @@ fn plan(branch: &str, oid: &str, attempt: u32) -> StoredPlan {
             parent: String::new(),
             created: String::from("2026-11-03T05:40:00.000Z"),
             tries: 0,
+            transport: false,
         },
         attempt,
     };
@@ -63,7 +64,7 @@ fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
     std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
     let saved: StoredPlan = StoredPlan {
         git_dir: git_dir.clone(),
-        item: WorkItem { repository: worktree, git_dir: git_dir.clone(), ..plan("refs/heads/main", FIRST_OID, 2).item },
+        item: WorkItem { repository: worktree, git_dir: git_dir.clone(), transport: false, ..plan("refs/heads/main", FIRST_OID, 2).item },
         attempt: 2,
     };
     save(root.as_path(), &saved).expect("saved");

@@ -58,6 +58,7 @@ fn item(kind: WorkKind, oid: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -102,7 +103,7 @@ fn a_record_keeps_the_bytes_of_a_path_that_is_not_text() {
     let worktree: PathBuf = root.join(OsStr::from_bytes(b"w\xffrktree"));
     let git_dir: PathBuf = root.join(OsStr::from_bytes(b"c\xffmmon"));
     std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
-    let original: WorkItem = WorkItem { repository: worktree.clone(), git_dir: git_dir.clone(), ..item(WorkKind::Push, "abc") };
+    let original: WorkItem = WorkItem { repository: worktree.clone(), git_dir: git_dir.clone(), transport: false, ..item(WorkKind::Push, "abc") };
     let read: WorkItem = WorkItem::decode(original.encode().as_str()).expect("the record decodes");
     assert_eq!(read.git_dir, git_dir, "the Git directory is the one the wrapper named");
     assert_eq!(read.repository, worktree, "the worktree is the one the wrapper named");
@@ -144,7 +145,7 @@ fn bad_records_are_refused() {
 
 /// A record of a push on `branch` for `oid`.
 fn push_of(branch: &str, oid: &str) -> WorkItem {
-    return WorkItem { branch_ref: String::from(branch), ..item(WorkKind::Push, oid) };
+    return WorkItem { branch_ref: String::from(branch), transport: false, ..item(WorkKind::Push, oid) };
 }
 
 /// Two branches can hold one commit,
@@ -753,7 +754,7 @@ fn a_claim_that_cannot_be_read_is_failed_in_one_pass() {
 fn a_recovery_reports_the_items_it_gives_up_on() {
     let directory: PathBuf = fixture("work-given-up");
     let work: PathBuf = directory.join(WORK_DIRECTORY);
-    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "ggg") };
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, transport: false, ..item(WorkKind::Push, "ggg") };
     let spare_try: WorkItem = item(WorkKind::Push, "hhh");
     enqueue(work.as_path(), &last_try).expect("enqueue");
     enqueue(work.as_path(), &spare_try).expect("enqueue");
@@ -1015,7 +1016,7 @@ fn a_failing_standard_error_does_not_stop_the_queue() {
 fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
     let directory: PathBuf = fixture("work-given-up-notice-first");
     let work: PathBuf = directory.join(WORK_DIRECTORY);
-    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "jjj") };
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, transport: false, ..item(WorkKind::Push, "jjj") };
     enqueue(work.as_path(), &last_try).expect("enqueue");
     claim_next(work.as_path(), &clock()).expect("claim").expect("item");
     let failed_path: PathBuf = state_directory(work.as_path(), FAILED).join(last_try.id());
@@ -1055,7 +1056,7 @@ fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
 fn a_given_up_push_whose_notice_cannot_be_written_stays_recoverable() {
     let directory: PathBuf = fixture("work-given-up-unwritten");
     let work: PathBuf = directory.join(WORK_DIRECTORY);
-    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "kkk") };
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, transport: false, ..item(WorkKind::Push, "kkk") };
     enqueue(work.as_path(), &last_try).expect("enqueue");
     claim_next(work.as_path(), &clock()).expect("claim").expect("item");
     struct Refusing;

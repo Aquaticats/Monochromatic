@@ -57,6 +57,7 @@ fn item(kind: WorkKind, commit: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 

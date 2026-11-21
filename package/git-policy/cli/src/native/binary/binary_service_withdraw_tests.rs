@@ -131,6 +131,7 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
         shadow: None,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

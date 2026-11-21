@@ -174,6 +174,7 @@ fn plant_the_queue(setup: &Setup) {
             parent: payload.to_string(),
             created: String::from("2026-11-12T00:00:00.000Z"),
             tries: 0,
+            transport: false,
         };
         enqueue(setup.work().as_path(), &item).expect("the prewarm record is queued");
     }

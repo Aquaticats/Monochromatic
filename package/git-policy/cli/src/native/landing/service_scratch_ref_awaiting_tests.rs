@@ -105,6 +105,7 @@ fn a_request_for(repo: &Path) -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
+programs: None,
     };
 }
 

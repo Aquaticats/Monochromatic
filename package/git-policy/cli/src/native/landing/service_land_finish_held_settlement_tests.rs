@@ -143,6 +143,7 @@ fn held_batch(world: &World) -> Held {
         cleanup: None,
         index: git_dir.join("index"),
         git_dir: git_dir.clone(),
+transports: Vec::new(),
     };
     write_intent(world.context.journal.as_path(), &intent).expect("the intent");
     write_start(world.context.journal.as_path(), SEQ, &witness_of(intent.index.as_path()).expect("the index file")).expect("the witness");

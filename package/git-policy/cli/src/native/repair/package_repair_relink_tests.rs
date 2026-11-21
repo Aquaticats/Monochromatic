@@ -220,7 +220,7 @@ fn a_hand_over_a_service_answers_keeps_its_record_queued() {
     let written: RelinkEntry = entry(destination.as_path());
     hand_over_with(&git_context(), common.as_path(), destination.as_path(), &written, &reach(&router, &nothing_to_set_up)).expect("a service took the record");
     let heard: Vec<String> = service.finish();
-    let work: String = crate::service_protocol::encode_client(&crate::service_protocol::ClientMessage::Work { git_dir: common.clone(), review_key: None });
+    let work: String = crate::service_protocol::encode_client(&crate::service_protocol::ClientMessage::Work { git_dir: common.clone(), review_key: None , push_programs: Vec::new()});
     assert!(heard.contains(&work), "the service was woken for the repository's common directory: {heard:?}");
     let queued: Vec<String> = pending_names(state_directory(work_directory(common.as_path()).as_path(), PENDING).as_path());
     assert_eq!(queued.len(), 1, "the service drains the record: {queued:?}");

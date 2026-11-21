@@ -270,6 +270,7 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
         cleanup: None,
         index: std::path::PathBuf::from("/repo/.git/index"),
         git_dir: std::path::PathBuf::from("/repo/.git"),
+transports: Vec::new(),
     };
     crate::service_journal::write_intent(journal, &intent).expect("the intent");
     crate::service_journal::mark_done(journal, seq).expect("the batch is done");

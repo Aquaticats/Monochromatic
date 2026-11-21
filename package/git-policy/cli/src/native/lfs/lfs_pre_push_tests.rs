@@ -9,7 +9,7 @@ use super::*;
 /// The list,
 /// its sources and the refusal that names them,
 /// which the sibling file holds.
-use crate::lfs_program_search::{PUSH_FROM_SERVICE, ProgramSearch, missing_program_message};
+use crate::lfs_program_search::{PUSH_FROM_SERVICE, PUSH_FROM_THE_REQUEST, ProgramSearch, missing_program_message};
 use crate::test_support::{executable, fixture, remove};
 use std::path::PathBuf;
 
@@ -239,6 +239,31 @@ fn the_missing_program_message_names_the_service_list_and_the_shell_it_offers() 
     let typed: String = missing_program_message(&from_this_command);
     assert!(typed.contains("The list is this command's own `PATH`"), "{typed}");
     assert!(typed.contains("on this command's `PATH` and push again"), "{typed}");
+}
+
+/// What:
+///  A push the service runs with the list the command that asked for it gave names that command's list,
+///  and remedies it with a commit made again,
+///  never with a list the person cannot change.
+/// Why:
+///   The values travel with the request and live only in the service's memory (`service_push_programs_held_in_memory`),
+/// so a refusal must name the list it really searched:
+/// the shell's, which a new commit hands over again,
+///  rather than the manager's, which no command of the person reaches.
+#[test]
+fn the_missing_program_message_names_the_list_the_command_that_asked_gave() {
+    let from_the_request: ProgramSearch = ProgramSearch::of(&[
+        (OsString::from("PATH"), OsString::from("/opt/lfs/bin:/usr/bin")),
+        (OsString::from(PUSH_FROM_SERVICE), OsString::from("1")),
+        (OsString::from(PUSH_FROM_THE_REQUEST), OsString::from("1")),
+    ]);
+    assert_eq!(from_the_request.source, crate::lfs_program_search::ProgramSearchSource::TheCommandThatAsked, "the request's list is the one named");
+    let message: String = missing_program_message(&from_the_request);
+    assert!(message.contains("the folders this push searches: /opt/lfs/bin, /usr/bin"), "{message}");
+    assert!(message.contains("The list is the `PATH` of the shell that asked for this push"), "{message}");
+    assert!(message.contains("on the `PATH` of the shell that commits, then make the commit again"), "{message}");
+    assert!(!message.contains("the commit service's own `PATH`"), "the manager's list was not the one searched: {message}");
+    assert!(!message.contains("records that list"), "no remedy promises a record: {message}");
 }
 
 /// The failure explanation says nothing was published and names each way forward.
