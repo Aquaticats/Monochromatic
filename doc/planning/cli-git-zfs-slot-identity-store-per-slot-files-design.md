@@ -23,7 +23,7 @@ and none of them is decided until the owner accepts it.
 This design was built on branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files`,
 on 2026-11-21,
 after the decision record accepted it,
-with these gates' low findings R1 to R8 answered in this text and in the code:
+with the gate's recheck's low findings R1 to R8 answered in this text and in the code:
 R1 in the sweep's removal of known staging names and in sections 1,
 2,
 4 and 5,
