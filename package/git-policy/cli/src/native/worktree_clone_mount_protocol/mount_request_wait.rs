@@ -30,7 +30,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsF
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::ReceiptsRefusal;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// What:
 ///  The bound on one caller's wait for a matching receipt,
@@ -203,7 +203,7 @@ pub enum WaitRefusal {
     /// The deadline passed with no matching receipt.
     TimedOut {
         /// The request that was waited for.
-        request: MountRequest,
+        request: Box<MountRequest>,
         /// The last stale receipt's reason,
         /// where one was on the file.
         last: Option<StaleReason>,
@@ -239,75 +239,13 @@ impl WaitRefusal {
     }
 }
 
-/// What:
-///  The clock a wait reads and sleeps on.
-/// Why:
-///   A control must exercise the deadline without waiting it out,
-///  and the release path's clock is monotonic,
-///  so the wait takes its time from one seam.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface WaitClock { now(): Duration; sleep(duration: Duration): void }
-/// ```
-pub trait WaitClock {
-    /// Time since the wait began.
-    fn now(&self) -> Duration;
-    /// Wait the given interval.
-    fn sleep(&self, interval: Duration);
-}
-
-/// The release path's monotonic clock.
-pub struct MonotonicWaitClock {
-    /// The moment the wait began.
-    started: Instant,
-}
-
-impl MonotonicWaitClock {
-    /// A clock whose zero is now.
-    pub fn starting_now() -> Self {
-        return MonotonicWaitClock { started: Instant::now() };
-    }
-}
-
-impl WaitClock for MonotonicWaitClock {
-    fn now(&self) -> Duration {
-        return self.started.elapsed();
-    }
-
-    fn sleep(&self, interval: Duration) {
-        std::thread::sleep(interval);
-    }
-}
-
 /// Wait for the receipt that answers `request` until `deadline` passes.
 ///
 /// # Errors
 /// The receipts directory or a file could not be used,
 /// or the deadline passed with no matching receipt.
-pub fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, deadline: Duration) -> Result<CloneMountReceipt, WaitRefusal> {
-    return wait_for_answer_with(folder, request, deadline, &MonotonicWaitClock::starting_now(), MOUNT_REQUEST_POLL_INTERVAL);
-}
-
-/// What:
-///  The wait with its clock and poll interval given,
-///  so a control reaches the deadline at once.
-/// Why:
-///   The release path and every control run the same loop,
-///  and only the clock differs,
-///  so the deadline's own decision is exercised rather than a copy of it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const receipt = waitForAnswerWith(folder, request, deadline, clock, poll);
-/// ```
-pub fn wait_for_answer_with(
-    folder: &ReceiptsFolder,
-    request: &MountRequest,
-    deadline: Duration,
-    clock: &dyn WaitClock,
-    poll: Duration,
-) -> Result<CloneMountReceipt, WaitRefusal> {
+pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, deadline: Duration) -> Result<CloneMountReceipt, WaitRefusal> {
+    let started: tokio::time::Instant = tokio::time::Instant::now();
     let mut last: Option<StaleReason> = None;
     loop {
         let found: Option<CloneMountReceipt> = folder.read(request.dataset).map_err(WaitRefusal::Receipts)?;
@@ -317,10 +255,10 @@ pub fn wait_for_answer_with(
                 ReceiptStanding::Stale(reason) => last = Some(reason),
             }
         }
-        let Some(left) = remaining(clock.now(), deadline) else {
-            return Err(WaitRefusal::TimedOut { request: request.clone(), last, deadline_millis: deadline.as_millis() });
+        let Some(left) = remaining(started.elapsed(), deadline) else {
+            return Err(WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() });
         };
-        clock.sleep(poll.min(left));
+        tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL.min(left)).await;
     }
 }
 

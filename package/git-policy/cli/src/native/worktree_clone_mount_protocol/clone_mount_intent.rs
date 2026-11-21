@@ -135,7 +135,8 @@ pub enum IntentRefusal {
 
 impl IntentRefusal {
     /// The refusal in words,
-    /// naming the property, what was read and the way forward.
+    /// naming the property,
+    /// what was read and the way forward.
     pub fn message(&self) -> String {
         let named: String = match self {
             IntentRefusal::TooLong { bytes, bound } => format!(

@@ -1,7 +1,8 @@
 //! What:
 //!  A dataset's canonical numeric GUID:
 //!  the only name a clone-mount receipt is filed under,
-//!  and the identity a receipt, a request and a wait agree on.
+//!  and the identity a receipt,
+//! a request and a wait agree on.
 //! Why:
 //!  The design says to publish receipts under the canonical numeric dataset
 //!  GUID and to put the nonce only in the file's data

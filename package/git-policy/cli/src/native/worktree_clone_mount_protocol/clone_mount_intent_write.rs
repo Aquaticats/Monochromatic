@@ -170,7 +170,9 @@ impl CloneIntentWriter {
 
     /// Send one property list to the clone.
     fn write(&self, properties: &NvList) -> Result<(), IntentWriteRefusal> {
-        return self.device.set_prop(self.clone.as_str(), properties).map(|_answer| return ()).map_err(write_refusal);
+        let answer = self.device.set_prop(self.clone.as_str(), properties).map_err(write_refusal)?;
+        drop(answer);
+        return Ok(());
     }
 }
 

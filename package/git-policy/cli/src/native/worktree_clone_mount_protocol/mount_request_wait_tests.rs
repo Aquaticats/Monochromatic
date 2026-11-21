@@ -14,10 +14,10 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(waitForAnswerWith(folder, request, 0n, frozen, 0n).kind).toBe('timed-out');
+//! expect(runtime.blockOn(waitForAnswer(folder, request, 0n)).kind).toBe('timed-out');
 //! ```
 
-use super::{MountRequest, ReceiptStanding, StaleReason, WaitClock, WaitRefusal, standing_of, wait_for_answer_with};
+use super::{MountRequest, ReceiptStanding, StaleReason, WaitRefusal, standing_of, wait_for_answer};
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptMountIdentity, ReceiptOutcome};
@@ -86,16 +86,10 @@ fn folder(name: &str) -> ReceiptsFolder {
     return ReceiptsFolder::at(root, this_uid());
 }
 
-/// A clock that never advances,
-/// so the first deadline check expires.
-struct FrozenClock;
-
-impl WaitClock for FrozenClock {
-    fn now(&self) -> Duration {
-        return Duration::ZERO;
-    }
-
-    fn sleep(&self, _interval: Duration) {}
+/// The runtime the async wait runs on,
+/// with time enabled so the deadline check has a monotonic clock.
+fn runtime() -> tokio::runtime::Runtime {
+    return tokio::runtime::Builder::new_current_thread().enable_time().build().expect("the control runtime starts");
 }
 
 /// A matching receipt ends the wait and is the caller's answer.
@@ -104,7 +98,8 @@ fn a_matching_receipt_ends_the_wait() {
     let folder: ReceiptsFolder = folder("wait-answer");
     let answer: CloneMountReceipt = receipt(NONCE, MountOperation::Mount);
     folder.publish(&answer).expect("the receipt is filed");
-    let found: CloneMountReceipt = wait_for_answer_with(&folder, &request(), Duration::from_secs(1), &FrozenClock, Duration::ZERO)
+    let found: CloneMountReceipt = runtime()
+        .block_on(wait_for_answer(&folder, &request(), Duration::from_secs(1)))
         .expect("the matching receipt is the answer");
     assert_eq!(found, answer);
 }
@@ -117,12 +112,12 @@ fn a_matching_receipt_ends_the_wait() {
 fn a_stale_receipt_is_not_an_answer_and_is_reported() {
     let folder: ReceiptsFolder = folder("wait-stale");
     folder.publish(&receipt(OTHER_NONCE, MountOperation::Mount)).expect("the stale receipt is filed");
-    let refusal: WaitRefusal = wait_for_answer_with(&folder, &request(), Duration::ZERO, &FrozenClock, Duration::ZERO)
-        .expect_err("a stale receipt is not this request's answer");
+    let refusal: WaitRefusal =
+        runtime().block_on(wait_for_answer(&folder, &request(), Duration::ZERO)).expect_err("a stale receipt is not this request's answer");
     let WaitRefusal::TimedOut { request: waited, last, .. } = &refusal else {
         panic!("the wait times out: {refusal:?}");
     };
-    assert_eq!(waited, &request());
+    assert_eq!(waited.as_ref(), &request());
     assert!(matches!(last, Some(StaleReason::Nonce { .. })), "{last:?}");
     let message: String = refusal.message();
     assert!(message.contains(NONCE), "{message}");

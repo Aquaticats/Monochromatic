@@ -60,7 +60,8 @@ pub enum NonceRefusal {
 
 impl NonceRefusal {
     /// The refusal in words,
-    /// naming the value, the place and the way forward.
+    /// naming the value,
+    /// the place and the way forward.
     pub fn message(&self) -> String {
         return match self {
             NonceRefusal::Length { found } => format!(

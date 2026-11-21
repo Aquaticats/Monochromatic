@@ -84,7 +84,8 @@
 //! const ready = readReadiness(boot, pool, checkout);
 //! ```
 
-/// The route's fixed property names, words and bounds.
+/// The route's fixed property names,
+/// words and bounds.
 pub mod clone_mount_property_names;
 
 /// The nonce both properties carry.
@@ -108,7 +109,8 @@ pub mod clone_mount_receipt;
 /// Why a file is not a receipt this route wrote.
 pub mod clone_mount_receipt_refusals;
 
-/// The receipt's parse, bounded before any line.
+/// The receipt's parse,
+/// bounded before any line.
 pub mod clone_mount_receipt_parse;
 
 /// The root-owned results directory and its GUID-named files.
@@ -117,7 +119,8 @@ pub mod clone_mount_receipts_folder_refusals;
 /// The descriptor-relative calls the receipts folder makes.
 pub mod clone_mount_receipts_folder_calls;
 
-/// The results directory, its publish and its read.
+/// The results directory,
+/// its publish and its read.
 pub mod clone_mount_receipts_folder;
 
 /// The readiness record's boot,
@@ -141,6 +144,16 @@ pub mod clone_mount_intent_write;
 /// The wrapper's wait for a matching receipt and its deadline.
 pub mod mount_request_wait;
 
+/// Step 7's guest arms:
+/// the intent refusals with no mount,
+/// the nudge under the proposed grants,
+/// and the property event to the product's receipt,
+/// run in the throwaway guest the recipe prepares,
+/// never in the release build.
+#[cfg(all(test, target_os = "linux"))]
+#[path = "mount_protocol_arm_tests.rs"]
+mod mount_protocol_arm_tests;
+
 /// The property names,
 /// the version and operation words and the intent's byte bound.
 pub use clone_mount_property_names::{
@@ -160,7 +173,8 @@ pub use clone_mount_intent::{
 pub use clone_mount_sweep_nonce::{NudgeReading, NudgeRefusal, parse_sweep_nonce, read_sweep_nonce, sweep_nonce_text};
 /// The dataset GUID and its refusal.
 pub use dataset_guid::{DatasetGuid, DatasetGuidRefusal};
-/// The receipt's shape, text and outcome.
+/// The receipt's shape,
+/// text and outcome.
 pub use clone_mount_receipt::{CloneMountReceipt, ReceiptMountIdentity, ReceiptOutcome};
 /// Why a file is not a receipt.
 pub use clone_mount_receipt_refusals::ReceiptRefusal;
@@ -182,6 +196,6 @@ pub use clone_mount_intent_write::{CloneIntentWriter, IntentWriteRefusal, intent
 /// The wrapper's wait,
 /// its stale-result rule and its provisional deadline.
 pub use mount_request_wait::{
-    MOUNT_REQUEST_POLL_INTERVAL, MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, ReceiptStanding, StaleReason, WaitClock, WaitRefusal,
-    standing_of, wait_for_answer, wait_for_answer_with,
+    MOUNT_REQUEST_POLL_INTERVAL, MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, ReceiptStanding, StaleReason, WaitRefusal, standing_of,
+    wait_for_answer,
 };

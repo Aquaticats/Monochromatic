@@ -43,14 +43,16 @@ pub const MOUNT_WORD: &str = "mount";
 pub const UNMOUNT_WORD: &str = "unmount";
 
 /// The nonce's digits:
-/// 32 lowercase ASCII hexadecimal characters, which is 16 bytes.
+/// 32 lowercase ASCII hexadecimal characters,
+/// which is 16 bytes.
 pub const NONCE_HEX_DIGITS: usize = 32;
 
 /// The separator between an intent's three fields.
 pub const FIELD_SEPARATOR: char = ':';
 
 /// The longest intent value the grammar admits,
-/// `v1:<32 hex digits>:unmount`, in bytes.
+/// `v1:<32 hex digits>:unmount`,
+/// in bytes.
 /// A longer value is refused before any field is split.
 pub const MAXIMUM_INTENT_BYTES: usize = VALUE_VERSION.len() + 1 + NONCE_HEX_DIGITS + 1 + UNMOUNT_WORD.len();
 

@@ -974,6 +974,158 @@ const steps: Record<string, (checked: Options) => void> = {
   },
 };
 
+//region The step 7 arms: the intent, the receipt and the nudge
+
+/** The step 7 fixture root. */
+const STEP7_FIXTURE_ROOT = '/home/zfs-step-7-protocol-fixture';
+/** The step 7 pool, a 1 GiB encrypted image like the measurements' fixture. */
+const STEP7_POOL = 'zfsstep7';
+/** The clone parent the nudge's direct grant is withheld from. */
+const STEP7_PARENT = `${STEP7_POOL}/clones`;
+/** The clone whose own properties the arms read and change. */
+const STEP7_CLONE = `${STEP7_PARENT}/one`;
+/** The snapshot the clone is made from. */
+const STEP7_CLONE_SNAPSHOT = `${STEP7_POOL}/checkout@protocol-arm`;
+/** The zedlet the measurement reads, which records its own arrival and nothing else. */
+const STEP7_ZEDLET = '/etc/zfs/zed.d/history_event-step7_probe';
+/** The log the zedlet appends to. */
+const STEP7_ZEDLET_LOG = '/root/step7-zedlet.log';
+/** The wrapper's packages, unpacked inside the guest for the arms. */
+const STEP7_WRAPPER_ROOT = '/opt/zfs-step-7-repo';
+/** The wrapper crate itself, below that root. */
+const STEP7_WRAPPER_DIR = `${STEP7_WRAPPER_ROOT}/package/git-policy/cli`;
+
+/**
+ Make the step 7 pool and start a real ZED with one test zedlet.
+ The zedlet writes only its own arrival, so a measurement from one property change to that line is the delivery the
+ design's item 5 counts, and the product's receipt is written and read by the arm through the product's own code.
+ */
+function step7Pool(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    `mkdir --parents ${STEP7_FIXTURE_ROOT}`,
+    `chmod 0755 ${STEP7_FIXTURE_ROOT}`,
+    `if zpool list -H -o name | grep --quiet "^${STEP7_POOL}$"; then zpool destroy -f ${STEP7_POOL}; fi`,
+    `rm --recursive --force ${STEP7_FIXTURE_ROOT}/checkout`,
+    `rm --force ${STEP7_FIXTURE_ROOT}/pool.img ${STEP7_FIXTURE_ROOT}/raw-key`,
+    `truncate --size 1G ${STEP7_FIXTURE_ROOT}/pool.img`,
+    `head --bytes 32 /dev/urandom > ${STEP7_FIXTURE_ROOT}/raw-key`,
+    `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP7_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 -O acltype=posixacl ${STEP7_POOL} ${STEP7_FIXTURE_ROOT}/pool.img`,
+    `zfs create -o mountpoint=${STEP7_FIXTURE_ROOT}/checkout ${STEP7_POOL}/checkout`,
+    `zfs create -o mountpoint=legacy -o canmount=off ${STEP7_PARENT}`,
+    `zfs snapshot ${STEP7_CLONE_SNAPSHOT}`,
+    `zfs clone -o mountpoint=legacy ${STEP7_CLONE_SNAPSHOT} ${STEP7_CLONE}`,
+    `printf '%s\n' '#!/bin/sh' 'printf "zedlet %s %s\\n" "$(date +%s%N)" "${ZEVENT_CLASS:-unknown}" >> ${STEP7_ZEDLET_LOG}' > ${STEP7_ZEDLET}`,
+    `chmod 0755 ${STEP7_ZEDLET}`,
+    'systemctl stop zfs-zed.service 2>/dev/null || true',
+    `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PREFIX}/sbin:/usr/sbin:/usr/bin:/sbin:/bin systemctl start zfs-zed.service`,
+    'systemctl is-active zfs-zed.service',
+    `rm --force ${STEP7_ZEDLET_LOG}`,
+    `zfs list -o name,guid,mountpoint,mounted,canmount -r ${STEP7_POOL}`,
+  ].join('\n');
+  guest({ options, script, log: 'step7-pool.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** The environment the step 7 arms read inside the guest. */
+function step7Environment(options: Options): string {
+  return `MONOCHROMATIC_ZFS_STEP7_GUEST=${options.name} ` +
+    `MONOCHROMATIC_ZFS_FIXTURE_SBIN=${OPENZFS_PREFIX}/sbin ` +
+    `MONOCHROMATIC_ZFS_STEP7_POOL=${STEP7_POOL} ` +
+    `MONOCHROMATIC_ZFS_STEP7_PARENT=${STEP7_PARENT} ` +
+    `MONOCHROMATIC_ZFS_STEP7_CLONE=${STEP7_CLONE} ` +
+    `MONOCHROMATIC_ZFS_STEP7_ACCOUNT=${ACCOUNT} ` +
+    `MONOCHROMATIC_ZFS_STEP7_ZEDLET_LOG=${STEP7_ZEDLET_LOG}`;
+}
+
+/** Push the wrapper's packages, build the crate's tests inside the guest, and run the step 7 arms. */
+function step7Arms(options: Options): void {
+  const repository = join(import.meta.dirname, '../../../..');
+  const tarball = join(options.logDir, 'step7-wrapper.tar.gz');
+  host({
+    options,
+    command: 'tar',
+    args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--exclude=node_modules', '--directory', repository, ...STEP4_WRAPPER_PACKAGES],
+    log: 'step7-host-package.log',
+  });
+  host({
+    options,
+    command: 'mvm',
+    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step7-wrapper.tar.gz'],
+    log: 'step7-guest-push.log',
+  });
+  const build = [
+    'set -eu',
+    'if test -f /mnt/shared/step7-wrapper.tar.gz; then cp /mnt/shared/step7-wrapper.tar.gz /root/step7-wrapper.tar.gz; fi',
+    `mkdir --parents ${STEP7_WRAPPER_ROOT}`,
+    `tar --extract --gzip --file /root/step7-wrapper.tar.gz --directory ${STEP7_WRAPPER_ROOT}`,
+    `cd ${STEP7_WRAPPER_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    'cargo build --release --tests --locked --jobs 2 > /root/step7-wrapper-build.log 2>&1',
+    'tail --lines=3 /root/step7-wrapper-build.log',
+  ].join('\n');
+  guest({ options, script: build, log: 'step7-wrapper-build.log', timeout: CRATE_BUILD_TIMEOUT_MS });
+
+  const suite = [
+    'set -eu',
+    `cd ${STEP7_WRAPPER_DIR}`,
+    'export HOME=/root',
+    `export ${STEP4_OPENZFS}`,
+    `export ${step7Environment(options)}`,
+    'if cargo nextest run --release --test-threads 1 --no-fail-fast --status-level all --no-capture ' +
+      '--run-ignored all --lib --filterset "test(mount_protocol_arm_)" ' +
+      '> /root/step7-suite.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=80 /root/step7-suite.log',
+    'test "$status" = 0',
+    'if grep --quiet "^SKIP worktree_clone_mount_protocol::" /root/step7-suite.log; then echo "a step 7 arm returned without running"; exit 1; fi',
+    'grep --quiet "^MEASUREMENT mount-protocol event-to-zedlet-us=" /root/step7-suite.log',
+    'grep --quiet "^MEASUREMENT mount-protocol event-to-receipt-us=" /root/step7-suite.log',
+    'grep --quiet "^MEASUREMENT mount-protocol event-to-answer-us=" /root/step7-suite.log',
+  ].join('\n');
+  guest({ options, script: suite, log: 'step7-suite.log', timeout: SUITE_TIMEOUT_MS });
+}
+
+/** What the step 7 pool left behind, then the pool is destroyed and its logs pulled. */
+function step7Teardown(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    'systemctl stop zfs-zed.service 2>/dev/null || true',
+    `rm --force ${STEP7_ZEDLET}`,
+    `zpool destroy -f ${STEP7_POOL} 2>/dev/null || true`,
+    `rm --recursive --force ${STEP7_FIXTURE_ROOT}`,
+    'systemctl is-active zfs-zed.service || true',
+    '{ echo "pools after the step 7 arms:"',
+    'zpool list -H -o name || true',
+    'echo "datasets after the step 7 arms:"',
+    'zfs list -H -o name -r || true',
+    '} | tee /root/step7-teardown.log',
+  ].join('\n');
+  guest({ options, script, log: 'step7-teardown.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** Record the step 7 run's versions and pull its logs. */
+function step7Record(options: Options): void {
+  const versions = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    '{ uname --kernel-release',
+    'cat /sys/module/zfs/version',
+    'zfs version',
+    'zed --version 2>/dev/null || true',
+    '/root/.cargo/bin/rustc --version',
+    '/root/.cargo/bin/cargo nextest --version',
+    '} | tee /root/step7-versions.log',
+  ].join('\n');
+  guest({ options, script: versions, log: 'step7-versions.log', timeout: RECORD_TIMEOUT_MS });
+  const share = [
+    'set -eu',
+    'test -d /mnt/shared',
+    'for name in step7-suite step7-pool step7-teardown step7-versions step7-wrapper-build step7-zedlet; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+  ].join('\n');
+  guest({ options, script: share, log: 'step7-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
+}
+
 const chosen = options();
 mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
 /**
@@ -985,6 +1137,17 @@ const step4Steps: Record<string, (checked: Options) => void> = {
   'zfs-attach-pool': step4Pool,
 };
 /**
+ The step 7 arms, in one place of their own so a branch that adds other steps merges beside it.
+ `zfs-protocol-pool` makes the pool and starts ZED; `zfs-protocol-arm` pushes the wrapper and runs the arms against
+ that guest; `zfs-protocol-record` and `zfs-protocol-teardown` keep the logs and remove what the run made.
+ */
+const step7Steps: Record<string, (checked: Options) => void> = {
+  'zfs-protocol-pool': step7Pool,
+  'zfs-protocol-arm': step7Arms,
+  'zfs-protocol-record': step7Record,
+  'zfs-protocol-teardown': step7Teardown,
+};
+/**
  The step 6 gate arms, in one place of their own so a branch that adds other steps merges beside it.
  `zfs-gate-arm` runs the control on a guest the recipe prepared; the `run` step runs the same control
  once by itself, so a whole `all` run never reports a skipped gate arm.
@@ -994,10 +1157,10 @@ const gateSteps: Record<string, (checked: Options) => void> = {
   'zfs-gate-version-arm': gateVersionArm,
   'zfs-gate-change-arm': gateChangeArm,
 };
-const step = steps[chosen.step] ?? step4Steps[chosen.step] ?? gateSteps[chosen.step];
+const step = steps[chosen.step] ?? step4Steps[chosen.step] ?? gateSteps[chosen.step] ?? step7Steps[chosen.step];
 if (step === undefined)
   throw new Error(
-    `unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps), ...Object.keys(gateSteps)].join(', ')}`,
+    `unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps), ...Object.keys(gateSteps), ...Object.keys(step7Steps)].join(', ')}`,
   );
 step(chosen);
 console.log(`zfs step 2 fixture: step '${chosen.step}' finished; logs in ${chosen.logDir}`);

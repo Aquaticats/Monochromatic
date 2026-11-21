@@ -11,7 +11,8 @@
 //!  "Requests,
 //! results and ordering").
 //!  OpenZFS writes each property in that shape
-//!  (`module/zfs/dsl_prop.c:1182` to `:1193`, OpenZFS `zfs-2.4.4`),
+//!  (`module/zfs/dsl_prop.c:1182` to `:1193`,
+//! OpenZFS `zfs-2.4.4`),
 //!  and a source equal to the dataset's name is the local one.
 //!  One reader serves both properties,
 //!  so the three-way distinction of local,

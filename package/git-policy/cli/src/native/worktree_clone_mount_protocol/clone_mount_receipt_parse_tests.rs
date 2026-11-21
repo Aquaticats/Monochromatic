@@ -159,8 +159,8 @@ fn an_unknown_operation_or_outcome_is_refused() {
 #[test]
 fn the_mount_identity_belongs_only_to_a_done_result() {
     let without_identity: String = done().text().replace("mount-id 41", &format!("mount-id {ABSENT_WORD}"));
-    let refusal: ReceiptRefusal = parse_receipt(without_identity.as_str()).expect_err("a done result names its mount");
-    assert!(matches!(refusal, ReceiptRefusal::MountField { key: "mount-id", wanted: true }), "{refusal:?}");
+    let identity_refusal: ReceiptRefusal = parse_receipt(without_identity.as_str()).expect_err("a done result names its mount");
+    assert!(matches!(identity_refusal, ReceiptRefusal::MountField { key: "mount-id", wanted: true }), "{identity_refusal:?}");
     let mut refused: CloneMountReceipt = done();
     refused.outcome = ReceiptOutcome::Refused;
     refused.failed_step = Some(String::from("read-intent"));

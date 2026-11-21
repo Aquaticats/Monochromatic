@@ -84,7 +84,8 @@ fn the_live_folder_is_the_designed_root_owned_path() {
 
 /// A published receipt is the GUID's file,
 /// at `0644`,
-/// and reads back whole; the staging sibling is gone.
+/// and reads back whole;
+/// the staging sibling is gone.
 #[test]
 fn a_receipt_is_filed_under_its_guid_and_reads_back() {
     let folder: ReceiptsFolder = live_folder("receipts-round-trip");
@@ -125,8 +126,8 @@ fn a_wrong_directory_mode_or_owner_is_refused() {
     let refusal: ReceiptsRefusal = folder.read(DatasetGuid::parse("42").expect("canonical")).expect_err("another mode is refused");
     assert!(matches!(refusal, ReceiptsRefusal::DirectoryMode { found: 0o700, .. }), "{refusal:?}");
     let wrong_owner: ReceiptsFolder = ReceiptsFolder::at(folder.directory().to_path_buf(), this_uid() + 1);
-    let refusal: ReceiptsRefusal = wrong_owner.read(DatasetGuid::parse("42").expect("canonical")).expect_err("another owner is refused");
-    assert!(matches!(refusal, ReceiptsRefusal::DirectoryOwner { wanted, .. } if wanted == this_uid() + 1));
+    let owner_refusal: ReceiptsRefusal = wrong_owner.read(DatasetGuid::parse("42").expect("canonical")).expect_err("another owner is refused");
+    assert!(matches!(owner_refusal, ReceiptsRefusal::DirectoryOwner { wanted, .. } if wanted == this_uid() + 1));
 }
 
 /// A receipt with another mode is refused,
@@ -195,8 +196,8 @@ fn the_staging_sibling_is_not_a_receipt() {
 #[test]
 fn every_refusal_carries_the_way_forward() {
     let folder: ReceiptsFolder = ReceiptsFolder::at(PathBuf::from("/nonexistent/receipts"), 0);
-    let refusal: ReceiptsRefusal = folder.read(DatasetGuid::parse("42").expect("canonical")).expect_err("a missing directory is refused");
-    let message: String = refusal.message();
+    let missing_refusal: ReceiptsRefusal = folder.read(DatasetGuid::parse("42").expect("canonical")).expect_err("a missing directory is refused");
+    let message: String = missing_refusal.message();
     assert!(message.contains("Nothing was matched"), "{message}");
     assert!(message.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"), "{message}");
 }

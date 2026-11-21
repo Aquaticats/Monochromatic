@@ -78,7 +78,8 @@ impl ReceiptsFolder {
     }
 
     /// The file one dataset's receipt is filed under:
-    /// its canonical numeric GUID, and nothing else.
+    /// its canonical numeric GUID,
+    /// and nothing else.
     pub fn entry_name(&self, dataset: DatasetGuid) -> String {
         return dataset.file_name();
     }

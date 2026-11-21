@@ -79,7 +79,8 @@ fn an_intent_text_in_the_nudge_property_is_refused() {
     assert!(refusal.message().contains("never a mount instruction"), "{}", refusal.message());
 }
 
-/// A short value, an empty value and a value over the nonce's length are each
+/// A short value,
+/// an empty value and a value over the nonce's length are each
 /// refused before any digit is read.
 #[test]
 fn every_other_length_is_refused() {
