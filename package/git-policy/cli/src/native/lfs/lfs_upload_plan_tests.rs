@@ -324,7 +324,7 @@ fn a_mirror_is_read_through_git_and_never_from_a_list_of_spellings() {
 ///  the configured mirror value itself is still read through Git.
 /// Why:
 ///   The guard that skips the destination question for a mirror is what keeps a mirror push's plan from
-///  paying a round trip;
+///  paying a connection;
 /// a change that asked anyway would slow every mirror push.
 #[test]
 fn a_mirror_push_asks_the_destination_nothing() {
@@ -422,7 +422,7 @@ fn the_destination_itself_decides_whether_the_tracking_refs_are_evidence() {
     let plan: UploadPlan = confirmed.expect("a plan");
     assert!(!plan.full_scan, "the destination reports the branch this clone's tracking ref holds");
     assert_eq!(plan.confirmed_tracking_refs, vec![String::from("refs/remotes/origin/main")], "the ref it reported is the one the upload stops at");
-    assert_eq!(asked, 2, "one local listing and one round trip to the destination");
+    assert_eq!(asked, 2, "one local listing and one connection to the destination");
     assert_eq!(plan.arguments(plan.remotes[0].as_os_str()), words(&["push", "origin", "main"]));
     // A clone whose tracking ref for another branch is behind the destination keeps the ref the destination does report, and
     //  the unconfirmed ref keeps `--all` for the scan form, whose own skip list matches a cached ref by branch name alone.

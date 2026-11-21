@@ -823,6 +823,15 @@ the askpass program gets the question,
 and standard error holds the last line alone,
 which is exactly an unknown key's transcript.
 Its way to connect once is right there and its way to add the key is not.
+A second case is read the same way for a different reason:
+under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+(`do_log` writes `fatal` and `error` without a level word,
+`log.c:354-393` at the same tag),
+so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+`Host key verification failed.` on standard error,
+which is exactly an unknown key's transcript there too;
+`main` reads those two the same way,
+and a transcript at that level cannot tell either from an unknown key.
 The service keeps its usual retry schedule for an unknown host key
 (`retried_failure_record` in `src/native/push/push_retry_failure.rs`),
 so a person who adds the key needs no new commit to publish the branch.

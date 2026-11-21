@@ -504,6 +504,16 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  and nothing in a transcript can tell the two apart.
 ///  The sentence's way to add the key is then wrong for it and its way to connect once is right,
 ///  because the question plain `ssh` asks is OpenSSH's own about the address.
+///  A second case is read as an unknown key for a different reason:
+///  under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+///  (`do_log` writes `fatal` and `error` without a level word,
+///  `log.c` lines 354 to 393),
+///  so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+///  `Host key verification failed.` on standard error,
+///  exactly as an unknown key does,
+///  and `main` reads those two the same way.
+///  The sentence's way to add the key is wrong for them and its way to connect once is right,
+///  and no transcript of the words can tell them from an unknown key at that level.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
