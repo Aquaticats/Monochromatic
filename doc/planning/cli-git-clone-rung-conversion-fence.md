@@ -724,7 +724,8 @@ not by what it would have cleaned up.
   source's bytes,
   and the recovery reports only the ignored-state copy as owed.
   The guest control measured that end to end
-  ("The kill this round's ordering closes",
+  ("The kill the review reproduced,
+  and the order that closes it",
   below).
 - **A kill inside step 9 leaves Git's own bytes on the paths it had written,
   with the stat data `-u` recorded in the waiting file,
