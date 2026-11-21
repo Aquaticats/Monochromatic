@@ -55,6 +55,7 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   fails for good or is skipped,
   when a retry plan that carried it is dropped or replaced by another push's plan,
   when a batch that carries it is given back,
+  when the recovery gives the record up after its tries run out,
   when a repository the filesystem proves gone ends its plans,
   and when the committing wrapper settles or removes the record itself,
   which tells the service which records can no longer run.
@@ -122,6 +123,10 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   and then end that plan the two ways a later commit ends it,
   by landing and by failing retryably in its place,
   and prove the older record keeps no value while asserting it held one before.
+- `a_push_the_recovery_gives_up_on_gives_up_the_programs_it_held` drives the real recovery over a push on its last
+  hold,
+  so the record moves to `failed` by the step no handler performs,
+  and proves it keeps no value while asserting it held one first.
 - `a_record_settled_where_no_service_runs_starts_none_to_tell_it` proves the message that gives a record's programs
   up asks the manager for the unit's state first,
   starts no service,
