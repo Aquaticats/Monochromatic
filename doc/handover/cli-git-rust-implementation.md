@@ -41347,8 +41347,11 @@ stated in this entry. What follows from them, as work:
   positive controls (rewrites a zeroed entry; a kill inside it leaves no `index`), N3 (the waiting index and lock
   removed at settlement), N1 (`attr.tree` and `GIT_ATTR_SOURCE` with a disagreeing tree give Git's bytes; SPEC corrected),
   N2; harness 26 of 26, sample 300 of 300, gate 9480 of 9482. GOING: the fence reviewer's closure check of `87b4af4062`.
-  INCIDENT: step 7's first round stopped three gate containers it matched by creation time; the fence round lists one of
-  them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour. Step 7's
+  INCIDENT: step 7's first round reports stopping three gate containers it matched by creation time; the fence round lists
+  one of them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour.
+  `podman events` shows only `died` and `remove` for all four named containers (no `stop` or `kill`; `gallant_moore` and
+  `hardcore_pasteur` created together at 16:16:56, died 16:28:46 and 16:19:19), so whether one round ended another's gate
+  is not established; the log cannot say whose container it was. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
