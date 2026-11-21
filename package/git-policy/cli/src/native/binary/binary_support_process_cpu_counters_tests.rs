@@ -44,30 +44,6 @@ const RELEASE_PATIENCE: Duration = Duration::from_secs(30);
 const RELEASE_POLL: Duration = Duration::from_millis(1);
 
 /// What:
-///  The numbers of the threads that are there at every moment of this control.
-/// Why:
-///   A sum over threads that may come and go cannot be compared with a sum taken a moment later,
-/// and two threads of this process outlive the control:
-/// the thread-group leader,
-/// whose number is the process's own,
-/// and the thread the control itself runs on.
-/// Their clock ticks only grow,
-/// so a sum over them taken earlier bounds one taken later.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const stayed = [...new Set([pid, currentThreadId()])];
-/// ```
-fn threads_that_stay(pid: u32) -> Vec<u32> {
-    let ours: u32 = u32::try_from(current_thread_id().expect("the kernel's number for this thread")).expect("a thread number");
-    let mut stayed: Vec<u32> = vec![pid];
-    if ours != pid {
-        stayed.push(ours);
-    }
-    return stayed;
-}
-
-/// What:
 ///  Waits,
 /// bounded,
 /// until `thread`'s own file under `pid` can no longer be read.
@@ -114,6 +90,9 @@ fn wait_until_the_thread_file_is_gone(pid: u32, thread: u32) {
 /// bounded,
 /// so it reaches that state under any order the kernel takes between the join and the release.
 /// The sum then counts the threads that are there,
+/// and beside a thread that only waits,
+/// whose clock ticks stand still,
+/// it is exactly that thread's own number,
 /// while the process itself still answers with counters.
 ///
 /// In TS you'd write (pseudocode):
@@ -125,6 +104,8 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
     let pid: u32 = std::process::id();
     let (report, reported): (Sender<u32>, Receiver<u32>) = channel();
     let (release, held): (Sender<()>, Receiver<()>) = channel();
+    let (still_report, still_reported): (Sender<u32>, Receiver<u32>) = channel();
+    let (leave, stayed): (Sender<()>, Receiver<()>) = channel();
     // The thread names itself, so the tid this control ends is the thread that waited and never another one that a
     // runtime starts or ends beside it.
     let waiting: std::thread::JoinHandle<()> = std::thread::spawn(move || {
@@ -132,15 +113,19 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
         report.send(u32::try_from(number).expect("a thread number")).expect("the control knows which thread waits");
         let _released = held.recv();
     });
+    // A thread that only waits stands still, so its own clock ticks cannot grow between the two readings below.
+    let staying: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let number: i32 = current_thread_id().expect("the kernel's number for this thread");
+        still_report.send(u32::try_from(number).expect("a thread number")).expect("the control knows which thread stays");
+        let _left = stayed.recv();
+    });
     let ended: u32 = reported.recv().expect("the thread that waits names itself");
+    let still: u32 = still_reported.recv().expect("the thread that stays names itself");
     let listing: Vec<u32> = thread_numbers(pid).expect("the threads of this process");
     assert!(
-        listing.contains(&ended),
-        "the listing is taken while that thread waits, so it names it: {listing:?} has no {ended}"
+        listing.contains(&ended) && listing.contains(&still),
+        "the listing is taken while that thread waits, so it names it beside the thread that stays: {listing:?} has no {ended} or no {still}"
     );
-    let without: Vec<u32> = listing.iter().copied().filter(|number| { return *number != ended; }).collect();
-    // The threads that stay go on working, so the ticks they had while it waited are the least the listing must reach.
-    let while_it_waited: u64 = ticks_of_threads(pid, threads_that_stay(pid).as_slice());
     release.send(()).expect("the thread that waits ends");
     waiting.join().expect("the thread that waited ends");
     // The kernel wakes the join inside the thread's own exit and removes its own file afterwards, in `release_task`,
@@ -150,18 +135,20 @@ fn a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_en
         thread_ticks(pid, ended).is_none(),
         "a thread's own file is gone once the kernel released the thread, which is the reading a listing meets"
     );
-    // The threads that are there go on working between the two readings, so the sum over the listing names no less
-    //  than they did while it waited and no more than the same threads sum to a moment later; a thread that ended
-    //  adds nothing to it.
-    let over_the_listing: u64 = ticks_of_threads(pid, listing.as_slice());
-    let over_the_live_threads: u64 = ticks_of_threads(pid, without.as_slice());
-    assert!(
-        over_the_listing >= while_it_waited,
-        "the threads that stay still count, so the listing sums to no less than they did while it waited: {over_the_listing} against {while_it_waited}"
+    // The clock ticks of the thread that stays cannot grow between these readings, so the sum over it and the thread
+    // that ended has one exact number to answer: the one thread that is there.
+    let still_ticks: u64 = thread_ticks(pid, still).expect("the thread that stays is there");
+    let beside_it: u64 = ticks_of_threads(pid, [ended, still].as_slice());
+    assert_eq!(
+        beside_it, still_ticks,
+        "the sum counts the thread that is there and gives nothing for the one whose own file is gone: {beside_it} against {still_ticks}"
     );
+    let over_the_listing: u64 = ticks_of_threads(pid, listing.as_slice());
     assert!(
-        over_the_listing <= over_the_live_threads,
-        "a thread that ended spent nothing more, so the listing sums to no more than the threads that are there sum to a moment later: {over_the_listing} against {over_the_live_threads}"
+        over_the_listing >= still_ticks,
+        "every thread of the listing spends at least nothing, so the listing sums to no less than the thread that stays: {over_the_listing} against {still_ticks}"
     );
     assert!(cpu_ticks(pid).is_some(), "the process is still here, so it has counters");
+    leave.send(()).expect("the thread that stays ends");
+    staying.join().expect("the thread that stayed ends");
 }
