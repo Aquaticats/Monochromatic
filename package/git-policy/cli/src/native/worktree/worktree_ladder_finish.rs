@@ -39,16 +39,16 @@ use crate::fs_beneath::ObjectId;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
 use crate::worktree_clean_content::ConversionEnvironment;
+use crate::worktree_clone_conversion_fence::Fence;
 use crate::worktree_copy::{GitRunner, GitStatus};
 use crate::worktree_copy_error::WorktreeCopyError;
 use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
 use crate::worktree_dirty_restore::{changes_left_out, left_out_note, record_left_out, restore_dirty};
-use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment_with_index, prepare_target, run_step};
 use crate::worktree_ladder_finish_trash_record::record_before_the_rung_returns;
-use crate::worktree_slow_route::{SlowRoute, explain_failure};
+use crate::worktree_slow_route::{SlowRoute, explain_clone_failure, explain_failure};
 use crate::worktree_snapshot::{CopyState, PlaceError, put_in_place, settle_displaced, take_snapshot};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_subvolume::settle_created_destination;
@@ -128,15 +128,18 @@ struct Served {
 /// ```ts
 /// async function serveSnapshot(args): Promise<{ line: string; placed: ObjectId; trash?: PendingTrash }>;
 /// ```
-fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
+fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, fence: &Fence, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<Served, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
     let prepare_target_outcome = prepare_target(source, plan, context, bound);
     end_step(prepare_target_entered);
     let target: Target = prepare_target_outcome?;
     let environment: ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(context);
+    // The written paths are the fence's, so the snapshot's index names them without stat data and the checkout below
+    // writes them: no step between that install and that write vouches for the source's bytes there.
+    let written: std::collections::HashSet<Vec<u8>> = fence.git_writes.iter().cloned().collect();
     let take_snapshot_entered: bool = begin_step("takeSnapshot");
-    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment);
+    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice(), &environment, &written);
     end_step(take_snapshot_entered);
     let (state, trash, taken_over): (CopyState, Option<TrashManifest>, usize) = match take_snapshot_outcome {
         Ok(taken) => {
@@ -161,6 +164,30 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         let apply_difference_outcome = apply_difference(source, &target, stage, run_git);
         end_step(apply_difference_entered);
         apply_difference_outcome?;
+    }
+    // What:
+    //  The snapshot rung's conversion fence: the paths Git's checkout would write other bytes for are written by Git,
+    //  in the stage, before it is swapped in.
+    // Why:
+    //  A snapshot carries the source's whole working tree, so where a line-ending rule, `core.autocrlf`, `ident`, an
+    //  encoding or a filter applies, the stage holds the source's bytes and not the conversion of the blob, which neither
+    //  the stat data nor `git status` can tell (issue 6323; the guest measured rung 1 wrong for a clean and a dirty
+    //  source). The fence is the clone rung's own decision, decided before the snapshot (rule: no path recorded clean
+    //  before its bytes are Git's), and the write is the clone rung's own checkout run, with the stage as its work tree.
+    //  The index the snapshot installed holds no stat data for these paths (`install_the_index`, the seed
+    //  with_zeroed_stat made), so no step between the install and this run vouches for the source's bytes there; `-u`
+    //  records each written path's own stat data.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const fence = fenceTheClone(source, context); // decided before the snapshot (chooseRung)
+    // if (fence.gitWrites.length > 0) checkoutIndexThroughGit(stage, bound.admin, context, fence.gitWrites);
+    // ```
+    if !fence.git_writes.is_empty() {
+        let write_entered: bool = begin_step("writeConversions");
+        let write_outcome = crate::worktree_clone_conversion_fence::checkout_index_through_git(target.admin.as_path(), stage, context, fence.git_writes.as_slice(), source.clean.hash_length);
+        end_step(write_entered);
+        write_outcome?;
     }
     let root_metadata = match std::fs::metadata(source.root.as_path()) {
         Ok(found) => found,
@@ -194,38 +221,6 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 }
 
 /// What:
-///  The clone rung:
-/// clone the tracked files into the destination,
-/// install the index,
-/// apply the tree difference.
-/// Why:
-///   The destination is filled in place;
-/// an error removes nothing:
-/// the entries the run created stay,
-/// are reported,
-/// and Git's
-///  own checkout completes the worktree and overwrites the tracked ones.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
-/// ```
-fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
-    verify_association(bound)?;
-    let target: Target = prepare_target(source, plan, context, bound)?;
-    let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
-    let applied: Result<(), String> = match verify_association(bound) {
-        Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
-        Err(reason) => Err(reason),
-    };
-    if let Err(reason) = applied {
-        warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
-        return Err(reason);
-    }
-    return Ok(target.line);
-}
-
-/// What:
 ///  Complete the worktree the way Git does after a refused rung:
 /// `git reset --hard --no-recurse-submodules`,
 /// in the bound
@@ -246,16 +241,37 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
 /// async function checkoutLikeGit(args): Promise<GitStatus>; // failure when the binding does not hold
 /// ```
 fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
+    return checkout_like_git_with((plan, bound, run_git), None, plan.quiet);
+}
+
+/// What:
+///  `checkout_like_git` against the index file `index` when it is named,
+///  and silent when `quiet` says the caller's own run prints Git's line.
+/// Why:
+///   The clone rung writes its index under a name of its own until the last write through Git is done
+/// (`worktree_clone_index::PendingIndex`),
+/// so a checkout of a worktree whose tree difference failed is pointed at that file with `GIT_INDEX_FILE`:
+/// the file holds the source's entries,
+/// which is what makes a path the target tree lacks a tracked-then-deleted one and removes it,
+///  and a path Git must write is checked out because its entry holds no stat data.
+/// The rung's own run is silent because the person reads the line of the fallback that follows,
+///  which runs after the index took the worktree's own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkoutLikeGitWith({ plan, bound, runGit }, index, quiet): Promise<GitStatus>;
+/// ```
+fn checkout_like_git_with((plan, bound, run_git): (&AddPlan, &Bound, &mut dyn GitRunner), index: Option<&Path>, quiet: bool) -> GitStatus {
     let destination: &Path = plan.destination.as_path();
     if let Err(reason) = verify_association(bound) {
         warn(TAG, format!("monochromatic-git-policy-cli: the checkout of {} was not started: {reason}", destination.display()).as_str());
         return GitStatus { code: Some(1) };
     }
     let mut arguments: Vec<OsString> = ["-C"].iter().map(OsString::from).chain([destination.as_os_str().to_os_string()]).chain(["reset", "--hard", "--no-recurse-submodules"].iter().map(OsString::from)).collect();
-    if plan.quiet {
+    if quiet {
         arguments.push(OsString::from("--quiet"));
     }
-    let environment: Vec<(OsString, OsString)> = checkout_environment(bound.binding.admin.as_path(), destination);
+    let environment: Vec<(OsString, OsString)> = checkout_environment_with_index((bound.binding.admin.as_path(), destination), index);
     let status: GitStatus = match run_step(run_git, arguments.as_slice(), environment.as_slice()) {
         Ok(status) => status,
         Err(reason) => {
@@ -354,7 +370,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
     }
@@ -366,7 +382,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
         }
     };
-    return match serve_clones(source, plan, &bound, run_git, context) {
+    return match serve_clones(source, fence, plan, &bound, run_git, context) {
         Ok(line) => {
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
@@ -375,8 +391,12 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
         }
         Err(reason) => {
             debug(TAG, format!("the clone rung ended: {reason}; Git checks the worktree out").as_str());
-            // The clones failed after the cause that already sent the add this way, if any: the person hears the later one.
-            *slow = Some(explain_failure(reason.as_str()));
+            // The record said which rung was chosen; the worktree this add publishes is Git's checkout, and a report that
+            // read the route would otherwise take the clone for what wrote it.
+            crate::add_timing::note("route", "Git's checkout after the clone rung ended");
+            // The person is told why the clone rung ended, the fence's decline included, and the sentence names the clone
+            // rung and not the snapshot.
+            *slow = Some(explain_clone_failure(reason.as_str()));
             LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
         }
     };
@@ -396,7 +416,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
 /// ```ts
 /// async function finishSnapshot(args): Promise<LadderResult>;
 /// ```
-fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: StageClaim, fence: &Fence, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     let bound: Bound = match bind(&claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
@@ -406,7 +426,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
         }
     };
     let mut made: Option<ObjectId> = None;
-    return match serve_snapshot(source, plan, stage, &bound, &mut made, run_git, context) {
+    return match serve_snapshot(source, plan, stage, &bound, &mut made, fence, run_git, context) {
         Ok(served) => {
             debug(TAG, format!("the snapshot served {}", plan.destination.display()).as_str());
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
@@ -425,6 +445,8 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
         }
         Err(ended) if ended.stage_is_ours => {
             debug(TAG, format!("the snapshot rung ended: {}; Git checks the worktree out", ended.reason).as_str());
+            // The record said a snapshot was chosen; Git's checkout is what publishes this worktree.
+            crate::add_timing::note("route", "Git's checkout after the snapshot rung ended");
             discard_stage(stage, made);
             *slow = Some(explain_failure(ended.reason.as_str()));
             LadderResult { git: complete_like_git(plan, &bound, run_git), carried: None, placed: None, trash: None, claim: Some(claim) }
@@ -480,26 +502,26 @@ impl Ladder {
     pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write) -> LadderResult {
         let mut slow: Option<SlowRoute> = self.slow;
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
-            (Rung::Snapshot(source, claim), Some(plan)) => {
+            (Rung::Snapshot(source, claim, fence), Some(plan)) => {
                 if !git.succeeded() {
                     release_claim(claim, false);
                     return LadderResult { git, carried: None, placed: None, trash: None, claim: None };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
-                finish_snapshot(&source, plan, stage.as_path(), claim, run_git, context, out, note, &mut slow)
+                finish_snapshot(&source, plan, stage.as_path(), claim, &fence, run_git, context, out, note, &mut slow)
             }
-            (Rung::Snapshot(_, claim), None) => {
+            (Rung::Snapshot(_, claim, _fence), None) => {
                 release_claim(claim, false);
                 LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
-            (Rung::Clone(source, subvolume, claim), Some(plan)) => {
-                let result: LadderResult = finish_clones(&source, plan, git, claim, run_git, context, out, &mut slow);
+            (Rung::Clone(source, subvolume, claim, fence), Some(plan)) => {
+                let result: LadderResult = finish_clones(&source, fence, plan, git, claim, run_git, context, out, &mut slow);
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
                 result
             }
-            (Rung::Clone(_, subvolume, claim), None) => {
+            (Rung::Clone(_, subvolume, claim, _), None) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
@@ -520,6 +542,13 @@ impl Ladder {
         return result;
     }
 }
+
+/// The clone rung's serving step,
+/// which is its own file so this one stays under the line limit.
+#[path = "worktree_ladder_finish_clones.rs"]
+mod clones;
+
+use clones::serve_clones;
 
 /// Ladder finish controls stay out of the release executable.
 #[cfg(test)]

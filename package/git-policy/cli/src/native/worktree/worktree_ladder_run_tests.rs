@@ -115,7 +115,7 @@ fn btrfs_a_dirty_subvolume_source_is_snapshotted_and_a_merging_one_keeps_its_rea
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "a snapshot serves a source with a change");
     assert_eq!(ladder.slow, None, "a snapshot has nothing to explain");
-    let Rung::Snapshot(source, _claim) = &ladder.rung else { panic!("the snapshot rung is expected") };
+    let Rung::Snapshot(source, _claim, _fence) = &ladder.rung else { panic!("the snapshot rung is expected") };
     let changed = source.dirty.as_ref().expect("the changes are listed");
     assert_eq!(changed.first.as_deref(), Some("shared.txt"));
     let mut runner = no_runner();
@@ -158,5 +158,52 @@ fn btrfs_a_stage_is_discarded_only_while_it_is_the_one_that_was_made() {
     assert!(base.join("stage-three/theirs").exists(), "a directory that is not the one made stays");
     discard_stage(other.as_path(), None);
     assert!(other.join("file").exists(), "an unidentified stage stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  A source whose attributes convert more than a quarter of its paths is declined before the add's record is claimed,
+///  so no copy and no snapshot is paid for an add that Git's own checkout will write.
+/// Why:
+///   The decline needs `git check-attr` and the count over its answer and nothing else,
+/// so deciding it after the copies made a declined add pay the copy and then Git's whole checkout over it
+///  (the 0.644 fixture measured 1.67 to 1.75 of `main`,
+/// `doc/planning/cli-git-clone-rung-conversion-fence.md`,
+///  "What it costs").
+/// The count is one past the floor and a quarter,
+/// so the fixture is the smallest that reaches the rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ladder = beginLadder(plan, context, identity);
+/// expect(ladder.rung).toBe('git'); expect(ladder.slow.word).toBe('declines'); expect(claims()).toBe(0);
+/// ```
+#[test]
+fn a_converting_source_is_declined_before_anything_is_claimed_or_copied() {
+    let root: PathBuf = crate::test_support::fixture("run-decline-before-the-copy");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    crate::worktree_ladder_test_support::tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    // One path past the floor and more than a quarter of the tracked files.
+    for index in 0..=crate::worktree_clone_conversion_fence::DECLINE_PATHS_FLOOR {
+        crate::worktree_ladder_test_support::tracked(repo.as_path(), format!("file-{index}.txt").as_str(), b"line\n");
+    }
+    crate::worktree_ladder_test_support::commit_all(repo.as_path(), "fixture");
+    let plan = plan_to(root.join("topic"));
+    let identity = main_identity(repo.as_path());
+    // The fence is only reached where a fast rung applies: a destination whose filesystem cannot clone refuses the clone
+    // rung before the fence runs, and the gate image's fixture root is a tmpfs, so this control names its own skip there.
+    if let Some(reason) = crate::worktree_snapshot_source::clone_refusal(&identity, &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_converting_source_is_declined_before_anything_is_claimed_or_copied ({reason})");
+        remove(root.as_path());
+        return;
+    }
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
+    assert_eq!(ladder.first_step(), GitStep::Person, "the person's own run checks the worktree out");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "a source above the quarter takes Git's checkout");
+    assert_eq!(ladder.slow.as_ref().map(|route| { return route.word(); }), Some("declines"), "{:?}", ladder.slow);
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed, so nothing can have been copied into or out of a stage");
+    // The Git rung prepares an empty subvolume at the destination when the filesystem allows one, so what says nothing was copied is that it holds no entry.
+    let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };
+    assert_eq!(prepared, 0, "the rung copied nothing into the destination");
     remove(root.as_path());
 }

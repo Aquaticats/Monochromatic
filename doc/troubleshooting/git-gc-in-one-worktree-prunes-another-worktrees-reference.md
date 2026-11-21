@@ -265,7 +265,8 @@ on `refs/cli-git/kept/<batch>-rescue` when that name cannot be written,
 and the command stops with status 2 when neither can be
 (`package/git-policy/cli/SPEC.md`,
 "Cheap worktree creation and removal on btrfs,
-XFS and overlayfs";
+XFS,
+overlayfs and ZFS";
 commit `93ef6b2438`;
 controls in `src/native/binary/binary_worktree_removal_held_commit_tests.rs`).
 A forwarded `git gc --prune=now`,

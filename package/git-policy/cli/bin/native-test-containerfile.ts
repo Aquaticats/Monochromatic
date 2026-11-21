@@ -113,6 +113,10 @@ export function testContainerfile({
         // not run, which `--success-output=final` brings into the log, and `native:test:host:btrfs` runs them on
         // btrfs, setting nothing.
         'CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1',
+        // That root is never a ZFS dataset either, so the one ZFS control that needs a real mount states the same
+        // absence here; a run that believes it is on ZFS leaves it unset, and the control then fails instead of
+        // passing without running.
+        'CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED=1',
       ].join(' '),
     }),
     // Some crate archives carry files only their owner may read, so the tester must own the vendored copy.

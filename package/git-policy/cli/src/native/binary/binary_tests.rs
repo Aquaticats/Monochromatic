@@ -82,6 +82,17 @@ mod support_observation_bound;
 #[path = "binary_support_btrfs_controls.rs"]
 mod support_btrfs_controls;
 
+/// The one place a control says that it needs a ZFS fixture root,
+/// the ZFS fixture's datasets and mounted clone,
+/// and the pool's block-clone counters.
+#[path = "binary_support_zfs_controls.rs"]
+mod support_zfs_controls;
+
+/// The physical address of a file's first extent,
+/// which two files share when one is a clone of the other.
+#[path = "binary_support_first_physical_extent.rs"]
+mod support_first_physical_extent;
+
 /// The clock ticks one process used,
 /// summed over every thread of it,
 /// and the two moments a listing and its reading are.
@@ -472,6 +483,26 @@ mod worktree_snapshot;
 /// clones of a clean worktree's tracked files equal Git's own checkout.
 #[path = "binary_worktree_clone_tests.rs"]
 mod worktree_clone;
+
+/// Rung 2 on ZFS:
+/// clones serve one dataset,
+/// and a second dataset,
+/// a mounted clone and a dataset without block cloning each end in Git's checkout.
+#[path = "binary_worktree_clone_zfs_tests.rs"]
+mod worktree_clone_zfs;
+
+/// Rung 2 under Git's checkout conversions:
+/// one control per conversion class,
+/// each comparing the worktree the clone rung served
+/// with real Git's own checkout of the same commit.
+#[path = "binary_worktree_clone_conversion_tests.rs"]
+mod worktree_clone_conversion;
+
+/// A measurement for the plan,
+/// not a control:
+/// what one clean same-dataset add on ZFS saves on disk against Git's own checkout of the same tree.
+#[path = "binary_worktree_clone_zfs_measurement_tests.rs"]
+mod worktree_clone_zfs_measurement;
 
 /// The line that says why an add took the slow way:
 /// the cause,

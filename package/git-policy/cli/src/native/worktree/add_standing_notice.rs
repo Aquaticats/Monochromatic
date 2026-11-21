@@ -151,11 +151,13 @@ pub fn the_plain_add_began(clause: &str, began: Instant) {
 }
 
 /// The step a plainly run add is in:
-/// Git's own `git worktree add`, with nothing of the ladder around it.
+/// Git's own `git worktree add`,
+/// with nothing of the ladder around it.
 const PLAIN_ADD_STEP: &str = "gitAdd";
 
 /// What:
-///  Publish the add's step, its start and an optional route clause.
+///  Publish the add's step,
+/// its start and an optional route clause.
 /// Why:
 ///   One place sets the state the notice reads,
 /// so a step of the ladder can never keep a clause
@@ -436,7 +438,8 @@ fn notice_line_on_route(step: Option<&str>, waited: Duration, plain: Option<&str
 }
 
 /// What:
-///  Every step an add enters, and the words a person reads for it.
+///  Every step an add enters,
+/// and the words a person reads for it.
 /// Why:
 ///   The step names are the timing record's,
 /// written for someone reading that record,
@@ -483,6 +486,11 @@ const STEP_SENTENCES: &[(&str, &str)] = &[
     ("markCompleteFile", "it is recording that the worktree is complete"),
     ("markCompleteDirectory", "it is recording that the worktree is complete"),
     ("releaseClaim", "it is recording that the worktree is complete"),
+    ("cloneEntries", "it is cloning the tracked files of the source into the new worktree"),
+    ("cloneIndex", "it is writing the index the clones' worktree is read through"),
+    ("conversionFence", "it is reading which files Git's checkout would write other bytes for"),
+    ("conversionBesideTheClone", "it is letting the fences read the source while the tracked files are copied"),
+    ("writeConversions", "it is letting Git write the files a conversion changes"),
     ("copyIgnored", "it is copying the ignored files into the new worktree"),
     ("handOverTrash", "it is handing the files the snapshot set aside to the commit service"),
 ];
