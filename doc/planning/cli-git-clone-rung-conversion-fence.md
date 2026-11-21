@@ -1057,10 +1057,12 @@ all under
 `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/scratch/keep/binaries/`
 with `sha256.txt` and `commits.txt` beside them.
 The shipped build holds no `MONOCHROMATIC_CLONE_FENCE` string (`strings` finds none) and the measurement build does.
-The two commits after the measured one (`0fe2cece9e`, which moves the clone rung's serving step to its own file,
+The two commits after the measured one (`0fe2cece9e`,
+which moves the clone rung's serving step to its own file,
 moves the index seed's function into the index-install module and takes the repository fixer's line breaks)
 change no behaviour the runs touch;
-the measured binary is therefore the shipped code's own, byte for byte before that move.
+the measured binary is therefore the shipped code's own,
+byte for byte before that move.
 
 The step split,
 medians in ms:
@@ -2469,20 +2471,22 @@ beside `run-measurements.ts`,
 `measure-beside-the-clone.ts` and `stats-beside.ts`,
 so every number above can be recomputed.
 
-The whole container gate ran at the code of `a95b3e2eb3` as its own capped `systemd-run --user --scope` unit
+The whole container gate ran at the code of `d4963cfb16` as its own capped `systemd-run --user --scope` unit
 (`CPUQuota=800%`,
 `MemoryMax=14G`,
 `TasksMax=800`,
 `IOWeight=10`),
 through `node bin/test-native-container.ts` in `package/git-policy/cli`,
 with the image `localhost/git-policy-native-test:development`,
-and its log is kept as `container-gate-beside-a95b3e2eb3.log` in this round's `keep/`:
+and its log is kept as `container-gate-beside-d4963cfb16.log` in this round's `keep/`:
 
 - **9,409 tests run:
-  9,407 passed (5 slow),
+  9,407 passed (6 slow),
   2 failed,
   35 skipped**,
-  in 787.419 s.
+  in 813.349 s.
+  The same gate ran at `a95b3e2eb3` before the clone rung's serving step moved,
+  with the same pair failing and the same counts (`container-gate-beside-a95b3e2eb3.log`).
 - The two failures are the repository's documented standing pair,
   `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone` and
   `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
