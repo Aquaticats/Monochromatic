@@ -41263,7 +41263,25 @@ stated in this entry. What follows from them, as work:
   identity store's adoption rewrite has no size check) goes to `pi-git-policy-cli-slot-identity-store-rewrite-size-check`
   (brief under `~/temp/agent/git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/`). HELD: the
   `worktree_remove_hand_over.rs` max-lines split waits until the fence and push programs branches merge, because both
-  touch that file and a split now would conflict with each.
+  touch that file and a split now would conflict with each. STEP 3 WITH THE FENCE'S CLOSURE CHECK (Sonnet) said fit at
+  `697ceec31f` (H1, M1, M2, lows closed; the kill reproduction red on the first tip, green on the closure tip;
+  block-cloning off declining with no proof in the guest; gate 9567 of 9569, the cause-H pair) and ruled the `m05`
+  leftover acceptable. NOT MERGED: the leftover is every source path the target tree lacks (41 files in its run), where
+  `main` leaves none and on ZFS is byte-right, so it misses the merge bar, which no waiver covers. New lows: N1 `SPEC.md`
+  says `attr.tree`/`GIT_ATTR_SOURCE` refuse the rung but the code served `attr.tree` (not yet a disagreeing fixture); N2 the
+  Limitations understates the leftover; N3 `index.pending` and its lock stay after the finish. GOING:
+  `pi-zfs-step-3-fence-leftover-and-attribute-source-fixed` in `.claude/worktrees/zfs-step-3-fence-leftover-fix` (main's
+  `m05` first, the leftover red first on rungs 1 and 2, the pending-index fallback with kill and refresh controls, N1 with a
+  disagreeing fixture, N2, N3; brief under `~/temp/agent/zfs-step-3-fence-leftover-and-attribute-source-fixed-2026-11-21/`).
+  THE PUSH PROGRAMS' SECOND CLOSURE CHECK said fit at `815a161f8b` (every item closed; the race a stated limit, issue
+  6332). NOT MERGED: `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`
+  failed in two of this branch's gates (the reviewer's and the author's 13:55) with a text neither troubleshooting note
+  records ("other: the new commit, not the earlier one, reached the origin"; the `other` push `retrying` with an empty
+  `cause:`; two service instances 7 ms apart and a lost lease), and in no gate today on `main` or other branches. GOING:
+  `pi-git-policy-cli-lfs-push-programs-two-worktree-push-retry` in
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-two-worktree-push` (forced reproduction on the branch and on `main`,
+  fix red first or an issue, the empty cause named, two lows; brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-two-worktree-push-retry-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
