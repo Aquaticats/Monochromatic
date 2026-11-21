@@ -597,3 +597,46 @@ fn btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced() {
     assert_eq!(entries, vec![String::from(".git")], "nothing was written into the worktree");
     remove(root.as_path());
 }
+
+/// What:
+///  A clean source whose attributes convert one tracked path gets Git's own bytes on that path from the snapshot rung,
+///  and the worktree it publishes is clean.
+/// Why:
+///   A snapshot carries the source's working bytes,
+/// so where a line-ending rule applies the stage holds the blob and Git's checkout
+///  would write the converted form (issue 6323).
+/// The fence is decided before the snapshot,
+/// so the index the snapshot installs records that path without stat data,
+///  and the one `git checkout-index` after the difference writes it.
+/// The index control in `worktree_snapshot_index_step_tests.rs` proves the first half.
+/// The control proves both ends:
+/// the step ran,
+/// and the bytes are the ones real Git's own checkout writes for the same commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const (result, steps) = addThroughTheLadder(repo, root);
+/// expect(steps.some(word => word === 'checkout-index')).toBe(true);
+/// expect(readFileSync('topic/notes.txt')).toEqual(readFileSync('reference/notes.txt'));
+/// expect(status('topic')).toBe('');
+/// ```
+#[test]
+fn btrfs_a_converting_path_is_written_by_git_and_the_snapshot_rung_is_clean() {
+    let Some(root) = btrfs_fixture("finish-conversion") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    tracked(repo.as_path(), "notes.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "converting");
+    let (result, steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
+    assert_eq!(result.git, GitStatus { code: Some(0) });
+    assert_eq!(result.carried, Some(root.join("topic")), "the snapshot rung served the add");
+    let wrote: bool = steps.iter().any(|words: &Vec<String>| { return words.iter().any(|word: &String| { return word == "checkout-index"; }); });
+    assert!(wrote, "the fence's write step ran in the stage: {steps:?}");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference"]);
+    let served: Vec<u8> = std::fs::read(root.join("topic/notes.txt")).expect("the served path");
+    let gits: Vec<u8> = std::fs::read(root.join("reference/notes.txt")).expect("Git's checkout");
+    assert_eq!(served, b"line one\r\nline two\r\n", "the served path holds Git's conversion");
+    assert_eq!(served, gits, "the served bytes are the ones Git's own checkout writes");
+    assert_eq!(git_text(root.join("topic").as_path(), &["status", "--porcelain=v1"]), "", "the published worktree is clean");
+    remove(root.as_path());
+}
