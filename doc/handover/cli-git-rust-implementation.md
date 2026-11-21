@@ -41311,7 +41311,12 @@ stated in this entry. What follows from them, as work:
   (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md` on
   `docs/planning-cli-git-zfs-slot-identity-store-per-slot-files`; brief under
   `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/`); then a gate review on Sonnet, the design to the
-  owner, and a build before step 8.
+  owner, and a build before step 8. The design round ended at `f18f98086c` (1387 lines): `.parent` plus one file named by
+  the slot in a root `0755` folder held by descriptor; publication by an `O_TMPFILE` and one `linkat` (fallback an
+  `O_EXCL` staging name and `RENAME_NOREPLACE`); the parent replaced by one rename; an attach reads two files; the adoption
+  lists twice; per-file bound 1 MiB on the `XATTR_SIZE_MAX` basis; the lock, `STORE_LOCK_WAIT` and the whole-store check go;
+  eight choices ranked, none taken. Probe on this host's `home` dataset as the account (root arms owed). GOING: its gate
+  review on Sonnet (to `~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
