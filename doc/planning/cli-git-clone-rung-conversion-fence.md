@@ -1099,6 +1099,12 @@ all under
 `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/scratch/keep/binaries/`
 with `sha256.txt` and `commits.txt` beside them.
 The shipped build holds no `MONOCHROMATIC_CLONE_FENCE` string (`strings` finds none) and the measurement build does.
+The commits after `57c6bae080` change no shipped code:
+they add tests,
+a comment,
+and one move of two declarations between the clone rung's files
+(`Created` and `Directories` now live in `worktree_clone_entry.rs` and are re-exported where they were),
+so the measured behaviour is the shipped behaviour.
 The two commits after the measured one (`0fe2cece9e`,
 which moves the clone rung's serving step to its own file,
 moves the index seed's function into the index-install module and takes the repository fixer's line breaks)
@@ -2858,6 +2864,62 @@ against the built binary `b`:
   300 EQUAL,
   300 served by the clone rung**
   (`matrix-decides-57c6bae080.json`).
+
+### The runs, and this round's gate
+
+The three timing runs are this round's runs section,
+with their JSON and summary files kept as
+`measure-decides-<label>-<mode>-<stamp>.json` and `.summary.txt`,
+beside `measure-fence.ts` and `run-measurements.ts`,
+so every number above can be recomputed.
+
+The whole container gate ran twice.
+The first,
+at `7900f47c5c`,
+**failed one control**,
+`a_converting_source_is_declined_before_anything_is_claimed_or_copied`,
+and its message was lost because the gate's own output was piped through `tail`
+(a mistake of this round's):
+the gate image's fixture root is a tmpfs whose filesystem shares no data blocks,
+so the clone rung refuses the rung *before* the fence runs,
+and the control's decline assertion could never hold there.
+The control now names its own skip on such a filesystem,
+the way the btrfs controls do,
+and the second gate passes it,
+printing the reason it skipped inside the image:
+`/work/package/git-policy/cli/target/gate-fixtures/process-152295/… would receive the clones and its filesystem does
+not share data blocks between files`
+(`container-gate-decides-737c28846f.log`).
+The control's real runs are the host's ZFS run and the guest's btrfs image.
+
+The second gate ran at `737c28846f` as its own capped `systemd-run --user --scope` unit
+(`CPUQuota=800%`,
+`MemoryMax=14G`,
+`TasksMax=800`,
+`IOWeight=10`,
+`RuntimeMaxSec=3600`),
+through `node bin/test-native-container.ts` in `package/git-policy/cli`,
+and its log is kept as `container-gate-decides-737c28846f.log`:
+
+- **9,472 tests run:
+  9,470 passed (5 slow),
+  2 failed,
+  35 skipped**,
+  in 761.774 s.
+- The two failures are the repository's documented standing pair,
+  `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone` and
+  `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+  "Cause H:
+  the two standing failures").
+- The whole `source_guard` set ran in the image:
+  80 distinct controls passed there,
+  among them `the_release_code_keeps_blocking_work_off_the_runtime`
+  (the copies still start as a task and the fence's Git face still runs outside the runtime)
+  and `every_step_an_add_enters_has_its_own_sentence`.
+- The whole container gate is the authority for Clippy;
+  its Clippy step runs the locked toolchain and did not report a finding,
+  and the host's own `native:clippy` and `native:clippy:measurement` are clean.
 
 ## Limitations
 
