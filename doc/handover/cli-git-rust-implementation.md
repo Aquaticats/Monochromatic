@@ -41058,7 +41058,20 @@ stated in this entry. What follows from them, as work:
   gate 9356 of 9358, the cause-H pair. It used `git restore --no-enforce-worktree` twice after saving a patch. GOING: a
   diff-only check on Sonnet with the two byte reproductions and one headline reproduction (brief under
   `~/temp/agent/gate-diff-check-of-the-clone-conversion-fence-costs-on-sonnet-2026-11-20/`); then the owner's question,
-  unless it finds wrong bytes or a contradicted cost.
+  unless it finds wrong bytes or a contradicted cost. THE DIFF CHECK found no wrong bytes (both spellings equal, the
+  old binary different on them) and every cost reproducing (its headline: step 3 0.51, fence 0.87, control 0.90 of
+  `main`); open words only: N1 "no new waiver is needed" contradicting the cost section, M3's false obstacle, stale prices,
+  N5 counts, N6 spans, N8 an early decline no longer tells the person why the add took Git's checkout, N10 no kept gate
+  log, N11 `-text` under `core.autocrlf=true`. THE OWNER, asked A′ (fence + decline), C (refuse when rules exist), D (Git
+  rewrites every path) or build B (the fence beside the clone) first, answered "Build B first" at
+  2026-11-20T22:37:00-05:00 (recorded in the plan's step 10 notes). NEXT: a round designs, builds and measures B against
+  A′, C and `main` with the identical-binary control, fixes the diff check's words and N8, then the question again; step
+  3, the btrfs fix, step 10 and the partial clone wait on it. THE LFS LOWS ROUND ended at `1538090256` (F1 the limit
+  restated from OpenSSH's source; F2 fixed, debug lines and quoted spans skipped, three reds; F3; gate 9328 of 9330, the
+  cause-H pair). THE LFS UPLOAD CARRY ended at `491bc0f8f6` (B1 to B7, B9, B11; the two reds on `main` green; refusal
+  remedy without a record; cost on a local do-nothing push 1.29 of `main`, about 4.9 ms for two child starts; B10's two
+  open cases reproduced with choices for the project; gate 9337 of 9339, the cause-H pair). The extra `ls-remote` is a
+  whole connection on a real remote, unmeasured; the pre-push hook's remote-sha lines may give the same evidence free.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
