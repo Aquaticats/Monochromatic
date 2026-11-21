@@ -530,8 +530,8 @@ const refusedPasteCases: readonly PasteCase[] = [
   { name: 'a break in the fourth word only', words: ['--help', 'one', 'two words', 'x\r//y',], },
   { name: 'a last word ending with a carriage return', words: ['--help', 'a\r',], },
   { name: 'a last word that is only a carriage return', words: ['--help', '\r',], },
-  // mise quotes this one for its space, so the break lands inside an unterminated quote rather than at a word start.
-  { name: 'a last word ending with a space and a carriage return', words: ['--help', 'a \r',], },
+  // mise quotes this one for its space, so the break lands inside a quote and the count must still name it.
+  { name: 'a last word ending with a space and a carriage return then a comment', words: ['--help', 'a \r// b',], },
   { name: 'a last word that is only a U+2028 separator', words: ['--help', '\u2028',], },
   { name: 'a last word ending with U+2028', words: ['--help', 'a\u2028',], },
   { name: 'a last word ending with U+2029', words: ['--help', 'a\u2029',], },
@@ -545,6 +545,9 @@ const refusedPasteCases: readonly PasteCase[] = [
 const unparsablePasteCases: readonly PasteCase[] = [
   { name: 'a line feed then ordinary text', words: ['--help', 'a\nb',], },
   { name: 'a line feed then a block comment opener', words: ['--help', 'a\n/*',], },
+  // mise quotes this word for its space, and the quote it opens is still open when the carriage return ends the
+  // marker comment, so node reads a raw carriage return inside a string literal.
+  { name: 'a quoted word ending with a carriage return', words: ['--help', 'a \r',], },
 ];
 
 /**
