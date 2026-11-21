@@ -4,11 +4,13 @@
 
  Several sessions run this gate on this host at once. Until issue 6334 a gate container carried neither a name nor a
  label, so a session that wanted to stop its own gate could only match containers by image or by creation time, and one
- round of 2026-11-21 stopped three containers another round's gate was running (`podman`'s own random names,
- `trusting_poincare`, `gallant_moore` and `affectionate_diffie`). One run id, made by the runner at start from its
- evidence directory's random name and never from a clock, names every container of that run: the printed lines and the
- run's `manifest.json` carry it, so `podman ps --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists one
- gate's containers and no other session's.
+ round of 2026-11-21 reported stopping three containers it had matched that way (`podman`'s own random names,
+ `trusting_poincare`, `gallant_moore` and `affectionate_diffie`), one of which another round listed as its own; which
+ round owned it, and whether one round's stop ended another round's gate, is not established. One run id, made by the
+ runner at start from its evidence directory's random name and never from a clock, names every container of that run: the
+ printed lines and the run's `manifest.json` carry it, so
+ `podman ps --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists one gate's containers and no other
+ session's.
  */
 import { basename, } from 'node:path';
 

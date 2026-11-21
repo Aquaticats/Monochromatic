@@ -203,7 +203,10 @@ export async function containerIdWhenWritten({
 
  @param running - the client, whose settlement ends the wait for an ID that never arrives
 
- @param onStarted - tells the caller the ID, so the run's evidence records it
+ @param onStarted - tells the caller the ID, so the run's evidence records it, and is awaited so the evidence is on disk
+   while the container still runs
+
+ @param deadlineMilliseconds - how long this wait lasts before it says no ID came, which a test shortens
 
  @example
  ```ts
@@ -215,11 +218,13 @@ export async function announceContainerId({
   cidFile,
   running,
   onStarted,
+  deadlineMilliseconds = containerIdDeadlineMilliseconds,
 }: {
   readonly identity: GateContainerIdentity;
   readonly cidFile: string;
   readonly running: Promise<unknown>;
-  readonly onStarted?: (id: string) => void;
+  readonly onStarted?: (id: string) => Promise<void>;
+  readonly deadlineMilliseconds?: number;
 },): Promise<void> {
   /**
    What the wait for the container's ID found.
@@ -227,6 +232,7 @@ export async function announceContainerId({
   const waited = await containerIdWhenWritten({
     cidFile,
     ended: running,
+    deadlineMilliseconds,
   },);
   if (waited.kind === 'client-ended') {
     console.log(gateContainerNotCreatedLineOf({
@@ -239,7 +245,7 @@ export async function announceContainerId({
     console.log(gateContainerNoIdLineOf({
       identity,
       cidFile,
-      waitedMilliseconds: containerIdDeadlineMilliseconds,
+      waitedMilliseconds: deadlineMilliseconds,
     },),);
     return;
   }
@@ -247,5 +253,5 @@ export async function announceContainerId({
     identity,
     id: waited.id,
   },),);
-  onStarted?.(waited.id,);
+  await onStarted?.(waited.id,);
 }

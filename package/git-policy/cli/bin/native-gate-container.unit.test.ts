@@ -16,7 +16,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { runGateContainer, } from './native-gate-container.ts';
-import { containerIdWhenWritten, } from './native-gate-container-id-file.ts';
+import {
+  announceContainerId,
+  containerIdWhenWritten,
+} from './native-gate-container-id-file.ts';
 import { gateContainerIdentityOf, } from './native-gate-container-identity.ts';
 import { NativeVerificationError, } from './native-verification-process.ts';
 
@@ -198,6 +201,7 @@ async function recordedCalls(argumentLog: string,): Promise<readonly (readonly s
 
 /**
  The value of one option in an argument array.
+
  @param args - the argument array
 
  @param name - the option whose value to read
@@ -246,6 +250,37 @@ async function identityTestTree(): Promise<{ readonly cidFile: string; readonly 
   };
 }
 
+/**
+ Collect the lines that would go to stdout, putting the real reporter back when the scope ends.
+
+ @param lines - collector the caller reads afterwards
+
+ @returns the collector, and the restore that disposal runs
+
+ @example
+ ```ts
+ using printed = collectingLines({ lines: [], },);
+ ```
+ */
+function collectingLines(
+  { lines, }: { readonly lines: string[]; },
+): { readonly lines: readonly string[]; } & Disposable {
+  /**
+   The real reporter, put back when this scope ends.
+   */
+  const reported = console.log;
+  console.log = (...parts: readonly unknown[]) => {
+    lines.push(parts.map(String,)
+      .join(' ',),);
+  };
+  return {
+    lines,
+    [Symbol.dispose]: () => {
+      console.log = reported;
+    },
+  };
+}
+
 await describe({
   name: runGateContainer.name,
   children: [
@@ -275,7 +310,7 @@ await describe({
             PODMAN_LOG: tree.argumentLog,
             PODMAN_CONTAINER_ID: containerId,
           },
-          onStarted: function recorded(id) {
+          onStarted: async function recorded(id) {
             started.push(id,);
           },
         },);
@@ -365,7 +400,7 @@ await describe({
               PODMAN_LOG: tree.argumentLog,
               PODMAN_CONTAINER_ID: containerId,
             },
-            onStarted: function recorded(id) {
+            onStarted: async function recorded(id) {
               started.push(id,);
             },
           },);
@@ -487,7 +522,7 @@ await describe({
       fn: async () => {
         await using tree = await identityTestTree();
         /**
-         Milliseconds this wait is given, far below the twelve minutes a real client that stopped answering costs.
+         Milliseconds this wait is given, far below the two minutes a real client that stopped answering costs.
          */
         const boundMilliseconds = 20;
         /**
@@ -502,6 +537,115 @@ await describe({
             return undefined;
           },
         },),).toEqual({ kind: 'deadline', },);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'refuses to name a container when its ID file is there and cannot be read',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        // A directory in the ID file's place is there and unreadable as a file, whatever the test runs as.
+        await mkdir(tree.cidFile,);
+        /**
+         The wait that meets an ID file it cannot read.
+         */
+        const refused = containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: Promise.withResolvers<unknown>().promise,
+        },);
+        await expect(refused,).rejects.toThrow(NativeVerificationError,);
+        await expect(refused,).rejects.toThrow('could not be read',);
+      },
+      timeout: 20_000,
+    },),
+  ],
+},);
+
+await describe({
+  name: announceContainerId.name,
+  // Each check below diverts stdout for its own duration, so they run one after the other.
+  concurrency: 1,
+  children: [
+    it({
+      name: 'prints the ID its client wrote and hands it to the run as soon as it is read',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        await writeFile(
+          tree.cidFile,
+          `${containerId}\n`,
+        );
+        /**
+         Every line this announce printed.
+         */
+        const lines: string[] = [];
+        using printed = collectingLines({ lines, },);
+        /**
+         Every ID the run recorded.
+         */
+        const started: string[] = [];
+        await announceContainerId({
+          identity: suiteIdentity,
+          cidFile: tree.cidFile,
+          running: Promise.withResolvers<unknown>().promise,
+          onStarted: async function recorded(id) {
+            started.push(id,);
+          },
+        },);
+        expect(started,).toEqual([containerId,],);
+        expect(printed.lines.join('\n',),).toContain(`Gate container suite: ID ${containerId}`,);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'prints that a client which ended before writing an ID created no container',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        /**
+         Every line this announce printed.
+         */
+        const lines: string[] = [];
+        using printed = collectingLines({ lines, },);
+        /**
+         Every ID the run recorded, which this ended client never gives it one of.
+         */
+        const started: string[] = [];
+        await announceContainerId({
+          identity: suiteIdentity,
+          cidFile: tree.cidFile,
+          running: Promise.resolve(),
+          onStarted: async function recorded(id) {
+            started.push(id,);
+          },
+        },);
+        expect(started,).toEqual([],);
+        expect(printed.lines.join('\n',),).toContain('created no container',);
+        expect(printed.lines.join('\n',),).toContain(tree.cidFile,);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'prints the name and label left to stop a container by when no ID arrived in the time it waited',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        /**
+         Every line this announce printed.
+         */
+        const lines: string[] = [];
+        using printed = collectingLines({ lines, },);
+        /**
+         Milliseconds this announce waits, far below the two minutes a real client that stopped answering costs.
+         */
+        const waitedMilliseconds = 20;
+        await announceContainerId({
+          identity: suiteIdentity,
+          cidFile: tree.cidFile,
+          running: Promise.withResolvers<unknown>().promise,
+          deadlineMilliseconds: waitedMilliseconds,
+        },);
+        expect(printed.lines.join('\n',),).toContain('no ID reached',);
+        expect(printed.lines.join('\n',),).toContain(`name ${suiteIdentity.name}`,);
+        expect(printed.lines.join('\n',),).toContain(`label ${suiteIdentity.label}`,);
+        expect(printed.lines.join('\n',),).toContain(`${String(waitedMilliseconds)} ms`,);
       },
       timeout: 20_000,
     },),

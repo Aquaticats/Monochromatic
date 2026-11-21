@@ -93,7 +93,8 @@ function containerRemoval({
  @param environment - environment both clients run in, which defaults to this process's
 
  @param onStarted - receives the container's ID as soon as its client writes it, which is how the run's evidence
-   records it even though `--rm` takes the ID file away with the container
+   records it even though `--rm` takes the ID file away with the container; this waits for it, so the evidence is on
+   disk while the container still runs
 
  @returns exit state and captured output of the client
 
@@ -124,7 +125,7 @@ export async function runGateContainer({
   readonly allowFailure?: boolean;
   readonly deadlineMilliseconds: number;
   readonly environment?: NodeJS.ProcessEnv;
-  readonly onStarted?: (id: string) => void;
+  readonly onStarted?: (id: string) => Promise<void>;
 },): Promise<CommandOutcome> {
   /**
    The container's removal, run when this scope ends whatever the client did.

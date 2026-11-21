@@ -2,11 +2,14 @@
  The manifest one gate run leaves in its evidence directory: the image it tested, the limits its containers ran under,
  and the run's own id with every container it started.
 
- The runner writes it before its containers start, so a gate that refuses while it builds still says what it ran as, and
- again once they ended, because a container's ID exists only while its `--rm` container does. The new `run` field is what
- lets a person prove which container of a machine running several gates is theirs (issue 6334).
+ The runner writes it once the image exists and before its containers start, again as each container's ID is read while
+ that container runs, and once they ended, because a container's ID exists only while its `--rm` container does. The new
+ `run` field is what lets a person prove which container of a machine running several gates is theirs (issue 6334).
  */
-import { writeFile, } from 'node:fs/promises';
+import {
+  rename,
+  writeFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 
 /**
@@ -64,6 +67,9 @@ export type GateManifest = {
 
  @param manifest - every field the manifest records, the evidence directory among them
 
+ One writer owns one run's manifest (`gateManifestWriterOf`), so two writes never race for the file this one moves into
+ place.
+
  @example
  ```ts
  await writeGateManifest({ ...fields, evidenceDirectory: 'target/verification/native-HZPg8O' });
@@ -77,15 +83,27 @@ export async function writeGateManifest(manifest: GateManifest,): Promise<void> 
     evidenceDirectory,
     ...recorded
   } = manifest;
+  /**
+   The file this write produces before it is moved into place, so a reader sees the manifest as it stood before or as it
+   stands after this write and never a half-written one.
+   */
+  const partial = join(
+    evidenceDirectory,
+    'manifest.json.partial',
+  );
   await writeFile(
-    join(
-      evidenceDirectory,
-      'manifest.json',
-    ),
+    partial,
     `${JSON.stringify(
       recorded,
       null,
       2,
     )}\n`,
+  );
+  await rename(
+    partial,
+    join(
+      evidenceDirectory,
+      'manifest.json',
+    ),
   );
 }

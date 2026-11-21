@@ -6457,18 +6457,27 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
     each container's name and label before that container starts,
     and each container's ID as podman writes it to the run's ID file,
     which is before the container's own output,
-    and records all of it in `target/verification/<run id>/manifest.json`.
+    and records all of it in `target/verification/<run id>/manifest.json` as each ID is read,
+    so a gate killed without unwinding still leaves them.
     Several sessions gate this machine at once,
-    so stop your own gate and nothing else:
+    so stop your own gate and nothing else.
     `systemctl --user stop gpc-gate-<label>-<stamp>.service` ends a gate `native:gate` started,
     and the containers keep running after it,
     as a probe on 2026-11-21 measured,
-    so stop each one by the name its log printed,
-    `podman stop gpc-gate-<run id>-<suite|clippy>`.
+    so stop them too.
+    Naming a container fails when it already ended:
+    `podman stop gpc-gate-<run id>-<suite|clippy>` exits 125 with "no such container",
+    and Clippy's container has usually ended by the time the suite's does.
+    Name none instead:
+    `podman stop --ignore --filter label=dev.monochromatic.git-policy.gate-run=<run id>`
+    stops exactly this run's containers,
+    and `--ignore` keeps an ended one from failing the command.
+    A gate started by hand from a terminal has no unit to stop;
+    its containers are stopped by that same label command.
     `podman ps --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists exactly one run's containers,
     and a container whose label is another run's belongs to another session's gate,
-    which is never stopped (issue 6334,
-    and the outside stop this gate met on 2026-11-21 is
+    which is never stopped (issue 6334;
+    the two gates of 2026-11-21 that ended by a signal nobody attributed are in
     `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
     cause J).
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
@@ -6575,7 +6584,8 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   It answers as soon as systemd has queued the unit,
   so nothing waits an hour for a run.
   Stopping that unit ends the gate and leaves its containers running,
-  so stop each one by the name its log printed,
+  so stop them by this run's label,
+  `podman stop --ignore --filter label=dev.monochromatic.git-policy.gate-run=<run id>`,
   as the `native:test:container` bullet of "Development" describes;
   never stop a container whose label is not this run's.
   The label is what the gate covers,

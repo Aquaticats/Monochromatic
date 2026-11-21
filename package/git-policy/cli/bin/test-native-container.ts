@@ -27,11 +27,8 @@ import { runGateChecks, } from './native-gate-checks.ts';
 import { gateClippyToolchain, } from './native-gate-clippy-toolchain.ts';
 import { runGateContainer, } from './native-gate-container.ts';
 import { gateRunLineOf, } from './native-gate-container-identity.ts';
-import {
-  type GateManifest,
-  writeGateManifest,
-} from './native-gate-manifest.ts';
 import { gateRunContainersOf, } from './native-gate-run-containers.ts';
+import { gateRunManifestOf, } from './native-gate-run-manifest.ts';
 import {
   gateContainerLimitOptions,
   gateLimitsFrom,
@@ -292,34 +289,28 @@ const limits = [
     withPidsLimit: true,
   }),
 ];
+// The manifest is written before any container starts, and after the image exists because it carries the image's ID: a
+// gate that refuses during the build leaves only the log's run-id line, which names the run and what every one of its
+// containers would have been called.
 /**
- The manifest this run writes, built when it is written so a container's ID read after the first write is in it too.
-
- @returns every field the manifest records, the run's containers among them
+ This run's manifest, whose writer records each container's ID as its client reports it.
  */
-function manifestOf(): GateManifest {
-  return {
-    evidenceDirectory: evidence,
-    base,
-    baseTag: testBase.tag,
-    cachyosImage: testBase.cachyosImage,
-    cachyosImageId: testBase.cachyosImageId,
-    image,
-    fixtureRoot: {
-      path: gateFixtureRoot,
-      mount: gateFixtureRootMountOptions,
-    },
-    limits,
-    run: {
-      id: run.runId,
-      label: run.label,
-      containers: run.records(),
-    },
-    user: '1000:1000',
-  };
-}
-// The manifest is written before the containers start, so a gate that refuses during the build still says what it ran as.
-await writeGateManifest(manifestOf(),);
+const evidenceManifest = gateRunManifestOf({
+  evidenceDirectory: evidence,
+  base,
+  baseTag: testBase.tag,
+  cachyosImage: testBase.cachyosImage,
+  cachyosImageId: testBase.cachyosImageId,
+  image,
+  fixtureRoot: {
+    path: gateFixtureRoot,
+    mount: gateFixtureRootMountOptions,
+  },
+  limits,
+  run,
+  user: '1000:1000',
+},);
+await evidenceManifest.writeManifest();
 console.log(`Native wrapper verification evidence: ${evidence}`);
 // The Clippy step takes the repository's locked toolchain and refuses when its sysroot holds no Clippy: a sysroot
 // taken from the caller's environment was the default `nightly`, which has no Clippy component, so the image's older
@@ -330,14 +321,15 @@ console.log(`Native wrapper verification evidence: ${evidence}`);
  */
 const clippyToolchain = await gateClippyToolchain({ startDirectory: subjectDirectory, },);
 console.log(`The Clippy step runs the repository's locked Rust toolchain ${clippyToolchain.toolchain}: ${clippyToolchain.sysroot}`);
-// A container's ID exists only while its `--rm` container does, so the manifest is written again when this scope ends,
-// whether the gate passed or refused: a refused gate is the one whose containers a person most needs to name.
+// A container's ID exists only while its `--rm` container does, so the manifest is written again as each ID is read and
+// once this scope ends, whether the gate passed or refused: a refused gate is the one whose containers a person most
+// needs to name.
 /**
  This run's manifest, rewritten when the scope ends with the IDs its containers' clients reported.
  */
 await using manifestWithContainerIds = {
   async [Symbol.asyncDispose](): Promise<void> {
-    await writeGateManifest(manifestOf(),);
+    await evidenceManifest.writeManifest();
   },
 };
 // The suite and Clippy start together and the gate waits for both: a clean Clippy is silent, and a Clippy compile
@@ -357,7 +349,7 @@ await runGateChecks({
         ...fixtureRootArguments(),
         image,
       ],
-      onStarted: run.recorded('suite'),
+      onStarted: evidenceManifest.recorded('suite',),
     },);
   },
   // Its diagnostics are captured rather than streamed, so the run stays the one stream a person reads and a refused
@@ -393,7 +385,7 @@ await runGateChecks({
       ],
       capture: true,
       allowFailure: true,
-      onStarted: run.recorded('clippy'),
+      onStarted: evidenceManifest.recorded('clippy',),
     },);
   },
 },);
