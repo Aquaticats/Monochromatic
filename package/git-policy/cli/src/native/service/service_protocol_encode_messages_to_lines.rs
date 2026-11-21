@@ -214,6 +214,14 @@ pub fn encode_client(message: &ClientMessage) -> String {
             }
             Value::Object(fields).to_string()
         }
+        ClientMessage::ForgetPrograms { git_dir, records } => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("forgetPrograms"));
+            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
+            put(&mut fields, "records", Value::Array(records.iter().map(|id| { return Value::from(id.as_str()); }).collect()));
+            Value::Object(fields).to_string()
+        }
         ClientMessage::Commit(request) => commit_line(request.as_ref()),
     };
 }

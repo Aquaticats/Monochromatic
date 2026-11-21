@@ -27,6 +27,10 @@ impl WakeTheService for NeverWoken {
     fn wake(&self, _git_dir: &Path) {
         panic!("the scan writes no record here, so it wakes nothing");
     }
+
+    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+        panic!("the scan settles no record here, so it forgets nothing");
+    }
 }
 
 /// The name of one object these controls name a record after,

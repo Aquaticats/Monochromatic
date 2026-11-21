@@ -398,23 +398,29 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
             return;
         }
     };
-    // The record is written before the route is read: a context with no route (a non-systemd session, a container, another
-    //  `XDG_RUNTIME_DIR`) then leaves the push on disk for the next wake instead of losing it with the message.
-    if let Err(failure) = write_push_record(watch.layout.worktree_root.as_path(), watch.layout.git_dir.as_path(), &crate::ref_name::RefName::from_text(branch), tip.as_str(), watch.before.as_str()) {
-        record_ending(watch, command, Outcome::Declined, "handover-failed", render(&failure).as_str());
-        // Terminal output error: the message is the only report of a push that was not handed over.
-        let _written = writeln!(stderr, "{}", render(&failure));
-        return;
-    }
+    // The route is read first: with no route (a non-systemd session, a container, another `XDG_RUNTIME_DIR`) the record is
+    //  written here and the push waits on disk for the next wake, and with one the hand-off writes the record and carries the
+    //  values the push must run with.
     let Some(Route { address, provision }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
-        record_ending(watch, command, Outcome::Declined, "no-route", "no way to reach the commit service");
-        // Terminal output error: the message is the only report of a push that waits for a service.
-        // This is a merge or a pull that already happened, so the words say what became of its push, never that a commit was not made.
-        let _written = writeln!(
-            stderr,
-            "monochromatic-git-policy-cli: {branch} was queued to be pushed, and no way to reach the commit service was found now. {} The push stays queued: the next command that reaches the service pushes it.",
-            platform_remedy(platform_without_manager())
-        );
+        // The record is a directory of this worktree's own Git directory, so writing it needs no service.
+        match write_push_record(watch.layout.worktree_root.as_path(), watch.layout.git_dir.as_path(), &crate::ref_name::RefName::from_text(branch), tip.as_str(), watch.before.as_str()) {
+            Ok(_queued) => {
+                record_ending(watch, command, Outcome::Declined, "no-route", "no way to reach the commit service");
+                // Terminal output error: the message is the only report of a push that waits for a service.
+                // This is a merge or a pull that already happened, so the words say what became of its push, never that a commit was
+                //  not made.
+                let _written = writeln!(
+                    stderr,
+                    "monochromatic-git-policy-cli: {branch} was queued to be pushed, and no way to reach the commit service was found now. {} The push stays queued: the next command that reaches the service pushes it.",
+                    platform_remedy(platform_without_manager())
+                );
+            }
+            Err(failure) => {
+                record_ending(watch, command, Outcome::Declined, "handover-failed", render(&failure).as_str());
+                // Terminal output error: the message is the only report of a push that was not handed over.
+                let _written = writeln!(stderr, "{}", render(&failure));
+            }
+        }
         return;
     };
     let handoff: ServiceHandoff = ServiceHandoff {
@@ -433,6 +439,15 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
         parent: watch.before.clone(),
     };
     if let Err(failure) = hand_over_push(&handoff, tip.as_str(), stderr) {
+        // What: The push record is written and made runnable, so the push waits for the next command that reaches the service.
+        // Why:  A hand-off that could not carry the values leaves the record in `held` or in `pending`, and a record in `held` waits
+        //  for a commit that may never come; writing it again is idempotent, and a record another command holds is not this one's to
+        //  release (`hand_over_push`).
+        let queued: &crate::ref_name::RefName = &crate::ref_name::RefName::from_text(branch);
+        if let Ok(Some(id)) = write_push_record(watch.layout.worktree_root.as_path(), watch.layout.git_dir.as_path(), queued, tip.as_str(), watch.before.as_str()) {
+            let work: PathBuf = crate::service_work::work_directory(watch.layout.git_dir.as_path());
+            let _runnable: bool = crate::work_item::promote(work.as_path(), id.as_str());
+        }
         record_ending(watch, command, Outcome::Declined, "handover-failed", render(&failure).as_str());
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&failure));

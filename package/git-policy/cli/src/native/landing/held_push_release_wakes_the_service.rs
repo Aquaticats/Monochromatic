@@ -53,6 +53,16 @@ use std::path::Path;
 pub trait WakeTheService {
     /// Says that a repository has a runnable record now.
     fn wake(&self, git_dir: &Path);
+
+    /// What:
+    ///  Says that the push records `records` can no longer run,
+    ///  so the service gives up the programs and transport settings it holds against them.
+    /// Why:
+    ///   A record a command settles here is one the service learns nothing about from the queue,
+    /// and the values it
+    ///  was given live in the service's memory alone (`service_push_programs_held_in_memory`).
+    /// Best effort, as the wake is.
+    fn forget_programs(&self, git_dir: &Path, records: &[String]);
 }
 
 /// What:
@@ -102,6 +112,36 @@ impl WakeTheService for AskTheService<'_> {
         let mut silent: std::io::Sink = std::io::sink();
         let _woken: Result<(), crate::service_messages::ClientFailure> = wake(&config, git_dir, None, &[], &mut silent);
     }
+
+    fn forget_programs(&self, git_dir: &Path, records: &[String]) {
+        // Nothing to forget costs no connection, and most commands that look at a repository settle no record at all.
+        if records.is_empty() {
+            return;
+        }
+        let Some(Route { address, provision: host }) = route_from_environment(self.context.real_git.as_path(), git_dir) else {
+            return;
+        };
+        if let Some(setup) = host.as_ref()
+            && provision(setup).is_err()
+        {
+            return;
+        }
+        let config: ClientConfig = ClientConfig {
+            address,
+            activation: Activation::Managed,
+            start_wait: HAND_OVER_GREETING_WAIT,
+            heartbeat_silence: HEARTBEAT_SILENCE,
+            start_watch: host.as_ref().map(manager_watch_for),
+            keep_fresh: None,
+            answer_ceiling: ANSWER_CEILING,
+            withdraw_ceiling: WITHDRAW_CEILING,
+            waiting_notice_after: waiting_notice_after(),
+            extra_wait: SHORT_EXTRA_WAIT,
+            start_ceiling: HAND_OVER_GREETING_WAIT,
+        };
+        let mut silent: std::io::Sink = std::io::sink();
+        let _forgotten: Result<(), crate::service_messages::ClientFailure> = crate::service_client_wake::forget_programs(&config, git_dir, records, &mut silent);
+    }
 }
 
 /// What:
@@ -120,6 +160,8 @@ pub struct NothingWoken;
 
 impl WakeTheService for NothingWoken {
     fn wake(&self, _git_dir: &Path) {}
+
+    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {}
 }
 
 /// Controls of the wake stay out of the release executable.
