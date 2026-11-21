@@ -807,8 +807,22 @@ A key that changed after OpenSSH's warning of a possible attack is no unknown ke
 and so does every other refusal OpenSSH makes over a host key:
 a key a `@revoked` line or a `RevokedHostKeys` file revokes,
 and a certificate that does not fit the host.
-The sentence is added only when every line of the transcript that names a host key or a certificate is an unknown key's own,
+The sentence is added only when every line of the transcript that names a host key or a certificate
+is an unknown key's own,
+leaving out OpenSSH's own debug lines
+(`debug1: ` to `debug3: `),
+at which no refusal is printed,
+and the words inside single quotes,
+which OpenSSH writes only around a name or a path and Git only around the remote's URL,
 so a refusal this release has never seen keeps OpenSSH's words rather than gaining a sentence that may mislead.
+One refusal is still read as an unknown key:
+with `CheckHostIP=yes` under `ask` and a key this machine knows for the host beside a different one for its address,
+OpenSSH writes the warning into `confirm`'s question
+(`sshconnect.c:1429-1447` at `V_10_6_P2`),
+the askpass program gets the question,
+and standard error holds the last line alone,
+which is exactly an unknown key's transcript.
+Its way to connect once is right there and its way to add the key is not.
 The service keeps its usual retry schedule for an unknown host key
 (`retried_failure_record` in `src/native/push/push_retry_failure.rs`),
 so a person who adds the key needs no new commit to publish the branch.
