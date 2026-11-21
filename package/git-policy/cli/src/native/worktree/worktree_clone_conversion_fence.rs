@@ -71,12 +71,14 @@ const WRITTEN_PATHS_REPORTED: usize = 8;
 /// Git writes a path in about 0.084 ms,
 /// so A stays under `main` while Git writes fewer than roughly a third of 24,389 paths;
 /// a quarter leaves room for the spread,
-/// and the measured converting source (14,153 of 24,389 paths, 0.58) is far above either number.
+/// and the measured converting source (14,153 of 24,389 paths,
+/// 0.58) is far above either number.
 const DECLINE_SHARE_DIVISOR: usize = 4;
 
 /// The counted paths below which the share is not worth a decline.
 /// Why:
-///  a written path costs about 0.084 ms, so a thousand of them is 84 ms,
+///  a written path costs about 0.084 ms,
+/// so a thousand of them is 84 ms,
 /// which is inside the run-to-run spread of an add this size;
 /// a small repository with a converting rule should keep its clone rung,
 /// and the class controls of four paths must still reach the fence.
@@ -310,7 +312,8 @@ fn config_of(source: &SnapshotSource) -> &[ConfigEntry] {
 }
 
 /// What:
-///  Option C measured with the same binary: the rung declines whenever any conversion source could apply,
+///  Option C measured with the same binary:
+/// the rung declines whenever any conversion source could apply,
 /// and carries every path when none could,
 ///  so neither answer costs a Git run.
 /// Why:
@@ -335,9 +338,12 @@ fn decline_when_conversion_could_apply(source: &SnapshotSource, entries: &[StatE
 }
 
 /// What:
-///  Option D measured with the same binary: Git writes every tracked path, and no attribute is read.
+///  Option D measured with the same binary:
+/// Git writes every tracked path,
+/// and no attribute is read.
 /// Why:
-///   The option's shape is exactly this, so its cost is the clone plus a checkout of the whole tree.
+///   The option's shape is exactly this,
+/// so its cost is the clone plus a checkout of the whole tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -474,10 +480,12 @@ fn fence_sentence(path: &[u8], reason: &str) -> String {
 /// `if (!changed) return 0;`),
 /// and both rungs can put bytes in the work tree that the entry's own fields still describe:
 /// the clone rung installs the source's index over a copy made here,
-/// and a btrfs snapshot keeps the source's inode and times, so the copied file *is* the file the source's index recorded.
+/// and a btrfs snapshot keeps the source's inode and times,
+/// so the copied file *is* the file the source's index recorded.
 /// A zeroed entry matches nothing (`read-tree` leaves entries this way),
 /// so Git rewrites it and the first status hashes it once and finds it clean.
-/// The intersection is a correctness matter, not a saving:
+/// The intersection is a correctness matter,
+/// not a saving:
 /// `git update-index --index-info` *adds* an entry a path lacks,
 /// so a fenced path the new `HEAD` does not carry would be injected into the destination's index,
 /// and `git checkout-index` would then fail the whole rung ("is not in the cache").
@@ -524,7 +532,8 @@ fn zero_the_entries(admin: &Path, destination: &Path, context: &GitContext, path
 /// the runs name the destination's Git directory and work tree,
 /// as the ladder's other runs do,
 /// so the destination's own settings decide.
-/// The entries are zeroed first (`zero_the_entries`), because an entry that still matches the file is left alone,
+/// The entries are zeroed first (`zero_the_entries`),
+/// because an entry that still matches the file is left alone,
 /// and only the paths the destination's index holds are sent,
 /// because one it lacks would be injected into the index and then fail the run.
 /// `-u` records the stat data of each file Git writes,
