@@ -154,39 +154,14 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
         let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
         return Ok(());
     }
-    let Some(reference) = handoff.reference.text() else { return Ok(()) };
-    let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
-    let item: WorkItem = crate::push_record_of_a_moved_branch::push_record_item(handoff.repository.as_path(), handoff.git_dir.as_path(), reference, tip, handoff.parent.as_str());
-    let holder: String = crate::held_push_holder_and_verdict::this_command();
-    // What: The record is written where no round runs it, before its values travel.
-    // Why:  A record in `pending` can be claimed by a round already running, and that round would run the push with none of this
-    //  command's values and settle it (`service_push_programs_held_in_memory`); a held record is invisible to the queue and still
-    //  outlives a command killed before its values travel, which a later command releases when it finds this command gone.
-    crate::work_item::hold(work_dir.as_path(), &item, holder.as_str()).map_err(ClientFailure::WorkNotHandedOver)?;
-    if !crate::push_record_of_a_moved_branch::held_record_is_this_commands(work_dir.as_path(), item.id().as_str(), holder.as_str()) {
-        // The queue already settled this push, a gate blocked it, or another command holds it: nothing here to hand over, and no
-        //  value of this command belongs to that record.
-        return Ok(());
-    }
-    // What: The programs of this command, and whether it chose the transport the push speaks through, reach the service while the
-    //  record is invisible to the queue.
+    let record: Option<String> = write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
+    // What: The programs of this command, and whether it chose the transport the push speaks through, go with the wake.
     // Why:  Nothing of them may be written (the two command lines can hold a password), and the push runs after this command has
-    //  gone, so this message is the last moment they can reach the service that runs it
-    //  (`service_push_programs_held_in_memory`).
-    let carried: Result<(), ClientFailure> = wake(
-        &handoff.config,
-        handoff.git_dir.as_path(),
-        None,
-        &[(item.id(), crate::service_push_programs_held_in_memory::of_this_process())],
-        notices,
-    );
-    // The record becomes runnable whatever the wake did: a service that was not reached leaves the push queued for the next
-    //  command, as it does when a wake after a written record fails.
-    let runnable: bool = crate::push_record_of_a_moved_branch::release_this_commands_hold(work_dir.as_path(), item.id().as_str(), holder.as_str());
-    carried.map_err(not_handed_over)?;
-    if !runnable {
-        return Err(ClientFailure::WorkNotHandedOver(String::from("the push record could not be made runnable, so the next command that reaches the commit service writes it again")));
-    }
-    // The wake that runs it now, after its values are in the service's memory: the round this starts may claim the record at once.
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, &[], notices).map_err(not_handed_over);
+    //  gone, so the message that announces the record is the last moment they can reach the service that runs it, which holds them
+    //  in its memory alone (`service_push_programs_held_in_memory`).
+    let programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)> = match record {
+        Some(id) => vec![(id, crate::service_push_programs_held_in_memory::of_this_process())],
+        None => Vec::new(),
+    };
+    return wake(&handoff.config, handoff.git_dir.as_path(), None, programs.as_slice(), notices).map_err(not_handed_over);
 }
