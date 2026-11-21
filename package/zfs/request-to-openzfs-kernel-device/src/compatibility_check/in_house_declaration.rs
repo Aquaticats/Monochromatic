@@ -123,7 +123,7 @@ impl Declaration for InHouseDeclaration<'_> {
                     return Some(DeclaredType::Record {
                         kind: container_kind(kind),
                         byte_size: u64::from(bytes),
-                        members: members_of(&self.module, members, bitfield),
+                        members: members_of(&self.module, members, bitfield)?,
                     });
                 }
                 Entry::Enumeration { bytes, .. } => {
@@ -161,14 +161,18 @@ fn container_kind(kind: u8) -> ContainerKind {
 }
 
 /// One record's members,
-/// read from the bytes the module wrote them as.
-fn members_of(module: &TypeInformation<'_>, bytes: &[u8], bitfield: bool) -> Vec<DeclaredMember> {
+/// read from the bytes the module wrote them as,
+/// or nothing when any of them cannot be read.
+///
+/// A member the string section holds no name at is a refusal and never a gap:
+/// a shortened list would compare a record that gained a member as the record
+/// it was,
+/// and the comparison's member count is the only control that would notice.
+fn members_of(module: &TypeInformation<'_>, bytes: &[u8], bitfield: bool) -> Option<Vec<DeclaredMember>> {
     let mut members: Vec<DeclaredMember> = Vec::<DeclaredMember>::with_capacity(bytes.len() / MEMBER_BYTES);
     let list: Members<'_> = Members::new(bytes, bitfield);
     for index in 0..list.len() {
-        let Some(member): Option<Member<'_>> = list.at(module, index) else {
-            continue;
-        };
+        let member: Member<'_> = list.at(module, index)?;
         members.push(DeclaredMember {
             name: member.name.map(str::to_string),
             type_id: member.type_id,
@@ -176,7 +180,7 @@ fn members_of(module: &TypeInformation<'_>, bytes: &[u8], bitfield: bool) -> Vec
             bitfield_bits: member.bitfield,
         });
     }
-    return members;
+    return Some(members);
 }
 
 /// The members of one record,

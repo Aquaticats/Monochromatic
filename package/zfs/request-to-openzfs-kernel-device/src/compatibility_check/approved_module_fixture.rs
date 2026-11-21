@@ -169,6 +169,25 @@ const fn bits(bytes: u32) -> u32 {
     return bytes * BITS_PER_BYTE;
 }
 
+/// The approved declaration with one extra member in `dmu_objset_stats`
+/// whose name offset points past the file's string section,
+/// so no reader can read that member.
+pub fn module_with_an_unreadable_extra_member() -> Blob {
+    let mut blob: Blob = Blob::over(EMPTY_BASE_STRINGS);
+    let types: MemberTypes = member_types(&mut blob, Change::None);
+    blob.structure("zfs_cmd", COMMAND_BYTES, &command_members(&types, Change::None));
+    blob.enumeration("zfs_ioc", 4, &request_values(Change::None));
+    blob.member_with_unreadable_name(types.stats, types.byte, bits(287));
+    return blob;
+}
+
+/// The approved declaration with the kind flag set on every record,
+/// and every member's offset and width exactly as approved,
+/// which is the shape a module's own tools write when the flag is on.
+pub fn module_with_the_kind_flag_set() -> Blob {
+    return module_with(Change::None).with_kind_flag_on_records();
+}
+
 /// One member at one byte offset.
 const fn at(name: &'static str, type_id: u32, bytes: u32) -> WrittenMember {
     return WrittenMember {

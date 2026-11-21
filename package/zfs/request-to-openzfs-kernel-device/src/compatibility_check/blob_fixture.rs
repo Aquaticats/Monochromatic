@@ -20,6 +20,36 @@ use super::refusal::Refusal;
 /// The build directory the fixture files live under.
 use std::path::PathBuf;
 
+/// One name offset past any string section this writer writes,
+/// so no reader can read the member it belongs to.
+const UNREADABLE_NAME: u32 = 0x7fff_fff0;
+/// The bits of one entry's `info` word that hold its member count.
+const VLEN_MASK: u32 = 0x00ff_ffff;
+/// The kind number of one structure.
+const KIND_STRUCT: u32 = 4;
+/// The kind number of one union.
+const KIND_UNION: u32 = 5;
+
+/// One little-endian 32-bit word at `at`,
+/// and nothing for a file too short to hold it.
+fn word_in(bytes: &[u8], at: usize) -> u32 {
+    let mut field: [u8; 4] = [0; 4];
+    let Some(source): Option<&[u8]> = bytes.get(at..at + 4) else {
+        return 0;
+    };
+    field.copy_from_slice(source);
+    return u32::from_le_bytes(field);
+}
+
+/// Write one little-endian 32-bit word at `at`,
+/// which every writer of this file does through this one place.
+fn set_word(bytes: &mut [u8], at: usize, value: u32) {
+    let Some(field): Option<&mut [u8]> = bytes.get_mut(at..at + 4) else {
+        return;
+    };
+    field.copy_from_slice(&value.to_le_bytes());
+}
+
 /// The type ids the writer hands out,
 /// and the bytes it wrote for each.
 pub struct Blob {
@@ -110,6 +140,44 @@ impl Blob {
     pub fn alias(&mut self, name: &str, target: u32) -> u32 {
         let entry: Vec<u8> = self.entry(name, 8, 0, target, &[]);
         return self.push(entry);
+    }
+
+    /// One typedef of the type the writer is about to hand it,
+    /// so the chain over it never leaves its own entry.
+    pub fn self_alias(&mut self, name: &str) -> u32 {
+        let id: u32 = (self.entries.len() + 1) as u32;
+        return self.alias(name, id);
+    }
+
+    /// A copy of the file whose every record carries the kind flag,
+    /// with every member's offset and width as written.
+    pub fn with_kind_flag_on_records(mut self) -> Self {
+        for entry in &mut self.entries {
+            let info: u32 = word_in(entry, 4);
+            let kind: u32 = (info >> 24) & 0x7f;
+            if kind == KIND_STRUCT || kind == KIND_UNION {
+                let flagged: u32 = info | (1 << 31);
+                set_word(entry, 4, flagged);
+            }
+        }
+        return self;
+    }
+
+    /// One more member in an entry the writer already holds,
+    /// whose name offset points past this file's string section.
+    ///
+    /// A reader cannot read that name,
+    /// so the member is the one a reader must refuse rather than drop.
+    pub fn member_with_unreadable_name(&mut self, of: u32, type_id: u32, bit_offset: u32) {
+        let Some(entry): Option<&mut Vec<u8>> = self.entries.get_mut((of as usize).saturating_sub(1)) else {
+            panic!("entry {of} is not one this writer wrote");
+        };
+        let info: u32 = word_in(entry, 4);
+        let members: u32 = info & VLEN_MASK;
+        entry.extend_from_slice(&UNREADABLE_NAME.to_le_bytes());
+        entry.extend_from_slice(&type_id.to_le_bytes());
+        entry.extend_from_slice(&bit_offset.to_le_bytes());
+        set_word(entry, 4, (info & !VLEN_MASK) | (members + 1));
     }
 
     /// One fixed array of `count` elements of `element`.

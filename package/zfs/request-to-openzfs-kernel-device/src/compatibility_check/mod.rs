@@ -6,8 +6,9 @@
 //!  any type is decoded,
 //! the expected layout compiled from this crate's `#[repr(C)]` type,
 //!  the comparison that refuses the first difference,
-//! and the one call both executables make
-//!  before their first ioctl.
+//! and the one call the root-run handler makes
+//!  before its first ioctl,
+//! which the wrapper gains when its request route lands.
 //! Why:
 //!  The kernel copies its whole `zfs_cmd_t` in and out of one ioctl,
 //! so a module whose
@@ -15,11 +16,10 @@
 //! grew or vanished reads another request's bytes and writes another
 //!  request's fields.
 //! Nothing in userspace can see that without a device,
-// so both
-//!  executables compare the loaded module's declared layout with the one this crate
-//!  compiles,
-//! before their first ioctl,
-//! and disable every raw request,
+//! so a program that sends a raw request compares the loaded module's declared
+//!  layout with the one this crate compiles,
+//! before its first ioctl,
+//! and disables every raw request,
 //! reads included,
 //!  when the comparison refuses
 //! (`doc/decision/cli-git-zfs-runtime-layout-checker.md`).
@@ -53,7 +53,8 @@
 //!   the walk that indexes them and the lookups the comparison asks.
 //! - `declaration.rs`:
 //!   the reader-neutral declaration of one module's types,
-//!   which everything after it reads.
+//!   the three duties every reader owes it,
+//!   and which everything after it reads.
 //! - `expectations.rs`:
 //!   the layout this crate's type compiles,
 //!   and the two records compared member by member.
@@ -69,7 +70,7 @@
 //! - `in_house_declaration.rs`:
 //!   the one adapter that maps the in-house decoder onto the declaration.
 //! - `check_module_layout.rs`:
-//!   the entry point both executables call,
+//!   the entry point the root-run handler calls,
 //!   and what a pass read.
 //!
 //! In TS you'd write (pseudocode):
@@ -104,7 +105,7 @@ mod comparison;
 mod comparison_requests;
 /// The one adapter that maps the in-house decoder onto the declaration.
 mod in_house_declaration;
-/// The entry point both executables call.
+/// The entry point the root-run handler calls.
 mod check_module_layout;
 
 /// The step a refusal names,
@@ -141,6 +142,10 @@ mod expectations_tests;
 #[cfg(test)]
 #[path = "comparison_tests.rs"]
 mod comparison_tests;
+/// The three duties every reader owes the declaration.
+#[cfg(test)]
+#[path = "declaration_contract_tests.rs"]
+mod declaration_contract_tests;
 /// The entry point's files,
 /// bounds and pass.
 #[cfg(test)]
