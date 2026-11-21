@@ -6775,6 +6775,10 @@ the upload's explanation and the push's failure record print one sentence
 (`host_key_not_known_sentence` in `src/native/lfs/lfs_pre_push.rs`,
 read from OpenSSH's own words by `reads_as_unknown_host_key`,
 which holds only when every line of the transcript that names a host key or a certificate is an unknown key's own,
+leaving out OpenSSH's own debug lines and the words inside single quotes
+(OpenSSH writes a host name,
+an address or a path there,
+and Git writes the remote's URL),
 so a changed key,
 a key a `@revoked` line or a `RevokedHostKeys` file revokes,
 and a certificate that does not fit the host keep
@@ -6785,6 +6789,25 @@ connect once with plain `ssh <host>`,
 which the wrapper does not touch and which still asks its own question,
 or add the host key to `known_hosts`,
 and then push again.
+The reading passes over OpenSSH's own debug lines
+(`debug1: ` to `debug3: `),
+at which no refusal is printed,
+and the words inside single quotes,
+and it still reads a host key that differs from the one this machine knows for the host's address as an unknown one
+when the account leaves the question open (`CheckHostIP=yes` under `ask`):
+OpenSSH writes that warning into the askpass program's question and standard error holds the last line alone
+(`sshconnect.c:1429-1447` at `V_10_6_P2`),
+so the sentence's way to add the key is wrong for it and its way to connect once is right.
+A second case is read as an unknown one for a different reason:
+under `LogLevel=FATAL` OpenSSH prints no `error` line at all
+(`do_log` writes `fatal` and `error` without a level word,
+`log.c:354-393` at the same tag),
+so a changed key and a key a `@revoked` line or a `RevokedHostKeys` file revokes leave only
+`Host key verification failed.` on standard error,
+which is exactly an unknown key's transcript,
+and `main` reads those two the same way.
+The sentence's way to add the key is wrong for them and its way to connect once is right,
+and a transcript at that level cannot tell either from an unknown key.
 The sentence names the host when the wrapper can answer which one it is
 (`ssh_host` in `src/native/lfs/lfs_upload_explanations.rs`,
 from the program's own words or from a destination written as a URL),
@@ -12670,8 +12693,12 @@ The step:
   found by a walk ordered by committer time as `git rev-list` orders it,
   so the history
   behind a known tip is never read;
-  when the destination is untrusted (see below) nothing is known and every commit
-  of the pushed refs is read.
+  each of those refs is evidence about the destination only while the destination itself reports that branch at
+  that commit
+  (`git ls-remote --heads <remote>`,
+  see below),
+  and a ref it moved on or no longer has is dropped on its own,
+  so one stale tracking ref costs the ref and not the whole scan.
   Each commit is compared with each of its parents,
   descending only into trees that
   differ,
@@ -12708,7 +12735,10 @@ The step:
   a walk of more than 100000 commits or 3 seconds),
   leaves the
   next paragraph's `git-lfs` scan in charge,
-  which also words a missing object and honours `lfs.allowincompletepush`.
+  which also words a missing object and honours `lfs.allowincompletepush`;
+  its own standard output already names the setting
+  (`hint: You can disable this check with: git config lfs.allowincompletepush true`),
+  so the wrapper's explanation does not name it again.
   The `--object-id` form does not verify locks,
   as the scan form does.
   The scan form runs `git-lfs push [--all] <destination> [<ref>...]`,
@@ -12722,26 +12752,66 @@ The step:
   `git lfs push <remote> <ref>` alone skips every object that a remote-tracking ref of the remote mentions,
   so a push
   that adds no LFS object sends no batch request.
-  Those refs need not describe the destination being pushed to (a fetch
-  from one server and a push to another,
-  a changed push URL),
-  which would publish pointers without objects,
-  so `--all`
+  Those refs are what a fetch wrote down about the URL the remote had when it ran,
+  so they describe the
+  destination being pushed to only while the destination says so:
+  the plan asks it for its branch heads
+  (`git ls-remote --heads <remote>`,
+  through the same remote name and the same `insteadOf` rewrites the push
+  resolves)
+  and keeps a tracking ref only when it reports that branch at that commit,
+  so the refs it reports are the places the scan stops at,
+  and a ref it moved on or no longer has is dropped alone.
+  The scan form keeps `--all`
   (everything reachable from exactly those refs,
-  a superset and idempotent as objects are content addressed) is kept
-  whenever the configuration the plan already holds says the tracking refs may not describe the destination:
-  it is not
-  a configured remote (a URL,
+  a superset and idempotent as objects are content addressed)
+  whenever the destination does not confirm every one of those refs,
+  because its own skip list matches a cached ref by branch name alone,
+  and for every case the configuration already states (it is not a configured remote:
+  a URL,
   a path,
-  a name nobody configured),
-  the remote has any `pushurl`,
-  any
-  `url.<base>.pushInsteadOf` rewrite exists,
-  or the push is a mirror push.
-  A configured remote with no tracking refs
-  needs no check:
-  the bounded form then has nothing to skip and scans the whole refs itself.
-  Measured with git-lfs 3.8.1 (`commands/uploader.go`,
+  a name nobody configured;
+  the remote has any
+  `pushurl`;
+  Git writes to more than one URL;
+  any `url.<base>.pushInsteadOf` rewrite exists;
+  the push is a
+  mirror push),
+  and nothing the destination might lack can be left out.
+  A configured remote with no tracking refs needs no check:
+  the bounded
+  form then has nothing to skip and scans the whole refs itself,
+  so it asks the destination nothing.
+  The
+  question costs one local `for-each-ref` and one connection to the destination in the bounded case,
+  and the same
+  connection `git-lfs` would make anyway in the scan form;
+  a push that skips nothing pays nothing.
+  A typed push whose manual-push discovery ran pays no connection for it of its own:
+  that discovery already asks the destination for the pushed refs' values,
+  and its one `git ls-remote --refs <url>` now lists every branch head too,
+  so the answer travels from the discovery to the plan (`DestinationHeads`).
+  A typed push in a configuration that disables or escapes every manual-push policy has no discovery,
+  so its plan asks the destination and pays that one connection.
+  The service's bounded push runs no discovery,
+  so its upload plan asks the destination itself:
+  one connection more than `main` charged that push,
+  measured at 205 ms,
+  355 ms and 1017 ms for the added one-way delays of 0 ms,
+  10 ms and 50 ms,
+  and the project accepted that cost on 2026-11-21,
+  answering "A:
+  accept the connection",
+  because the push runs after the committing command has returned.
+  A typed push measured 1.001 to 1.005 of `main` per round at the same three delays,
+  inside the spread of the identical-binary control in every cell,
+  with 3 connections on both binaries in every sample.
+  One stale tracking ref on a 2000-commit fixture costs `main`'s scan again:
+  1 batch request and 1 object named,
+  measured at 0.983 of `main` (0.903 to 1.132),
+  where the all-or-nothing rule sent 21 batch requests and named 2052 objects at 52.106 of `main`.
+  Measured with
+  git-lfs 3.8.1 (`commands/uploader.go`,
   `uploadForRefUpdates`,
   `uploadRangeOrAll`):
   without `--all` the
@@ -12752,11 +12822,15 @@ The step:
   Both forms build the same scanner (`NewGitScannerForPush`),
   which
   runs `git show-ref` and `git ls-remote --heads` against the remote (`calcSkippedRefs`),
-  so dropping `--all` adds no
-  network round trip and no Git start.
-  No tighter bound exists without one:
+  which matches by
+  name only,
+  so it
+  treats a branch the destination still has as a place to stop whatever commit it holds there.
+  No tighter bound exists
+  without one:
   `git lfs push` takes no remote object name,
-  and the `exclude` list of `uploadForRefUpdates` is empty on this path.
+  and the `exclude` list of `uploadForRefUpdates` is empty on this
+  path.
   The child runs with the real Git's directory first on `PATH`,
   so a `git` that `git-lfs` starts is the real Git and not
   the wrapper,
@@ -12902,6 +12976,18 @@ The step:
   never every ref;
   `--mirror` and
   `remote.<name>.mirror` upload everything.
+  `remote.<name>.mirror` is read by Git itself
+  (`git config --type=bool --get remote.<name>.mirror`),
+  never by a list of spellings kept here:
+  Git reads `2`,
+  `-1` and `0x10` as true and the empty value as false,
+  and a mirror read as false publishes every other branch with no
+  object behind its pointers.
+  The question is asked only when the settings hold a value for the key,
+  so a
+  repository without a mirror setting costs no Git start for it,
+  and a value Git cannot read refuses the push as Git
+  itself would.
   A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
   `remote.pushDefault`,
   `branch.<name>.remote`,
@@ -12910,10 +12996,14 @@ The step:
   local branch with `push.default=matching`,
   else the current branch from the full ref `HEAD` names (`HEAD` when it is
   not a branch).
-  A remote with more than one `pushurl` is uploaded to once per URL,
+  A remote Git writes to more than once is uploaded to once per URL,
   passing each URL,
   because each may keep its
-  objects in its own place.
+  objects in its own place:
+  that is every `pushurl` the remote names,
+  and every `url` it names when it has no
+  `pushurl`,
+  because `git push` writes to all of them.
   A destination typed as a path (starting with `/`,
   `./` or `../`,
   or naming an existing
@@ -12941,6 +13031,22 @@ The step:
   with the file it found and the operating system's own error
   (`start_failed_message` in `src/native/lfs/lfs_pre_push.rs`),
   because a program that is there is not missing and its reader would go looking at a `PATH` that is right.
+  Which folders that search reads is the push's own list.
+  A typed push reads the environment of that command.
+  A push the commit service runs searches the service's own `PATH`,
+  which the manager that started the service fixed,
+  and no command of the person reaches that list:
+  nothing of the committing shell travels with the service's push
+  (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
+  and two runs' commits landed while their pushes were refused for a program their own shell could start).
+  The refusal names the program,
+  every folder of the list it searched,
+  and where that list came from,
+  so a person can tell the manager's list from their own;
+  the way forward it prints for a service push is a push by hand once from a shell that holds the program
+  (`git push`),
+  which searches that shell's own `PATH`,
+  because nothing of the committing shell travels with the service's push.
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,
@@ -19603,6 +19709,181 @@ so a service built before a change to the request would pass the release check.
 Version 8 was the first that carries a changed path's bytes;
 a version 7 service takes the readable spelling of a name that is not text
 and reports a successful commit of another file.
+
+### The start-time ZFS compatibility gate
+
+The root-run handler `mount-git-worktree-clone-datasets` runs one gate before
+its first request to `/dev/zfs`,
+and no raw request is made until it passes.
+The wrapper `monochromatic-git-policy-cli` makes no request in this build and
+runs no gate;
+the step that gives the wrapper a ZFS request route adds that call.
+The gate is this repository's own code except for the type reader:
+`compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
+holds the bounded read,
+the pre-scan,
+the declaration and its adapter over `btf-rs` 2.0.1,
+the expectation table compiled from its own `repr(C)` type,
+the comparison and one refusal value,
+and `src/native/zfs_compatibility_gate/` in this package holds the paths,
+the read order,
+the module's identity,
+the target allowlist,
+the per-process verdict and the words a person reads.
+`btf-rs` 2.0.1 is the reader the project adopted on 2026-11-20 under
+`LGPL-2.1-or-later`
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"The reader adopted:
+`btf-rs` 2.0.1").
+It resolves a named type,
+a chained type,
+a record's members and an enumeration's values;
+the binding multiplies out each array's byte size,
+and the pre-scan stays here because that crate validates no section list.
+That pre-scan reads the header and the section list and no type entry,
+and `btf-rs` 2.0.1 reads a type entry's kind in five bits and its member count
+in sixteen,
+so a kernel that widened either field is misread where the high bits only
+extend a kind,
+and refused only when that reader's own parse fails;
+no kernel on record writes one,
+and the adoption record names the lag as a revisit trigger
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"Exit,
+rollback and revisit triggers").
+
+What it proves,
+in this order:
+
+- The binary runs on a target the managed route is qualified for.
+  `x86_64` is the only entry in `QUALIFIED_TARGETS`,
+  and no guest has qualified another target,
+  so `linux-arm64` refuses before any file is read.
+  BTF records no architecture,
+  so the compiled target is the only evidence there is.
+- `/dev/zfs` exists and this process can open it.
+  A missing or unopenable device refuses at that step and starts no read.
+- The loaded module's identity is read once:
+  `/sys/module/zfs/version`,
+  `srcversion` and the build ID note,
+  each bound to one page and stripped of one trailing newline.
+  The identity is never a rule:
+  no step compares the release string with an approved one.
+- `/sys/kernel/btf/vmlinux` and `/sys/kernel/btf/zfs` are read,
+  each through one open that follows no link and one bound,
+  and each file's magic,
+  byte order,
+  version,
+  flags,
+  header length and section list are checked before any type is decoded.
+  Both header shapes are read:
+  the 24 bytes Linux 6.8 wrote and the 32 bytes a current tool writes.
+- The module's `zfs_cmd` is compared with the declaration this package compiles:
+  the struct's size,
+  every member's bit offset and type size,
+  the anonymous union and the anonymous structure inside it,
+  every member of `dmu_objset_stats` and `zinject_record`,
+  each array's element size,
+  and every request number this package can send with `ZFS_IOC_FIRST` and
+  `ZFS_IOC_LAST`.
+  The walk has a fixed order and stops at the first difference,
+  naming the field path with both values.
+  The two endpoints are part of that contract,
+  so a release that moves `ZFS_IOC_LAST` refuses even though no layout moved,
+  which is what the record's Decision section requires:
+  its expectations list ends with
+  "every request number the binding can send with the range's two endpoints",
+  and any mismatch there refuses.
+  The accepted design states the same in its request contract:
+  "Every request number the binding can send has the value the approved
+  `zfs_ioc` enum gives it,
+  and the range's endpoints match".
+  A release that adds a request inside a reserved number moves no endpoint and
+  no layout,
+  which `zfs-2.3.0` did,
+  so the endpoints catch an append past the last number and not every append.
+- The identity is read again.
+  A module that unloaded or was replaced under the check retries the whole
+  check once,
+  and refuses with "module changed while checking" only when the retry's own
+  two identity reads also differ.
+  A module that carries no release string,
+  `srcversion` or build ID weakens the reload check instead of refusing:
+  the two identity reads then compare the values it does carry with each
+  file's device,
+  inode,
+  size and modification time,
+  and a module carrying none of the three compares no term at all,
+  which `doctor` says.
+  This build's `doctor` reads no gate;
+  step 18 adds its gate read and the sentence naming the absent attribute.
+
+The gate proves no module release.
+The project's answer of 2026-11-19,
+"Any version,
+layout decides",
+leaves the layout comparison and the request numbers to decide,
+so a module reporting `2.2.2-0ubuntu9.5` or `2.4.4-1_g1a2b3c4` reaches the
+comparison,
+and only a difference in the declaration or a number refuses it.
+It cannot prove handler behaviour,
+a property or nvlist key name,
+or a patch that keeps the same layout,
+and "Limits" of
+`doc/planning/cli-git-zfs-runtime-layout-checker-design.md` states each.
+
+A refusal disables every raw request,
+reads included,
+and there is no force flag and no environment variable that turns it into a
+pass.
+A missing device,
+a missing or unreadable file,
+a short read,
+a header or type entry the reader cannot represent,
+any difference and a module that changed under the check all refuse the same
+way:
+
+- The handler does not enter the mode,
+  so that mode opens nothing,
+  makes no request,
+  mounts nothing,
+  unmounts nothing and records nothing,
+  and registrations and durable recovery state stay as they were.
+- The wrapper has no ZFS route and makes no request in this build,
+  so its commands take the same-dataset reflink route or the ordinary Git
+  route as they do today.
+  The step that gives the wrapper a request route adds its gate call and the
+  fallback for an unused slot,
+  which is the ladder's route for a slot nothing is attached to.
+  A clone that is already attached keeps its binding:
+  a refusal never authorizes an unrelated mount or cleanup.
+
+The refusal prints a line naming the failing step,
+the file it read and the detail,
+then states that every raw request,
+reads included,
+stays disabled,
+that registrations and durable recovery state stay as they were,
+and that no flag and no environment turns the refusal into a pass.
+The handler adds a line saying that no mode was entered,
+so that mode opened nothing,
+made no request,
+mounted nothing,
+unmounted nothing and recorded nothing.
+It never offers a bypass.
+A compatible verdict prints one line naming the target,
+the module's release text,
+each file's size and header length,
+and the sentence that says a release text other than the tested `2.4.4-1`
+was read,
+not a different version.
+
+The verdict is remembered per process and compared with the module's identity
+before each reuse,
+so a reload is noticed between two uses in one long process.
+No verdict is written to disk:
+the cross-process cache is the design's open question Q3,
+held until its owed cost measurement runs.
 
 ### Compatibility and degradation
 

@@ -35,6 +35,9 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- arm --name my-gue
 # the step 4 attach arm, on the same guest:
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-pool --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-version-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-change-arm --name my-guest
 ```
 
 - `create` makes the guest with `mvm`,
@@ -517,6 +520,67 @@ destroys the pool,
 removes the fixture root,
 and records what is left,
 and the guest itself is destroyed by the run that made it.
+
+## The step 6 gate arms
+
+The recipe carries step 6's guest arms of the start-time layout comparison
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 6,
+"VM measurements")
+beside the recipe itself:
+
+- `run` sets `MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=compatible`,
+  so its root suite runs the control against the guest's approved module,
+  fails on a `SKIP gate_arm` line,
+  and requires the `MEASUREMENT gate` line.
+- `zfs-gate-arm` runs that same control again on a prepared guest.
+- `zfs-gate-version-arm` patches the built module's release text from
+  `2.4.4-1` to `2.4.4-2` and reloads it,
+  then expects a compatible verdict.
+  The layout and every request number are the approved module's by
+  construction,
+  so this arm shows that no step reads the release string;
+  it is not a second release.
+- `zfs-gate-change-arm` first runs a red arm the approved layout must refuse
+  (it is told to expect `member:dds_flags`),
+  then swaps `zi_iotype` and `zi_duration` in the guest's own
+  `include/sys/zfs_ioctl.h`,
+  rebuilds and installs the module,
+  reboots,
+  reloads it,
+  and expects the exact member refusal naming `zi_iotype` at 2592 bits where
+  2560 was expected.
+  The swap moves no total size and no other offset,
+  which is the design's owed item 16.
+
+Every arm fails on a `SKIP gate_arm` line or a missing `MEASUREMENT gate`
+line,
+so an arm that never ran is never counted as passed.
+The red arm the change arm runs first also has to print the arm's own panic
+naming the module that passed where it should have refused,
+so a refusal for another reason fails it.
+
+Each of the two module-changing arms leaves the guest holding the module it
+made:
+`zfs-gate-change-arm` leaves the rebuilt module with `zi_iotype` and
+`zi_duration` swapped,
+and `zfs-gate-version-arm` leaves the approved module with its release text
+patched to `2.4.4-2` and every pool destroyed.
+Neither puts the approved module back,
+so `zfs-gate-arm`'s control sees a changed module if it follows either,
+and each module-changing arm needs its own guest unless the arm run after it
+rebuilds the module from source.
+`zfs-gate-change-arm` rebuilds it from the guest's own header,
+so it does not depend on the module text `zfs-gate-version-arm` patched:
+the integration pass ran the version arm and then the change arm in one guest
+and both passed,
+and it did not run the change arm before the version arm.
+These arms drive the binding's `check_module_layout` against the guest's two
+type-information files.
+They do not run the product's gate (`zfs_compatibility_gate::check`) or the
+handler binary,
+and they send no request:
+the product half belongs to the step that makes the handler's first request.
 
 ## Teardown evidence
 

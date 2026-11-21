@@ -23,6 +23,9 @@
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
 use crate::index_writer_forward::CoordinatedForward;
+/// The branches a destination reported,
+/// which the upload plan of the same push reads.
+use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
 use crate::worktree_copy_forward::CopyFacts;
 use std::path::PathBuf;
 
@@ -91,6 +94,10 @@ pub struct PushForward {
     /// The configuration entries the upload plan reads,
     /// from the snapshot taken when the invocation was planned.
     pub lfs_settings: Option<Vec<(String, String)>>,
+    /// The branches the destination reported when this invocation discovered the push's updates,
+    /// so the
+    ///  upload plan answers the tracking refs' question without a connection of its own.
+    pub lfs_destination: Option<DestinationHeads>,
     /// Whether a push that fails on a divergence is integrated and pushed again.
     ///  A push that only needs the LFS upload explained keeps its own status.
     pub stack: bool,

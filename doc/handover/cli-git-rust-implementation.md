@@ -41072,6 +41072,91 @@ stated in this entry. What follows from them, as work:
   remedy without a record; cost on a local do-nothing push 1.29 of `main`, about 4.9 ms for two child starts; B10's two
   open cases reproduced with choices for the project; gate 9337 of 9339, the cause-H pair). The extra `ls-remote` is a
   whole connection on a real remote, unmeasured; the pre-push hook's remote-sha lines may give the same evidence free.
+  THE BTF-RS SWAP ended at `30e713aead` (`btf-rs` 2.0.1 through `rust-catalog.toml` and `file-enforcer`, its lock checksum
+  equal to the adopted one in all four lock files; the adapter behind the contract, each duty red against a breaking
+  variant; array sizes in the binding with controls; the stand-in decoder removed; the fourteen real-byte pairs identical
+  before and after; guest arms passing; gate 9361 of 9363, the cause-H pair). GOING, all at once: `pi-clone-rung-conversion
+  -fence-beside-the-clone` (B designed, built, measured against A′, C and `main`, plus the diff check's words and N8;
+  brief under `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/`); step 6's integration pass on
+  Sonnet covering both rounds (brief under `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/`);
+  one integration pass on Sonnet for both LFS branches, asked to price the destination question over SSH and to judge the
+  pre-push hook's remote-sha input as a free alternative (brief under
+  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`). STEP 6'S INTEGRATION PASS (Sonnet) found it not
+  fit by one words-only finding (its folder's `keep/review.md`): M1 three sentences (README, SPEC, the adapter) and the vet
+  report say the pre-scan refuses widened BTF masks; it reads only the header, and `btf-rs` reads kind in 5 bits and
+  member count in 16 (a kind-33 entry now reads as compatible; no kernel uses one); L1 five adapter branches untested; L2
+  an array whose element is itself overflows the stack (as before the swap); gate 9361 of 9363, guest arms green, the
+  fourteen pairs identical. Corrective comment posted on `c1148be2bb`. Whether to add a pre-scan entry check is in
+  `doc/handover/questions-for-the-owner.md` ("should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads?"), to go
+  with the fence's next question. GOING: `pi-zfs-step-6-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/zfs-step-6-integration-findings` (brief under
+  `~/temp/agent/zfs-step-6-integration-findings-fixed-2026-11-20/`), then a diff check and the merge. THE LFS
+  INTEGRATION PASS (Sonnet; its folder's `keep/review.md`): the lows branch fit, MERGED into `main` as `c2881ce698` (48
+  real OpenSSH transcripts, four unknown-key rows changed, no changed or revoked key; one limit to add: `LogLevel=FATAL`
+  prints only the last line for changed and revoked keys too, as on `main`). The upload branch not fit: U1 high, the
+  trust rule all or nothing, so one stale tracking ref rescans everything (2,000 pointers: 71 ms on `main`, 3,734 ms; 1
+  batch request against 21); U2 the destination question is a fourth connection on a typed push (218, 391, 1,003 ms at
+  0, 10, 50 ms latency; 1.30 to 1.35 of `main`) and, by reading, a second on the service's push; a typed push already makes
+  `ls-remote --refs <url>`, which could answer it; the pre-push hook would reverse the recorded no-hook decision; I1 the
+  pair puts `lfs_pre_push.rs` at 307 code lines; smalls. Its fixes are not on `main`. GOING:
+  `pi-git-policy-cli-lfs-upload-plan-integration-findings-fixed` in the coordinator-made worktree
+  `.claude/worktrees/git-policy-cli-lfs-upload-plan-findings` (per-ref trust, the existing query reused, the split; brief
+  under `~/temp/agent/git-policy-cli-lfs-upload-plan-integration-findings-fixed-2026-11-20/`). THE OWNER CHOSE B at
+  2026-11-20T23:27:33-05:00 ("Yeah, do B. But this is an edge case of an edge case so don't spend too much effort on it,
+  and note whatever still isn't completely sane as a limitation."), then: "No need to make it have lower effort. You've
+  already chosen B so be thorough with it. I was just talking about minimal efforts except what we've already chosen."
+  Recorded in the plan's step 10 notes. So the B round keeps its whole brief; a steer told it B is the chosen remedy (not
+  an option to put again) and to add a "Limitations" section; no further alternative is explored. The coordinator's
+  first steer, which cut the round's scope, was refused by the owner and deleted undelivered. STEP 6'S INTEGRATION
+  FINDINGS ROUND ended at `3255e6cb08` (`main` merged as `131bbc2729`): M1 the README, SPEC, adapter doc and vet report
+  (lock records 32 to 34) say what `btf-rs` does with a widened field, no entry check added; L1 five controls, each red
+  with its code removed; L2 one hop budget over aliases and array elements, a fourth contract duty, red as a stack
+  overflow under a capped unit; L3; binding suite 228 of 228; no wrapper source touched. GOING: the integration reviewer's
+  closure check, merging today's `main` (which gained `c2881ce698`) and running the gate once, then the merge. STEP 6'S
+  GATE AND LAYOUT CHECKER MERGED into `main` as `b427ec281e` at 2026-11-20T23:50:53-05:00 (closure check fit; its gate
+  9364 of 9367: the cause-H pair and `process_cpu_counters_guard::a_thread_that_ended_between_the_listing_and_the_read_is_not_a_process_that_ended`,
+  untouched by either branch, filed as issue 6330). The BTF entry-check question stays open in the owner file. GOING:
+  step 6's second part, the start probe, as `pi-zfs-step-6-start-probe` on `feat/git-policy-cli-zfs-start-probe`
+  (built to `doc/decision/cli-git-zfs-start-probe.md` and the accepted design; cap 640; brief under
+  `~/temp/agent/zfs-step-6-start-probe-2026-11-20/`); and issue 6330 as
+  `pi-git-policy-cli-process-cpu-counters-thread-race` (force the order, fix where it lives, record it beside causes G and
+  H; brief under `~/temp/agent/git-policy-cli-process-cpu-counters-thread-race-2026-11-20/`). THE LFS UPLOAD ROUND
+  ended at `12c9022ca5` (`main` merged as `8d95d65fec`): U1 per-ref trust (stale ref: 1 batch request, 1 object, 0.983 of
+  `main`; red on the all-or-nothing build, green on `main` and here); U2 a typed push answers from the discovery's
+  existing `ls-remote --refs`, 3 connections as on `main` at 0, 10 and 50 ms, ratios inside the control's spread, a
+  positive control counting 4 on the old build; I1 split; L1 the `LogLevel=FATAL` limit; D1 to D4; gate 9346 of 9348, the
+  cause-H pair. Left for the owner: the service's bounded push goes from 1 connection to 2 (read from the code; one
+  connection measured 205, 355, 1,017 ms at 0, 10, 50 ms one-way). GOING: the integration reviewer's closure check (merge
+  `main`, rerun the stale-ref control and fixture, count connections, confirm the service path, gate once); then the
+  owner's question on the service push's connection, with the BTF entry-check question. THE CLOSURE CHECK found it fit
+  (stale ref 1.025 of `main`, 1 request, 1 object; a typed push 3 connections on both builds; the service push confirmed
+  1 to 2 from the code, no existing query on that path; gate 9383 of 9385, the cause-H pair; D5 the docs said "the
+  project accepts that cost" before any decision). THE OWNER ANSWERED both questions on 2026-11-21: the background push's
+  extra connection "A: accept the connection (Recommended)"; the BTF widened fields "A: accept, revisit later
+  (Recommended)". THE LFS UPLOAD FIX MERGED into `main` as `50c683047e` at 2026-11-21T03:58:29-05:00; the SPEC and the
+  troubleshooting note now cite the acceptance; the BTF answer is in the layout checker's decision record, section
+  "Widened entry fields, answered 2026-11-21", and the owner file marks it answered. NEXT for LFS: the memory-held push
+  programs carry (task 424), then deleting both old LFS branches. THE START PROBE ROUND ended at `7ccb964f22` (the
+  `start-probe` mode, its nine arms, the record under `/run/git-worktree-clone-mount-probe/result`, the journal line;
+  guest red: the mode absent; guest green: 29 markers; `PROBE_DEADLINE` 350 ms from 31 guest rounds, slowest 231 ms,
+  recorded in `package/git-policy/cli/doc/start-probe-deadline-measurement-2026-11-21.md`; gate 9446 of 9448, the
+  cause-H pair, which the round mistook for new; left for steps 7, 8, 10, 18, 19, 20 as the plan places them; eight
+  narrow readings, three of them questions for the owner: the configuration key spellings, a missing checkout key
+  blocking the route, `hold-mode` in the release executable). GOING: its integration pass on Sonnet, asked to rule on
+  each narrow reading (brief under `~/temp/agent/integration-pass-zfs-step-6-start-probe-2026-11-21/`). B HIT ITS TURN CAP
+  (600) after seven commits through `0fe2cece9e` with the proposal edit uncommitted; resumed from its session as
+  `pi-clone-rung-conversion-fence-beside-the-clone-2` (cap 400). ISSUE 6330'S ROUND HELD ITS WHOLE WALL CLOCK in one call:
+  its traced probe printed after 10 s and never exited (a zombie thread), nothing committed; resumed from its session as
+  `pi-git-policy-cli-process-cpu-counters-thread-race-2` with every probe in a scope bounded by `RuntimeMaxSec`. Task 370
+  (the driver noticing a run stuck in one silent command) is the defect this shows. B'S RESUMED ROUND ended at
+  `a942de110c`: right on every case (guest 18 of 18 conversion controls, 62 of 62 btrfs, the 150-combination sample 300 of
+  300, host classes 26 equal); this repository 0.86 of `main` and 0.199 at 1.02, each not resolved against A′; but at
+  0.644 converting B's decline is 1.67 to 1.75 of `main`, resolved slower than A′ (1.06) and `main` by 1.0 to 2.0 s,
+  because B copies before the fence decides; the fence's reads stay on the add's thread; rung 1 has no B;
+  `worktree_clone.rs` 483 code lines; gate 9407 of 9409, the cause-H pair; B stated as the chosen remedy, with
+  Limitations. GOING: `pi-clone-rung-conversion-fence-b-decides-before-copying` (cap 780): the decline decided from
+  `git check-attr` before the copies as A′ did, rung 1 fenced, the split, correctness and the three fixtures again (brief
+  under `~/temp/agent/clone-rung-conversion-fence-b-decides-before-copying-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

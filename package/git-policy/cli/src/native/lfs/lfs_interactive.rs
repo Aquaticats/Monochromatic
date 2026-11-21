@@ -44,6 +44,9 @@ use crate::lfs_upload::{run_upload_interactive, submodule_notice};
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_after_success_for;
 /// What to upload.
+/// What to upload,
+/// and the destination branches the push's discovery already read.
+use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
 use crate::lfs_upload_plan::{GitQuery, PlanError, Settings, UploadPlan, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
@@ -56,7 +59,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type InteractiveUpload = { prefix: string[]; region: string[]; realGit: string; environment; overlay; settings?: Settings };
+/// type InteractiveUpload = { prefix: string[]; region: string[]; realGit: string; environment; overlay; settings?: Settings; destination?: DestinationHeads };
 /// ```
 pub struct InteractiveUpload<'a> {
     /// The global options before `push`.
@@ -73,6 +76,10 @@ pub struct InteractiveUpload<'a> {
     /// The configuration entries the plan reads,
     /// when the invocation already holds them.
     pub settings: Option<&'a [(String, String)]>,
+    /// The branches the destination reported when this push discovered its updates,
+    /// so the plan asks the
+    ///  destination nothing of its own.
+    pub destination: Option<&'a DestinationHeads>,
 }
 
 /// What:
@@ -149,7 +156,15 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
         None => read_settings(&mut query),
     };
     let planned: Result<Option<UploadPlan>, PlanError> = match read {
-        Ok(settings) => plan_upload(request.prefix, request.region, request.environment, directory.as_path(), settings.as_slice(), &mut query),
+        Ok(settings) => plan_upload(
+            request.prefix,
+            request.region,
+            request.environment,
+            directory.as_path(),
+            settings.as_slice(),
+            request.destination,
+            &mut query,
+        ),
         Err(error) => Err(error),
     };
     match planned {

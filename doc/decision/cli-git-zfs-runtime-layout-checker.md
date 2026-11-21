@@ -299,6 +299,26 @@ its maintenance record falls below what the report rated
 merges lose their second reviewer);
 or the release keeps lagging its own main on the widened masks the report names.
 
+### Widened entry fields, answered 2026-11-21
+
+`btf-rs` 2.0.1 reads an entry's kind in 5 bits and a record's member count in 16,
+and the pre-scan reads only the header,
+so a kernel that widened either field would be read as the narrower one rather than refused;
+step 6's integration pass measured a kind-33 entry read as compatible
+(`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`,
+M1),
+and no kernel on record writes a wider field.
+Asked whether step 6 should also refuse such an entry,
+with a pre-scan check or by waiting for a `btf-rs` release as the other choices,
+the project answered "A:
+accept,
+revisit later (Recommended)" on 2026-11-21.
+So no entry check is added,
+the lag stays a limit,
+and the last revisit trigger in the subsection on exit,
+rollback and revisit triggers covers it,
+with a kernel that writes a wider field added as one.
+
 ## The release string, Q2: "Any version, layout decides"
 
 The answer is "Any version,

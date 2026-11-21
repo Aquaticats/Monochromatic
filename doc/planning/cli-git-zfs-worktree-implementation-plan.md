@@ -1309,6 +1309,20 @@ option B),
 and the question is put again with its numbers;
 step 3,
 the btrfs fix and this step wait on it.
+At 2026-11-20T23:27:33-05:00 the project settled it,
+after an explanation of what the fence does:
+"Yeah,
+do B.
+But this is an edge case of an edge case so don't spend too much effort on it,
+and note whatever still isn't completely sane as a limitation."
+It then made the scope exact:
+"No need to make it have lower effort.
+You've already chosen B so be thorough with it.
+I was just talking about minimal efforts except what we've already chosen."
+So B is the remedy and is built thoroughly,
+its remaining flaws are listed in the proposal's "Limitations" section rather than chased,
+and no further alternative to it is explored;
+the question is not put again.
 
 #### Depends on
 

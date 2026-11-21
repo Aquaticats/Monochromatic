@@ -302,18 +302,16 @@ fn plan_with_real_git(
                 || stripped.layout.outcome != GlobalOutcome::Command
                 || decide_require_root(forwarded.as_slice(), &[])
                     != RequireRootDecision::NeedsRepositoryRoot;
-            return stack_if_push(
-                forward_action(
-                    real_git,
-                    forwarded,
-                    overlay,
-                    stderr,
-                    environment,
-                    copy_bypassed,
-                    &mut checks,
-                ),
+            let action: Action = forward_action(
+                real_git,
+                forwarded,
+                overlay,
+                stderr,
                 environment,
+                copy_bypassed,
+                &mut checks,
             );
+            return stack_if_push(action, environment, checks.push_destination.clone());
         }
         WrappedOutcome::Exit { code, stderr } => {
             return Action::Exit {

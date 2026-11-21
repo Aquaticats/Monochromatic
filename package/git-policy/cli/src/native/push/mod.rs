@@ -262,6 +262,10 @@ pub mod manual_push_probe_error;
 /// learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
 
+/// The probe's Git arguments and the destination locations it confirms,
+/// beside the discovery so that each file passes the package's length limit.
+pub mod manual_push_probe_arguments;
+
 /// Published-set and range computation for manual-push scans:
 /// which pushed commits a remote does not have.
 pub mod manual_push_range;

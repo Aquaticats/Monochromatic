@@ -175,6 +175,11 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     ///  the guard needs its `PATH` to see that Git runs an installed
     ///  external command instead of an alias of that name.
     pub environment: Vec<(OsString, OsString)>,
+    /// The branches the push's destination reported,
+    ///  when this invocation discovered the push's updates;
+    ///  the LFS upload plan answers the tracking refs' question from them,
+    ///  so a typed push opens no connection of its own for it.
+    pub push_destination: Option<crate::lfs_destination_confirms_tracking_refs::DestinationHeads>,
 }
 
 /// What:
@@ -213,6 +218,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
         notices: Vec::new(),
         forwarded: None,
         environment: Vec::new(),
+        push_destination: None,
     };
 }
 
