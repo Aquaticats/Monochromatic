@@ -509,11 +509,14 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 ///  which OpenSSH writes only around a host name,
 ///  an address or a path,
 ///  and Git only around the remote's URL in the line that ends a push its hook refused.
-///  A certificate refusal is no refusal of its own:
+///  A certificate that does not fit is no refusal of its own:
 ///  `fail:` drops the certificate and retries with the plain key (`sshconnect.c` lines 1473 to 1486),
-///  so the words that end the connection are that plain key's,
-///  and a certificate that does not fit the host prints `Certificate invalid: ...` (`sshkey.c`) before them,
-///  which this reading answers as another refusal.
+///  so the words that end the connection are that plain key's.
+///  Two certificate cases still answer as other refusals:
+///  a key a `@revoked` line marks,
+///  whose words OpenSSH prints before `fail:` returns (lines 1287 to 1303),
+///  and `Certificate invalid: ...` (`sshkey.c`),
+///  which a certificate that does not fit the host prints before that last line.
 ///  Each arm's transcript was measured against a throwaway `sshd` with OpenSSH 10.6p2
 ///  and the wrapper's own two variables (`SSH_ASKPASS=false`,
 ///  `SSH_ASKPASS_REQUIRE=force`),
