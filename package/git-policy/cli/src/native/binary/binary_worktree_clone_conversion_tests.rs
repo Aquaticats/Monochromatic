@@ -146,7 +146,7 @@ fn a_crlf_file_added_under_text_auto_eol_lf_is_written_by_git() {
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
         std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
-        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["add", "--", "notes.txt"]);
         git(&fixture, repo, &["update-index", "--refresh"]);
     });
     assert_rung_equals_git(&fixture, repo.as_path(), true);
@@ -178,7 +178,7 @@ fn an_eol_lf_attribute_without_text_is_written_by_git() {
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
         std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
-        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["add", "--", "notes.txt"]);
         git(&fixture, repo, &["update-index", "--refresh"]);
     });
     assert_rung_equals_git(&fixture, repo.as_path(), true);
@@ -212,7 +212,7 @@ fn a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git() {
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
         std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
-        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
+        git(&fixture, repo, &["add", "--", "notes.txt"]);
         git(&fixture, repo, &["update-index", "--refresh"]);
     });
     assert_rung_equals_git(&fixture, repo.as_path(), true);
@@ -232,8 +232,10 @@ fn a_config_rule_gone_after_the_add_is_written_by_git() {
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
         std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
-        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
-        git(&fixture, repo, &["commit", "--quiet", "--message=added"]);
+        git(&fixture, repo, &["add", "--", "notes.txt"]);
+        // The add converted the CRLF file to the blob the base commit holds, so the tree is unchanged and the commit records
+        // the index the add left; without `--allow-empty` native Git refuses it with nothing to commit.
+        git(&fixture, repo, &["commit", "--quiet", "--allow-empty", "--message=added"]);
         git(&fixture, repo, &["config", "--unset", "core.autocrlf"]);
         git(&fixture, repo, &["update-index", "--refresh"]);
     });
@@ -253,8 +255,10 @@ fn a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git() {
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
         std::fs::write(repo.join("notes.txt"), b"line one\r\nline two\r\n").expect("CRLF file");
         super::worktree_snapshot::age(repo.join("notes.txt").as_path());
-        git(&fixture, repo, &["add", "--no-enforce-bulk-add", "--", "notes.txt"]);
-        git(&fixture, repo, &["commit", "--quiet", "--message=added"]);
+        git(&fixture, repo, &["add", "--", "notes.txt"]);
+        // The add converted the CRLF file to the blob the base commit holds, so the tree is unchanged and the commit records
+        // the index the add left; without `--allow-empty` native Git refuses it with nothing to commit.
+        git(&fixture, repo, &["commit", "--quiet", "--allow-empty", "--message=added"]);
         git(&fixture, repo, &["rm", "--quiet", "--", ".gitattributes"]);
         git(&fixture, repo, &["commit", "--quiet", "--message=deleted"]);
         git(&fixture, repo, &["update-index", "--refresh"]);
@@ -283,7 +287,7 @@ fn an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout() {
     std::fs::write(repo.join("edge/.gitattributes"), b"file.txt text eol=lf\n").expect("ignored attributes");
     std::fs::write(repo.join("edge/file.txt"), b"edge line one\r\nedge line two\r\n").expect("CRLF file");
     super::worktree_snapshot::age(repo.join("edge/file.txt").as_path());
-    git(&fixture, repo.as_path(), &["add", "--no-enforce-bulk-add", "--force", "--", "edge/file.txt"]);
+    git(&fixture, repo.as_path(), &["add", "--force", "--", "edge/file.txt"]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=edge"]);
     git(&fixture, repo.as_path(), &["update-index", "--refresh"]);
     assert_rung_equals_git(&fixture, repo.as_path(), false);
