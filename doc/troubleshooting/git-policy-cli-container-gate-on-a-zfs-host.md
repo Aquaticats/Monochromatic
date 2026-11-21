@@ -1015,7 +1015,7 @@ unless a waiting thread spent its one tick between the two reads.
 A sum that under-counts is not pinned,
 so their passing shows no more than that.
 
-## Cause J: a whole gate ended by a SIGTERM another session sent (issue 6334)
+## Cause J: whole gates ended by a SIGTERM no log attributes (issue 6334)
 
 ### The symptom
 
@@ -1037,33 +1037,42 @@ it removes the container it stops with `podman rm --force`,
 and the refusal that reaches the log names the bound it missed
 (`bin/native-gate-container.ts`).
 
-### The cause
+### What is known and what is not
 
-Another session on the same machine,
-in the same hour,
-was running the same gate image.
-It wanted to stop its own containers,
-had nothing to identify them by,
-and matched them by creation time:
-it stopped `trusting_poincare`,
-`gallant_moore` and `affectionate_diffie`,
-and the round that lost those 317 tests listed `gallant_moore` as its own suite container.
+On 2026-11-21 one round reported stopping three gate containers it had matched by creation time
+(`trusting_poincare`,
+`gallant_moore` and
+`affectionate_diffie`).
+Another round,
+running the same gate image in the same hour,
+listed `gallant_moore` as its own gate container,
+and two of its whole gates ended with nextest counting tests as not run due to signal
+(`9160 passed ... 317 not run due to signal`,
+`8880 passed, 598 not run`).
+`podman events` shows `died` and `remove` for each of those containers and no `kill`.
+A `podman stop` also leaves only `died` and `remove`,
+as a probe on 2026-11-21 measured,
+so the events neither show nor exclude one.
+Which session owned `gallant_moore`,
+and whether one round's stop ended another round's gate,
+is not established.
+Neither the gate's deadline (it removes with `podman rm --force --time 0`,
+and a probe container received no SIGTERM from that) nor a unit stop
+(a probe container kept running after its unit was stopped) is known to send this signal.
+
 A gate container of that day carried no `--name` and no `--label`,
 and the gate printed no container ID,
 so the image it ran,
 the command in it and the moment it was created were the only things a session could match it by,
 and none of those says who started it.
-`podman stop` sends SIGTERM to the container's init,
-nextest sees the tests' processes end under it,
-and the count above is what the log keeps:
-the gate ended with its container,
-before Clippy reported at all.
 
 The same shape has a second witness on record.
-The section "A gate that ends with status 137 and no memory kill" is another session removing two
+The section "A gate that ends with status 137 and no memory kill" records another session removing two
 containers it had taken for its own,
-found the same way,
-and its journal lines are the evidence that a container's fate is decided outside the gate.
+found the same way.
+Its journal shows a podman process that was no client of those containers running `container remove`,
+so the stop itself is known there;
+whose gate each container belonged to is what neither record says.
 
 ### How to tell
 
@@ -1091,26 +1100,47 @@ label and ID,
 and the ID file each client wrote them to,
 under `run` (`bin/native-gate-container-identity.ts`,
 `bin/test-native-container.ts`).
-Three records then say whether the signal came from outside:
+These records name which container died and when.
+They show a `kill`,
+or a `rm --force` by another podman process,
+as the ending it was;
+a `podman stop` of a container whose client still runs leaves only `died` and `remove`,
+the same as a normal end,
+so a stop leaves no event of its own and the stopping session's own report is the record that says it happened.
+Since every gate container now carries this run's name and label,
+each record also says whose container it was:
 
 - the stopping session's own report:
   what it stopped,
   and the name or ID its own command printed.
-- `podman events`,
-  watched while a gate runs:
-  `podman events --filter container=gpc-gate-<run id>-suite --format '{{.Time}} {{.Status}} {{.Name}} {{.ID}}'`.
-  Podman keeps no history of events,
-  so this answers only for a stop seen live,
-  and its `died` and `remove` lines carry the moment and the name:
+- `podman events`:
+  `podman events --since <the time the gate started> --stream=false --filter container=gpc-gate-<run id>-suite --format '{{.Time}} {{.Status}} {{.Name}} {{.ID}}'`.
+  This host's podman writes its events to journald,
+  and this reads a container's events after the container is gone,
+  so the question can be answered after the fact.
+  Its `died` and `remove` lines carry the moment,
+  the name and the ID:
   a probe on 2026-11-21 that stopped a container of its own read
   `1795299678 died gpc-events-probe-6334 f553f7a85eda...` and
   `1795299688 remove gpc-events-probe-6334 f553f7a85eda...`.
+  A `podman stop` from outside the client leaves no event of its own;
+  a `podman kill` leaves a `kill`.
 - the user journal,
-  which keeps podman's own lines after the fact:
+  which keeps podman's own lines,
+  labels and all,
+  after the fact:
   `journalctl --user --since '<the minute the gate stopped>' --grep 'gpc-gate-<run id>-suite'`.
-  A `container remove` or `container stop` line printed by a podman process that is not this gate's
-  client is another session's stop,
+  A `container kill` or `container remove` line printed by a podman process that is not this gate's
+  client is another podman command that ended it,
   the way the section "A gate that ends with status 137 and no memory kill" read one.
+  A `podman stop` from outside the client logs nothing of its own:
+  the client logs `died` and `remove`.
+
+The label's run id is the one the gate printed before it built anything,
+and `manifest.json` records the same name,
+label and ID under `run.containers` while the run lasts,
+so a line or event naming `gpc-gate-<run id>-suite` is matched to the run that printed it,
+and a container carrying another run id was never this run's.
 
 The run whose lines those are ended with the two standing cause-H failures and still recorded both containers:
 `Summary [ 835.598s] 9478 tests run: 9476 passed (6 slow), 2 failed, 35 skipped`,
@@ -1136,7 +1166,7 @@ A gate stopped by its own deadline says so in its refusal
 (`podman run was still running after ... ms, the bound it is given`);
 a status 137 with a memory kill names the kernel's own kill,
 as the section named above records;
-and a signal count with neither is this cause.
+and a signal count with neither is a signal whose sender no record here names.
 
 ### The fix
 
@@ -1147,11 +1177,14 @@ named after the random name of the run's evidence directory and never after a cl
 The gate prints the run id before it builds anything,
 prints each container's name and label before that container starts,
 prints its ID from podman's ID file before the container's own output,
-and records all of it in `manifest.json`
+and records all of it in `manifest.json` as each ID is read,
+so a gate killed without unwinding still leaves the names,
+labels and IDs behind
 (`bin/native-gate-container.ts`,
 `bin/test-native-container.ts`).
 A session therefore stops only a container whose printed label is its own run's,
-and the package README says where to read those lines and which two commands stop one's own gate
+and the package README says where to read those lines and which command stops one's own gate
+without naming a container
 (`package/git-policy/cli/README.md`,
 "Development").
 A container carrying another run's label is another session's gate,
