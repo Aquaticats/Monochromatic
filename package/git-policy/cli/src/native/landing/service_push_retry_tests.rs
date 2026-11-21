@@ -1315,6 +1315,7 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
         everything: false,
         submodules: false,
         full_scan: false,
+        confirmed_tracking_refs: Vec::new(),
         objects: None,
         lfs_server: None,
     };

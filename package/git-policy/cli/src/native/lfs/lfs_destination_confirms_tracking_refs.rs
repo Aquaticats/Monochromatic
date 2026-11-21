@@ -1,7 +1,8 @@
 //! What:
 //!  Whether this clone's tracking refs for a remote describe the server a push goes to,
 //! decided from what that server
-//!  itself reports about its branches.
+//!  itself reports about its branches,
+//! ref by ref.
 //! Why:
 //!  `refs/remotes/<remote>/*` are what a fetch wrote down about the URL the remote had when that fetch ran.
 //!  `git remote set-url`,
@@ -15,15 +16,18 @@
 //! (`git ls-remote --heads <remote>`,
 //!  which resolves the URL this push resolves,
 //! rewrites included)
-//! and keeps a tracking ref as evidence only when the
+//! and keeps each tracking ref as evidence only when the
 //!  destination reports the same branch at the same commit.
-//! A branch the destination moved on,
-//! a branch it no longer has,
-//!  a destination that cannot be asked,
-//! a local listing this cannot read:
-//! those refs are then no evidence at all,
-//! and
-//!  the whole pushed history is read instead,
+//! A branch the destination moved on or no longer has is then no evidence,
+//!  and only that ref is dropped:
+//! a clone routinely holds one tracking ref a teammate moved on or a merged branch left behind,
+//!  and one such ref must not make every push read the whole history.
+//! A destination that cannot be asked,
+//! a local listing this cannot read,
+//!  and a clone whose tracking refs the destination confirms none of
+//! leave nothing to stop at,
+//! and the whole
+//!  pushed history is read instead,
 //! which is slower and can leave out nothing the destination might lack.
 //! A
 //!  clone that holds no tracking refs for the remote has nothing to skip,
@@ -127,6 +131,59 @@ fn tracking_refs(listing: &str, remote: &str) -> Option<Vec<TrackingRef>> {
 }
 
 /// What:
+///  The branch heads one destination of this push reported,
+///  and the remote they were read for.
+/// Why:
+///   The manual-push discovery of a typed push already confirms the push's own updates with one
+///  `git ls-remote --refs` against the destination,
+///  in the one connection that read makes;
+/// asking that
+///  question again from the upload plan would add a connection to every typed push.
+///  The remote name is carried so a plan for another remote cannot read these answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DestinationHeads = { remote: string; heads: Map<string, string> };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DestinationHeads {
+    /// The remote name the discovery resolved for this push.
+    remote: String,
+    /// The branch heads by ref name,
+    /// as the destination reported them.
+    heads: HashMap<String, String>,
+}
+
+impl DestinationHeads {
+    /// What:
+    ///  The heads one `ls-remote` listing reports,
+    ///  read for `remote`,
+    ///  or nothing when the listing is not a listing.
+    /// Why:
+    ///   An answer that cannot be read is no evidence,
+    /// so the plan asks its own question instead of trusting it;
+    /// a line without an object name and a ref name is refused for the same reason a
+    ///  tracking ref listing is.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// DestinationHeads.fromListing(remote, listing); // { remote, heads } | undefined
+    /// ```
+    pub fn from_listing(remote: &str, listing: &str) -> Option<DestinationHeads> {
+        return Some(DestinationHeads { remote: remote.to_owned(), heads: destination_heads(listing)? });
+    }
+
+    /// The heads this answer holds for `remote`,
+    /// or nothing when it was read for another remote.
+    pub(crate) fn heads_for(&self, remote: &str) -> Option<HashMap<String, String>> {
+        if self.remote != remote {
+            return None;
+        }
+        return Some(self.heads.clone());
+    }
+}
+
+/// What:
 ///  The branch heads a destination reported,
 /// by ref name,
 /// or nothing when a line is not one.
@@ -154,7 +211,87 @@ fn destination_heads(reported: &str) -> Option<HashMap<String, String>> {
 }
 
 /// What:
-///  Whether the destination reports every tracking ref at the commit this clone holds.
+///  What the destination's answer confirmed about this clone's tracking refs,
+///  and whether it confirmed every one.
+/// Why:
+///   A confirmed ref is the only place an upload may stop:
+///  the destination reported that very commit,
+/// so it holds that commit and everything behind it,
+///  while an unconfirmed ref says nothing about the server this push goes to and is dropped
+///  instead of dropping every ref with it.
+///  Whether every ref is confirmed decides the form `git-lfs` scans in,
+/// because its own skip list matches a
+///  cached ref by branch name alone (`calcSkippedRefs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ConfirmedTrackingRefs = { confirmed: string[]; every: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConfirmedTrackingRefs {
+    /// The full names of the tracking refs the destination reports at the commit held here.
+    confirmed: Vec<String>,
+    /// Whether the destination confirmed every tracking ref this clone holds for the remote.
+    every: bool,
+}
+
+impl ConfirmedTrackingRefs {
+    /// What:
+    ///  Nothing is confirmed,
+    ///  which is what a caller holds before it asks,
+    ///  and what it keeps when it cannot ask.
+    /// Why:
+    ///   A destination that was not asked leaves no place to stop at,
+    /// so the upload reads the whole pushed
+    ///  history rather than trusting a ref the server was never asked about;
+    /// a caller that holds the destination's answer of
+    ///  this push builds the value from it instead.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ConfirmedTrackingRefs.unknown(); // { confirmed: [], every: false }
+    /// ```
+    pub fn unknown() -> ConfirmedTrackingRefs {
+        return unconfirmed(false);
+    }
+
+    /// The refs an upload may stop at,
+    /// in the order the local listing held them.
+    pub(crate) fn names(&self) -> &[String] {
+        return self.confirmed.as_slice();
+    }
+
+    /// Whether the destination confirmed every tracking ref,
+    /// so `git-lfs` may scan without `--all`.
+    pub(crate) fn every_tracking_ref_is_confirmed(&self) -> bool {
+        return self.every;
+    }
+}
+
+/// What:
+///  No evidence at all:
+///  the destination could not be asked,
+///  or its answer could not be read,
+///  or the clone holds no tracking ref
+///  that could be confirmed.
+/// Why:
+///   A destination nobody could ask leaves nothing to stop at,
+/// so the upload reads the whole pushed
+///  history;
+/// a clone with no tracking refs has nothing to skip either,
+/// and `git-lfs` scans the refs itself,
+///  so its bounded form is the right one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unconfirmed = (every: boolean): ConfirmedTrackingRefs => ({ confirmed: [], every });
+/// ```
+fn unconfirmed(every: bool) -> ConfirmedTrackingRefs {
+    return ConfirmedTrackingRefs { confirmed: Vec::new(), every };
+}
+
+/// What:
+///  The tracking refs the destination reports at the commit this clone holds.
 /// Why:
 ///   Equality is the one check that needs nothing from the clone but the ref itself:
 /// a destination that
@@ -164,16 +301,18 @@ fn destination_heads(reported: &str) -> Option<HashMap<String, String>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// tracked.every(({ branch, oid }) => heads.get(`refs/heads/${branch}`) === oid);
+/// const confirmed = tracked.filter(({ branch, oid }) => heads.get(`refs/heads/${branch}`) === oid);
 /// ```
-fn every_tracking_ref_is_reported(tracked: &[TrackingRef], heads: &HashMap<String, String>) -> bool {
+fn confirmed_tracking_refs(tracked: &[TrackingRef], heads: &HashMap<String, String>, remote: &str) -> Vec<String> {
+    let mut confirmed: Vec<String> = Vec::new();
     for tracked_ref in tracked {
         let wanted: String = format!("refs/heads/{}", tracked_ref.branch);
         if heads.get(wanted.as_str()) != Some(&tracked_ref.oid) {
-            return false;
+            continue;
         }
+        confirmed.push(format!("refs/remotes/{remote}/{}", tracked_ref.branch));
     }
-    return true;
+    return confirmed;
 }
 
 /// What:
@@ -186,37 +325,39 @@ fn every_tracking_ref_is_reported(tracked: &[TrackingRef], heads: &HashMap<Strin
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function evidenceHolds(tracked, heads, remote): boolean;
+/// function evidenceHolds(tracked, heads, remote): ConfirmedTrackingRefs;
 /// ```
-fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>>, remote: &str) -> bool {
+fn evidence_holds(tracked: &[TrackingRef], heads: Option<HashMap<String, String>>, remote: &str) -> ConfirmedTrackingRefs {
     if tracked.is_empty() {
-        return true;
+        return unconfirmed(true);
     }
     let Some(reported) = heads else {
         debug(
             TAG,
             &format!("the destination of {remote} did not report its branches, so the whole pushed history is read"),
         );
-        return false;
+        return unconfirmed(false);
     };
-    if every_tracking_ref_is_reported(tracked, &reported) {
+    let confirmed: Vec<String> = confirmed_tracking_refs(tracked, &reported, remote);
+    if confirmed.len() == tracked.len() {
         debug(
             TAG,
             &format!(
-                "the destination of {remote} reports every one of this clone's {} tracking refs, so the upload stops where they reach",
+                "the destination of {remote} reports every one of this clone's {} tracking refs, so the upload stops where they reach and git-lfs scans without --all",
                 tracked.len()
             ),
         );
-        return true;
+        return ConfirmedTrackingRefs { confirmed, every: true };
     }
     debug(
         TAG,
         &format!(
-            "the destination of {remote} does not report this clone's {} tracking refs at the commits held here, so the whole pushed history is read",
+            "the destination of {remote} reports {} of this clone's {} tracking refs at the commits held here, so the upload stops only where those reach and the whole pushed history is scanned otherwise",
+            confirmed.len(),
             tracked.len()
         ),
     );
-    return false;
+    return ConfirmedTrackingRefs { confirmed, every: false };
 }
 
 /// What:
@@ -323,27 +464,33 @@ async fn read_destination_heads_awaiting(remote: &str, query: QueryAwaiting<'_>)
 }
 
 /// What:
-///  Whether this clone's tracking refs for `remote` are evidence about the server this push goes to.
+///  Which of this clone's tracking refs for `remote` the destination itself confirms,
+///  and whether it confirms every one.
 /// Why:
-///   False means the destination does not confirm them,
-/// so the upload must read the whole pushed history and
-///  send what is not already there;
-/// asking costs one local listing and one round trip to the destination,
-/// and none
-///  at all when the clone holds no tracking refs.
+///   The confirmed refs are the only places the upload may stop,
+/// so an upload keeps every ref the destination
+///  reports and drops only the others;
+/// an empty answer leaves nothing to stop at and the whole pushed history is
+///  read;
+/// asking costs one local listing and one connection to the destination,
+/// and none at all when the
+///  clone holds no tracking refs or the caller already holds the destination's branches.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function trackingRefsDescribeDestination(remote: string, query: GitQuery): boolean;
+/// function trackingRefsConfirmedBy(remote: string, known: DestinationHeads | undefined, query: GitQuery): ConfirmedTrackingRefs;
 /// ```
-pub(crate) fn tracking_refs_describe_destination(remote: &str, query: Query<'_>) -> bool {
+pub fn tracking_refs_confirmed_by(remote: &str, known: Option<&DestinationHeads>, query: Query<'_>) -> ConfirmedTrackingRefs {
     let Some(tracked) = read_tracking_refs(remote, query) else {
-        return false;
+        return unconfirmed(false);
     };
     if tracked.is_empty() {
-        return true;
+        return unconfirmed(true);
     }
-    let heads: Option<HashMap<String, String>> = read_destination_heads(remote, query);
+    let heads: Option<HashMap<String, String>> = match known.and_then(|carried| { return carried.heads_for(remote); }) {
+        Some(answered) => Some(answered),
+        None => read_destination_heads(remote, query),
+    };
     return evidence_holds(tracked.as_slice(), heads, remote);
 }
 
@@ -351,14 +498,17 @@ pub(crate) fn tracking_refs_describe_destination(remote: &str, query: Query<'_>)
 /// awaited by a caller that is itself a task of the runtime,
 /// with the answers and the decision of the
 ///  synchronous face.
-pub(crate) async fn tracking_refs_describe_destination_awaiting(remote: &str, query: QueryAwaiting<'_>) -> bool {
+pub async fn tracking_refs_confirmed_by_awaiting(remote: &str, known: Option<&DestinationHeads>, query: QueryAwaiting<'_>) -> ConfirmedTrackingRefs {
     let Some(tracked) = read_tracking_refs_awaiting(remote, query).await else {
-        return false;
+        return unconfirmed(false);
     };
     if tracked.is_empty() {
-        return true;
+        return unconfirmed(true);
     }
-    let heads: Option<HashMap<String, String>> = read_destination_heads_awaiting(remote, query).await;
+    let heads: Option<HashMap<String, String>> = match known.and_then(|carried| { return carried.heads_for(remote); }) {
+        Some(answered) => Some(answered),
+        None => read_destination_heads_awaiting(remote, query).await,
+    };
     return evidence_holds(tracked.as_slice(), heads, remote);
 }
 

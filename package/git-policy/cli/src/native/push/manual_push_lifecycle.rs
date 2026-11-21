@@ -22,7 +22,10 @@ use crate::auto_push_single_flight::PushGit;
 use crate::candidate_object::parse_object_id;
 use crate::candidate_prediction::PushedScope;
 use crate::manual_push_cause::ManualPushCause;
-use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
+use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_and_destination};
+/// The branches a destination reported,
+/// which the upload plan of the same push reads.
+use crate::lfs_destination_confirms_tracking_refs::DestinationHeads;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
 use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
@@ -280,20 +283,37 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const updates = await probeManualPushUpdates({ gitPath, cwd, args });
-/// const scopes = await manualPushScopes(updates);
+/// const updates = await probeManualPushAndDestination({ gitPath, cwd, args });
+/// const scopes = await manualPushScopes(updates.updates);
 /// ```
 pub fn manual_push_scope(
     git: &PushGit,
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<PushedScope, ManualPushFailure> {
-    let updates = match probe_manual_push_updates(git, global_prefix, post_subcommand) {
+    return manual_push_scope_with_destination(git, global_prefix, post_subcommand).map(|(scope, _destination)| { return scope; });
+}
+
+/// What:
+///  The scope of one push and the destination's branches,
+///  from the one discovery that read both.
+/// Why:
+///   The LFS upload plan of the same invocation reads the branches,
+/// and asking for them again would
+///  open a second connection to the destination;
+/// the scope reads the updates of the same discovery.
+///
+pub fn manual_push_scope_with_destination(
+    git: &PushGit,
+    global_prefix: &[OsString],
+    post_subcommand: &[OsString],
+) -> Result<(PushedScope, Option<DestinationHeads>), ManualPushFailure> {
+    let probed = match probe_manual_push_and_destination(git, global_prefix, post_subcommand) {
         Ok(found) => found,
         Err(error) => return Err(from_probe(&error)),
     };
-    let scopes = scopes_of_updates(git, &updates)?;
-    return pushed_scope(&scopes);
+    let scopes = scopes_of_updates(git, &probed.updates)?;
+    return Ok((pushed_scope(&scopes)?, probed.destination));
 }
 
 /// The lifecycle's scope is controlled in the test module.

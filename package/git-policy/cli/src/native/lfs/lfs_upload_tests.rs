@@ -19,6 +19,7 @@ fn plan() -> UploadPlan {
         everything: false,
         submodules: false,
         full_scan: false,
+        confirmed_tracking_refs: Vec::new(),
         objects: None,
         lfs_server: None,
     };
@@ -712,6 +713,7 @@ fn credentialed_plan() -> UploadPlan {
         everything: true,
         submodules: false,
         full_scan: true,
+        confirmed_tracking_refs: Vec::new(),
         objects: None,
         lfs_server: None,
     };
