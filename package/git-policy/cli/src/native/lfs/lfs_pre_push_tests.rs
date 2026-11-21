@@ -389,11 +389,55 @@ const A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE: &str =
 /// alone with the same last line.
 const A_CERTIFICATE_THAT_DOES_NOT_FIT: &str = "Certificate invalid: name is not a listed principal\nHost key verification failed.\n";
 
-/// OpenSSH's words for a host key that differs from the key known for the host's IP address
-/// (`sshconnect.c` at `V_10_6_P2` lines 1425 to 1452),
-/// taken from the source:
-/// an arm that asked for the check was allowed the connection instead.
-const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS: &str = "Warning: the ED25519 host key for 'localhost' differs from the key for the IP address '127.0.0.1'\nOffending key for IP in /home/someone/.ssh/known_hosts:2\nHost key verification failed.\n";
+/// The words for a host key that differs from the one this machine knows for the host's IP address,
+/// while the account asks for strict checking,
+/// measured against a throwaway `sshd` on a private address inside a container,
+/// with OpenSSH 10.6p2 and the wrapper's two variables:
+/// an arm on `127.0.0.1` was allowed the connection instead,
+/// because OpenSSH turns this check off for a loopback address
+/// (`sshconnect.c` at `V_10_6_P2` lines 1043 to 1045).
+const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_STRICT_CHECKING: &str = "Warning: the ED25519 host key for \
+'[container.invalid]:22022' differs from the key for the IP address '192.168.253.119:22022'\n\
+Offending key for IP in /home/someone/.ssh/known_hosts:2\n\
+Matching host key in /home/someone/.ssh/known_hosts:1\n\
+Exiting, you have requested strict checking.\n\
+Host key verification failed.\n";
+
+/// The same refusal under the account's default `ask`,
+/// measured the same way:
+/// OpenSSH writes the warning into `confirm`'s question (`sshconnect.c` lines 1429 to 1447),
+/// the askpass program gets the question,
+/// and standard error holds the last line alone,
+/// which is an unknown key's transcript exactly.
+const A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_ASK: &str = "Host key verification failed.\n";
+
+/// OpenSSH's own words for a host key this machine does not know while the account asks for debug output
+/// (`LogLevel=DEBUG`),
+/// measured against the same throwaway `sshd` with 10.6p2 and the wrapper's two variables:
+/// two `debug1:` lines name the host key,
+/// and the refusal's own words are still the last line alone.
+const AN_UNKNOWN_HOST_KEY_WHILE_DEBUG_LINES_ARE_PRINTED: &str = "debug1: Authenticating to 127.0.0.1:PORT as 'user'\n\
+debug1: kex: host key algorithm: ssh-ed25519\n\
+debug1: Server host key: ssh-ed25519 SHA256:fmPLxcCMNbngQZqUl8uaZr+QD8f5lNeq/d8B3g3dRAM\n\
+debug1: read_passphrase: requested to askpass\n\
+Host key verification failed.\n";
+
+/// The words of a push whose pre-push hook was refused for an unknown host key,
+/// where the remote's URL names a certificate:
+/// Git ends a push its hook refused with `failed to push some refs to '<url>'`,
+/// and the URL is the only place the word sits.
+const A_PUSH_REFUSED_FOR_AN_UNKNOWN_KEY_WHOSE_REMOTE_NAMES_A_CERTIFICATE: &str = "\
+Host key verification failed.\n\
+fatal: Could not read from remote repository.\n\
+error: failed to push some refs to 'git@github.com:acme/certificate-manager.git'\n";
+
+/// The same push in the spelling a German Git prints:
+/// the planning record of 2026-11-19 measured that Git translates this line
+/// (`doc/planning/cli-git-no-self-invocation.md`),
+/// so a rule that skipped Git's English words would miss this one,
+/// and Git 2.56.0 translates the prefix with the sentence (`usage.c` and `po/de.po`).
+const THE_SAME_PUSH_IN_THE_SPELLING_A_GERMAN_GIT_PRINTS: &str = "Host key verification failed.\n\
+Fehler: Fehler beim Versenden einiger Referenzen nach 'git@github.com:acme/certificate-manager.git'\n";
 
 /// A connection that needed no host-key decision at all,
 /// because the key it was given was already known.
@@ -415,7 +459,7 @@ fn each_other_refusals_sentence_alone_is_no_unknown_key() {
         A_REVOKED_HOST_KEYS_BANNER_ALONE,
         A_REVOKED_HOST_KEYS_MARKED_LINE_ALONE,
         A_CERTIFICATE_THAT_DOES_NOT_FIT,
-        A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS,
+        A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_STRICT_CHECKING,
     ] {
         assert!(!reads_as_unknown_host_key(text), "{text}");
     }
@@ -430,6 +474,62 @@ fn each_other_refusals_sentence_alone_is_no_unknown_key() {
 #[test]
 fn a_transcript_without_the_last_line_is_no_unknown_key() {
     assert!(!reads_as_unknown_host_key(A_CONNECTION_THAT_NEEDED_NO_HOST_KEY_DECISION));
+}
+
+/// What:
+///  The one refusal this reading cannot tell from an unknown key is read as an unknown key,
+///  and the same refusal under strict checking is not.
+/// Why:
+///   With `CheckHostIP=yes` and a key this machine knows for the host beside a different one for its address,
+///  OpenSSH writes the warning into `confirm`'s question,
+///  so under `ask` standard error holds the last line alone and the transcript is an unknown key's exactly;
+///  the sentence's way to add the key is then wrong for it and its way to connect once is right,
+///  because the question a plain `ssh` asks is OpenSSH's own about the address.
+///  This control holds that transcript to the limit the reading's doc states.
+#[test]
+fn a_host_key_that_differs_for_the_ip_address_is_read_by_whether_its_warning_was_printed() {
+    assert!(
+        reads_as_unknown_host_key(A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_ASK),
+        "under ask the warning goes to the askpass program, so the transcript is an unknown key's"
+    );
+    assert!(
+        !reads_as_unknown_host_key(A_HOST_KEY_THAT_DIFFERS_FOR_THE_IP_ADDRESS_UNDER_STRICT_CHECKING),
+        "under strict checking OpenSSH prints the warning, so the refusal is told by its own words"
+    );
+}
+
+/// What:
+///  An unknown host key is read while the account asks OpenSSH for debug output.
+/// Why:
+///   `LogLevel=DEBUG` puts OpenSSH's own `debug1:` lines in the transcript,
+///  and two of them name the host key;
+///  no refusal is printed at a debug level,
+///  so the refusal's own words are still the last line and the person still needs the sentence.
+#[test]
+fn an_unknown_host_key_reads_while_openssh_prints_its_debug_lines() {
+    assert!(
+        reads_as_unknown_host_key(AN_UNKNOWN_HOST_KEY_WHILE_DEBUG_LINES_ARE_PRINTED),
+        "the debug lines are OpenSSH's own output and not a refusal's words"
+    );
+}
+
+/// What:
+///  An unknown host key is read while the remote's URL names a certificate,
+///  in Git's own English spelling and in the German one this repository has measured.
+/// Why:
+///   Git ends every push a pre-push hook refused with `failed to push some refs to '<url>'`
+///  (`doc/planning/cli-git-no-self-invocation.md`),
+///  so a remote named for a certificate puts the word in the push's words;
+///  the word is the URL's and not a refusal's,
+///  and the push still needs the sentence and the promise.
+#[test]
+fn a_push_refused_for_an_unknown_host_key_reads_while_the_remote_url_names_a_certificate() {
+    for text in [
+        A_PUSH_REFUSED_FOR_AN_UNKNOWN_KEY_WHOSE_REMOTE_NAMES_A_CERTIFICATE,
+        THE_SAME_PUSH_IN_THE_SPELLING_A_GERMAN_GIT_PRINTS,
+    ] {
+        assert!(reads_as_unknown_host_key(text), "the word belongs to the remote's name: {text}");
+    }
 }
 
 //endregion
