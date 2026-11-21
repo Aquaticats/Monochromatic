@@ -333,12 +333,14 @@ pub fn record_made_of_the_stage(source: &SnapshotSource, stage: &Path, made: Opt
 /// which is what that bound pays for.
 /// The index is installed before the source's `.git` goes,
 /// so a copy the source changed under can still read the index it carries.
+/// The paths the conversion fence leaves to Git are installed without stat data (`written`),
+/// so the index this step publishes cannot vouch for a path whose bytes are not Git's checkout's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await takeSnapshot({ source, plan, stage, admin, pointer, environment, service });
+/// await takeSnapshot({ source, plan, stage, admin, pointer, environment, written });
 /// ```
-pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8], environment: &ConversionEnvironment) -> Result<Snapshotted, SnapshotFailure> {
+pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8], environment: &ConversionEnvironment, written: &std::collections::HashSet<Vec<u8>>) -> Result<Snapshotted, SnapshotFailure> {
     // The record comes first, and names the container, the instant, and the source and transaction the snapshot below must
     // follow, while it holds no object yet: the identity of an object cannot be read before it exists, and a kill between
     // the creation below and the record of the identity left a whole snapshot nothing could prove the wrapper made
@@ -381,7 +383,7 @@ pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admi
     end_step(remove_stubs_entered);
     failing(remove_stubs_outcome, made)?;
     let install_index_entered: bool = begin_step("installIndex");
-    let install_index_outcome = install_index(source, stage, admin, own_index.as_deref(), environment, proven);
+    let install_index_outcome = install_index(source, stage, admin, own_index.as_deref(), environment, proven, written);
     end_step(install_index_entered);
     let state: CopyState = failing(install_index_outcome, made)?;
     let replace_pointer_entered: bool = begin_step("replacePointer");

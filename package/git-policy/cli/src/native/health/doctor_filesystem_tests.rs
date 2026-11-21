@@ -196,6 +196,30 @@ fn another_filesystem_gets_one_line() {
     assert!(text.contains("no faster method applies") && text.contains("XFS made with reflink"), "{text}");
 }
 
+/// What:
+///  ZFS:
+/// the detection,
+/// that one dataset shares blocks,
+/// and which slots get a reflink and which get Git's own checkout.
+/// Why:
+///   "No faster method applies" is true of btrfs,
+/// overlayfs and XFS and false of ZFS,
+/// so a ZFS checkout must not be told it
+///  is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(renderSection(zfsFacts)).toContain('is on a ZFS dataset');
+/// ```
+#[test]
+fn zfs_is_described_with_what_works_and_what_does_not() {
+    let text: String = render_section(&facts(FilesystemKind::Zfs, false, Some(false)));
+    assert_shape(text.as_str());
+    assert!(text.contains("is on a ZFS dataset") && text.contains("clones there"), "{text}");
+    assert!(text.contains("same dataset") && text.contains("mounted ZFS clone"), "{text}");
+    assert!(!text.contains("no faster method applies") && !text.contains("migrate-to-subvolume"), "{text}");
+}
+
 /// The value of a `rootflags=` word is everything after the first `=`,
 /// for every word,
 /// and other words are ignored.

@@ -41249,7 +41249,175 @@ stated in this entry. What follows from them, as work:
   limit) and two low notes in the deadline document (the 75 ms cold arm ran on a shared host, not under a gate; the
   "231 milliseconds" comparison sets a difference against a whole round). The fuzz sidecar type check of
   `package/git-policy/cli.fuzz` passes on `main` (clippy `-D warnings` exit 0; cargo reused cached results from outside the
-  sidecar's own `target/`, valid because a path dependency is rechecked when its sources change).
+  sidecar's own `target/`, valid because a path dependency is rechecked when its sources change). GOING: ZFS step 7 (the
+  intent property, the receipts, the readiness record, the per-slot root claim, the wrapper's side) as
+  `pi-zfs-step-7-intent-receipts-readiness` on `feat/git-policy-cli-zfs-mount-intent-receipts-readiness` (its
+  dependencies, steps 1, 2, 5 and 6, are all on `main`; the mount-request deadline provisional until step 22 sizes it;
+  brief under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/`). ISSUE 6330'S INTEGRATION LOWS: F1 to F7
+  (docs and test comments claiming more than the control shows, kernel lines without a version, `detach_pid` not
+  `proc_flush_pid`, evidence under deleted scratch, `RELEASE_PATIENCE`'s basis, nits) go to
+  `pi-git-policy-cli-process-cpu-counters-review-lows` (brief under
+  `~/temp/agent/git-policy-cli-process-cpu-counters-review-lows-2026-11-21/`); F8 (the live-thread sum can go down when a
+  thread ends, under a `u64` subtraction) filed as issue 6333; `5b9381875f`'s overclaiming message has a corrective commit
+  comment. Issue 6310 closed: its reproduce command passes on `main` (cause of recovery not traced). ISSUE 6327 (the
+  identity store's adoption rewrite has no size check) goes to `pi-git-policy-cli-slot-identity-store-rewrite-size-check`
+  (brief under `~/temp/agent/git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/`). HELD: the
+  `worktree_remove_hand_over.rs` max-lines split waits until the fence and push programs branches merge, because both
+  touch that file and a split now would conflict with each. STEP 3 WITH THE FENCE'S CLOSURE CHECK (Sonnet) said fit at
+  `697ceec31f` (H1, M1, M2, lows closed; the kill reproduction red on the first tip, green on the closure tip;
+  block-cloning off declining with no proof in the guest; gate 9567 of 9569, the cause-H pair) and ruled the `m05`
+  leftover acceptable. NOT MERGED: the leftover is every source path the target tree lacks (41 files in its run), where
+  `main` leaves none and on ZFS is byte-right, so it misses the merge bar, which no waiver covers. New lows: N1 `SPEC.md`
+  says `attr.tree`/`GIT_ATTR_SOURCE` refuse the rung but the code served `attr.tree` (not yet a disagreeing fixture); N2 the
+  Limitations understates the leftover; N3 `index.pending` and its lock stay after the finish. GOING:
+  `pi-zfs-step-3-fence-leftover-and-attribute-source-fixed` in `.claude/worktrees/zfs-step-3-fence-leftover-fix` (main's
+  `m05` first, the leftover red first on rungs 1 and 2, the pending-index fallback with kill and refresh controls, N1 with a
+  disagreeing fixture, N2, N3; brief under `~/temp/agent/zfs-step-3-fence-leftover-and-attribute-source-fixed-2026-11-21/`).
+  THE PUSH PROGRAMS' SECOND CLOSURE CHECK said fit at `815a161f8b` (every item closed; the race a stated limit, issue
+  6332). NOT MERGED: `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`
+  failed in two of this branch's gates (the reviewer's and the author's 13:55) with a text neither troubleshooting note
+  records ("other: the new commit, not the earlier one, reached the origin"; the `other` push `retrying` with an empty
+  `cause:`; two service instances 7 ms apart and a lost lease), and in no gate today on `main` or other branches. GOING:
+  `pi-git-policy-cli-lfs-push-programs-two-worktree-push-retry` in
+  `.claude/worktrees/git-policy-cli-lfs-push-programs-two-worktree-push` (forced reproduction on the branch and on `main`,
+  fix red first or an issue, the empty cause named, two lows; brief under
+  `~/temp/agent/git-policy-cli-lfs-push-programs-two-worktree-push-retry-2026-11-21/`). ISSUE 6330'S LOWS ROUND ended at
+  `b61b528b1b` on `docs/git-policy-cli-process-cpu-counters-review-lows` (F1 to F7 fixed in comments and cause I; kernel
+  lines versioned at v6.12 and v7.3; the probe committed as
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host-probe.rs` after the slint precedent; module test 1 of 1
+  in the gate image; no assertion changed). GOING: a narrow integration check on Sonnet (review to
+  `~/temp/agent/integration-check-git-policy-cli-process-cpu-counters-review-lows-2026-11-21/keep/review.md`). It said
+  fit (F1 to F7 closed, every v6.12 and v7.3 line exact against fresh sources, comments only in the crate); its N1, three
+  line-break findings the round added (the test file was clean on `main`), was fixed by the coordinator on the integration
+  branch (lint after: test file 0, doc 580 as on `main`). MERGED as `1a53a03178` at 2026-11-21T15:33:17-05:00; issue 6330
+  closed. Its N2 and N3 (the probe header's unsoftened claims and x86-64 syscall numbers; v7.3 ranges not like-for-like)
+  are nits left in that review. HOUSEKEEPING: the old `integrate/git-policy-cli-lfs-and-gate-base-image-data` worktree
+  removed (both branches it merged are on `main`; its only own commits were its two merges). ISSUE 6327'S ROUND ended at
+  `77668d466b` on `fix/git-policy-cli-slot-identity-store-rewrite-size-check`: one shared size check
+  (`check_the_store_fits_one_read`) for the append and the adoption's rewrite, refusing before anything is written; the
+  refusal control red in the gate image (the rewrite grew the store 399 bytes past the bound) then green, and a rewrite
+  landing exactly on the bound reads back; SPEC and the lock-hold document updated (adoption hold 44.146 to 46.676 ms, the
+  wait's basis unchanged); gate 9476 of 9478, the cause-H pair. To judge: its refusal sentence sends a user of the released
+  binary to "the owner's open question (`doc/handover/questions-for-the-owner.md`)". GOING: its integration pass on Sonnet
+  (review to `~/temp/agent/integration-pass-git-policy-cli-slot-identity-store-rewrite-size-check-2026-11-21/keep/`). It
+  said fit (both writers checked before any write; the refusal control red without the check; gate 9476 of 9478) with F1
+  medium (the refusal sends a user of the released binary to a handover file and "the owner", and the open question it
+  names is about the format, not growth), F2 and F3 low. MERGED as `93f7a33a67` at 2026-11-21T16:22:29-05:00 (closes issue
+  6327). THE OWNER ANSWERED the store format question at 2026-11-21T16:24:40-05:00: "B: folder, one file per slot"
+  (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`; moved to Answered in the owner file). So the
+  wording round for F1 to F3 was stopped before any commit and its worktree and branch removed (the single file, its size
+  refusal and the lock-hold document are what B replaces); step 7 was steered to add no dependency on the single-file
+  format and to list where it touches the store. GOING: the design of B as `pi-zfs-slot-identity-store-per-slot-files-design`
+  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md` on
+  `docs/planning-cli-git-zfs-slot-identity-store-per-slot-files`; brief under
+  `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/`); then a gate review on Sonnet, the design to the
+  owner, and a build before step 8. The design round ended at `f18f98086c` (1387 lines): `.parent` plus one file named by
+  the slot in a root `0755` folder held by descriptor; publication by an `O_TMPFILE` and one `linkat` (fallback an
+  `O_EXCL` staging name and `RENAME_NOREPLACE`); the parent replaced by one rename; an attach reads two files; the adoption
+  lists twice; per-file bound 1 MiB on the `XATTR_SIZE_MAX` basis; the lock, `STORE_LOCK_WAIT` and the whole-store check go;
+  eight choices ranked, none taken. Probe on this host's `home` dataset as the account (root arms owed). GOING: its gate
+  review on Sonnet (to `~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`).
+  ZFS STEP 7'S ROUND ended at `43e618033f` (397 turns): the intent grammar (43-byte bound before parsing, local source
+  only), the sweep nonce as a nudge, receipts under `/run/git-worktree-clone-mount-results` named by GUID, the readiness
+  record at `/run/git-worktree-clone-mount-readiness/result` with `admit_attach`, a per-slot root claim by `flock` on
+  `<slot>.claim`, the wrapper's intent writer and receipt wait, `PROVISIONAL_MOUNT_REQUEST_DEADLINE` 30 s marked
+  provisional, the SPEC section; the store untouched (the slot-name rule moved to a neutral `slot_name.rs`); intent and
+  stale-result controls red then green; gate 9559 of 9561, the cause-H pair. NOT DONE: the guest arms and VM measurement
+  (it read "one guest at a time" as machine-wide while another session's guest ran; the rule bounds a round's own guests),
+  the nudge and readiness reds, and the ZFS binding's `lint:types:crate` died twice in the linker (signal 6). Its narrow
+  choices and questions (readiness by pool name and checkout path only; the sweep state gating nothing; the claim's
+  path, mode, `flock` and refuse-not-wait; receipt outcomes; the wait's synchronous read; readiness writers' ordering)
+  go to its integration pass. GOING: the same session resumed as `pi-zfs-step-7-intent-receipts-readiness-2` (guest arms
+  and measurement in its own guest, the two reds, the claim's lock against rule `NLK` and the store decision, the linker
+  cause; continuation under `~/temp/agent/zfs-step-7-intent-receipts-readiness-2026-11-21/continuation-1.md`). THE
+  PER-SLOT STORE DESIGN'S GATE REVIEW (Sonnet; that folder's `keep/review.md`) said not ready: H1 the racing-adoption
+  example cannot happen and the sweep publishes a slot before comparing the parent (against the accepted design's line
+  625); H2 the kept probe's evidence is wrong (`O_TMPFILE` without `O_DIRECTORY`, a `fsync` check that always printed
+  "failed", facts it never measured), though the reviewer's corrected probe confirms the facts; M1 the lead option uses
+  `O_TMPFILE` and `linkat`, not the `O_EXCL` the chosen option named; M2 to M6 (staging cleanup, two dropped refusals,
+  section 6 incomplete, the attach's lost whole-store validation unsaid, choice reasoning); 11 lows. GOING:
+  `pi-zfs-slot-identity-store-per-slot-files-design-gate-findings` in the design worktree (brief
+  `~/temp/agent/zfs-slot-identity-store-per-slot-files-design-2026-11-21/prompt-gate-findings.md`); then the same reviewer
+  rechecks; then the design to the owner, with any departure from `O_EXCL` as its own flagged choice. The design's fix
+  round ended at `3e0fe761a6` (every finding fixed: compare `.parent` before publishing, a race that can happen, the
+  probe rewritten and its real output quoted, `O_EXCL` under a staging dot name plus one `linkat` as the lead with
+  `O_TMPFILE` a flagged departure, nine choices with choice 7 recorded); GOING: the same reviewer's recheck. THE FENCE
+  LEFTOVER ROUND ended at `87b4af4062`: `main`'s `m05` EQUAL (no leftover), the older-commit control red on rung 2 then
+  green on both rungs (the fallback `reset --hard` runs against `index.pending`, published after), the fallback's two
+  positive controls (rewrites a zeroed entry; a kill inside it leaves no `index`), N3 (the waiting index and lock
+  removed at settlement), N1 (`attr.tree` and `GIT_ATTR_SOURCE` with a disagreeing tree give Git's bytes; SPEC corrected),
+  N2; harness 26 of 26, sample 300 of 300, gate 9480 of 9482. GOING: the fence reviewer's closure check of `87b4af4062`.
+  INCIDENT: step 7's first round reports stopping three gate containers it matched by creation time; the fence round lists
+  one of them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour.
+  `podman events` shows only `died` and `remove` for all four named containers (`gallant_moore` and `hardcore_pasteur`
+  created together at 16:16:56, died 16:28:46 and 16:19:19). Corrected by issue 6334's integration pass: an outside
+  `podman stop` on a container whose client still runs also leaves only `died` and `remove`, so the log neither shows nor
+  rules out a stop; whether one round ended another's gate is not established (corrective comment posted on 6334). THE PER-SLOT DESIGN'S RECHECK said ready (0 high, 0
+  medium, 8 lows R1 to R8 for the build). THE OWNER ACCEPTED it, recorded 2026-11-21T17:23:49-05:00: "A: accept with its
+  proposals (Recommended)", "A: O_EXCL staging, then link (Recommended)", "A: no listing per sweep (Recommended)"
+  (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`, "The design accepted", with the losses accepted
+  and the commitment that the build adds removal of known staging names). The design merged as `8649808092`. GOING: the
+  build as `pi-zfs-slot-identity-store-per-slot-files-build` on `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files`
+  (brief under `~/temp/agent/zfs-slot-identity-store-per-slot-files-build-2026-11-21/`); step 8 waits on it and on step 7.
+  THE TWO-WORKTREE PUSH DIAGNOSIS ended at `f7d4e77c35`: a `git push` ended by SIGKILL with no output became
+  `Verdict::Retry("")` and an empty `cause:` (the same code on `main`; a forced-kill seam fails the control on both, with
+  an empty cause on `main`); the branch now names a silent failure's status and signal (two controls red on `main`'s files,
+  green); `ForgetPrograms` asks the manager first and its handler has a control; gate 9525 of 9527. The killer is issue
+  6335 (the out-of-memory killer in the 2 GiB suite container is a hypothesis; `journalctl --kernel` shows this account no
+  entries for that window, so its empty search proves nothing). On record the SIGKILL hit only this branch's gates (three,
+  none of `main`'s). GOING: the push programs reviewer's third closure check, measuring the suite container's peak memory
+  on this branch against `main` and ruling whether that blocks. STEP 3 WITH THE FENCE'S CLOSURE CHECK said fit at
+  `cc03beadc1` (leftover closed: harness 26 of 26, older-commit add with 0 untracked at scale; the fallback kill keeps no
+  `index`; N1 to N3 closed; gate 9573 of 9575) with N4 low: the differing-tree add 508 ms against `main`'s 378 ms on a
+  10,002-file fixture (identical-binary 497 ms), covered by neither waiver. THE OWNER ANSWERED on 2026-11-21: "A: merge now,
+  fix it next (Recommended)" (recorded in the plan's step 10 notes). MERGED as `c423010a4e` at 2026-11-21T17:40:23-05:00:
+  ZFS step 3 (the clone rung takes ZFS) with the conversion fence is on `main`; issue 6323 closes with it. The merge left
+  the old `zfs-step-3-reflink-rung-recognition` worktree in place because its ignored
+  `.config/mise/conf.d/10-bin.local.toml` differs from the main checkout's. GOING: the up-front skip as
+  `pi-clone-rung-skips-a-differing-fenced-tree` (brief under `~/temp/agent/clone-rung-skips-a-differing-fenced-tree-2026-11-21/`).
+  NEXT: the faster size reader (the btrfs snapshot cost; same reads, so after the skip), the partial clone (task 415), and
+  the `worktree_remove_hand_over.rs` split (both blocking branches have now merged or are about to). STEP 7'S FINISHING
+  ROUND ended at `2c6286cd19`: the guest arm passed in its own guest (malformed, oversized and inherited intent refused
+  with nothing mounted, the stale receipt kept as the last observation, the nudge delivered with only `mount,userprop` and
+  refused on the parent); three kept rounds from the property change to the zedlet 10.2 to 10.6 ms, to the product
+  receipt 11.2 to 12.1 ms (the deadline stays provisional at 30 s); the nudge and readiness reds shown; the claim keeps
+  its per-slot `flock` with the reason written beside it and in the SPEC; the linker abort not reproduced (now exit 0 on
+  the branch and on `main`), read as a host condition; gate 9559 of 9561. It stated its first round stopped three
+  containers on a creation-time match. GOING: step 7's integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`), sorting its six open
+  questions into settled, later-step or owner's. ISSUE 6334'S ROUND ended at `a683375396`: every gate container carries
+  `--name gpc-gate-<run id>-<suite|clippy>` and `--label dev.monochromatic.git-policy.gate-run=<run id>` (the run id from
+  the evidence folder's random name), printed before the suite and recorded in `manifest.json` even on a refusal;
+  README guidance; a "Cause J" troubleshooting section; unit tests; gate 9476 of 9478. Its probe measured that a gate
+  container outlives a stopped `systemd-run` unit, so the briefs' "end your own gate by stopping the unit" leaves the
+  container running until its suite ends (`--rm` then removes it); the README now says to `podman stop` the printed names
+  too. Its Cause J states as fact that another session's SIGTERM ended a gate, which the `podman events` evidence does not
+  establish. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-git-policy-cli-gate-containers-carry-a-run-label-2026-11-21/keep/review.md`). THE
+  PARTIAL CLONE (task 415) resumed: `pi-clone-rung-partial-clone-on-the-fenced-rung` in its own worktree
+  `.claude/worktrees/clone-rung-partial-clone-of-a-dirty-source` (merge `main`, the prototype on the fenced rung,
+  re-measured against `main` and Git's checkout, whether the waiver's end condition is met; brief under
+  `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/`); then a Sonnet re-check, then the owner.
+  ISSUE 6334'S INTEGRATION PASS said not fit on documentation only (Cause J, the README and a TSDoc state an unestablished
+  cause as fact; "how to tell" misstates what `podman events` can show; the stop guidance needs
+  `podman stop --ignore --filter label=...`; IDs reach `manifest.json` only at scope exit); the code is fit (gate 9573 of
+  9575; the label filter exact). GOING: `pi-git-policy-cli-gate-containers-label-findings-fixed` in
+  `.claude/worktrees/git-policy-cli-gate-containers-label-findings`. STEP 7'S INTEGRATION PASS said not fit
+  (`~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`): no regression (gate
+  9658 of 9660 on the merged tree, the guest arm passed, three acceptance reds shown); blocking, the per-slot claim's
+  `flock` where the repository's lock-free `lock/single_owner_claim.rs` (`take_claim`, used by two production commands)
+  fits, so rule `NLK` and that precedent settle it: build the claim on `take_claim` (adopted by the coordinator, not put
+  to the owner); mediums: the two `/run` folders never created, the wait ending at once on an absent results folder, a
+  failed publish's staging file blocking the next, no done unmount in the receipt grammar, a path bound contradicting the
+  file bound. Its six questions: readiness identity and the sweep state settled by the records; the claim settled with
+  `take_claim`; receipt outcomes partly settled, step 9 owns the rest; the wait's synchronous read settled by the tokio
+  rulings; readiness writers' ordering steps 8 and 19's. GOING: `pi-zfs-step-7-integration-findings-fixed` in
+  `.claude/worktrees/zfs-step-7-integration-findings` (brief under
+  `~/temp/agent/zfs-step-7-integration-findings-fixed-2026-11-21/`). Step 7's
+  running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
+  label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
+  `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
+  `~/temp/agent/git-policy-cli-gate-containers-carry-a-run-label-2026-11-21/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`

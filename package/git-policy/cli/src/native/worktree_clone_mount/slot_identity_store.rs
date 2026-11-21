@@ -58,8 +58,8 @@ pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cl
 ///  not a larger read.
 ///  An append that would make the file larger than this bound is refused
 ///  (`StoreRefusal::WouldNotFit`),
-///  so an append never grows a store past what its own read accepts;
-///  the adoption's rewrite of the parent record has no such check yet (issue 6327).
+///  and so is the adoption's rewrite of the parent record,
+///  so no write grows a store past what its own read accepts.
 pub const STORE_MAXIMUM_BYTES: u64 = 1 << 20;
 
 /// The owner of a store,
@@ -335,9 +335,7 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
     }
     let line: String = StoredIdentity::Slot { name: name.to_string(), identity: identity.clone() }.encode();
     let grown: u64 = u64::try_from(text.len() + line.len() + 1).expect("a store's bytes fit a word");
-    if grown > STORE_MAXIMUM_BYTES {
-        return Err(StoreRefusal::WouldNotFit { path: store.to_path_buf(), bytes: grown, bound: STORE_MAXIMUM_BYTES });
-    }
+    check_the_store_fits_one_read(store, grown)?;
     #[cfg(test)]
     BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { if let Some(between) = hook.borrow().as_ref() { between(); } });
     debug(TAG, "record the identity of one clone slot");
@@ -369,6 +367,7 @@ fn append_under_the_lock(file: &mut std::fs::File, store: &Path, name: &str, ide
 ///
 /// # Errors
 /// The read refusal of the store,
+/// the refusal of a rewritten store that would be larger than one read accepts,
 /// or the write's own failure,
 /// which leaves the file as it was.
 pub fn record_parent_identity(store: &Path, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
@@ -400,8 +399,16 @@ pub fn record_parent_identity_under_root_control(store: &Path, identity: &CloneF
     return replace_the_parent_record(store, &read, identity);
 }
 
-/// Write the store `read` describes with the parent record `identity`,
-/// keeping every slot record and publishing the whole file by rename.
+/// What:
+///  Write the store `read` describes with the parent record `identity`,
+///  keeping every slot record and publishing the whole file by rename.
+/// Why:
+///  A rename publishes a whole file,
+///  so the size check comes before it:
+///  a store grown past the bound would refuse every read of itself,
+///  and the parent record would be the one the adoption replaced and nothing could read.
+///  The refusal leaves the file as it was,
+///  so the store still holds the identity every attach compares against.
 fn replace_the_parent_record(store: &Path, read: &SlotIdentityStore, identity: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
     let mut lines: Vec<String> = vec![String::from(STORE_HEADER), StoredIdentity::Parent(identity.clone()).encode()];
     for record in &read.records {
@@ -412,6 +419,8 @@ fn replace_the_parent_record(store: &Path, read: &SlotIdentityStore, identity: &
     }
     let mut text: String = lines.join("\n");
     text.push('\n');
+    let published: u64 = u64::try_from(text.len()).expect("a store's bytes fit a word");
+    check_the_store_fits_one_read(store, published)?;
     debug(TAG, "replace the recorded identity of the worktrees parent folder");
     replace_private_file(store, text.as_bytes()).map_err(|error| return write_refusal(store, error))?;
     return Ok(());
@@ -620,6 +629,22 @@ fn read_through(file: &std::fs::File, store: &Path) -> Result<String, StoreRefus
         });
     }
     return Ok(text);
+}
+
+/// What:
+///  Refuse a file of `bytes` bytes that one read would not accept,
+///  naming the size it would have held and the bound.
+/// Why:
+///  The append and the adoption's rewrite are the two writes to the store,
+///  and a file grown past `STORE_MAXIMUM_BYTES` refuses every read of itself,
+///  including the read that would repair it;
+///  so both check the size before they write,
+///  and one sentence states that refusal for both.
+fn check_the_store_fits_one_read(store: &Path, bytes: u64) -> Result<(), StoreRefusal> {
+    if bytes > STORE_MAXIMUM_BYTES {
+        return Err(StoreRefusal::WouldNotFit { path: store.to_path_buf(), bytes, bound: STORE_MAXIMUM_BYTES });
+    }
+    return Ok(());
 }
 
 /// What:

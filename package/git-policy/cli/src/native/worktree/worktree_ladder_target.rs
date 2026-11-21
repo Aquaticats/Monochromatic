@@ -416,7 +416,26 @@ pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], envi
 /// const env = { GIT_DIR: gitDir, GIT_WORK_TREE: workTree };
 /// ```
 pub(crate) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsString, OsString)> {
-    return vec![(OsString::from("GIT_DIR"), git_dir.as_os_str().to_os_string()), (OsString::from("GIT_WORK_TREE"), work_tree.as_os_str().to_os_string())];
+    return checkout_environment_with_index((git_dir, work_tree), None);
+}
+
+/// What:
+///  `checkout_environment` with the index file named,
+///  for a run that must work on an index the worktree does not hold under its own name yet.
+/// Why:
+///   A Git run given `GIT_INDEX_FILE` reads and writes that file and leaves the worktree's `index` alone,
+///  which is what a rung whose index awaits the paths Git must write needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const env = { GIT_DIR: gitDir, GIT_WORK_TREE: workTree, GIT_INDEX_FILE: index };
+/// ```
+pub(crate) fn checkout_environment_with_index((git_dir, work_tree): (&Path, &Path), index: Option<&Path>) -> Vec<(OsString, OsString)> {
+    let mut environment: Vec<(OsString, OsString)> = vec![(OsString::from("GIT_DIR"), git_dir.as_os_str().to_os_string()), (OsString::from("GIT_WORK_TREE"), work_tree.as_os_str().to_os_string())];
+    if let Some(named) = index {
+        environment.push((OsString::from("GIT_INDEX_FILE"), named.as_os_str().to_os_string()));
+    }
+    return environment;
 }
 
 /// What:
@@ -516,6 +535,22 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
 /// await applyDifference(source, target, workTree, runGit); // throws a reason
 /// ```
 pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Path, run_git: &mut dyn GitRunner) -> Result<(), String> {
+    return apply_difference_with_index((source, target, work_tree, run_git), None);
+}
+
+/// What:
+///  `apply_difference` against the index file `index` when it is named,
+///  rather than the worktree's own.
+/// Why:
+///   The clone rung writes its index under its own name until the paths Git must write are written
+/// (`worktree_clone_index::PendingIndex`),
+/// so the difference is applied to that file and the worktree's `index` appears only once the write is done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await applyDifferenceWithIndex({ source, target, workTree, runGit }, pendingIndex); // throws a reason
+/// ```
+pub fn apply_difference_with_index((source, target, work_tree, run_git): (&SnapshotSource, &Target, &Path, &mut dyn GitRunner), index: Option<&Path>) -> Result<(), String> {
     if !target.differs {
         return Ok(());
     }
@@ -528,7 +563,7 @@ pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Pa
         OsString::from(source.clean.head_commit.as_str()),
         OsString::from(target.commit.as_str()),
     ];
-    let status: GitStatus = run_step(run_git, arguments.as_slice(), checkout_environment(target.admin.as_path(), work_tree).as_slice())?;
+    let status: GitStatus = run_step(run_git, arguments.as_slice(), checkout_environment_with_index((target.admin.as_path(), work_tree), index).as_slice())?;
     return if status.succeeded() { Ok(()) } else { Err(format!("`git read-tree -m -u` ended with {:?}", status.code)) };
 }
 
