@@ -557,13 +557,12 @@ pub fn reads_as_unknown_host_key(text: &str) -> bool {
 
 /// Whether one line,
 /// in lower case,
-/// names a host key or a certificate outside the single quotes OpenSSH fills with a name or a path,
+/// names a host key or a certificate outside the single quotes in which OpenSSH and Git write data,
 /// which every refusal OpenSSH makes over a host key does in at least one line.
-/// The quotes are data and not a refusal's words:
 /// OpenSSH writes a host name,
-/// an address or a file path there,
+/// an address or a file path inside them,
 /// and Git writes the remote's URL,
-/// so a remote named for a certificate is no refusal of one.
+/// so the word in a remote's name is no refusal's own.
 fn names_a_host_key_outside_quotes(folded: &str) -> bool {
     for words in folded.split('\'').step_by(2) {
         if words.contains(HOST_KEY_WORDS) || words.contains(CERTIFICATE_WORD) {
@@ -578,9 +577,12 @@ fn names_a_host_key_outside_quotes(folded: &str) -> bool {
 /// is one OpenSSH prints only while the account asks it for debug output,
 /// which no refusal it makes over a host key is:
 /// `error`,
-/// `logit` and `fatal` print their message alone,
-/// and of the host-key words only the two the certificate retry logs are written at a debug level,
-/// which `fail:` then drops in favour of the plain key.
+/// `logit` and `fatal` print their message alone at any log level,
+/// and a debug line that names a host key or a certificate is either news about the key
+/// (`Server host key: ...`,
+/// `sshconnect.c` at `V_10_6_P2` lines 1523 to 1539)
+/// or the certificate retry's own note (lines 1308 to 1317),
+/// which `fail:` follows by dropping the certificate for the plain key (lines 1473 to 1486).
 fn is_a_debug_line(folded: &str) -> bool {
     for prefix in OPENSSH_DEBUG_LINE_PREFIXES {
         if folded.starts_with(prefix) {

@@ -434,7 +434,8 @@ error: failed to push some refs to 'git@github.com:acme/certificate-manager.git'
 /// The same push in the spelling a German Git prints:
 /// the planning record of 2026-11-19 measured that Git translates this line
 /// (`doc/planning/cli-git-no-self-invocation.md`),
-/// so a rule that skipped Git's English words would miss this one.
+/// so a rule that skipped Git's English words would miss this one,
+/// and Git 2.56.0 translates the prefix with the sentence (`usage.c` and `po/de.po`).
 const THE_SAME_PUSH_IN_THE_SPELLING_A_GERMAN_GIT_PRINTS: &str = "Host key verification failed.\n\
 Fehler: Fehler beim Versenden einiger Referenzen nach 'git@github.com:acme/certificate-manager.git'\n";
 
