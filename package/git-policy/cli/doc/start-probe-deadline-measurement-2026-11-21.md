@@ -121,14 +121,15 @@ Each round is followed by a warm round.
   difference 26,203;
   after-cold probe 90,527.
 
-Dropping the caches moved the whole probe by about the control's own spread:
-each cache-dropped round ran 4,842 to 14,385 microseconds slower than the warm
-round that followed it.
-Two other figures belong to other arms and are not this arm's reading:
-the earlier draft attributed 231 milliseconds to a cold binary,
-and the 75 milliseconds a later review reported was its own cold arm's cost on
-a host loaded by that review's gate,
-which this document does not reconcile with these rounds.
+Dropping the caches moved the whole probe by 4,842 to 14,385 microseconds over
+the warm round that followed it:
+less than the 75 milliseconds the probe's integration pass measured in its own
+cold arm,
+and far less than the 231 milliseconds the earlier draft attributed to a cold
+binary.
+Neither of those figures is this document's reading:
+the 75 milliseconds was taken on a host that pass's gate loaded,
+and this document does not reconcile it with these rounds.
 
 ### The first run after a guest boot
 
