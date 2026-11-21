@@ -513,6 +513,9 @@ pub fn reads_as_a_key_failure(text: &str) -> bool {
 /// text.includes('Host key verification failed') && text.split('\n').every((line) => !namesAHostKey(line) || isAnUnknownKeysOwnLine(line))
 /// ```
 pub fn reads_as_unknown_host_key(text: &str) -> bool {
+    if !text.contains(HOST_KEY_NOT_KNOWN_PHRASE) {
+        return false;
+    }
     // One fold of the constant, and one of each line: the comparison is the whole reason to read the lines.
     let last_line: String = HOST_KEY_NOT_KNOWN_PHRASE.to_ascii_lowercase();
     for line in text.lines() {
