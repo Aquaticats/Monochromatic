@@ -41037,7 +41037,51 @@ stated in this entry. What follows from them, as work:
   GOING, the queued swap: `pi-zfs-step-6-btf-rs-reader-swap` on that tip (brief under
   `~/temp/agent/zfs-step-6-btf-rs-reader-swap-2026-11-20/`: `btf-rs` 2.0.1 with its checksum checked in the lock file,
   the adapter behind the contract, array sizes in the binding, the stand-in decoder removed, the fourteen real-byte
-  pairs compared), then one Sonnet gate re-check covering both rounds, then the integration pass and the merge.
+  pairs compared), then one Sonnet gate re-check covering both rounds, then the integration pass and the merge. THE OLD
+  LFS BRANCHES REVIEW (Pi on the Qwen plan, a second pass; its folder's `keep/report-from-summary.md`): neither branch's
+  work is on `main`; `fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks` (tip `9e23c2623e`) is contained
+  in `fix/git-policy-cli-lfs-push-programs-are-held-in-memory-and-never-written` (tip `2533d1bfea`). Still open on `main`,
+  checked by the coordinator: the upload plan trusts tracking refs on configuration alone (`lfs_upload_plan.rs:508`) and
+  reads `remote.<name>.mirror` from a spelling list (`lfs_upload_settings.rs:362`), the recorded "push after
+  `git remote set-url`, and under `remote.<name>.mirror=2`, publishes pointers without their objects and exits 0"
+  (line 26823 here). Plan: carry the upload fixes first (B1 to B7, B9 to B11; not the rejected `push-programs.json`
+  record), then the memory-held push programs (A1 to A11, the owner's "Memory only", lines 24556 to 24565 here) with its
+  two open defects fixed (the fit check before the programs attach; values kept after a retried push settles); delete
+  both old branches once both land. GOING: `pi-git-policy-cli-lfs-upload-plan-asks-the-destination` on
+  `fix/git-policy-cli-lfs-upload-plan-asks-the-destination` (red first on `main`, the round trip's price measured; brief
+  under `~/temp/agent/git-policy-cli-lfs-upload-plan-asks-the-destination-2026-11-20/`). THE FENCE'S COST ROUND ended at
+  `9369b1a575`: the valueless `core.autocrlf` and `text=unset` read as Git reads them (red first); decline-rule controls
+  added; the fence decided in `choose_rung` so a declining add is one Git checkout; in one guest the 18 conversion controls
+  and the 66 btrfs ladder controls ran and passed; costs from kept runs: this repository as it is, step 3 0.49 to 0.59 of
+  `main` and correct, the fence 0.98 to 1.11 (control 0.90 to 1.03); 0.199 converting, A′ 1.13; a declining add +0.07;
+  A′ against C not resolved; LFS 0.35 ms and text 0.12 ms per path; the pointer-proof suggestion rejected with reasons;
+  gate 9356 of 9358, the cause-H pair. It used `git restore --no-enforce-worktree` twice after saving a patch. GOING: a
+  diff-only check on Sonnet with the two byte reproductions and one headline reproduction (brief under
+  `~/temp/agent/gate-diff-check-of-the-clone-conversion-fence-costs-on-sonnet-2026-11-20/`); then the owner's question,
+  unless it finds wrong bytes or a contradicted cost. THE DIFF CHECK found no wrong bytes (both spellings equal, the
+  old binary different on them) and every cost reproducing (its headline: step 3 0.51, fence 0.87, control 0.90 of
+  `main`); open words only: N1 "no new waiver is needed" contradicting the cost section, M3's false obstacle, stale prices,
+  N5 counts, N6 spans, N8 an early decline no longer tells the person why the add took Git's checkout, N10 no kept gate
+  log, N11 `-text` under `core.autocrlf=true`. THE OWNER, asked A′ (fence + decline), C (refuse when rules exist), D (Git
+  rewrites every path) or build B (the fence beside the clone) first, answered "Build B first" at
+  2026-11-20T22:37:00-05:00 (recorded in the plan's step 10 notes). NEXT: a round designs, builds and measures B against
+  A′, C and `main` with the identical-binary control, fixes the diff check's words and N8, then the question again; step
+  3, the btrfs fix, step 10 and the partial clone wait on it. THE LFS LOWS ROUND ended at `1538090256` (F1 the limit
+  restated from OpenSSH's source; F2 fixed, debug lines and quoted spans skipped, three reds; F3; gate 9328 of 9330, the
+  cause-H pair). THE LFS UPLOAD CARRY ended at `491bc0f8f6` (B1 to B7, B9, B11; the two reds on `main` green; refusal
+  remedy without a record; cost on a local do-nothing push 1.29 of `main`, about 4.9 ms for two child starts; B10's two
+  open cases reproduced with choices for the project; gate 9337 of 9339, the cause-H pair). The extra `ls-remote` is a
+  whole connection on a real remote, unmeasured; the pre-push hook's remote-sha lines may give the same evidence free.
+  THE BTF-RS SWAP ended at `30e713aead` (`btf-rs` 2.0.1 through `rust-catalog.toml` and `file-enforcer`, its lock checksum
+  equal to the adopted one in all four lock files; the adapter behind the contract, each duty red against a breaking
+  variant; array sizes in the binding with controls; the stand-in decoder removed; the fourteen real-byte pairs identical
+  before and after; guest arms passing; gate 9361 of 9363, the cause-H pair). GOING, all at once: `pi-clone-rung-conversion
+  -fence-beside-the-clone` (B designed, built, measured against A′, C and `main`, plus the diff check's words and N8;
+  brief under `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/`); step 6's integration pass on
+  Sonnet covering both rounds (brief under `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/`);
+  one integration pass on Sonnet for both LFS branches, asked to price the destination question over SSH and to judge the
+  pre-push hook's remote-sha input as a free alternative (brief under
+  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
