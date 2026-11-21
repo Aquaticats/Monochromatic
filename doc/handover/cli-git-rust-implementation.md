@@ -40925,7 +40925,14 @@ stated in this entry. What follows from them, as work:
   it), 31 of 32 sampled pairs as on `main`, the fuzz help path. The merge removed the author's worktree. GOING:
   `pi-mise-usage-args-trailing-terminator-fixed` in the coordinator-made worktree
   `.claude/worktrees/mise-usage-args-trailing-terminator` (brief under
-  `~/temp/agent/mise-usage-args-trailing-terminator-fixed-2026-11-20/`).
+  `~/temp/agent/mise-usage-args-trailing-terminator-fixed-2026-11-20/`). THE VET REPORT'S THIRD ROUND ended at
+  `1e6af850a8`: `pahole`'s upstream suite ran in a capped container at `v1.32` with the recipe's patches (76 cases, 65
+  `Ok`, 11 `Skip`, 0 fail), so `pahole` passes the skill and stays; `bpftool` fails (its tests are the kernel selftests);
+  provenance from the package recipes; over `btf-rs` 27.5, `ebeepf` 24.5, `pahole` 18.5 of 32, `btf-rs` is first in all
+  64 tests and only the maintenance weight swaps second and third, so the skill's outcome stays "sensitivity unresolved,
+  recommend none"; eight open questions, each with what it changes. GOING: a narrow final check on Sonnet of the new suite
+  claim and the outcome's wording (brief under
+  `~/temp/agent/gate-final-check-of-the-btf-reader-vet-report-on-sonnet-2026-11-20/`), then the owner's pick.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
