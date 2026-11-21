@@ -189,7 +189,15 @@ fn a_converting_source_is_declined_before_anything_is_claimed_or_copied() {
     }
     crate::worktree_ladder_test_support::commit_all(repo.as_path(), "fixture");
     let plan = plan_to(root.join("topic"));
-    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    let identity = main_identity(repo.as_path());
+    // The fence is only reached where a fast rung applies: a destination whose filesystem cannot clone refuses the clone
+    // rung before the fence runs, and the gate image's fixture root is a tmpfs, so this control names its own skip there.
+    if let Some(reason) = crate::worktree_snapshot_source::clone_refusal(&identity, &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_converting_source_is_declined_before_anything_is_claimed_or_copied ({reason})");
+        remove(root.as_path());
+        return;
+    }
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
     assert_eq!(ladder.first_step(), GitStep::Person, "the person's own run checks the worktree out");
     assert!(matches!(ladder.rung, Rung::Git(_)), "a source above the quarter takes Git's checkout");
     assert_eq!(ladder.slow.as_ref().map(|route| { return route.word(); }), Some("declines"), "{:?}", ladder.slow);
