@@ -1429,6 +1429,7 @@ installs the index with `rewrite_index_stat_with` (extensions `UNTR` and `FSMN`
 dropped),
 applies the tree difference with `git read-tree -m -u <source commit> <new commit>` under Git's
 `GIT_DIR` and `GIT_WORK_TREE`,
+writes through Git the paths the conversion fence leaves to it,
 gives the stage the source's mode and swaps it with the destination
 (`RENAME_EXCHANGE`).
 The directory real Git made,
@@ -1438,6 +1439,23 @@ Git's pointer and the empty
 directory go,
 and anything another process added to it meanwhile stays there and is named in a warning.
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
+The same conversion fence decides the snapshot rung,
+before the snapshot and before its stage name is claimed:
+the attributes are read and the decline decided first,
+the rest of the fence (`git ls-tree` and the per-path decision) is decided in the same step,
+and the index the snapshot installs holds the fenced paths with no stat data,
+so no path is recorded clean before Git's own write records the bytes it checked out.
+In the stage,
+and before it is swapped in,
+those paths are written by one
+`git checkout-index --force -u --stdin`,
+intersected with the index the tree difference left.
+A fence that cannot read its inputs ends the rung and Git's own checkout completes the worktree,
+and so does the fence's decline rule,
+before the snapshot rather than after it.
+The fence's two reads run on the add's waiting path in this rung:
+a snapshot copies everything anyway,
+so there is no copy for them to run beside.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
 The swap this command made itself proves the worktree is its own,
@@ -2670,21 +2688,95 @@ because the clones would land in that clone's dataset and not in the source's;
 so is a mounted clone used as the source of a slot in the checkout's dataset,
 and so is any destination on another dataset than the source,
 which a destination on a dataset mounted inside the source's own is,
-such as `~/.cache`, which this host's layout gives a dataset of its own
-(`zpcachyos/nosnap/user-cache`, which `findmnt -t zfs` lists).
+such as `~/.cache`,
+which this host's layout gives a dataset of its own
+(`zpcachyos/nosnap/user-cache`,
+which `findmnt -t zfs` lists).
 What a reflink needs is why:
 a clone shares data blocks only inside one dataset,
 `FICLONE` answers `EXDEV` across filesystems,
 and a `copy_file_range` that shares blocks across two datasets with one data key does not qualify.
 A refused or failed `FICLONE` ends the rung and never becomes a copy of the bytes;
 rung 3 fills the worktree.
+On ZFS a destination whose pool has block cloning off (`zfs_bclone_enabled` reads 0) is declined before the source
+proof,
+because every clone into that dataset would be refused and Git's checkout would follow anyway;
+a switch file that cannot be read declines nothing.
+Two costs of this rung on ZFS are waived in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`
+until the partial-clone proposal that record names lands or is rejected.
+A source with uncommitted changes pays the proof and ends in Git's checkout,
+about 0.2 s more than the same add on `main`
+(0.80 to 1.59 times as long over 24,313 tracked files in twenty rounds,
+medians 0.93 to 1.25).
+A clean add of a tree of many small files is slower than on `main`,
+because cloning a small file costs more than Git's write of it
+(1.33 times at 10,001 files of about 2.6 KB,
+1.18 times at about 8.8 KB,
+parity at about 26 KB,
+0.64 times on this repository's own tree of 24,383 files of about 32 KB).
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept;
 links
 recreated),
 a second comparison of the source with its own index,
+the conversion fence below,
 the installation of the index,
 and the same tree
 difference.
+The conversion fence decides which tracked paths a clone may carry,
+so that no path is ever recorded clean while its bytes are not Git's own checkout's
+(GitHub issue 6323:
+a clone keeps the source's bytes where the checkout would convert line endings or `ident`).
+Git carries a path only where the checkout of its blob is the blob itself and the source's file is proven to hold that
+blob.
+The proof is Git's own conversion rules,
+read from the path's attributes (`text`,
+the legacy `crlf`,
+`eol`,
+`filter`,
+`ident`,
+`working-tree-encoding`),
+`core.autocrlf` and `core.eol`,
+in the order `convert.c` reads them:
+a path whose checkout could add a carriage return,
+expand an `ident` keyword,
+convert a
+`working-tree-encoding` or run a filter's smudge is written by Git in the new worktree through one
+`git checkout-index --force -u`;
+every other path is carried when the size its index records equals the size of its blob,
+which one `git ls-tree -r -l` reads,
+because a rule can only shrink a file on the way into the index and a file with no rule today can still hold a form
+an earlier rule wrote.
+The attributes are read (`git check-attr --all --stdin`) and the decline is decided before the copies;
+the rest of the fence (`git ls-tree` and the per-path decision) runs on the add's own thread while the clones copy,
+and both answers are joined before anything is installed.
+The index is written under a name of its own with the stat data of every path Git must write zeroed,
+Git's runs for the tree difference and for the one `git checkout-index --force -u` are pointed at that file with
+`GIT_INDEX_FILE`,
+and only after that write does the file take the worktree's name `index`.
+A process killed anywhere between the copies and that last step therefore leaves no index in the worktree at all,
+which the recovery names as an add that is possibly incomplete and follows with the commands that finish or remove it;
+an index published before the write could not vouch for a written path either,
+because the clean form of the source's bytes equals the blob the entry names,
+so a `git status` would refresh such an
+entry and report the worktree clean while a converted path still held the source's bytes.
+Where more than a quarter of the tracked paths,
+and more than a thousand,
+have a rule of their own that converts them,
+the rung declines before any copy and Git's checkout writes the worktree,
+with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
+a declined add is Git's own checkout plus one `git check-attr` and the count over it.
+A rung that ends after the fence,
+for any other reason,
+says
+`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
+because its zeroed entry cannot be verified as up to date;
+Git's own checkout then writes the worktree and the bytes are equal.
+A source with an untracked or ignored `.gitattributes` anywhere above a tracked path refuses the rung,
+because Git read it when the files were added and the new worktree will not have it,
+and the refusal is taken before anything is copied.
+A source that sets `attr.tree` or `GIT_ATTR_SOURCE` refuses the rung,
+because the destination would read attributes from a tree the fence did not read.
 A refusal removes nothing,
 because a name cannot be checked and unlinked in one step:
 the tracked files of a run longer than the rung's break-even are cloned in up to the host's budget of slices at

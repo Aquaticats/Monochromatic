@@ -723,13 +723,99 @@ it.
 The clone rung's two limits are borrowed from btrfs measurements of the copy stage and `clone_tree`
  (`PARALLEL_BREAK_EVEN_ENTRIES`,
  `PARALLEL_COPY_MAX_WORKERS`),
- and nothing measures this rung on XFS, overlayfs or ZFS,
- nor between the break-even and the entry counts those measurements took,
+ and nothing measures this rung between the break-even and the entry counts those measurements took,
  which is where a small repository sits.
 An arm of a few hundred entries,
  interleaved against the same control,
  is owed before either limit is treated as measured here.
-The `worktree_clone.rs` doc of `clone_worker_count` states the borrow.
+The `worktree_clone_slices.rs` doc of `clone_worker_count` states the borrow.
+
+The btrfs,
+ XFS and overlayfs arms the review owed were taken on 2026-11-20 in one throwaway `mvm` guest
+ (`--backend libvirt`),
+ each filesystem a loop device inside it:
+ btrfs and XFS on their own loop devices,
+ and an overlay whose lower is a directory on the btrfs loop and whose upper and work are on the XFS one
+ (`mkfs.xfs -m reflink=1`).
+The guest's Git is `2.43.0`,
+ its kernel `6.8.0-147-generic`,
+ and it has four cores.
+Each shape is a fixture of small text files in ten directories,
+ committed and repacked;
+ each filesystem is the branch's release build against `main`'s,
+ fifteen rounds,
+ three arms per round in a rotating order (`branch`,
+ `main`,
+ `main`),
+ the second `main` a same-binary control,
+ and every ratio below is to that round's `main` pair.
+Nothing got slower:
+
+- btrfs,
+  1,000 files of about 2.6 KB:
+  branch median 57.7 ms against 87.1 ms,
+  ratio median 0.65 (0.57 to 0.96),
+  control 0.95 to 1.08;
+  5,000 of 2.6 KB:
+  170.0 against 329.1 ms,
+  0.51 (0.23 to 0.82),
+  control 0.31 to 1.13;
+  2,000 of 32 KB:
+  83.0 against 145.0 ms,
+  0.57 (0.44 to 0.77),
+  control 0.99 to 1.36.
+- XFS,
+  1,000 of 2.6 KB:
+  51.2 against 91.3 ms,
+  0.54 (0.21 to 0.91),
+  control 0.96 to 4.78;
+  5,000 of 2.6 KB:
+  154.4 against 371.5 ms,
+  0.41 (0.38 to 0.44),
+  control 0.90 to 1.13;
+  2,000 of 32 KB:
+  81.5 against 165.4 ms,
+  0.49 (0.45 to 0.75),
+  control 0.90 to 1.20.
+- overlayfs,
+  1,000 of 2.6 KB:
+  59.0 against 109.8 ms,
+  0.53 (0.27 to 0.71),
+  control 0.34 to 1.11;
+  5,000 of 2.6 KB:
+  178.8 against 449.9 ms,
+  0.39 (0.32 to 0.48),
+  control 0.67 to 1.45;
+  2,000 of 32 KB:
+  88.3 against 193.4 ms,
+  0.46 (0.44 to 0.54),
+  control 0.95 to 1.08.
+
+Every branch round recorded `cloneEntries` in its own add record and every `main` round did not:
+ `main` clones whole trees on one thread and this branch in slices,
+ which is the difference the arms measure.
+The fixtures were copied to each filesystem with `cp --archive`,
+ whose new inode and change times the copied index does not hold,
+ so one `git status` wrote the copied files' own data back before the rounds and the source was clean for every arm.
+The harness,
+ the script the guest ran and every round's record are
+ `~/temp/agent/zfs-step-3-waiver-pass-findings-fixed-2026-11-20/keep/`.
+
+Two more things the integration pass asked for are on this branch.
+`worktree_clone.rs` was over the linter's line limit and its doc comments sat above the wrong functions,
+ so it is now four sibling modules over one chain (`worktree_clone_paths.rs`,
+ `worktree_clone_entry.rs`,
+ `worktree_clone_slices.rs`,
+ and `worktree_clone.rs`),
+ re-exported from the folder's `mod.rs`,
+ with the linter's whitespace-only reflow applied.
+And a destination on ZFS whose pool has `zfs_bclone_enabled` at 0 is declined before the source proof
+ (`worktree_clone_block_cloning.rs`),
+ because every clone there is refused and Git's checkout follows anyway;
+ a switch file that cannot be read declines nothing.
+The controls that hold both calls,
+ and the non-empty clone,
+ are described with them in the code.
 
 #### Depends on
 

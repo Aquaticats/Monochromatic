@@ -18,6 +18,7 @@ use crate::fs_beneath::open_root;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
+use crate::worktree_clone_index::PendingIndex;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -166,15 +167,23 @@ fn the_installed_index_vouches_for_no_path_git_still_has_to_write() {
     let stats: HashMap<Vec<u8>, StatFields> = copy_the_source_files(&source, destination.as_path());
     let admin: PathBuf = repo.join(".git/worktrees/topic");
     let held: std::fs::File = open_root(admin.as_path()).expect("the administrative directory");
-    install_beside_the_clone(&held, &source, &fence, &stats).expect("the index");
-    let entries = stored_stats(std::fs::read(admin.join("index")).expect("the installed index").as_slice(), source.clean.hash_length).expect("entries");
+    let pending: PendingIndex = install_beside_the_clone((&held, admin.as_path()), &source, &fence, &stats).expect("the index");
+    assert!(!admin.join("index").exists(), "the worktree holds no index while a path Git must write has none of Git's bytes");
+    assert!(!crate::worktree_copy_interrupted_add_settlement::add_is_finished(destination.as_path(), admin.as_path()), "so the recovery reads the worktree as unfinished, which is the safe direction");
+    let entries = stored_stats(std::fs::read(admin.join("index.pending")).expect("the written index").as_slice(), source.clean.hash_length).expect("entries");
     let stored_of = |path: &str| -> u32 { return entries.iter().find(|entry| return entry.path == path.as_bytes()).expect("a tracked path").stored.size; };
     let gits_size: u64 = std::fs::metadata(repo.parent().expect("the fixture root").join("reference/notes.txt")).expect("Git's checkout").len();
     assert_eq!(stored_of("notes.txt"), 0, "the entry the fence left to Git records no stat data, so no status can skip the file: it records {} and Git writes {gits_size} bytes", stored_of("notes.txt"));
     assert_ne!(stored_of("plain.dat"), 0, "the carried path keeps the stat data of the file the clone made");
     assert_ne!(std::fs::metadata(destination.join("notes.txt")).expect("the copy").len(), gits_size, "the bytes on disk at this moment are not the ones Git's checkout writes, so a stat that vouched for them would have been a lie");
-    crate::worktree_clone_conversion_fence::checkout_index_through_git(admin.as_path(), destination.as_path(), &git_context(), fence.git_writes.as_slice(), source.clean.hash_length).expect("the written path");
+    crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at((admin.as_path(), destination.as_path(), &git_context()), pending.path_in(), fence.git_writes.as_slice(), source.clean.hash_length).expect("the written path");
+    assert!(!admin.join("index").exists(), "the write through Git leaves the worktree's own name still untaken");
+    pending.publish(&held).expect("the index takes the worktree's name");
+    let written = stored_stats(std::fs::read(admin.join("index")).expect("the published index").as_slice(), source.clean.hash_length).expect("entries");
+    let written_size = |path: &str| -> u32 { return written.iter().find(|entry| return entry.path == path.as_bytes()).expect("a tracked path").stored.size; };
+    assert_eq!(written_size("notes.txt"), u32::try_from(gits_size).expect("the file's size fits"), "the published entry records the bytes Git wrote, not the source's");
     assert_eq!(std::fs::metadata(destination.join("notes.txt")).expect("the written path").len(), gits_size, "Git wrote its own conversion");
+    assert!(crate::worktree_copy_interrupted_add_settlement::add_is_finished(destination.as_path(), admin.as_path()), "and the finished add is whole once the index has its name");
     assert_eq!(git_text(destination.as_path(), &["status", "--porcelain=v1"]), "", "the worktree is clean once Git has written its paths");
     remove(root.as_path());
 }
