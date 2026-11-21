@@ -147,6 +147,40 @@ This failure has a landed commit,
 a push that ran 173 ms,
 and a retry with no words.
 
+### Found again, with the cause named
+
+The same control failed again in the gate of this branch at `2026-11-21T15:58:25-05:00`,
+whose tree carries the report below,
+and the line that had said nothing now said what ended the push
+(the `pushed branch=` entry carried it after `outcome=retrying push_ms=150`):
+
+```text
+monochromatic-git-policy-cli: the push was ended by signal 9 (status 137) and printed nothing about why,
+so what the remote did is not known; the commit is saved in this repository.
+```
+
+The attempt was a `git push` a signal killed with nothing written,
+which is the second ending this document's root cause named.
+What killed it is not in the record,
+and the candidates the sources rule out are these:
+
+- The wrapper's own stop of a push appends its reason,
+  so a stop is never silent (`bounded_push.rs`,
+`stop_cause_and_words.rs`).
+- The fixture's teardown kills a service and the processes of its group with `SIGKILL`
+  (`kill_with_everything_it_started`),
+  and the service logged the retry 60 ms before it was told to stop,
+  so the push was not in a group that teardown ended then.
+- A failed upload is explained with words before it becomes an attempt
+  (`lfs_upload_explanations.rs`,
+`explained`),
+  so the child that died was the push and not `git-lfs`.
+
+What is left is a `SIGKILL` from outside those paths,
+and a container at its memory bound is the shape that fits:
+this failure happened in two full gates and never in twelve runs of the same control alone
+(`keep/closure2-lfs-hang-alone-in-the-gate-image.log` in the round's folder).
+
 ## Verification
 
 The condition is forced by a seam in a scratch copy of the package,
@@ -160,17 +194,54 @@ which is the input the defect is made of.
 
 The run is one nextest filter in the gate image,
 once per arm,
-with the two files that make the difference mounted read-only over the image's copies:
+with the seam's two files mounted read-only over the image's copies,
+and,
+for the arm that speaks for `main`,
+the four files that build the report and the line as `1a53a03178` has them
+(`auto_push.rs`,
+`push_retry_cause_line.rs`,
+`service_work_handlers_replanning_and_acceptance.rs` and
+`service_work_drains_awaiting.rs`).
 
-- This branch:
-no file mounted,
-so the image's own fixed report writes the line.
-- `main`:
-`auto_push.rs` and `push_retry_cause_line.rs` as `1a53a03178` has them.
+- This branch,
+`refs/heads/other` ended by the seam:
+`outcome=retrying push_ms=40: monochromatic-git-policy-cli: the push was ended by signal 9 (status 137) ...`,
+the retry line's `cause:` names it,
+and the control fails with
+`assertion left == right failed: other: the new commit, not the earlier one, reached the origin`
+(`1 test run: 0 passed, 1 failed`).
+- `main`'s report,
+the same seam:
+`outcome=retrying push_ms=40`,
+`push will be tried again ... next_try=2 in_seconds=10 cause:` with nothing after it,
+and the same assertion failure
+(`1 test run: 0 passed, 1 failed`).
 
-The control's assertion fails in both arms,
-because the push really did fail.
-Only the words it leaves differ.
+So `main` has the empty cause,
+and the branch's fix is what turns the same failure into a line that names it.
+The controls of both halves were run the same way in the same image:
+
+- With the image's own files:
+`2 tests run: 2 passed`.
+- With `main`'s four files mounted over the image's copies:
+`2 tests run: 0 passed, 2 failed`,
+one on the record's words and one on the journal line's cause.
+
+The image is `localhost/git-policy-native-test:gpc-retry-20261121t1620`,
+built by the gate of this branch,
+whose suite was `9527 tests run: 9525 passed (6 slow), 2 failed, 35 skipped`,
+the two failures being the cause-H pair this host's note records.
+Its log is `keep/gate-2.log` in the round's folder,
+and each arm's log is beside it.
+
+### The container's memory bound, measured
+
+While those arms were being run,
+a `rustc` compiling the crate in a container bound to 2 GiB was ended with `SIGKILL` and nothing written
+(`keep/red-main-code.log`);
+the same command with 6 GiB compiled.
+That is the same ending the push met,
+so a container at its bound is the plausible killer of a process nothing else in the tree signals.
 
 ## What does not work
 
