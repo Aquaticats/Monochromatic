@@ -41107,7 +41107,12 @@ stated in this entry. What follows from them, as work:
   already chosen B so be thorough with it. I was just talking about minimal efforts except what we've already chosen."
   Recorded in the plan's step 10 notes. So the B round keeps its whole brief; a steer told it B is the chosen remedy (not
   an option to put again) and to add a "Limitations" section; no further alternative is explored. The coordinator's
-  first steer, which cut the round's scope, was refused by the owner and deleted undelivered.
+  first steer, which cut the round's scope, was refused by the owner and deleted undelivered. STEP 6'S INTEGRATION
+  FINDINGS ROUND ended at `3255e6cb08` (`main` merged as `131bbc2729`): M1 the README, SPEC, adapter doc and vet report
+  (lock records 32 to 34) say what `btf-rs` does with a widened field, no entry check added; L1 five controls, each red
+  with its code removed; L2 one hop budget over aliases and array elements, a fourth contract duty, red as a stack
+  overflow under a capped unit; L3; binding suite 228 of 228; no wrapper source touched. GOING: the integration reviewer's
+  closure check, merging today's `main` (which gained `c2881ce698`) and running the gate once, then the merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
