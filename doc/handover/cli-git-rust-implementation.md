@@ -41005,7 +41005,14 @@ stated in this entry. What follows from them, as work:
   handler-level control on the record line; the author's restore slip (`232dc52a91`) fixed in `49aeb6c39d`; gate 9322 of
   9324, the cause-H pair. GOING: its narrow final check on Sonnet in the integration worktree
   `integrate-git-policy-cli-lfs-no-prompt-at-a-terminal` (brief under
-  `~/temp/agent/integration-final-check-lfs-after-the-recheck-findings-2026-11-20/`), then the merge on fit.
+  `~/temp/agent/integration-final-check-lfs-after-the-recheck-findings-2026-11-20/`), then the merge on fit. THE VET
+  REPORT'S DIFF CHECK (Sonnet) found four gating wording slips (its folder's `keep/review.md`): N1 `build.yml` claims two
+  compilers where the log shows only GCC; N2 a stale 55 and 53 where the printed label gives 57 and 55; N3 the
+  question-dependency list numbered off by one from question 5; N4 the first place's reason stated as the library shape
+  alone; every count reproduced, lock chain intact, nothing against the adoption record. GOING:
+  `pi-zfs-layout-checker-reader-vet-report-diff-check-wording-fixed` (text only; brief under
+  `~/temp/agent/zfs-layout-checker-reader-vet-report-diff-check-wording-fixed-2026-11-20/`), then the same reviewer
+  confirms its findings closed, then the docs branch merges and the adoption record's pointer moves to the merged revision.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
