@@ -5,13 +5,35 @@
 use super::*;
 use crate::commit_build_part_durations::BuildPartClock;
 use crate::shadow_create::{ShadowTemplate, create_shadow_template};
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{fixture, git, git_context, remove};
 use std::path::{Path, PathBuf};
 
-/// A repository with one commit on `main`,
-/// whose shadow the creation can be made from.
+/// What:
+///  A repository with two commits on `main`,
+///  whose shadow the creation can be made from,
+///  and whose own Git starts no automatic maintenance.
+/// Why:
+///  Git starts `maintenance run --auto` behind every commit it makes,
+/// detached by default
+/// (`prepare_auto_maintenance` in Git's `run-command.c`),
+///  and that run holds `objects/maintenance.lock` until it ends,
+///  so a run forced while it holds the lock skips every task and exits zero.
+///  The controls in this file force that upkeep themselves,
+///  so they would race a child of the fixture and pass or fail on timing;
+///  `prepare_auto_maintenance` starts no child while `maintenance.auto` is false,
+///  and with that key unset it starts none unless `gc.auto` is positive,
+///  so the fixture states both in its config before its first commit
+///  and never has a child to race.
+///  `git maintenance run --auto` itself reads neither key for its `worktree-prune` task
+///  (`worktree_prune_condition` in `builtin/gc.c`),
+///  so the controls still force the same task.
 fn repository_of(root: &Path) -> PathBuf {
-    let repo: PathBuf = repository(root, "repo");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(repo.as_path(), &["config", "maintenance.auto", "false"]);
+    git(repo.as_path(), &["config", "gc.auto", "0"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
@@ -41,8 +63,11 @@ fn creation(root: &Path, template: &ShadowTemplate, name: &str) -> PathBuf {
 /// Why:
 ///  A member holds no link to any of them,
 /// so losing one is no reason to refuse it,
-///  and a busy repository drops every one of them without a person doing anything
-///  (`shadow_links.rs`,
+///  and a busy repository drops such state by itself
+///  (`an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal` names the entries it does this with,
+///  `FETCH_HEAD`,
+/// its own log generations and a removed worktree among them;
+///  `shadow_links.rs`,
 ///  `is_shared_shadow_entry`).
 const UNREAD_ENTRY_NAMES: [&str; 4] = [
     "FETCH_HEAD",
@@ -52,9 +77,9 @@ const UNREAD_ENTRY_NAMES: [&str; 4] = [
 ];
 
 /// What:
-///  Writes the entries above into the repository's common Git directory,
-///  registers a linked worktree beside it,
-///  and answers that common directory.
+///  Writes `UNREAD_ENTRY_NAMES` into the repository's common Git directory,
+///  registers a linked worktree in that repository,
+///  and answers the common directory.
 /// Why:
 ///  The `worktrees` entry is state no commit reads that the repository loses by itself,
 ///  so the fixture writes it as a registration Git can read:
@@ -69,7 +94,8 @@ const UNREAD_ENTRY_NAMES: [&str; 4] = [
 ///  `delete_worktrees_dir_if_empty` in `builtin/worktree.c`).
 ///  A folder written here by hand was gone before the test removed it in a whole gate
 ///  (issue 6325),
-///  and the control beside the test forces that upkeep in the foreground,
+///  and `an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir`
+///  forces that upkeep in the foreground,
 ///  which is the order that took it.
 fn write_unread_state(root: &Path, repo: &Path) -> PathBuf {
     let common: PathBuf = repo.join(".git");
@@ -264,7 +290,8 @@ fn a_pack_or_a_ref_is_refused() {
 ///  (`[warn] [shadowPool] refused the pooled shadow member-...: the shared entry
 ///  monochromatic-git-policy-cli-commit-timing.jsonl.7 is not in the member`).
 ///  What a commit reads is the named set of shared entries,
-///  and the wrapper's own records are not among them: a shadow that linked one would let a commit write into it.
+///  and the wrapper's own records are not among them:
+/// a shadow that linked one would let a commit write into it.
 #[test]
 fn a_rotation_of_the_wrappers_own_timing_log_between_the_fill_and_the_claim_refuses_nothing() {
     let root: PathBuf = fixture("shadow-pool-member-log-rotation");
@@ -406,17 +433,23 @@ fn an_entry_no_commit_reads_that_the_repository_lost_is_no_refusal() {
 }
 
 /// What:
-///  The upkeep Git runs after a commit it makes takes a folder that is named as a worktree registration
+///  A control of the fixture,
+/// not of the shadow code:
+///  the upkeep Git runs after a commit it makes takes a folder that is named as a worktree registration
 ///  and holds no `gitdir` file,
 ///  with the empty `worktrees` folder behind it.
 /// Why:
 ///  Issue 6325:
 ///  such a folder is not a registration Git can read,
-///  so the first automatic maintenance the repository runs removes it,
+///  so the first maintenance the repository runs removes it,
 ///  and a test may not require it to still be there.
 ///  This control runs that upkeep in the foreground,
 ///  which is the order under which a whole gate lost the entry,
 ///  so the cause is measured with no host load and no timing luck.
+///  `repository_of` states the config that keeps the fixture's own commits from starting that upkeep,
+///  so the run forced here is the only one;
+///  the folder going is that run's own effect,
+///  so a run that skipped its work fails here instead of passing.
 #[test]
 fn an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir() {
     let root: PathBuf = fixture("shadow-pool-member-unread-state-upkeep");
@@ -432,19 +465,31 @@ fn an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir() {
 }
 
 /// What:
-///  The upkeep Git runs after a commit it makes leaves every entry the member control writes,
-///  the linked worktree's registration among them.
+///  A control of the fixture,
+/// not of the shadow code:
+///  the upkeep Git runs after a commit it makes leaves every entry the member control writes,
+///  the linked worktree's registration among them,
+///  and takes a folder named as a registration beside them that holds no `gitdir` file.
 /// Why:
-///  The control above shows what that upkeep takes,
+///  `an_upkeep_of_the_repository_takes_a_folder_that_holds_no_gitdir` shows what that upkeep takes,
 ///  so the state the member control depends on must be a registration Git can read,
 ///  which is what `write_unread_state` makes.
 ///  A test that wrote a folder by hand instead fails here.
+///  The folder with no `gitdir` file must go:
+///  that is the evidence that the forced run took a task,
+///  without which every entry surviving would also be a run that did nothing.
 #[test]
 fn the_state_the_member_control_writes_is_state_the_upkeep_keeps() {
     let root: PathBuf = fixture("shadow-pool-member-unread-state-upkeep-registered");
     let repo: PathBuf = repository_of(root.as_path());
     let common: PathBuf = write_unread_state(root.as_path(), repo.as_path());
+    let taken: PathBuf = common.join("worktrees").join("an-entry-the-upkeep-takes");
+    std::fs::create_dir_all(taken.as_path()).expect("a folder named as a registration, holding no gitdir file");
     git(repo.as_path(), &["maintenance", "run", "--auto", "--no-detach"]);
+    assert!(
+        std::fs::symlink_metadata(taken.as_path()).is_err(),
+        "the forced upkeep ran, because it took the folder that holds no gitdir file"
+    );
     for name in UNREAD_ENTRY_NAMES {
         assert!(std::fs::symlink_metadata(common.join(name).as_path()).is_ok(), "the upkeep leaves {name}");
     }
@@ -488,7 +533,8 @@ fn an_entry_a_commit_reads_that_appeared_after_the_member_is_a_refusal() {
 ///   The listing of the member answers the type of every entry it holds,
 /// so the one question a shared name is asked of the file system is where its link points:
 /// a directory or a file where a creation linked the repository's own entry
-///  is a leftover of a use, and the next commit would trust what it holds.
+///  is a leftover of a use,
+/// and the next commit would trust what it holds.
 #[test]
 fn a_real_entry_at_a_shared_name_the_repository_holds_is_a_refusal() {
     let root: PathBuf = fixture("shadow-pool-member-real-entry-held");
