@@ -41286,7 +41286,13 @@ stated in this entry. What follows from them, as work:
   lines versioned at v6.12 and v7.3; the probe committed as
   `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host-probe.rs` after the slint precedent; module test 1 of 1
   in the gate image; no assertion changed). GOING: a narrow integration check on Sonnet (review to
-  `~/temp/agent/integration-check-git-policy-cli-process-cpu-counters-review-lows-2026-11-21/keep/review.md`).
+  `~/temp/agent/integration-check-git-policy-cli-process-cpu-counters-review-lows-2026-11-21/keep/review.md`). It said
+  fit (F1 to F7 closed, every v6.12 and v7.3 line exact against fresh sources, comments only in the crate); its N1, three
+  line-break findings the round added (the test file was clean on `main`), was fixed by the coordinator on the integration
+  branch (lint after: test file 0, doc 580 as on `main`). MERGED as `1a53a03178` at 2026-11-21T15:33:17-05:00; issue 6330
+  closed. Its N2 and N3 (the probe header's unsoftened claims and x86-64 syscall numbers; v7.3 ranges not like-for-like)
+  are nits left in that review. HOUSEKEEPING: the old `integrate/git-policy-cli-lfs-and-gate-base-image-data` worktree
+  removed (both branches it merged are on `main`; its only own commits were its two merges).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
