@@ -137,13 +137,16 @@ fn microseconds(duration: Duration) -> u128 {
 ///   ZED delivers an event to the zedlets itself,
 ///  so the only honest reading of "delivered" is a line the zedlet wrote.
 ///
+/// The time is measured from the caller's `started`,
+/// which is the moment before the property change,
+/// so the round includes the change and not only the first poll that saw it.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const arrived = waitForZedletLine(log, since);
+/// const arrived = waitForZedletLine(log, nonce, since, within);
 /// ```
-fn wait_for_zedlet_line(log: &Path, nonce: &RequestNonce, within: Duration) -> Duration {
-    let started: Instant = Instant::now();
-    let deadline: Instant = started + within;
+fn wait_for_zedlet_line(log: &Path, nonce: &RequestNonce, started: Instant, within: Duration) -> Duration {
+    let deadline: Instant = Instant::now() + within;
     while Instant::now() < deadline {
         if let Ok(text) = std::fs::read_to_string(log) {
             let seen: bool = text
@@ -310,7 +313,7 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
     let value: String = format!("v1:{}:mount", event_nonce.as_str());
     let started: Instant = Instant::now();
     set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, value.as_str());
-    let event_to_zedlet: Duration = wait_for_zedlet_line(Path::new(zedlet_log.as_str()), &event_nonce, Duration::from_secs(10));
+    let event_to_zedlet: Duration = wait_for_zedlet_line(Path::new(zedlet_log.as_str()), &event_nonce, started, Duration::from_secs(10));
     let (event_to_receipt, event_to_answer): (Duration, Duration) = answer_and_measure(sbin.as_str(), &device, clone.as_str(), &event_nonce, started);
     println!("MEASUREMENT mount-protocol event-to-zedlet-us={}", microseconds(event_to_zedlet));
     println!("MEASUREMENT mount-protocol event-to-receipt-us={}", microseconds(event_to_receipt));

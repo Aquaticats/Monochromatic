@@ -55,27 +55,74 @@ module and userspace OpenZFS `2.4.4-1`,
 pool `zfsstep7` on a 1 GiB encrypted file-backed image,
 clone parent `zfsstep7/clones` with `mountpoint=legacy` and `canmount=off`,
 and clone `zfsstep7/clones/one`.
-A real `zfs-zed` ran with one test zedlet,
-`/etc/zfs/zed.d/history_event-step7_probe`,
-which appends its own arrival time and the event's `ZEVENT_CLASS`,
-`ZEVENT_HISTORY_DSNAME` and `ZEVENT_POOL`.
-Only the clone's own events were counted:
-the arm matches the zedlet line's dataset field against the clone it changed.
+A real `zfs-zed` ran with one test zedlet in the prefix's
+`etc/zfs/zed.d` (`/opt/openzfs-2.4.4/etc/zfs/zed.d/history_event-step7_probe`,
+because this guest builds OpenZFS with `--prefix`).
+It appends its own arrival time and the event's `ZEVENT_CLASS`,
+`ZEVENT_HISTORY_DSNAME`,
+`ZEVENT_POOL` and `ZEVENT_HISTORY_INTERNAL_STR`.
+A `zfs set` is an internal history record,
+so the property and its value are in
+`history_internal_str` and `ZEVENT_HISTORY_CMD` is empty;
+the arm matches the nonce inside that string,
+so only the clone's own property change starts a round.
 
 ## The rounds
 
-No round was taken on 2026-11-21.
-The one thrown-away guest on this machine was `fence-leftover-guest`,
-made and left running by another session of this effort,
-and this run's rules are one guest at a time and never to use,
-stop or remove a guest it did not make.
-Every host-side control passed,
-and the guest arms are written and reachable through
-`mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-pool`
-and `-- zfs-protocol-arm` with a prepared guest;
-this section is filled by the run that executes them.
-No number here sizes the deadline,
+Four runs of
+`worktree_clone_mount_protocol::mount_protocol_arm_tests::mount_protocol_arm_intent_receipt_and_nudge`
+on the guest above passed on 2026-11-21,
+each printing one round;
+the kept logs are `keep/guest/step7-suite.log` and
+`keep/rounds/round-2.log`,
+`round-3.log` and `round-4.log`.
+
+- Round 2:
+  event to the test zedlet 10,581 microseconds,
+  event to the product receipt 11,482,
+  event to the product wait's answer 11,523.
+- Round 3:
+  zedlet 10,529,
+  receipt 12,113,
+  answer 12,149.
+- Round 4:
+  zedlet 10,218,
+  receipt 11,171,
+  answer 11,207.
+
+The first run of the arm took no usable round:
+it printed `event-to-zedlet-us=24` because the helper measured from its own
+first poll rather than from the property change.
+That reading was wrong,
+the helper now takes the round's start from its caller,
+and the run was discarded rather than recorded.
+
+The three kept rounds put the test zedlet's arrival 10,218 to 10,581
+microseconds after the property change was issued,
+the product receipt 11,171 to 12,113 microseconds after it,
+and the product wait's answer up to 36 to 64 microseconds after the receipt,
+which is one poll at most.
+No round sizes the deadline,
 and the provisional value stands on the plan's assignment of it to step 22.
+
+## The acceptance arms
+
+The same test covers every step 7 arm in one run:
+a malformed local intent,
+an oversized one,
+an inherited one,
+each followed by checks that the clone is not mounted and the slot folder is
+empty;
+a stale receipt that the product wait refuses;
+the nudge delivered to the delegated account with only
+`mount,userprop` on the parent's descendants and refused on the parent itself;
+and the event-to-receipt round above.
+It passed in the four runs,
+and one earlier run failed only at the event step
+because the zedlet logged `ZEVENT_HISTORY_CMD`,
+which the kernel leaves empty for a `zfs set`;
+its suite log is `keep/guest/step7-suite.log` from before the correction and the
+failure is recorded here.
 
 ## Limits
 
