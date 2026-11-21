@@ -41037,7 +41037,19 @@ stated in this entry. What follows from them, as work:
   GOING, the queued swap: `pi-zfs-step-6-btf-rs-reader-swap` on that tip (brief under
   `~/temp/agent/zfs-step-6-btf-rs-reader-swap-2026-11-20/`: `btf-rs` 2.0.1 with its checksum checked in the lock file,
   the adapter behind the contract, array sizes in the binding, the stand-in decoder removed, the fourteen real-byte
-  pairs compared), then one Sonnet gate re-check covering both rounds, then the integration pass and the merge.
+  pairs compared), then one Sonnet gate re-check covering both rounds, then the integration pass and the merge. THE OLD
+  LFS BRANCHES REVIEW (Pi on the Qwen plan, a second pass; its folder's `keep/report-from-summary.md`): neither branch's
+  work is on `main`; `fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks` (tip `9e23c2623e`) is contained
+  in `fix/git-policy-cli-lfs-push-programs-are-held-in-memory-and-never-written` (tip `2533d1bfea`). Still open on `main`,
+  checked by the coordinator: the upload plan trusts tracking refs on configuration alone (`lfs_upload_plan.rs:508`) and
+  reads `remote.<name>.mirror` from a spelling list (`lfs_upload_settings.rs:362`), the recorded "push after
+  `git remote set-url`, and under `remote.<name>.mirror=2`, publishes pointers without their objects and exits 0"
+  (line 26823 here). Plan: carry the upload fixes first (B1 to B7, B9 to B11; not the rejected `push-programs.json`
+  record), then the memory-held push programs (A1 to A11, the owner's "Memory only", lines 24556 to 24565 here) with its
+  two open defects fixed (the fit check before the programs attach; values kept after a retried push settles); delete
+  both old branches once both land. GOING: `pi-git-policy-cli-lfs-upload-plan-asks-the-destination` on
+  `fix/git-policy-cli-lfs-upload-plan-asks-the-destination` (red first on `main`, the round trip's price measured; brief
+  under `~/temp/agent/git-policy-cli-lfs-upload-plan-asks-the-destination-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
