@@ -40885,7 +40885,14 @@ stated in this entry. What follows from them, as work:
   appends a request turns raw requests off until the approved layout is updated, by the accepted record, and no owner
   question is owed; gate 9306 of 9308, the cause-H pair. GOING: its narrow re-check on Sonnet (brief under
   `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/`). It still merges only after the reader pick
-  replaces the adapter.
+  replaces the adapter. THE ISSUE 6325 FINDINGS ROUND ended at `3557b95dd1`: the race removed at its source
+  (`repository_of` writes `maintenance.auto = false` and `gc.auto = 0` before its first commit, so no detached upkeep
+  exists; the forced run still runs `worktree-prune`); the keeps-control adds a folder the upkeep must take, so a skipped
+  run fails; held-lock red and green with no repetition; the doc names the landing's own upkeep
+  (`service_work.rs` `maintenance_awaiting`, `maintenance_run.rs`) and pins every citation to `v2.56.1`'s commit; the gate
+  image ran `shadow::` and `source_guard::` (304 passed), no whole gate. GOING: its narrow re-check on Sonnet with one gate
+  (brief under `~/temp/agent/integration-recheck-git-policy-cli-shadow-pool-after-findings-2026-11-20/`).
+  `~/temp/agent` measured 13 GB, the fence's findings round's folder 7.7 GB of it (cap 10 GiB).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
