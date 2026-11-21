@@ -40941,11 +40941,14 @@ stated in this entry. What follows from them, as work:
   proof unconditional (202.8 ms of `git ls-tree` here); H3 LFS paths written by Git as their proof (0.64 to 0.91 s for
   this repository's 1,578); H4 a decline rule (converting paths past a quarter of the tree and past 1,000 give the add to
   Git's checkout); measured with the real attribute set: the fence 1.11 of `main` against its control's 1.03 (spread 0.35
-  to 1.64 over five rounds), step 3 without it 0.59 but wrong; a converting source A′ 1.09 with the rule, 1.50 without;
-  ranking A′ > C > D > E, B unbuilt; a fenced partial clone with this repository's LFS files would be 1.3 to 1.5 of
-  `main`, so the partial clone's gain does not survive here; whole gate at `a690379aa5` 9301 of 9303, the cause-H pair,
-  the twelve class controls running in the image; M4 (rung 1 at size in a guest) left open, M3's in-process reads removed
-  as a claim. GOING: its narrow re-check on Sonnet (brief under
+  to 1.64 over five rounds), step 3 without it 0.59 and correct on this repository as it is (`diffVsMain=0` in
+  `measure-r5b-real-*.summary.txt`; corrected 2026-11-20T20:40-05:00, it first read "0.59 but wrong", which is only the
+  converting fixture's 0.50); a converting source A′ 1.09 with the rule, 1.50 without; ranking A′ > C > D > E, B unbuilt;
+  the round's claim that a fenced partial clone would be 1.3 to 1.5 of `main` is unsupported (the re-check: it compared an
+  LFS write against a `main` that paid none), so it decides nothing about the partial clone; whole gate at `a690379aa5`
+  9301 of 9303, the cause-H pair, and the twelve class controls only skipped there (each printed `ZFS CONTROL NOT RUN`;
+  corrected the same time, it first read "running in the image"); M4 (rung 1 at size in a guest) left open, M3's
+  in-process reads removed as a claim. GOING: its narrow re-check on Sonnet (brief under
   `~/temp/agent/gate-recheck-of-the-clone-conversion-fence-on-sonnet-2026-11-20/`), then the owner's question on the
   remedy, with step 3's merge and the partial clone depending on it. STEP 6'S RE-CHECK (Sonnet) came back not fit by
   one finding (its folder's `keep/review.md`): M1 the binding's `lint:types` fails on `clippy::implicit_return` at
@@ -40978,7 +40981,22 @@ stated in this entry. What follows from them, as work:
   `~/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/keep/` as a start), removes the in-house decoder,
   then a gate re-check and the merge. It waits because both rounds edit the same files, not for a slot. The step 6
   re-check also reported, as information for the owner: the record's endpoint rule refuses when `ZFS_IOC_LAST` moves by an
-  append with no layout change, a case neither record nor design examined.
+  append with no layout change, a case neither record nor design examined. THE FENCE'S RE-CHECK (Sonnet) found it not
+  ready, on claims (its folder's `keep/review.md`): bytes hold (300 of 300 equal in a 150-combination sample, 10
+  different on the old prototype; `m01` to `m06` and `c06b` equal); H1 the gate's twelve class controls only skipped; H2
+  "no shape slower than `main`" false: the declining shape is slower by construction (+111 to +380 ms, five of five
+  rounds) and the threshold averaged LFS writes (0.41 to 0.57 ms per path) with text writes (0.06 to 0.08), so 19.9
+  percent converting, which the rule lets through, measured 1.22 of `main`; M1 a valueless `core.autocrlf` and a literal
+  `text=unset` still give wrong bytes (a unit control asserts the wrong reading); M2 the partial-clone figure unsupported;
+  M3 the in-process reads' stated obstacle false (`repo_read_pack.rs` resolves deltas); M4 the decline rule has no
+  control; M5 five rounds cannot resolve 0.1. With the advisor: one more round aimed at kept-run costs, not a waiver-free
+  claim, then a diff-only check, then the owner's question unless that check finds wrong bytes or a contradicted cost.
+  GOING: `pi-clone-rung-conversion-fence-recheck-findings-fixed` (cap 560; brief under
+  `~/temp/agent/clone-rung-conversion-fence-recheck-findings-fixed-2026-11-20/`, including the as-it-is trade 0.59 to 1.11
+  stated first, and a suggestion to prove LFS paths from the pointer's size or oid). THE VET REPORT'S WORDING ROUND ended
+  at `2cc139f19d` (H1 `pahole`'s CI inventoried and its eligibility a project question with both outcomes; H2 the libbpf
+  pinned by the tag; counts 66, 81, 51; nine questions). GOING: a diff-only check on Sonnet (brief under
+  `~/temp/agent/gate-diff-check-of-the-btf-reader-vet-report-wording-on-sonnet-2026-11-20/`), then the docs branch's merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
