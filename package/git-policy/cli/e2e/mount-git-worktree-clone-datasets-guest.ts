@@ -2,19 +2,21 @@
 /**
  Drive one end-to-end run of the root-run clone-mount handler's adoption mode, in a throwaway `mvm` guest.
 
- The arm writes `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` and opens a checkout as
- root, so no control on a person's machine may run it. This driver borrows the ZFS binding's guest recipe for the parts
- that are not the wrapper's (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`): it creates the Ubuntu
- 24.04 guest and prepares it with OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's `native_binary` test
- target inside it, runs the one adoption control there, and destroys the guest.
+ The arms write the store folder `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` and open
+ a checkout as root, so no control on a person's machine may run them. This driver borrows the ZFS binding's guest
+ recipe for the parts that are not the wrapper's
+ (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`): it creates the Ubuntu 24.04 guest and prepares it
+ with OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's `native_binary` test target inside it, runs the
+ adoption and store controls there, runs the store's publication-fsync probe, and destroys the guest.
 
  Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|destroy|all> [--name <guest>]
           [--log-dir <dir>] [--keep-guest]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
- The evidence of one run is `adoption-arm.log`, pulled back into the log directory, and a run passes only when that log
- carries every `ADOPTION` line below and no `SKIPPED` line, so an arm that returned without running fails the run
- instead of reporting a green suite.
+ The evidence of one run is `adoption-arm.log` and `store-fsync.log`, pulled back into the log directory, and a run
+ passes only when the first carries every `ADOPTION` and `STORE` line below, the second carries both `PROBE` lines, and
+ neither holds a `SKIPPED` line, so an arm that returned without running fails the run instead of reporting a green
+ suite.
  */
 import { spawnSync, } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
@@ -45,7 +47,22 @@ const EXPECTED_MARKERS = [
   'ADOPTION refused=mode-widened',
   'ADOPTION refused=slot-differs',
   'ADOPTION done',
+  'STORE published=measured folder-mode=0755 record-mode=0644',
+  'STORE replaced-parent=one-rename',
+  'STORE killed-writer staging-removed=true',
 ] as const;
+
+/** The lines a run must find in the guest's publication-fsync log. */
+const EXPECTED_FSYNC_MARKERS = [
+  'PROBE append with fsync of the file and the folder:',
+  'PROBE publication of one slot record: stage, write, fsync, link, unlink, folder fsync:',
+] as const;
+
+/** Where the store's publication-fsync arm writes inside the guest, on the dataset the store lives on. */
+const FSYNC_FOLDER = '/var/lib/monochromatic-git-policy-cli-fsync-probe';
+
+/** Seconds the publication-fsync arm runs, which is the record's own count of rounds. */
+const FSYNC_ROUNDS = '60';
 
 /** The step, the guest name, the log directory and whether `all` keeps the guest. */
 interface Options {
@@ -208,6 +225,39 @@ async function run(chosen: Options): Promise<void> {
   }
   if (/(^|\n)SKIPPED/m.test(pulled))
     throw new Error('the pulled arm log holds a SKIPPED line, so the adoption arm did not run');
+  publicationFsync({ chosen, });
+}
+
+/**
+ Run the store's publication cost against the pool the store lives on, inside the same guest.
+
+ The probe is pushed rather than snapshot, because it lives in the package's `doc/` folder and the snapshot holds only
+ what a build reads. It is run on a folder under `/var/lib`, which is the dataset the store itself is on, so the arm is
+ what replaced the lock-hold record's subject.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function publicationFsync({ chosen, }: { readonly chosen: Options; }): void {
+  const probe = resolve(import.meta.dirname, '..', 'doc', 'slot-identity-store-write-cost', 'probe-reaches-storage.py');
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, probe, '/root/probe-reaches-storage.py',], log: 'guest-push-probe.log', });
+  const script = [
+    'set -eu',
+    `mkdir --parents ${FSYNC_FOLDER}`,
+    // The pool's own vdev, read inside the guest, so the counters the probe reads are the ones the store's writes reach.
+    'pool_device=$(zpool status -P | grep --only-matching "/dev/[^ ]*" | head --lines=1)',
+    'pool_disk=$(lsblk --noheadings --output PKNAME "$pool_device")',
+    `python3 -I /root/probe-reaches-storage.py ${FSYNC_FOLDER} ${FSYNC_ROUNDS} --pool-device "$(basename "$pool_device")" --pool-disk "$pool_disk" > /mnt/shared/store-fsync.log 2>&1`,
+    'rmdir ' + FSYNC_FOLDER,
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-store-fsync.log', timeout: ARM_TIMEOUT_MS, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/store-fsync.log', join(chosen.logDir, 'store-fsync.log'),], log: 'host-pull-store-fsync.log', });
+  const pulled = readFileSync(join(chosen.logDir, 'store-fsync.log'), 'utf8');
+  for (const marker of EXPECTED_FSYNC_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the pulled publication-fsync log lacks ${marker}; the guest ran the probe without that arm`);
+  }
 }
 
 /** The steps by name, and the whole run. */
