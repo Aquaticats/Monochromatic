@@ -358,10 +358,6 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             }
             None => tell_unavailable(write_half).await,
         },
-        // What: A commit asks whether a finished shadow was drawn ahead of it, and where it is.
-        // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
-        //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
-        //       commit's landing, which is the wait the hand-out exists to remove.
         // What: The push records this command settled or removed can no longer run, so the values held against them are given
         //  up here.
         // Why:  A record the committing wrapper removed leaves nothing the service could learn it from, and one of the values
@@ -375,6 +371,10 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             }
             None => tell_unavailable(write_half).await,
         },
+        // What: A commit asks whether a finished shadow was drawn ahead of it, and where it is.
+        // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
+        //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
+        //       commit's landing, which is the wait the hand-out exists to remove.
         Ok(ClientMessage::Shadow { git_dir, scratch }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,
