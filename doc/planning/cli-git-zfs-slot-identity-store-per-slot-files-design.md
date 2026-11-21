@@ -3,7 +3,7 @@
 **Status:
 design by an agent,
 unapproved and non-final.**
-Written 2026-11-21T16:34:52-05:00.
+Written 2026-11-21T16:32:25-05:00.
 It answers every item that
 [`doc/decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md)
 left to a design,
