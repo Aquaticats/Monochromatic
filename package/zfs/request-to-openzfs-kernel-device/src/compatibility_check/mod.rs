@@ -54,7 +54,7 @@
 //! - `declaration.rs`:
 //!   the reader-neutral declaration of one module's types,
 //!   the three duties every reader owes it,
-//!   and which everything after it reads.
+//!   and the vocabulary everything after it reads.
 //! - `expectations.rs`:
 //!   the layout this crate's type compiles,
 //!   and the two records compared member by member.
