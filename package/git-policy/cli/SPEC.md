@@ -13030,6 +13030,16 @@ The step:
   or a command that could not reach it),
   and the one command that pushes
   (`src/native/push/push_without_its_transport.rs`).
+  A merge's,
+  a cherry-pick's or a pull's own push is written as a record before the wake that carries its values,
+  so a round that claims the record in that moment runs the push with the service's own list,
+  and a push whose command chose a transport stops with those words rather than speaking another one.
+  A commit's own push is not exposed:
+  the service writes that record as it lands the commit and holds its values in the same step,
+  so no round can claim the record before them.
+  That window is issue 6332,
+  which carries the ranked shapes of a fix and waits for its own round
+  (`doc/troubleshooting/git-policy-cli-commit-service-cannot-find-the-shells-programs.md`).
   The refusal names the program,
   every folder of the list it searched,
   and where that list came from,

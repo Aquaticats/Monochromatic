@@ -126,6 +126,14 @@ The owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
   and writing the values is what this change removes.
 - A push an earlier release queued carries no list,
   so it searches the service's own and its refusal says so.
+- A merge's,
+  a cherry-pick's or a pull's own push is written as a record before the wake that carries its values,
+  so a round that claims that record in between runs the push with the service's own list,
+  and a push whose command chose a transport stops with the words above rather than speaking another.
+  That window is issue 6332,
+  which carries the ranked shapes of a fix;
+  a commit's own push is not exposed,
+  because the service writes its record and holds its values in the same step.
 - The values are a few hundred bytes per push in flight;
   a service that keeps running holds them until each record settles,
   or until a plan that carries the push gives it up.
