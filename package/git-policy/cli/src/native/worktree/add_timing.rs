@@ -494,7 +494,21 @@ pub fn begin_work() -> Instant {
 /// endWork('untrackedScan', began);
 /// ```
 pub fn end_work(name: &str, began: Instant) {
-    let spent: Duration = began.elapsed();
+    note_work(name, began.elapsed());
+}
+
+/// What:
+///  Add a stretch of work the caller already measured to the work named `name`.
+/// Why:
+///   Work done once per entry of a walk is summed by the worker that walked them
+/// and noted once,
+/// so a run of twenty thousand entries costs one note per name and not twenty thousand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteWork('cloneFiles', spentAcrossTheSlice);
+/// ```
+pub fn note_work(name: &str, spent: Duration) {
     if let Ok(mut work) = WORK.lock()
         && let Some(list) = work.as_mut()
     {

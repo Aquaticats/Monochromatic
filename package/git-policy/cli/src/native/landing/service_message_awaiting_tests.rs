@@ -20,6 +20,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// so the sign-off and the trailers have the committer they would have in a commit.
 const COMMITTER: &str = "Fixture <fixture@example.invalid> 1762176000 +0000";
 
+/// The date both faces are given where the case is not about an unreadable one,
+/// so the two reads of the clock are one line.
+/// It is a whole second in the past,
+/// which no ident in the control can straddle.
+const A_PINNED_DATE: &str = "2001-02-03T04:05:06+00:00";
+
 /// The shortest a wait can be and still leave a task beside it time to run on this host.
 const SHORT_CEILING: Duration = Duration::from_millis(100);
 
@@ -337,6 +343,12 @@ fn a_message_file_no_look_answered_is_answered_as_an_unreadable_file() {
 ///  hands the line to native `git commit`,
 /// so a face that answered another identity or another nothing would change
 ///  what the person's commit is.
+/// Both faces are read one after the other,
+/// so the two cases whose date Git would fill in from the clock carry a pinned date:
+/// an ident is the clock's too,
+/// and two reads that straddled a second boundary wrote two different lines
+/// (`~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/keep/review.md`,
+/// finding L1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -347,9 +359,10 @@ fn the_awaited_identity_answers_what_the_synchronous_one_answers() {
     let root: PathBuf = fixture("identity-awaiting-agrees");
     let repository: PathBuf = repository(root.as_path(), "repo");
     let context: GitContext = git_context();
-    let overrides: Vec<(&str, String)> = vec![("GIT_AUTHOR_NAME", String::from("Fixture")), ("GIT_AUTHOR_EMAIL", String::from("fixture@example.invalid"))];
+    let committer: Vec<(&str, String)> = vec![("GIT_COMMITTER_DATE", String::from(A_PINNED_DATE))];
+    let overrides: Vec<(&str, String)> = vec![("GIT_AUTHOR_NAME", String::from("Fixture")), ("GIT_AUTHOR_EMAIL", String::from("fixture@example.invalid")), ("GIT_AUTHOR_DATE", String::from(A_PINNED_DATE))];
     let unreadable: Vec<(&str, String)> = vec![("GIT_AUTHOR_NAME", String::from("Fixture")), ("GIT_AUTHOR_DATE", String::from("not a date"))];
-    for (variable, given) in [("GIT_COMMITTER_IDENT", Vec::new()), ("GIT_AUTHOR_IDENT", overrides), ("GIT_AUTHOR_IDENT", unreadable)] {
+    for (variable, given) in [("GIT_COMMITTER_IDENT", committer), ("GIT_AUTHOR_IDENT", overrides), ("GIT_AUTHOR_IDENT", unreadable)] {
         let synchronous = identity(&context, repository.as_path(), variable, given.as_slice());
         let awaited = crate::lazy_runtime::run_on_runtime(identity_awaiting(&context, repository.as_path(), variable, given.as_slice())).expect("the runtime");
         assert_eq!(format!("{synchronous:?}"), format!("{awaited:?}"), "both faces read one identity for {variable}");

@@ -804,7 +804,19 @@ Read-only commands,
      pointer and the source's index with refreshed stat fields,
      has the difference between the source's tree and the
      new `HEAD` applied by `git read-tree -m -u`,
+     has the paths the conversion fence below leaves to Git written by one
+     `git checkout-index --force -u`,
      and is swapped into place with `RENAME_EXCHANGE`.
+     The conversion fence decides this rung too,
+     before the snapshot and before its stage name is claimed:
+     the index the snapshot installs holds the paths Git must write with no stat data,
+     so no path is recorded clean before Git's own write records the bytes it checked out,
+     and a fence that cannot read its inputs,
+     or its decline rule,
+     ends the rung and Git's own checkout completes the worktree.
+     The fence's two reads are on this rung's waiting path:
+     a snapshot copies everything anyway,
+     so there is no copy for them to run beside.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
@@ -854,9 +866,76 @@ Read-only commands,
   2. Clones (`FICLONE`) of every tracked file of a clean worktree,
      with its index,
      on btrfs,
-     XFS with reflink and
-     overlayfs.
-     It shares disk but takes about as long as Git's checkout.
+     XFS with reflink,
+     overlayfs and ZFS.
+     A clone crosses subvolumes of one btrfs filesystem and nothing else,
+     and on ZFS it stays inside one dataset,
+     which the wrapper proves from the dataset name the mount table reports and the device of that name's mount,
+     reading no ZFS ioctl:
+     a slot a mounted clone already occupies,
+     a mounted clone used as the source of a slot in the checkout's dataset,
+     and any slot on another dataset than the source get Git's own checkout instead.
+     It shares disk,
+     and it is measured:
+     on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
+     1.57 times as long as Git's own checkout through the same wrapper,
+     median 0.69 over twenty-three interleaved
+     rounds in five runs,
+     once the source's data had been written out,
+     the slowest round being a first round on a
+     cold fixture;
+     with the clones on one thread it took 1.76 to 2.23 times as long,
+     its five rounds measured against
+     the same build of `main` through the same wrapper,
+     where `doc/planning/cli-git-btrfs-worktree.md` measured a
+     prototype of this rung at parity on btrfs (median 2.1 s against 2.1 s to 2.4 s),
+     a different arm in a different
+     comparison.
+     A source whose data was written moments before the add can wait once for the pool to write it out
+     (`zfs_bclone_wait_dirty`),
+     by up to the pool's transaction timeout.
+     A ZFS destination whose pool has block cloning off (`zfs_bclone_enabled` reads 0) is declined before the proof,
+     because every clone into that dataset would be refused.
+     Two costs of this rung on ZFS are waived in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`
+     until the partial-clone proposal that record names lands or is rejected:
+     a source with uncommitted changes pays the proof and ends in Git's own checkout,
+     about 0.2 s more than on `main` (1.16 times at the median over 24,383 files),
+     and a clean add of a tree of many small files is slower than on `main`,
+     because cloning a small file costs more than Git's write of it
+     (1.33 times at 10,001 files of about 2.6 KB,
+     1.18 times at about 8.8 KB,
+     parity at about 26 KB,
+     and 0.64 times on this repository's own tree).
+     The conversion fence decides which of those paths the clones may carry
+     (GitHub issue 6323:
+     a clone keeps the source's bytes where Git's checkout would convert line endings or `ident`),
+     so that no path is ever recorded clean while its bytes are not Git's own checkout's.
+     A path is carried only where Git's checkout of its blob is the blob itself and the source's file is proven to hold
+     that blob,
+     from Git's own attribute rules (`text`,
+     the legacy `crlf`,
+     `eol`,
+     `filter`,
+     `ident`,
+     `working-tree-encoding`),
+     `core.autocrlf` and `core.eol`,
+     read in `convert.c`'s order;
+     every other path is written by Git,
+     through one `git checkout-index --force -u`.
+     The attributes are read and the decline decided before the copies,
+     the rest of the fence (`git ls-tree` and the decision) runs while the clones copy,
+     and the index is written under a name of its own until that write is done,
+     so a process killed in between leaves no index in the worktree at all,
+     which the next command reports as an add that is possibly incomplete and follows with the commands that finish it,
+     and it removes the index's waiting name and the lock a killed Git left beside it.
+     An add to a commit whose tree differs can end the rung at the tree difference,
+     and Git's own checkout then completes the worktree against that waiting index,
+     so the worktree equals Git's and nothing the clones copied stays behind.
+     A source whose attributes convert more than a quarter of its tracked paths,
+     and more than a thousand of them,
+     is declined before anything is copied,
+     and the line on standard error is the fence's own count and rule in place of
+     `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
@@ -6197,6 +6276,22 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
+- The control that needs a real ZFS mount follows the same rule,
+  under `CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED`:
+  the gate image sets it because its fixture root is that tmpfs and never a ZFS dataset,
+  `native:test:host:btrfs` sets it because its root is btrfs by definition,
+  and `native:test:host` leaves it unset,
+  so on this ZFS host `fs_kind_tests::zfs_a_real_mount_answers_with_its_kind` reads a real dataset
+  and elsewhere an unacknowledged run fails it rather than passing a control that never ran.
+  Two facts a person running it here meets:
+  `native:test:host` needs `cargo-nextest`,
+  which this host does not install
+  (`error: no such command: nextest`;
+  `cargo test --lib -- fs_kind worktree_clone_domain ...`
+  runs the same controls),
+  and the same filters select the btrfs controls,
+  which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs,
+  which the task does not set.
 - The controls that need a kernel namespace fail the same way rather than passing unrun,
   and the acknowledgement variable each refusal names is the only thing that lets one skip:
   `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,

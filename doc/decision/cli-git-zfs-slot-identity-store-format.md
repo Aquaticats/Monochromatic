@@ -89,3 +89,69 @@ which goes to its own review before it is built:
   and in which order,
   to decide without one read of every slot;
 - what becomes of the size check merged for issue 6327 and of the lock-hold document.
+
+## The design accepted
+
+Accepted in the question tool on 2026-11-21,
+recorded at 2026-11-21T17:23:49-05:00,
+in three answers:
+
+- "A:
+  accept with its proposals (Recommended)",
+  to whether the design is accepted with its first-ranked option for its choices 1,
+  3,
+  4,
+  5,
+  6 and 8;
+- "A:
+  O_EXCL staging,
+  then link (Recommended)",
+  to how a slot's first record is published;
+- "A:
+  no listing per sweep (Recommended)",
+  to whether each sweep run lists the store folder.
+
+The design is [`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`][design] at commit `3e0fe761a6`,
+merged into `main` as `8649808092`.
+Its gate review on Sonnet said ready after one fix round,
+with eight low findings left for the build
+(`~/temp/agent/gate-review-zfs-slot-identity-store-per-slot-files-design-2026-11-21/keep/review.md`,
+section "Recheck of 3e0fe761a6").
+
+What the answers settle:
+
+- names:
+  a flat root-owned folder held by descriptor,
+  one file named by the slot,
+  and `.parent` for the parent's record;
+- publication:
+  the record is created with `O_EXCL` under a hidden staging name,
+  linked to its real name in one `linkat` (whose `EEXIST` decides the one winner),
+  and the staging name is then removed;
+  the unnamed-file route is not taken;
+- the parent's record is replaced by one rename,
+  and two adoptions at once leave the later one's record,
+  as on `main`;
+- a second recorder of one slot reads the record that won and carries on with it;
+- each record file is bound at 262,538 bytes,
+  derived from the kernel's access-list and name limits;
+- the folder is root-owned `0755` and each record root-owned `0644`;
+- the adoption lists the folder twice and refuses when the set changed;
+- a sweep reads only the records of the slots it reaches and does not list the folder;
+- the lock-hold document is rewritten and renamed as the publication's write cost,
+  as the repository's rules settle.
+
+What the project accepted as lost,
+as the question stated it:
+an attach no longer refuses on another slot's corrupt or doubled record,
+which the adoption's listing and `doctor` catch instead;
+and an adoption can miss a slot published after its second listing,
+whose record is still correct and only unnamed in the adoption's report.
+
+One commitment made in the question:
+a writer killed during publication leaves a hidden staging file,
+and the build adds the removal of known staging names to `doctor` or the sweep,
+so that the adoption is not their only remover
+(the review's low finding R1).
+
+[design]: ../planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md

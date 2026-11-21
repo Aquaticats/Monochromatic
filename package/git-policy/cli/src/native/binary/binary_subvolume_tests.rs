@@ -172,7 +172,8 @@ fn the_doctor_ends_with_the_filesystem_section_and_keeps_its_status() {
     let expected: &str = match kind {
         FilesystemKind::Btrfs => "btrfs",
         FilesystemKind::Overlayfs => "overlayfs",
-        FilesystemKind::Other => "other than btrfs or overlayfs",
+        FilesystemKind::Zfs => "a ZFS dataset",
+        FilesystemKind::Other => "other than btrfs, overlayfs or ZFS",
     };
     assert!(text.lines().next().is_some_and(|line: &str| { return line.contains(expected); }), "{text}");
     // Git chose the repository, so `-C` from a directory that is no repository reports the same section.
