@@ -40947,7 +40947,17 @@ stated in this entry. What follows from them, as work:
   the twelve class controls running in the image; M4 (rung 1 at size in a guest) left open, M3's in-process reads removed
   as a claim. GOING: its narrow re-check on Sonnet (brief under
   `~/temp/agent/gate-recheck-of-the-clone-conversion-fence-on-sonnet-2026-11-20/`), then the owner's question on the
-  remedy, with step 3's merge and the partial clone depending on it.
+  remedy, with step 3's merge and the partial clone depending on it. STEP 6'S RE-CHECK (Sonnet) came back not fit by
+  one finding (its folder's `keep/review.md`): M1 the binding's `lint:types` fails on `clippy::implicit_return` at
+  `live_gate_tests.rs:62`; the seam holds (a scratch `btf-rs` adapter passed the binding's tests, 215 of 215); L2 three
+  reader duties (a zero width is no bitfield, alias chains bounded, an unreadable member refused) are in no contract or
+  surviving test; L3 the in-house adapter drops an unreadable member; L1 and L4 to L9; gate 9309 of 9311, the cause-H
+  pair; the append-only case under the record's endpoint rule reported to the owner as information. GOING:
+  `pi-zfs-step-6-recheck-findings-fixed` in the coordinator-made worktree `.claude/worktrees/zfs-step-6-recheck-findings`
+  (brief under `~/temp/agent/zfs-step-6-recheck-findings-fixed-2026-11-20/`). THE MISE TRAILING-TERMINATOR ROUND ended
+  at `31f3192c27`: the trim removed (mise's `append_inline_args` appends nothing after the words, cited), the twelve cases
+  red then green, the continuation refusal and the broken-word count fixed, the six effect-first tasks named in the doc.
+  GOING: its final narrow check on Sonnet (brief under `~/temp/agent/integration-final-check-mise-usage-args-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
