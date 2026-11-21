@@ -41072,6 +41072,16 @@ stated in this entry. What follows from them, as work:
   remedy without a record; cost on a local do-nothing push 1.29 of `main`, about 4.9 ms for two child starts; B10's two
   open cases reproduced with choices for the project; gate 9337 of 9339, the cause-H pair). The extra `ls-remote` is a
   whole connection on a real remote, unmeasured; the pre-push hook's remote-sha lines may give the same evidence free.
+  THE BTF-RS SWAP ended at `30e713aead` (`btf-rs` 2.0.1 through `rust-catalog.toml` and `file-enforcer`, its lock checksum
+  equal to the adopted one in all four lock files; the adapter behind the contract, each duty red against a breaking
+  variant; array sizes in the binding with controls; the stand-in decoder removed; the fourteen real-byte pairs identical
+  before and after; guest arms passing; gate 9361 of 9363, the cause-H pair). GOING, all at once: `pi-clone-rung-conversion
+  -fence-beside-the-clone` (B designed, built, measured against A′, C and `main`, plus the diff check's words and N8;
+  brief under `~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/`); step 6's integration pass on
+  Sonnet covering both rounds (brief under `~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/`);
+  one integration pass on Sonnet for both LFS branches, asked to price the destination question over SSH and to judge the
+  pre-push hook's remote-sha input as a free alternative (brief under
+  `~/temp/agent/integration-pass-lfs-lows-and-upload-plan-2026-11-20/`).
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
