@@ -10,7 +10,7 @@
 //!  so a systemd unit runs this mode at boot
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit").
-//!  Its first action is the gate both programs run before their first ioctl,
+//!  Its first action is the gate the handler runs before its first ioctl,
 //!  which is plan step 6,
 //!  so this build refuses the mode before it reads any intent.
 //!

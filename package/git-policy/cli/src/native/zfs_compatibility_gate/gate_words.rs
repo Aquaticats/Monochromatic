@@ -11,7 +11,13 @@
 //! Why:
 //!  The gate's facts and the gate's words are kept apart,
 //! so the wording is tested on
-//!  built facts and both programs say the same thing about the same refusal.
+//!  built facts and a caller prints the same thing about the same refusal.
+//!  A refusal is the process's answer and not a failure of one command:
+//! the handler answers
+//!  status 2 with it,
+//! so the shared line says what stays disabled and leaves what a
+//!  particular program does next to that program,
+//! which is where a mode's own sentence belongs.
 //!  The release sentence is reporting and never a rule:
 //! it is printed only when the
 //!  string differs from the text the tested module reported,
@@ -69,7 +75,7 @@ pub fn compatible_line(facts: &Facts) -> String {
     if !facts.absent.is_empty() {
         words.push_str("; ");
         words.push_str(format!(
-            "this module carries no {}, so the reload check compares the two files' own facts and doctor says the check is weaker there",
+            "this module carries no {}, so the reload check has fewer terms to compare and doctor says the check is weaker there",
             facts.absent.join(", ")
         ).as_str());
     }
@@ -78,9 +84,13 @@ pub fn compatible_line(facts: &Facts) -> String {
 
 /// The words a refusal prints,
 /// with what stays disabled and that nothing was changed.
+///
+/// The line names no mode and no command's status:
+/// the handler appends its own sentence saying no mode was entered,
+/// and the wrapper's refusal, when its route lands, appends its own.
 pub fn refusal_line(refusal: &Refusal) -> String {
     return format!(
-        "the start-time ZFS compatibility gate refused: {refusal}. Every raw request, reads included, stays disabled until a module whose declared layout and request numbers match this build is loaded; this is not a failure of the command, so registrations and durable recovery state stay as they were and no mode is entered. No flag and no environment turns this refusal into a pass."
+        "the start-time ZFS compatibility gate refused: {refusal}. Every raw request, reads included, stays disabled until a module whose declared layout and request numbers match this build is loaded, and registrations and durable recovery state stay as they were. No flag and no environment turns this refusal into a pass."
     );
 }
 

@@ -1,6 +1,6 @@
 //! What:
 //!  The six paths one compatibility check reads,
-//! and the live set both executables use.
+//! and the live set the gate's one caller uses.
 //! Why:
 //!  The paths are the caller's to name,
 //! because the binding performs no configuration of

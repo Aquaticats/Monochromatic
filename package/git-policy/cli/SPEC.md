@@ -19254,18 +19254,31 @@ in this order:
   The walk has a fixed order and stops at the first difference,
   naming the field path with both values.
   The two endpoints are part of that contract,
-  so a release that only appends a request moves `ZFS_IOC_LAST` and refuses
-  even though no layout moved:
-  that is what the record's "the request numbers decide" requires,
-  and `ZFS_IOC_FIRST` and `ZFS_IOC_LAST` are the range's two endpoints it
-  names.
+  so a release that moves `ZFS_IOC_LAST` refuses even though no layout moved,
+  which is what the record's Decision section requires:
+  its expectations list ends with
+  "every request number the binding can send with the range's two endpoints",
+  and any mismatch there refuses.
+  The accepted design states the same in its request contract:
+  "Every request number the binding can send has the value the approved
+  `zfs_ioc` enum gives it, and the range's endpoints match".
+  A release that adds a request inside a reserved number moves no endpoint and
+  no layout,
+  which `zfs-2.3.0` did,
+  so the endpoints catch an append past the last number and not every append.
 - The identity is read again.
   A module that unloaded or was replaced under the check retries the whole
   check once,
   and refuses with "module changed while checking" only when the retry's own
   two identity reads also differ.
   A module that carries no release string,
-  `srcversion` or build ID weakens the reload check instead of refusing.
+  `srcversion` or build ID weakens the reload check instead of refusing:
+  the two identity reads then compare the values it does carry with each
+  file's device,
+  inode,
+  size and modification time,
+  and a module carrying none of the three compares no term at all, which
+  `doctor` says.
   This build's `doctor` reads no gate;
   step 18 adds its gate read and the sentence naming the absent attribute.
 
@@ -19309,15 +19322,18 @@ way:
   A clone that is already attached keeps its binding:
   a refusal never authorizes an unrelated mount or cleanup.
 
-The refusal prints one line naming the failing step,
+The refusal prints a line naming the failing step,
 the file it read and the detail,
 then states that every raw request,
 reads included,
 stays disabled,
 that registrations and durable recovery state stay as they were,
-that no mode was entered so nothing was mounted,
-unmounted or recorded,
 and that no flag and no environment turns the refusal into a pass.
+The handler adds a line saying that no mode was entered,
+so that mode opened nothing,
+made no request,
+mounted nothing,
+unmounted nothing and recorded nothing.
 It never offers a bypass.
 A compatible verdict prints one line naming the target,
 the module's release text,

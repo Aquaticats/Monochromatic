@@ -252,7 +252,7 @@ pub use worktree_clone_mount::*;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
 
-/// The start-time ZFS compatibility gate both executables run before their
+/// The start-time ZFS compatibility gate the root-run handler runs before its
 ///  first ioctl:
 /// the qualified target,
 /// the device,

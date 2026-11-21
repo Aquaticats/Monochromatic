@@ -72,7 +72,8 @@ fn a_refusal_names_the_step_the_disabled_requests_and_no_bypass() {
     assert!(words.contains("dds_flags"), "{words}");
     assert!(words.contains("reads included"), "{words}");
     assert!(words.contains("registrations and durable recovery state"), "{words}");
-    assert!(words.contains("no mode is entered"), "{words}");
+    assert!(!words.contains("no mode is entered"), "{words}");
+    assert!(!words.contains("not a failure of the command"), "{words}");
     assert!(!words.contains("reflink or ordinary Git route"), "{words}");
     assert!(words.contains("No flag and no environment"), "{words}");
 }

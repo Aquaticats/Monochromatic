@@ -102,6 +102,20 @@ fn a_missing_device_refuses_before_any_file_is_read() {
 }
 
 #[test]
+fn a_device_that_refuses_a_read_write_open_refuses_at_the_device() {
+    let _ = std::fs::remove_dir_all(directory("verdict-directory-device"));
+    let fixture: GatePaths = paths("verdict-directory-device");
+    std::fs::remove_file(fixture.device.as_path()).expect("the stand-in device file is removed");
+    std::fs::create_dir(fixture.device.as_path()).expect("a directory stands where the device is");
+    let verdict: Verdict = check(&fixture);
+    let Verdict::Refused(refusal) = verdict else {
+        panic!("a directory was read as the device");
+    };
+    assert_eq!(refusal.step, Step::Device);
+    assert_eq!(refusal.file.as_deref(), Some(fixture.device.as_path()));
+}
+
+#[test]
 fn a_present_device_with_no_type_information_refuses_at_the_header() {
     let fixture: GatePaths = paths("verdict-not-btf");
     std::fs::write(fixture.base_btf.as_path(), b"not type information").expect("the base file");
@@ -135,6 +149,22 @@ fn a_missing_module_file_refuses_at_that_step_and_names_it() {
     };
     assert_eq!(refusal.step, Step::ModuleBtf);
     assert_eq!(refusal.file.as_deref(), Some(fixture.module_btf.as_path()));
+}
+
+#[test]
+fn a_scripted_pass_names_the_attributes_the_module_does_not_carry() {
+    let fixture: GatePaths = paths("verdict-absent-attributes");
+    for file in [&fixture.module_version, &fixture.module_srcversion, &fixture.module_build_id] {
+        std::fs::remove_file(file).expect("the identity file is removed");
+    }
+    let verdict: Verdict = check_with(&fixture, &|_paths: &GatePaths| {
+        return Ok(layout());
+    });
+    let Verdict::Compatible(facts) = verdict else {
+        panic!("a module carrying no identity value refused");
+    };
+    assert_eq!(facts.absent, ["version", "srcversion", "build ID"]);
+    assert!(facts.version.is_none());
 }
 
 #[test]
@@ -204,6 +234,40 @@ fn a_module_that_moves_under_the_first_read_passes_after_one_retry() {
     };
     assert_eq!(calls.get(), 2);
     assert_eq!(facts.version.as_deref(), Some("2.4.4-2"));
+}
+
+#[test]
+fn a_module_whose_source_version_moves_under_the_first_read_passes_after_one_retry() {
+    let fixture: GatePaths = paths("verdict-srcversion-retry");
+    let rewritten: Cell<bool> = Cell::new(false);
+    let calls: Cell<usize> = Cell::new(0);
+    let verdict: Verdict = check_with(&fixture, &|paths: &GatePaths| {
+        calls.set(calls.get().saturating_add(1));
+        if !rewritten.get() {
+            std::fs::write(paths.module_srcversion.as_path(), "00000000000000000000000\n").expect("the moved source version");
+            rewritten.set(true);
+        }
+        return Ok(layout());
+    });
+    assert!(matches!(verdict, Verdict::Compatible(_)), "the retry did not pass");
+    assert_eq!(calls.get(), 2);
+}
+
+#[test]
+fn a_module_whose_build_id_moves_under_the_first_read_passes_after_one_retry() {
+    let fixture: GatePaths = paths("verdict-build-id-retry");
+    let rewritten: Cell<bool> = Cell::new(false);
+    let calls: Cell<usize> = Cell::new(0);
+    let verdict: Verdict = check_with(&fixture, &|paths: &GatePaths| {
+        calls.set(calls.get().saturating_add(1));
+        if !rewritten.get() {
+            std::fs::write(paths.module_build_id.as_path(), "build two").expect("the moved build ID");
+            rewritten.set(true);
+        }
+        return Ok(layout());
+    });
+    assert!(matches!(verdict, Verdict::Compatible(_)), "the retry did not pass");
+    assert_eq!(calls.get(), 2);
 }
 
 #[test]
@@ -280,6 +344,21 @@ fn the_cache_reruns_when_the_build_id_moves() {
     };
     let _ = cache.answer(&fixture, &compare);
     std::fs::write(fixture.module_build_id.as_path(), "build two").expect("the moved build ID");
+    let _ = cache.answer(&fixture, &compare);
+    assert_eq!(calls.get(), 2);
+}
+
+#[test]
+fn the_cache_reruns_when_the_base_file_moves() {
+    let fixture: GatePaths = paths("verdict-cache-base-file");
+    let cache: VerdictCache = VerdictCache::new();
+    let calls: Cell<usize> = Cell::new(0);
+    let compare = |_paths: &GatePaths| {
+        calls.set(calls.get().saturating_add(1));
+        return Ok(layout());
+    };
+    let _ = cache.answer(&fixture, &compare);
+    std::fs::write(fixture.base_btf.as_path(), b"a longer base file").expect("the base file moves");
     let _ = cache.answer(&fixture, &compare);
     assert_eq!(calls.get(), 2);
 }
