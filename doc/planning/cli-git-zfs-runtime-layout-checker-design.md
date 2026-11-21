@@ -3939,11 +3939,13 @@ What does move is the second place:
 a maintenance weight of 4 ties `ebeepf` with `pahole` at 30.5,
 and a weight of 5 puts `pahole` second at 34.5 and `ebeepf` third at 32.5.
 So the report's terminal result is the skill's "sensitivity unresolved",
-and what it hands the project is a conditional ranking plus two questions,
+and what it hands the project is a conditional ranking plus the questions that can move an order:
 the priority between maintenance and deployment fit,
 which decides the second place,
 and the choice between a library and a program,
 which the arithmetic does not decide in the program's favour at any weight the project stated.
+The report's own list carries those and the rest,
+including `bpftool`'s eligibility and the disk-cache question.
 The two limits stay beside that result:
 
 - the `aarch64` target builds and does not run for either library finalist,
