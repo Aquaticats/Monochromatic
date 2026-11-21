@@ -41231,7 +41231,19 @@ stated in this entry. What follows from them, as work:
   `ForgetPrograms` can start a cold service to tell it nothing. Gate tests 9507 of 9509, the cause-H pair. GOING:
   `pi-git-policy-cli-lfs-push-programs-closure-findings-fixed` in the coordinator-made worktree
   `.claude/worktrees/git-policy-cli-lfs-push-programs-closure` (brief under
-  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`).
+  `~/temp/agent/git-policy-cli-lfs-push-programs-closure-findings-fixed-2026-11-21/`). THREE ROUNDS ENDED: step 3 with
+  the fence at `9732a7a68d` (step 3's fixes merged as `bfab8057e0`, the block-cloning-off cost closed by a decline before
+  the source proof; M1 kill-safe, the index waiting under `index.pending` and published after Git's write, red then green;
+  H2 split: the btrfs snapshot add 838 against 431 ms, 338 ms of it `git ls-tree`, not reducible by ordering; M2; the
+  `m05` scenario now leaves an untracked `extra.txt` the rung names; gate 9476 of 9478, the cause-H pair). THE OWNER
+  ANSWERED the btrfs cost on 2026-11-21: "A: merge, then faster reader (Recommended)" (recorded in the plan's step 10
+  notes). The push programs closing round at `52de6d5b97` (clean revert, Clippy passing in the image, the cancelled plan,
+  a replaced plan and a recovery give-up forget their values, `ForgetPrograms` only to an active service, the race stated
+  as issue 6332; gate 9522 of 9524). The M1 controls at `9e475f1f52` (unloaded key and read-only against read-write, each
+  red then green in a guest; older-than-6.6 stated as a limit; no production Rust). GOING, each to its own reviewer:
+  step 3 with the fence's closure check (with an `m05` ruling), the push programs' second closure check, and the M1
+  controls' narrow check. NEXT after step 3 merges: the faster size reader (object database instead of `git ls-tree`),
+  the partial clone (task 415), and the old LFS branches' deletion once the push programs merge.
   Then each design branch
   merges into `main`
   and its answered section leaves the questions file. The layout writer ended `idle` (84 turns) at `209f371e2f`
