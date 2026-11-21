@@ -43,7 +43,8 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...parseUsageArgs(process.env.usage_args ?? '')])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...parseUsageArgs(usageArgWords())])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."lint:types"]
@@ -70,7 +71,8 @@ const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:
 // threads, and threads count).
 // Measured 2026-11-09T01:52:37Z: the browsers start and every test runs once the store is mounted; before that mount the
 // run failed before any browser started (doc/handover/container-limits-everywhere.md, section Measured runs on this host).
-execFileSync('podman', ['run', '--rm', ...containerLimitArguments({ memory: '2g', cpus: 2, pidsLimit: 2048 }), '--security-opt', 'label=disable', '--volume', `${monorepoRoot}:/work`, ...pnpmStoreMountArguments(), '--workdir', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', 'playwright.browser.config.ts', 'package/test-harness/core/src/sinon.browser.test.ts', '--workers=1', ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+execFileSync('podman', ['run', '--rm', ...containerLimitArguments({ memory: '2g', cpus: 2, pidsLimit: 2048 }), '--security-opt', 'label=disable', '--volume', `${monorepoRoot}:/work`, ...pnpmStoreMountArguments(), '--workdir', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', 'playwright.browser.config.ts', 'package/test-harness/core/src/sinon.browser.test.ts', '--workers=1', ...parseUsageArgs(usageArgWords())], { stdio: 'inherit' })
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks.buildAndTest]

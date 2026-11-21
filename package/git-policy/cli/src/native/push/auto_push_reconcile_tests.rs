@@ -589,6 +589,7 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
     let s = scenario("ar-other-failure");
     let refused = PushAttempt {
         exit_code: 1,
+        signal: None,
         output: "remote: error: hook declined".to_owned(),
     };
     assert!(!was_rejected_as_stale(&refused.output));
@@ -602,6 +603,7 @@ fn a_failure_that_is_not_a_stale_update_is_returned_unchanged() {
     );
     let stale = PushAttempt {
         exit_code: 1,
+        signal: None,
         output: " ! [rejected] v1 -> v1".to_owned(),
     };
     assert_eq!(
@@ -794,6 +796,7 @@ fn a_rejection_while_the_remote_is_behind_is_returned_unchanged() {
     commit_local(&s, "b.txt", "local\n");
     let rejected = PushAttempt {
         exit_code: 1,
+        signal: None,
         output: " ! [rejected]        main -> main (fetch first)".to_owned(),
     };
     let returned = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", &tip_of_local(&s), rejected.clone())
@@ -1659,6 +1662,7 @@ fn a_branch_whose_upstream_has_another_name_is_the_one_the_message_names() {
         git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -1696,6 +1700,7 @@ fn the_published_line_names_the_push_destination_and_no_tracking_relation() {
         git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -1722,6 +1727,7 @@ fn a_branch_named_like_its_upstream_keeps_the_message_it_had() {
         git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -1789,6 +1795,7 @@ fn integrate_for(
     };
     let rejected = PushAttempt {
         exit_code: 1,
+        signal: None,
         output: String::from(" ! [rejected] main -> main (fetch first)"),
     };
     return integrate_and_push(&push_git(&scenario.local), &plan, rejected, push_merge)
@@ -1830,6 +1837,7 @@ fn failing_merge_push_while_the_remote_moves(
             advance_remote(&s, "c.txt", "moved\n");
             return Ok(PushAttempt {
                 exit_code: 1,
+                signal: None,
                 output: first_output.to_owned(),
             });
         }
@@ -1839,6 +1847,7 @@ fn failing_merge_push_while_the_remote_moves(
         );
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -1864,6 +1873,7 @@ fn an_explicit_push_whose_commit_the_remote_already_contains_stands_down() {
         pushes += 1;
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -2581,6 +2591,7 @@ fn the_awaited_reconcile_publishes_and_moves_what_the_synchronous_one_does() {
     let landed = commit_local(&s, "b.txt", "local\n");
     let rejected = PushAttempt {
         exit_code: 1,
+        signal: None,
         output: String::from(" ! [rejected] main -> main (fetch first)"),
     };
     let remote_before: String = text_of(&s.remote, &["rev-parse", "main"]);
@@ -2698,6 +2709,7 @@ fn a_merge_push_that_starts_git_synchronously_runs_beside_the_loop_and_not_insid
         );
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -2731,6 +2743,7 @@ fn a_merge_push_whose_thread_the_system_refuses_leaves_the_rejected_attempt_as_i
         pushes += 1;
         return Ok(PushAttempt {
             exit_code: 0,
+            signal: None,
             output: String::new(),
         });
     };
@@ -2777,6 +2790,7 @@ fn a_commit_that_lands_after_the_reading_is_not_published_by_the_reconcile() {
     assert_ne!(racing, pinned);
     let rejected = PushAttempt {
         exit_code: 1,
+        signal: None,
         output: String::from(" ! [rejected]        main -> main (fetch first)"),
     };
     let attempt: PushAttempt = reconcile_divergent_push(&push_git(&s.local), "refs/heads/main", pinned.as_str(), rejected)

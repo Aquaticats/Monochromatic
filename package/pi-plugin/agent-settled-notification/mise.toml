@@ -16,6 +16,7 @@ if (lodged.length > 0) {
   process.exit(1)
 }
 console.log(`${bundle}: nothing asked for at run time besides node own modules`)
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."build:js"]

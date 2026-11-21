@@ -678,6 +678,25 @@ fn report_of_the_push(repo: &Path, landed: &std::process::Output, commit: &str) 
 }
 
 /// What:
+///  The bytes a stop's line says the connection carried.
+/// Why:
+///   One stop is read for the setting that moves it,
+///  and the words that carry that setting exist only when some traffic did:
+///  this is the figure the line itself prints (`carried_bytes=<n>`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Number(/carried_bytes=(\d+)/.exec(report)?.[1] ?? '0')
+/// ```
+fn carried_bytes_in(report: &str) -> u64 {
+    let Some(rest) = report.split("carried_bytes=").nth(1) else {
+        return 0;
+    };
+    let digits: &str = rest.split([',', ')']).next().unwrap_or("0").trim();
+    return digits.parse().unwrap_or(0);
+}
+
+/// What:
 ///  What a stop of a control must leave:
 /// the commit saved,
 /// the report saying the push did not finish and naming the window and the bytes,
@@ -704,7 +723,14 @@ fn assert_stopped_and_contained(fixture: &Fixture, repo: &Path, landed: &std::pr
     assert!(report.contains("limit=connected"), "the stop names the window that ended it: {report}");
     assert!(report.contains("carried_bytes="), "the stop says what the connection carried: {report}");
     assert!(report.contains(&format!("minimum_bytes_per_window={floor}")), "the stop names the floor it was judged on: {report}");
-    assert!(report.contains(PUSH_MINIMUM_RATE_VARIABLE), "the stop names the setting that lets a slower line through: {report}");
+    // The floor is a setting only where the connection carried something: a server that sent nothing has no line speed to
+    //  lower, and a smaller floor would leave no bound at all (`SPEC.md`, `floor_clause`).
+    if carried_bytes_in(report.as_str()) == 0 {
+        assert!(report.contains("nothing moving"), "a connection that carried nothing says so: {report}");
+        assert!(!report.contains(PUSH_MINIMUM_RATE_VARIABLE), "nothing moved, so no rate setting is offered: {report}");
+    } else {
+        assert!(report.contains(PUSH_MINIMUM_RATE_VARIABLE), "the stop names the setting that lets a slower line through: {report}");
+    }
     assert_eq!(git_text(fixture, repo, &["rev-list", "--count", "HEAD"]).trim(), "2", "the commit is saved locally");
     assert!(tripwire.released(), "a process the push started was still running after the command returned");
     assert_nothing_left(fixture, repo);

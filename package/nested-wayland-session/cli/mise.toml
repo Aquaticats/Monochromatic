@@ -1106,8 +1106,9 @@ run = """
 {{vars.cargo_dispatch}}
 {{vars.parse_usage_args}}
 runCargo(['build', '--release'])
-const args = parseUsageArgs(process.env.usage_args ?? '')
+const args = parseUsageArgs(usageArgWords())
 execFileSync('./target/release/monochromatic-nested-wayland-session', args, { stdio: 'inherit' })
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."inspect:pointer-title"]

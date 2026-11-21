@@ -29,7 +29,8 @@ run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
 ensureOxlintConfig()
-runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', parseUsageArgs(process.env.usage_args ?? ''))
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', parseUsageArgs(usageArgWords()))
+{{vars.forwarded_arguments_marker}}
 """
 
 # Parse gate for the formatting-commit step. The style commits 68415aeb53
@@ -81,7 +82,7 @@ const collectFromDirectory = ({ directory, files }) => {
 
 const files = new Set();
 const problems = [];
-const passedPaths = parseUsageArgs(process.env.usage_paths ?? '');
+const passedPaths = parseUsageArgs(process.env.usage_paths ?? forwardedArgumentWords());
 if (passedPaths.length === 0) {
   const changed = execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' });
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: repoRoot, encoding: 'utf8' });
@@ -154,6 +155,7 @@ if (typeScriptFiles.length > 0) {
 for (const problem of problems) console.error(problem);
 console.log(`lint:parse: ${sortedFiles.length} files checked, ${problems.length} problems`);
 if (problems.length > 0) process.exitCode = 1;
+{{vars.forwarded_arguments_marker}}
 '''
 
 [tasks."format:oxlint"]
@@ -163,7 +165,8 @@ run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
 ensureOxlintConfig()
-runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...parseUsageArgs(process.env.usage_args ?? '')])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...parseUsageArgs(usageArgWords())])
+{{vars.forwarded_arguments_marker}}
 """
 
 [tasks."test:unit"]
