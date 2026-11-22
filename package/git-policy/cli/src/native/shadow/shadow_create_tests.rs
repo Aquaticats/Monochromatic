@@ -552,12 +552,19 @@ fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
 /// and the wrapper started it all the same
 ///  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
 ///  cause M).
+///  The attempts the count saw are also asked about in time:
+/// every one of them is cut at its ceiling,
+/// and a start that returned before its ceiling neither ran a program nor waited for one,
+/// so the lower bound below is the witness the old count file gave
+/// and the count of loop iterations does not.
 #[test]
 fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing() {
     let root: PathBuf = fixture("shadow-create-init-cut-always");
     let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1000);
+    // Every start of this control hangs, so each attempt is waited for this ceiling and no shorter.
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(500);
     reset_init_attempts();
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_millis(500))); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(ceiling)); });
     let began: std::time::Instant = std::time::Instant::now();
     let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
     let waited: std::time::Duration = began.elapsed();
@@ -565,6 +572,10 @@ fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_not
     let failure: GitFailure = made.expect_err("every start was cut");
     assert!(failure.0.contains("init"), "{failure:?}");
     assert_eq!(init_attempts(), SHADOW_CREATION_ATTEMPTS, "{failure:?}");
+    assert!(
+        waited >= ceiling * SHADOW_CREATION_ATTEMPTS,
+        "each attempt the count saw was a program waited for its ceiling, and a start that ended sooner ran nothing: {waited:?}"
+    );
     assert!(waited < std::time::Duration::from_secs(60), "{waited:?}");
     let shadow: PathBuf = crate::shadow_git::shadow_repository_path(reftable.join(".git").as_path(), TRANSACTION);
     assert!(!shadow.exists(), "the partial directory is discarded");
