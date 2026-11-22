@@ -22,6 +22,34 @@ and "What must be applied to the machine,
 and where that is recorded" names each act,
 its command and the record that carries it.
 
+This revision answers a gate review from another vendor than the writer's,
+which read the document whole at
+`fecdc987b1` and returned "fit after the listed fixes,
+not as it stands (unapproved,
+non-final):
+its systemd event
+conclusion is contradicted by its own cited source (H1),
+and the step compares two different mount numbers so it would
+refuse on every run (H2)."
+Every finding is answered where it applies:
+the mount-unit event path is replaced by a survey of the triggers that
+could reach the step and by question 2,
+the mount numbers are split into the unique one and the table's one,
+the
+OpenZFS statements about rollback,
+rename and a second mount are corrected from source,
+the printed command becomes
+`reload-or-restart`,
+the no-file resolution is stated,
+the threat model is applied check by check,
+the acceptance arm is
+named,
+and both lists carry the entry shape the brief requires.
+"Revisions" lists the commits,
+and every citation the review questioned was opened and corrected,
+as were the ones it
+did not list.
+
 What it read,
 on this branch of `main` at `5dd8883a60`:
 the decision record
@@ -72,8 +100,12 @@ all of it read-only on this host:
 `systemctl --version`;
 `ls /run/systemd/generator`;
 `ls /etc/zfs/zfs-list.cache`;
+`systemctl --no-ask-password list-units --type=mount --all`;
 `git --version`;
 and text searches over the repository.
+The sibling documents were read with `git show` at the tips "Dependencies on sibling designs" gives,
+without checking
+a branch out and without editing one.
 
 What it did not run:
 any guest,
@@ -93,11 +125,10 @@ and
 
 The item is the plan's step 19 blocker ([plan][plan],
 "Open items and the step that needs each"):
-"What re-applies
-private propagation after a replacement mount:
-step 19,
-blocking for its acceptance item,
-writer design work."
+the entry named "What re-applies private propagation after a replacement mount" says
+"step 19",
+"blocking for its acceptance item",
+and "writer design work".
 
 ## The open item and the answer it carries
 
@@ -216,7 +247,10 @@ not start a unit.
   verified checkout provider's post-key-load readiness hook,
   and the clone-local sweep nudge the wrapper writes on a
   caller's behalf",
-  with ZED's delivery "installed but not controlled".
+  with ZED's delivery described in the open items as "installed but not controlled by the design"
+  ([proposal][proposal],
+  "Open items the decisions leave",
+  line 1784).
 - No configuration,
   wherever it can be avoided:
   the project "first answered that everything must work by default with
@@ -229,7 +263,8 @@ not start a unit.
   setting the project has to keep.
 - The threat model ([staging decision][staging-decision],
   "The handle record's place",
-  lines 221 to 237):
+  lines 221 to 237),
+  applied check by check under "What each check owes the threat model":
   "We have
   to assume my machine isn't compromised.
   sudo is passwordless here anyway.",
@@ -343,7 +378,7 @@ and none is a measurement of behaviour.
   not only by `mount(2)`:
   `struct mount_attr` carries a `propagation`
   field (Linux `v7.3`,
-  `include/uapi/linux/mount.h:161` to `:167`),
+  `include/uapi/linux/mount.h:133` to `:138`),
   `mount_setattr_commit` calls
   `change_mnt_propagation(m, kattr->propagation)` for the mount and,
   with `MOUNT_KATTR_RECURSE`,
@@ -366,12 +401,17 @@ and none is a measurement of behaviour.
   so the call
   answers `EINVAL` there rather than changing a mount nobody can see.
 - F7.
-  Changing a mount's propagation needs the mount to be in some namespace and the caller to be administrative in
-  that namespace's user namespace:
-  `may_change_propagation` answers `EINVAL` when the mount has none and `EPERM`
-  without `CAP_SYS_ADMIN` (Linux `v7.3`,
-  `fs/namespace.c:2943` to `:2954`).
-  Root in the host namespace satisfies it;
+  Two gates guard a propagation change,
+  and neither is the account's:
+  `mount(2)` with a propagation flag goes through `do_change_type` and `may_change_propagation`,
+  which answers `EINVAL` for a mount in no namespace and `EPERM` without `CAP_SYS_ADMIN` in that namespace's user
+  namespace (Linux `v7.3`,
+  `fs/namespace.c:2943` to `:2954`,
+  called at `:2993`),
+  while `mount_setattr` asks `may_mount()` for the same authority and `check_mnt` for membership of the caller's
+  namespace (`fs/namespace.c:5298`,
+  `:5119` to `:5122`).
+  Root in the host namespace satisfies both;
   the account does not,
   which is why the wrapper cannot do this work.
 - F8.
@@ -383,7 +423,7 @@ and none is a measurement of behaviour.
   `mnt_master`,
   `mnt_ns_id` and the mount point
   (Linux `v7.3`,
-  `include/uapi/linux/mount.h:157` to `:186`),
+  `include/uapi/linux/mount.h:157` to `:182`),
   `STATMOUNT_BY_FD` asks for "mountinfo for given fd"
   (`:243` to `:245`),
   and `do_statmount` reads `mnt_file->f_path.mnt`,
@@ -391,59 +431,92 @@ and none is a measurement of behaviour.
   `STATMOUNT_MNT_NS_ID` when the mount has no namespace,
   and answers `ENOENT` for a mount id it cannot find
   (`fs/namespace.c:5908` to `:5928`).
+  It reports two different mount numbers,
+  and they are not interchangeable:
+  `mnt_id` is filled from the mount's `mnt_id_unique`,
+  "mount ID unique until reboot",
+  and `mnt_id_old` from `mnt_id`,
+  which `/proc/self/mountinfo` prints and the kernel may reuse
+  (Linux `v7.3`,
+  `fs/namespace.c:5494` to `:5501`;
+  `fs/mount.h:102` to `:103`;
+  `fs/proc_namespace.c:143`).
+  The repository's parser reads the mountinfo number,
+  the first field,
+  and its checkout record keeps no number at all
+  (`src/native/subvolume/fs_mount_options.rs:53` to `:54`;
+  `src/native/worktree_clone_mount_handler/sweep_checkout_mount.rs:62` to `:73`).
 - F9.
   An ordinary unmount refuses while the mount has children or holders:
   `do_umount` answers `EBUSY` unless
   `propagate_mount_busy(mnt, 2)` is clear (Linux `v7.3`,
   `fs/namespace.c:2004` to `:2012`;
-  `fs/pnode.c:352` to
-  `:355`,
-  `:407` to `:421`).
-  A checkout with a clone mounted under it is such a mount.
+  `fs/pnode.c:501` to `:531`,
+  whose `:512` is the child-mount test).
+  A checkout with any child mount,
+  the clone mounts and the vm-builder output dataset among them,
+  is such a mount (F35).
 - F10.
-  A lazy unmount detaches the whole subtree and makes it private on the way out:
+  A lazy unmount detaches the whole subtree:
   `do_umount` with `MNT_DETACH`
   calls `umount_tree(mnt, UMOUNT_PROPAGATE)` without the busy check (`fs/namespace.c:2004` to `:2008`),
-  `umount_tree` walks every mount under the one named and clears each namespace link (`:1831` to `:1873`),
-  and
-  `bulk_make_private` clears the detaching mounts' master relationships (`fs/pnode.c:162` to `:175`).
+  `umount_tree` walks every mount under the one named,
+  moves it out of its namespace and clears the namespace pointer
+  (`:1831` to `:1873`),
+  and `bulk_make_private` clears each detaching mount's master and peer relationships,
+  transferring any slaves to what was its master (`fs/pnode.c:162` to `:175`).
+  The shared flag of the detached mounts is not what those lines show;
+  the subtree is simply out of every namespace and out of any peer group.
 - F11.
-  A second mount of one ZFS dataset is refused `EBUSY` by the dataset's own long hold:
-  `zfsvfs_create` owns the
-  objset through `dmu_objset_own` (OpenZFS `zfs-2.4.4`,
-  `module/os/linux/zfs/zfs_vfsops.c:651` to `:669`),
-  the own
-  path returns `SET_ERROR(EBUSY)` when `dsl_dataset_tryown` finds an owner (`module/zfs/dsl_dataset.c:896` to `:918`),
-  and `dsl_dataset_tryown` takes the long hold only when no owner stands (`:1049` to `:1062`).
-  A clone whose old mount
-  was detached but not released is therefore still owned,
-  and a new attach of it fails.
+  A second mount of a dataset that is already mounted succeeds as a second mount of the same superblock:
+  `zpl_get_tree` looks the superblock up by the dataset and mounts a fresh one only when `sb->s_root == NULL`,
+  so an existing superblock is reused and the new mount shares it
+  (OpenZFS `zfs-2.4.4`,
+  `module/os/linux/zfs/zpl_super.c:849` to `:951`,
+  with the comment "Matching would imply a multimount of a dataset" at `:345` to `:357`).
+  Its `EBUSY` answers are a differing objset (`:881` to `:887`) and a read-only flag mismatch (`:937` to `:943`),
+  not a dataset held by another mount.
+  The long hold that refuses a fresh superblock,
+  through `zfsvfs_create` and `dsl_dataset_tryown`,
+  belongs to the `sb->s_root == NULL` branch (`module/os/linux/zfs/zfs_vfsops.c:651` to `:669`;
+  `module/zfs/dsl_dataset.c:896` to `:918`,
+  `:1049` to `:1062`).
+  So a clone whose old mount was lazily detached can plausibly be attached a second time while the detached mount
+  stays invisible,
+  which is unmeasured (M9).
 - F12.
   systemd mirrors mounts made outside it:
   "Mount points created at runtime (independently of unit files or
   `/etc/fstab`) will be monitored by systemd and appear like any other mount unit" (systemd `v262`,
-  `man/systemd.mount.xml:76` to `:81`).
+  `man/systemd.mount.xml:74` to `:79`).
   A mount that disappears puts its unit into the dead state,
   and a mount that
   appears puts it into the mounted state with a fresh invocation id,
   both without a job
-  (`src/core/mount.c:2242` to `:2271`).
+  (`src/core/mount.c:2242` to `:2271`,
+  through `mount_set_state` at `:707`).
 - F13.
-  No dependency brings a unit back when a mount unit becomes active without a job.
-  Stop and restart propagate to
-  `PartOf=` units only while systemd adds a stop or restart job (`man/systemd.unit.xml:761` to `:775`;
-  `src/core/transaction.c:1197` to `:1206`),
-  and the retroactive start that runs on an unexpected activation covers
-  only the activating unit's own `Requires=` and `BindsTo=` dependencies,
-  and only those without `After=`
-  (`src/core/unit.c:2313` to `:2331`,
-  called at `:2805` to `:2815`).
-  An external mount or unmount starts nothing.
+  A stop or restart job on a unit reaches its dependents that carry `UNIT_ATOM_PROPAGATE_STOP`:
+  the job adds a stop,
+  or a try-restart for a restart,
+  to every such dependent (`src/core/transaction.c:1199` to `:1215`),
+  and `RequiredBy` carries that atom (`src/core/unit-dependency-atom.c:43` to `:46`),
+  as does `ConsistsOf`,
+  which is what a `PartOf=` on the other unit shows as (`:85` to `:86`).
+  So a restart of a unit with a `Requires=` dependent try-restarts that dependent,
+  and a restart of a mount unit propagates only through the jobs systemd is running.
+  Separately,
+  the retroactive start that runs on an unexpected activation covers the activating unit's own `Requires=`,
+  `BindsTo=` and `Upholds=` targets,
+  and its `Wants=` targets (`src/core/unit.c:2313` to `:2331`,
+  called at `:2805` to `:2815`),
+  skipping each one that has an `After=` from the activating unit;
+  it does not start the activating unit's dependents.
 - F14.
   A path unit cannot see a mount appear at a path it watches,
   and it is rate-limited:
   path units watch with
-  inotify (`man/systemd.path.xml:48` to `:52`),
+  inotify (`man/systemd.path.xml:49` to `:52`),
   `PathExists=` fires on existence and `PathChanged=` on a change to
   the watched file (`:115` to `:130`),
   a path that already satisfies `PathExists=` fires at once and "Something
@@ -455,8 +528,8 @@ and none is a measurement of behaviour.
   A mountpoint is a directory whether or not
   a mount covers it.
 - F15.
-  The checkout dataset gets a mount unit only where the ZFS generator runs:
-  the generator writes one
+  The checkout dataset gets a mount unit wherever the ZFS generator runs,
+  and the generator writes one
   `<escaped mountpoint>.mount` per dataset with `canmount=on` and a path mountpoint,
   with `Before=zfs-mount.service`,
   `After=zfs-import.target` and the key-load unit,
@@ -464,14 +537,15 @@ and none is a measurement of behaviour.
   `What=`,
   `Type=zfs`
   (OpenZFS `zfs-2.4.4`,
-  `etc/systemd/system-generators/zfs-mount-generator.c:616` to `:676`),
-  and it reads its
-  dataset list from the cache file.
+  `etc/systemd/system-generators/zfs-mount-generator.c:629` to `:673`),
+  reading its dataset list from the cache file.
   On this host `/etc/zfs/zfs-list.cache` does not exist and
   `/run/systemd/generator` holds one mount unit,
   `boot.mount`,
-  so no `home-user-Monochromatic.mount` exists here
-  today.
+  so the generator is idle here;
+  systemd nevertheless tracks the host's dataset mounts as mount units it learned from the mount table
+  (F33),
+  and the checkout will have such a unit once it is a mount.
   Read 2026-11-22.
 - F16.
   `zfs-mount.service` mounts the datasets itself:
@@ -493,14 +567,16 @@ and none is a measurement of behaviour.
   errorscrub,
   config,
   history and bootfs ones (OpenZFS `zfs-2.4.4`,
-  `include/sys/sysevent/eventdefs.h:95` to `:133`),
+  `include/sys/sysevent/eventdefs.h:96` to `:131`),
   and the
   mount path posts no ereport (`module/os/linux/zfs/zfs_vfsops.c`,
   searched for `zfs_ereport_post`).
   The proposal
   already relies on the same list for its boot and shutdown argument ([proposal][proposal],
   "Boot and shutdown unit",
-  lines 488 to 498).
+  lines 489 to 497),
+  which cites the same block at `:97` to `:137`;
+  the two ranges name the same definitions with a line of slack.
 - F18.
   The built sweep already refuses a checkout whose mount is shared,
   and reads it live on every run:
@@ -527,7 +603,7 @@ and none is a measurement of behaviour.
   (`src/native/worktree_clone_mount_protocol/clone_mount_readiness_file.rs:1` to `:60`;
   [`SPEC.md`][spec],
   "The readiness record",
-  lines 6185 to 6210).
+  lines 6184 to 6218).
   The same file's reader proves the directory,
   the
   file's owner and its mode before use.
@@ -538,7 +614,12 @@ and none is a measurement of behaviour.
   `fs/namespace.c:3789` to `:3790`).
   That refusal was measured with a shared checkout and
   disappeared once only the checkout was private ([measurements][measurements],
-  item 3).
+  item 3),
+  in a guest on kernel `6.8.0-147-generic`,
+  which is not this host's kernel (F1;
+  [measurements][measurements],
+  "3.
+  Shared propagation and a confined reader").
 - F21.
   The wrapper already reads mount facts itself,
   without privilege,
@@ -568,13 +649,142 @@ and none is a measurement of behaviour.
   and the command waits while that agent asks;
   `--no-ask-password` is what turns the wait into a plain refusal.
 - F23.
-  A signal to another account's process is refused `EPERM`:
-  `check_kill_permission` answers `-EPERM` unless the caller and the target share credentials
-  (`kill_ok_by_cred`) or the signal is `SIGCONT` within one session
+  `Upholds=` keeps a unit started while the upholding unit is up,
+  with no delay and the usual rate limit:
+  "as long as this unit is up,
+  all units listed in `Upholds=` are started whenever found to be inactive or failed,
+  and no job is queued for them" (systemd `v262`,
+  `man/systemd.unit.xml:781` to `:789`),
+  and the manager starts such a unit from its upheld queue,
+  refusing the start when the rate limit is hit
+  (`src/core/manager.c:1565` to `:1601`).
+  Every transition to active submits the unit's `Upholds=` targets to that queue
+  (`src/core/unit.c:2293` to `:2301`,
+  called at `:2882`),
+  and every transition to inactive submits the unit itself,
+  so a failed upheld unit is started again while its upholder stands (`src/core/unit.c:2866`).
+- F24.
+  A drop-in is read for a mount unit systemd learned from the mount table:
+  `mount_load` calls `unit_load_fragment_and_dropin(u, !from_kernel)`,
+  so the fragment is optional but the drop-in directory is read either way (systemd `v262`,
+  `src/core/mount.c:666` to `:668`).
+- F25.
+  A reload is refused on an inactive unit and a start does not imply a reload:
+  "Unit cannot be reloaded because it is inactive" (systemd `v262`,
+  `src/core/unit.c:2155` to `:2156`),
+  while `reload-or-restart` starts a unit that is not running (systemd `v262`,
+  `src/core/job.c:505` to `:510`;
+  `man/systemctl.xml:530` to `:537`).
+- F26.
+  A plain `zfs rollback` of a mounted file system does not replace its mount:
+  `zfs_ioc_rollback` calls `zfs_suspend_fs`,
+  then `dsl_dataset_rollback`,
+  then `zfs_resume_fs` on the mounted dataset (OpenZFS `zfs-2.4.4`,
+  `module/zfs/zfs_ioctl.c:4800` to `:4841`).
+  The instance and its propagation are the ones it had before.
+- F27.
+  A plain `zfs rename` of a file system with a non-legacy mountpoint unmounts and remounts it:
+  the rename path keeps the mount up only for `legacy` and `none` mountpoints or with `-u`
+  (OpenZFS `zfs-2.4.4`,
+  `lib/libzfs/libzfs_dataset.c:4571` to `:4582`),
+  gathers the dependents as a mountpoint change (`lib/libzfs/libzfs_changelist.c:713` to `:715`),
+  unmounts them (`changelist_prefix`,
+  `libzfs_changelist.c:97`),
+  and remounts what was mounted (`changelist_postfix`,
+  `:179`,
+  with the remount at `:260` to `:270`).
+  So a rename is an unmount and a mount by the `zfs` program,
+  outside any systemd job.
+  Whether it also unmounts the legacy-mounted clones,
+  which are dependents of the checkout's snapshots,
+  is unmeasured (M10).
+- F28.
+  `zfs mount -a` does not mount a dataset that is already mounted,
+  and an explicit `zfs mount` of one refuses:
+  "filesystem already mounted" (OpenZFS `zfs-2.4.4`,
+  `cmd/zfs/zfs_main.c:7380` to `:7391`).
+  The accepted staging design recorded the same reading
+  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+  lines 1006 to 1008).
+- F29.
+  A child mount keeps its parent busy:
+  `propagate_mount_busy` returns busy when `mnt_mounts` is not empty (Linux `v7.3`,
+  `fs/pnode.c:501` to `:531`,
+  the child test at `:512`).
+  This host mounts the vm-builder output dataset under the checkout,
+  with its own unit (F33).
+- F30.
+  `mnt_propagation` is a bit set,
+  not one word:
+  `mnt_to_propagation_flags` sets `MS_SHARED`,
+  `MS_SLAVE` and `MS_UNBINDABLE` independently and returns `MS_PRIVATE` only when none is set
   (Linux `v7.3`,
-  `kernel/signal.c:805` to `:837`).
-  Nothing in this design signals a process,
-  and this is the answer a way forward that named a signal would have to give.
+  `fs/namespace.c:5455` to `:5469`).
+  A mount can therefore be shared and slave at once,
+  and a measured arm prints exactly that for one mount ("shared,slave",
+  [measurements][measurements],
+  line 141).
+- F31.
+  ZFS posts a `history_event` for every logged command,
+  and the installed zedlet runs the handler's default invocation for each event it receives:
+  `spa_history_log` notifies the event after writing the record (OpenZFS `zfs-2.4.4`,
+  `module/zfs/spa_history.c:245`),
+  and the default invocation takes no event variable today
+  ([`SPEC.md`][spec],
+  lines 6277 to 6285).
+  The sibling design proposes a filter that runs a pass only for the parent subtree
+  ([`cli-git-zfs-lost-last-event-triggers-design.md`](cli-git-zfs-lost-last-event-triggers-design.md),
+  "The event filter"),
+  which the checkout dataset,
+  a sibling of the container,
+  is outside.
+- F32.
+  The kernel notifies mount attach and detach to a mount-namespace mark,
+  so a watcher can subscribe without polling:
+  `fsnotify_mnt_attach` and `fsnotify_mnt_detach` send `FS_MNT_ATTACH` and `FS_MNT_DETACH` to the namespace's marks
+  (Linux `v7.3`,
+  `include/linux/fsnotify.h:502` to `:515`),
+  and fanotify exposes them as `FAN_MNT_ATTACH`,
+  `FAN_MNT_DETACH` and `FAN_MARK_MNTNS`
+  (`include/uapi/linux/fanotify.h:31` to `:32`,
+  `:100`).
+- F33.
+  This host's systemd holds mount units for mounts no generator wrote,
+  read 2026-11-22 with `systemctl --no-ask-password list-units --type=mount --all`:
+  `home.mount`,
+  `home-user-.cache.mount`,
+  `home-user-.cargo-build.mount`,
+  `home-user-.npm.mount` and
+  `home-user-Monochromatic-package-vm\x2dbuilder-cli-output.mount`.
+  `/run/systemd/generator` holds only `boot.mount`.
+- F34.
+  With no configuration file the project decided how the checkout is found:
+  "the root handler finds the checkout as the one mounted ZFS dataset whose last name component is
+  `monochromatic-git-checkout`,
+  takes the container beside it",
+  "Only a dataset that is mounted counts",
+  and "When the name matches none or several,
+  the handler refuses and lists them"
+  ([sweep-choices][sweep-choices],
+  "With no configuration file",
+  lines 44 to 51),
+  with the setup still writing the file and "a file that is present wins".
+  The built handler requires the key today and the fallback is being built on a branch of its own;
+  the record decides.
+  The design name for the checkout dataset is one constant
+  (`src/native/worktree_clone_mount_handler/sweep_checkout_mount.rs:36` to `:37`),
+  and the container's another (`:39` to `:40`).
+- F35.
+  A refused mode exits `2` and a failed `ExecStart` fails the unit:
+  the dispatch writes the refusal and answers `EXIT_REFUSED`,
+  because "a boot unit's `ExecStart` that could not
+  reconcile must fail"
+  (`src/native/worktree_clone_mount_handler/handler_mode_dispatch.rs:6` to `:10`,
+  `:95` to `:110`),
+  and a unit's start that fails runs its `ExecStopPost` commands,
+  which for this unit are `shutdown-unmount` ([proposal][proposal],
+  "Boot and shutdown unit",
+  lines 523 to 527).
 
 ## Assumptions
 
@@ -594,18 +804,22 @@ and none is a measurement of behaviour.
   (F7),
   and the accepted design puts every mount under the checkout in the handler's hands.
 - A3.
-  The sibling design "Which triggers a lost last event waits for" keeps the three triggers the proposal names and
-  does not move the provider hook off the reconciliation mode.
-  This design's record and its set are written by either
-  entry point,
-  so the assumption only bears on readiness republication,
-  which "Dependencies on sibling designs"
-  states.
+  The sibling design "Which triggers a lost last event waits for" keeps the three triggers the proposal names,
+  moves the provider hook into a drop-in `ExecStartPost=` of `zfs-mount.service`,
+  and adds a filter that runs the default invocation only for events of the clone parent and its descendants
+  ([`cli-git-zfs-lost-last-event-triggers-design.md`](cli-git-zfs-lost-last-event-triggers-design.md),
+  "The provider hook" and "The event filter").
+  This design assumes that filter,
+  which drops a checkout dataset's own history events (F31),
+  and it assumes the hook,
+  whose failing `ExecStartPost=` fails `zfs-mount.service`.
+  Both are the sibling's unapproved proposal,
+  and "Dependencies on sibling designs" states what changes if either is answered otherwise.
 - A4.
   The build may add a mode or a step to the installed handler binary and a field list to a root-owned record,
   and
   the release still ships the two executables `SPEC.md` names ([`SPEC.md`][spec],
-  lines 250 to 280).
+  lines 249 to 272).
   Nothing here
   needs a third executable or a new unit.
 - A5.
@@ -616,6 +830,12 @@ and none is a measurement of behaviour.
   and `statmount` is not called anywhere in the
   repository today,
   so its use here is new code on a kernel interface the ABI gate does not yet cover.
+  Whether the release targets' `libc` exposes `SYS_statmount` and `struct statmount` is unverified here.
+- A6.
+  The checkout's path and dataset reach the step through whatever the handler resolves them with:
+  the configuration's `cloneMounts.checkout` and `cloneMounts.checkoutDataset` when the file names them,
+  and the finder the project decided for a file that names neither (F34;
+  M5).
 
 ## Limitations
 
@@ -629,8 +849,9 @@ and none is a measurement of behaviour.
 - L2.
   The event question is answered from source,
   not from a run:
-  which of F12 to F14 fires for which way a mount is
-  replaced has not been observed on this machine or any guest.
+  which event fires for which way a mount is replaced,
+  and whether systemd notices a quick unmount and mount at all,
+  has not been observed on this machine or any guest (M4).
 - L3.
   A checkout made private in the host namespace is not thereby private everywhere.
   Copies of the checkout's mount
@@ -645,19 +866,21 @@ and none is a measurement of behaviour.
 - L4.
   Between a replacement and the next root handler run,
   mounts made by anyone else under the checkout are created
-  under a shared parent and are propagated to its peers (F3).
+  under a shared parent and are propagated to its peers (F3),
+  and on this host that window is routine rather than exceptional:
+  `zfs mount -a` mounts the vm-builder output dataset under the new shared checkout before any handler run (F29,
+  F33).
   The propagation step cannot prevent that;
-  it can only shorten
-  the window to the next trigger,
-  and no trigger exists for a mount made outside systemd (F13,
-  F17).
+  it can only shorten the window to the next trigger,
+  and which triggers reach it is question 2.
 - L5.
-  The mount-unit event path is unavailable on this host today:
-  no per-dataset mount unit is generated here (F15),
-  so `systemd` knows the checkout only from `mountinfo` (F12) and no unit of ours is attached to it.
-  Any design that
-  trusted that event would be wrong here,
-  which is why none is built on it.
+  Whether systemd notices a quick unmount and mount,
+  and what an `Upholds=` unit does under repeated refusal,
+  are unmeasured (F23,
+  F24;
+  M4).
+  A drop-in on the checkout's mount unit therefore relies on systemd's own reading of the mount table,
+  which is a source reading here and not an observation.
 - L6.
   The step changes the checked mount's peer group and nothing else.
   Whether that is enough for the staging move,
@@ -665,12 +888,10 @@ and none is a measurement of behaviour.
   and the staging design's arms),
   not here.
 - L7.
-  F11 makes a detached clone un-attachable until its old mount is released.
-  This design does not release it,
-  does
-  not find its holders,
-  and does not end them;
-  the removal's holder rules and step 9's unmount do
+  A lazily detached clone plausibly stays mounted in a second mount of the same dataset (F11),
+  and this design neither releases it nor finds it.
+  What it does about that state is unmeasured (M9);
+  the removal's holder rules and step 9's unmount are the designs that look for holders
   ([proposal][proposal],
   "Project decisions",
   "Blocked-removal cancellation").
@@ -685,6 +906,19 @@ and none is a measurement of behaviour.
   Until that step lands the wrapper says
   nothing about propagation,
   and a caller learns of it only at the sweep's refusal and its deadline.
+- L10.
+  A refused step's exit status fails its unit,
+  and on `boot-reconcile` that also runs the unit's `ExecStopPost`,
+  which is `shutdown-unmount`;
+  after a provider restart that leaves the managed clones unmounted (F35,
+  M7).
+  Whether that is the right order for a refused prerequisite is a property of step 9's unmount and not designed here.
+- L11.
+  The design names one root command to re-run the step,
+  and a sibling prints another (F25;
+  "Dependencies on sibling designs").
+  One command should stand in both,
+  and which it is belongs to step 19.
 
 ## What a replacement mount is
 
@@ -693,238 +927,277 @@ and none is a measurement of behaviour.
 A mount instance is the kernel's mount object:
 it carries the propagation,
 the peer group and the namespace link,
-and
-a replacement is any act that leaves a different object at the checkout path.
-Each of the six ways says what the new
-instance's propagation is and what becomes of the clones attached under the old one.
+and a replacement is any act that leaves a different
+object at the checkout path.
+Each of the seven ways says what the new instance's propagation is and what becomes of the children attached under the
+old one.
 
 1.  An unmount and a mount,
     by `systemctl restart home-user-Monochromatic.mount`,
     by `zfs unmount` then `zfs mount`,
-    or
-    by `umount` then `mount`.
-    An ordinary unmount refuses while a clone is mounted under the checkout (F9),
-    so the
-    route's own stop pass runs first,
-    and an unmount of the checkout with clones attached is refused `EBUSY` by
-    the kernel,
-    not by this route.
+    or by `umount` then `mount`.
+    An ordinary unmount refuses while any child mount stands,
+    a clone or the vm-builder output dataset (F9,
+    F29),
+    so
+    the route's own stop pass runs first,
+    and an unmount with those attached is refused `EBUSY` by the kernel,
+    not by
+    this route.
     Once the old instance is gone and a new one is mounted,
-    F3 makes the new one shared
-    and its children,
-    mounted later,
+    F3 makes the new one shared and its later children
     shared with it.
-    Clones attached under the old instance do not survive it,
-    because
-    the unmount could not happen while they were attached.
+    A child mount cannot survive it,
+    because the unmount refused while it stood.
 2.  A lazy unmount and a mount,
     `umount -l` then a mount.
-    `umount -l` does not refuse the clones:
-    it detaches the
-    whole subtree,
-    clones included,
-    from the namespace and makes the detached mounts private (F10).
-    The clones' ZFS
-    datasets stay owned (F11),
-    so a later attach of one fails `EBUSY`;
-    the new instance at the checkout path has no
-    children,
-    is shared by F3,
-    and the F18 check refuses every clone until the detached mounts are released.
-    The
-    handler can still read its own descriptor's mount and see it has no namespace (F8),
-    which is how it tells a
-    detached instance from one nobody opened.
+    The lazy unmount does not refuse the children:
+    it detaches the whole subtree from the namespace (F10).
+    Their datasets stay mounted,
+    and a later mount of the same dataset reuses the live superblock instead of refusing
+    (F11),
+    so a clone can plausibly come back as a second mount while the detached one stays invisible;
+    that is unmeasured (M9).
+    The new instance at the checkout path has no children and is shared by F3,
+    and F18's check refuses every clone
+    until the detached mounts are gone.
+    The handler can see that an old instance has no namespace only from a descriptor it opened before the detach
+    (F8),
+    which is the race test 6 forces,
+    not a way to find a detached mount afterwards.
 3.  A mount after a late key load.
     The checkout's dataset was not mounted at boot,
     its key is loaded later,
-    and the
-    key-load unit or the mount unit then mounts it (F15).
-    The boot unit's run either happened before the mount and
-    refused the checkout as not ready,
-    or has not happened yet;
+    and the key-load unit or the mount unit
+    then mounts it,
+    or `zfs-mount.service` mounts it with `zfs mount -a` (F15,
+    F16).
+    The boot unit's run either happened before the mount and refused the checkout as not ready,
+    or has not happened
+    yet;
     either way the new instance is shared by F3,
-    and the
-    provider hook is the trigger the design names for this way.
+    and which trigger reaches the step is question 2.
 4.  A rollback.
-    `zfs rollback` needs the dataset unmounted,
-    so this way is the first one plus one more fact:
-    a rollback
-    to a snapshot taken before the immutable flag removes the underlay's protection,
-    which the design already says must
-    be verified before automated attach ([proposal][proposal],
+    A plain `zfs rollback` of a mounted checkout is not a replacement:
+    `zfs_ioc_rollback` suspends the mounted file
+    system,
+    rolls back and resumes it,
+    so the instance and its propagation stay as they were (F26).
+    What a rollback can change is the underlay's immutable entry,
+    when it goes back past the snapshot that set it,
+    and
+    that is the protection the design already requires verifying before automated attach
+    ([proposal][proposal],
     "One-time move and checkout boot protection",
-    lines
-    285 to 300;
+    lines 309 to 315;
     [measurements][measurements],
     item 8).
-    The propagation answer is the first way's.
+    So a rollback is a protection event and not a propagation event,
+    and a rollback of a mounted checkout needs no
+    re-application.
 5.  A rename.
-    Renaming the dataset's mountpoint,
-    or replacing the directory at the checkout path,
-    needs the dataset
-    unmounted,
-    so the propagation answer is the first way's.
-    A rename of the dataset that keeps the mountpoint is not a
-    replacement:
-    the mount object stays and its propagation with it.
-    `mount -o remount` is not a replacement either:
-    `do_mount` sends `MS_REMOUNT` to the existing mount and its propagation is untouched (Linux `v7.3`,
-    `fs/namespace.c:4317` to `:4321`).
-    A remount leaves the propagation alone,
-    and `doctor`
-    prints the live tag so the expectation is checked rather than assumed.
-6.  An act outside a job that mounts the dataset:
-    `zfs mount -a` from `zfs-mount.service`
-    (F16),
-    a manual `zfs mount <dataset>`,
-    a reimport followed by `zfs mount -a`.
-    systemd notices (F12) and starts
-    nothing (F13),
-    ZFS posts no event (F17),
-    and the new instance is shared by F3.
-    This is the way with no trigger at
-    all,
-    and the one this design is shaped by.
+    A plain `zfs rename` of a file system whose mountpoint is a path unmounts it and remounts it through the
+    changelist (F27),
+    which makes it way 1 with the `zfs` program as the actor;
+    `-u`,
+    and the `legacy` and `none` mountpoints,
+    keep the mount (F27).
+    Renaming the directory at the checkout path needs the dataset unmounted,
+    so it is way 1 too.
+    `mount -o remount` is not a replacement:
+    it acts on the existing mount object and leaves its propagation alone,
+    and
+    `doctor` prints the live tag so the expectation is checked rather than assumed.
+6.  `zfs mount -a`,
+    `zfs mount <dataset>`,
+    and a reimport followed by either.
+    `zfs mount -a` skips a dataset that is already mounted,
+    and an explicit `zfs mount` of one refuses (F28),
+    so this
+    way is the second half of a replacement whose first half was way 1,
+    way 2 or way 5.
+    The accepted staging design recorded the same reading
+    (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+    lines 1006 to 1008).
+    systemd notices the mount (F12);
+    whether anything starts is "Triggers that could reach the step";
+    ZFS posts no
+    mount event (F17);
+    the new instance is shared by F3,
+    and on this host `zfs mount -a` also mounts the vm-builder
+    output dataset under that shared instance (F29,
+    F33) before any handler run.
+7.  A mount that completes between two of systemd's reads of the mount table,
+    or inside a namespace systemd does not
+    read.
+    No source says how often that happens,
+    and it is the way with no witness at all;
+    it is unmeasured (M4).
 
-### Which events exist, and what each covers
+### Triggers that could reach the step
 
 Read from source,
 not observed (L2).
-The ways are the six in "The ways a checkout mount instance is replaced";
-"covers" means "starts something that could re-apply
-the setting".
+"Reaches the step" means that the candidate starts a program that runs this design's propagation step.
+Each candidate says which ways it reaches and what it costs;
+which ones the project installs is question 2,
+and the design's own mechanism,
+the step at the head of every root
+entry point,
+is what each candidate would start.
 
-- The mount unit's state change.
-  systemd puts the unit dead on an external unmount and mounted,
-  with a fresh invocation
-  id,
-  on an external mount (F12).
-  It is a state change and not a job,
-  so nothing is started by it:
-  `PartOf=` needs a
-  job (F13),
-  the retroactive start covers the activating unit's own dependencies and not its dependents (F13),
-  and a
-  `WantedBy=`/`RequiredBy=` edge is only walked when the mount is started as a job.
-  Covers ways 1 and 3 where
-  systemd runs the mount,
-  and way 6 only if some other unit asks systemd to start the mount unit,
-  which
-  `zfs mount -a` does not.
-  Unavailable on this host in any case,
-  because no such unit exists (F15).
-- A unit bound to that mount.
-  `Requires=` plus `After=` stops the bound unit when the mount unit is stopped by a job
-  and orders it when the mount is started by a job;
-  it does not restart it on a replacement (F13).
-  `BindsTo=` adds the
-  refusal to stay active without the mount and the retroactive start of the mount's dependencies,
-  not of itself (F13).
-  Covers ways 1 and 3 when systemd does the mount,
-  and nothing else.
+- The step in the default invocation,
+  reached by ZED's events.
+  As built,
+  the installed zedlet runs the default invocation for every event it receives,
+  and ZFS posts a
+  `history_event` for every logged command on the machine (F31),
+  so any history record reaches the step.
+  Under the sibling's proposed filter only the clone parent's subtree reaches it,
+  and the checkout dataset,
+  the
+  container's sibling,
+  does not (F31;
+  A3).
+  Reaches:
+  any way,
+  as soon as some logged command of an accepted dataset follows it,
+  and no way when the filter is
+  as proposed and none does.
+- The step in `boot-reconcile`,
+  reached by the sibling's provider hook:
+  a drop-in on `zfs-mount.service` whose
+  `ExecStartPost=` runs the reconciliation (sibling,
+  "The provider hook").
+  Reaches way 3,
+  and way 6 where `zfs mount -a` ran through that service,
+  never a `zfs mount` typed or scripted
+  directly.
+- The step in `boot-reconcile`,
+  reached by the installed unit's own `Requires=` on the provider.
+  A stop or restart job on a unit try-restarts its `Requires=` dependents (F13),
+  so a restart of `zfs-mount.service` or
+  of the checkout's mount unit already re-runs it,
+  and a stop of either stops it and runs its `ExecStopPost`.
+  Reaches way 1 or 3 when systemd runs that job,
+  job or no job aside.
+- A drop-in on the checkout's mount unit that upholds a propagation service.
+  The drop-in carries `Upholds=` a service,
+  and the service carries `BindsTo=` and `After=` the mount unit.
+  `Upholds=` starts the upheld unit whenever the upholding unit is up and the upheld one is inactive or failed,
+  with
+  no delay and the usual rate limit (F23);
+  the drop-in is read for a mount unit systemd knows only from the mount table (F24);
+  and the mount unit's transitions are the extrinsic ones F12 describes.
+  Reaches way 1,
+  3,
+  5 and 6 wherever systemd notices the mount,
+  job or no job.
+  Whether it notices a quick replacement,
+  and what repeated refusals do to the rate limit,
+  are unmeasured (M4).
 - A path unit.
-  It watches with inotify (F14);
-  a mountpoint keeps existing as a directory whether or not a mount covers
-  it,
-  so `PathExists=` and `PathChanged=` do not distinguish the two states,
-  and a failed trigger limit stops it
-  watching altogether (F14).
-  It could be pointed at `/proc/self/mountinfo`,
-  which is a procfs file whose changes inotify
-  does not report,
-  and it would fire on every mount in the host namespace rather than on the checkout's.
-  Covers
-  nothing reliably,
-  and is refused.
-- A ZED event.
-  The event list has no mount or unmount class (F17),
-  and the design already says ZED's delivery is
-  "installed but not controlled" ([proposal][proposal],
-  lines 1393 to 1400).
-  Covers nothing for a mount.
-  The nearest
-  events,
-  `pool_import` and `pool_export`,
-  bracket a reimport,
-  not the mount that follows it.
-- The readiness hook.
-  The checkout provider must trigger reconciliation after post-key-load checkout readiness
-  ([proposal][proposal],
-  "Boot and shutdown unit",
-  lines 540 to 551).
-  It covers ways 3 and 6 as far as they are
-  "the provider just mounted the checkout",
-  which is exactly when it fires,
-  and it is the one trigger designed for a
-  late mount.
-  Its own design is a sibling item.
-- The wrapper's next command and the sweep nudge it writes.
-  Covers whatever the caller does next,
-  after a refusal that
-  this design adds (F18,
-  and the section on the wrapper).
+  It watches with inotify (F14),
+  and a mountpoint keeps existing as a directory whether or not a mount covers it,
+  so
+  `PathExists=` and `PathChanged=` do not distinguish the two states.
+  Pointed at `/proc/self/mountinfo` it would fire on every mount in the namespace,
+  not on the checkout's,
+  and a failed
+  trigger limit stops it watching altogether (F14).
+  Reaches nothing reliably.
+- A watcher on the kernel's mount events.
+  The kernel notifies attach and detach of a mount to that namespace's mark (F32),
+  and fanotify hands a watcher those
+  events without polling.
+  Reaches every way in the namespace it watches,
+  including a replacement too quick for systemd.
+  Costs a long-running privileged process with its own failure and restart story,
+  and nothing here measured it.
+- A root command.
+  The handler's own `boot-reconcile`,
+  as the sibling's `doctor` prints it (sibling,
+  "T5:
+  a trigger a person fires"),
+  or the unit through `systemctl reload-or-restart`,
+  which reloads it when it is active and starts it when it is not
+  (F25).
+  Reaches any way when it is run,
+  and is the only candidate that needs nothing installed.
+- The wrapper's own command after a refusal.
+  The wrapper refuses before any claim,
+  intent or nudge is written ([proposal][proposal],
+  "Add and Git registration",
+  step 1,
+  lines 365 to 372),
+  so it starts nothing and writes nothing that could.
 
-The conclusion the design draws:
-there is no event to hang the re-application on that exists for every way,
-so the
-design does not use one.
-It puts the step where every way must pass anyway,
-which is the next run of the root handler.
+No candidate reaches every way,
+and two of them,
+the drop-in and the watcher,
+reach a replacement systemd did not run
+as a job.
+Which of them the project installs is question 2.
 
 ### What the clones under the old instance become
 
-Three outcomes,
+Four outcomes,
 and each needs saying because the sweep's answer differs:
 
-- Attached and released:
-  the unmount was refused (F9) until a stop pass unmounted them,
-  so they are gone and their
-  datasets are free.
+- Released:
+  a stop pass unmounted them before the checkout was replaced (F9,
+  F29),
+  so they are gone and their datasets
+  are free.
   The sweep attaches them again on intent.
 - Detached with the checkout:
-  a lazy unmount took them with it (F10).
-  Their datasets stay owned (F11),
-  a new attach
-  fails `EBUSY`,
-  and nothing in the wrapper's namespace reaches them:
-  the sweep reports the `EBUSY` per clone,
-  `doctor` reports the clone as unmounted with its intent standing,
-  and the removal's holder scan is where they are
-  looked for ([proposal][proposal],
-  "Mounts held by other namespaces").
-  This design adds no new repair for that state.
+  a lazy unmount took them out of the namespace (F10).
+  Their datasets are still mounted,
+  so a later attach of one plausibly becomes a second mount of the same superblock
+  while the detached one stays invisible (F11),
+  which is unmeasured (M9).
+  Nothing in the handler's namespace reaches the detached one,
+  and `doctor` reports the clone with its intent
+  standing.
+- Blocked by a child:
+  while the vm-builder output dataset is mounted under the checkout,
+  an ordinary unmount of the
+  checkout is refused (F29),
+  and a lazy one detaches it too.
 - Never attached:
   nothing to do.
 
-Which outcome each of the six ways gives,
+Which outcome each of the seven ways gives,
 in the same order as "The ways a checkout mount instance is replaced":
 
 1.  An unmount and a mount:
-    the clones were released first or the unmount was refused (F9),
-    so they are the first outcome.
+    released,
+    because the unmount refused until the children were gone (F9,
+    F29).
 2.  A lazy unmount and a mount:
-    the second outcome,
-    and the new instance is the one a later attach has to work from once they are released.
+    detached,
+    and the new instance is the one a later attach has to work from (F11,
+    M9).
 3.  A mount after a late key load:
-    there was no instance for a clone to be attached under,
-    so the third outcome,
-    and the boot unit's earlier run had already refused the checkout as not ready.
-4.  A rollback:
-    the first outcome,
-    because the rollback's own unmount needed the clones gone,
-    and the underlay's immutable entry is what a rollback to an older snapshot can remove
-    ([measurements][measurements],
-    item 8).
+    never attached,
+    and the boot unit's earlier run had refused the checkout as not
+    ready.
+4.  A rollback of a mounted checkout:
+    unchanged,
+    because the rollback does not replace the instance (F26);
+    a rollback
+    that needed an unmount was way 1.
 5.  A rename:
-    the first outcome for a rename that needs an unmount;
-    for a rename that keeps the mountpoint,
-    the instance is the same one and the clones under it are untouched.
-6.  An act outside a job:
-    the clones were released or the mount refused (F9)
-    or,
-    where that act detaches lazily,
-    the second outcome.
+    released where the changelist unmounted them (F27),
+    and untouched where `-u` kept the mount.
+    Whether the legacy-mounted clones are among the dependents it unmounts is unmeasured (M10).
+6.  `zfs mount -a` and the others:
+    the second half of way 1,
+    2 or 5,
+    so that way's outcome.
+7.  A mount no witness saw:
+    the second or the fourth,
+    and nothing here can tell which.
 
 ## The step that re-applies the setting
 
@@ -934,28 +1207,47 @@ The step is a new module of the installed handler,
 `checkout_propagation`,
 called as the first act of the two entry
 points that decide about attaches,
-before either one enumerates anything:
+before either one enumerates anything.
+Both run as root in the host mount namespace ([proposal][proposal],
+"Boot and shutdown unit",
+lines 499 to 520).
 
 - `boot-reconcile`,
   from `ExecStart` of `reconcile-git-worktree-clone-mounts.service`,
-  as root,
-  in the host mount
-  namespace ([proposal][proposal],
-  "Boot and shutdown unit",
-  lines 499 to 520).
-  Its position is after the
-  configuration is read,
-  because the checkout path and dataset come from it,
-  and before `prepare`,
-  which reads the
-  start probe's record and the checkout's walk.
+  in this order:
+  read the
+  configuration and resolve the checkout;
+  **the propagation step**;
+  the start probe's record and the boot's facts;
+  the
+  pool's state;
+  publish readiness `running`;
+  the sweep;
+  publish readiness `finished` or `failed`.
+  That is the order the
+  built mode has today,
+  with the step inserted after the resolution and before `prepare`
+  (`src/native/worktree_clone_mount_handler/boot_reconcile_mode.rs:1` to `:40`;
+  [`SPEC.md`][spec],
+  lines 6283 to 6289).
 - the default invocation,
   which is what the installed ZED event starts and what a caller's nudge starts,
-  as root.
-  Its
-  position is the same:
-  after the configuration,
-  before the probe record and the walk.
+  in this
+  order:
+  read the configuration and resolve the checkout;
+  **the propagation step**;
+  the start probe's record;
+  the
+  pool and the checkout checks;
+  one sweep.
+  It publishes no readiness,
+  and it must not start doing so,
+  because the
+  readiness record is the boot mode's (`attaching_sweep_mode.rs` calls no readiness writer;
+  [`SPEC.md`][spec],
+  lines 6277 to 6282).
+  A step that published readiness from a ZED event would tell a caller a
+  boot's checks had passed when only a sweep had run.
 
 Neither `shutdown-unmount`,
 `start-probe` nor `adopt-worktree-parent` calls it:
@@ -965,37 +1257,58 @@ the second already runs in a private namespace of its own and changes propagatio
 (`src/native/start_probe/probe_mount_calls.rs:30` to `:60`),
 and the third records identities and mounts nothing.
 
-The order in each of the two entry points becomes:
-read configuration;
-**the propagation step**;
-the start probe's
-record and the boot's facts;
-the pool's state;
-publish readiness `running`;
-the sweep;
-publish readiness `finished` or
-`failed`.
-A refusal in the step publishes no readiness and enumerates nothing,
-which is the design's existing sentence
-for a failed prerequisite:
+A refusal in the step enumerates nothing,
+attaches nothing,
+and publishes no readiness,
+which is the design's existing
+sentence for a failed prerequisite:
 "A failed prerequisite authorizes no attachment" ([proposal][proposal],
-"Boot and shutdown
-unit",
+"Boot and shutdown unit",
 line 523).
+Its exit status is `2`,
+the status every refusal of this handler gives,
+so a
+`boot-reconcile` that could not apply the propagation fails its unit (F35).
+
+Where the step sits among the checks is a writer's choice,
+since no record orders it against the start probe's record;
+"Choices this design marks for the project's veto" lists it (V6).
 
 ### What it verifies before
 
 The step is about one instance,
 and it proves which instance before it touches it:
 
-1.  Open the checkout path `O_PATH | O_DIRECTORY | O_CLOEXEC`.
-    The path is the configured one
-    (`cloneMounts.checkout`,
-    `src/native/worktree_clone_mount_handler/sweep_configuration.rs:63`),
-    which the sweep
-    already verifies as an absolute path on the configured dataset.
-2.  Read the descriptor's mount with `statmount(STATMOUNT_BY_FD)` (F8):
+1.  Take the checkout as the handler already resolved it:
+    the path and the dataset together,
+    from the configuration's
+    `cloneMounts.checkout` and `cloneMounts.checkoutDataset`
+    (`src/native/worktree_clone_mount_handler/sweep_configuration.rs:63` to `:67`),
+    or,
+    when the file names neither,
+    from the finder the project decided.
+    With no file,
+    the project answered that "the root handler finds the checkout as the one mounted ZFS dataset whose
+    last name component is `monochromatic-git-checkout`",
+    that "Only a dataset that is mounted counts",
+    and that "When
+    the name matches none or several,
+    the handler refuses and lists them" ([sweep-choices][sweep-choices],
+    "With no configuration file",
+    lines 44 to 51;
+    F34).
+    The step takes the same answer from the same place and never reads the key itself,
+    so a file that names neither
+    dataset leaves the step working,
+    and the same two refusals,
+    none and several,
+    reach it unchanged (V6,
+    and the
+    tests for each under "The tests a build must have").
+2.  Open that path `O_PATH | O_DIRECTORY | O_CLOEXEC`.
+3.  Read the descriptor's mount with `statmount(STATMOUNT_BY_FD)` (F8):
     `mnt_id`,
+    `mnt_id_old`,
     `mnt_ns_id`,
     `mnt_propagation`,
     `mnt_peer_group`,
@@ -1003,30 +1316,31 @@ and it proves which instance before it touches it:
     `mnt_point`,
     `fs_type`,
     `sb_source`.
-3.  Refuse unless all of these hold,
+4.  Refuse unless all of these hold,
     and name the one that failed:
     the point is the checkout path;
     the type is `zfs`;
-    the source is the configured checkout dataset (`cloneMounts.checkoutDataset`,
-    `:67`,
-    or the design name that step 8
-    falls back to,
-    `sweep_checkout_mount.rs:40` to `:44`);
+    the source is the resolved checkout dataset;
     the mount has a namespace id,
-    so it is not a detached
-    instance (F8,
+    so it is not a detached instance
+    (F8,
     F10);
-    and the propagation is one of the four words.
-4.  Read the live table through the repository's own parser as the sweep does (F18),
+    and the propagation set is one this step knows.
+5.  Read the live table through the repository's own parser as the sweep does (F18),
     and refuse when the two reads
-    disagree about the mount id:
-    that is a replacement between the two,
+    name different instances.
+    The comparison is `statmount`'s `mnt_id_old` against the table's first field,
+    because
+    those are the same number;
+    `mnt_id` is the unique one and the table never prints it (F8,
+    F31).
+    A disagreement is a replacement between the two reads,
     and nothing is set on either instance.
 
 Everything here is a read.
 The refusal that follows the reads leaves the mount as it was,
-and the account never has
-the authority the change needs (F7).
+and the account never has the authority the change
+needs (F7).
 
 ### The call that sets it
 
@@ -1036,65 +1350,79 @@ descriptor from the verify read,
 never with a path (F5,
 F6).
 This is the repository's own idiom for the same change:
-the start probe already sends `mount_setattr` with `propagation: MS_PRIVATE` and falls back to
-`mount(NULL, path, NULL, MS_REC|MS_PRIVATE, NULL)`,
-both inside a namespace of its own
-(`src/native/start_probe/probe_mount_calls.rs:30` to `:60`).
+the start probe already sends `mount_setattr` with
+`propagation: MS_PRIVATE` and falls back to `mount(NULL, path, NULL, MS_REC|MS_PRIVATE, NULL)`,
+both inside a namespace
+of its own (`src/native/start_probe/probe_mount_calls.rs:30` to `:60`).
 The step has no path fallback:
-a path fallback is the
-substitution window the staging design refuses everywhere else,
-and a descriptor that is refused `EINVAL` for having
-no namespace (F6) is a fact the record should carry,
-not something to route around.
+a path fallback is the substitution window the staging design refuses everywhere else,
+and a descriptor that is refused `EINVAL` for having no namespace (F6) is a fact the record should carry,
+not
+something to route around.
+Having no fallback is a writer's choice,
+argued from a window only a hostile account could use;
+V5 lists it.
+
+The step acts when the propagation set carries `MS_SHARED`,
+because that is the measured disqualifier (F20,
+and
+[measurements][measurements],
+item 3),
+and it acts on the set rather than on one word:
+a mount that is shared and
+slave at once is ordinary (F30),
+the repository's own measurement printed exactly that for one mount,
+and the built
+check reads the `shared:` field,
+which such a mount carries (`src/native/worktree_clone_mount_handler/sweep_checkout_mount.rs:172`).
+A set with `MS_SLAVE` or `MS_UNBINDABLE` and no `MS_SHARED` carries no `shared:` tag and is admitted by the built check
+today (F18);
+this design keeps that,
+records the set,
+and leaves the choice to question 3.
 
 No `AT_RECURSIVE`,
 and the reason is written beside the call:
 recursion would make every mount under the checkout
 private too,
-including one the route did not make,
-and the design's sentence is "Do not silently change propagation"
-([proposal][proposal],
-line 1300).
-Whether the project agrees is question 4.
-
-The step acts only when the propagation is `shared`,
-because that is the measured disqualifier (F20,
-and
-[measurements][measurements],
-item 3).
-A `slave` or `unbindable` mount carries no `shared:` tag and is therefore
-admitted by the built check today (F18);
-this design keeps that and reports the word.
-Whether it should refuse is
-question 3.
+including the vm-builder output dataset,
+which the route did not make,
+and the design's sentence is
+"Do not silently change propagation" ([proposal][proposal],
+line 1298).
+That sentence is about the policy as a whole,
+and reading it as forbidding recursion here is the writer's reading;
+question 4 puts the choice to the project.
 
 ### What it verifies after
 
 The same descriptor,
 read again with `statmount(STATMOUNT_BY_FD)`,
 and all three must hold:
-the `mnt_id` is the one
-the before read gave,
+`mnt_id` is the unique
+number the before read gave,
 so the instance is the same;
-`mnt_propagation` is `private`,
-with `mnt_peer_group` and
-`mnt_master` clear;
+the propagation set is `MS_PRIVATE`,
+with `mnt_peer_group`
+and `mnt_master` clear;
 and `mnt_ns_id` is still present,
 so the instance was not detached under the call.
-Anything else
-is a refusal,
+Anything else is a refusal,
 and the record says which one.
+Test 5 forces a set that reports success and leaves `MS_SHARED` standing,
+and test 6 the instance that is detached
+between the two reads.
 
 Then,
 and separately,
-the sweep's own live check re-reads the checkout from the mount table (F18) before the first
-clone is touched.
+the sweep's own live check re-reads the checkout from the mount table (F18) before the first clone
+is touched.
 That second check is the decision's "Recheck it regardless of who sets it" made mechanical:
-the step
-proves what it set,
+the step proves what it
+set,
 and the sweep proves what it is about to attach under,
-and a replacement in between is caught by
-the second read and refused.
+and a replacement in between is caught by the second read
+and refused (test 8).
 
 ### What it writes
 
@@ -1111,16 +1439,83 @@ record back.
 No lock:
 two runs write the same facts about the same instance,
 the last `rename` wins whole,
-and a reader
-sees one complete record (rule `NLK`).
-"The propagation record" states its fields and their bounds.
+and a reader sees one
+complete record (rule `NLK`).
+"The propagation record" states its fields and their bounds,
+including the two mount numbers and the propagation as a
+set.
+
+## What each check owes the threat model
+
+The project's sentence is "We have to assume my machine isn't compromised.
+sudo is passwordless here anyway.",
+read in
+the decision as "the account is trusted,
+and root and the account are not a security boundary here"
+([staging decision][staging-decision],
+"The handle record's place",
+lines 221 to 237),
+and the accepted staging design
+followed it "without dropping one on the strength of the sentence alone".
+This design follows both,
+and says for each check whether it survives that sentence or exists only for a hostile
+account.
+
+- The descriptor-only set,
+  with no path fallback (V5):
+  survives.
+  The race it closes is an administrator's replacement,
+  or another handler run,
+  between the read and the set,
+  and both
+  happen on a trusted machine.
+  A hostile account needs no part in it,
+  and the refusal is about knowing which instance was changed and not about
+  who could substitute one.
+- The source,
+  type and point checks (step 3 of "What it verifies before"):
+  survive,
+  for the same reason.
+  They prove the step is changing the checkout's dataset mount and not a bind,
+  a tmpfs or another dataset at the same
+  path,
+  which is what a boot whose provider mounted the wrong thing produces.
+- The namespace-id check:
+  survives.
+  A detached instance is what a lazy unmount leaves,
+  and no account action is needed to produce one.
+- The mount-table comparison (`mnt_id_old` against the first field):
+  survives.
+  A disagreement is a replacement between two reads,
+  which any root or systemd act can cause.
+- The record's owner and mode checks and its read-back refusal:
+  survives in part.
+  A trusted machine still has to tell a record root wrote from one a stale writer half-wrote,
+  so the read-back and the
+  proof of the directory stay.
+  What only a hostile account motivates is refusing a record whose owner or mode is wrong:
+  the account could replace
+  the record to steer `doctor`,
+  and `doctor` acts on nothing.
+  That check stays,
+  as the staging decision keeps its own,
+  because it costs one `stat` and makes the two records
+  behave alike.
+- The fact that the wrapper refuses rather than setting the propagation itself:
+  not a check but the authority
+  boundary,
+  and it survives:
+  the account has no `CAP_SYS_ADMIN` (F7),
+  so this is not a trust decision at all.
+
+No check in this list is dropped on the strength of that sentence,
+and none is added because of it alone.
 
 ## What the wrapper and the caller see between the replacement and the re-run
 
 The wrapper has no authority here (F7),
 so its part is to say the truth early and to say what root must do.
-Step 10's
-preflight already lists "mount propagation" among the checks it shares with `doctor`
+Step 10's preflight already lists "mount propagation" among the checks it shares with `doctor`
 ([proposal][proposal],
 "Add and Git registration",
 step 1,
@@ -1130,47 +1525,47 @@ the repository's own reader (F21),
 which the account can call.
 The refusal is printed before any claim,
 snapshot,
-clone
-or registration is written,
-so nothing managed is left behind:
+clone or registration is written,
+so nothing managed is left
+behind:
 
 > `/home/user/Monochromatic` is mounted with the `shared` propagation tag,
-> so a clone mounted under it would be
-> delivered to another mount namespace,
-> and this wrapper does not change propagation because it has no authority over
-> mounts.
+> so a clone mounted under it would be delivered to another mount namespace,
+> and this wrapper does not change propagation because it has no authority over mounts.
 > Nothing was claimed,
 > snapshotted,
 > cloned or registered.
 > Ways forward:
 > as root,
-> `systemctl reload reconcile-git-worktree-clone-mounts.service` re-runs the handler's checks and its sweep,
-> and then
-> this command can be run again;
-> `monochromatic-git-policy-cli doctor` prints the live tag and the handler's last
-> propagation record;
-> the next ZED event,
-> the checkout provider's post-key-load hook or another caller's sweep nudge
-> runs the same step.
+> `systemctl reload-or-restart reconcile-git-worktree-clone-mounts.service` re-runs the handler's checks and its
+> sweep,
+> and then this command can be run again;
+> `monochromatic-git-policy-cli doctor` prints the live tag and the handler's last propagation record.
+
+`reload-or-restart` is named because both other words fail in one of the two states a replacement leaves the unit in:
+a reload is refused on an inactive unit,
+which is what a provider restart that stopped it leaves behind (F25,
+F13),
+and a plain `start` on an active unit with `RemainAfterExit=yes` runs nothing.
+`reload-or-restart` reloads it when it is active and starts it when it is not (F25).
+The sibling design prints the handler's own `boot-reconcile` as the root command instead (sibling,
+"T5:
+a trigger a
+person fires"),
+and one command should stand in both places;
+L11 records that,
+and step 19 settles which.
 
 The command the refusal prints is one this wrapper never runs and never waits on.
 A request to change or signal a system unit is answered by the caller session's authorization agent,
 and the command
 waits while that agent asks (F22),
 which is why this route prints the act instead of performing it:
-nothing here asks for a credential,
+nothing here asks
+for a credential,
 and nothing here starts a dialog.
 A script that must not wait adds `--no-ask-password`,
 which turns the wait into a plain refusal (F22).
-
-`systemctl reload` is named rather than `start` because the unit is `Type=oneshot` with `RemainAfterExit=yes`,
-so it is
-active after its first run and `start` on an active unit does nothing (systemd `v262`,
-`man/systemd.service.xml:346` to
-`:353`;
-`src/core/service.c:3765` to `:3786` admits a reload in the exited-with-remainder state).
-The design adds
-`ExecReload=` for exactly this (see "What becomes of `Type=oneshot` with `RemainAfterExit=yes`").
 
 A caller already waiting when a replacement happens has written its intent and its nudge;
 the sweep that answers it
@@ -1179,46 +1574,55 @@ and either attaches or refuses.
 A refusal files no receipt,
 which is step 8's built rule ([`SPEC.md`][spec],
 lines 6364 to 6369),
-and the
-caller's own deadline report already says that a deadline is not cancellation and names the journal
-([`SPEC.md`][spec],
+and the caller's own
+deadline report already says that a deadline is not cancellation and names the journal ([`SPEC.md`][spec],
 lines 6409 to 6416).
-This design adds no receipt for a propagation refusal and does not change
-that rule.
+This design adds no receipt for a propagation refusal and does not change that rule.
 
 `doctor` is the account's read-only view:
-it prints the live `shared:`/`slave:`/`private`/`unbindable` word for the
-checkout's mount,
+it prints the checkout's live propagation set,
 the record's boot,
-mount id,
+both mount
+numbers,
 outcome and failing step,
-and whether the record's mount id is the live
-one.
+and whether the record still describes the live instance.
+That last comparison is the record's `mnt_id_old` against the table's first field for the same mount,
+which `doctor`
+already reads (F8,
+F31,
+F21),
+so it needs no `statmount` call and no privilege.
 When they differ it says the record names an instance that is no longer the checkout's,
-and prints the same
-root command.
+and prints the same root
+command.
 
 ## What a failure reports, and where it is read
 
-Four places,
+Five places,
 each with a different reader,
 and none of them a prompt:
 
+- The step's exit status,
+  which is what the unit sees first:
+  a refusal exits `2`,
+  the handler's status for every
+  refusal,
+  so a `boot-reconcile` whose propagation step refused fails its unit (F35).
 - The handler's summary line,
   which an operator and a guest arm read:
   `applied`,
-  `already-private` or
-  `refused` for the checkout,
-  with the mount id before and after,
-  the failing step and the errno on a refusal.
+  `already-private` or `refused` for the
+  checkout,
+  with both mount numbers,
+  the propagation set before and after,
+  the failing step and the errno on a
+  refusal.
 - The handler's journal,
   under the unit's name,
-  which the design already names in its refusals
-  ([`SPEC.md`][spec],
+  which the design already names in its refusals ([`SPEC.md`][spec],
   lines 6211 to 6212,
   and the refusal texts in `clone_mount_readiness_admission.rs:100`).
-  The step logs the same
-  fields the record carries,
+  The step logs the same fields the record carries,
   tagged `checkoutPropagation`.
 - The record,
   `/run/git-worktree-clone-mount-propagation/result`,
@@ -1235,7 +1639,25 @@ and none of them a prompt:
   extended by
   the step to name the record and the root command.
 
-Nothing is reported anywhere but those four places,
+A refused start is not only a report.
+A unit whose start fails runs its `ExecStopPost` commands ([proposal][proposal],
+"Boot and shutdown unit",
+lines 523
+to 527),
+and this unit's are `shutdown-unmount`,
+so a refused step in `boot-reconcile` also runs the stop pass and
+leaves the managed clones unmounted until the next attach admits.
+That consequence is L10;
+the design states it and does not design around it,
+because the stop pass and its refusal
+rules are step 9's.
+A refusal inside the sibling's provider hook fails `zfs-mount.service` as well,
+since a failing `ExecStartPost=` fails
+its unit (systemd `v262`,
+`man/systemd.service.xml:456` to `:459`),
+and that is the sibling's L7.
+
+Nothing is reported anywhere but those five places,
 and nothing asks for a credential or a password:
 the wrapper's
 refusal names the command root runs and prompts for nothing ([`SPEC.md`][spec],
@@ -1248,204 +1670,42 @@ Four reasons,
 and one addition:
 
 - The unit's remaining duty is the shutdown half,
-  and that needs a unit that was started and stays active so that its `ExecStopPost` runs at a stop:
+  and that needs a unit that was started and stays active so that its
+  `ExecStopPost` runs at a stop:
   a failed start already runs it,
-  "execution continues with commands specified in `ExecStopPost=`" (systemd `v262`,
-  `man/systemd.service.xml:459` to `:462`),
-  and `RemainAfterExit=` is what keeps a oneshot service active after its process exits
-  (`:346` to `:353`).
+  "execution continues with commands specified in
+  `ExecStopPost=`" (systemd `v262`,
+  `man/systemd.service.xml:456` to `:459`),
+  and `RemainAfterExit=` is what keeps a
+  oneshot service active after its process exits (`:346` to `:353`).
   The design's `ExecStopPost` passes are unaffected.
-- Nothing needs it to fire on a later mount,
-  because the setting no longer depends on a unit firing (the section on the
-  step).
-  Making it fire would mean a unit bound to the mount,
-  which F13 shows does not fire for a mount made outside
-  systemd,
-  or a path unit,
-  which F14 shows cannot see the change.
+- The installed unit's `Requires=` on the provider already makes a provider restart try-restart it (F13),
+  so a
+  `systemctl restart zfs-mount.service` or a restart of the checkout's mount unit re-runs `boot-reconcile` without
+  anything new being installed.
+  That is the one job-driven case the unit covers today,
+  and it reaches ways 1 and 3 when systemd runs that job.
 - `RemainAfterExit=yes` keeps one boot's readiness publication at one start,
   which is what the record's `running` and
-  `finished` states mean.
-- The `Requires=` the design already wires to the checkout provider keeps its consequence:
-  stopping the mount unit by
-  a job stops this unit too and runs its `ExecStopPost`,
-  which is the design's own stop pass,
-  and is the right answer
-  to a stop that precedes a replacement of the checkout.
+  `finished` states mean,
+  and a ZED-driven run of the default invocation publishes no readiness (M4).
 - The addition is `ExecReload=<the same handler> boot-reconcile`,
-  so that `systemctl reload` re-runs the checks,
-  the
-  propagation step and the sweep on demand.
-  It is the only manual way back that does not depend on a clone event,
-  and
-  it is one line of the unit step 19 installs.
-  It is a writer's choice,
-  listed for veto.
+  paired with `reload-or-restart` as the printed
+  command,
+  so that a root command re-runs the checks,
+  the propagation step and the sweep whether the unit is active
+  or not (F25).
+  It is one line of the unit step 19 installs,
+  and it is a writer's choice,
+  listed for veto (V3).
 
-What the unit still cannot do is notice a replacement by itself,
-and the design says so rather than pretending
-otherwise (L4).
-
-## Ways to meet it
-
-### Way A: the step at the head of every root entry point (adopted)
-
-The handler re-applies the setting as its first act,
-in both entry points,
-on the descriptor-verified instance,
-and
-records the outcome.
-The boot unit remains a setter,
-the sweep becomes one too,
-and no unit is bound to the mount.
-
-- Covers:
-  every way in "The ways a checkout mount instance is replaced",
-  as soon as any trigger the project controls
-  runs.
-  For way 6,
-  that is the next ZED event,
-  the next nudge or the next provider hook.
-- Costs:
-  a run that nobody triggered never repairs (L4);
-  the record is one more root-owned file;
-  the wrapper's refusal
-  needs step 10.
-- Why it wins:
-  it needs no event that does not exist,
-  no new unit,
-  no new executable and no configuration;
-  it puts the
-  change where the design already requires the check (F18);
-  it acts on a described instance rather than a path
-  (F6,
-  F8);
-  and it is the only way that covers way 6.
-
-### Way B: a drop-in on the checkout's mount unit that pulls a propagation service
-
-`/etc/systemd/system/home-user-Monochromatic.mount.d/10-propagation.conf` with `Wants=` and `After=` a new
-`checkout-propagation.service`.
-Every job that starts the mount unit also starts the service.
-
-- Covers:
-  ways 1 and 3 where systemd starts the mount,
-  and boot.
-- Costs:
-  it does nothing for a mount made outside systemd,
-  which is way 6 and is the common case (`zfs mount -a`,
-  F16);
-  it needs the mount unit to exist,
-  which it does not on this host (F15);
-  and it adds a unit whose only job is
-  one call the handler can make itself.
-- Example:
-  `systemctl restart home-user-Monochromatic.mount` re-applies the setting;
-  `zfs unmount <ds> && zfs mount <ds>`
-  does not.
-
-### Way C: a service bound with `PartOf=` and `BindsTo=`
-
-The existing unit or a second one gains `PartOf=home-user-Monochromatic.mount` and `BindsTo=` the same,
-so systemd
-restarts it whenever it restarts the mount.
-
-- Covers:
-  `systemctl restart` of the mount unit,
-  and nothing else.
-- Costs:
-  it never fires for an external mount or unmount (F13),
-  and the restart it does get runs the whole boot mode,
-  republishing readiness,
-  which is more than the setting needs.
-- Example:
-  `systemctl restart home-user-Monochromatic.mount` re-runs it;
-  `mount -t zfs <ds> /home/user/Monochromatic`
-  does not.
-
-### Way D: a path unit on the checkout path or on the mount table
-
-A `checkout-propagation.path` with `PathChanged=`/`PathExists=` on the checkout or `/proc/self/mountinfo`.
-
-- Covers:
-  nothing for the checkout's own mount,
-  and everything in the namespace for the mount table,
-  at the price of a
-  process start per mount anywhere on the machine (F14).
-- Costs:
-  the watch cannot distinguish a mounted from an unmounted mountpoint;
-  the rate limit fails the unit under
-  churn (F14);
-  and the fire hose is a cost nothing here measures.
-- Example:
-  a container mount in the same namespace starts the service;
-  the checkout being remounted does not.
-
-### Way E: a ZED event
-
-A zedlet on a ZFS sysevent.
-
-- Covers:
-  nothing.
-  There is no mount class (F17),
-  and the import and export classes bracket the wrong moment
-  ([proposal][proposal],
-  "Boot and shutdown unit",
-  lines 488 to 498).
-- Costs:
-  it would need a new sysevent in OpenZFS,
-  which is out of this route's hands.
-
-### Way F: the wrapper sets it
-
-- Refused:
-  the account has no authority (F7),
-  the design forbids a path-based mount or unmount on the account's tree
-  ([proposal][proposal],
-  "What the design forbids"),
-  and the wrapper is not the actor the decision names.
-
-### Ways refused
-
-- Setting it once after each replacement,
-  outside the route:
-  the decision's rejected alternative,
-  which does not persist
-  across a replacement ([proposal][proposal],
-  line 1289).
-- A periodic timer that re-runs the sweep:
-  the project decided "Triggers only,
-  and we control the triggers"
-  ([proposal][proposal],
-  lines 1393 to 1400),
-  and a timer would need the coalescing and rate rule the design does not
-  have.
-- A daemon watching the mount table through netlink or a bus subscription:
-  a new long-running privileged process,
-  a
-  new code path in the release,
-  and a new failure mode,
-  for an answer the next handler run already gives.
-
-## Ranking
-
-Way A > Way B > Way C > Way D > Way E,
-with Way F refused.
-
-- A over B:
-  A covers way 6 and B does not,
-  and B needs a mount unit that this host does not generate (F15).
-- B over C:
-  B fires for the boot transaction and for `systemctl start`,
-  where C fires only for a restart,
-  and both
-  miss way 6.
-- C over D:
-  C fires at most too rarely,
-  while D fires far too often and cannot tell the state it is asked about.
-- D over E:
-  D at least fires,
-  and E has no event to fire on.
+What the unit still cannot do is notice a replacement systemd did not run as a job,
+unless the project installs a
+drop-in that upholds a propagation service on the mount unit (F23,
+F24;
+question 2),
+and it cannot notice a
+replacement inside a namespace systemd does not read (way 7).
 
 ## The propagation record
 
@@ -1457,16 +1717,17 @@ complete answer,
 and no reader takes a half-written one.
 It is written by whichever root entry point ran the step,
 after the step,
-and it names the instance so that a reader can compare it with the live one (F8).
+and it names the instance so that a reader
+can compare it with the live one (F8).
 
 Its text is `key value` lines,
 values running to the end of the line,
 in this order:
 `v1`;
-`kind
-checkout-propagation`;
+`kind checkout-propagation`;
 `boot`;
 `mount-id`;
+`mount-id-old`;
 `mount-ns-id`;
 `checkout`;
 `source`;
@@ -1479,16 +1740,34 @@ checkout-propagation`;
 
 - `boot` is the kernel's boot identifier,
   compared the way the readiness record compares it.
-- `mount-id` and `mount-ns-id` are the numbers `statmount` gave (F8),
-  in decimal.
-- `before` and `after` are one of `shared`,
+- `mount-id` is `statmount`'s `mnt_id`,
+  the number the kernel keeps unique until reboot,
+  and the one the verify-after
+  read compares (F8,
+  F31).
+- `mount-id-old` is `statmount`'s `mnt_id_old`,
+  which is the number `/proc/self/mountinfo` prints,
+  and the one `doctor`
+  compares with the live table (F31).
+  The two exist because `doctor` and the wrapper are unprivileged readers and `statmount` is not a reader they have;
+  a record holding only the unique id could not be compared by them,
+  and one holding only the reused id could not prove
+  the instance stayed the same across the set.
+- `before` and `after` are a propagation set:
+  one or more of `shared`,
   `slave`,
-  `private`,
-  `unbindable` or `unknown`.
+  `unbindable`,
+  joined by `+`,
+  or the word
+  `private` for an empty set,
+  which is how the kernel reports it (F30).
+  A shared and slave mount is therefore `shared+slave`,
+  and the word set is not four words but those combinations.
 - `outcome` is one of `applied`,
   `already-private` or `refused`.
 - `step` is `none` on a success,
   and otherwise the step that refused:
+  `resolve`,
   `open`,
   `statmount`,
   `point`,
@@ -1497,6 +1776,7 @@ checkout-propagation`;
   `namespace`,
   `before-table`,
   `set` or `verify-after`.
+  `resolve` is the no-file finder's answer when it matched none or several (F34).
 - `errno` is the kernel's error number in decimal where a kernel call answered,
   and `none` otherwise.
 - `time` is the time with its offset,
@@ -1504,26 +1784,26 @@ checkout-propagation`;
 
 The field bounds are the kernel's and the existing records':
 36 bytes for the boot id,
-20 decimal digits for a 64-bit
-mount or namespace id,
+20 decimal digits for each of the
+two mount numbers and for the namespace id,
 4095 for the path (`MAXIMUM_CHECKOUT_PATH_BYTES`,
-the readiness record's own),
-255 for a ZFS
-dataset name (`MAXIMUM_POOL_NAME_BYTES`),
-11 bytes for the longest propagation word,
+the readiness record's
+own),
+255 for a ZFS dataset name (`MAXIMUM_POOL_NAME_BYTES`),
+48 for the propagation set,
+the three words and their two joins at their longest,
 15 for the longest outcome,
-32 for
-a step word,
-3 for an error number,
+32 for a step word,
+3 for
+an error number,
 and 35 for a time.
-The file bound is derived from those and the key names the same
-way the readiness record's is derived and stated beside its constant ([`SPEC.md`][spec],
+The file bound is derived from those and the key names the same way the readiness record's bound is derived and stated
+beside its constant ([`SPEC.md`][spec],
 "The readiness record",
-lines
-6195 to 6200);
-the build computes the number and writes it beside `MAXIMUM_PROPAGATION_BYTES`,
-and this design ships no
-invented value (rule `LQM`).
+lines 6192 to 6193);
+the build computes the number and
+writes it beside `MAXIMUM_PROPAGATION_BYTES`,
+and this design ships no invented value (rule `LQM`).
 
 The writer's side reuses `clone_mount_readiness_file.rs`'s publication and refusal machinery (F19):
 the directory made
@@ -1533,20 +1813,22 @@ one `rename`,
 a sync of the directory,
 and a
 read back before the write is called done.
-The reader's side proves the directory's and the file's owner and mode
-before believing either,
-exactly as that module's reader does.
-`doctor` prints the record and never needs it to act.
+The reader's side proves the directory's and the file's owner and mode before believing either,
+exactly as that
+module's reader does.
+`doctor` prints the record,
+compares `mount-id-old` with the live table,
+and never needs it to act.
 
 The precedent the project recorded for a root-owned store is weighed and not followed in one respect
 ([slot store][slot-store]):
 that store holds one file per item because items accumulate,
-and this record holds one file
-because one checkout has one current answer.
+and this record holds one
+file because one checkout has one current answer.
 Where a slot's file needed `O_EXCL` so that exactly one writer creates it,
-this record needs the single `rename` so that exactly one whole record stands,
-which is the operation that store's
-parent record uses for the same purpose.
+this record needs the single `rename` so
+that exactly one whole record stands,
+which is the operation that store's parent record uses for the same purpose.
 
 ## The tests a build must have
 
@@ -1566,7 +1848,13 @@ and no test waits.
     the setter records the mount id it was given;
     the second
     read says `private` with the same id;
-    the record says `applied`.
+    the record says `applied`,
+    with `before` `shared` and `after` `private`.
+    A second case reads `shared+slave`,
+    which is the set the repository's own measurement printed (F30):
+    the same
+    result,
+    `before` `shared+slave`.
     No race.
 3.  A refusal at each verified field,
     one test each:
@@ -1594,19 +1882,20 @@ and no test waits.
     The fixture's setter,
     when called,
     swaps the
-    descriptor's mount to a detached one;
-    the second read reports no namespace id;
-    the outcome is `refused` with step
-    `verify-after`,
-    and the test asserts the mount id in the record is the before one.
+    descriptor's mount to a detached one,
+    which is the state the kernel refuses with `EINVAL` (F6),
+    so the setter answers that;
+    the outcome is `refused` with step `set` and errno `22`,
+    and the test asserts the unique mount number in the record is the before one.
     Forced by the fixture,
-    not by
-    timing.
+    not by timing.
 7.  The table read and the descriptor read disagree (race 2).
     The mount table fixture names mount id 41 and the
-    descriptor fixture names 42;
+    descriptor's `mnt_id_old` is 42 while its `mnt_id` is 9001;
     the outcome is `refused` with step `before-table`,
-    and the setter is never called.
+    the setter is never called,
+    and the test asserts the comparison
+    used `mnt_id_old` and not the unique number (F31).
 8.  The instance is replaced between the step and the sweep (race 3).
     The step succeeds;
     the mount fixture then reports
@@ -1676,40 +1965,58 @@ and no test waits.
     none of them can run as a host test,
     because every one
     of them mounts.
+17. The no-file resolution (M5).
+    With no configuration file and a finder fixture that matches none,
+    the step refuses with step `resolve` and names
+    that nothing matched;
+    with a fixture that matches two,
+    it refuses and lists both.
+    With one match it proceeds,
+    and the configuration key is never read by the step.
+18. The default invocation publishes no readiness (M4).
+    A run through the default entry point takes the readiness writer's double,
+    which fails the test if it is called;
+    a run through `boot-reconcile` publishes `running` and then `finished`,
+    in that order.
+19. The exit status (M3).
+    An admitted step gives `0` and a refused one gives `2`,
+    and the refusal line is written before the status
+    (`src/native/worktree_clone_mount_handler/handler_mode_dispatch.rs:95` to `:110`).
+20. `doctor`'s comparison (H2).
+    It compares the record's `mount-id-old` with the live table's first field;
+    a record whose `mount-id-old` matches and whose unique `mount-id` differs is not called stale,
+    and one whose `mount-id-old` differs is.
 
 ## Measurements owed
 
 No guest ran this round (L1).
 Each arm is written to be run as it stands,
-in a throwaway guest with a pool of
-its own,
+in a throwaway guest with a pool of its own on kernel
+`6.8.0-147-generic` unless it needs another,
 and each says what it would show and what it would change.
-They are additions to the record the build already
-owes ([measurements][measurements]) and to
+They are additions to the record the build already owes ([measurements][measurements]) and to
 [`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`](cli-git-zfs-measurements-owed-before-acceptance.md).
 
 - M1.
   What a replacement mount's propagation is,
   and what a private parent changes.
-  Create `tank/chk` with
-  `zfs create -o mountpoint=/home/guest/chk tank/chk`;
+  Create `tank/chk` with `zfs create -o mountpoint=/home/guest/chk tank/chk`;
   read
   `findmnt --output TARGET,SOURCE,FSTYPE,PROPAGATION --target /home/guest/chk`;
-  then `mount --make-private
-  /home/guest/chk` and read again;
-  then `zfs unmount tank/chk` and `zfs mount tank/chk` and read again;
   then
-  `mount --make-private /home/guest` and repeat the unmount and mount.
+  `mount --make-private /home/guest/chk` and read again;
+  then `zfs unmount tank/chk` and `zfs mount tank/chk` and read
+  again;
+  then `mount --make-private /home/guest` and repeat.
   Would show:
-  a replacement under a shared parent
-  comes back `shared` (F3),
-  and under a private parent comes back `private` (F4).
+  a replacement under a shared parent comes back `shared` (F3),
+  and under a private parent `private` (F4).
   Would change:
   A1's scope,
-  and
-  whether the step can ever find a private instance it did not make.
+  and whether the step can ever find a private instance it did not make.
 - M2.
-  That `mount_setattr` on a descriptor changes the instance the descriptor names and refuses a detached one.
+  That `mount_setattr` on a descriptor changes the instance that descriptor names,
+  and refuses a detached one.
   With the checkout shared,
   `exec 9</home/guest/chk`;
   call `mount_setattr(9, "", AT_EMPTY_PATH, {propagation:
@@ -1717,15 +2024,19 @@ owes ([measurements][measurements]) and to
   read `statmount(9, STATMOUNT_BY_FD)` before and after,
   comparing `mnt_id` and
   `mnt_propagation`;
-  then unmount the checkout and call it again,
-  recording the errno.
+  then `umount --lazy /home/guest/chk` and call it again on descriptor 9,
+  recording the errno;
+  then
+  `zfs mount tank/chk` and repeat on a fresh descriptor.
+  A plain unmount would answer `EBUSY` while descriptor 9 holds the mount (F9),
+  which is why the arm detaches instead.
   Would show:
-  the call succeeds on
-  the live instance with the same mount id,
-  and answers `EINVAL` on the detached one (F6).
+  the call succeeds on the live instance with the same unique number and answers `EINVAL` on the detached
+  one (F6),
+  and what the new instance reports afterwards (F3).
   Would change:
   F6's reading,
-  and the step's `namespace` and `verify-after` refusals.
+  and the step's `namespace` and `set` refusals.
 - M3.
   That the staging move and the clone attach behave as the decision's measurement said once the step has run.
   Repeat [measurements][measurements] item 3 with the built step in place:
@@ -1735,106 +2046,191 @@ owes ([measurements][measurements]) and to
   `move_mount` of a staged mount (F20).
   Would show:
   `EINVAL` before the step and success after,
-  with the clone private
-  afterwards.
+  with the clone private afterwards.
   Would change:
   nothing in this design,
   and everything in the build's acceptance arm.
 - M4.
-  What a mount made outside systemd does to the units,
-  and that nothing starts.
-  `zfs unmount tank/chk && zfs mount
-  tank/chk` while the guest's generated mount unit for it is active;
-  then `systemctl is-active
-  home-user-chk.mount`,
-  `systemctl show --property=InvocationID,NActiveEnterTimestamp`,
-  `journalctl --unit
-  reconcile-git-worktree-clone-mounts.service --since '-2 min'`.
+  What a mount made outside systemd does,
+  way by way,
+  and whether a drop-in's `Upholds=` service starts.
+  In one guest,
+  with a mount unit `home-guest-chk.mount` that systemd learned from the mount table (F12,
+  F33):
+  `zfs unmount tank/chk && zfs mount tank/chk`;
+  `zfs rename tank/chk tank/chk2` and back;
+  `zfs mount -a` after an
+  unmount;
+  and a two-command script that unmounts and mounts as fast as the shell can.
+  After each,
+  read `systemctl --no-ask-password show --property=ActiveState,InvocationID home-guest-chk.mount` and
+  `journalctl --unit reconcile-git-worktree-clone-mounts.service --since '-2 min'`.
+  Then install a drop-in `/etc/systemd/system/home-guest-chk.mount.d/10-upholds-propagation.conf` with
+  `Upholds=checkout-propagation.service` and a unit `checkout-propagation.service` with
+  `BindsTo=home-guest-chk.mount`,
+  `After=home-guest-chk.mount` and an `ExecStart=` that appends its start to a log,
+  and repeat every act,
+  including one that refuses.
   Would show:
-  the unit goes dead and then mounted with a
-  new invocation id (F12),
-  and no unit of ours starts (F13).
+  which acts leave the unit dead and then mounted with a new invocation id (F12);
+  whether anything starts
+  without the drop-in (F13);
+  whether the upheld service starts for an extrinsic mount,
+  for the quick act,
+  and again
+  after a refusal,
+  and where the rate limit stops it (F23,
+  F24).
   Would change:
-  nothing,
-  and it is the observation the whole
-  design's shape rests on,
-  so it must be recorded even though source already says it (L2).
+  L2,
+  L5,
+  and question 2's ranking,
+  whose order rests on source reading alone.
 - M5.
-  What a lazy unmount does to clones and what releases them.
+  What a lazy unmount does to a clone,
+  and whether a second mount of its dataset succeeds.
   With a clone attached under the checkout,
-  `umount
-  /home/guest/chk` (expect `EBUSY`,
+  `umount /home/guest/chk` (expect `EBUSY`,
   F9);
-  `umount --lazy /home/guest/chk`;
-  then have the handler attach the same clone
-  and record the errno (expect `EBUSY`,
-  F11);
-  close every holder of the detached mount and retry.
+  `umount --lazy
+  /home/guest/chk`;
+  then `zfs mount <the clone's dataset> /home/guest/chk/clone` and record whether it mounts,
+  what
+  `findmnt --output TARGET,PROPAGATION` says for it,
+  and whether the detached mount is still there in `mountinfo`;
+  then have the handler attach the same clone and compare.
   Would show:
-  which
-  process or descriptor holds the detached clone alive,
-  and whether the handler's own retry succeeds once it is gone.
+  whether a second mount of a live dataset succeeds (F11),
+  which decides what the sweep does after a lazy
+  detach.
   Would change:
+  F11,
   L7,
   and `doctor`'s words for that state.
 - M6.
   What the step costs.
   Time `statmount` on a descriptor,
   the `mount_setattr` call and one whole sweep,
-  each
-  interleaved with a control of the same shape (a `stat` of the same path),
+  each interleaved with a control of
+  the same shape (a `stat` of the same path),
   in one guest,
-  and report ratios with their
-  ranges (rules `TVC` and `QNB`).
+  and report ratios with their ranges (rules `TVC` and
+  `QNB`).
   Would show:
   whether the step is measurable beside the sweep at all.
   Would change:
   nothing shipped,
   because the design introduces no timeout and no cap,
-  and it would give step 22 a number if one is
-  ever wanted.
+  and it would give step 22 a
+  number if one is ever wanted.
 - M7.
   What must be run after a replacement,
-  and what admits an attach.
-  `systemctl stop
-  home-user-chk.mount`,
-  `systemctl start home-user-chk.mount`,
-  then `monochromatic-git-policy-cli doctor` and one add;
-  then `systemctl reload reconcile-git-worktree-clone-mounts.service` and one add again.
+  what admits an attach,
+  and what a refused start leaves.
+  `systemctl stop home-guest-chk.mount`;
+  `systemctl start home-guest-chk.mount`;
+  then
+  `monochromatic-git-policy-cli doctor` and one add;
+  then `systemctl reload-or-restart
+  reconcile-git-worktree-clone-mounts.service` and one add again;
+  then a `boot-reconcile` whose configuration names
+  another checkout dataset,
+  so the step refuses at `source`,
+  and a read of the unit's state,
+  the clones' mounts and
+  the journal after it.
   Would show:
-  whether readiness
-  survives the stop,
-  what the wrapper prints,
-  and that the reload admits the attach.
+  whether readiness survives the stop;
+  what the wrapper prints;
+  that `reload-or-restart` admits the attach
+  where `reload` alone is refused (F25);
+  and whether a refused start really runs `shutdown-unmount` and leaves the
+  clones unmounted (F35).
   Would change:
-  the wrapper's
-  refusal wording and "What becomes of `Type=oneshot` with `RemainAfterExit=yes`".
+  the printed command,
+  the wrapper's refusal wording,
+  and L10.
 - M8.
-  What an unprivileged request to the system manager answers,
-  and what a signal to another account's process answers.
-  In a guest with a polkit agent on the session and again with none,
+  What an unprivileged request to the system manager answers.
+  In a guest with an authorization agent on the session,
+  and again with none,
   as an unprivileged account,
-  run `systemctl reload reconcile-git-worktree-clone-mounts.service`,
-  then the same command with `--no-ask-password`,
-  and `systemctl kill --signal=TERM home-user-chk.mount`;
+  run
+  `systemctl reload reconcile-git-worktree-clone-mounts.service`,
+  `systemctl reload-or-restart
+  reconcile-git-worktree-clone-mounts.service`,
+  and each with `--no-ask-password`;
   record each exit status and message.
-  Then,
-  as that account,
-  `kill -TERM <a process of another account>` and record the error.
   Would show:
-  whether the wait and the refusal take the shapes F22 and F23 read from source,
+  whether the wait and the refusal take the shapes F22 reads from source,
   and what each message says.
   Would change:
   the wrapper's refusal wording,
   and whether it must say plainly that the command asks for authorization.
+- M9.
+  Whether a rename unmounts the managed clones,
+  and whether the nested output dataset comes back shared.
+  With a clone attached and `zpcachyos/nosnap/vm-builder-output` mounted under the checkout,
+  `zfs rename tank/chk
+  tank/chk2`;
+  read `findmnt` for the clone's slot,
+  for the nested dataset and for the checkout's propagation;
+  then
+  `zfs mount -a` and read again.
+  Would show:
+  whether the legacy clones are among the changelist's dependents (F27),
+  and whether the nested dataset is
+  mounted under a shared checkout before any handler run (F28,
+  F29).
+  Would change:
+  way 5's and way 6's clone outcomes,
+  and L4.
+
+### The acceptance arm step 19 owes
+
+The proposal's arm for this item is "Re-applying checkout propagation.
+Replace the checkout mount without a reboot and
+assert the checkout is private again" ([proposal][proposal],
+"Decided behaviours with no test yet",
+lines 1926 to
+1928),
+and the plan repeats it ([plan][plan],
+step 19,
+"Acceptance tests").
+It cannot assert "private again" without
+naming a replacement and a trigger,
+so step 19's arm is these,
+each run in the guest on the built step:
+
+1.  Stop and start the provider through systemd,
+    which is a job:
+    assert the checkout reads `shared` before the trigger
+    and `private` after the unit's re-run (F12,
+    F13).
+2.  `zfs unmount` and `zfs mount` of the checkout dataset with nothing attached:
+    assert `shared` in the window,
+    the
+    wrapper's refusal for an add in that window,
+    and `private` after the trigger the project chose in question 2.
+3.  `zfs rename` of the checkout dataset:
+    the same three assertions (F27).
+4.  `zfs mount -a` after an unmount:
+    the same,
+    with the nested dataset's propagation read as well (F28,
+    F29).
+5.  For each of the four,
+    the same sequence repeated with the sibling's proposed filter in place,
+    which decides whether
+    a ZED event reaches the step at all (F31,
+    A3).
 
 ## What must be applied to the machine, and where that is recorded
 
 Nothing this design adds is applied by a round.
-Applying anything to this machine is the project's act outside a
-round,
+Applying anything to this machine is the project's act outside a round,
 and the design names the act,
-its command and the record that carries it:
+its command and
+the record that carries it:
 
 - The unit file.
   `reconcile-git-worktree-clone-mounts.service` is written to
@@ -1844,40 +2240,62 @@ its command and the record that carries it:
   including the `ExecReload=` this design adds,
   and applied with
   `systemctl daemon-reload` followed by `systemctl enable --now reconcile-git-worktree-clone-mounts.service`,
-  both run by the project with its own authorization,
+  both run
+  by the project with its own authorization,
   never by a round and never by the wrapper.
-  The
-  content is step 19's,
+  The content is step 19's,
   printed by `doctor` and written in the setup runbook step 19 delivers under
   `doc/runbook/`,
   and `doctor` reports the installed unit,
-  its ordering edges and its `ExecReload=` as findings of
-  its own.
+  its ordering edges and its `ExecReload=` as findings of its
+  own.
+- The propagation service and its drop-in,
+  if the project chooses that answer to question 2.
+  A unit `checkout-propagation.service` at `/etc/systemd/system/checkout-propagation.service`,
+  carrying
+  `BindsTo=home-user-Monochromatic.mount`,
+  `After=home-user-Monochromatic.mount` and an `ExecStart=` of
+  `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets boot-reconcile`,
+  and a drop-in
+  `/etc/systemd/system/home-user-Monochromatic.mount.d/10-upholds-propagation.conf` whose body is `[Unit]` and one
+  line,
+  `Upholds=checkout-propagation.service`.
+  Both are applied by writing the files and `systemctl daemon-reload`,
+  and then
+  `systemctl start checkout-propagation.service` is not needed:
+  the mount unit upholds it (F23,
+  F24).
+  A drop-in on a mount unit is read even where systemd learned the mount from its table (F24),
+  which is this host's
+  case for every dataset mount (F33).
+  `doctor` reports the drop-in and the service,
+  and whether the service's `BindsTo=` names the mount unit the checkout
+  path escapes to.
 - The record's directory.
   Nothing is installed for it:
-  the handler makes `/run/git-worktree-clone-mount-propagation`
-  and proves it root-owned on its first run,
+  the handler makes `/run/git-worktree-clone-mount-propagation` and proves it root-owned
+  on its first run,
   the way the readiness record's directory is made (F19),
-  and `/run`
-  empties at every boot.
+  and `/run` empties at every boot.
 - The propagation setting.
   It is not an installed fact and needs no `zfs set`,
   no mount option and no unit field:
-  the step applies it at run time on the verified instance,
+  the step applies it at run
+  time on the verified instance,
   and the record names that instance (F8).
 - The checkout dataset and its container.
   This design creates none and sets nothing on any dataset;
-  step 19's
-  migration does,
-  and that step's runbook carries its commands.
+  step 19's migration does,
+  and that step's runbook carries
+  its commands.
 
 Where each act is recorded:
 `doctor` prints the commands and reports what is installed,
-the setup runbook holds
-what is applied,
+the setup runbook holds what
+is applied,
 the unit's journal holds what each run did,
-and the propagation record holds the last answer for
-the instance it names.
+and the propagation record holds the last answer for the
+instance it names.
 
 ## Which build step builds which part
 
@@ -1891,13 +2309,14 @@ the instance it names.
   its call at the head of `boot-reconcile` and of the default sweep;
   the unit's `ExecReload=`;
   the extended refusal wording of `checkout_state`;
-  and the SPEC section that states it.
+  the acceptance arm under "Measurements
+  owed";
+  and the SPEC section that states all of it.
   Step 8's code is where the call in the sweep lands,
   and the plan already gives that split:
   "The checkout's private
   propagation is checked here,
-  and the unit that sets it is step 19's"
-  ([plan][plan],
+  and the unit that sets it is step 19's" ([plan][plan],
   step 8,
   "Open items").
 - Step 10 builds the wrapper's half:
@@ -1906,6 +2325,13 @@ the instance it names.
   wrapper and the caller see between the replacement and the re-run".
   Until it lands,
   L9 stands.
+- Step 19 also builds whatever question 2's answer installs:
+  the drop-in and the propagation service,
+  or the widened
+  filter in the zedlet,
+  or nothing but the printed command.
+  The content is step 19's,
+  and the installation is the project's act.
 - Step 18 builds `doctor`'s reading of the record and its comparison with the live instance;
   where step 18 lands first,
   the line is its own,
@@ -1916,8 +2342,8 @@ the instance it names.
 - Step 22 builds nothing here.
   This design ships no timeout and no cap,
   so no value waits on its measurements;
-  M6
-  exists so that a later bound can be sized if one is ever proposed.
+  M6 exists so that a later bound can
+  be sized if one is ever proposed.
 - Steps 9,
   14 to 17 and 20 to 23 are unaffected:
   this design changes no unmount,
@@ -1927,253 +2353,500 @@ the instance it names.
 
 ## Choices this design marks for the project's veto
 
-Each is a writer's choice,
-adopted so that the design is whole.
+Each entry is a writer's choice,
+adopted so that the design is whole,
+and each gives the option taken,
+the option it
+replaced with a concrete example for both,
+and the ranking with its reason.
 A veto changes the sentence named and nothing else.
 
-- V1.
-  The step runs in both entry points rather than only in the boot unit.
-  A veto restores "the boot unit sets it,
-  and
-  every other entry point refuses with the live check",
-  which is question 1's second option,
-  and changes "Where it
-  runs,
-  as whom,
-  and in what order".
-- V2.
-  The record's home is a new root-owned directory `/run/git-worktree-clone-mount-propagation` with one file
-  `result`,
-  rather than fields added to the readiness record.
-  A veto makes it four more fields in that record,
-  a
-  version bump and a parser change there,
-  and removes a directory.
-- V3.
-  The record's words:
-  `kind checkout-propagation`,
-  outcomes `applied`,
-  `already-private`,
-  `refused`,
-  and the step
-  words in "The propagation record".
-  A veto renames them.
-- V4.
-  The unit gains `ExecReload=` running `boot-reconcile`,
-  so that `systemctl reload` is the manual re-run.
-  A veto
-  leaves `systemctl restart` as the only manual way.
-- V5.
-  The step acts only on `shared` and reports `slave` and `unbindable` without changing them.
-  A veto is question 3.
-- V6.
-  The step's set is `MS_PRIVATE` on the checkout's mount alone,
-  with no `AT_RECURSIVE`.
-  A veto is question 4.
-- V7.
-  The sweep files no receipt for a propagation refusal and keeps step 8's rule.
-  A veto adds one exception to that
-  rule in `SPEC.md` and in `sweep_one_clone.rs`.
+1.  Where the record lives.
+    Taken:
+    a new root-owned directory `/run/git-worktree-clone-mount-propagation` with one file `result`.
+    Replaced:
+    four more fields in the readiness record.
+    Example for the taken option:
+    after a replacement at 14:00,
+    `/run/git-worktree-clone-mount-propagation/result`
+    reads `outcome refused` and `step source`,
+    and `doctor` prints both beside the live tag.
+    Example for the replaced one:
+    the same facts appear as `propagation-outcome` and `propagation-step` lines in
+    `/run/git-worktree-clone-mount-readiness/result`,
+    which `doctor` already reads.
+    Second:
+    the taken option keeps step 8's record byte for byte,
+    so a readiness parser and its tests are untouched;
+    a refused propagation is recorded even for a boot whose readiness was never published.
+    Second of the replaced one:
+    one file to read and one place to look,
+    at the price of a version bump,
+    more fields and
+    one more thing a readiness record means.
+    Ranking:
+    taken > replaced,
+    because a record that a refusal must outlive the readiness gate cannot be the readiness
+    record.
+2.  The record's words.
+    Taken:
+    `kind checkout-propagation`,
+    outcomes `applied`,
+    `already-private`,
+    `refused`,
+    and the step words in "The
+    propagation record".
+    Replaced:
+    reuse the readiness record's vocabulary and word the outcome as a state (`ready`,
+    `not-ready`,
+    `unknown`).
+    Example for the taken option:
+    `outcome refused` and `step namespace` tell a reader that the descriptor's mount had
+    no namespace,
+    which a readiness state could not say.
+    Example for the replaced one:
+    the same event reads `checkout not-ready`,
+    which is true but says nothing about
+    which check refused.
+    Second:
+    the taken words name the act and the failing step;
+    second of the replaced one:
+    one vocabulary across two
+    records,
+    and fewer words to learn.
+    Ranking:
+    taken > replaced,
+    because the step words are what a build and a person act on.
+3.  The manual re-run.
+    Taken:
+    `ExecReload=` on the unit plus `reload-or-restart` as the printed command.
+    Replaced:
+    no `ExecReload=`,
+    and `systemctl restart` as the printed command.
+    Example for the taken option:
+    a replacement at 14:00 with the unit inactive;
+    `systemctl reload-or-restart
+    reconcile-git-worktree-clone-mounts.service` starts it and reruns the checks,
+    the step and the sweep.
+    Example for the replaced one:
+    the same replacement;
+    `systemctl restart` does the same and also stops the unit
+    first,
+    which runs its `ExecStopPost` and the stop pass over the managed clones.
+    Second:
+    the taken option does not run the stop pass on a repair;
+    second of the replaced one:
+    one directive fewer in
+    a unit the proposal already states.
+    Ranking:
+    taken > replaced,
+    because a repair should not unmount the clones it is repairing around.
+4.  A receipt for a propagation refusal.
+    Taken:
+    none,
+    keeping step 8's rule that a refusal files no receipt but an unavailable key's.
+    Replaced:
+    one more exception,
+    so a propagation refusal files a `refused` receipt naming the step.
+    Example for the taken option:
+    a caller waiting through a replacement reaches its deadline report,
+    which names the
+    journal and the record.
+    Example for the replaced one:
+    the same caller reads a `refused` receipt naming `propagation-not-private` at once,
+    and its command fails with that answer instead of a timeout.
+    Second:
+    the taken option touches no built rule;
+    second of the replaced one:
+    the caller learns at once,
+    at the price
+    of a rule change in `SPEC.md`,
+    in the sweep and in its tests.
+    Ranking:
+    taken > replaced,
+    because the caller already has a way to learn and the rule is step 8's.
+5.  No path fallback for the set.
+    Taken:
+    the descriptor only,
+    with a refusal when the descriptor's mount has no namespace.
+    Replaced:
+    the descriptor,
+    and `mount(NULL, path, NULL, MS_PRIVATE, NULL)` when it is refused.
+    Example for the taken option:
+    the checkout is replaced between the read and the set;
+    the set answers `EINVAL`,
+    the
+    record says `step set` and errno `22`,
+    and nothing changes.
+    Example for the replaced one:
+    the same race;
+    the fallback sets the new instance private by path and the record
+    says `applied`,
+    with nothing proving which instance it changed.
+    Second:
+    the taken option never acts on an instance it did not verify;
+    second of the replaced one:
+    a repair that
+    succeeds in one more case.
+    Ranking:
+    taken > replaced,
+    because the extra case is one where the fallback cannot say what it changed,
+    and the
+    staging design refuses the same window everywhere else.
+    A hostile account is the only actor that window needs,
+    so
+    the sentence survives the threat model as an argument about proof and not about that account (M6).
+6.  Where the step sits.
+    Taken:
+    after the configuration and the checkout are resolved,
+    before the start probe's record and the walk.
+    Replaced:
+    after `prepare`,
+    before the sweep.
+    Example for the taken option:
+    a boot whose start probe record is missing;
+    the step still sets the checkout private
+    and records it,
+    and the run then refuses on the record,
+    so the checkout is private for whatever comes next.
+    Example for the replaced one:
+    the same boot;
+    the run refuses on the record before the step,
+    and the checkout waits
+    for a later trigger.
+    Second:
+    the taken option repairs what it can before refusing on something else;
+    second of the replaced one:
+    the
+    step runs only where a run is otherwise admissible,
+    which is fewer root changes.
+    Ranking:
+    taken > replaced,
+    because a repair that costs nothing should not wait on a record that may never appear.
+7.  Both mount numbers in the record.
+    Taken:
+    `mount-id` and `mount-id-old` together.
+    Replaced:
+    the unique number only.
+    Example for the taken option:
+    `doctor` compares `mount-id-old` with the live table and says whether the record
+    still describes the checkout.
+    Example for the replaced one:
+    the same `doctor` line needs a `statmount` call it does not have,
+    and says nothing.
+    Second:
+    the taken option makes an unprivileged comparison possible (F31);
+    second of the replaced one:
+    one field
+    fewer and no reused number to explain.
+    Ranking:
+    taken > replaced,
+    because the readers that matter are unprivileged.
 
 ## Questions only the project can answer
 
 Each is a matter of value,
 authority or risk that no measurement settles.
 Each gives the options,
-one concrete
-example per option,
-and the ranking with its reason.
+one concrete example per option,
+pros and cons,
+and the ranking with the reason for each
+adjacent pair.
 
-1.  Who may set the propagation with no person present?
+1.  Who may set the propagation when no person is present?
     The decision names the boot unit as the setter,
-    and this design
-    lets every root entry point set it too,
-    which means root changes a mount in response to an event nobody watched.
+    and this design lets every root entry point set it too,
+    which means
+    root changes a mount in response to an event nobody watched.
 
     - Option A,
-      every root entry point sets it (this design).
+      every root entry point (this design).
       Example:
-      at 14:00 the checkout is unmounted and mounted again outside any handler run;
-      at 14:05 a caller runs `git worktree add`,
-      the wrapper refuses (L9 aside),
-      the
-      unit is reloaded as root,
-      the step sets the mount private and the sweep attaches.
+      a caller writes its intent and nudge at 14:00;
+      the checkout is replaced at 14:00:30;
+      a ZED event for
+      another clone arrives at 14:00:31,
+      the default invocation's step sets the checkout private,
+      and the sweep
+      attaches the caller's clone.
     - Option B,
-      only `boot-reconcile` sets it.
+      only `boot-reconcile`.
+      Example:
+      the same 14:00 sequence;
+      the ZED event is refused by the live check,
+      the caller reaches its deadline,
+      and a root command is run before the clone can attach.
+    - Pros of A:
+      the same event that wakes the sweep also repairs the parent,
+      and no caller waits for a run nobody
+      asked for.
+      Cons of A:
+      root changes a mount on an event nobody watched,
+      and the journal and the record are the only trace.
+    - Pros of B:
+      only the act the decision named changes a mount.
+      Cons of B:
+      every repair outside boot needs a root command,
+      so the route's own triggers cannot repair anything.
+    - Ranking:
+      A > B,
+      because as built every history record reaches the default invocation (F31),
+      so A repairs where B
+      cannot,
+      and the cost of A is recorded rather than silent.
+
+2.  Which trigger should repair a replacement that systemd did not run as a job?
+    The candidates are surveyed under "Triggers that could reach the step";
+    nothing here is decided,
+    and this ranking
+    rests on source reading alone,
+    so the measurement M4 may change it.
+
+    - Option 1,
+      a drop-in on the checkout's mount unit that upholds a propagation service (`Upholds=` plus
+      `BindsTo=`,
+      F23,
+      F24).
+      Example:
+      the checkout is unmounted and mounted again at 14:00;
+      the journal shows `checkout-propagation.service`
+      starting from the mount unit's state change,
+      and the 14:05 add works with no root command.
+      Pros:
+      reacts to the mount change itself;
+      installed and controlled by the project;
+      no new process;
+      reaches a
+      mount made outside systemd.
+      Cons:
+      one unit and one drop-in to install;
+      an upheld unit restarts up to the rate limit (F23);
+      whether a quick
+      unmount and mount is seen at all is unmeasured (M4).
+    - Option 2,
+      the sibling's event filter widened to pass the checkout dataset's events.
       Example:
       the same 14:00 replacement;
-      the 14:05 add is refused,
-      and the
-      caller's only way forward is a reload of the unit as root,
-      which runs `boot-reconcile` and sets it.
-    - Pros of A:
-      the setting is repaired by the next trigger the project already controls,
-      and no window outlives the
-      next event.
-      Cons of A:
-      root changes a mount on an event no person watched,
-      and the record is the only trace.
-    - Pros of B:
-      the act the decision named stays the only act,
-      and no event can change a mount.
-      Cons of B:
-      every way
-      but boot needs a root run,
-      which makes the route's own triggers unable to repair it,
-      and a ZED event or a nudge
-      can attach under a checkout that no run has made private,
-      which the live check then refuses.
-    - Ranking:
-      A > B,
-      because B's refusal is the same refusal A's live check already gives but without the repair A
-      adds,
-      so B costs a root run for every replacement and buys no safety the live check does not already give.
-
-2.  Should the wrapper refuse an add on a shared checkout,
-    or write its request and let the sweep repair?
-    Example for
-    each:
-    after a 14:00 replacement,
-    a caller runs `git worktree add`;
-    the refusing wrapper stops before the claim,
-    and
-    the caller runs one root command and repeats the add;
-    the writing wrapper registers,
-    snapshots,
-    clones,
-    writes the
-    mount intent,
-    and the sweep sets the propagation and attaches,
-    with no person involved.
-
-    - Pros of refusing:
-      no managed object is created while the parent is unverified,
-      which is the accepted preflight's
-      own promise ([proposal][proposal],
-      "Add and Git registration",
-      step 1);
-      the caller learns before anything is
-      written.
+      the next sanoid snapshot of the checkout dataset is a history event,
+      the
+      filter passes it,
+      and the step runs with no root command.
+      Pros:
+      one line in a filter step 19 installs anyway;
+      uses the zedlet the route already has.
       Cons:
-      the caller must run a root command,
-      and the route's triggers are not enough on their own.
-    - Pros of writing:
-      one step for the caller and a self-repairing route.
+      waits for an unrelated history record;
+      depends on ZED's delivery,
+      which the design does not control ([proposal][proposal],
+      line 1784);
+      `zfs-zed.service` is disabled and inactive on this host
+      today (sibling,
+      "The no-waiter case").
+    - Option 3,
+      a root command,
+      printed by `doctor` and by the wrapper's refusal.
+      Example:
+      the same replacement;
+      the 14:05 add prints `systemctl reload-or-restart
+      reconcile-git-worktree-clone-mounts.service`,
+      a root run of it sets the checkout private,
+      and the add works.
+      Pros:
+      nothing new installed;
+      the same unit repeats the setting as the decision words it.
       Cons:
-      an unprivileged command acts while the
-      checkout is shared,
-      and the add's registration,
-      snapshot and clone exist before anyone has verified the parent,
-      which the accepted preflight deliberately forbids.
+      a run outside the route's own triggers;
+      an unattended machine waits.
+    - Option 4,
+      a watcher on the kernel's mount events (fanotify `FAN_MNT_ATTACH` and `FAN_MNT_DETACH`,
+      F32).
+      Example:
+      the same replacement;
+      the watcher sees the attach and runs the step,
+      including for a replacement too
+      quick for systemd.
+      Pros:
+      sees every mount change in the namespace.
+      Cons:
+      a long-running privileged process with its own failure and restart story;
+      nothing measured it;
+      the project
+      already declined a timer for the same kind of gap ([proposal][proposal],
+      lines 1393 to 1400).
     - Ranking:
-      refusing > writing,
-      because the accepted preflight already refuses on the same fact,
-      and because a
-      wrapper that acts on a parent the design calls unverified would need that sentence changed,
-      which is a design
-      decision rather than a writer's choice.
+      1 > 2 > 3 > 4.
+      Option 1 over 2:
+      it reacts to the mount change itself and does not depend on a daemon the project does not
+      control,
+      at the price of one unit and one drop-in.
+      Option 2 over 3:
+      it repairs with no root command for one line in a filter step 19 writes anyway.
+      Option 3 over 4:
+      it adds no privileged process,
+      and 4 buys the quick-replacement case that nothing here measured
+      as reachable.
+    - What would change the order:
+      M4,
+      which measures whether option 1 sees a quick replacement and where its rate
+      limit stops it.
 
-3.  What should the route do with a checkout mount that is `slave` or `unbindable` rather than `shared`?
-    Example:
-    `/home/user` is made a slave of a container host's mount;
-    a new checkout mount inherits nothing shared
-    and reports `slave`;
-    today's check admits it,
-    and a clone mounted under it is private (F4).
+3.  What should the route do with a checkout whose propagation carries `MS_SLAVE`,
+    `MS_UNBINDABLE`,
+    or both
+    `MS_SHARED` and `MS_SLAVE`?
 
     - Option A,
-      admit and report (this design).
+      act on `MS_SHARED` (including the combined set) and admit and report the rest (this design).
+      Example:
+      `/home` is a slave of a container host's mount,
+      so the checkout reads `slave` and no `shared:`;
+      the add
+      proceeds and `doctor` prints `slave`.
+      For the combined set:
+      the repository's measurement printed `shared,slave` for one mount (F30),
+      and the step makes
+      it private.
       Pros:
-      it is not the measured disqualifier (F20),
-      the check's own
-      sentence is about `shared`,
-      and a container or a backup namespace can legitimately leave a slave mount as the checkout's parent.
+      matches the built check,
+      which reads the `shared:` tag;
+      refuses no state that no measurement shows as bad.
       Cons:
       a slave mount receives mounts made elsewhere,
-      so what the checkout's parent does is not fully in the
-      route's hands.
+      so the checkout's parent is not fully in the route's hands.
     - Option B,
-      refuse.
+      refuse anything that is not private.
+      Example:
+      the same machine;
+      the add refuses,
+      and a root run makes the checkout private before it can proceed.
       Pros:
-      only a private parent is admitted,
-      which is what the decision's sentence says the unit
-      sets.
+      exactly the word the decision says the unit sets.
       Cons:
-      it refuses a state that may be the correct one on a machine that runs containers,
-      and it turns
-      `doctor` into a refusal that must be undone.
+      refuses states no measurement shows as bad,
+      and turns `doctor` into a refusal that must be undone.
     - Ranking:
       A > B,
-      because the design's measured fact is `shared` and B would refuse deployments this design has no
-      evidence against;
-      the reporting A adds is what makes the difference visible.
+      because the measured disqualifier is `MS_SHARED` (F20,
+      and item 3) and B refuses deployments this
+      design has no evidence against;
+      A's reporting keeps the difference visible.
 
 4.  Should the set be `MS_PRIVATE` on the checkout's mount alone,
-    or `AT_RECURSIVE` over everything under it?
-    Example:
-    the checkout is shared and the vm-builder output dataset is mounted at
-    `package/vm-builder/cli/output` under it (the proposal's own inventory);
-    recursive makes that mount private too.
+    or recursive over everything under it?
 
     - Option A,
       the checkout alone (this design).
+      Example:
+      the vm-builder output dataset is mounted under a shared checkout after `zfs mount -a` (F28,
+      F29);
+      the step makes the checkout private and leaves that child as the mount it was.
       Pros:
-      it changes only the mount this route owns,
-      which is what
-      "Do not silently change propagation" asks;
-      a stacked mount keeps the propagation its owner chose.
+      changes only the mount this route owns;
+      a child keeps the propagation its own owner chose.
       Cons:
-      a child
-      mount that is itself shared keeps delivering its own mounts elsewhere,
-      and nothing in this design reports it.
+      a child that is itself shared keeps delivering its own mounts elsewhere,
+      and nothing in this design
+      reports it.
     - Option B,
-      recursive.
+      `AT_RECURSIVE`.
+      Example:
+      the same state;
+      one call makes the checkout and the child private.
       Pros:
       one call makes the whole subtree safe,
       including a descendant nobody inventoried.
       Cons:
-      it changes a mount the route did not make,
-      and a descendant whose propagation was set deliberately
-      would no longer show its own value in the record.
+      changes a mount the route did not make,
+      and a deliberately set descendant no longer shows its own value in
+      the record.
     - Ranking:
       A > B,
-      because B changes mounts the route does not own,
-      and A's gap can be reported by `doctor` without
-      changing anything;
-      if the project prefers B,
-      "The call that sets it" and V6 change and the record's `before`
-      needs a per-mount list.
+      because B changes mounts the route does not own and A's gap can be reported by `doctor` without
+      changing anything.
+
+Decided,
+and therefore not asked:
+the wrapper refuses before writing a claim,
+intent or nudge on a shared checkout
+([proposal][proposal],
+"Add and Git registration",
+step 1,
+lines 365 to 372),
+which this design follows and does not
+reopen.
 
 ## Dependencies on sibling designs
 
-- "Which triggers a lost last event waits for":
-  this design assumes the provider hook runs `boot-reconcile`,
-  so that a
-  late mount both repairs the propagation and republicates readiness.
-  If that design has the hook run only the sweep,
-  the step and the record still happen,
-  and a replacement that stopped the unit leaves no readiness record for the rest
-  of the boot;
-  then the sentence "a replacement outside systemd leaves no attach admitted until a run publishes
-  readiness" needs that design's answer folded in.
-- "The record that carries origin cleanup",
-  "Where the add's durable binding record lives",
-  "Where a removal's
-  persisted destruction plan lives",
-  "The add-time Git lock",
-  "The dirty-main restore on rung 1",
-  "The deferred-destroy
-  checks",
-  "The forced arm of a removal",
-  "What a cancelled,
-  timed-out or killed removal leaves":
+The sibling documents were read with `git show <branch>:<path>` at the tips below.
+Each is an unapproved proposal,
+and none of its answers is treated as decided here.
+
+- "Which triggers a lost last event waits for"
+  (`docs/planning-cli-git-zfs-lost-last-event-triggers-design`,
+  tip `641fbc1ad4`,
+  2026-11-22T17:30:36-05:00).
+  This design leans on it in three places,
+  and this is where the two disagree:
+
+  - The provider hook.
+    The sibling installs it as a drop-in `ExecStartPost=` of `zfs-mount.service` (its "T5" and "The
+    no-waiter case"),
+    which runs `boot-reconcile` after that service's `zfs mount -a` succeeds.
+    This design assumes that hook (A3) and records the consequence the sibling does not state:
+    a failing
+    `ExecStartPost=` fails `zfs-mount.service` (F35,
+    and its own L7).
+    Its D1 assumes this design applies the propagation "before a readiness pass sweeps",
+    which the order in "Where it
+    runs,
+    as whom,
+    and in what order" gives,
+    though this step runs before the start probe's record and the sibling's
+    order puts it after its checks.
+  - The event filter.
+    Its "The event filter" passes only events whose dataset is the clone parent or begins with
+    `<parent>/`.
+    The checkout dataset is the container's sibling ([sweep-choices][sweep-choices],
+    "The datasets the sweep acts on"),
+    so a snapshot or `zfs set` of the checkout dataset does not reach this design's step (F31).
+    Question 2's option 2 is therefore closed unless that filter widens,
+    and this design states no assumption that it
+    will.
+  - The printed root command.
+    The sibling's `doctor` prints the handler's `boot-reconcile` as the root command (its
+    "T5").
+    This design prints `systemctl reload-or-restart` (F25),
+    which works whether the unit is active or not.
+    One command should stand in both,
+    and step 19 settles which (L11).
+  - Its "L6" says the hook "cannot see a checkout mounted outside a unit".
+    This design's option 1 depends on the checkout having a mount unit,
+    which systemd creates from its own table even
+    where no generator wrote one (F12,
+    F24,
+    F33),
+    so the two statements are about different states and no record
+    decides between them;
+    M4 measures whether the unit appears.
+- The eight other siblings
+  (`docs/planning-cli-git-zfs-add-time-git-lock-design`,
+  `docs/planning-cli-git-zfs-add-binding-record-design`,
+  `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
+  `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
+  `docs/planning-cli-git-zfs-dirty-main-restore-on-rung-1-design`,
+  `docs/planning-cli-git-zfs-deferred-destroy-checks-design`,
+  `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design`,
+  `docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design`):
   no dependency.
-  This
-  design reads no record they place and writes none they read.
-- The wrapper's half (step 10) and the add-time lock's design both touch the add's preflight.
-  This design adds one
-  check to that list and nothing else,
+  Each mentions this item only as out of its own scope or not interacting with it,
+  and two of them cite this
+  document as the owner of "What re-applies private propagation after a replacement mount"
+  (`cli-git-zfs-origin-cleanup-record-design` line 2667 and
+  `cli-git-zfs-deferred-destroy-checks-design` line 2187).
+  This design reads no record they place and writes none they read.
+- The add-time lock's design says it has no interaction with this item (its line 2155);
+  this design adds one check to
+  the add's shared preflight and nothing else,
   so the two can be reconciled by whoever writes the later one.
 
 ## What this design does not cover
@@ -2198,38 +2871,52 @@ and the ranking with its reason.
   F11) and leaves its repair to those designs.
 - It does not change the readiness record,
   the receipts or the sweep's receipt rule.
-- It does not propose a timer,
-  a daemon,
-  a new unit,
-  a new executable or a configuration key,
-  and it proposes no
-  timeout or cap.
+- It proposes no timer,
+  no daemon,
+  no executable and no configuration key,
+  and no new unit except the propagation
+  service question 2's option 1 would install;
+  it proposes no timeout or cap.
 
 ## Sources read
 
 - Linux `v7.3`:
   `fs/namespace.c`,
   `fs/pnode.c`,
+  `fs/mount.h`,
+  `fs/proc_namespace.c`,
   `include/uapi/linux/mount.h`,
-  `include/linux/namei.h`,
+  `include/uapi/linux/fanotify.h`,
   `include/linux/fsnotify.h`.
 - OpenZFS `zfs-2.4.4`:
   `etc/systemd/system-generators/zfs-mount-generator.c`,
   `etc/systemd/system/zfs-mount.service.in`,
   `include/sys/sysevent/eventdefs.h`,
   `module/os/linux/zfs/zfs_vfsops.c`,
-  `module/zfs/dsl_dataset.c`.
+  `module/os/linux/zfs/zpl_super.c`,
+  `module/zfs/dsl_dataset.c`,
+  `module/zfs/zfs_ioctl.c`,
+  `module/zfs/spa_history.c`,
+  `lib/libzfs/libzfs_dataset.c`,
+  `lib/libzfs/libzfs_changelist.c`,
+  `cmd/zfs/zfs_main.c`.
 - systemd `v262`:
   `src/shared/mount-setup.c`,
+  `src/shared/bus-polkit.c`,
   `src/core/mount.c`,
   `src/core/unit.c`,
   `src/core/service.c`,
   `src/core/transaction.c`,
   `src/core/unit-dependency-atom.c`,
+  `src/core/manager.c`,
+  `src/core/job.c`,
+  `src/core/dbus-util.c`,
+  `src/systemctl/systemctl-util.c`,
   `man/systemd.mount.xml`,
   `man/systemd.unit.xml`,
   `man/systemd.service.xml`,
-  `man/systemd.path.xml`.
+  `man/systemd.path.xml`,
+  `man/systemctl.xml`.
 - This repository:
   `doc/decision/cli-git-zfs-worktree-design.md`,
   `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
@@ -2244,6 +2931,40 @@ and the ranking with its reason.
   the handler and protocol modules named in the facts,
   and the start probe's mount
   calls.
+- The siblings named under "Dependencies on sibling designs",
+  read with `git show` at the tips given there.
+
+## Revisions
+
+Each commit of this document,
+with its committer time from `git log --format=%cI`:
+
+- `d5c95e3a6a`,
+  2026-11-22T17:28:38-05:00:
+  the first complete design.
+- `c59e84088d`,
+  2026-11-22T17:29:28-05:00:
+  what must be applied to the machine,
+  and what an unprivileged request to
+  the system manager answers.
+- `fecdc987b1`,
+  2026-11-22T17:30:29-05:00:
+  the record may carry an errno from any kernel call.
+- The commit of this revision,
+  whose time `git log --format=%cI` gives:
+  the gate review's findings,
+  the corrected
+  citations throughout,
+  the triggers survey,
+  both mount numbers,
+  the propagation set,
+  the no-file resolution
+  (M5),
+  the threat-model list,
+  the acceptance arm,
+  the expanded veto and question lists,
+  the sibling reconciliation,
+  and this section.
 
 ## Links
 
