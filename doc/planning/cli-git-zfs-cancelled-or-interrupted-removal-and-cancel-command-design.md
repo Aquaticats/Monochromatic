@@ -1001,7 +1001,7 @@ The report reads,
 with the fixture's names and its own numbers:
 
 ```text
-removal of `.claude/worktrees/one` did not finish within 30000 milliseconds. The last observation was: no result for
+removal of `.claude/worktrees/one` did not finish within its deadline. The last observation was: no result for
 this request was filed. Nothing had been destroyed, because no destruction plan was written. The request is operation
 `unmount` under nonce 3f2a... for dataset GUID 12345678901234567890, and it stays on the clone.
 A deadline is not cancellation, so the clone stays unmounted and the removal is neither cancelled nor finished.
@@ -1103,6 +1103,18 @@ Each step names its refusal.
     and names the recorded origin.
     A missing dataset is the head-gone case under "Settling the destroy outcomes before anything moves",
     not this one.
+
+Two claims stand behind that proof,
+and the accepted sentence's "under the per-slot claim" is read here as naming both.
+The root handler's per-slot claim is taken by every handler invocation that acts on the slot,
+so the mount request the command writes is decided under it,
+and the wrapper neither takes it nor can (F15).
+The wrapper's removal claim is taken first and held through the proof,
+the settlement,
+the request and the report,
+so two wrapper operations on one clone cannot interleave.
+A reading that made the root claim the wrapper's own would need a way into a root-owned folder that nothing here has,
+and the reading is marked for the project's veto.
 
 ### Settling the destroy outcomes before anything moves
 
@@ -1613,6 +1625,42 @@ and each veto names the option that would replace it.
   Ranking (a) > (c) > (b):
   (a) over (c) because the states differ in whether anything was ever being removed;
   (c) over (b) because a retry that finds the state it wants is not a failure.
+- The command's claims are read as two,
+  not one.
+  (a) This design:
+  the wrapper holds the removal claim for its own decisions,
+  and the handler takes the root per-slot claim for every action it takes on the slot (F15).
+  The command proves and settles under its claim,
+  and the one attach it asks for is decided under the handler's claim.
+  (b) The root per-slot claim alone,
+  with the cancel command as a new handler mode.
+  The wrapper would write a request that a root invocation answers by taking the claim,
+  proving the slot and attaching,
+  and the wrapper would hold no claim.
+  (c) The wrapper's removal claim alone,
+  on a reading that the sentence's "per-slot claim" is the wrapper's.
+  The same commands run,
+  and the handler's own claim is then only what every handler invocation takes anyway.
+  Pros of (a):
+  both decisions are serialized by the mechanism each side already has,
+  and no new root mode is added.
+  Cons of (a):
+  two claims to explain,
+  and a reader must see which side each one covers.
+  Pros of (b):
+  one claim for the whole act.
+  Cons of (b):
+  a new root mode that duplicates the wrapper's proof in root,
+  and the wrapper would still need its own serialization against a removal.
+  Pros of (c):
+  one claim named.
+  Cons of (c):
+  it leaves the handler's action unnamed in the design's own words,
+  since the handler's claim is what decides it.
+  Ranking (a) > (c) > (b):
+  (a) over (c) because (a) states what decides each side where (c) leaves the handler's half unnamed;
+  (c) over (b) because (c) needs no new root mode,
+  while (b) moves the wrapper's proof into root and still leaves the removal unsynchronized.
 - The cancel command waits once and reports.
   (a) This design waits for one matching receipt,
   for the removal deadline,
