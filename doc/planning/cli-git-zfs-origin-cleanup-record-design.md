@@ -3456,9 +3456,10 @@ with the committer time `git log --format=%cI` reports and what it changed.
   2026-11-22T17:38:19-05:00:
   what `doctor` prints for a finished cleanup,
   which is the tip the gate review read.
-- The commit that activates this revision,
-  its time in `git log`:
-  it rewrites the order and the moment (X1 and O2),
+- `e92b4bb9ec`,
+  2026-11-22T18:34:45-05:00:
+  the revision that answers the gate review.
+  It rewrites the order and the moment (X1 and O2),
   the lifetime and the promote proof (O1),
   the carrier's place in the questions (O3 and the merged question one),
   the look's preconditions (O4),
@@ -3476,8 +3477,43 @@ with the committer time `git log --format=%cI` reports and what it changed.
   the marked elisions (O16),
   the recovery without a Git entry (X2),
   the fourteen disagreements,
-  this section,
-  and every citation the check corrected.
+  and this section.
+  The commit that carries this paragraph adds the citation counts
+  and the two last corrections,
+  and its hash and time are what `git log --format=%cI` reports for this file at the tip.
+
+This round's citation check found 98 citations that name their path,
+each resolved to a real file and inside that file by a scratch script,
+and 255 further `:line` spans that were read beside the path their paragraph names.
+Seventy-nine of those spans are the second half of a range,
+and twelve are citations into the two sibling documents at the commits named above.
+Every one was read at the place it names.
+The round corrected 14 of them:
+the man page's `defer_destroy` sentence (from `:116` to `:123`),
+the receipts range (from `:567` to `:568`),
+the `zfs_cmd_t` statistics range (from `:73` to `:112` into `:73` to `:107`),
+the proposal's authority quote (split into `:1409` to `:1413` and `:1414` to `:1415`),
+its removal quote (split into `:947` to `:951` and `:952` to `:953`,
+with the dropped appositive marked),
+its settle quote (split into `:954` and `:955`),
+its clone-origin quote (split into `:1381` to `:1384` and `:1385`),
+its trigger quote (ending at `:1396`),
+its "no replacement" sentence (which this revision drops,
+because the recovery sentence of X2 replaces it),
+the credential rule (split into `:7345` or `:7348` or `:7350`),
+the finish pass's path (which named no folder),
+the binding design's citations (which now name their document and commit),
+the plan design's citations (which now name their document and commit),
+and the store decision's staging rule (whose range now covers the whole section).
+The earlier round had already corrected eight others,
+which the review's citation list and this round's check both record:
+the leaving record's folder and record ranges,
+`kept_names_in_the_git_directories.rs:48`,
+`slot_identity_store.rs:51`,
+`json_record.rs:36`,
+`dataset_guid.rs:39` to `:60`,
+`SPEC.md:6154` to `:6155`,
+and the proposal's steps 3 to 5 at `:894` to `:957`.
 
 ## References
 
