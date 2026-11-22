@@ -41899,7 +41899,17 @@ stated in this entry. What follows from them, as work:
   can make a dataset of the checkout's leaf name that a boot then mounts as root (this decides its merge; the staging record
   says the account is trusted on this machine, so the answer goes to the owner as a fact); the object reader round adds a
   control with a variable set on the client only, through the real service; the step 8 follow-up was told a `tmpfs` inside
-  the repository's namespace helper is not a host mount. Step 7's
+  the repository's namespace helper is not a host mount. ZFS STEP 9 STARTED at 2026-11-22T16:10-05:00 as two rounds from
+  `main` at `473dccebbc`, because the holder scan is a module of its own and the unmount meets the step 8 follow-up in the
+  sweep's turn: `pi-zfs-step-9-holder-scan-across-mount-namespaces` on
+  `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces` (the plan's holder scan paragraph, reusing the start
+  probe's grouping and source match; brief under `~/temp/agent/zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/`)
+  and `pi-zfs-step-9-unmount-staging-and-reattach` on `feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach` (the
+  handler's unmount, the staged-folder record, the rollback and the reattach, the wrapper's folder and cleanup, the
+  interface steps 14, 16 and 17 wait on; brief under `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
+  No staging code existed on `main` (only the start probe's private unmount and scan), so the unmount round owns the staging
+  build. Each puts its guest arms in new files; the unmount round was told to expect a message to merge `main` when the
+  step 8 follow-up or the no-configuration round lands. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
