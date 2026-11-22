@@ -202,13 +202,12 @@ fn the_stale_read_is_dropped(repo: &Path, prepare: Option<MoveHead>, move_head: 
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     let fence: Fence = the_fence(repo, &context, &mut held).expect("the fence decides the proved commit");
     finish_timing(0);
-    assert!(held.is_some(), "the fence left the read of the earlier commit unused");
+    assert!(held.is_none(), "the fence ended the read of the earlier commit where it decided not to use it");
     let record: String = the_record(repo);
     assert!(the_record_states(record.as_str(), "git ls-tree"), "the fence read the proved commit itself: {record}");
     let source: SnapshotSource = source_refusal(&context, &main_identity(repo)).expect("the source is clean");
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
     assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the proved commit's own map decides the paths");
-    held.expect("the add holds the read it never used").settle();
 }
 
 /// The symbolic ref moving to another commit of the same tree drops the read.
@@ -266,10 +265,9 @@ fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
     let source: SnapshotSource = source_refusal(&context, &identity).expect("the linked source is clean");
     let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides");
-    assert!(held.is_some(), "the read of the commit before the move is unused");
+    assert!(held.is_none(), "the fence ended the read of the commit before the move");
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
     assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried));
-    held.expect("the read is settled by the add's end").settle();
     remove(root.as_path());
 }
 
@@ -402,24 +400,21 @@ fn the_read_beside_the_check_leaves_another_steps_note_alone() {
 }
 
 /// The early read's request is the only thing that differs from the serial one,
-/// and its no-fetch switches are there only where a source may fetch.
+/// and it carries the no-fetch variable on every source and no option.
 #[test]
 fn the_early_read_runs_without_lazy_fetch_and_outside_the_note() {
-    let fetching: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD", true);
-    assert!(fetching.beside_another_step, "the read leaves the failed-step note alone");
-    assert!(fetching.end_with_the_starting_thread, "the read's child ends with the thread that starts it");
-    assert!(fetching.environment.contains(&(OsString::from("GIT_NO_LAZY_FETCH"), OsString::from("1"))), "{:?}", fetching.environment);
+    let read: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD");
+    assert!(read.beside_another_step, "the read leaves the failed-step note alone");
+    assert!(read.end_with_the_starting_thread, "the read's child ends with the thread that starts it");
     assert_eq!(
-        fetching.arguments,
-        vec![OsString::from("--no-lazy-fetch"), OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")],
-        "Git before 2.45.0 refuses the option and reads nothing, where it would ignore the variable"
+        read.environment,
+        vec![(OsString::from("GIT_NO_LAZY_FETCH"), OsString::from("1"))],
+        "every early read carries the variable, with no test of the source"
     );
-    let plain: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD", false);
-    assert!(plain.environment.is_empty(), "a source that cannot fetch gets no variable: {:?}", plain.environment);
     assert_eq!(
-        plain.arguments,
+        read.arguments,
         vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")],
-        "a source that cannot fetch keeps today's read, so an older Git still takes the overlap"
+        "the option is not used: an older Git refuses it and a plain source would fall to Git's checkout"
     );
 }
 
@@ -542,6 +537,32 @@ fn a_sparse_partial_clone(origin: &Path, root: &Path, name: &str) -> PathBuf {
 }
 
 /// What:
+///  An origin with three blobs in each of `dir0` and `dir1`,
+///  whose upload wants the filter a partial clone asks for.
+/// Why:
+///   Every shape below starts from a sparse partial clone of it,
+/// so `dir1`'s six blobs are the ones a lazy fetch downloads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const d of ['dir0', 'dir1']) for (let i = 0; i < 3; i += 1) writeFile(join(origin, d, `f${i}.txt`), `${d}-${i}\n`); git(origin, ['add', '--all']); git(origin, ['commit', '-m', 'blobs']); git(origin, ['config', 'uploadpack.allowfilter', 'true']);
+/// ```
+fn a_partial_clone_origin(root: &Path) -> PathBuf {
+    let origin: PathBuf = root.join("origin");
+    for directory in ["dir0", "dir1"] {
+        std::fs::create_dir_all(origin.join(directory)).expect("a directory");
+        for index in 0..3 {
+            std::fs::write(origin.join(directory).join(format!("f{index}.txt")), format!("{directory}-{index}\n")).expect("a blob");
+        }
+    }
+    git(origin.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(origin.as_path(), &["add", "--all"]);
+    git(origin.as_path(), &["commit", "--quiet", "--message=blobs"]);
+    git(origin.as_path(), &["config", "uploadpack.allowfilter", "true"]);
+    return std::fs::canonicalize(origin).expect("canonical");
+}
+
+/// What:
 ///  How many objects the clone does not hold,
 ///  and how many packs it holds.
 /// Why:
@@ -562,22 +583,76 @@ fn missing_and_packs(clone: &Path) -> (usize, usize) {
     return (missing, packs);
 }
 
+/// What:
+///  Remove every `.promisor` marker from the clone's pack directory.
+/// Why:
+///   The integrated recheck's misses were promisor remotes with no marker in the pack directory
+///  (the integration recheck's High 1 of 2026-11-22);
+/// a control has to take the markers away to reproduce them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of readdirSync(join(clone, '.git/objects/pack'))) if (name.endsWith('.promisor')) rmSync(join(clone, '.git/objects/pack', name));
+/// ```
+fn remove_every_promisor_marker(clone: &Path) {
+    let packs: PathBuf = clone.join(".git/objects/pack");
+    for entry in std::fs::read_dir(packs).expect("the pack directory").flatten() {
+        if entry.path().extension() == Some(std::ffi::OsStr::new("promisor")) {
+            std::fs::remove_file(entry.path()).expect("the marker goes");
+        }
+    }
+}
+
+/// What:
+///  Move the remote's promisor flags out of the common config and into `remote-flags.cfg`,
+///  which the common config includes,
+///  and take the pack markers away.
+/// Why:
+///   This is the shape the recheck made fetch:
+/// a promisor remote whose flags arrive through an included file,
+///  with no word `promisor` in the common config and no `.promisor` marker.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git(clone, ['config', '--unset', 'remote.origin.promisor']); git(clone, ['config', '--unset', 'remote.origin.partialclonefilter']); git(clone, ['config', 'include.path', 'remote-flags.cfg']); git(clone, ['config', '--file', '.git/remote-flags.cfg', 'remote.origin.promisor', 'true']); git(clone, ['config', '--file', '.git/remote-flags.cfg', 'remote.origin.partialclonefilter', 'blob:none']); removeEveryPromisorMarker(clone);
+/// ```
+fn the_promisor_flags_in_an_included_file(clone: &Path) {
+    let _unset_promisor: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.promisor"]);
+    let _unset_filter: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.partialclonefilter"]);
+    git(clone, &["config", "include.path", "remote-flags.cfg"]);
+    let flags: PathBuf = clone.join(".git/remote-flags.cfg");
+    git(clone, &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.promisor", "true"]);
+    git(clone, &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.partialclonefilter", "blob:none"]);
+    remove_every_promisor_marker(clone);
+}
+
+/// What:
+///  A read started beside the check,
+///  joined and counted:
+///  the clone's missing objects and packs before and after,
+///  which are equal when the read fetched nothing.
+/// Why:
+///   The join is what lets a late fetch land before the count;
+/// the old control settled without waiting,
+///  so a fetch could arrive after it looked
+///  (the integration recheck's High 1 of 2026-11-22).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = missingAndPacks(clone); startBesideTheCheck(context, identity).join(); return [before, missingAndPacks(clone)];
+/// ```
+fn an_early_read_joined_leaves_the_clone_alone(clone: &Path, context: &GitContext) -> ((usize, usize), (usize, usize)) {
+    let before: (usize, usize) = missing_and_packs(clone);
+    let _answer: Result<BlobSizes, String> = start_beside_the_check(context, &main_identity(clone)).expect("a read starts before the check").join();
+    return (before, missing_and_packs(clone));
+}
+
 /// A sparse partial clone the check refuses fetches nothing,
 /// and the read without the variable is the positive control that its count can move.
 #[test]
 fn a_read_beside_the_check_writes_nothing_into_a_sparse_partial_clone_the_check_refuses() {
     let root: PathBuf = fixture("partial");
-    let origin: PathBuf = root.join("origin");
-    for directory in ["dir0", "dir1"] {
-        std::fs::create_dir_all(origin.join(directory)).expect("a directory");
-        for index in 0..3 {
-            std::fs::write(origin.join(directory).join(format!("f{index}.txt")), format!("{directory}-{index}\n")).expect("a blob");
-        }
-    }
-    git(origin.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    git(origin.as_path(), &["add", "--all"]);
-    git(origin.as_path(), &["commit", "--quiet", "--message=blobs"]);
-    git(origin.as_path(), &["config", "uploadpack.allowfilter", "true"]);
+    let origin: PathBuf = a_partial_clone_origin(root.as_path());
     let context: GitContext = git_context();
     let refused: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "refused");
     let before: (usize, usize) = missing_and_packs(refused.as_path());
@@ -586,13 +661,79 @@ fn a_read_beside_the_check_writes_nothing_into_a_sparse_partial_clone_the_check_
     let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts before the check");
     let refusal = source_refusal(&context, &identity).expect_err("the check refuses the sparse checkout");
     assert!(refusal.reason.contains("sparse checkout"), "{}", refusal.reason);
-    started.settle();
+    // The read is joined, not settled: a fetch that lands late must still be seen by the count.
+    let _answer: Result<BlobSizes, String> = started.join();
     assert_eq!(missing_and_packs(refused.as_path()), before, "the read fetched nothing into the source the check refused");
     // The positive control: the same read without GIT_NO_LAZY_FETCH fetches, so the count above is one that can move.
     let fetched: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "fetched");
     let before_the_serial_read: (usize, usize) = missing_and_packs(fetched.as_path());
     let _serial: BlobSizes = blob_sizes(&context, fetched.as_path(), the_head_commit(fetched.as_path()).as_str()).expect("the serial read");
     assert_ne!(missing_and_packs(fetched.as_path()), before_the_serial_read, "the serial read fetches, so the pair can move");
+    remove(root.as_path());
+}
+
+/// The promisor remote whose flags arrive through an included file fetches nothing.
+#[test]
+fn a_read_with_the_promisor_flags_in_an_included_file_fetches_nothing() {
+    let root: PathBuf = fixture("promisor-include");
+    let origin: PathBuf = a_partial_clone_origin(root.as_path());
+    let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "included");
+    the_promisor_flags_in_an_included_file(clone.as_path());
+    let (before, after) = an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
+    assert!(before.0 > 0, "the clone is missing the blobs the cone leaves out: {before:?}");
+    assert_eq!(after, before, "the flags arriving through an include fetch nothing");
+    remove(root.as_path());
+}
+
+/// The promisor remote set only through `GIT_CONFIG_COUNT` and its keys fetches nothing.
+#[test]
+fn a_read_with_the_promisor_remote_from_the_environment_fetches_nothing() {
+    let root: PathBuf = fixture("promisor-environment");
+    let origin: PathBuf = a_partial_clone_origin(root.as_path());
+    let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "environment");
+    let _unset_promisor: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.promisor"]);
+    let _unset_filter: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.partialclonefilter"]);
+    let _unset_default: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "extensions.partialclone"]);
+    remove_every_promisor_marker(clone.as_path());
+    // SAFETY: nextest gives this control its own process, and no thread reads the environment before these are set.
+    unsafe {
+        std::env::set_var("GIT_CONFIG_COUNT", "2");
+        std::env::set_var("GIT_CONFIG_KEY_0", "remote.origin.promisor");
+        std::env::set_var("GIT_CONFIG_VALUE_0", "true");
+        std::env::set_var("GIT_CONFIG_KEY_1", "remote.origin.partialclonefilter");
+        std::env::set_var("GIT_CONFIG_VALUE_1", "blob:none");
+    }
+    let (before, after) = an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &git_context());
+    // SAFETY: this control's own process, and the read has ended.
+    unsafe {
+        std::env::remove_var("GIT_CONFIG_COUNT");
+        std::env::remove_var("GIT_CONFIG_KEY_0");
+        std::env::remove_var("GIT_CONFIG_VALUE_0");
+        std::env::remove_var("GIT_CONFIG_KEY_1");
+        std::env::remove_var("GIT_CONFIG_VALUE_1");
+    }
+    assert!(before.0 > 0, "the clone is missing the blobs the cone leaves out: {before:?}");
+    assert_eq!(after, before, "a remote from the environment fetches nothing");
+    remove(root.as_path());
+}
+
+/// A `--reference` clone of a partial clone,
+/// with its promisor flags in an include,
+/// fetches nothing.
+#[test]
+fn a_read_beside_a_reference_clone_of_a_partial_clone_fetches_nothing() {
+    let root: PathBuf = fixture("promisor-reference");
+    let origin: PathBuf = a_partial_clone_origin(root.as_path());
+    let partial: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "reference-source");
+    let reference: PathBuf = root.join("reference");
+    let url: String = format!("file://{}", origin.display());
+    git(root.as_path(), &["clone", "--quiet", "--sparse", "--reference", partial.to_str().expect("utf8"), "--filter=blob:none", url.as_str(), reference.to_str().expect("utf8")]);
+    git(reference.as_path(), &["sparse-checkout", "set", "dir0"]);
+    let reference: PathBuf = std::fs::canonicalize(reference).expect("canonical");
+    the_promisor_flags_in_an_included_file(reference.as_path());
+    let (before, after) = an_early_read_joined_leaves_the_clone_alone(reference.as_path(), &git_context());
+    assert!(before.0 > 0, "the reference clone is missing the blobs its alternate lacks: {before:?}");
+    assert_eq!(after, before, "the flags arriving through an include on a reference clone fetch nothing");
     remove(root.as_path());
 }
 
@@ -618,9 +759,11 @@ fn alive(pid: i32) -> bool {
 /// const script = `#!/bin/sh\nfor arg in "$@"; do if [ "$arg" = ls-tree ]; then printf '%s' "$$" > '${marker}'; exec sleep 30; fi; done\nexec /usr/bin/git "$@"\n`;
 /// ```
 fn a_git_whose_size_read_holds(wrote: &Path) -> String {
+    // The id goes to a temporary name and is renamed into place, so a reader never sees the file before it holds
+    //  a whole process id (the integration recheck's Medium 2 of 2026-11-22).
     return format!(
-        "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"ls-tree\" ]; then\n    printf '%s' \"$$\" > '{}'\n    exec sleep 30\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
-        wrote.display()
+        "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"ls-tree\" ]; then\n    printf '%s' \"$$\" > '{wrote}.tmp'\n    mv '{wrote}.tmp' '{wrote}'\n    exec sleep 30\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        wrote = wrote.display()
     );
 }
 
@@ -636,10 +779,31 @@ fn a_git_whose_size_read_holds(wrote: &Path) -> String {
 /// ```
 fn a_process_id_written_within(path: &Path) -> i32 {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !path.exists() && std::time::Instant::now() < deadline {
+    while std::time::Instant::now() < deadline {
+        if let Some(pid) = a_process_id_in(path) {
+            return pid;
+        }
         std::thread::sleep(Duration::from_millis(5));
     }
-    return std::fs::read_to_string(path).expect("the fake Git wrote its id").trim().parse().expect("a process id");
+    panic!("the fake Git wrote a process id within 5 s");
+}
+
+/// What:
+///  The process id `path` holds,
+///  or nothing while the file is absent or holds no whole id.
+/// Why:
+///   The marker is written by another process,
+///  and a reader that takes the file's existence for its content can read an empty file;
+///  a whole,
+/// parseable id is the only thing either side of the marker may act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const processIdIn = (path) => { try { const text = readFileSync(path, 'utf8').trim(); return /^\d+$/.test(text) ? Number(text) : undefined; } catch { return undefined; } };
+/// ```
+fn a_process_id_in(path: &Path) -> Option<i32> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    return text.trim().parse().ok();
 }
 
 /// Wait,
@@ -674,11 +838,14 @@ fn a_context_whose_git_holds_the_read(fake: &Path) -> GitContext {
     return context;
 }
 
-/// A read the add abandons ends its child while the adding process still lives.
+/// A read the add abandons ends its child while the adding process still lives,
+/// and the line its child start left in the repository's record is swept once the child is gone.
 #[test]
-fn an_abandoned_read_ends_its_child() {
+fn an_abandoned_read_ends_its_child_and_its_record_is_swept() {
     let root: PathBuf = fixture("abandon");
     let repo: PathBuf = a_clean_source(root.as_path(), "abandon");
+    // The repository's per-process record names every Git this process starts, so arm it before the read.
+    crate::lock_holder_records::remember_repository(repo.join(".git").as_path());
     let fake: PathBuf = root.join("git-that-holds-the-size-read");
     let wrote: PathBuf = root.join("size-read-started");
     std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
@@ -695,7 +862,45 @@ fn an_abandoned_read_ends_its_child() {
     assert!(alive(child), "the read's child runs before the abandon");
     started.abandon();
     assert!(gone_within(child, Duration::from_secs(5)), "the abandon ended the read's child while the adding process still lives");
+    let common: PathBuf = repo.join(".git");
+    let record: String = the_records(&common);
+    assert!(record.contains(format!("child {child} ").as_str()), "the child start is named in the repository's record: {record}");
+    // The sweep is the pass every command that may meet a lock runs; a record it can no longer explain goes.
+    crate::lock_holder_record_reads::sweep(common.as_path(), &[]);
+    assert!(!the_record_folder_exists(&common), "the line a killed read's child left is swept once every holder it names is gone");
     remove(root.as_path());
+}
+
+/// What:
+///  Every record the repository's holder folder holds,
+///  as one text.
+/// Why:
+///  A record names the process and every Git it started;
+///  a control reads them to see the line a child start wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const records = (common) => readdirSync(folderOf(common)).map((name) => readFileSync(join(folderOf(common), name), 'utf8')).join('');
+/// ```
+fn the_records(common: &Path) -> String {
+    let folder: PathBuf = crate::lock_holder_records::folder_of(common);
+    let entries = std::fs::read_dir(folder.as_path()).expect("the holder folder");
+    let mut text: String = String::new();
+    for entry in entries.flatten() {
+        text.push_str(std::fs::read_to_string(entry.path()).expect("a record").as_str());
+    }
+    return text;
+}
+
+/// Whether the repository's holder folder still holds any record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = (common) => existsSync(folderOf(common)) && readdirSync(folderOf(common)).length > 0;
+/// ```
+fn the_record_folder_exists(common: &Path) -> bool {
+    let folder: PathBuf = crate::lock_holder_records::folder_of(common);
+    return std::fs::read_dir(folder.as_path()).is_ok_and(|entries| return entries.flatten().next().is_some());
 }
 
 /// What:
@@ -723,10 +928,13 @@ fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Pat
             unsafe { libc::_exit(1) };
         }
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while !marker.exists() && std::time::Instant::now() < deadline {
+        while std::time::Instant::now() < deadline {
+            if a_process_id_in(marker).is_some() {
+                unsafe { libc::_exit(0) };
+            }
             std::thread::sleep(Duration::from_millis(5));
         }
-        unsafe { libc::_exit(if marker.exists() { 0 } else { 2 }) };
+        unsafe { libc::_exit(2) };
     }
     let mut status: libc::c_int = 0;
     // SAFETY: `pid` is the child this call just forked, and `status` is one `c_int` it writes.
@@ -756,6 +964,127 @@ fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {
     remove(root.as_path());
 }
 
+/// The fake Git program of the no-reused-id control:
+/// an `ls-tree` run writes its own process id and exits at once,
+/// and every other command is the fixture's real Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const script = `#!/bin/sh\nfor arg in "$@"; do if [ "$arg" = ls-tree ]; then printf '%s' "$$" > '${wrote}.tmp'; mv '${wrote}.tmp' '${wrote}'; exit 0; fi; done\nexec /usr/bin/git "$@"\n`;
+/// ```
+fn a_git_whose_size_read_ends_at_once(wrote: &Path) -> String {
+    return format!(
+        "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"ls-tree\" ]; then\n    printf '%s' \"$$\" > '{wrote}.tmp'\n    mv '{wrote}.tmp' '{wrote}'\n    exit 0\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        wrote = wrote.display()
+    );
+}
+
+/// An abandon that comes before the read's thread reached its spawn does not leave a child running its whole length.
+#[test]
+fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
+    let root: PathBuf = fixture("abandon-before-child");
+    let repo: PathBuf = a_clean_source(root.as_path(), "abandon-before-child");
+    let fake: PathBuf = root.join("git-that-holds-the-size-read");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let hold = a_control_holds_the_read();
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    // The read is held before its Git run, so no child exists yet: this is exactly the abandon a check that refuses at once makes.
+    started.abandon();
+    drop(hold);
+    // The read may start its child after the abandon; that child must be ended the moment it is published.
+    let child: Option<i32> = a_process_id_in(wrote.as_path());
+    if let Some(child) = child {
+        assert!(alive(child), "the marker names a process that was alive when it was read");
+        assert!(gone_within(child, Duration::from_secs(5)), "the child the abandon came before is ended at publication, not left for its 30 s sleep");
+    }
+    // Whether the child was seen before or after its death, nothing of the fake may still run.
+    if let Some(child) = a_process_id_in(wrote.as_path()) {
+        assert!(gone_within(child, Duration::from_secs(1)), "nothing of the abandoned read is alive afterwards");
+    }
+    remove(root.as_path());
+}
+
+/// A child reaped before an abandon is not named by the read's cell,
+/// so the abandon signals no reused process id.
+#[test]
+fn an_abandon_after_the_child_ended_names_no_child() {
+    let root: PathBuf = fixture("no-reused-id");
+    let repo: PathBuf = a_clean_source(root.as_path(), "no-reused-id");
+    let fake: PathBuf = root.join("git-whose-size-read-ends");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_ends_at_once(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let hold = a_control_holds_the_sizes_after_the_wait();
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    let child: i32 = a_process_id_written_within(wrote.as_path());
+    assert!(gone_within(child, Duration::from_secs(5)), "the fake Git ends by itself");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !the_sizes_hold_was_reached() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(the_sizes_hold_was_reached(), "the read reached the seam after its wait");
+    assert_eq!(started.published_child_for_a_control(), 0, "the cell names no reaped child, so an abandon here signals nothing");
+    drop(hold);
+    drop(started);
+    remove(root.as_path());
+}
+
+/// A fence with no path to size ends the read it started rather than leaving it to run to the process's end.
+#[test]
+fn the_fence_ends_a_read_no_path_needs() {
+    let root: PathBuf = fixture("no-sizes");
+    let repo: PathBuf = a_clean_source(root.as_path(), "no-sizes");
+    // Every tracked path converts to CRLF on checkout, so no path needs a blob size at all.
+    git(repo.as_path(), &["config", "core.autocrlf", "true"]);
+    let fake: PathBuf = root.join("git-that-holds-the-size-read");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let context: GitContext = a_context_whose_git_holds_the_read(fake.as_path());
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    let child: i32 = a_process_id_written_within(wrote.as_path());
+    assert!(alive(child), "the read's child runs before the fence");
+    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+    begin_timing(repo.join(".git"), true);
+    let fence: Fence = the_fence(repo.as_path(), &context, &mut held).expect("the fence decides without sizes");
+    finish_timing(0);
+    assert!(held.is_none(), "the fence ended the read no path needs");
+    assert!(gone_within(child, Duration::from_secs(5)), "the child is ended where the fence decides it has no use for it");
+    let record: String = the_record(repo.as_path());
+    assert!(!the_record_states(record.as_str(), "git ls-tree"), "the fence read no sizes: {record}");
+    // Nothing needed a size: every path converts to CRLF, so the fence hands each one to Git's writing.
+    assert!(!fence.git_writes.is_empty(), "a path that converts to CRLF is written by Git");
+    remove(root.as_path());
+}
+
+/// A refused thread start loses only the overlap:
+/// the fence reads where it stands.
+#[test]
+fn a_refused_thread_start_reads_where_it_stands() {
+    let root: PathBuf = fixture("refused-start");
+    let repo: PathBuf = a_clean_source(root.as_path(), "refused-start");
+    let context: GitContext = git_context();
+    let identity: WorktreeIdentity = main_identity(repo.as_path());
+    let refused = crate::scoped_start::RefusedStarts::here();
+    let started: Option<SizeReadBesideTheCheck> = start_beside_the_check(&context, &identity);
+    assert!(started.is_none(), "a start the system refuses answers no read");
+    let mut held: Option<SizeReadBesideTheCheck> = started;
+    begin_timing(repo.join(".git"), true);
+    let fence: Fence = the_fence(repo.as_path(), &context, &mut held).expect("the fence reads where it stands");
+    finish_timing(0);
+    drop(refused);
+    assert!(held.is_none(), "no read is left for the add to settle");
+    let record: String = the_record(repo.as_path());
+    assert!(the_record_states(record.as_str(), "git ls-tree"), "the fence read the sizes itself: {record}");
+    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "no join was entered: {record}");
+    let source: SnapshotSource = source_refusal(&context, &main_identity(repo.as_path())).expect("the source is clean");
+    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
+    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the refused start decides the same paths");
+    remove(root.as_path());
+}
+
 /// What:
 ///  The variable that makes the multi-thread runtime's build miss its deadline.
 /// Why:
@@ -779,11 +1108,12 @@ fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     let context: GitContext = git_context();
     let identity: WorktreeIdentity = main_identity(repo.as_path());
     let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
-    let sizes: BlobSizes = started.join().expect("the read answers under the current-thread stand-in");
-    assert_eq!(sizes.len(), 2, "the read listed both tracked paths");
     let source: SnapshotSource = source_refusal(&context, &identity).expect("the source is clean");
-    let mut held: Option<SizeReadBesideTheCheck> = None;
+    // The read is handed to the fence, which joins it here: the read's Git run and the fence's own run are then
+    //  concurrent on the stand-in, which is the shape the earlier control never reached by joining first.
+    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
     let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides under the stand-in");
+    assert!(held.is_none(), "the fence took the read and joined it under the stand-in");
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
     assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the stand-in decides the same paths");
     assert_eq!(crate::lazy_runtime::built_flavor(), Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline), "the process ran on the stand-in");

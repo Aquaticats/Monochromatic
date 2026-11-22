@@ -831,14 +831,27 @@ Read-only commands,
      and is joined at the fence under a ceiling,
      so the check and the attribute read hide most of it;
      only that join waits.
-     A source that may hold a promisor remote gets `GIT_NO_LAZY_FETCH=1` and `--no-lazy-fetch`,
+     Every early read carries `GIT_NO_LAZY_FETCH=1`,
      so a partial clone fetches nothing,
-     while a plain source keeps today's read so an older Git keeps the overlap;
-     Git 2.45.0 is the first release that honours either switch,
-     and an older Git refuses the option before reading anything,
-     so on a promisor source it reads nothing and the fence falls through to Git's own checkout.
+     whatever route the promisor remote's flags arrive by;
+     the global `--no-lazy-fetch` is not used,
+     because an older Git refuses it before reading anything and would send a plain source to Git's whole checkout.
+     The variable is honoured from the May 2024 maintenance releases
+     (`v2.39.4`,
+     `v2.40.2`,
+     `v2.41.1`,
+     `v2.42.2`,
+     `v2.43.4`,
+     `v2.44.1`,
+     `v2.45.1`,
+     the commit `7b70e9efb`)
+     and by Ubuntu 24.04's `2.43.0-1ubuntu7.3`;
+     a Git older than those ignores it and can fetch a missing blob,
+     which is the recorded limit of this read there.
      The read's answer is used only when it listed the commit the check proved,
-     with another commit left for the fence to read itself.
+     and when no path needs a size it is not used at all;
+     either case ends the read where the fence decides,
+     and the fence reads the proved commit itself when it needs sizes.
      A snapshot copies everything anyway,
      so this rung is the only one where the read needed moving:
      rung 2 keeps it beside its copies.
@@ -846,7 +859,8 @@ Read-only commands,
      and as started and not joined when it has not,
      and it never waits;
      a read an add will not use is ended at the refusal or the decline,
-     and its child ends with the process.
+     a read abandoned before its child was published has that child ended the moment it is published,
+     and the thread and child end with the process.
      Measured in one btrfs guest of 2026-11-22 with an identical-binary control:
      a served loose add 905.1 ms against `main`'s 960.6,
      a served packed one 599.9 against 677.4,

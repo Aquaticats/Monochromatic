@@ -72,24 +72,42 @@ const THE_JOIN_DEADLINE: Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING.
 /// so a diagnostic that lists threads names it for what it does.
 const THREAD: &str = "clone-size-read-beside-the-check";
 
-/// The variable that stops Git from fetching the objects a partial clone is missing,
-///  and the option Git 2.45.0 takes for the same thing.
+/// The variable that stops Git from fetching the objects a partial clone is missing.
 /// Why:
 ///   `git ls-tree -l` needs every blob's size.
 /// On a partial clone,
 /// a missing blob is fetched from the promisor remote to answer it,
 ///  which wrote packs into a source the check was about to refuse
 ///  (the gate review's High 1 of 2026-11-22).
-/// Git 2.45.0 is the first release that honours the variable
-///  (`environment.c`,
-/// `NO_LAZY_FETCH_ENVIRONMENT`,
-/// sets `fetch_if_missing = 0`),
-///  and it takes `--no-lazy-fetch` as the same switch before any subcommand;
-/// an older Git refuses that option and reads nothing,
-///  so it cannot fetch here either.
-/// With either switch,
-///  an unavailable size prints as `BAD`,
-///  which `parse_sizes` skips.
+/// The variable is set on every early read,
+/// with no test of the source:
+///  the decision says the read never fetches
+///  (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`,
+/// its section "The overlap,
+/// answered 2026-11-22"),
+///  and a test that read the config could miss a promisor remote whose flags arrive through an included file,
+/// a worktree config or the environment
+///  (the integration recheck's High 1 of 2026-11-22).
+/// The variable is honoured from the May 2024 maintenance releases
+///  (`v2.39.4`,
+/// `v2.40.2`,
+/// `v2.41.1`,
+/// `v2.42.2`,
+/// `v2.43.4`,
+/// `v2.44.1`,
+/// `v2.45.1`,
+/// the commit `7b70e9efb`)
+/// and by Ubuntu 24.04's `2.43.0-1ubuntu7.3`;
+/// a Git older than those ignores it and can fetch,
+///  which is a recorded limit,
+/// not something this read can avoid.
+/// The option `--no-lazy-fetch` is deliberately not used:
+///  it is Git 2.45.0's,
+/// and an older Git refuses it (exit 129),
+///  which sent a plain source from the snapshot to Git's whole checkout
+///  (the integration recheck's Medium 3 of 2026-11-22).
+/// An unavailable size prints as `BAD`,
+/// which `parse_sizes` skips.
 /// A path whose size cannot be listed therefore only ever goes to Git's writing.
 const NO_LAZY_FETCH: &str = "GIT_NO_LAZY_FETCH";
 
@@ -150,29 +168,6 @@ pub struct SizeReadBesideTheCheck {
 }
 
 /// What:
-///  Whether this source may fetch a missing object from a promisor remote.
-/// Why:
-///   `GIT_NO_LAZY_FETCH` and `--no-lazy-fetch` are Git 2.45.0's;
-///  an older Git refuses the option and reads nothing,
-///  so the fence may retry the serial read only where nothing could be fetched.
-///  A promisor pack or a `promisor` word in the common config is proof enough to keep the read's failure;
-///  anything it cannot prove is treated as a source that may fetch,
-/// which is the safe direction.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mayFetch = (commonDir) => readdir(join(commonDir, 'objects/pack')).some((name) => name.endsWith('.promisor')) || readFile(join(commonDir, 'config')).toLowerCase().includes('promisor');
-/// ```
-fn may_fetch(common_dir: &Path) -> bool {
-    let packs: std::path::PathBuf = common_dir.join("objects").join("pack");
-    if std::fs::read_dir(packs).is_ok_and(|entries| return entries.flatten().any(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("promisor")))) {
-        return true;
-    }
-    let config: Vec<u8> = std::fs::read(common_dir.join("config")).unwrap_or_default();
-    return String::from_utf8_lossy(config.as_slice()).to_lowercase().contains("promisor");
-}
-
-/// What:
 ///  The worktree root and its two Git directories,
 /// or nothing for an identity without a worktree.
 /// Why:
@@ -224,10 +219,9 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
         debug(TAG, "the commit HEAD names is not a plain ref, so the size read does not start beside the check");
         return None;
     };
-    let may_fetch: bool = may_fetch(common_dir);
     let child: std::sync::Arc<std::sync::atomic::AtomicI32> = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
     let (sender, answer): (Sender<ReadAnswer>, std::sync::mpsc::Receiver<ReadAnswer>) = std::sync::mpsc::channel();
-    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>, bool, std::sync::Arc<std::sync::atomic::AtomicI32>) = (context.clone(), root.to_path_buf(), commit.clone(), sender, may_fetch, child.clone());
+    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>) = (context.clone(), root.to_path_buf(), commit.clone(), sender, child.clone());
     if let Err(error) = spawn_named(THREAD, move || {
         return read_the_sizes_where_nothing_is_fetched(state);
     }) {
@@ -252,10 +246,11 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// ```ts
 /// function readTheSizesWhereNothingIsFetched([context, root, commit, sender]) { const began = performance.now(); sender.send([performance.now() - began, sizesOf(context, root, commit)]); }
 /// ```
-fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_fetch, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, bool, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
+fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
     let began: Instant = Instant::now();
-    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), may_fetch, &child);
-    // The child is reaped by its runner here, so an add that abandons this read afterwards must not end a reused process id.
+    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
+    // The runner cleared this cell when it reaped the child, before anything was parsed (`child_watch_one_shot_run.rs`,
+    //  the `StepBound::EndAt` arm), so an abandon after this line cannot signal a reused process id.
     child.store(0, std::sync::atomic::Ordering::SeqCst);
     let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> = sender.send((began.elapsed(), sizes));
 }
@@ -263,7 +258,7 @@ fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_f
 /// What:
 ///  The one request the early read makes:
 /// `git ls-tree -r -l -z` of `commit`,
-///  with the no-fetch switches when the source may hold a promisor remote,
+///  with `GIT_NO_LAZY_FETCH=1` on every read,
 ///  which leaves the process-wide failed-step note alone,
 ///  and whose child ends with the thread that starts it.
 /// Why:
@@ -271,26 +266,18 @@ fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_f
 /// the add's own steps may fail while this read runs,
 ///  so the read must not take their note (`GitRequest::beside_another_step`),
 ///  and an add that ends with the read still running must leave no child (`end_with_the_starting_thread`).
-/// The no-fetch switches are there only where a fetch is possible:
-///  `GIT_NO_LAZY_FETCH` and `--no-lazy-fetch` are Git 2.45.0's,
-///  and Git before that refuses the option before it reads anything.
-///  A plain source has no promisor remote,
-/// so today's read is safe there and an older Git keeps its overlap;
-///  a source that may fetch gets the option,
-/// so an older Git reads nothing and the fence falls back to Git's checkout.
+/// The variable is on every read and is the only switch:
+///  the decision says the read never fetches,
+/// and the option `--no-lazy-fetch` is left out because an older Git refuses it
+///  (see `NO_LAZY_FETCH`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const theEarlyReadRequest = (root, commit, mayFetch) => ({ cwd: root, args: [...(mayFetch ? ['--no-lazy-fetch'] : []), 'ls-tree', '-r', '-l', '-z', commit], env: mayFetch ? { GIT_NO_LAZY_FETCH: '1' } : {}, besideAnotherStep: true, endWithTheStartingThread: true });
+/// const theEarlyReadRequest = (root, commit) => ({ cwd: root, args: ['ls-tree', '-r', '-l', '-z', commit], env: { GIT_NO_LAZY_FETCH: '1' }, besideAnotherStep: true, endWithTheStartingThread: true });
 /// ```
-fn the_early_read_request(root: &Path, commit: &str, may_fetch: bool) -> GitRequest {
-    let mut arguments: Vec<OsString> = Vec::with_capacity(6);
-    let mut environment: Vec<(OsString, OsString)> = Vec::new();
-    if may_fetch {
-        arguments.push(OsString::from("--no-lazy-fetch"));
-        environment.push((OsString::from(NO_LAZY_FETCH), OsString::from("1")));
-    }
-    arguments.extend([OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)]);
+fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
+    let arguments: Vec<OsString> = vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)];
+    let environment: Vec<(OsString, OsString)> = vec![(OsString::from(NO_LAZY_FETCH), OsString::from("1"))];
     return GitRequest {
         cwd: root.to_path_buf(),
         arguments,
@@ -302,25 +289,32 @@ fn the_early_read_request(root: &Path, commit: &str, may_fetch: bool) -> GitRequ
 
 /// What:
 ///  One `git ls-tree -r -l -z` of `commit`,
-/// run where a partial clone may not fetch.
+/// run where a partial clone does not fetch.
 /// Why:
 ///   This is the early read's own run;
 /// its output is parsed by the same `parse_sizes` the fence's serial read uses,
 ///  and a run that fails says what the fence's own read says.
+/// The runner clears the published child's cell when it reaps that child,
+///  before this function parses anything,
+/// so an abandon after the wait cannot signal a reused process id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): Map<string, number>;
 /// ```
-fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, may_fetch: bool, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
+fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
     #[cfg(test)]
     hold_the_read_where_a_control_asked();
     #[cfg(test)]
     die_where_a_control_asked();
-    let output: GitOutput = run_git(context, &the_early_read_request(root, commit, may_fetch).publishing_its_child(child.clone())).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
+    let output: GitOutput = run_git(context, &the_early_read_request(root, commit).publishing_its_child(child.clone())).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
+    // This seam sits where the old code still named the reaped child, after the whole output was parsed,
+    //  so a control can show that the cell is cleared before parsing starts.
+    #[cfg(test)]
+    hold_the_sizes_after_the_wait_where_a_control_asked();
     return Ok(parse_sizes(output.stdout.as_slice()));
 }
 
@@ -347,9 +341,9 @@ fn lists(read: &SizeReadBesideTheCheck, commit: &str) -> bool {
 ///   The attributes and the decline are decided first,
 /// as everywhere,
 /// and the sizes are wanted only after a decline was refused;
-/// a read of another commit is left in `started` for the add's own end to state its cost,
-///  and this fence reads the proved commit itself,
-/// which is today's serial order.
+/// a read of another commit is ended here and the fence reads the proved commit itself,
+/// which is today's serial order,
+///  because a read nobody will use must not keep running to the process's end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -357,11 +351,35 @@ fn lists(read: &SizeReadBesideTheCheck, commit: &str) -> bool {
 /// ```
 pub fn fence_the_clone_with_the_read_beside_the_check(source: &SnapshotSource, context: &GitContext, started: &mut Option<SizeReadBesideTheCheck>) -> Result<Fence, String> {
     let read: AttributeFence = fence_the_attributes(source, context)?;
-    let sizes: Option<BlobSizes> = match read.needs_sizes() {
-        true => Some(sizes_of_the_paths(source, context, started)?),
-        false => None,
-    };
-    return decide_the_paths_with_sizes(read, sizes);
+    if !read.needs_sizes() {
+        // No path needs a size, so this read has nothing to answer: an add that leaves it running pays it beside
+        //  Git's own checkout to the process's end (the integration recheck's Low 4 of 2026-11-22).
+        end_the_read_the_fence_will_not_use(started);
+        return decide_the_paths_with_sizes(read, None);
+    }
+    let sizes: BlobSizes = sizes_of_the_paths(source, context, started)?;
+    return decide_the_paths_with_sizes(read, Some(sizes));
+}
+
+/// What:
+///  End the read this fence will not use,
+///  stating it as work when it has already answered and as started and not joined otherwise.
+/// Why:
+///   A fence with no path to size,
+///  or one whose started read listed another commit,
+///  has no answer to take;
+/// the read is still a child that would compete with Git's own checkout,
+///  so the add ends it where it decides not to use it
+///  (the integration recheck's Low 4 of 2026-11-22).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endTheReadTheFenceWillNotUse = (started) => started.take()?.abandon();
+/// ```
+fn end_the_read_the_fence_will_not_use(started: &mut Option<SizeReadBesideTheCheck>) {
+    if let Some(read) = started.take() {
+        read.abandon();
+    }
 }
 
 /// What:
@@ -371,8 +389,9 @@ pub fn fence_the_clone_with_the_read_beside_the_check(source: &SnapshotSource, c
 /// Why:
 ///   A started read that listed another commit is not this fence's answer,
 /// and it is not waited for here:
-///  the add's own end settles it without waiting,
-///  so a settled `HEAD` is the only case that spends the overlap.
+///  it is ended where the fence learns it cannot use it,
+///  so a settled `HEAD` is the only case that spends the overlap
+///  and an ended one pays no read beside Git's checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -385,7 +404,10 @@ fn sizes_of_the_paths(source: &SnapshotSource, context: &GitContext, started: &m
             let taken: SizeReadBesideTheCheck = started.take().expect("the read that lists the proved commit is the one just matched");
             return taken.join();
         }
-        Some(read) => debug(TAG, format!("the read started beside the check listed {} and the fence needs {commit}, so it is not used and the fence reads for itself", read.commit).as_str()),
+        Some(read) => {
+            debug(TAG, format!("the read started beside the check listed {} and the fence needs {commit}, so it is ended here and the fence reads for itself", read.commit).as_str());
+            end_the_read_the_fence_will_not_use(started);
+        }
         None => {}
     }
     return blob_sizes(context, source.root.as_path(), commit);
@@ -473,35 +495,50 @@ impl SizeReadBesideTheCheck {
 
     /// What:
     ///  Stop the read this add is not going to use:
-    ///  state it as started and not joined,
-    ///  and end its Git child here.
+    ///  state it as work when it already answered and as started and not joined otherwise,
+    ///  and end its Git child here,
+    ///  or at the moment that child is published.
     /// Why:
     ///   The source check can refuse the source before the fence,
-    ///  and the read then has nothing to answer;
-    ///  leaving it to run beside Git's own checkout makes the refused add slower than `main`
-    ///  (the integration pass's cone shape of 2026-11-22),
+    ///  the fence can decline,
+    ///  and a fence with no path to size or one whose read listed another commit will not use the answer;
+    ///  any of them that leaves the read running makes the add slower than `main`
+    ///  (the integration pass's cone shape and the recheck's Low 4 of 2026-11-22),
     ///  so the child is ended as soon as the add knows it will not use it.
-    /// The child id is the one its runner published;
-    ///  a read that has not started a child,
-    /// or one whose runner already reaped it,
-    /// has zero here.
+    /// The abandon often comes before the read's thread has reached its spawn
+    ///  (a source check that refuses at once takes a few microseconds),
+    ///  so the cell takes `ABANDONED_CHILD` and the runner ends the child the moment it publishes it
+    ///  (`child_watch_one_shot_run.rs`);
+    /// a child already published is signalled here.
+    /// A read whose child was reaped has zero here,
+    /// because the runner clears the cell right after the wait.
     /// The thread answers into a receiver this value drops,
     /// and its send is ignored.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// abandon() { note('fenceSizesBesideTheCheck', 'started and not joined'); const pid = this.child.swap(0); if (pid > 0) kill(pid, 'SIGKILL'); }
+    /// abandon() { const answer = this.answer.tryRecv(); if (answer) noteWork(work, answer.spent); else note(work, 'started and not joined'); const published = this.child.swap(ABANDONED_CHILD); if (published > 0) kill(published, 'SIGKILL'); }
     /// ```
     pub fn abandon(self) {
-        crate::add_timing::note(WORK, "started and not joined");
-        let pid: i32 = self.child.swap(0, std::sync::atomic::Ordering::SeqCst);
-        if pid > 0 {
-            // SAFETY: `pid` is this add's own Git child, published by its runner while it ran;
+        match self.answer.try_recv() {
+            Ok((spent, outcome)) => {
+                note_work(WORK, spent);
+                if let Err(reason) = outcome {
+                    debug(TAG, format!("the size read started beside the check answers {reason}, and the add no longer waits for it").as_str());
+                }
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty | std::sync::mpsc::TryRecvError::Disconnected) => {
+                crate::add_timing::note(WORK, "started and not joined");
+            }
+        }
+        let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);
+        if published > 0 {
+            // SAFETY: `published` is this add's own Git child, published by its runner while it ran;
             // a signal to a process that ended in between reaches nothing.
-            let _ = unsafe { libc::kill(pid, libc::SIGKILL) };
-            debug(TAG, format!("the size read started beside the check is not used, so its child {pid} is ended and the add does not wait for it").as_str());
-        } else {
-            debug(TAG, "the size read started beside the check is not used and has no child to end, so the add does not wait for it");
+            let _ = unsafe { libc::kill(published, libc::SIGKILL) };
+            debug(TAG, format!("the size read started beside the check is not used, so its child {published} is ended and the add does not wait for it").as_str());
+        } else if published == 0 {
+            debug(TAG, "the size read started beside the check is not used before its child exists, so the runner ends that child the moment it publishes it");
         }
     }
 
@@ -525,6 +562,23 @@ impl SizeReadBesideTheCheck {
             Err(RecvTimeoutError::Timeout) => Joined::Silent(a_git_run_that_did_not_answer(&std::io::Error::new(std::io::ErrorKind::TimedOut, format!("`git ls-tree` did not answer within {deadline:?}")))),
             Err(RecvTimeoutError::Disconnected) => Joined::Silent(a_git_run_that_did_not_answer(&std::io::Error::other("the read ended without answering"))),
         };
+    }
+
+    /// What:
+    ///  The child number the cell holds now,
+    /// for a control that shows the cell is cleared as soon as the child is reaped.
+    /// Why:
+    ///   Nothing in the shipped command reads the cell for an answer;
+    /// a control has to,
+    /// to show the window the integration recheck's Low 1 of 2026-11-22 found is closed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// publishedChildForAControl() { return this.child.load(); }
+    /// ```
+    #[cfg(test)]
+    pub(crate) fn published_child_for_a_control(&self) -> i32 {
+        return self.child.load(std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -585,6 +639,85 @@ fn hold_the_read_where_a_control_asked() {
     }
     let held = THE_HELD_READ.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let _lets_go = THE_HELD_READ_LETS_GO.wait_timeout(held, Duration::from_secs(30)).unwrap_or_else(std::sync::PoisonError::into_inner);
+}
+
+#[cfg(test)]
+static THE_SIZES_ARE_HELD_AFTER_THE_WAIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+static THE_SIZES_WERE_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+static THE_HELD_SIZES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+static THE_HELD_SIZES_LET_GO: std::sync::Condvar = std::sync::Condvar::new();
+
+/// What:
+///  Hold the read after its child ended and before the sizes are parsed,
+///  which is where the old code still named the reaped child.
+/// Why:
+///   The integration recheck's Low 1 of 2026-11-22 is that an abandon in that window signals a process id
+///  the kernel has already reaped and may have reused;
+/// a control has to stand in that window to show the cell is cleared before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (THE_SIZES_ARE_HELD_AFTER_THE_WAIT) await new Promise(() => {});
+/// ```
+#[cfg(test)]
+fn hold_the_sizes_after_the_wait_where_a_control_asked() {
+    if !THE_SIZES_ARE_HELD_AFTER_THE_WAIT.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    THE_SIZES_WERE_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
+    let held = THE_HELD_SIZES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _lets_go = THE_HELD_SIZES_LET_GO.wait_timeout(held, Duration::from_secs(30)).unwrap_or_else(std::sync::PoisonError::into_inner);
+}
+
+/// What:
+///  A control that holds the read after its child ended and before the parse,
+///  with the hold's own start of it.
+/// Why:
+///   See `hold_the_sizes_after_the_wait_where_a_control_asked`;
+/// nextest gives every control its own process,
+/// so one control never reaches another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hold = aControlHoldsTheSizesAfterTheWait(); // the read waits there until hold is dropped
+/// ```
+#[cfg(test)]
+pub(crate) fn a_control_holds_the_sizes_after_the_wait() -> TheHeldSizesForTheControl {
+    THE_SIZES_WERE_HELD.store(false, std::sync::atomic::Ordering::SeqCst);
+    THE_SIZES_ARE_HELD_AFTER_THE_WAIT.store(true, std::sync::atomic::Ordering::SeqCst);
+    return TheHeldSizesForTheControl;
+}
+
+/// Whether the held read has reached the seam after its wait,
+/// so a control can look at the cell exactly there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reached = () => THE_SIZES_WERE_HELD;
+/// ```
+#[cfg(test)]
+pub(crate) fn the_sizes_hold_was_reached() -> bool {
+    return THE_SIZES_WERE_HELD.load(std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The hold of `a_control_holds_the_sizes_after_the_wait`,
+/// released when it is dropped.
+#[cfg(test)]
+pub(crate) struct TheHeldSizesForTheControl;
+
+/// Lets the held read go after the wait.
+#[cfg(test)]
+impl Drop for TheHeldSizesForTheControl {
+    fn drop(&mut self) {
+        THE_SIZES_ARE_HELD_AFTER_THE_WAIT.store(false, std::sync::atomic::Ordering::SeqCst);
+        THE_HELD_SIZES_LET_GO.notify_all();
+    }
 }
 
 /// What:

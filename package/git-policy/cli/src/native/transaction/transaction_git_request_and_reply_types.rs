@@ -24,6 +24,20 @@ use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
+/// The value `started_child` holds once its owner abandoned the run before a child was published.
+/// Why:
+///  A run abandoned before its child existed must not start that child and then run its whole length
+///  beside the command that will not use its answer.
+///  The runner reads this value where it publishes the child and ends the child at once,
+///  so the abandon lands whether it comes before or after the publication.
+///  A positive value is a process id and zero is no published child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ABANDONED_CHILD = -1;
+/// ```
+pub const ABANDONED_CHILD: i32 = -1;
+
 /// What:
 ///  The real Git executable and the variables every Git child receives.
 /// Why:

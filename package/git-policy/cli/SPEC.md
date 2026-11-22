@@ -1460,36 +1460,44 @@ the commit `HEAD` names and the object format,
 all answered in process from the plain ref files,
 so it starts on a thread of its own before `checkSource`
 (`worktree_clone_conversion_size_read.rs`).
-That read runs `git ls-tree -r -l -z` of that commit,
-and a source that may hold a promisor remote gets `GIT_NO_LAZY_FETCH=1` and the global
-`--no-lazy-fetch`,
-so a partial clone fetches nothing into a source the check may refuse.
-Git 2.45.0 is the first release that honours either switch:
-it sets `fetch_if_missing = 0`
-(`environment.c`,
-`NO_LAZY_FETCH_ENVIRONMENT`),
-so an unavailable size prints `BAD` in the size column and the run exits 0 with its output.
-A plain source has no promisor remote and no fetch is possible,
-so its read carries neither switch,
-and an older Git keeps the overlap there.
-A source that may hold a promisor remote gets both switches,
-and a Git before 2.45.0 refuses the option
-before it reads anything (exit 129),
-so the read fails instead of fetching and the fence falls through
-to Git's own checkout;
-the add does not fail.
-Ubuntu 24.04's Git 2.43.0 is one such Git:
-its plain `git ls-tree` under the variable alone exits 128
-with `could not fetch ... from promisor remote` and leaves the clone unchanged (40 missing and 2 packs),
-which is the fact its package carries,
-and it does not know the option.
+That read runs `git ls-tree -r -l -z` of that commit with `GIT_NO_LAZY_FETCH=1` on every source,
+so a partial clone fetches nothing into a source the check may refuse,
+whether the promisor remote's flags are in the common config,
+an included file,
+a worktree config or the environment.
+There is no second switch:
+the global `--no-lazy-fetch` is Git 2.45.0's,
+and an older Git refuses it before reading anything (exit 129),
+which sent a plain source from the snapshot to Git's whole checkout;
+the variable alone leaves the route as it was on every Git that honours it.
+The variable is honoured from the May 2024 maintenance releases
+(`v2.39.4`,
+`v2.40.2`,
+`v2.41.1`,
+`v2.42.2`,
+`v2.43.4`,
+`v2.44.1`,
+`v2.45.1`,
+the commit `7b70e9efb`)
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.3`:
+with it an unavailable size prints `BAD` in the size column,
+the run exits 0 with its output,
+and the clone is unchanged.
+A Git older than those releases ignores the variable and can fetch a missing blob,
+which is the recorded limit of this read there;
+a size it cannot parse only ever sends its path to Git's writing,
+so the fence's answer is unchanged,
+and such a Git is older than the wrapper's tested minimum (`MINIMUM_GIT_VERSION`,
+2.56.0).
 The read also leaves the process-wide failed-step note alone
 (`GitRequest::beside_another_step`),
 because the add's own steps may fail while it runs.
 At the fence it is joined inside the step that decides the attributes and the paths,
 under the plumbing step's ceiling plus the wait the runner gives an ended child,
 and its answer decides the paths only when the commit it listed is the one the check proved;
-a read of another commit is left unused and the fence reads the proved commit itself.
+a read of another commit,
+or one that no path needs,
+is ended where the fence decides it cannot use it and the fence reads the proved commit itself when it needs sizes.
 Only that join waits.
 A read that answers nothing within it (a deadline or a dead thread)
 ends the rung in the sentence a failed read gives,
@@ -1509,10 +1517,16 @@ and when it has not,
 the record says `started and not joined`,
 and the add ends without it.
 An add that will not use the read,
-because the source check refused or the fence declined,
-ends its Git child
-there (`SIGKILL` to the id the read's runner published) and the thread ends with the process,
-so a refused or declined add neither waits for it nor pays its work beside Git's own checkout.
+because the source check refused,
+the fence declined,
+no path needed a size or the read listed another commit,
+ends its Git child there (`SIGKILL` to the id the read's runner published),
+and a read abandoned before its thread published a child has that child ended the moment the runner publishes it;
+the thread then ends with the process.
+A refused or declined add therefore does not wait for the read,
+and the read cannot run its whole length beside Git's own checkout:
+what it can still pay is the time between its start and the abandon,
+measured in one btrfs guest on Git 2.56 as a few milliseconds.
 A read still running when the process ends carries `PR_SET_PDEATHSIG`,
 so its child ends with the thread that started it,
 however the process ends.
