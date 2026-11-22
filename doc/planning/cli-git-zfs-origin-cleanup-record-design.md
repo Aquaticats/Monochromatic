@@ -3478,9 +3478,13 @@ with the committer time `git log --format=%cI` reports and what it changed.
   the recovery without a Git entry (X2),
   the fourteen disagreements,
   and this section.
-  The commit that carries this paragraph adds the citation counts
-  and the last corrections,
-  and its hash and time are what `git log --format=%cI` reports for this file at the tip.
+- `faaa78e7c2`,
+  2026-11-22T18:35:17-05:00:
+  the citation counts of this section and the last citation corrections.
+- `71bd31191e`,
+  2026-11-22T18:35:54-05:00:
+  the record bound's errno term and two cross-references to the proof's steps.
+A later commit that touches only wording is named by `git log --format=%cI` for this file.
 
 This round's citation check found 98 citations that name their path,
 each resolved to a real file and inside that file by a scratch script,
