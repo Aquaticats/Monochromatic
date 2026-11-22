@@ -2522,6 +2522,32 @@ that it does.
   both are dependencies of those answers,
   not of this text.
 
+## Revisions
+
+Each entry names the commit that made the change and its committer time (`git log --format=%cI`),
+and what it changed.
+The commit that carries this list is the one `git log --format=%cI -1 -- <path>` prints for this file.
+
+- `9078c15831`,
+  2026-11-22T17:39:09-05:00:
+  the first text,
+  non-final and unapproved.
+- `bd86c35e50`,
+  2026-11-22T17:39:40-05:00:
+  the refusal's failed step named,
+  F17's wording,
+  and the reused-number test's shape.
+- `2dda3d993e`,
+  2026-11-22T17:40:40-05:00:
+  the opening states the one system-manager command that broke the rule.
+- `077bf869b6`,
+  2026-11-22T18:30:14-05:00:
+  the gate review's findings H1 to H4,
+  M1 to M9 and L1 to L4,
+  the citation corrections,
+  the sibling reconciliation,
+  and the questions moved and added.
+
 ## What this revision left as it was
 
 The sections "The open items and the words that decide them",
