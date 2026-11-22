@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AddPlan = { destination: string; insertAt: number; quiet: boolean; target?: string };
+/// type AddPlan = { destination: string; insertAt: number; quiet: boolean; target?: string; checksOutABranch: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddPlan {
@@ -51,8 +51,17 @@ pub struct AddPlan {
     pub quiet: bool,
     /// The commit-ish the person named,
     /// as written,
-    /// or nothing when the add names none and Git starts the worktree at the source's `HEAD`.
+    /// or nothing when the add names none:
+    /// Git then starts at the branch its destination is named after when that branch exists,
+    /// and at the source's `HEAD` otherwise.
     pub target: Option<OsString>,
+    /// Whether Git checks out the branch a name is instead of detaching at the commit it resolves to:
+    /// true when the add has neither `-b` nor `--detach`.
+    /// Why this decides the tree:
+    ///  `builtin/worktree.c`'s `add_worktree` sets the new worktree's `HEAD` to `refs/heads/<name>` when that ref
+    ///  exists and the add detaches nothing,
+    ///  while `rev-parse` reaches a tag of the same name before that branch.
+    pub checks_out_a_branch: bool,
 }
 
 /// The options of `add` that take no value and keep the checkout of a new worktree the ordinary one.
@@ -181,8 +190,35 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
 }
 
 /// What:
-///  Read the arguments after `add`:
-/// the operands and whether `--quiet` was given,
+///  The words after `add`:
+/// its operands,
+/// whether `--quiet` was given,
+/// and the two options that decide what Git checks out.
+/// Why:
+///   Every reading takes this one pass,
+/// so the plan, the quiet answer and the tree the add names cannot disagree about which words were written.
+///  `-b` and `--detach` are the only two options of the table that change what the new worktree's `HEAD` is
+///  (`builtin/worktree.c`,
+///  `add_worktree`),
+///  and `-B` never reaches this pass because the table does not read it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AddWords = { operands: string[]; quiet: boolean; newBranch: boolean; detach: boolean };
+/// ```
+struct AddWords<'a> {
+    /// The path and, when the add names one, the commit-ish.
+    operands: Vec<&'a OsString>,
+    /// Whether `--quiet` was written.
+    quiet: bool,
+    /// Whether `-b` was written, which makes Git create a branch at the commit-ish and check that out.
+    new_branch: bool,
+    /// Whether `--detach` was written, which makes Git detach at the commit-ish.
+    detach: bool,
+}
+
+/// What:
+///  Read the arguments after `add`,
 /// or nothing when any option is outside
 ///  the table.
 /// Why:
@@ -191,11 +227,13 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function addOperands(region: string[]): { operands: string[]; quiet: boolean } | undefined;
+/// function addOperands(region: string[]): AddWords | undefined;
 /// ```
-fn add_operands(region: &[OsString]) -> Option<(Vec<&OsString>, bool)> {
+fn add_operands(region: &[OsString]) -> Option<AddWords<'_>> {
     let mut operands: Vec<&OsString> = Vec::new();
     let mut quiet: bool = false;
+    let mut new_branch: bool = false;
+    let mut detach: bool = false;
     let mut tokens = region.iter();
     let mut options_ended: bool = false;
     while let Some(token) = tokens.next() {
@@ -205,14 +243,17 @@ fn add_operands(region: &[OsString]) -> Option<(Vec<&OsString>, bool)> {
         } else if bytes == b"--" {
             options_ended = true;
         } else if VALUE_OPTIONS.contains(&bytes) {
+            new_branch = new_branch || bytes == b"-b";
             tokens.next()?;
         } else if bytes == b"-q" || bytes == b"--quiet" {
             quiet = true;
+        } else if bytes == b"-d" || bytes == b"--detach" {
+            detach = true;
         } else if !bytes.starts_with(b"--reason=") && !FLAG_OPTIONS.contains(&bytes) {
             return None;
         }
     }
-    return if (1..=2).contains(&operands.len()) { Some((operands, quiet)) } else { None };
+    return if (1..=2).contains(&operands.len()) { Some(AddWords { operands, quiet, new_branch, detach }) } else { None };
 }
 
 /// What:
@@ -238,10 +279,16 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
     if arguments.get(word_index)?.as_encoded_bytes() != b"add" {
         return None;
     }
-    let (operands, quiet): (Vec<&OsString>, bool) = add_operands(&arguments[word_index + 1..])?;
-    let destination: PathBuf = recorded_destination(start, operands[0])?;
-    let target: Option<OsString> = operands.get(1).map(|named| return (*named).clone());
-    return Some(AddPlan { destination, insert_at: word_index + 1, quiet, target });
+    let words: AddWords<'_> = add_operands(&arguments[word_index + 1..])?;
+    let destination: PathBuf = recorded_destination(start, words.operands[0])?;
+    let target: Option<OsString> = words.operands.get(1).map(|named| return (*named).clone());
+    return Some(AddPlan {
+        destination,
+        insert_at: word_index + 1,
+        quiet: words.quiet,
+        target,
+        checks_out_a_branch: !words.new_branch && !words.detach,
+    });
 }
 
 /// What:
@@ -294,7 +341,7 @@ pub fn add_is_quiet(arguments: &[OsString], subcommand_index: usize) -> bool {
     if !word_is(word_index, b"add") {
         return false;
     }
-    return add_operands(&arguments[word_index + 1..]).is_some_and(|(_operands, quiet)| { return quiet; });
+    return add_operands(&arguments[word_index + 1..]).is_some_and(|words: AddWords<'_>| { return words.quiet; });
 }
 
 

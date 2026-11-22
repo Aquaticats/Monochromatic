@@ -71,15 +71,47 @@ pub(crate) fn main_identity(repo: &Path) -> WorktreeIdentity {
 }
 
 /// A plan for a destination,
-/// with the insertion point after `worktree add`.
+/// with the insertion point after `worktree add`,
+/// for the add Git reads as `git worktree add -b topic <destination>`:
+/// a new branch, so the commit-ish is resolved by `rev-parse` and no local branch is preferred.
 pub(crate) fn plan_to(destination: PathBuf) -> AddPlan {
     return plan_to_at(destination, None);
 }
 
 /// `plan_to` with the commit-ish the person named,
 /// so a control can add a worktree at a tree that differs from the source's `HEAD`.
+/// The plan says `-b` too,
+/// because that is the add the fixture's own Git run makes:
+/// `git worktree add --no-checkout -b topic ../topic <commit-ish>`.
 pub(crate) fn plan_to_at(destination: PathBuf, target: Option<&str>) -> AddPlan {
-    return AddPlan { destination, insert_at: 2, quiet: false, target: target.map(|named| return std::ffi::OsString::from(named)) };
+    return AddPlan {
+        destination,
+        insert_at: 2,
+        quiet: false,
+        target: target.map(|named| return std::ffi::OsString::from(named)),
+        checks_out_a_branch: false,
+    };
+}
+
+/// A plan for the add Git reads as `git worktree add <destination>`:
+/// no commit-ish, no `-b` and no `--detach`,
+/// so Git checks out the branch the destination is named after when that branch exists,
+/// and starts at `HEAD` when it does not.
+pub(crate) fn plan_naming_no_commit(destination: PathBuf) -> AddPlan {
+    return AddPlan { destination, insert_at: 2, quiet: false, target: None, checks_out_a_branch: true };
+}
+
+/// A plan for the add Git reads as `git worktree add <destination> <commit-ish>`:
+/// no `-b` and no `--detach`,
+/// so a local branch the commit-ish names is the branch Git checks out.
+pub(crate) fn plan_naming_a_commit(destination: PathBuf, commit_ish: &str) -> AddPlan {
+    return AddPlan {
+        destination,
+        insert_at: 2,
+        quiet: false,
+        target: Some(std::ffi::OsString::from(commit_ish)),
+        checks_out_a_branch: true,
+    };
 }
 
 /// The modification time every fixture that hides an edit gives its file:

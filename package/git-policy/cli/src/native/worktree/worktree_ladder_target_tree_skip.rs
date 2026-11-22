@@ -115,3 +115,8 @@ fn changed_paths(context: &GitContext, source: &SnapshotSource, target: &OsStr) 
     }
     return Ok(changed);
 }
+
+/// Skip controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_ladder_target_tree_skip_tests.rs"]
+mod tests;
