@@ -99,6 +99,23 @@ pub struct GitRequest {
     /// Bytes on standard input;
     ///  none means an empty input.
     pub input: Option<Vec<u8>>,
+    /// Whether this run happens beside another step of the same command,
+    ///  so it takes no part in the process-wide note of the step that failed
+    ///  (`git_step_failure.rs`):
+    ///  it neither clears that note nor writes one.
+    /// Why:
+    ///  A read the ladder starts before its source check runs on another thread
+    ///  while the add's own steps start and fail;
+    ///  a note taken by such a read would be the reason a later record stated,
+    ///  which is another step's note.
+    ///  Every run of a command's own turn keeps the note's one owner,
+    ///  which is the step the command was in when it stopped.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type GitRequest = { ...; besideAnotherStep?: boolean };
+    /// ```
+    pub beside_another_step: bool,
 }
 
 /// Builder methods for one request.
@@ -123,6 +140,22 @@ impl GitRequest {
             arguments: owned,
             ..Self::default()
         };
+    }
+
+    /// What:
+    ///  This request declared one that runs beside another step of the command,
+    ///  so it leaves the process-wide failed-step note alone.
+    /// Why:
+    ///  See the field's own doc;
+    ///  the ladder's early size read is the only such run today.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.besideAnotherStep()
+    /// ```
+    pub fn beside_another_step(mut self) -> Self {
+        self.beside_another_step = true;
+        return self;
     }
 
     /// What:

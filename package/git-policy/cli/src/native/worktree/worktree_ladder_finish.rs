@@ -500,6 +500,26 @@ impl Ladder {
     /// const result = await ladder.finish({ git, runGit, context, out, note });
     /// ```
     pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write) -> LadderResult {
+        // What:
+        //  The size read this add started before its source check is settled here,
+        //  after Git's own run,
+        //  when the fence never took it.
+        // Why:
+        //  An add the check refused or the fence declined pays that read in the background
+        //  (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`, "The overlap, answered 2026-11-22"),
+        //  so the add's own record states what it paid;
+        //  a read the fence used has nothing left.
+        // The wait is bounded by the read's own step ceiling,
+        //  and Git's checkout usually outlasts the read, so a refused add does not wait.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // self.sizesBeside?.settle();
+        // ```
+        let sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck> = self.sizes_beside;
+        if let Some(read) = sizes_beside {
+            read.settle();
+        }
         let mut slow: Option<SlowRoute> = self.slow;
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
             (Rung::Snapshot(source, claim, fence), Some(plan)) => {

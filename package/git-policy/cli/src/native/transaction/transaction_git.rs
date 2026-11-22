@@ -161,8 +161,11 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     // A step that is starting takes the note of an earlier failure with it: only the step running last can be the reason a
-    //  command stops (`git_step_failure.rs`).
-    crate::git_step_failure::clear_failed_step();
+    //  command stops (`git_step_failure.rs`). A run beside another step of the command is not that step, so it leaves the
+    //  note where it found it (`GitRequest::beside_another_step`).
+    if !request.beside_another_step {
+        crate::git_step_failure::clear_failed_step();
+    }
     let entered: bool = crate::add_timing::begin_step(label.as_str());
     let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
     crate::add_timing::end_step(entered);
