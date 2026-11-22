@@ -2812,10 +2812,16 @@ nothing here claims their behaviour.
 - `139061f746`,
   committed `2026-11-22T18:40:22-05:00`:
   the three sibling tips re-read and their statements corrected.
-- The metadata-only commit that writes this list:
-  its change is this list,
-  each older commit's time read from `git log --format=%cI`,
-  and its own time can only be read from `git log --format=%cI` for it,
+- `415022b47c`,
+  committed `2026-11-22T18:40:33-05:00`:
+  the metadata-only commit that restated this list with every older commit's time.
+- `0f394ae4c0`,
+  committed `2026-11-22T18:40:45-05:00`:
+  the list completed with every section the second pass turned over.
+- The commit that writes this line,
+  subject beginning "docs(planning):
+  close the revision list":
+  its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
 [vm-12]: cli-git-zfs-measurements-owed-before-acceptance.md
