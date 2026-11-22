@@ -835,23 +835,37 @@ so they detect the regression.
 which is the mode plan step 5 wires
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 step 5).
-The arm writes `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities` and opens a checkout
-as root,
-so it runs only in a throwaway guest:
+The arms write the store folder `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities`
+and open a checkout as root,
+so they run only in a throwaway guest:
 the driver borrows the ZFS binding's recipe
 (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`)
 for the guest's creation,
 its OpenZFS 2.4.4 preparation and its destruction,
 builds this crate's `native_binary` test target inside it from the same repository-shaped snapshot the container gate
 builds from,
-and runs the one control the guest's variable enables.
+and runs the controls the guest's variable enables:
+the adoption and each of its refusals,
+the store folder publishing a record as root on the dataset it lives on and reading it back,
+which is the guest's own `git-policy-cli-store/store` dataset and not the host's `zpcachyos/ROOT/cos/root`,
+and a writer killed between its bytes and its link,
+whose staging entry the adoption removes;
+the killed process is the arm's own child re-running the publication's primitives and killing itself,
+not the shipped publisher stopped at a window hook,
+which is a state a kill leaves rather than a code path.
+The same guest runs the store's publication-fsync probe from `doc/slot-identity-store-write-cost/`
+in the guest's own `git-policy-cli-store/probe` dataset,
+which lies on the same pool as the store and is a dataset beside it,
+and pulls its log as `store-fsync.log`.
 
 ```sh
 # package/git-policy/cli
 mise run //package/git-policy/cli:e2e:mount-git-worktree-clone-datasets -- all
 ```
 
-The run passes only when the pulled `adoption-arm.log` carries every `ADOPTION` line the driver expects
-and no `SKIPPED` line,
+The run passes only when the pulled `adoption-arm.log` carries every `ADOPTION` and `STORE` line the driver
+expects,
+when `store-fsync.log` carries both `PROBE` lines,
+and when neither log holds a `SKIPPED` line,
 so an arm that returned without running fails the run.
 `--keep-guest` keeps a failed run's guest to inspect.

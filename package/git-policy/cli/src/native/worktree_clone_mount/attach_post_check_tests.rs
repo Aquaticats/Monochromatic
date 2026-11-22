@@ -5,15 +5,12 @@
 use super::*;
 use crate::attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, mount_facts_of, mount_identity_of};
 use crate::clone_folder_identity::CloneFolderIdentity;
+use crate::worktree_clone_mount::STORE_HEADER;
 use crate::clone_slot_walk::{HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, hold_clone_slot, look_again_at_the_slot, mount_id_at_the_held_target};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
-
-/// The store's header,
-/// which the fixture store must start with.
-const HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 1";
 
 /// A fixture checkout with one slot recorded,
 /// and the walk's held handles.
@@ -24,8 +21,11 @@ fn held_slot(name: &str) -> (PathBuf, HeldCloneSlot, PathBuf) {
     std::fs::create_dir_all(&slot).expect("slot");
     let parent: CloneFolderIdentity = CloneFolderIdentity::capture(&std::fs::File::open(checkout.join(".claude/worktrees")).expect("parent")).expect("identity");
     let recorded: CloneFolderIdentity = CloneFolderIdentity::capture(&std::fs::File::open(&slot).expect("slot")).expect("identity");
+    // The store is the folder the setup run makes, with `.parent` and the slot's own record file.
     let store: PathBuf = root.join("slot-identities");
-    std::fs::write(&store, format!("{HEADER}\nparent - {}\nslot one {}\n", parent.encode(), recorded.encode())).expect("store");
+    std::fs::create_dir(store.as_path()).expect("the store folder");
+    std::fs::write(store.join(".parent"), format!("{STORE_HEADER}\nparent - {}\n", parent.encode())).expect("the parent record");
+    std::fs::write(store.join("one"), format!("{STORE_HEADER}\nslot one {}\n", recorded.encode())).expect("the slot record");
     let held: HeldCloneSlot = hold_clone_slot(&HoldCloneSlotRequest { checkout: checkout.as_path(), slot: "one", store: store.as_path() }).expect("held");
     return (root, held, checkout);
 }

@@ -24,7 +24,6 @@ use super::clone_folder_identity::CloneFolderIdentity;
 use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason, chain_walk_refusal, fields_refusal, one_component_refusal};
 use super::slot_identity_store::SlotIdentityStore;
 use super::slot_name::slot_name_refusal;
-use super::slot_identity_store_refusals::StoreRefusal;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, device_of, handle_directory_at, identity_of, open_directory_at, open_root};
 use crate::fs_beneath_mount_facts::{mount_id_of, observed_path};
@@ -316,7 +315,29 @@ fn canonical_or_given(checkout: &Path) -> String {
 /// a parent or slot that is not the recorded folder,
 /// or a slot whose two descriptors name different folders.
 pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+    // The checkout is what a person who ran the command in a moved folder must be told about, so its refusal
+    // comes before the store's: a store the walk never reached is not their problem.
     let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
+    let store: SlotIdentityStore = SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
+    return hold_the_walk(request, checkout_handle, parent, canonical, &store);
+}
+
+/// What:
+///  The rest of the walk with the folders it opened and the store the caller holds,
+///  which is how the route opens the folder under root control once and walks through it.
+/// Why:
+///  The folder is opened once and every record is named relative to it,
+///  so a caller that opened it under root control walks against the very folder it judged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = holdTheWalk({ checkout, slot }, checkoutHandle, parent, canonical, store);
+/// ```
+///
+/// # Errors
+/// Every refusal the walk answers after the parent folder is reached,
+/// and every record's read refusal.
+fn hold_the_walk(request: &HoldCloneSlotRequest<'_>, checkout_handle: std::fs::File, parent: std::fs::File, canonical: PathBuf, store: &SlotIdentityStore) -> Result<HeldCloneSlot, CloneSlotRefusal> {
     let parent_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
     let slot_name: &OsStr = OsStr::new(request.slot);
     let component: String = slot_component(request.slot);
@@ -330,22 +351,15 @@ pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSl
         return Err(CloneSlotRefusal::Walk(WalkRefusal { component, reason: WalkRefusalReason::BoundaryCrossed, detail: String::new() }));
     }
     let slot_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&reading).map_err(|error| return fields_refusal(component.as_str(), &error))?;
-    let store: SlotIdentityStore = SlotIdentityStore::read(request.store).map_err(CloneSlotRefusal::Store)?;
-    let recorded_parent: &CloneFolderIdentity = match store.parent() {
-        Some(recorded) => recorded,
-        None => return Err(CloneSlotRefusal::Store(StoreRefusal::NoParentRecord { path: request.store.to_path_buf() })),
-    };
+    let recorded_parent: CloneFolderIdentity = store.parent().map_err(CloneSlotRefusal::Store)?;
     let parent_fields = recorded_parent.differences(&parent_identity);
     if !parent_fields.is_empty() {
-        return Err(CloneSlotRefusal::ParentIdentity { checkout: canonical.clone(), recorded: Box::new(recorded_parent.clone()), found: Box::new(parent_identity), fields: parent_fields });
+        return Err(CloneSlotRefusal::ParentIdentity { checkout: canonical.clone(), recorded: Box::new(recorded_parent), found: Box::new(parent_identity), fields: parent_fields });
     }
-    let recorded_slot: &CloneFolderIdentity = match store.slot(request.slot) {
-        Some(recorded) => recorded,
-        None => return Err(CloneSlotRefusal::Store(StoreRefusal::NoSlotRecord { path: request.store.to_path_buf(), slot: request.slot.to_string() })),
-    };
+    let recorded_slot: CloneFolderIdentity = store.slot(request.slot).map_err(CloneSlotRefusal::Store)?;
     let slot_fields = recorded_slot.differences(&slot_identity);
     if !slot_fields.is_empty() {
-        return Err(CloneSlotRefusal::SlotIdentity { slot: request.slot.to_string(), recorded: Box::new(recorded_slot.clone()), found: Box::new(slot_identity), fields: slot_fields });
+        return Err(CloneSlotRefusal::SlotIdentity { slot: request.slot.to_string(), recorded: Box::new(recorded_slot), found: Box::new(slot_identity), fields: slot_fields });
     }
     #[cfg(test)]
     AFTER_THE_SLOT_IS_READ.with(|hook| { if let Some(after) = hook.borrow().as_ref() { after(); } });
@@ -369,8 +383,9 @@ pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSl
 ///  so a store this account could rewrite refuses here rather than deciding the walk;
 ///  `hold_clone_slot` is the walk itself and reads the store with the grammar's reader,
 ///  which is what a control on fixture files drives.
-///  The store is therefore read twice on the route's path,
-///  which costs one small file and buys the control its own refusal before any folder is compared.
+///  The folder is opened once,
+///  checked by `open_under_root_control`,
+///  and every record is named relative to that one descriptor.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,8 +396,9 @@ pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSl
 /// The store's refusal,
 /// and every refusal `hold_clone_slot` answers.
 pub fn hold_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
-    SlotIdentityStore::read_under_root_control(request.store).map_err(CloneSlotRefusal::Store)?;
-    return hold_clone_slot(request);
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store).map_err(CloneSlotRefusal::Store)?;
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
+    return hold_the_walk(request, checkout_handle, parent, canonical, &store);
 }
 
 /// What:

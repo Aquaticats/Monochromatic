@@ -1025,3 +1025,59 @@ which is a defect in the reader,
 unless a waiting thread spent its one tick between the two reads.
 A sum that under-counts is not pinned,
 so their passing shows no more than that.
+
+## Incident J: a commit timing record 13 ms past its stop ceiling, once
+
+`commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time` failed once,
+in the second gate of the round that built the per-slot slot identity store
+(branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files` at `2b3e13f439`,
+2026-11-21),
+on the assertion at
+`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs:611`:
+the stretches the record states plus the steps whose offsets lie inside the build's window
+must fit that window plus `ROUNDING_MS`,
+which is 12 ms (`:711`).
+The excess was 13 ms,
+so the record's own parts summed to 25 ms more than its `buildMs`.
+The control passed alone in the same round,
+and passed in that round's integration pass on the same test binaries
+(`~/temp/agent/integration-pass-zfs-slot-identity-store-per-slot-files-2026-11-21/keep/review.md`,
+"The author's two third failures").
+
+What is known:
+
+- one failure in three gates on one tip,
+  and two passes of the same binary,
+  the filtered pass at 2.317 s;
+- nothing in the branch's changed modules is on this control's path:
+  the store,
+  the walk,
+  the adoption and the two foundation modules are called from `lib.rs`,
+  the mount binary,
+  one source-guard test and the guest tests,
+  and not from the commit,
+  landing or worktree-add code the control drives;
+- the assertion is an accounting one over numbers the record carries,
+  each measured on its own and each rounded on its own;
+- one more gate at the merged tip did not reproduce it:
+  this round's gate on `integ-store-findings-72d8dbeb`
+  ran 9752 tests,
+  and this control passed there in the same run as the standing cause-H pair.
+
+What is not known:
+
+- whether the 25 ms came from the steps' own rounding accumulating,
+  from a step whose `offsetMs` fell inside the build's window while its time fell outside,
+  or from a real gap between the build's window and the parts it states;
+- whether anything about this host changes it.
+  Host load is not recorded as a cause here (rule `NQH`),
+  and one failure and two passes cannot separate a busy host from a defect.
+
+So the incident stands on its own name and is not put down to load,
+not to this branch,
+and not to cause G.
+A later failure of it should read which numbers the assertion printed:
+the record's `stated` sum,
+the `steps_in_build` sum and its `buildMs`,
+and the `steps` array,
+before anything here is reopened.

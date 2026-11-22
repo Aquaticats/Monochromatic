@@ -18,6 +18,14 @@
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
 
+/// One folder held open,
+/// and the entries below it read and listed by name.
+pub mod entries_of_one_open_folder;
+
+/// Entries created,
+/// filled and published by name below one open folder.
+pub mod publishing_entries_in_one_open_folder;
+
 /// How one scratch entry is removed within its ceiling,
 /// and which commit scratch trees a later command takes for abandoned.
 pub mod scratch_entry_removal;

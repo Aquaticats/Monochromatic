@@ -9,6 +9,11 @@
 # Run once: `python3 -I probe-reaches-storage.py <fixture folder> <rounds> [--pool-device <partition>] [--pool-disk <disk>]`
 # inside a capped systemd-run scope.
 #
+# A fifth arm is the slot identity store's publication: a staging name created with O_EXCL, the record's bytes written,
+# the mode set to 0644, the file fsync'd, one hard link giving the record its name, the staging name unlinked, and the
+# folder fsync'd, which is exactly the sequence `worktree_clone_mount/slot_identity_store_publication.rs` runs. It is
+# what replaced this record's earlier subject, the store's lock hold.
+#
 # The dataset the fixture folder is on is read from `findmnt` at run time, so the probe asks the same question on any
 # host with a ZFS pool. The pool's partition and whole disk are options: a dataset's mount names the dataset and never
 # its vdev, and reading the vdev from ZFS means opening `/dev/zfs`, which this repository's rules for the host bar.
@@ -120,6 +125,7 @@ def measured(work):
 
 
 line = ('slot measured ' + 'x' * 237 + '\n').encode()
+record_line = b'slot measured 57:67410:1000:0755:-:-\n'
 shutil.rmtree(fixture_folder, ignore_errors=True)
 os.makedirs(fixture_folder)
 with_fsync = os.path.join(fixture_folder, 'append-with-two-fsyncs')
@@ -139,10 +145,29 @@ def append_line(path, sync):
         os.close(folder)
 
 
+publication_record = os.path.join(fixture_folder, 'measured')
+
+
+def publish_a_record():
+    staging_name = os.path.join(fixture_folder, '.' + os.urandom(16).hex())
+    descriptor = os.open(staging_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    os.write(descriptor, record_line)
+    os.fchmod(descriptor, 0o644)
+    os.fsync(descriptor)
+    os.close(descriptor)
+    os.link(staging_name, publication_record)
+    os.unlink(staging_name)
+    folder = os.open(fixture_folder, os.O_RDONLY | os.O_DIRECTORY)
+    os.fsync(folder)
+    os.close(folder)
+    os.unlink(publication_record)
+
+
 synced = []
 bare = []
 bare_then_wait = []
 idle = []
+published = []
 for _ in range(rounds):
     sample = measured(lambda: append_line(with_fsync, True))
     synced.append(sample)
@@ -157,6 +182,7 @@ for _ in range(rounds):
 
     bare_then_wait.append(measured(bare_append_then_wait))
     idle.append(measured(lambda: time.sleep(sample['ms'] / 1000.0)))
+    published.append(measured(publish_a_record))
 
 
 def report(label, samples):
@@ -178,4 +204,5 @@ report('append with fsync of the file and the folder', synced)
 report("same append without fsync, window as short as the round's control", bare)
 report('same append without fsync, then a wait as long as the fsync sample', bare_then_wait)
 report('nothing but a wait as long as the fsync sample', idle)
+report('publication of one slot record: stage, write, fsync, link, unlink, folder fsync', published)
 shutil.rmtree(fixture_folder, ignore_errors=True)
