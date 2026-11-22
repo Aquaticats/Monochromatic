@@ -1307,7 +1307,7 @@ The staging name is reported by `doctor` and read by nothing (V8).
 
 ### The bound
 
-The reader accepts at most 13,374 bytes of one record.
+The reader accepts at most 13,375 bytes of one record.
 That number is the widest record these fields can spell,
 field by field:
 
@@ -1317,10 +1317,10 @@ field by field:
   `state=` with `blocked` at 14,
   `attemptedAt=` with an instant at 38,
   `blockedReason=` with `dependency` at 25,
-  `blockedErrno=` at 17,
+  `blockedErrno=` with a four-digit errno at 18,
   `numClones=` with twenty digits at 31,
   and `userRefs=` with twenty digits at 30.
-  That is 155 bytes.
+  That is 156 bytes.
 - The JSON object's keys,
   its quotes and separators at 202 bytes.
 - Its values at their widest:
@@ -1332,7 +1332,7 @@ field by field:
   and two instants at 25 each.
 - A final line feed.
 
-Those terms sum to 13,374 bytes.
+Those terms sum to 13,375 bytes.
 No rounding is applied,
 because a rounded power of two is a pick the accepted store's bound does not make
 (`doc/decision/cli-git-zfs-slot-identity-store-format.md:140` to `:141`).
@@ -1745,7 +1745,7 @@ The look is ordered so that a command pays the least when nothing is owed.
     read it under the bound,
     and refuse as unreadable anything that is not the grammar or is not this account's.
 4.  Read the record's identity and the live identity ("What proves the origin's identity and lineage later").
-    A recorded GUID that is absent under a dataset that passes step 2 completes the record:
+    A recorded GUID that is absent under a dataset that passes the proof's step 2 completes the record:
     remove it and print nothing.
 5.  If the live snapshot is there,
     read its counts and its mark.
@@ -2043,7 +2043,7 @@ a JSON object with a key the record does not have;
 a key out of order;
 a GUID with a sign or a leading zero;
 a `snapshot` field that differs from the file's name;
-a file wider than 13,374 bytes;
+a file wider than 13,375 bytes;
 and an empty file.
 T3 A file name outside the grammar is never read.
 A planted `notes.txt` and a planted `git-worktree-clone-origin-<31 hex>` are listed and skipped,
@@ -2352,7 +2352,7 @@ and the cancelled-removal design owns reversing the intent.
 
 ### 14. Bounds and caps
 
-This design's reader bound is 13,374 bytes,
+This design's reader bound is 13,375 bytes,
 derived field by field with the JSON escape rule and not rounded (L9 and "The bound").
 The plan design ships a derived bound plus a declared-count term and a placeholder ceiling.
 The binding design ships a derived fixed part and no cap on inventories.
@@ -3479,7 +3479,7 @@ with the committer time `git log --format=%cI` reports and what it changed.
   the fourteen disagreements,
   and this section.
   The commit that carries this paragraph adds the citation counts
-  and the two last corrections,
+  and the last corrections,
   and its hash and time are what `git log --format=%cI` reports for this file at the tip.
 
 This round's citation check found 98 citations that name their path,
