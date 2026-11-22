@@ -1283,3 +1283,221 @@ the record's `stated` sum,
 the `steps_in_build` sum and its `buildMs`,
 and the `steps` array,
 before anything here is reopened.
+
+## Cause L: a control wrote over the PID file it had judged, within one millisecond (issue 6342)
+
+### The symptom the gate reader saw
+
+`lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone`
+failed as test 3457 of 9768,
+after 0.018 s,
+in the whole container gate `native-0g2PJW`
+(unit `odb-declined-gate-final-20261122`,
+2026-11-22T02:02:25-05:00)
+of the object-reader round on `fix/git-policy-cli-object-database-reftable-replace-refs`,
+a branch that changes nothing under `src/native/lock/`:
+
+```text
+thread 'lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone' (…) panicked at src/native/lock/abandoned_lock_proving_tests.rs:655:5:
+the new holder keeps its own PID file
+```
+
+The same branch's next gate (`native-b9mIYV`) passed it,
+and every other gate on record did.
+That unit's user journal has since left retention:
+`journalctl --user --user-unit=odb-declined-gate-final-20261122.service` answers `-- No entries --`,
+so the run's own numbers are the issue's and the reproduction's below,
+and not a kept log.
+
+### What the assertion needed
+
+`a_git_directory` makes the fixture,
+`plant` writes the `index.lock`,
+the PID file beside it and the record of a dead holder,
+and the control arms the fault point `UNLINKED_THE_LOCK`
+(`src/native/lock/abandoned_lock_proving.rs`,
+`reach`)
+with code that acts as a Git that takes the freed name:
+it writes `index.lock` and then writes `pid <new holder>` over the file at `index~pid.lock`.
+The assertion at `:655` needs a regular file at `index~pid.lock` once `clear_one` has reported a clearance.
+
+`clear_one` unlinks a PID file in one place only:
+the block under `reach(UNLINKED_THE_LOCK)`,
+and only when the metadata read there equals the one read before the lock's unlink,
+which is the same device,
+the same inode and the same `ctime_ms`.
+So the file could be gone in one of these ways:
+
+- the removal unlinked it.
+  That is the only code in the tree that removes this name,
+  and it needs the hook's write to leave the judged inode where it was and the change time in the judged millisecond.
+  `std::fs::write` opens the existing file with `O_TRUNC`,
+  so the inode and the device stay the judged ones,
+  and `read_lock_metadata` floors the change time to whole milliseconds
+  (`src/native/lock/index_lock_evidence.rs`,
+  `metadata.ctime() * 1000 + metadata.ctime_nsec() / 1_000_000`),
+  so a write that close behind the plant is not told apart from it;
+- the hook wrote nothing.
+  It cannot have:
+  the assertion before it (`lock.exists()`,
+  `:654`) passed,
+  and the lock exists again only once the hook wrote it,
+  and a failed second write inside the hook would have panicked with the hook's own message;
+- another process removed it.
+  Nothing else names this fixture:
+  the fixture root is per test process (`src/native/testing/test_support.rs`,
+  `process-<pid>`),
+  the directory is named for the test,
+  `nextest` gives each test a process of its own,
+  the fault hooks are thread-local (`src/native/service/service_fault_hooks_test_support.rs`,
+  `HOOK`),
+  and no other control makes a fixture called `taken-name`;
+- the removal reported nothing,
+  or reported before the hook.
+  Then `:653` would have failed on a lock that is still there.
+
+The first is the one the assertion took.
+
+### The cause
+
+Three facts make it,
+and the first is the control's:
+
+- The hook wrote the new holder's PID file with `std::fs::write`,
+  which truncates the very file the removal had judged.
+  What stood at that name after the hook was the judged file with other bytes,
+  not a file of the new holder's own,
+  and the inode and device the removal compares were the judged ones.
+- Git never puts a PID file of its own at a name that is taken.
+  `create_lock_pid_file` opens `<name>~pid.lock` with `O_WRONLY | O_CREAT | O_EXCL`,
+  and writes nothing when that is refused
+  (`lockfile.c`,
+  Git 2.56.1,
+  the release the gate's image reports as `git version 2.56.1`),
+  and `lock_file` calls it only after the lock itself was taken.
+  A live Git that takes the freed `index.lock` therefore writes no PID file at all,
+  and has nothing there to lose.
+- The removal's last look at the PID file compares `device`,
+  `inode` and `ctime_ms`.
+  A write over the judged file keeps the first two,
+  so the whole decision rests on a change time the kernel records in ticks
+  (`CONFIG_HZ=1000` on this host,
+  one millisecond),
+  and this code floors it to milliseconds again.
+
+So the control asked the product to tell a write in place from its predecessor within one millisecond,
+which no Git does,
+and lost that lottery once in the gates on record.
+The assumption was the control's:
+no real holder's PID file can be removed through this window,
+because a Git cannot have one at that name while the judged file stands,
+and a program that wants its own file there has to remove the judged one first,
+which leaves a different inode.
+
+### The reproduction and what it measured
+
+Each run below is the one control in a process of its own,
+started from the host's build of this crate,
+with `CLI_GIT_TEST_ROOT` on a tmpfs (`/dev/shm/lock-6342-fixtures`,
+mode 1777),
+which is the kind of file system the gate gives its fixtures and the one whose change times are measured here.
+The build is the tree at the incident with a print of the judged and the later metadata beside the removal,
+and nothing else changed.
+
+- The control as it stood,
+  200 runs:
+  0 failures and no pair in one millisecond.
+  The measured `ctime_ms` differences were 1 ms in 91 runs,
+  2 ms in 98,
+  3 ms in 4,
+  4 ms in 3,
+  5 ms in 2,
+  6 ms in 1 and 30 ms in 1.
+- 120 more runs with the two change times printed in nanoseconds:
+  0 failures and no pair.
+  The differences were 1 ms in 50 runs,
+  2 ms in 60,
+  3 ms in 9 and 30 ms in 1.
+  Every value ended in `…060000` ns within its millisecond,
+  so this file system records a change time in steps of one millisecond,
+  and a 1 ms difference is one tick rather than two writes a millisecond apart.
+- The same control with the plant's own bytes written into the PID file again immediately before the call,
+  100 runs:
+  10 failures,
+  and they were exactly the 10 runs whose two change times shared a millisecond.
+  The file,
+  the number,
+  the birth and the bytes were the judged state's;
+  only the change time the removal compares moved to a moment just before the call,
+  which is the distance a plant on a fast machine leaves.
+  One recorded failure:
+
+```text
+PROBE6342 judged ctime=1795382115.181238873 still ctime=1795382115.181937201 delta=0 tie=true
+
+thread 'lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone' (1163160) panicked at src/native/lock/abandoned_lock_proving_tests.rs:659:5:
+the new holder keeps its own PID file
+```
+
+  The two change times are 698 µs apart and in one millisecond.
+  The untouched control measures one to two ticks between the plant and the write after the unlink,
+  so a millisecond of the clock is a window it enters rarely,
+  which is the once in the gates on record.
+
+### The fix
+
+`src/native/lock/abandoned_lock_proving_tests.rs` is the file that changed,
+with a comment in `src/native/lock/abandoned_lock_proving.rs` and a bullet in `SPEC.md` that had said what the
+control had wrong.
+The product's proof and removal needed nothing:
+for every state a Git can make,
+the metadata comparison is already the answer.
+
+- The control is now `a_pid_file_a_holder_put_at_the_freed_name_is_left_alone`.
+  Its hook writes the new lock and then removes the judged PID file before writing its own,
+  which is the only way a program puts its own file at a taken name,
+  and the inode the name has afterwards is a new one.
+  It also reads the judged file's inode before the call and asserts that the file standing afterwards is another one,
+  so a later reader cannot go back to a write in place without the control saying so.
+- A second control,
+  `a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock`,
+  holds the state a repository really meets:
+  the hook writes the new lock and tries `create_new` for the PID file,
+  as Git does,
+  and is refused because the judged file still stands.
+  The removal then takes the abandoned holder's file with its lock,
+  and the new holder's lock stands.
+  That is what the product guarantees at this instant for a Git.
+- The removal's comment now says that,
+  and says that a write over the judged file itself keeps its inode and needs only a change time read in milliseconds,
+  so no control plants one.
+  The `SPEC.md` bullet says the same in the shipped words.
+
+The guard is pinned:
+with the metadata comparison planted away (the PID file unlinked whenever a judgement exists),
+`a_pid_file_a_holder_put_at_the_freed_name_is_left_alone` failed on every run,
+and with the comparison restored it passed 200 runs of its own and the module's run through `native:test:host`
+(13 tests run,
+13 passed).
+The second control passes either way,
+because its state leaves the judged file's metadata untouched,
+so it pins the other half:
+that the abandoned holder's file does go,
+and that the new holder's lock does not.
+
+### What the product guarantees here
+
+The removal unlinks the PID file beside a lock it cleared only when that file is still the one it judged,
+and it says so with the device,
+the inode and the change time.
+For a Git,
+nothing else can be at that name while the judged file stands,
+because Git creates its PID file with `O_EXCL` and silently writes none when the name is taken,
+so a live holder that takes the freed name has no PID file there to lose,
+and its lock is not touched.
+For any other program,
+a file of its own at that name is a file whose inode is not the judged one,
+which the comparison keeps.
+The one state the comparison cannot tell apart is a write over the judged file within one millisecond of the plant,
+and what it costs is the dead holder's file rather than a live holder's;
+no Git makes such a write at that name.
