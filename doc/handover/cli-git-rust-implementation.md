@@ -41713,7 +41713,22 @@ stated in this entry. What follows from them, as work:
   `cloneMounts.parent` and `cloneMounts.checkout`, a 4096-child bound, a slot grammar narrower than `slot_name_refusal`,
   `setuid=off` and `devices=off` checks, the claim window kept open. `native:test:host` could not run (no `cargo-nextest` on
   `PATH`; the reftable pass found it in the toolchain store and put it first on `PATH`). GOING: its integration pass on
-  Sonnet (review to `~/temp/agent/integration-pass-zfs-step-8-attaching-sweep-2026-11-22/`). Step 7's
+  Sonnet (review to `~/temp/agent/integration-pass-zfs-step-8-attaching-sweep-2026-11-22/`). STEP 8'S PASS said not fit:
+  H1 the origin check refuses every designed clone (it wants `<parent>@`, the add route clones the checkout's snapshot); H2 a
+  second sweep over an attached clone files `refused` over its `done` receipt; mediums M1 to M9 (intent not re-read under the
+  claim, probe record weaker than the SPEC, a placed mount reported as none, the rollback unmount uncontrolled, `first-attach`
+  unbuilt, no propagation check at boot, the bound unmeasured, refuse-not-wait unrecorded, the first observation not checking
+  the slot); the gate on the merged tree 9823 of 9825; `package_repair_prewarm_job` passed. THE OWNER ANSWERED at
+  2026-11-22T01:55:12-05:00 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`): everything must work with no configuration,
+  then "C: setup writes, handler falls back" (step 19's setup writes the two dataset names; the handler falls back to the
+  design's names); "C: receipt for unloaded key"; "A: holder re-reads after"; "A: build it in step 8 now" (`first-attach`).
+  Adopted, veto open: measure the 4096 bound; keep the claim window documented; readiness `running` first. GOING:
+  `pi-zfs-step-8-integration-findings` in `.claude/worktrees/zfs-step-8-integration-findings` (brief under
+  `~/temp/agent/zfs-step-8-integration-findings-2026-11-22/`). THE MVM REAL CHECK passed at 01:50 to 01:55 (daemon and guest in
+  `mvm-libvirt-session.service`; the unit ended by itself after the destroy); the main checkout's mvm and mcp builds are rebuilt;
+  issue 6338 closed with the result; the owner restarts or reconnects the mvm MCP server. The check worktree is removed, so no
+  worktree now prints the issue 6339 warning. THE DECLINED-READER ROUND hit its 400-turn cap mid-work (commits to `e1453eb8d0`,
+  three files uncommitted); resumed as `pi-object-database-declined-reader-callers-2` with `continuation-1.md`. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
