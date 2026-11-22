@@ -743,7 +743,7 @@ fn record_from_answer(
     // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut arguments: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
     // What: the answer the caller's request gave, read once.
-    // Why: both the failure check and the record below need it, and `errno` stops being reliable after any call.
+    // Why: both the failure check and the record this returns need it, and `errno` stops being reliable after any call.
     let answered: libc::c_int = answer_the_request(&mut arguments);
     if is_a_failure(&answered) {
         return Err(PrimitiveError::last_os_error(operation, path));

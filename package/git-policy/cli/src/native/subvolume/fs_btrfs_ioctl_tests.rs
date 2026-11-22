@@ -213,9 +213,21 @@ fn a_positive_ioctl_answer_is_not_a_failure() {
     assert!(is_a_failure(&-1), "the answer of a failed request is -1, and `errno` is read only then");
 }
 
-/// The record a stated answer fills,
-/// so this control compares what the reader returns with what the request wrote
-/// without any kernel being asked.
+/// What:
+///  The record a stated answer fills:
+/// an identity,
+/// a parent,
+/// a generation
+///  and the transaction that created it.
+/// Why:
+///   The control compares what the reader returns with the structure the request wrote,
+/// so one named value builds both sides,
+/// and a change to a field then changes one edit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const STATED_RECORD = { uuid: [3, ...], parentUuid: [5, ...], generation: 11, transidAtCreation: 13 };
+/// ```
 const STATED_RECORD: SubvolumeInfo = SubvolumeInfo {
     uuid: [3u8; 16],
     parent_uuid: [5u8; 16],
@@ -243,15 +255,23 @@ fn filled(answered: libc::c_int) -> impl FnOnce(&mut SubvolumeInfoArgs) -> libc:
     };
 }
 
-/// The whole reading of `BTRFS_IOC_GET_SUBVOL_INFO`'s answer,
+/// What:
+///  The whole reading of `BTRFS_IOC_GET_SUBVOL_INFO`'s answer,
 /// driven on every host with answers this host's kernel is never asked for:
 /// 1 and 0 return the record the request filled,
-/// and -1 is the failure.
+///  and -1 is the failure.
 /// Why:
 ///   `subvolume_info` hands its answer to `record_from_answer`,
 /// so a comparison against zero written back at that call site fails this control wherever it runs,
 /// including a host with no btrfs fixture root
 /// and a kernel from v7.2 whose every success is 0.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(recordFromAnswer(operation, path, filled(1))).toEqual(STATED_RECORD);
+/// expect(recordFromAnswer(operation, path, filled(0))).toEqual(STATED_RECORD);
+/// expect(() => recordFromAnswer(operation, path, filled(-1))).toThrow();
+/// ```
 #[test]
 fn answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails() {
     let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
@@ -276,7 +296,7 @@ fn answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fai
 /// and for every subvolume on v7.2 and later,
 /// whose reader resets the value at line 2051 before it copies the structure out.
 /// Why:
-///   A reader that takes any nonzero answer as an error cannot read any nested subvolume's record,
+///   A reader that takes any nonzero answer as an error cannot read the record of a subvolume whose answer is 1,
 /// so this control requires the wrapper to answer with the record the kernel wrote,
 /// and says in one line when the kernel answered zero,
 /// so that pass is not taken for the positive case this control exists for.
@@ -303,15 +323,32 @@ fn btrfs_a_positive_answer_to_the_subvolume_record_is_a_success() {
     remove(root.as_path());
 }
 
-/// The 0 answer only a filesystem's top-level subvolume gives,
+/// `BTRFS_FS_TREE_OBJECTID`:
+/// the id of the filesystem's top-level subvolume,
+/// the one the request runs no backref search for.
+const BTRFS_FS_TREE_OBJECTID: u64 = 5;
+
+/// What:
+///  The answer a filesystem's top-level subvolume gives,
+/// 0,
 /// read by this crate's own reader:
 /// the fixture root is a plain directory of that subvolume,
-/// so no backref search runs for it and the kernel copies its structure out with an answer of 0.
+///  whose id the kernel reports in the same structure,
+/// so no backref search runs for it
+/// and the structure is copied out with an answer of 0.
 /// Why:
 ///   The other btrfs controls read subvolumes they created,
-/// whose answer is 1 on a kernel up to v7.1,
-/// so the 0 answer the top-level subvolume gives reaches this crate's controls only here;
-/// a fixture root inside a nested subvolume says so in one line instead of passing quietly.
+/// whose answer is 1 on a kernel up to v7.1 where the search ends inside a leaf,
+/// so the top-level subvolume's 0 reaches this crate's controls only here;
+///  a fixture root inside another subvolume says so in one line instead of passing quietly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = await askTheRequest(root);
+/// if (written.treeid !== BTRFS_FS_TREE_OBJECTID) return reportTopLevelNotReached(written.treeid);
+/// expect(answered).toBe(0);
+/// expect(subvolumeInfo(root)).toEqual(written);
+/// ```
 #[test]
 fn btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record() {
     let Some(root) = btrfs_fixture("fs-ioctl-top-level-answer") else { return };
@@ -321,14 +358,17 @@ fn btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record() {
     // SAFETY: `directory` is open for the call; `written` is the 504-byte structure the request number states.
     let answered: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut written) };
     assert!(!is_a_failure(&answered), "the call itself failed: {}", std::io::Error::last_os_error());
-    if answered != 0 {
+    if written.treeid != BTRFS_FS_TREE_OBJECTID {
         eprintln!(
-            "TOP-LEVEL ANSWER NOT REACHED: btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record (the fixture root {} belongs to a subvolume a backref search runs for, and the kernel answered {answered}; point CLI_GIT_TEST_ROOT at the filesystem's top-level subvolume to exercise the 0 answer)",
-            root.display()
+            "TOP-LEVEL FIXTURE NOT REACHED: btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record (the fixture root {} belongs to subvolume {}, not the filesystem's top-level subvolume {}; point CLI_GIT_TEST_ROOT at the top-level subvolume to exercise its answer)",
+            root.display(),
+            written.treeid,
+            BTRFS_FS_TREE_OBJECTID
         );
         remove(root.as_path());
         return;
     }
+    assert_eq!(answered, 0, "the top-level subvolume runs no backref search, so its answer is 0");
     let facts: SubvolumeInfo = subvolume_info(root.as_path()).expect("the top-level subvolume's answer of zero is a record, not an error");
     assert_eq!(facts.uuid, written.uuid, "the wrapper answers with the record the kernel wrote");
     remove(root.as_path());
