@@ -41850,7 +41850,17 @@ stated in this entry. What follows from them, as work:
   `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/`) and
   `pi-shadow-control-init-cut-every-time-failed-once-in-a-gate` (issue 6343, brief under
   `~/temp/agent/shadow-control-init-cut-every-time-failed-once-in-a-gate-2026-11-22/`). Both add a cause section to
-  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, so the second to merge resolves the letters. Step 7's
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, so the second to merge resolves the letters. THE MVM
+  MCP SERVER was reconnected by the owner: process 695452 started 2026-11-22T14:51:10-05:00 on the build of 01:54, so it
+  carries the daemon unit fix. THE BTRFS FOLLOW-UP ROUND ended at `bf67907b52`
+  (`~/temp/agent/btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/keep/report-from-summary.md`): one function
+  reads the answer and a portable control drives it with 1, 0 and -1 (red with the comparison written back); the document
+  corrected (the request first appears in v4.18; a subvolume answers 0 at a leaf boundary); `SPEC.md` says what the fix
+  changed; gate 9770 of 9772; a new control for the top-level subvolume's 0 never ran (no btrfs root on this host or in the
+  gate image). The 6341 merge message's "where main always read none" was too broad (corrected by commit comment on
+  `4929414f47`): `main` misread only an answer of 1. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/`), which runs that control in
+  a btrfs guest. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
