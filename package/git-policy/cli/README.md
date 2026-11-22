@@ -1118,6 +1118,10 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
+  A rung that declines before it copies anything says which checkout wrote the worktree instead of saying the add
+   took longer:
+     its line starts with `monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because ` and names
+   the input and the numbers the limit was decided on.
   The ladder does not read `--force`,
      `--no-checkout`,
      `-B`,

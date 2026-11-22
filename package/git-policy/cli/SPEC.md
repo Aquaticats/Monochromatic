@@ -1919,6 +1919,11 @@ then the cause in
 plain words,
 then what makes the next add quick,
 and it names no internal step.
+A rung that declines before it copies anything is the other case:
+nothing of the add had started,
+so its line starts with `monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because `,
+and the cause names the input and the numbers the limit was decided on
+(the size limits and the conversion fence's own decline).
 The causes it tells are:
 uncommitted changes in a source that is not restored by a snapshot (a linked worktree;
 the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
