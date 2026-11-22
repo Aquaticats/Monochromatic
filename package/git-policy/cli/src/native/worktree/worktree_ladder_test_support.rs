@@ -34,6 +34,28 @@ pub(crate) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
     age(path.as_path());
 }
 
+/// What:
+///  A tracked file of `bytes` zero bytes,
+/// written sparse so a fixture can be above the clone rung's size limit without holding the bytes.
+/// Why:
+///   The size limit sums what the index records for each tracked file,
+/// and a control that reaches a rung must be above it;
+/// a sparse file costs the fixture nothing on disk and Git still records its length,
+///  and the length is derived from the limit so no control carries a stale number
+///  (`AGENTS.md`,
+///  rule `MGN`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = createFile(repo + '/' + name); file.truncate(bytes);
+/// ```
+pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
+    let path: PathBuf = repo.join(name);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
+    let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the sparse file");
+    file.set_len(bytes).expect("the sparse file's length");
+}
+
 /// Commit everything and refresh the index so every entry is provably unchanged.
 pub(crate) fn commit_all(repo: &Path, message: &str) {
     git(repo, &["add", "--all"]);

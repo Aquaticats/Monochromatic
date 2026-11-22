@@ -16,7 +16,7 @@ use crate::worktree_ladder_run::begin_ladder;
 use crate::worktree_add_binding::Bound;
 use crate::worktree_copy_journal::journal_root;
 use crate::test_support::git_output;
-use crate::worktree_ladder_test_support::{OLDER_TARGET_OLD_PATHS, commit_all, main_identity, paths_below, plan_to, subvolume_repository, tracked};
+use crate::worktree_ladder_test_support::{OLDER_TARGET_OLD_PATHS, commit_all, main_identity, paths_below, plan_to, subvolume_repository, tracked, tracked_sparse};
 use std::cell::RefCell;
 use std::process::{Command, Stdio};
 
@@ -224,8 +224,19 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
 
 /// A clean ordinary repository with two commits:
 /// the clone rung serves it.
+/// What:
+///  A main checkout that is an ordinary directory on btrfs,
+/// with two commits and a tracked sparse file above the clone rung's size limit.
+/// Why:
+///   An ordinary directory is what the clone rung serves,
+/// and its size limit declines a source of too few tracked bytes,
+/// so every control on this fixture would otherwise stop at Git's own checkout
+///  before the ending it is about;
+/// the sparse anchor is the same one the `worktree_ladder_run` controls use
+///  (`worktree_ladder_test_support::tracked_sparse`).
 fn ordinary_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
+    tracked_sparse(repo.as_path(), "bulk/kept.bin", crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG + 1_000);
     tracked(repo.as_path(), "shared.txt", b"first\n");
     commit_all(repo.as_path(), "first");
     tracked(repo.as_path(), "shared.txt", b"second, longer\n");
@@ -238,6 +249,8 @@ fn ordinary_repository(root: &Path) -> PathBuf {
 ///  than Git's pointer,
 /// so the rung is refused,
 /// and Git's own checkout leaves a file it has no entry for.
+/// The fixture's sparse anchor puts the source above the clone rung's size limit,
+/// so the clone rung is reached and refused on purpose.
 #[test]
 fn btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create() {
     let Some(root) = btrfs_fixture("finish-clone-stray") else { return };
@@ -257,6 +270,8 @@ fn btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create() {
 /// including the file
 ///  that was in it,
 /// and the failing status is the person's.
+/// The fixture's sparse anchor puts the source above the clone rung's size limit,
+/// so the clone rung is reached and refused on purpose.
 #[test]
 fn btrfs_a_failing_checkout_after_a_refused_clone_rung_leaves_the_worktree_and_its_registration() {
     let Some(root) = btrfs_fixture("finish-clone-rollback") else { return };
@@ -454,6 +469,9 @@ impl Write for RecordProbe {
 /// and write no completion marker:
 /// the record of an add that owes a copy must outlive the checkout,
 /// or a command killed before the copy's journal would leave a worktree with no ignored state and nothing naming it.
+/// Both fixtures hold a sparse anchor above the clone rung's size limit,
+/// and the ordinary one is an ordinary directory,
+/// so each control reaches its own rung on purpose.
 #[test]
 fn btrfs_each_rung_hands_the_adds_record_over_before_it_prints_and_marks_nothing() {
     for (name, ordinary) in [("finish-marker-clone", true), ("finish-marker-snapshot", false)] {
@@ -495,6 +513,8 @@ fn an_error_from_a_failed_swap_back_does_not_own_the_stage() {
 /// the marker only keeps a later report from calling a whole
 ///  worktree interrupted,
 /// and nothing is deleted either way.
+/// The fixture's sparse anchor puts the source above the clone rung's size limit,
+/// so the clone rung serves the add on purpose.
 #[test]
 fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everything() {
     let Some(root) = btrfs_fixture("finish-records-unwritable") else { return };
@@ -526,6 +546,8 @@ fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everyth
 /// the moved worktree keeps its registration,
 /// and the
 ///  add fails with a report.
+/// The fixture's sparse anchor puts the source above the clone rung's size limit,
+/// so the clone rung serves the add on purpose.
 #[test]
 fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
     let Some(root) = btrfs_fixture("finish-fallback-replaced") else { return };
@@ -561,6 +583,8 @@ fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
 ///  failure,
 /// the replacement is untouched by anything the wrapper does afterwards,
 /// and no completion marker is written.
+/// The fixture's sparse anchor puts the source above the clone rung's size limit,
+/// so the clone rung serves the add on purpose.
 #[test]
 fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
     let Some(root) = btrfs_fixture("finish-checkout-replaced") else { return };

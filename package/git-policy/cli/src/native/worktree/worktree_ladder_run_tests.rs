@@ -10,7 +10,7 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
 use crate::test_support::{fixture, git_context, remove, repository};
 use crate::worktree_copy_stage_claim::stage_claims_exist;
-use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
+use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked, tracked_sparse};
 
 /// A failed Git run,
 /// as the lifecycle reports it.
@@ -38,28 +38,6 @@ fn can_clone_a_file(root: &Path) -> bool {
         eprintln!("CLONE CONTROL NOT RUN: a dirty source's routing (the fixture root cannot reflink a file)");
     }
     return cloned;
-}
-
-/// What:
-///  A tracked file of `bytes` zero bytes,
-/// written sparse so a fixture can be above the clone rung's size limit without holding the bytes.
-/// Why:
-///   The size limit sums what the index records for each tracked file,
-/// and a control that reaches the rung must be above it;
-/// a sparse file costs the fixture nothing on disk and Git still records its length,
-///  and the length is derived from the limit so no control carries a stale number
-///  (`AGENTS.md`,
-///  rule `MGN`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const file = createFile(repo + '/' + name); file.truncate(bytes);
-/// ```
-fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
-    let path: PathBuf = repo.join(name);
-    std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
-    let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the sparse file");
-    file.set_len(bytes).expect("the sparse file's length");
 }
 
 /// What:
