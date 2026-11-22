@@ -41760,7 +41760,32 @@ stated in this entry. What follows from them, as work:
   earlier gate of the round failed `lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone`
   once, filed as issue 6342 (undiagnosed). GOING: its integration recheck on Sonnet (review to
   `~/temp/agent/integration-recheck-object-database-declined-reader-2026-11-22/`), which weighs the config read's cost per
-  whole command. Step 7's
+  whole command. THE REFTABLE FIX IS MERGED as `96d965f9f8` (2026-11-22T13:18:41-05:00, pushed, issue 6340 closed): its
+  recheck said fit (20 of 20 reflog rows and 12 of 12 pruned-content arms match Git; whole commands within 0.9 percent of
+  `main`; gate 9766 of 9768). Owed after it: unit controls for the declined branches of `batch_content_missing` and the
+  client's request-commit question (the recheck's medium: deleting those three questions left every test green), and its
+  lows, among them `GIT_REFERENCE_BACKEND` overriding the config unseen (read from the man page, not run). THE PARTIAL
+  CLONE'S PASS said not fit (`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`): H1 six
+  `worktree_ladder_target_tree_skip` controls of `main` fail because the size limit declines their tiny clean sources; H2 a
+  clean tree of 20 files of 20 MB takes 952 ms against `main`'s 33 ms; M1 stat-stale paths evade the changed-file cut (1.39
+  of `main`); M2 the 28 ZFS guest controls unrun and read as red; M3 this tree sits 1,549,750 bytes above the limit. THE
+  OWNER ANSWERED at 2026-11-22T13:18:08-05:00 "3: file-size rule now"
+  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`, section "The size limit on a clean source"): a clean
+  source goes to Git's own checkout by its mean file size, at an edge measured on the current build; the whole-tree limit
+  stays for a source with changes. That rule still declines the six fixtures and the ZFS conversion fixtures (a few dozen
+  bytes a file), so the fix round anchors them and measures a clean tree of few small files against `main`, for the owner
+  to see whether a file-count floor is wanted. THE OVERLAP'S PASS said not fit
+  (`~/temp/agent/integration-pass-fence-size-read-beside-source-check-2026-11-22/keep/review.md`): `Ladder::finish` waits
+  for the unused read, so a refused add whose Git run is short is slower than `main` (loose: 451.4 against 17.3 ms; cone
+  sparse 397.0 against 138.6 ms). The wait came from the build brief's own control ("the read's cost recorded in the add's
+  record"), not from the decision, which puts the cost in `SPEC.md`. STEP 8'S FIX ROUND ended at `31acf91e98`
+  (`~/temp/agent/zfs-step-8-integration-findings-2026-11-22/keep/report-from-summary.md`): H1, H2, M1 to M9 and the four
+  decisions built; guest arm whole and green (designed-origin clone attaches in 99 ms; twice-swept receipt stays `done`;
+  rollback `EBUSY` then `ok`); a sweep stopping at 4,097 children took 14,183 ms; gate 9867 of 9869; few reds captured;
+  "second-pass fixes" came from a review nobody briefed. THE 6341 FIX ended at `2a17a4175d`
+  (`~/temp/agent/btrfs-subvol-info-success-value-2026-11-22/keep/report-from-summary.md`): only `-1` is a failure; the
+  kernel answers 1 or 0 up to v7.1 and 0 from v7.2; eight controls 0 of 8 on `main` and 10 of 10 on the fix; gate 9762 of
+  9764. The mvm unit held last night's overlapping guests with no kill (peak 13.2 G memory, 18.3 G swap). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
