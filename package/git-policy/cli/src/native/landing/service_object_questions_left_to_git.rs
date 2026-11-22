@@ -65,7 +65,7 @@ pub(crate) fn objects_missing(git: &GitContext, repository: &Path, names: &[&str
     let mut arguments: Vec<&str> = vec!["rev-list", "--objects", "--no-object-names", "--missing=print"];
     arguments.extend_from_slice(names);
     let Some(output): Option<GitOutput> = run(git, repository, arguments.as_slice()) else { return false };
-    return output.stdout.split(|byte| *byte == b'\n').any(|line| line.starts_with(b"?"));
+    return output.stdout.split(|byte| { return *byte == b'\n'; }).any(|line| { return line.starts_with(b"?"); });
 }
 
 /// What:
