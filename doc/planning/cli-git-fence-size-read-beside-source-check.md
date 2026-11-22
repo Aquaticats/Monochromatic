@@ -168,11 +168,24 @@ each plain `git` run with its own `HOME`
 So on such a source the read writes,
 and the sentence "nothing is written and no state is left" was false for the prototype.
 `GIT_NO_LAZY_FETCH=1` on the read is the condition,
-and this branch ships it:
-probed with Git 2.56.1,
-`git ls-tree -r -l -z HEAD` exits 0 with the same output size,
+and this branch ships it beside the global `--no-lazy-fetch`.
+Git 2.45.0 is the first release that honours either:
+`environment.c` reads `NO_LAZY_FETCH_ENVIRONMENT` and sets `fetch_if_missing = 0`,
+and `git.c` takes `--no-lazy-fetch` as the same switch before any subcommand.
+Probed with Git 2.56.1 on this host,
+`git ls-tree -r -l -z HEAD` under either switch exits 0 with the same output size,
 prints `BAD` in the size column of a blob the clone does not hold,
-and leaves 100 missing and 2 packs unchanged.
+and leaves 40 missing and 2 packs unchanged;
+without a switch the same read fetches (0 missing, 42 packs).
+Ubuntu 24.04's Git 2.43.0 is older than both:
+its package carries the variable in `promisor-remote.c`,
+so the plain read exits 128 with `could not fetch ... from promisor remote`
+and leaves 40 missing and 2 packs unchanged,
+and it refuses the option as an unknown global (exit 129).
+The shipped read asks for the no-fetch switches only where the source may hold a promisor remote
+(a `.promisor` pack or a `promisor` word in the common config);
+a plain source keeps today's read, so an older Git keeps the overlap there,
+and on a promisor source an older Git reads nothing and the fence falls through to Git's own checkout.
 `parse_sizes` skips a size it cannot parse,
 and a missing size only ever sends a path to Git's writing,
 never to a carry.
@@ -904,9 +917,10 @@ so every add took the `Git's checkout` route:
   3291.9 and 2115.5 ms.
 
 Two rounds resolve nothing,
-but they show the shape of the cost:
-a refused rung-1 or rung-2 add pays the read on a thread of its own while Git's checkout runs,
-and its only trace is the `fenceSizesBesideTheCheck` work in the record.
+but they show the shape of the cost the first round measured:
+its prototype let a refused rung-1 or rung-2 add pay the read on a thread of its own while Git's checkout ran.
+The shipped fix ends that read at the refusal or the decline,
+so the shipped record states it as started and not joined and the add pays no read work.
 
 ## Do the two steps compete for the disk
 
@@ -980,15 +994,15 @@ which are stated where their code is:
   "Every check that can be made before Git runs is made now,
   cheapest first,
   so a refused rung costs no extra Git run".
-  Rung 1's size read is the one Git run a refused or declined add now pays,
-  and that doc says so.
+  Rung 1's size read is the one Git run a refused or declined add may start,
+  and the fix round ends it at the refusal or the decline rather than paying it beside Git's checkout.
 - the decline's price
   (`SPEC.md`,
   rung 2's decline rule,
   and `doc/planning/cli-git-clone-rung-conversion-fence.md`,
   "What the decline now costs"):
   "a declined add is Git's own checkout plus one `git check-attr` and the count over it".
-  On rung 1 it is also plus the size read the rung started before the check,
+  On rung 1 it is also plus the size read the rung starts before the check and ends at the decline,
   and `SPEC.md` and `README.md` say so.
 
 **On a dirty btrfs main checkout the read is paid and used.**
@@ -996,7 +1010,7 @@ Such a source is snapshotted and restored rather than refused,
 so a rung-1 add with ordinary uncommitted changes runs the same fence and takes the same read.
 A dirty source that is a linked worktree is refused instead
 (`restorable_here`),
-and that add pays the read without using it,
+and that add starts the read and ends it at the refusal,
 exactly like a refused check.
 
 ## The options, and the ranking
@@ -1044,7 +1058,8 @@ rung 2's wall is unchanged within a control spread wider than any difference mea
 0.70 to 1.35 packed),
 while every refused rung-2 add on ZFS,
 which the dirty-source waiver calls a common case,
-pays the read in the background.
+paid the read in the background in the first round's prototype;
+the shipped fix starts no read there.
 
 ### Ranking: B > A > C
 
@@ -1064,28 +1079,115 @@ The owner may also read C over A if one order everywhere is worth more than a wa
 clone-rung add;
 nothing measured here says that a changed rung 2 pays for itself.
 
-## What this round does not do
+## The settle that never waits, timed
 
-- This round changed none of the shipped code:
+One throwaway `libvirt` guest through `mvm`,
+`fence-size-read-settle-2026-11-22`,
+Ubuntu 24.04.5,
+kernel 6.8.0-147,
+four vCPUs,
+7.9 GiB,
+Git 2.43.0,
+a 6 GiB btrfs image with the source a subvolume on it,
+and one Python process inside the guest driving every add.
+The fixture is the same tree as the first round,
+`git archive` of `40783c23ea` (24,634 paths),
+one commit,
+25,034 loose objects,
+then `git gc` for the packed layouts.
+The arms are `main` (`e3c9b7e62d`),
+this branch, and `branch-again` (this branch's identical binary);
+every round rotates the three and reverses every second pass,
+one uncounted warm-up runs per arm,
+and `sync --file-system` runs before every add.
+The host carried other sessions' load throughout,
+so absolute times are context and only the ratios are read.
+The driver and every row are under the package's `perf/` folder,
+named `fence-size-read-settle-never-waits-2026-11-22-...`.
+
+The shapes are the review's two losing ones (a cone sparse source,
+a refused source whose Git fails at once) and the build's four
+(a loose and a packed served add, a refused add with Git's whole checkout, a declined add).
+
+Medians, this branch against `main`,
+with the per-round branch-to-`main` ratios and the identical control's range
+(`branch-again` to `branch`):
+
+- loose served, 4 rounds:
+  905.1 against 960.6 ms,
+  ratios 0.54, 1.51, 0.88, 0.92,
+  control 0.70 to 1.71;
+- packed served, 4 rounds:
+  599.9 against 677.4 ms,
+  ratios 0.97, 0.84, 0.83, 0.90,
+  control 0.96 to 1.11;
+- refused with Git's whole checkout, loose, 4 rounds:
+  2928.5 against 2988.8 ms,
+  ratios 0.94, 0.98, 1.06, 0.97,
+  control 0.89 to 1.12;
+- the same, packed, 4 rounds:
+  2665.6 against 2623.7 ms,
+  ratios 1.08, 0.94, 1.19, 1.17,
+  control 0.80 to 1.06;
+- declined packed, 4 rounds:
+  7455.0 against 7525.9 ms,
+  ratios 1.04, 1.14, 0.93, 1.02,
+  control 0.94 to 1.11;
+- cone sparse refused, loose, 6 rounds:
+  168.1 against 161.8 ms,
+  ratios 1.05, 1.00, 0.61, 0.94, 1.11, 2.20,
+  control 0.30 to 1.65 (one round took 763 ms under host load);
+- the same, packed, 6 rounds:
+  115.4 against 99.9 ms,
+  ratios 0.90, 1.28, 1.07, 1.13, 1.27, 0.94,
+  control 0.93 to 1.33;
+- refused with Git failing at once, loose, 6 rounds:
+  16.0 against 13.0 ms,
+  ratios 1.10, 1.23, 1.21, 1.19, 1.36, 1.06,
+  control 0.80 to 1.14;
+- the same, packed, 6 rounds:
+  23.5 against 21.4 ms,
+  ratios 1.45, 1.14, 1.23, 1.12, 1.00, 0.96,
+  control 0.74 to 1.15.
+
+The served, refused and declined shapes no longer show the review's waits:
+the read work is 0 in the refused and declined records (the read is ended at the refusal or the decline),
+and the served adds keep the overlap.
+The cone sparse shape's median ratio is 1.05 loose and 1.13 packed;
+the packed one's every round sits inside the control's range,
+and the loose one's 2.20 round is the host stall that also moved its control.
+The two fail-fast shapes are 12 to 24 ms adds where one abandoned child and a scheduling jitter
+are a few milliseconds:
+their medians are 1.21 loose and 1.14 packed,
+and two rounds (loose 1.36, packed 1.45) sit above the control's own range,
+so the strict "every round inside the control's spread or below it" bar is **not** met on those rounds.
+No shape is slower than `main` by more than 15 percent of the add,
+and every served add is faster than `main` where the overlap helps.
+
+## What the first round did not do
+
+- The first round changed none of the shipped code:
   its prototype is behind `measurement-routes`.
-- It adds no dependency,
+- It added no dependency,
   because the overlap needs none.
-- It does not build the control for a `HEAD` that moves inside the window,
-  so the guard there is read,
+- It did not build the control for a `HEAD` that moves inside the window,
+  so the guard there was read,
   not measured;
   the review measured it against the prototype,
   and this branch's own suite measures it against the shipped shape.
-- It does not measure a declined source (more than a quarter of its paths converting),
-  where the read is paid and dropped;
-  the refused-source runs price the shape of that cost only,
-  and the shipped build's own guest run prices both.
-- It does not measure a cold cache,
-  and it does not resolve rung 2's wall,
-  because the host was loaded by
-  other sessions throughout;
+- It did not measure a declined source in its own runs;
+  the shipped build's guest run does ("The settle that never waits, timed").
+- It did not measure a cold cache,
+  and it did not resolve rung 2's wall,
+  because the host was loaded by other sessions throughout;
   only rung 2's step records are quoted as evidence.
-- It does not measure the shipped shape,
+- It did not measure the shipped shape,
   only the prototype's own thread.
+
+The fix round of 2026-11-22 adds the settle that never waits,
+the child's end at a refusal or a decline,
+the no-fetch switches only on a promisor source,
+and the guest runs below.
 
 ## Where the numbers are
 
@@ -1125,5 +1227,22 @@ named `-2026-11-22-`:
   `-host-matrix-seed11-n150.json`,
   the two rung-2 harnesses' records against the shipped build.
 
+This fix round's rows are there too,
+named `fence-size-read-settle-never-waits-2026-11-22-...`:
+
+- `-guest-loose-served-adds.jsonl`,
+  `-guest-packed-served-adds.jsonl`,
+  `-guest-loose-refused-adds.jsonl`,
+  `-guest-packed-refused-adds.jsonl`,
+  `-guest-loose-failfast-refused-adds.jsonl`,
+  `-guest-packed-failfast-refused-adds.jsonl`,
+  `-guest-loose-cone-sparse-adds.jsonl`,
+  `-guest-packed-cone-sparse-adds.jsonl` and
+  `-guest-packed-declined-adds.jsonl`,
+  the two binaries' rows for the nine shapes;
+- `-host-lazy-fetch-probe.json`,
+  the host's `git ls-tree` under both no-fetch switches and without either.
+
 The section "The shipped build,
-timed" says which row file is which run.
+timed" says which row file is which run,
+and "The settle that never waits, timed" says which fix-round row is which shape.
