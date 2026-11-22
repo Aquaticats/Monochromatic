@@ -729,9 +729,9 @@ fn a_read_beside_a_reference_clone_of_a_partial_clone_fetches_nothing() {
     let url: String = format!("file://{}", origin.display());
     git(root.as_path(), &["clone", "--quiet", "--sparse", "--reference", partial.to_str().expect("utf8"), "--filter=blob:none", url.as_str(), reference.to_str().expect("utf8")]);
     git(reference.as_path(), &["sparse-checkout", "set", "dir0"]);
-    let reference: PathBuf = std::fs::canonicalize(reference).expect("canonical");
-    the_promisor_flags_in_an_included_file(reference.as_path());
-    let (before, after) = an_early_read_joined_leaves_the_clone_alone(reference.as_path(), &git_context());
+    let canonical_reference: PathBuf = std::fs::canonicalize(reference).expect("canonical");
+    the_promisor_flags_in_an_included_file(canonical_reference.as_path());
+    let (before, after) = an_early_read_joined_leaves_the_clone_alone(canonical_reference.as_path(), &git_context());
     assert!(before.0 > 0, "the reference clone is missing the blobs its alternate lacks: {before:?}");
     assert_eq!(after, before, "the flags arriving through an include on a reference clone fetch nothing");
     remove(root.as_path());
@@ -1004,13 +1004,13 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
             std::thread::sleep(Duration::from_millis(10));
         }
     }
-    if let Some(child) = child {
-        assert!(gone_within(child, Duration::from_secs(5)), "the child the abandon came before is ended at publication, not left for its 30 s sleep");
+    if let Some(published) = child {
+        assert!(gone_within(published, Duration::from_secs(5)), "the child the abandon came before is ended at publication, not left for its 30 s sleep");
     }
     // Nothing of the fake may still run, whether its marker was seen or the kill landed before it wrote one.
-    let still = a_process_id_in(wrote.as_path());
-    if let Some(still) = still {
-        assert!(gone_within(still, Duration::from_secs(1)), "nothing of the abandoned read is alive afterwards");
+    let remaining = a_process_id_in(wrote.as_path());
+    if let Some(remaining_id) = remaining {
+        assert!(gone_within(remaining_id, Duration::from_secs(1)), "nothing of the abandoned read is alive afterwards");
     }
     remove(root.as_path());
 }
