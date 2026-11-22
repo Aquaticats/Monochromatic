@@ -3,8 +3,12 @@
 Status:
 diagnosis by the coordinator session of 2026-11-21,
 unapproved and non-final.
-No workaround is verified yet;
-the fix is an open choice for the project.
+No workaround is verified yet.
+On 2026-11-21 the project chose that `mvm` starts the daemon itself in a user unit of its own
+("A:
+mvm starts it",
+issue 6338);
+it is not built yet.
 
 ## Symptom
 
@@ -180,8 +184,7 @@ an agent's own 2-GiB slice:
 ## Workarounds
 
 None is verified yet.
-Candidates,
-for the project to choose:
+The project chose the first candidate on 2026-11-21:
 
 - `mvm` starts the daemon itself,
   in a named user unit of its own
