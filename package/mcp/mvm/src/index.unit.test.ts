@@ -65,15 +65,13 @@ async function exchange(
     [BIN_PATH,],
     {
       cwd: REPO_ROOT,
-      stdin: {
-        string: `${
-          requests
-            .map(function serializeRequest(request,) {
-              return JSON.stringify(request,);
-            },)
-            .join('\n',)
-        }\n`,
-      },
+      input: `${
+        requests
+          .map(function serializeRequest(request,) {
+            return JSON.stringify(request,);
+          },)
+          .join('\n',)
+      }\n`,
     },
   );
   return stdout
