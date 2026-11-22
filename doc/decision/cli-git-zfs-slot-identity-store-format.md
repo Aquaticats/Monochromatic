@@ -70,6 +70,10 @@ which lets two recording runs have the later rename record identities taken from
   and the lock with its measured wait (`STORE_LOCK_WAIT`,
   `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`)
   are rewritten or removed before step 8 builds on the store.
+  Note of 2026-11-21T22:55:39-05:00,
+  when the per-slot store merged as `c7eb43855c`:
+  `STORE_LOCK_WAIT` is removed with the lock,
+  and the lock-hold document is now `package/git-policy/cli/doc/slot-identity-store-write-cost.md`.
 - Nothing of the ZFS route is released,
   so the change is a design change with no migration of written stores.
 
