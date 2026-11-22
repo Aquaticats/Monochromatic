@@ -41690,7 +41690,14 @@ stated in this entry. What follows from them, as work:
   refuses reftable. Fix at `e347a4c8c0` on `fix/git-policy-cli-object-database-reftable-replace-refs`: the reader declines a
   reftable store (one `stat`, about 0.8 microseconds per open); two default-build controls red then green; gate 9755 of 9757.
   The worktree's `node_modules` was incomplete (issue 6339) and the round forced a reinstall. GOING: its integration pass on
-  Sonnet (review to `~/temp/agent/integration-pass-object-database-reftable-replace-refs-2026-11-22/`). Step 7's
+  Sonnet (review to `~/temp/agent/integration-pass-object-database-reftable-replace-refs-2026-11-22/`). THE OVERLAP'S
+  GATE REVIEW said not ready on text only: the read is not write-free (on a sparse partial clone the check refuses, the
+  early read fetched blobs; `GIT_NO_LAZY_FETCH=1` stops it); the shipped shape differs from the measured one (estimate 140
+  to 150 ms instead of 217); packed resolved at 22 of 523 ms; refused and declined adds pay the read; the `HEAD`-moves guard
+  held in every probed case. THE OWNER ANSWERED at 2026-11-22T00:40:29-05:00 "B: start before the check" and "Yes, record
+  the cost" (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`, section "The overlap, answered 2026-11-22").
+  GOING: `pi-fence-size-read-beside-source-check-build` (brief under
+  `~/temp/agent/fence-size-read-beside-source-check-build-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
