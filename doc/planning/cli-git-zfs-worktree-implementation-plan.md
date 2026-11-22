@@ -1173,18 +1173,46 @@ and refuse malformed intent before any filesystem operation on its behalf.
 Before attach it checks the encryption root and key state,
 and reports an unavailable key separately from identity or permission failures.
 This step owns the handler's `boot-reconcile` mode as well:
-the start-time compatibility gate,
+the start-time compatibility gate the dispatch runs before the mode,
+the start probe's record for this boot,
 the key and checkout checks,
-the intent reconciliation and this boot's readiness publish,
-all before any sweep,
+then the same sweep the default invocation runs,
+and this boot's readiness publish after it,
 which is what step 19's unit runs at boot.
+The order is the design's own in "Boot and shutdown unit":
+its `ExecStart` "verifies ABI,
+keys,
+checkout and the private propagation the boot unit itself sets,
+then reconciles current intent and publishes this boot's readiness",
+and the design's reconciliation of intent is the sweep this step builds,
+so the mode's own checks come before the sweep and the readiness record comes
+after it.
 The mode is this step's because it is the work the sweep does without a
 request;
 step 6 built the gate it calls and step 19 only installs the unit around it.
+The start time gate is step 6's,
+and the dispatch runs it before any mode that makes a request,
+so a refused gate enters no mode here.
+
+(Amended 2026-11-22 by an agent,
+from the review at
+`/home/user/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`,
+"Step 8's text against the design".)
+The sentences this note replaces said the mode's checks ran "all before any
+sweep",
+which read as the intent reconciliation coming before the sweep;
+in the accepted designs the reconciliation is the sweep,
+so the order is now stated as the design states it,
+and "Boot and shutdown unit" joins the design sections below.
+The assignment of the mode to this step was made by an agent rather than by the
+owner and is open to the owner's veto;
+if it is dropped,
+the mode moves with the readiness publish to the step the owner names.
 
 #### Design sections
 
 "ZED reconciliation and mount safety";
+"Boot and shutdown unit" (the mode's checks and the readiness publish);
 "Requests,
 results and ordering";
 "Descriptor mount and unmount" (the first-observation record and the no-crossing walk);
@@ -1212,6 +1240,15 @@ Runs in the throwaway guest.
 #### Open items
 
 None for attach.
+The unmount half of an `unmount` intent is step 9's,
+and the three positions the documents leave open are this build's own,
+each written where it is made:
+the sweep's two configuration keys
+(`cloneMounts.parent` and `cloneMounts.checkout`,
+beside the start probe's own object),
+the probe record's read as the gate every request-making run passes first,
+and the per-slot claim's directory proof staying path-based because
+`take_claim` is still the shared module's path-based claim.
 
 #### Depends on
 
