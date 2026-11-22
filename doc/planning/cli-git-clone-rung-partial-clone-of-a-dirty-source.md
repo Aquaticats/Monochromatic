@@ -2154,8 +2154,10 @@ and file count and mean size were never varied apart in one disk's worth of meas
 
 Its tracked files summed to 763,289,228 bytes when the limit was pinned
 (the build's measurement over 24,621 paths),
-and they read 763,409,836 bytes over 24,626 paths on 2026-11-22,
-so the tree clears the 762,000,000-byte limit by about 1.3 MB and its own dirty adds clone on that margin alone.
+which is about 1.3 MB above the 762,000,000-byte limit,
+and a reading on 2026-11-22 gives 763,409,836 bytes over 24,626 paths,
+so the margin holds as the tree moves.
+Its own dirty adds therefore clone on that margin alone.
 That margin is where the measured bracket's top fell,
 not a value the fence chose.
 If the tree shrinks below the limit its own dirty adds take Git's own checkout and print the reason,
