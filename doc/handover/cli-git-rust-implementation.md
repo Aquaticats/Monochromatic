@@ -41492,7 +41492,17 @@ stated in this entry. What follows from them, as work:
   `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
   defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement
   (`pi-fence-faster-size-reader-design` in `.claude/worktrees/fence-faster-size-reader`; no new dependency added, a crate
-  measured in scratch only; brief under `~/temp/agent/fence-faster-size-reader-design-2026-11-21/`). QUEUED: the skip's lows. Step 7's
+  measured in scratch only; brief under `~/temp/agent/fence-faster-size-reader-design-2026-11-21/`). STEP 7'S CLOSURE
+  CHECK said fit (the claim on `take_claim`: one holder per slot over eight claimants and ten slots; the `/run` place fits
+  if the claim makes its folder each boot; the proof-to-claim window acceptable until step 8, which carries it as an
+  acceptance item; gate 9729 of 9731; guest arm green). MERGED as `5d130df425` at 2026-11-21T20:27:42-05:00: ZFS step 7 is
+  on `main`. Carried, not blocking: the owner's veto on the `/run` place, refuse-not-wait, whether the removal text's
+  "per-slot claim" is this object (step 14's). GOING, side by side: `pi-zfs-step-7-closure-lows` (the claim makes its `/run`
+  folder, controls that can fail for a failed publish's cleanup and the poll's sleep, two doc lows; brief under
+  `~/temp/agent/zfs-step-7-closure-lows-2026-11-21/`) and `pi-clone-rung-skip-pass-lows` (the skip resolving the target as
+  `git worktree add` does, p16 timed, the rung-1 control, the doc's record and noise-floor claims, no read when the fence
+  names nothing, the symlink limitation; brief under `~/temp/agent/clone-rung-skip-pass-lows-2026-11-21/`). Step 8 waits on
+  the per-slot store's merge. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
