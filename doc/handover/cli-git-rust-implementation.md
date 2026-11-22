@@ -41668,7 +41668,14 @@ stated in this entry. What follows from them, as work:
   after `git worktree add` races the commit service's relink, leaves the worktree's ignored-state copy unable to finish, and
   puts a warning about it on every `git` command of every session until that worktree is removed (now:
   `object-database-reftable-replace-refs`, a running round's, and `mvm-real-guest-check`, mine; remove both when their work
-  ends). The `pi-as-subagent` skill no longer tells runs to install; briefs written before it still do. Step 7's
+  ends). The `pi-as-subagent` skill no longer tells runs to install; briefs written before it still do. THE OVERLAP ROUND
+  ended at `916e49b56c` (`doc/planning/cli-git-fence-size-read-beside-source-check.md`; prototype `5c6177cff1` behind
+  `measurement-routes`): rung 1 loose, the read beside the check is 683 of 909 ms (0.72 to 0.80 against a same-binary 0.95 to
+  1.06, every round); rung 1 packed direction only (about 29 ms); rung 2 already overlaps the read with the copies and its
+  wall did not resolve under load; a refused source pays the unused read; ranking B (rung 1 only) > A (serial) > C (both).
+  Unmeasured: `HEAD` moving between the read's start and the check. The round ran one read-only `mvm exec` in another
+  session's guest (disclosed; against the rule). GOING: its gate review on Sonnet (review to
+  `~/temp/agent/gate-review-fence-size-read-beside-source-check-2026-11-22/`); then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
