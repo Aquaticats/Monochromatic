@@ -338,10 +338,9 @@ fn wait_for_the_hold(pid: u32, clone: &str) -> bool {
     let table: PathBuf = PathBuf::from(format!("/proc/{pid}/mountinfo"));
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
-        if let Ok(text) = std::fs::read_to_string(table.as_path()) {
-            if text.lines().any(|line| return line.contains(&format!(" - zfs {clone} "))) {
-                return true;
-            }
+        let mentions: bool = std::fs::read_to_string(table.as_path()).is_ok_and(|text| return text.lines().any(|line| return line.contains(&format!(" - zfs {clone} "))));
+        if mentions {
+            return true;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
@@ -404,19 +403,19 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     // Arm 1: the handler's own namespace is not a foreign holder, and the scan answers under the clone's GUID.
     let (baseline_run, baseline): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(baseline_run.status, Some(0), "the mode answers: {}", baseline_run.said);
-    let baseline: HolderScan = baseline.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", baseline_run.said));
-    assert_eq!(baseline.own_mounts.len(), 1, "the clone is in the handler's own namespace");
-    assert_eq!(baseline.holder_namespaces(), 0, "no other namespace holds it yet");
+    let baseline_scan: HolderScan = baseline.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", baseline_run.said));
+    assert_eq!(baseline_scan.own_mounts.len(), 1, "the clone is in the handler's own namespace");
+    assert_eq!(baseline_scan.holder_namespaces(), 0, "no other namespace holds it yet");
     let unknown: Vec<&git_policy_cli::clone_holder_scan::IncompleteRead> =
-        baseline.incomplete.iter().filter(|read| return !matches!(read, git_policy_cli::clone_holder_scan::IncompleteRead::TaskEnded { .. })).collect();
+        baseline_scan.incomplete.iter().filter(|read| return !matches!(read, git_policy_cli::clone_holder_scan::IncompleteRead::TaskEnded { .. })).collect();
     assert!(unknown.is_empty(), "no table was left unread in the baseline: {unknown:?}");
     let guid: String = zfs(sbin.as_str(), "zfs", &["get", "-H", "-o", "value", "guid", clone.as_str()], None).1.trim().to_string();
-    assert_eq!(baseline.dataset.file_name(), guid, "the result is bound to the clone's live GUID");
+    assert_eq!(baseline_scan.dataset.file_name(), guid, "the result is bound to the clone's live GUID");
     println!(
         "SCAN baseline own={} holders={} incomplete={} guid={guid}",
-        baseline.own_mounts.len(),
-        baseline.holder_namespaces(),
-        baseline.incomplete_reads()
+        baseline_scan.own_mounts.len(),
+        baseline_scan.holder_namespaces(),
+        baseline_scan.incomplete_reads()
     );
 
     // Arm 2: a second mount namespace holding the clone is found.
@@ -424,10 +423,10 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     assert!(wait_for_the_hold(pid_of(&holder), clone.as_str()), "the holder's namespace shows the clone");
     let (holder_run, held): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(holder_run.status, Some(0), "the mode answers: {}", holder_run.said);
-    let held: HolderScan = held.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", holder_run.said));
-    assert_eq!(held.holder_namespaces(), 1, "one foreign namespace holds the clone: {:?} {}", held.holders, holder_run.said);
-    assert_ne!(held.holders[0].namespace(), held.own_namespace.as_deref().unwrap_or_default(), "the holder is not the handler's own namespace");
-    println!("SCAN HOLDER other-namespace={} namespace={} mount={}", held.holder_namespaces(), held.holders[0].namespace(), held.holders[0].mounts[0].mount_point.display());
+    let held_scan: HolderScan = held.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", holder_run.said));
+    assert_eq!(held_scan.holder_namespaces(), 1, "one foreign namespace holds the clone: {:?} {}", held_scan.holders, holder_run.said);
+    assert_ne!(held_scan.holders[0].namespace(), held_scan.own_namespace.as_deref().unwrap_or_default(), "the holder is not the handler's own namespace");
+    println!("SCAN HOLDER other-namespace={} namespace={} mount={}", held_scan.holder_namespaces(), held_scan.holders[0].namespace(), held_scan.holders[0].mounts[0].mount_point.display());
 
     // Arm 3: a confined consumer holding a bind of the clone,
     // or a line saying this guest could not make one.
@@ -437,10 +436,10 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
             let waited: bool = wait_for_any_hold(pid_of(&child), clone.as_str());
             let (confined_run, after): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
             assert_eq!(confined_run.status, Some(0), "the mode answers: {}", confined_run.said);
-            let after: HolderScan = after.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", confined_run.said));
+            let after_scan: HolderScan = after.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", confined_run.said));
             assert!(waited, "the confined consumer's namespace shows the clone");
-            assert_eq!(after.holder_namespaces(), 2, "the confined consumer is a second holder: {:?}", after.holders);
-            println!("SCAN confined-consumer=held holders={}", after.holder_namespaces());
+            assert_eq!(after_scan.holder_namespaces(), 2, "the confined consumer is a second holder: {:?}", after_scan.holders);
+            println!("SCAN confined-consumer=held holders={}", after_scan.holder_namespaces());
             stop(&mut child);
         }
         None => {
@@ -454,12 +453,12 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     let mut churned_incomplete: usize = 0;
     for _scan in 0..CHURN_SCANS {
         let (_run, scanned): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-        let scanned: HolderScan = scanned.unwrap_or_else(|| panic!("every answer under churn holds a result this build parses"));
-        assert_eq!(scanned.own_mounts.len(), 1, "the clone stays in the handler's own namespace under churn");
-        if scanned.holder_namespaces() >= 1 {
+        let scanned_scan: HolderScan = scanned.unwrap_or_else(|| panic!("every answer under churn holds a result this build parses"));
+        assert_eq!(scanned_scan.own_mounts.len(), 1, "the clone stays in the handler's own namespace under churn");
+        if scanned_scan.holder_namespaces() >= 1 {
             churned_holder_seen += 1;
         }
-        churned_incomplete += scanned.incomplete.iter().filter(|read| return matches!(read, git_policy_cli::clone_holder_scan::IncompleteRead::TaskEnded { .. })).count();
+        churned_incomplete += scanned_scan.incomplete.iter().filter(|read| return matches!(read, git_policy_cli::clone_holder_scan::IncompleteRead::TaskEnded { .. })).count();
     }
     stop(&mut churn);
     assert_eq!(churned_holder_seen, CHURN_SCANS, "churn never hid a holder the scan had already found");
@@ -488,11 +487,17 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     let rooted_waited: bool = wait_for_any_hold(pid_of(&rooted), clone.as_str());
     let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
-    let root_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
+    let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
     assert!(rooted_waited, "the divergent-root task's namespace shows the clone");
-    assert!(root_scan.holder_namespaces() >= 1, "a holder read through a divergent root is still a holder: {:?}", root_scan.holders);
-    let observed: String = root_scan.holders.iter().flat_map(|holder| return holder.mounts.iter()).map(|mount| return mount.mount_point.display().to_string()).collect::<Vec<String>>().join(",");
-    println!("SCAN divergent-root holders={} mount-points={observed}", root_scan.holder_namespaces());
+    assert!(rooted_scan.holder_namespaces() >= 1, "a holder read through a divergent root is still a holder: {:?}", rooted_scan.holders);
+    let observed: String = rooted_scan
+        .holders
+        .iter()
+        .flat_map(|found| return found.mounts.iter())
+        .map(|mount| return mount.mount_point.display().to_string())
+        .collect::<Vec<String>>()
+        .join(",");
+    println!("SCAN divergent-root holders={} mount-points={observed}", rooted_scan.holder_namespaces());
     stop(&mut rooted);
 
     // Arm 7: a namespace pinned by a handle and no task is invisible,
@@ -504,12 +509,12 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     assert!(wait_for_the_end(held_pid), "the holder's task has ended");
     let (pinned_run, pinned_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(pinned_run.status, Some(0), "the mode answers: {}", pinned_run.said);
-    let pinned_scan: HolderScan = pinned_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", pinned_run.said));
-    assert_eq!(pinned_scan.holder_namespaces(), 0, "a namespace with no live task is in no file the scan reads: {:?}", pinned_scan.holders);
+    let pinned_result: HolderScan = pinned_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", pinned_run.said));
+    assert_eq!(pinned_result.holder_namespaces(), 0, "a namespace with no live task is in no file the scan reads: {:?}", pinned_result.holders);
     println!(
         "SCAN pinned-namespace invisible=true holders={} incomplete={} note=the-scan-cannot-see-a-namespace-no-task-holds",
-        pinned_scan.holder_namespaces(),
-        pinned_scan.incomplete_reads()
+        pinned_result.holder_namespaces(),
+        pinned_result.incomplete_reads()
     );
     stop(&mut pinned);
 
@@ -551,7 +556,7 @@ fn confined_consumer(clone: &str, checkout: &Path, sbin: &str) -> Option<Child> 
     let _made: std::io::Result<()> = std::fs::create_dir_all(CONFINED_FOLDER);
     let script: String = format!("mount --bind {} {CONFINED_FOLDER} && sleep {HOLDER_SECONDS}", slot.display());
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-    let child: Child = Command::new("unshare")
+    let mut child: Child = Command::new("unshare")
         .args(["--user", "--map-root-user", "--mount", "sh", "-c", script.as_str()])
         .env("PATH", path)
         .stdout(Stdio::null())
@@ -564,6 +569,7 @@ fn confined_consumer(clone: &str, checkout: &Path, sbin: &str) -> Option<Child> 
             return Some(child);
         }
         if !Path::new(format!("/proc/{}", pid_of(&child)).as_str()).exists() {
+            let _reaped = child.wait();
             return None;
         }
         std::thread::sleep(Duration::from_millis(50));

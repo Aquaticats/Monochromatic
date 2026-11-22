@@ -118,8 +118,8 @@ fn nonce_of(intent: &IntentReading) -> Result<(RequestNonce, &'static str), Stri
 ///  A reader that sees no holder has to be able to tell a clone whose managed
 ///  attach was set aside from one that carried no intent at all.
 fn exclusion_sentence(intent: &IntentReading, standing: Option<&StandingUnmount>, slot: Option<&Path>) -> String {
-    if let Some(standing) = standing {
-        return format!("the clone's standing unmount intent set aside any managed attach at {}", standing.slot().display());
+    if let Some(known) = standing {
+        return format!("the clone's standing unmount intent set aside any managed attach at {}", known.slot().display());
     }
     return match (intent, slot) {
         (IntentReading::Refused(refusal), _) => format!("nothing was set aside: the clone's intent could not be read ({})", refusal.message()),

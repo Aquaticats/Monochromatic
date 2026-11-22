@@ -68,11 +68,11 @@ impl StandingUnmount {
         if request.operation != MountOperation::Unmount {
             return None;
         }
-        let slot: &Path = slot?;
-        if slot.as_os_str().is_empty() || !slot.is_absolute() {
+        let known: &Path = slot?;
+        if known.as_os_str().is_empty() || !known.is_absolute() {
             return None;
         }
-        return Some(StandingUnmount { slot: slot.to_path_buf() });
+        return Some(StandingUnmount { slot: known.to_path_buf() });
     }
 
     /// The path the managed attach stands at.

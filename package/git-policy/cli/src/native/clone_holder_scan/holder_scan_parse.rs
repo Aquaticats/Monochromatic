@@ -108,10 +108,10 @@ fn decimal_count(key: &'static str, value: &str) -> Result<usize, HolderScanRefu
 /// as the last three fields of an own-mount line.
 fn mount_after_the_key(key: &'static str, value: &str) -> Result<HeldMount, HolderScanRefusal> {
     let parts: Vec<&str> = value.splitn(3, ' ').collect();
-    let [mount_id, root, mount_point] = parts.as_slice() else {
+    let [number, root, mount_point] = parts.as_slice() else {
         return Err(HolderScanRefusal::Value { key, shown: String::from(value) });
     };
-    let Ok(mount_id) = mount_id.parse::<u64>() else {
+    let Ok(mount_id) = number.parse::<u64>() else {
         return Err(HolderScanRefusal::Value { key, shown: String::from(value) });
     };
     return Ok(HeldMount { mount_id, root: unescape_path(root), mount_point: unescape_path(mount_point) });
@@ -130,10 +130,10 @@ fn holder_fields(key: &'static str, value: &str) -> Result<NamespaceHolder, Hold
     }
     let mut held: Vec<HeldMount> = Vec::with_capacity(mounts.len() / 3);
     for triple in mounts.chunks(3) {
-        let [mount_id, root, mount_point] = triple else {
+        let [number, root, mount_point] = triple else {
             return Err(HolderScanRefusal::Value { key, shown: String::from(value) });
         };
-        let Ok(mount_id) = mount_id.parse::<u64>() else {
+        let Ok(mount_id) = number.parse::<u64>() else {
             return Err(HolderScanRefusal::Value { key, shown: String::from(value) });
         };
         held.push(HeldMount { mount_id, root: unescape_path(root), mount_point: unescape_path(mount_point) });
@@ -186,21 +186,21 @@ fn incomplete_of(value: &str) -> Result<IncompleteRead, HolderScanRefusal> {
             let [namespace, task, reason] = parts.as_slice() else {
                 return Err(incomplete_refusal(value));
             };
-            let (namespace, task, reason) = (unescape_text(namespace), unescape_path(task), String::from(*reason));
+            let (namespace_text, task_path, reason_text) = (unescape_text(namespace), unescape_path(task), String::from(*reason));
             if kind == TASK_ENDED_WORD {
-                return Ok(IncompleteRead::TaskEnded { namespace, task, reason });
+                return Ok(IncompleteRead::TaskEnded { namespace: namespace_text, task: task_path, reason: reason_text });
             }
-            return Ok(IncompleteRead::TableUnreadable { namespace, task, reason });
+            return Ok(IncompleteRead::TableUnreadable { namespace: namespace_text, task: task_path, reason: reason_text });
         }
         NO_LIVE_MEMBER_WORD => {
             let parts: Vec<&str> = rest.splitn(3, ' ').collect();
             let [namespace, tasks_tried, reason] = parts.as_slice() else {
                 return Err(incomplete_refusal(value));
             };
-            let Ok(tasks_tried) = tasks_tried.parse::<usize>() else {
+            let Ok(tried) = tasks_tried.parse::<usize>() else {
                 return Err(incomplete_refusal(value));
             };
-            Ok(IncompleteRead::NoLiveMember { namespace: unescape_text(namespace), tasks_tried, reason: String::from(*reason) })
+            Ok(IncompleteRead::NoLiveMember { namespace: unescape_text(namespace), tasks_tried: tried, reason: String::from(*reason) })
         }
         NAMESPACES_PAST_THE_BOUND_WORD => Ok(IncompleteRead::NamespacesPastTheBound { bound: decimal_count(INCOMPLETE_KEY, rest)? }),
         DETAILS_PAST_THE_BOUND_WORD => Ok(IncompleteRead::DetailsPastTheBound { bound: decimal_count(INCOMPLETE_KEY, rest)? }),

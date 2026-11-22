@@ -467,13 +467,13 @@ fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRef
         }
         index += 2;
     }
-    let Some(dataset) = dataset else {
+    let Some(given_dataset) = dataset else {
         return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
     };
-    let Some(checkout) = checkout else {
+    let Some(given_checkout) = checkout else {
         return Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION });
     };
-    return Ok(HolderScanInvocation { dataset, checkout });
+    return Ok(HolderScanInvocation { dataset: given_dataset, checkout: given_checkout });
 }
 
 /// What:

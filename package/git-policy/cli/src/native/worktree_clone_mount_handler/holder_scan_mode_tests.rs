@@ -205,6 +205,6 @@ fn a_dataset_that_cannot_be_read_or_named_is_refused() {
     assert!(refusal.contains("could not read the dataset"), "{refusal}");
     assert!(refusal.contains("Nothing was scanned"), "{refusal}");
     let zero: ScriptedPool = ScriptedPool::of(None, 0);
-    let refusal: String = run_with(&invocation(), &zero, Path::new("/proc"), Path::new("/proc/self")).expect_err("a zero GUID is refused");
-    assert!(refusal.contains("answered GUID 0"), "{refusal}");
+    let unnamed: String = run_with(&invocation(), &zero, Path::new("/proc"), Path::new("/proc/self")).expect_err("a zero GUID is refused");
+    assert!(unnamed.contains("answered GUID 0"), "{unnamed}");
 }
