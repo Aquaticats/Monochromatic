@@ -628,15 +628,6 @@ fn an_amend_of_a_replaced_commit_lands_with_gits_parents() {
     remove_settled(&fixture);
 }
 
-/// The settings a client can give one command and the service never sees,
-/// each with a value that moves what Git reads.
-const SETTINGS_A_SERVICE_CANNOT_SEE: [(&str, &str); 4] = [
-    ("GIT_REFERENCE_BACKEND", "files://refstore"),
-    ("GIT_REPLACE_REF_BASE", "refs/probe/"),
-    ("GIT_OBJECT_DIRECTORY", "emptystore"),
-    ("GIT_ALTERNATE_OBJECT_DIRECTORIES", "emptystore"),
-];
-
 /// The same settings as a *service* is given them,
 /// each with a value that moves what the service's Git reads.
 /// Why:
@@ -703,52 +694,16 @@ fn a_repository_a_setting_moves(fixture: &Fixture, repo: &Path, variable: &str, 
     git(fixture, repo, &["add", "--", "a.txt"]);
 }
 
-/// One real Git run in a fixture with `setting` given to it,
+/// One real Git run in a fixture with `held` given to it,
 /// bounded as every fixture Git run is.
-fn git_under_setting(fixture: &Fixture, repo: &Path, setting: (&str, &str), arguments: &[&str]) -> Output {
+fn git_holding(fixture: &Fixture, repo: &Path, held: &[(&str, &str)], arguments: &[&str]) -> Output {
     let bound: &str = super::support::NATIVE_GIT_BOUND_SECONDS;
     let mut command: Command = super::support::native_git_bound(fixture, bound);
-    command.env(setting.0, setting.1);
+    for (name, value) in held {
+        command.env(name, value);
+    }
     command.args(arguments);
     return super::support::native_git_output(fixture, &mut command, repo, bound);
-}
-
-/// What:
-///  A setting given to one client command and not to the service refuses the commit plainly,
-///  naming the variable,
-///  and changes nothing;
-///  Git given the same setting reads something else for the base,
-///  which is what the commit would have landed on.
-/// Why:
-///  The client and the resident service are separate processes and a request carries no environment,
-///  so the service would land the commit from its own environment:
-///  a replacement base,
-/// an object store or an alternate store named for one command is read by that command's
-///  Git and by nothing the landing asks.
-#[test]
-fn a_setting_only_the_client_sees_refuses_the_commit_plainly() {
-    for (variable, value) in SETTINGS_A_SERVICE_CANNOT_SEE {
-        let fixture: Fixture = fixture(format!("client-setting-{variable}").as_str());
-        let repo: PathBuf = fixture.root.join("repo");
-        a_repository_a_setting_moves(&fixture, repo.as_path(), variable, value);
-        let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-        // Positive control: the catalogues of the two reads differ, so the setting really moved what Git reads.
-        let under: Output = git_under_setting(&fixture, repo.as_path(), (variable, value), &["cat-file", "commit", base.as_str()]);
-        let plain: Output = git_under_setting(&fixture, repo.as_path(), A_SETTING_THAT_MOVES_NOTHING, &["cat-file", "commit", base.as_str()]);
-        assert_ne!(under.stdout, plain.stdout, "{variable}: the setting moves what Git reads for the base");
-        let service: FixtureService = start_fixture_service(&fixture);
-        service.serve(&fixture, repo.join(".git").as_path());
-        let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
-        command.env("XDG_RUNTIME_DIR", &service.runtime);
-        command.env(variable, value);
-        let served: Output = command.output().expect("the wrapped commit runs");
-        let said: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
-        assert_eq!(served.status.code(), Some(1), "{variable}: {said}");
-        assert!(said.contains(variable), "{variable}: the words name it: {said}");
-        assert!(said.contains("does not see it"), "{variable}: the words say why: {said}");
-        assert_eq!(query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), base, "{variable}: nothing changed");
-        remove_settled(&fixture);
-    }
 }
 
 /// What:
@@ -759,6 +714,11 @@ fn a_setting_only_the_client_sees_refuses_the_commit_plainly() {
 ///  so a replacement base it holds makes the amend stand on the parents Git reads,
 ///  and a store it names is what the landing asks;
 ///  a service that answered from its own reading while Git read elsewhere would be the wrong answer.
+///  The answer is kept right by two doors together: `history_is_plain` lists the variables, so the landing leaves the
+///  parents to Git, and the reader declines them, so a landing that read in process asks Git too.
+///  This control is therefore red only with both doors closed;
+///  `a_graft_file_the_service_names_lands_as_git_reads_it` and
+///  `a_ref_store_the_service_names_lands_as_git_reads_it` hold one door each.
 #[test]
 fn a_setting_only_the_service_sees_lands_as_git_reads_it() {
     for (variable, value) in SETTINGS_ONLY_A_SERVICE_SEES {
@@ -768,8 +728,8 @@ fn a_setting_only_the_service_sees_lands_as_git_reads_it() {
         let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
         // Git's own answers taken before the commit runs: whether the command could prepare this base at all, and what the
         // service's Git reads for it.
-        let plain_read: Output = git_under_setting(&fixture, repo.as_path(), A_SETTING_THAT_MOVES_NOTHING, &["cat-file", "commit", base.as_str()]);
-        let under_read: Output = git_under_setting(&fixture, repo.as_path(), (variable, value), &["cat-file", "commit", base.as_str()]);
+        let plain_read: Output = git_holding(&fixture, repo.as_path(), &[A_SETTING_THAT_MOVES_NOTHING], &["cat-file", "commit", base.as_str()]);
+        let under_read: Output = git_holding(&fixture, repo.as_path(), &[(variable, value)], &["cat-file", "commit", base.as_str()]);
         {
             let mut environment = fixture.service_environment.lock().expect("the service environment");
             environment.push((OsString::from(variable), OsString::from(value)));
@@ -780,7 +740,7 @@ fn a_setting_only_the_service_sees_lands_as_git_reads_it() {
         command.env("XDG_RUNTIME_DIR", &service.runtime);
         let served: Output = command.output().expect("the wrapped commit runs");
         let said: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
-        let under_head: Output = git_under_setting(&fixture, repo.as_path(), (variable, value), &["rev-parse", "HEAD"]);
+        let under_head: Output = git_holding(&fixture, repo.as_path(), &[(variable, value)], &["rev-parse", "HEAD"]);
         if plain_read.status.success() && under_read.status.success() && under_head.status.success() {
             assert!(served.status.success(), "{variable}: Git reads the base under the setting: {said}");
             let landed: String = String::from_utf8_lossy(under_head.stdout.as_slice()).trim().to_string();
@@ -807,4 +767,306 @@ fn a_setting_only_the_service_sees_lands_as_git_reads_it() {
         }
         remove_settled(&fixture);
     }
+}
+
+/// The paths one environment row works in.
+struct RowPaths {
+    /// The repository the row commits in.
+    repo: PathBuf,
+    /// Its object store.
+    objects: PathBuf,
+    /// The directory the row's alternate reads are given.
+    cache: PathBuf,
+}
+
+/// The paths of the row `fixture` and `repo` belong to.
+fn row_paths(fixture: &Fixture, repo: &Path) -> RowPaths {
+    return RowPaths { repo: repo.to_path_buf(), objects: repo.join(".git/objects"), cache: fixture.root.join("cache") };
+}
+
+/// Nothing held by the process this is asked of.
+fn nothing_held(_paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return Vec::new();
+}
+
+/// The repository's own object store, as Git reads it when told nothing.
+fn the_object_store_in_use(paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return vec![("GIT_OBJECT_DIRECTORY", paths.objects.display().to_string())];
+}
+
+/// The same store, spelled the way the worktree's own pathspecs would spell it.
+fn the_object_store_in_use_spelled_relatively(_paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return vec![("GIT_OBJECT_DIRECTORY", String::from(".git/objects"))];
+}
+
+/// An empty directory beside the repository, as a cache a CI job would name.
+fn an_empty_cache_directory(paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return vec![("GIT_ALTERNATE_OBJECT_DIRECTORIES", paths.cache.display().to_string())];
+}
+
+/// The repository's own store as an alternate, which adds no object at all.
+fn the_object_store_as_an_alternate(paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return vec![("GIT_ALTERNATE_OBJECT_DIRECTORIES", paths.objects.display().to_string())];
+}
+
+/// A base of replacement refs with nothing under it.
+fn a_replacement_base_with_nothing_under_it(_paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return vec![("GIT_REPLACE_REF_BASE", String::from("refs/probe/"))];
+}
+
+/// The reference store the repository already keeps, named for the command.
+fn the_ref_store_the_repository_already_keeps(_paths: &RowPaths) -> Vec<(&'static str, String)> {
+    return vec![("GIT_REFERENCE_BACKEND", String::from("reftable"))];
+}
+
+/// A row that changes nothing before the commit.
+fn nothing_to_prepare(_fixture: &Fixture, _paths: &RowPaths) {}
+
+/// Move every loose object of the base history into the row's cache directory,
+/// as a repository whose history only the alternate lets Git read.
+fn move_the_history_into_the_cache(_fixture: &Fixture, paths: &RowPaths) {
+    std::fs::create_dir_all(paths.cache.as_path()).expect("the cache directory");
+    for entry in std::fs::read_dir(paths.objects.as_path()).expect("the object store").flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let a_fan_out: bool = name.len() == 2 && name.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
+        if a_fan_out {
+            std::fs::rename(entry.path(), paths.cache.join(name.as_str())).expect("the move");
+        }
+    }
+}
+
+/// Put a replacement that stands on no parent under the base's name in the row's replacement base.
+fn put_a_parentless_replacement_under_the_base(fixture: &Fixture, paths: &RowPaths) {
+    let base: String = query(fixture, paths.repo.as_path(), &["rev-parse", "HEAD"]);
+    let tree: String = query(fixture, paths.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let replacement: String = query(fixture, paths.repo.as_path(), &["commit-tree", tree.as_str(), "-m", "replacement"]);
+    std::fs::create_dir_all(paths.repo.join(".git/refs/probe")).expect("the named base");
+    std::fs::write(paths.repo.join(".git/refs/probe").join(base.as_str()), format!("{replacement}\n")).expect("the replacement ref");
+}
+
+/// One row of the integration recheck's environment situations:
+/// what the command's own environment holds,
+/// what the service's holds,
+/// what the row does first,
+/// and whether its commit is an amend.
+struct AnEnvironmentRow {
+    /// What the row is called here.
+    name: &'static str,
+    /// Whether the repository keeps its references in reftable tables.
+    reftable: bool,
+    /// The variables the command's own environment is given.
+    command: fn(&RowPaths) -> Vec<(&'static str, String)>,
+    /// The variables the service's environment is given.
+    service: fn(&RowPaths) -> Vec<(&'static str, String)>,
+    /// What the row does to the repository before the commit.
+    prepare: fn(&Fixture, &RowPaths),
+    /// Whether the commit is an amend.
+    amend: bool,
+}
+
+/// The rows of the integration recheck's environment situations in which `main` lands the right commit,
+/// under the names it gives them (`r01` to `r32` of its `env-situations.ts`).
+/// Why:
+///  These are the rows the commit refusal this round added refused: a value that names what the repository already
+///  uses, an empty cache directory, a replacement base with nothing under it, a reftable store naming what it is,
+///  and an effective setting the service holds too.
+fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
+    return vec![
+        AnEnvironmentRow { name: "r01 the object store in use", reftable: false, command: the_object_store_in_use, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r02 the object store in use, held by the service too", reftable: false, command: the_object_store_in_use, service: the_object_store_in_use, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r03 the object store in use, spelled relatively", reftable: false, command: the_object_store_in_use_spelled_relatively, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r04 the object store in use, a reftable repository", reftable: true, command: the_object_store_in_use, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r10 an empty cache directory", reftable: false, command: an_empty_cache_directory, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r11 an empty cache directory, held by the service too", reftable: false, command: an_empty_cache_directory, service: an_empty_cache_directory, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r12 the object store as an alternate", reftable: false, command: the_object_store_as_an_alternate, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r13 the history in the alternate, held by the service too", reftable: false, command: an_empty_cache_directory, service: an_empty_cache_directory, prepare: move_the_history_into_the_cache, amend: false },
+        AnEnvironmentRow { name: "r14 a parentless replacement under the base, held by the service too", reftable: false, command: a_replacement_base_with_nothing_under_it, service: a_replacement_base_with_nothing_under_it, prepare: put_a_parentless_replacement_under_the_base, amend: true },
+        AnEnvironmentRow { name: "r21 a replacement base with nothing under it", reftable: false, command: a_replacement_base_with_nothing_under_it, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r22 a replacement base with nothing under it, held by the service too", reftable: false, command: a_replacement_base_with_nothing_under_it, service: a_replacement_base_with_nothing_under_it, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r31 a reftable store naming what it is", reftable: true, command: the_ref_store_the_repository_already_keeps, service: nothing_held, prepare: nothing_to_prepare, amend: false },
+        AnEnvironmentRow { name: "r32 a reftable store naming what it is, held by the service too", reftable: true, command: the_ref_store_the_repository_already_keeps, service: the_ref_store_the_repository_already_keeps, prepare: nothing_to_prepare, amend: false },
+    ];
+}
+
+/// What:
+///  Every row of the recheck's environment situations in which `main` lands the right commit still lands it,
+///  with the parents Git reads and a whole commit.
+/// Why:
+///  The commit refusal this round added refused these rows, and the merge bar is that a branch may not make anything
+///  `main` does well worse:
+///  a value that names what the repository already uses, an empty cache directory, a replacement base with nothing under
+///  it, a reftable store naming what it is, and an effective setting the service holds too are all cases `main` lands.
+///  Each row has a fixture and a commit service of its own.
+#[test]
+fn a_setting_the_command_or_the_service_holds_still_lands() {
+    for (index, row) in rows_of_the_recheck().into_iter().enumerate() {
+        let fixture: Fixture = fixture(format!("environment-row-{index}").as_str());
+        let repo: PathBuf = fixture.root.join("repo");
+        std::fs::create_dir(repo.as_path()).expect("repository directory");
+        let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
+        if row.reftable {
+            init.push("--ref-format=reftable");
+        }
+        git(&fixture, repo.as_path(), init.as_slice());
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=root"]);
+        std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+        let paths: RowPaths = row_paths(&fixture, repo.as_path());
+        std::fs::create_dir_all(paths.cache.as_path()).expect("the directory the row names");
+        (row.prepare)(&fixture, &paths);
+        let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        let held_by_the_command: Vec<(&'static str, String)> = (row.command)(&paths);
+        {
+            let mut environment = fixture.service_environment.lock().expect("the service environment");
+            for (name, value) in (row.service)(&paths) {
+                environment.push((OsString::from(name), OsString::from(value)));
+            }
+        }
+        let service: FixtureService = start_fixture_service(&fixture);
+        service.serve(&fixture, repo.join(".git").as_path());
+        std::fs::write(repo.join("a.txt"), "two\n").expect("edit");
+        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        let arguments: &[&str] = match row.amend {
+            true => &["commit", "--quiet", "--amend", "--message=amended", "--", "a.txt"],
+            false => &["commit", "--quiet", "--message=under test", "--", "a.txt"],
+        };
+        let mut command: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
+        command.env("XDG_RUNTIME_DIR", &service.runtime);
+        for (name, value) in &held_by_the_command {
+            command.env(name, value);
+        }
+        let served: Output = command.output().expect("the wrapped commit runs");
+        let said: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+        assert_eq!(served.status.code(), Some(0), "{}: this row lands on main: {said}", row.name);
+        // What Git reads for the commit under the same environment, and what the landing made of it.
+        let judging: Vec<(&str, &str)> = held_by_the_command.iter().map(|(name, value)| { return (*name, value.as_str()); }).collect();
+        let landed: String = text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["rev-parse", "HEAD"]));
+        assert_ne!(landed, base, "{}: the branch moved", row.name);
+        let expected: String = match row.amend {
+            true => landed.clone(),
+            false => format!("{landed} {base}"),
+        };
+        assert_eq!(
+            text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["rev-list", "--parents", "--max-count=1", landed.as_str()])),
+            expected,
+            "{}: the commit stands on the parents Git reads",
+            row.name
+        );
+        let whole: Output = git_holding(&fixture, repo.as_path(), judging.as_slice(), &["fsck", "--no-progress"]);
+        assert!(whole.status.success(), "{}: Git finds every object the commit names: {}", row.name, String::from_utf8_lossy(whole.stderr.as_slice()));
+        assert_eq!(
+            text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["status", "--porcelain"])),
+            "",
+            "{}: the worktree is clean",
+            row.name
+        );
+        remove_settled(&fixture);
+    }
+}
+
+/// The text of one Git answer, without its trailing line feed.
+fn text_of(output: Output) -> String {
+    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
+}
+
+/// What:
+///  A graft file the service names is what Git reads, and the amendment stands where Git reads it.
+/// Why:
+///  This is the landing's first door for a history Git may show differently: `history_is_plain` lists
+///  `GIT_GRAFT_FILE`, so the parents are left to Git.
+///  The repository's own `info/grafts` is empty here, so the reader opens and the second door does not apply:
+///  this control is red with `GIT_GRAFT_FILE` taken out of that list and nothing else.
+#[test]
+fn a_graft_file_the_service_names_lands_as_git_reads_it() {
+    let fixture: Fixture = fixture("service-graft-file");
+    let repo: PathBuf = fixture.root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(&fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=root"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    // A graft file beside the repository, not the repository's own `info/grafts`: Git reads the base as standing on no parent.
+    let graft: PathBuf = fixture.root.join("grafts");
+    std::fs::write(graft.as_path(), format!("{base}\n")).expect("the graft file");
+    let named: &str = graft.to_str().expect("a text path");
+    let held: &[(&str, &str)] = &[("GIT_GRAFT_FILE", named)];
+    assert_eq!(
+        text_of(git_holding(&fixture, repo.as_path(), held, &["rev-list", "--parents", "--max-count=1", base.as_str()])),
+        base,
+        "the positive control: Git reads the graft file, and the base stands on no parent"
+    );
+    {
+        let mut environment = fixture.service_environment.lock().expect("the service environment");
+        environment.push((OsString::from("GIT_GRAFT_FILE"), OsString::from(named)));
+    }
+    let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
+    std::fs::write(repo.join("a.txt"), "two\n").expect("edit");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--amend", "--message=amended", "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", &service.runtime);
+    let served: Output = command.output().expect("the wrapped commit runs");
+    let said: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    assert!(served.status.success(), "the amendment lands: {said}");
+    let landed: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    assert_ne!(landed, base, "the branch moved to the amended commit");
+    assert_eq!(
+        query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]),
+        landed,
+        "the amended commit stands on the parents Git reads under the graft file, which are none"
+    );
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A reftable store keeps the amendment on the parents Git reads,
+///  with no variable of the landing's history list set anywhere.
+/// Why:
+///  This is the landing's second door alone: the reader declines a store whose replace refs are in tables,
+///  so the base's parents are asked of Git, and the fixture closes the first door by setting nothing that
+///  `history_is_plain` lists.
+///  This control is red with the `reftable` folder taken out of the reader's decline and nothing else.
+#[test]
+fn a_reftable_store_keeps_the_amendment_on_the_parents_git_reads() {
+    let fixture: Fixture = fixture("service-reftable-store");
+    let repo: PathBuf = fixture.root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(&fixture, repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=root"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let tree: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let replacement: String = query(&fixture, repo.as_path(), &["commit-tree", tree.as_str(), "-m", "replacement"]);
+    // A replacement that stands on no parent, in the tables of the reftable store.
+    git(&fixture, repo.as_path(), &["replace", base.as_str(), replacement.as_str()]);
+    assert_eq!(
+        query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", base.as_str()]),
+        base,
+        "the positive control: Git reads the store's replacement, which stands on no parent"
+    );
+    let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
+    std::fs::write(repo.join("a.txt"), "two\n").expect("edit");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--amend", "--message=amended", "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", &service.runtime);
+    let served: Output = command.output().expect("the wrapped commit runs");
+    let said: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
+    assert!(served.status.success(), "the amendment lands: {said}");
+    let landed: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    assert_ne!(landed, base, "the branch moved to the amended commit");
+    assert_eq!(
+        query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]),
+        landed,
+        "the amended commit stands on the parents Git reads under the reftable store, which are none"
+    );
+    remove_settled(&fixture);
 }

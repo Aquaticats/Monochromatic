@@ -44,7 +44,7 @@ use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
 use crate::global_arguments::without_directory_changes;
 use crate::wrapper_controls::Controls;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -243,10 +243,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     if let Some(ending) = refuse_a_form_git_refuses(command) {
         return ending;
     }
-    // A setting only this command's own Git reads is refused here too, for the same reason and before anything is prepared.
-    if let Some(ending) = refuse_a_setting_the_service_cannot_see(command.environment) {
-        return ending;
-    }
     let mut timing: CommitTiming = CommitTiming::start();
     let ending: CommitEnding = run_timed(command, checks, &mut timing);
     // One append to the repository's timing file once everything the person sees is written; the terminal never shows it.
@@ -258,60 +254,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
         let _ended = crate::forwarding::end_as_git_ended(signal);
     }
     return ending;
-}
-
-/// The variables that move an object read for the command that sets them,
-/// and never for the resident service:
-/// it is another process and lands from its own environment,
-/// as does every Git it starts.
-const SETTINGS_ONLY_THIS_COMMAND_SEES: [&str; 4] = ["GIT_REFERENCE_BACKEND", "GIT_REPLACE_REF_BASE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
-
-/// What:
-///  The setting of `SETTINGS_ONLY_THIS_COMMAND_SEES` this environment gives a value that moves a read,
-///  or nothing when it gives none.
-/// Why:
-///  A value that changes nothing leaves the commit alone:
-///  `files` is the store this repository already keeps and `refs/replace/` the base already read,
-///  and an empty value names neither a store nor a base.
-fn setting_the_service_cannot_see(environment: &[(OsString, OsString)]) -> Option<&'static str> {
-    for name in SETTINGS_ONLY_THIS_COMMAND_SEES {
-        let Some((_key, value)) = environment.iter().find(|(key, _value)| { return key.as_os_str() == OsStr::new(name); }) else { continue };
-        let changes_nothing: bool = match name {
-            "GIT_REFERENCE_BACKEND" => value.as_os_str() == OsStr::new("files"),
-            "GIT_REPLACE_REF_BASE" => value.as_os_str() == OsStr::new("refs/replace/"),
-            _ => value.is_empty(),
-        };
-        if !changes_nothing {
-            return Some(name);
-        }
-    }
-    return None;
-}
-
-/// What:
-///  Refuse a commit whose own environment names another ref store,
-/// another object store or another replacement base,
-///  naming the variable,
-///  before anything is prepared or sent.
-/// Why:
-///  The client command and the resident service are separate processes,
-///  and a request carries no environment:
-///  the service lands the commit from its own environment,
-///  so the replacement base or the store named here is read by this command's Git and by nothing the landing asks.
-///  The commit would then land as if the setting were absent while Git reads something else,
-///  which is the wrong answer this round declines the in-process reader for elsewhere.
-///  A person who set the variable for one command is told plainly and nothing changes,
-///  and the service started with the variable already reads it,
-/// because its own Git children inherit it.
-fn refuse_a_setting_the_service_cannot_see(environment: &[(OsString, OsString)]) -> Option<CommitEnding> {
-    let variable: &str = setting_the_service_cannot_see(environment)?;
-    write_stderr(
-        format!(
-            "monochromatic-git-policy-cli: {variable} is set for this command, and the commit service that lands the commit does not see it: the commit would land as if it were unset while this command's own Git reads what it names. Unset {variable} for this command and commit again, or set it where the commit service runs. Nothing in the repository changed.\n"
-        )
-        .as_str(),
-    );
-    return Some(CommitEnding { code: 1, signal: None });
 }
 
 /// What:
