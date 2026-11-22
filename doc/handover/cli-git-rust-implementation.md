@@ -42319,7 +42319,41 @@ stated in this entry. What follows from them, as work:
   reviewer, reading the binding record at `428040d45d` for the points where the three meet, asked for three verdicts (each
   design, and whether the three record designs now agree and can go to the owner together), the stale sibling statements
   per document, and one merged set of questions; to `review-second-pass.md` beside the first review in
-  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`. Step 7's
+  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`. THE PROPAGATION DESIGN'S SECOND GATE PASS IS
+  BACK, "fit after the listed fixes, not as it stands" (`review-second-pass.md` beside its first review): every earlier
+  finding answered. One new high: the unit its first-ranked option installs names neither `Type=oneshot` nor
+  `RemainAfterExit=yes`, and a unit something `Upholds=` is started again after any exit, so it would restart itself
+  without end, throttled and never stopped; it also runs `boot-reconcile` directly, which at boot refuses for a missing
+  probe record. Mediums: starting a mount unit systemd learned only from the mount table fails ("No mount parameters to
+  operate on"), so the document's `systemctl restart` of the checkout's mount unit would unmount the checkout and not
+  remount it; the headline answer is stale; `doctor` compares a mount number the kernel hands out again; the repair
+  options are put as alternatives though they combine; and this design and the lost-event design "still describe two
+  mechanisms, not one" (two ways to reach `boot-reconcile`, two root commands, two orders, two filter questions). The
+  reviewer would put three of its four questions now and hold the trigger question for the guest measurement. GOING:
+  `pi-zfs-private-propagation-after-replacement-mount-design-second-pass-findings`, on
+  `continuation-second-pass-findings.md` in its folder, told to make the `Upholds=` unit one more trigger that asks the
+  boot unit as the lost-event design's hook does (if systemd's source bears the reviewer's suggestion out), to print that
+  design's root command, and to read that design last; after it a diff check against `5e6a2ff9dc`. ISSUE 6346'S ROUND ENDED
+  `idle` at `bf3bc322c4` on `fix/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` (report
+  `~/temp/agent/commit-timing-control-stopped-build-failed-in-two-gates-2026-11-22/keep/report-from-summary.md`). Its
+  account: the timing record was right and the control's window was wrong. A step's `offsetMs` counts from the command's
+  start and the route precedes the preparation, so the build begins at `routeMs + prepareMs`; the control read its window
+  from `prepareMs`, so Git steps of the preparation's last `routeMs` milliseconds were counted inside the build though
+  `prepareParts` already states them. The second failure's record fits to the millisecond (a 48 ms double count, 29 ms of
+  the build in no part, the fixed 12 ms allowance, the printed 7 ms excess). Reproduced by sleeps in the stand-in Git; the
+  window corrected, the allowance derived from the count of figures summed, a control holding the gate's own record, the
+  window stated in `SPEC.md`, cause K rewritten. Its gate: 9878 of 9880, the cause-H pair. GOING: its integration pass on
+  Sonnet, told to plant each of the four product defects the assertion exists to catch and show the changed controls
+  still go red, and to weigh the larger allowance; review to
+  `~/temp/agent/integration-pass-commit-timing-control-window-2026-11-22/keep/review.md`, integration branch
+  `integrate/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates`. THE DIRTY-MAIN RESTORE DESIGN'S FIX
+  ROUND ENDED `idle` (71 turns) at `c342dd1a06` (report in its folder's `keep/report-gate-findings.md`): every finding
+  fixed, none refuted. No index field is taken from a file any more; the index waits under a private name and the copied
+  `.git`, the real-name index and the pointer are published only at the last step; the proof digests the paths a coarse
+  change time cannot vouch for; the refusals are re-run against the frozen capture; after the mount the add refuses with
+  the pending state until the owner answers. Four questions (what the add may do when a mounted clone's proof refuses,
+  whether rung 1 may decline a very dirty source, which writes the proof must refuse, what the slot looks like while it is
+  filled) and eight veto entries. GOING: its second, short gate pass by the same reviewer. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
