@@ -41538,7 +41538,12 @@ stated in this entry. What follows from them, as work:
   small dirty tree 1.30 under A and 1.04 under B); options unbundled A, B, E (size rule alone), F (changed-path bound), C, D,
   ranked B > F > A > E > D > C, B's threshold and F's cut unpinned; a new control red when the second staged-path listing is
   ignored; classes 29 of 29, sample 300 of 300; five of the re-check's six re-plants owed before any merge. GOING: the
-  re-check's recheck on Sonnet; then the owner. Step 7's
+  re-check's recheck on Sonnet; then the owner. STEP 7'S CLOSURE LOWS' CHECK said fit (the three controls red with their
+  guards removed: missing folder, both leftovers named, 4,831 reads in 200 ms without the sleep; no non-test code beyond the
+  claim). MERGED as `248115ecab` at 2026-11-21T21:31:11-05:00. Lows carried in that review: plan step 8's paragraph wording
+  ("all before any sweep" when the reconciliation is the sweep; no design heading cited; no dated amendment note; the owner
+  may veto the assignment of `boot-reconcile` to step 8), an overstating comment in `claim`, a third copy of the directory
+  maker, the sleep control under a severe stall. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
