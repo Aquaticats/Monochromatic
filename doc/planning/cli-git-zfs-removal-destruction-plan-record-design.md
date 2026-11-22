@@ -988,7 +988,7 @@ which costs nothing a person cannot see;
 no release ships the placeholder (L5).
 The alternative shape,
 a plan split across several records,
-is Choice 3.
+is Choice 11.
 
 The bound costs what a clone costs,
 not what a wait costs:
@@ -1721,7 +1721,7 @@ never copied:
   lines 1626 to 1627),
   and the decided rule forbids updating it.
   A copy taken at removal time would be a second recording of an add-time fact,
-  and two recordings can disagree with nothing to decide between them.
+  and two recordings can disagree with nothing to decide between them (Choice 7).
 - the origin cleanup record that carries the origin after the clone's destruction,
   whose home,
   fields and end are the sibling design's.
