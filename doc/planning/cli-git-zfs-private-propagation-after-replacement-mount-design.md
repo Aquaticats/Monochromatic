@@ -1907,16 +1907,16 @@ in this order:
   It is kept to find the table's row and to print what an operator's own tools show,
   and it is never the proof of an instance:
   the kernel hands it out again from the lowest free number once the mount is freed (F37).
-- `before` and `after` are a propagation set:
-  one or more of `shared`,
+- `before` and `after` are a propagation set,
+  in the combinations the kernel can produce:
+  `private` for an empty set,
+  `shared`,
   `slave`,
   `unbindable`,
-  joined by `+`,
-  or the word
-  `private` for an empty set,
-  which is how the kernel reports it (F30).
-  A shared and slave mount is therefore `shared+slave`,
-  and the word set is not four words but those combinations.
+  and `shared+slave`,
+  which is how the kernel reports the bits (F30).
+  `unbindable` never joins another word,
+  because setting it clears the peer group and the master (`fs/pnode.c:93` to `:124`).
 - `outcome` is one of `applied`,
   `already-private` or `refused`.
 - `step` is `none` on a success,
@@ -2536,6 +2536,13 @@ read from source and not measured (L2):
   The request collapses to a start when that unit is not active and to a reload when it is (F39),
   and a start merges into the queued job,
   so the boot unit runs once (F39).
+- A boot unit that is not active.
+  The request is a start (F39),
+  a failed unit starts normally (F39),
+  and only a unit that is deactivating refuses it,
+  with `-EAGAIN`,
+  which fails this service and is retried under the limits F23 states (F39,
+  F23).
 - A reload while the boot unit is active.
   It runs the unit's `ExecReload=` (F39),
   which is the line this design and the sibling design share.
