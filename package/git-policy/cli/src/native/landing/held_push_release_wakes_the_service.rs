@@ -89,7 +89,7 @@ pub struct AskTheService<'a> {
 ///  The settings a command reaches a route's service with.
 /// Why:
 ///  The wake and the forget reach the same service the same way,
-///  so one builder keeps the bounds and the watches one,
+///  so one builder keeps their bounds and watches the same,
 ///  and the forget's own order is read without a second copy of them.
 fn client_config(route: &Route) -> ClientConfig {
     return ClientConfig {
