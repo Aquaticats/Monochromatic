@@ -41697,7 +41697,15 @@ stated in this entry. What follows from them, as work:
   held in every probed case. THE OWNER ANSWERED at 2026-11-22T00:40:29-05:00 "B: start before the check" and "Yes, record
   the cost" (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`, section "The overlap, answered 2026-11-22").
   GOING: `pi-fence-size-read-beside-source-check-build` (brief under
-  `~/temp/agent/fence-size-read-beside-source-check-build-2026-11-22/`). Step 7's
+  `~/temp/agent/fence-size-read-beside-source-check-build-2026-11-22/`). THE REFTABLE FIX'S INTEGRATION PASS said not fit:
+  the amend repair works, but a declined reader does not make every caller ask Git, so on every reftable repository a commit
+  Git builds loses its reflog subject (`commit_content` falls back to an empty message and no parents) and a pruned-content
+  landing gives the general failure and leaves `fast_import_crash_<pid>` (`batch_content_missing` answers false); both
+  already happen on `main` for a files repository holding a replace ref. `extensions.refStorage=reftable://<path>` still
+  evades the refusal (not worse than `main`). The issue body's claim about the clean check and the ladder target was wrong
+  (`head_commit` refuses first); corrected on issue 6340. Integration branch at `24e1776e63` with a corrective commit
+  comment. GOING: `pi-object-database-declined-reader-callers` in `.claude/worktrees/object-database-reftable-declined-reader`
+  (brief under `~/temp/agent/object-database-declined-reader-callers-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
