@@ -18,7 +18,9 @@ the accepted staging design `doc/planning/cli-git-zfs-staging-under-cache-design
 the conversion fence `doc/planning/cli-git-clone-rung-conversion-fence.md`,
 the two dirty-source decisions for the other rungs,
 the btrfs design `doc/planning/cli-git-btrfs-worktree.md`,
-`package/git-policy/cli/doc/` for the records it keeps about the wrapper's own costs and its object database,
+`package/git-policy/cli/doc/slot-identity-store-write-cost.md`,
+and `package/git-policy/cli/doc/object-database-and-a-reftable-ref-store.md` from that package's own doc folder,
+which bear on a record's publication and on a read of an object database and not on this item,
 the measurement record `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
 `package/git-policy/cli/SPEC.md`,
 and the code under `package/git-policy/cli/src/native/` that the btrfs rung's restore and the clone rung's fence are built from.
@@ -1710,7 +1712,8 @@ read at `5dd8883a60`:
 `worktree_clean.rs`,
 `worktree_clean_stat_verdicts.rs`,
 `worktree_clone_conversion_fence.rs`,
-`subvolume/subvolume_index_files.rs`.
+`subvolume/subvolume_index_files.rs`;
+and `package/git-policy/cli/doc/slot-identity-store-write-cost.md` and `package/git-policy/cli/doc/object-database-and-a-reftable-ref-store.md`.
 
 ## Links
 
