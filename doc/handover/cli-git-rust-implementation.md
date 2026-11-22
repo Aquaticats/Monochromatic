@@ -41522,7 +41522,17 @@ stated in this entry. What follows from them, as work:
   cleanup and the poll sleep held by controls that fail without them, 3,981 reads in 200 ms without the sleep; the readiness
   sentence and `boot-reconcile` given to plan step 8; gate 9736 of 9738). It printed `PATH` through a filter, against the
   rule (no secret). GOING: the step 7 reviewer's narrow check. `~/temp/agent` measures 12,907 MiB (fence reader design
-  4,536, partial clone 2,239, the BTF reader validation 970). Step 7's
+  4,536, partial clone 2,239, the BTF reader validation 970). THE PER-SLOT STORE'S INTEGRATION PASS said not fit: the merge
+  with `main` conflicts with step 7 (step 7 moved `slot_name_refusal` into `slot_name.rs`; the branch keeps its own copy
+  that three new files import; three `mod.rs` hunks), so nothing merged was built; the tip itself is as accepted (four
+  plants red, guest arms 22 and 23 green, gate on the tip 9636 of 9638); mediums: an unnamed 65,536-entry listing cap, the
+  setup-run writer comparing after it links, the rename fallback's loser arm with no failing control; the `commit_timing`
+  one-off to be recorded as its own incident. The reviewer left its integration worktree mid-merge (the wrapper refused
+  `merge --abort` over its own staged resolution): the coordinator aborted it with `--no-enforce-worktree` after confirming
+  the staged content was the pushed feature branch's and the conflict was saved in that review's `keep/`, then removed the
+  worktree and the `integrate/...` branch locally and on `origin` (it equalled an older `main`). GOING:
+  `pi-zfs-slot-identity-store-integration-findings-fixed` in the build worktree (brief under
+  `~/temp/agent/zfs-slot-identity-store-integration-findings-fixed-2026-11-21/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
