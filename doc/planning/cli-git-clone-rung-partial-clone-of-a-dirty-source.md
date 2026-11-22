@@ -350,6 +350,19 @@ and the six controls this build owed pass in it:
 `btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds`,
 each taking 3 to 6 seconds,
 which is a rung reached rather than a control that stopped at Git's own checkout.
+The same six on `28d06e70b7`,
+the commit before the fix,
+ran in a second guest of the same shape:
+6 tests run,
+0 passed,
+6 failed.
+Two stop at the helper's own `the source is eligible`,
+reading `Person` where they need `WithoutCheckout(2)`;
+two read `GitStatus { code: Some(0) }` where they need the fallback's failure;
+and two stop before the record they examine exists
+(`claims: Os { code: 2, kind: NotFound }` and `read-only records: Os { code: 2, kind: NotFound }`),
+because a ladder that chose Git's own checkout writes none
+(`~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/keep/red-suite.log`).
 
 The 18 that fail on both arms,
 by what their messages show:
