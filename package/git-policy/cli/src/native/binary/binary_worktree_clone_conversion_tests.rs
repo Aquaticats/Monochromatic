@@ -25,6 +25,14 @@
 use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, porcelain, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
 use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
 use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
+
+/// The most tracked paths a body built on `conversion_fixture` holds, its own four and the anchor included.
+///
+/// Why:
+///  The anchor is one path of the fixture, and a derived body adds its own (`older_target_fixture` adds 42),
+///  so an anchor sized for the base alone would leave the derived body's mean under the clone rung's edge and the
+///  control would test Git's checkout instead of the class it names.
+const PATHS_A_CONVERSION_FIXTURE_GROWS_TO: u64 = 64;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -48,7 +56,9 @@ fn conversion_fixture(fixture: &Fixture, name: &str, attributes: &[u8], notes: &
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     // The anchor sits above the clone rung's mean-file edge on purpose: without it this clean source averages a few
     // dozen bytes a file, the size limit declines it, and the conversion class these controls are about is never reached.
-    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", 4);
+    // It is sized for the largest body built on this one, so a derived fixture's own paths cannot pull the mean under
+    // the edge (`older_target_fixture` adds 42).
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", PATHS_A_CONVERSION_FIXTURE_GROWS_TO);
     tracked(repo.as_path(), "dir/file.txt", b"line one\nline two\n");
     tracked(repo.as_path(), "notes.txt", notes);
     tracked(repo.as_path(), "tool.sh", b"#!/bin/sh\necho hi\n");
@@ -357,12 +367,14 @@ fn decline_fixture(fixture: &Fixture, name: &str, converting: usize, other: usiz
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     // Above the clone rung's mean-file edge on purpose: this clean source of tiny files would otherwise be declined by
     // its size before the decline share these controls are about is asked, and the served arms would fall to Git.
-    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", (converting + other + 1) as u64);
+    // The anchor is one of the `other` paths, because the controls compute `other` from the tracked count the share is
+    // taken of: a path added beside them would move the share by one and turn a declining fixture into a serving one.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", (converting + other) as u64);
     tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
     for index in 0..converting {
         tracked(repo.as_path(), format!("convert-{index}.txt").as_str(), b"line one\nline two\n");
     }
-    for index in 0..other {
+    for index in 0..other.saturating_sub(1) {
         tracked(repo.as_path(), format!("plain-{index}.dat").as_str(), b"line one\nline two\n");
     }
     commit_all(fixture, repo.as_path(), "fixture");
