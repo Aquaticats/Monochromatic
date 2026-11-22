@@ -545,6 +545,10 @@ pub mod service_built_checks;
 /// How a commit headed for the service notices that its prepared content was removed before it landed.
 pub mod service_pruned;
 
+/// The object questions a declined in-process reader leaves to Git:
+/// a commit's own bytes and whether the objects a request names are gone.
+pub mod service_object_questions_left_to_git;
+
 /// Where the landing's own syncs wait:
 /// queued for a background thread when the landing publishes,
 /// made before return otherwise.

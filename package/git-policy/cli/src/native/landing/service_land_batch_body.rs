@@ -110,7 +110,7 @@ pub(crate) fn land_batch_body(
         //  store cannot say (the same rule as for the commit Git built).
         let parents_began: Instant = Instant::now();
         let amended_parents: Vec<String> = if alone && !unborn && first.amend {
-            let replaced_commit: Option<BuiltCommit> = if settings.plain_history { read_commit(first.common_dir.as_path(), first.base.as_str()) } else { None };
+            let replaced_commit: Option<BuiltCommit> = if settings.plain_history { read_commit(&git, repository, first.common_dir.as_path(), first.base.as_str()) } else { None };
             match replaced_commit {
                 Some(replaced) => replaced.parents,
                 None => {
@@ -153,7 +153,7 @@ pub(crate) fn land_batch_body(
         // Content that `git gc --prune=now` removed after the preparation is found before anything is imported or moved: the
         //  client prepares the commit again, and says so plainly when that is not enough.
         let content_began: Instant = Instant::now();
-        let missing: bool = batch_content_missing(first.common_dir.as_path(), batch.as_slice());
+        let missing: bool = batch_content_missing(&git, repository, first.common_dir.as_path(), batch.as_slice());
         timing.reads_split.content += content_began.elapsed();
         if missing {
             return Err(FailureCode::Unavailable);
