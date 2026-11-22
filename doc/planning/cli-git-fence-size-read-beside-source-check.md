@@ -192,7 +192,11 @@ The variable is honoured from the May 2024 maintenance releases
 `v2.45.1`,
 the commit `7b70e9efb`,
 the fix for CVE-2024-32465)
-and by Ubuntu 24.04's `2.43.0-1ubuntu7.3`.
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`
+(the recheck measured `7.3`,
+and the re-time's guest's `7.4` answers the same way:
+exit 128 with "lazy fetching disabled",
+and the counts unchanged).
 Probed with Git 2.56.1 on this host,
 `git ls-tree -r -l -z HEAD` under the variable exits 0 with the same output size,
 prints `BAD` in the size column of a blob the clone does not hold,
