@@ -116,6 +116,19 @@ pub struct GitRequest {
     /// type GitRequest = { ...; besideAnotherStep?: boolean };
     /// ```
     pub beside_another_step: bool,
+    /// Whether this Git child must end when the thread that started it ends,
+    ///  which is the thread that ends with this process.
+    /// Why:
+    ///  A read the ladder leaves unjoined when the add ends has no owner left to wait for it.
+    ///  Its child must not outlive the command that started it, so the kernel is asked to end it
+    ///  (`PR_SET_PDEATHSIG`), and that is what the early size read sets here.
+    ///  A run of the command's own turn keeps the default, because no such run outlives its caller.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type GitRequest = { ...; endWithTheStartingThread?: boolean };
+    /// ```
+    pub end_with_the_starting_thread: bool,
 }
 
 /// Builder methods for one request.
@@ -155,6 +168,22 @@ impl GitRequest {
     /// ```
     pub fn beside_another_step(mut self) -> Self {
         self.beside_another_step = true;
+        return self;
+    }
+
+    /// What:
+    ///  This request's Git child ends when the thread that starts it ends.
+    /// Why:
+    ///  See the field's own doc;
+    ///  the ladder's early size read is the only such run today,
+    ///  and an add that leaves it unjoined must leave no child behind.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.endsWithTheStartingThread()
+    /// ```
+    pub fn ends_with_the_starting_thread(mut self) -> Self {
+        self.end_with_the_starting_thread = true;
         return self;
     }
 

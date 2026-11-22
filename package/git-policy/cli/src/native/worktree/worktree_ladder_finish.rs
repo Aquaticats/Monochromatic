@@ -505,12 +505,13 @@ impl Ladder {
         //  after Git's own run,
         //  when the fence never took it.
         // Why:
-        //  An add the check refused or the fence declined pays that read in the background
+        //  An add the check refused or the fence declined may pay that read in the background
         //  (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`, "The overlap, answered 2026-11-22"),
-        //  so the add's own record states what it paid;
+        //  so the add's own record states it when it has already answered, as work,
+        //  and as started and not joined when it has not;
         //  a read the fence used has nothing left.
-        // The wait is bounded by the read's own step ceiling,
-        //  and Git's checkout usually outlasts the read, so a refused add does not wait.
+        // The settle never waits: a read longer than this add's own Git run must not make the add slower than on `main`,
+        //  and the read's thread and child end with this process (`GitRequest::ends_with_the_starting_thread`).
         //
         // In TS you'd write (pseudocode):
         // ```ts

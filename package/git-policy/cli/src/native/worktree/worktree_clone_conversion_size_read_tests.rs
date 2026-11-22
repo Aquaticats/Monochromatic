@@ -406,8 +406,13 @@ fn the_read_beside_the_check_leaves_another_steps_note_alone() {
 fn the_early_read_runs_without_lazy_fetch_and_outside_the_note() {
     let request: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD");
     assert!(request.beside_another_step, "the read leaves the failed-step note alone");
+    assert!(request.end_with_the_starting_thread, "the read's child ends with the thread that starts it");
     assert!(request.environment.contains(&(OsString::from("GIT_NO_LAZY_FETCH"), OsString::from("1"))), "{:?}", request.environment);
-    assert_eq!(request.arguments, vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")]);
+    assert_eq!(
+        request.arguments,
+        vec![OsString::from("--no-lazy-fetch"), OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")],
+        "Git before 2.45.0 refuses the option and reads nothing, where it would ignore the variable"
+    );
 }
 
 /// The sizes both reads answer are the same map for the same commit.
@@ -437,21 +442,78 @@ fn no_process_wide_slot_holds_the_read_beside_the_check() {
     assert!(ladder.contains("pub(crate) sizes_beside: Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>"), "the add owns its read");
 }
 
-/// An add that never reaches the fence states the read's cost and writes nothing.
+/// What:
+///  The record a settle writes for a read with a chosen answer.
+/// Why:
+///   The two answers a settle can get are facts about the add,
+///  and a hand-made receiver states each one without a running Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settledRecord = (answer?: [number, Result]) => { const started = makeRead(answer); beginTiming(); started.settle(); finishTiming(0); return record(); };
+/// ```
+fn settle_with(answer: Option<ReadAnswer>) -> String {
+    let root: PathBuf = fixture(if answer.is_some() { "settle-answered" } else { "settle-running" });
+    let repo: PathBuf = a_clean_source(root.as_path(), "settle");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    if let Some((spent, outcome)) = answer {
+        sender.send((spent, outcome)).expect("the receiver is held");
+    }
+    let read: SizeReadBesideTheCheck = SizeReadBesideTheCheck { commit: String::from("the commit"), answer: receiver };
+    begin_timing(repo.join(".git"), true);
+    read.settle();
+    finish_timing(0);
+    let record: String = the_record(repo.as_path());
+    drop(sender);
+    remove(root.as_path());
+    return record;
+}
+
+/// A read that has already answered is stated as the work it cost,
+/// with no wait of the adding thread.
 #[test]
-fn an_add_that_never_reaches_the_fence_states_the_reads_cost() {
+fn a_read_that_already_answered_is_stated_as_work() {
+    let record: String = settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
+    assert!(the_record_states(record.as_str(), WORK), "the read's own cost is the record's work: {record}");
+    assert!(record.contains("\"calls\":1"), "the work is one entry: {record}");
+    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the settle entered no wait: {record}");
+}
+
+/// A read that has not answered is stated as started and not joined,
+/// and the add ends without waiting for it.
+#[test]
+fn a_read_that_has_not_answered_is_started_and_not_joined() {
+    let began = std::time::Instant::now();
+    let record: String = settle_with(None);
+    let elapsed: Duration = began.elapsed();
+    assert!(elapsed < Duration::from_secs(2), "the settle never waits for the read: {elapsed:?}");
+    assert!(record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""), "the record states the read was started and not joined: {record}");
+    assert!(!the_record_states(record.as_str(), WORK), "a read still running has no cost to state: {record}");
+    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the settle entered no wait: {record}");
+}
+
+/// An add that never reaches the fence states the read it holds as started and not joined,
+/// and ends without waiting for it.
+#[test]
+fn an_add_that_never_reaches_the_fence_does_not_wait_for_the_read() {
     let root: PathBuf = fixture("settled-only");
     let repo: PathBuf = a_clean_source(root.as_path(), "settled-only");
     let destination: PathBuf = root.join("topic");
     let started: SizeReadBesideTheCheck = start_beside_the_check(&git_context(), &main_identity(repo.as_path())).expect("a read starts");
+    let hold = a_control_holds_the_read();
     begin_timing(repo.join(".git"), true);
     let ladder: Ladder = Ladder { plan: None, rung: Rung::Git(None), slow: None, sizes_beside: Some(started) };
     let mut runner = no_runner();
+    let began = std::time::Instant::now();
     let result = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    let elapsed: Duration = began.elapsed();
     finish_timing(0);
+    drop(hold);
     assert_eq!(result.git, GitStatus { code: Some(0) });
+    assert!(elapsed < Duration::from_secs(2), "a held read does not hold the add: {elapsed:?}");
     let record: String = the_record(repo.as_path());
-    assert!(the_record_states(record.as_str(), "fenceSizesBesideTheCheck"), "the cost the add paid is stated: {record}");
+    assert!(record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""), "the add states the read it did not join: {record}");
+    assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the add entered no wait: {record}");
     assert!(!destination.exists(), "the read writes nothing where the worktree goes");
     remove(root.as_path());
 }
@@ -523,5 +585,244 @@ fn a_read_beside_the_check_writes_nothing_into_a_sparse_partial_clone_the_check_
     let before_the_serial_read: (usize, usize) = missing_and_packs(fetched.as_path());
     let _serial: BlobSizes = blob_sizes(&context, fetched.as_path(), the_head_commit(fetched.as_path()).as_str()).expect("the serial read");
     assert_ne!(missing_and_packs(fetched.as_path()), before_the_serial_read, "the serial read fetches, so the pair can move");
+    remove(root.as_path());
+}
+
+/// What:
+///  Whether the process `pid` still exists.
+/// Why:
+///   A child that ended is a fact the kernel answers without a signal reaching anyone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+/// ```
+fn alive(pid: i32) -> bool {
+    return unsafe { libc::kill(pid, 0) } == 0;
+}
+
+/// The fake Git program of the child control:
+/// an `ls-tree` run writes its own process id and then sleeps out any add,
+/// and every other command is the fixture's real Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const script = `#!/bin/sh\nfor arg in "$@"; do if [ "$arg" = ls-tree ]; then printf '%s' "$$" > '${marker}'; exec sleep 30; fi; done\nexec /usr/bin/git "$@"\n`;
+/// ```
+fn a_git_whose_size_read_holds(wrote: &Path) -> String {
+    return format!(
+        "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"ls-tree\" ]; then\n    printf '%s' \"$$\" > '{}'\n    exec sleep 30\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        wrote.display()
+    );
+}
+
+/// What:
+///  The name of the helper control the parent starts in its own process.
+/// Why:
+///   The claim is about what a process leaves behind when it exits,
+/// and this test binary can start itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HELPER = 'worktree::worktree_clone_conversion_size_read::tests::the_child_process_an_add_ends_while_its_read_runs';
+/// ```
+const THE_HELPER_THAT_ENDS_WITH_A_RUNNING_READ: &str = "worktree::worktree_clone_conversion_size_read::tests::the_child_process_an_add_ends_while_its_read_runs";
+
+/// The variable that tells the helper which fake Git to start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const FAKE_GIT = 'CLI_GIT_TEST_SIZE_READ_FAKE_GIT';
+/// ```
+const THE_FAKE_GIT_OF_THE_CHILD_CONTROL: &str = "CLI_GIT_TEST_SIZE_READ_FAKE_GIT";
+
+/// The variable that tells the helper which repository to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REPOSITORY = 'CLI_GIT_TEST_SIZE_READ_REPOSITORY';
+/// ```
+const THE_REPOSITORY_OF_THE_CHILD_CONTROL: &str = "CLI_GIT_TEST_SIZE_READ_REPOSITORY";
+
+/// The variable that tells the helper where its read writes the process id it started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MARKER = 'CLI_GIT_TEST_SIZE_READ_MARKER';
+/// ```
+const THE_MARKER_OF_THE_CHILD_CONTROL: &str = "CLI_GIT_TEST_SIZE_READ_MARKER";
+
+/// What:
+///  The helper: an add that ends while its read still runs,
+///  in a process of its own.
+/// Why:
+///   The parent measures this process's exit and what it left behind;
+///  without the parent's variables this control is inert and passes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = () => { if (!env.FAKE) return; startBesideTheCheck(...); ladder.finish(...); }; // then the test process exits
+/// ```
+#[test]
+fn the_child_process_an_add_ends_while_its_read_runs() {
+    let (Ok(fake), Ok(repo), Ok(marker)) = (std::env::var(THE_FAKE_GIT_OF_THE_CHILD_CONTROL), std::env::var(THE_REPOSITORY_OF_THE_CHILD_CONTROL), std::env::var(THE_MARKER_OF_THE_CHILD_CONTROL)) else {
+        return;
+    };
+    let repo: PathBuf = PathBuf::from(repo);
+    let marker: PathBuf = PathBuf::from(marker);
+    let context: GitContext = GitContext {
+        real_git: PathBuf::from(fake),
+        overlay: crate::test_support::isolated_overlay(),
+        global_prefix: Vec::new(),
+        common_dir: Some(crate::test_support::fixture_root()),
+    };
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    // Wait, bounded, for the read's child to be the one running: the add ends after it started, not before the thread reached it.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !marker.exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(marker.exists(), "the read's fake Git started before the add ended");
+    begin_timing(repo.join(".git"), true);
+    let ladder: Ladder = Ladder { plan: None, rung: Rung::Git(None), slow: None, sizes_beside: Some(started) };
+    let mut runner = no_runner();
+    let _result = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &context, &mut std::io::sink(), &mut std::io::sink());
+    finish_timing(0);
+    // Returning ends this test process while the read's thread still waits in its fake Git.
+}
+
+/// What:
+///  An add that ends while its early read still runs leaves no child behind,
+///  does not wait for one,
+///  and its own exit is not delayed by one.
+/// Why:
+///   The settle no longer joins the read, so the read's child must end with the process
+///  (`GitRequest::ends_with_the_starting_thread`);
+///  the positive control is the same fake program started by this test,
+///  which the probe finds alive,
+///  so "no child" is not a probe that can see nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = await spawnSelf(); const elapsed = ...; expect(pidGoneWithin(5_000)).toBe(true);
+/// ```
+#[test]
+fn an_add_that_ends_with_a_running_read_leaves_no_child_behind() {
+    let root: PathBuf = fixture("child");
+    let repo: PathBuf = a_clean_source(root.as_path(), "child");
+    let fake: PathBuf = root.join("git-that-holds-the-size-read");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    // The positive control first: this test starts the same fake program itself, and the probe finds it alive.
+    let mut started = std::process::Command::new(fake.as_path()).args(["ls-tree", "HEAD"]).spawn().expect("the fake starts");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !wrote.exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let live: i32 = std::fs::read_to_string(wrote.as_path()).expect("the fake wrote its id").trim().parse().expect("a process id");
+    assert!(alive(live), "the probe finds a running fake Git, so the search can see one");
+    let _killed = started.kill();
+    let _reaped = started.wait();
+    std::fs::remove_file(wrote.as_path()).expect("the positive control's marker is gone");
+    let began = std::time::Instant::now();
+    let status = std::process::Command::new(std::env::current_exe().expect("this test binary"))
+        .args(["--exact", THE_HELPER_THAT_ENDS_WITH_A_RUNNING_READ, "--nocapture"])
+        .env(THE_FAKE_GIT_OF_THE_CHILD_CONTROL, fake.as_os_str())
+        .env(THE_REPOSITORY_OF_THE_CHILD_CONTROL, repo.as_os_str())
+        .env(THE_MARKER_OF_THE_CHILD_CONTROL, wrote.as_os_str())
+        .status()
+        .expect("the helper runs");
+    let elapsed: Duration = began.elapsed();
+    assert!(status.success(), "the add's own process ended after its add");
+    assert!(elapsed < Duration::from_secs(20), "the add does not wait for a read that sleeps for 30 s: {elapsed:?}");
+    let add_started: i32 = std::fs::read_to_string(wrote.as_path()).expect("the add's read wrote its id").trim().parse().expect("a process id");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while alive(add_started) && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!alive(add_started), "the read's child ended with the process that started it, not after its 30 s sleep");
+    remove(root.as_path());
+}
+
+
+/// The variable that makes the multi-thread runtime's build miss its deadline,
+/// which is the shipped seam for the current-thread stand-in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SLOW = 'CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS';
+/// ```
+const THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL: &str = "CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS";
+
+/// The helper control that runs the early read and the fence under the stand-in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HELPER = 'worktree::worktree_clone_conversion_size_read::tests::the_child_process_that_runs_the_read_under_the_stand_in';
+/// ```
+const THE_HELPER_THAT_RUNS_UNDER_THE_STAND_IN: &str = "worktree::worktree_clone_conversion_size_read::tests::the_child_process_that_runs_the_read_under_the_stand_in";
+
+/// The variable that names the repository the stand-in helper fences.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REPOSITORY = 'CLI_GIT_TEST_SIZE_READ_STAND_IN_REPOSITORY';
+/// ```
+const THE_REPOSITORY_OF_THE_STAND_IN_CONTROL: &str = "CLI_GIT_TEST_SIZE_READ_STAND_IN_REPOSITORY";
+
+/// What:
+///  The helper: the early read and the fence in one process whose runtime build misses its deadline.
+/// Why:
+///   The stand-in has no worker of its own,
+///  and both the read's Git run and the fence's must still answer there;
+///  the env seam is the shipped one, and a process of its own is where it can be set safely.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = () => { if (!env.REPOSITORY) return; const read = startBesideTheCheck(...); expect(read.join()).toBeDefined(); expect(theFence(...)).toBeDefined(); expect(builtFlavor()).toBe('after-deadline'); };
+/// ```
+#[test]
+fn the_child_process_that_runs_the_read_under_the_stand_in() {
+    let Ok(repo) = std::env::var(THE_REPOSITORY_OF_THE_STAND_IN_CONTROL) else { return };
+    let repo: PathBuf = PathBuf::from(repo);
+    let context: GitContext = git_context();
+    let identity: WorktreeIdentity = main_identity(repo.as_path());
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
+    let sizes: BlobSizes = started.join().expect("the read answers under the current-thread stand-in");
+    assert_eq!(sizes.len(), 2, "the read listed both tracked paths");
+    let source: SnapshotSource = source_refusal(&context, &identity).expect("the source is clean");
+    let mut held: Option<SizeReadBesideTheCheck> = None;
+    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides under the stand-in");
+    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
+    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the stand-in decides the same paths");
+    assert_eq!(crate::lazy_runtime::built_flavor(), Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline), "the process ran on the stand-in");
+}
+
+/// What:
+///  The early read and the fence complete on the current-thread runtime stand-in.
+/// Why:
+///   A build that misses its deadline leaves a runtime with no worker,
+///  and every Git run inside it is a `block_on` of that same runtime;
+///  a control must show the read and the fence answer there, not hang.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = spawnSelf({ ['CLI_GIT_TEST_ONLY_RUNTIME_BUILD_MILLIS']: '1500', REPOSITORY: repo }); expect(helper.status).toBe(0);
+/// ```
+#[test]
+fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
+    let root: PathBuf = fixture("stand-in");
+    let repo: PathBuf = a_clean_source(root.as_path(), "stand-in");
+    let began = std::time::Instant::now();
+    let output = std::process::Command::new(std::env::current_exe().expect("this test binary"))
+        .args(["--exact", THE_HELPER_THAT_RUNS_UNDER_THE_STAND_IN, "--nocapture"])
+        .env(THE_SLOW_RUNTIME_BUILD_OF_THE_CONTROL, "1500")
+        .env(THE_REPOSITORY_OF_THE_STAND_IN_CONTROL, repo.as_os_str())
+        .output()
+        .expect("the helper runs");
+    let elapsed: Duration = began.elapsed();
+    assert!(output.status.success(), "the read and the fence answered under the stand-in: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(elapsed < Duration::from_secs(60), "the stand-in's build deadline and the read are bounded: {elapsed:?}");
     remove(root.as_path());
 }

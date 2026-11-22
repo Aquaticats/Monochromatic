@@ -137,8 +137,54 @@ pub(crate) fn build_command(context: &GitContext, request: &GitRequest) -> Comma
     if let Some(objects) = &request.object_directory {
         command.env("GIT_OBJECT_DIRECTORY", objects);
     }
+    if request.end_with_the_starting_thread {
+        end_with_the_starting_thread(&mut command);
+    }
     return command;
 }
+
+/// What:
+///  Ask the kernel to end this child when the thread that starts it ends,
+/// which is the thread that ends with this process.
+/// Why:
+///  A Git child an add leaves unjoined has nobody waiting for it;
+///  without this it would outlive the command until it next writes to a pipe no reader holds,
+///  and a read that never writes again would outlive it for the whole step ceiling.
+///  `PR_SET_PDEATHSIG` is set in the child between `fork` and `exec`,
+///  so it is there before Git runs and is not inherited by Git's own children.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// command.beforeExec(() => prctl(PR_SET_PDEATHSIG, SIGKILL));
+/// ```
+#[cfg(unix)]
+fn end_with_the_starting_thread(command: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: the closure runs in the child between `fork` and `exec`, where only async-signal-safe
+    // calls are allowed; `prctl` is one, and it reads no memory the child shares with this process.
+    let _ = unsafe {
+        command.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        })
+    };
+}
+
+/// What:
+///  The parent-death signal has no counterpart here,
+/// so nothing is asked for.
+/// Why:
+///  The field is set only by the ladder's early size read,
+///  and this build never runs that read where the signal is unavailable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // no equivalent outside Unix
+/// ```
+#[cfg(not(unix))]
+fn end_with_the_starting_thread(_command: &mut Command) {}
 
 /// What:
 ///  Run one request and capture its output,

@@ -72,15 +72,21 @@ const THE_JOIN_DEADLINE: Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING.
 /// so a diagnostic that lists threads names it for what it does.
 const THREAD: &str = "clone-size-read-beside-the-check";
 
-/// The variable that stops Git from fetching the objects a partial clone is missing.
+/// The variable that stops Git from fetching the objects a partial clone is missing,
+///  and the option Git 2.45.0 takes for the same thing.
 /// Why:
 ///   `git ls-tree -l` needs every blob's size.
 /// On a partial clone,
 /// a missing blob is fetched from the promisor remote to answer it,
 ///  which wrote packs into a source the check was about to refuse
 ///  (the gate review's High 1 of 2026-11-22).
-/// With it,
-/// an unavailable size prints as `BAD`,
+/// Git 2.45.0 is the first release that honours the variable
+///  (`environment.c`, `NO_LAZY_FETCH_ENVIRONMENT`, sets `fetch_if_missing = 0`),
+///  and it takes `--no-lazy-fetch` as the same switch before any subcommand;
+/// an older Git refuses that option and reads nothing,
+///  so it cannot fetch here either.
+/// With either switch,
+///  an unavailable size prints as `BAD`,
 ///  which `parse_sizes` skips.
 /// A path whose size cannot be listed therefore only ever goes to Git's writing.
 const NO_LAZY_FETCH: &str = "GIT_NO_LAZY_FETCH";
@@ -224,28 +230,32 @@ fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender): (Git
 
 /// What:
 ///  The one request the early read makes:
-/// `git ls-tree -r -l -z` of `commit`,
+/// `git --no-lazy-fetch ls-tree -r -l -z` of `commit`,
 /// which may not fetch what the source does not hold,
-///  and which leaves the process-wide failed-step note alone.
+///  which leaves the process-wide failed-step note alone,
+///  and whose child ends with the thread that starts it.
 /// Why:
-///   Both facts are conditions of starting before the source check:
+///   Both of the first facts are conditions of starting before the source check:
 /// the check may refuse this source,
 ///  so the read must write nothing (a lazy fetch would write packs),
 ///  and the add's own steps may fail while this read runs,
 ///  so the read must not take their note (`GitRequest::beside_another_step`).
+/// The option is beside the variable because Git before 2.45.0 does not know the variable:
+///  it refuses the option before it reads anything, so an older Git fails here instead of fetching,
+///  and a read that fails only refuses the rung or is ignored at the add's end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const theEarlyReadRequest = (root, commit) => ({ cwd: root, args: ['ls-tree', '-r', '-l', '-z', commit], env: { GIT_NO_LAZY_FETCH: '1' }, besideAnotherStep: true });
+/// const theEarlyReadRequest = (root, commit) => ({ cwd: root, args: ['--no-lazy-fetch', 'ls-tree', '-r', '-l', '-z', commit], env: { GIT_NO_LAZY_FETCH: '1' }, besideAnotherStep: true, endWithTheStartingThread: true });
 /// ```
 fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
     return GitRequest {
         cwd: root.to_path_buf(),
-        arguments: vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)],
+        arguments: vec![OsString::from("--no-lazy-fetch"), OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)],
         without_prefix: true,
         environment: vec![(OsString::from(NO_LAZY_FETCH), OsString::from("1"))],
         ..GitRequest::default()
-    }.beside_another_step();
+    }.beside_another_step().ends_with_the_starting_thread();
 }
 
 /// What:
@@ -319,7 +329,7 @@ pub fn fence_the_clone_with_the_read_beside_the_check(source: &SnapshotSource, c
 /// Why:
 ///   A started read that listed another commit is not this fence's answer,
 /// and it is not waited for here:
-///  the add's own end joins it,
+///  the add's own end settles it without waiting,
 ///  so a settled `HEAD` is the only case that spends the overlap.
 ///
 /// In TS you'd write (pseudocode):
@@ -347,10 +357,11 @@ impl SizeReadBesideTheCheck {
     /// Why:
     ///   The wait is what the overlap saves,
     /// so it is the number the record has to show;
-    /// a read that answers nothing (a deadline,
-    /// a dead task,
-    /// a refused thread) refuses the rung here,
+    /// a read that answers nothing (a deadline or a dead thread)
+    /// refuses the rung here,
     /// which is the sentence a read that failed gives in the serial order.
+    /// A thread the system refused never reaches this method:
+    /// the start answers nothing and the fence reads where it stands.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -373,41 +384,46 @@ impl SizeReadBesideTheCheck {
     }
 
     /// What:
-    ///  Join the read this add is not going to use,
-    /// bounded,
-    ///  so its cost is stated in the add's record and no task of it outlives the add.
+    ///  Take the read this add is not going to use only if it has already answered;
+    /// never wait for it.
     /// Why:
     ///   An add the source check refuses,
     ///   or the fence declines,
-    ///  pays this read anyway
+    ///  may pay this read in the background
     /// (the decision `doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`,
     /// its section "The overlap,
     /// answered 2026-11-22"),
-    ///  and the record must say what it paid;
-    /// a read the fence used has nothing left to settle.
-    /// The wait here has the same deadline as the fence's join,
-    ///  so a read that never answered is a debug line and no work entry;
-    /// the read's own runner still ends its Git step at that step's ceiling,
-    ///  and nothing here waits for that.
+    ///  but it never waits for it:
+    /// a read longer than the add's own Git run would otherwise make the add slower than on `main`,
+    ///  which is the integration pass's High 1 of 2026-11-22.
+    /// A read that has answered is stated as the record's work;
+    /// one that has not is stated as started and not joined, and the add ends without it.
+    /// The read's thread and its child end with this process
+    /// (`GitRequest::ends_with_the_starting_thread`),
+    ///  so nothing of the add's outlives it.
     /// Nothing here changes the add's answer:
-    ///  a read that fails is only the record's work and a debug line.
+    ///  a read that failed is only a debug line.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// settle() { const entered = beginStep('fenceSizesWaitingForTheRead'); const joined = this.answerWithinTheDeadline(); endStep(entered); if (joined.silent) debug(joined.silent); else noteWork('fenceSizesBesideTheCheck', joined.spent); }
+    /// settle() { const answer = this.answer.tryRecv(); if (answer) noteWork('fenceSizesBesideTheCheck', answer.spent); else note('fenceSizesBesideTheCheck', 'started and not joined'); }
     /// ```
     pub fn settle(self) {
-        let entered: bool = begin_step("fenceSizesWaitingForTheRead");
-        let joined: Joined = self.answer_within_the_deadline();
-        end_step(entered);
-        match joined {
-            Joined::Answered { spent, outcome } => {
+        match self.answer.try_recv() {
+            Ok((spent, outcome)) => {
                 note_work(WORK, spent);
                 if let Err(reason) = outcome {
                     debug(TAG, format!("the size read started beside the check answers {reason}, and the add no longer waits for it").as_str());
                 }
             }
-            Joined::Silent(reason) => debug(TAG, reason.as_str()),
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                crate::add_timing::note(WORK, "started and not joined");
+                debug(TAG, "the size read started beside the check has not answered, so the add states it as started and not joined; its thread and child end with this process");
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                crate::add_timing::note(WORK, "started and not joined");
+                debug(TAG, "the size read started beside the check ended without answering, so the add states it as started and not joined");
+            }
         }
     }
 
@@ -494,9 +510,9 @@ fn hold_the_read_where_a_control_asked() {
 }
 
 /// What:
-///  Make the read's task die before it answers.
+///  Make the read's thread die before it answers.
 /// Why:
-///   A dead task is the other way the join answers nothing,
+///   A dead thread is the other way the join answers nothing,
 /// and no fixture makes a real read die.
 ///
 /// In TS you'd write (pseudocode):
