@@ -861,12 +861,21 @@ Read-only commands,
      a read an add will not use is ended at the refusal or the decline,
      a read abandoned before its child was published has that child ended the moment it is published,
      and the thread and child end with the process.
-     Measured in one btrfs guest of 2026-11-22 with an identical-binary control:
-     a served loose add 905.1 ms against `main`'s 960.6,
-     a served packed one 599.9 against 677.4,
-     a refused loose one 2928.5 against 2988.8,
-     a declined packed one 7455.0 against 7525.9,
-     and a refused add whose Git fails at once 16.0 against 13.0.
+     Re-timed in one btrfs guest of 2026-11-22 on Git 2.56.1 built from source,
+     position-balanced,
+     with an identical-binary control:
+     a served loose add 1282.8 ms against `main`'s 1692.9,
+     a served packed one 752.1 against 831.5,
+     a refused loose one 4540.6 against 4945.9,
+     a declined packed one 8882.5 against 8651.8,
+     a cone sparse refused one 190.6 against 203.2 loose and 159.2 against 169.3 packed,
+     and a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
+     No shape is resolved slower;
+     the ratios,
+     the rounds and the control's spread are in
+     `doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+     "The re-time on Git 2.56.1,
+     2026-11-22".
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.

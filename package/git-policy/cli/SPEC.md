@@ -1536,18 +1536,23 @@ an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
 Measured in one btrfs guest of 2026-11-22
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-"The settle that never waits,
-timed"),
-four or six rounds,
+"The re-time on Git 2.56.1,
+2026-11-22"),
+eight rounds for the served shapes,
+forty for the add whose Git fails at once,
+twenty for the cone sparse and five or six for the others,
 position-balanced,
+on Git 2.56.1 built from source in the guest,
 with an identical-binary control:
-a served loose add 905.1 ms against `main`'s 960.6,
-and a packed one 599.9 against 677.4;
-a refused loose add 2928.5 against 2988.8,
-and a packed one 2665.6 against 2623.7;
-a declined packed add 7455.0 against 7525.9;
-a cone sparse refused add 168.1 against 161.8 loose and 115.4 against 99.9 packed;
-a refused add whose Git fails at once 16.0 against 13.0 loose and 23.5 against 21.4 packed.
+a served loose add 1282.8 ms against `main`'s 1692.9,
+and a packed one 752.1 against 831.5;
+a refused loose add 4540.6 against 4945.9,
+and a packed one 3393.3 against 2951.1 (six rounds do not resolve it);
+a declined loose add 9358.1 against 8634.6,
+and a packed one 8882.5 against 8651.8;
+a cone sparse refused add 190.6 against 203.2 loose and 159.2 against 169.3 packed;
+a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
+No shape is resolved slower by the reading rule.
 The ratios and the control's spread are in that section.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
