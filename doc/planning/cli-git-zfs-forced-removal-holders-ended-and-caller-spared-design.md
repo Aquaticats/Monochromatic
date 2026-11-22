@@ -798,6 +798,9 @@ and the handler declines the force word (see "The time between the scan and the 
 Root therefore needs no ancestor list in the property:
 it walks the chain itself from the wrapper's pid,
 so nothing the wrapper would have had to serialise can be stale or truncated.
+The review's narrowest fix for H1 proposed carrying each chain entry in the property;
+this design carries the wrapper's identity and lets the handler read the live chain,
+because a serialised list can only age and the handler reads the same `/proc` the wrapper would have.
 
 The protected set,
 which the handler spares and never ends,
