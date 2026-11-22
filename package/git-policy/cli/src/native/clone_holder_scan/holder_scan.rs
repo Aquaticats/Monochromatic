@@ -146,7 +146,8 @@ pub struct HolderScan {
     /// The reader's own namespace identity,
     /// or nothing when it could not be read.
     pub own_namespace: Option<String>,
-    /// How many namespaces the scan read a table of.
+    /// How many namespaces the scan listed and tried to read a table of,
+    /// whether or not one of their tasks answered.
     pub namespaces_scanned: usize,
     /// The mounts of the dataset in the reader's own namespace,
     /// which is what a local unmount is about.
