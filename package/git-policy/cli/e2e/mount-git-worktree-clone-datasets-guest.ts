@@ -69,6 +69,28 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP done',
 ] as const;
 
+/** The checkout the holder scan's arms build their own design layout inside, under the guest's own root. */
+const SCAN_CHECKOUT = '/root/holder-scan-checkout';
+
+/** The pool the holder scan's arms create their clone parent in, which the driver prepared for the store's arms. */
+const SCAN_POOL = 'git-policy-cli-store';
+
+/** The lines a run must find in the guest's holder-scan log, one per arm plan step 9 runs. */
+const EXPECTED_SCAN_MARKERS = [
+  'SCAN baseline own=1 holders=0',
+  'SCAN HOLDER other-namespace=1',
+  'SCAN confined-consumer=',
+  'SCAN churn scans=20',
+  'SCAN divergent-root holders=',
+  'SCAN pinned-namespace invisible=true',
+  'SCAN done',
+] as const;
+
+/** The measurements the holder-scan arm prints beside the numbers they size. */
+const EXPECTED_SCAN_MEASUREMENTS = [
+  'MEASUREMENT holder-scan-ms=',
+] as const;
+
 /** The measurements the sweep arm prints beside the numbers they size. */
 const EXPECTED_SWEEP_MEASUREMENTS = [
   'MEASUREMENT sweep-attach-ms=',
@@ -272,6 +294,53 @@ async function run(chosen: Options): Promise<void> {
     throw new Error('the pulled arm log holds a SKIPPED line, so the adoption arm did not run');
   publicationFsync({ chosen, });
   sweepArms({ chosen, });
+  holderScanArms({ chosen, });
+}
+
+/**
+ Drive plan step 9's holder-scan arms in the same guest: the built handler's scan against the design's layout.
+
+ The arms build their own checkout, clone parent and clone, attach the clone with the built sweep, and then hold it
+ from a second mount namespace, a confined user namespace, a task with a divergent root and a namespace pinned by a
+ handle while no task is left in it. Task churn runs inside the guest only, and one scan is timed with a small and a
+ large number of live tasks. Every one of those reads `/proc` or mounts a dataset, so no arm may run on the host.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function holderScanArms({ chosen, }: { readonly chosen: Options; }): void {
+  const script = [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    `rm --recursive --force ${SCAN_CHECKOUT}`,
+    `mkdir --parents ${SCAN_CHECKOUT}`,
+    `cd ${CRATE_DIR}/package/git-policy/cli`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export CLI_GIT_ZFS_SCAN_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SCAN_POOL=${SCAN_POOL}`,
+    'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
+    `export CLI_GIT_ZFS_SCAN_CHECKOUT=${SCAN_CHECKOUT}`,
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      '--filterset "test(zfs_holder_scan_guest)" > /root/holder-scan-arm.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=80 /root/holder-scan-arm.log',
+    'test "$status" = 0',
+    `if grep --quiet '^SKIPPED' /root/holder-scan-arm.log; then echo 'the holder-scan arm returned without running'; exit 1; fi`,
+    ...EXPECTED_SCAN_MARKERS.map(function markerLine(marker) {
+      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/holder-scan-arm.log`;
+    }),
+    ...EXPECTED_SCAN_MEASUREMENTS.map(function measurementLine(marker) {
+      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/holder-scan-arm.log`;
+    }),
+    'cp /root/holder-scan-arm.log /mnt/shared/holder-scan-arm.log',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-holder-scan.log', timeout: ARM_TIMEOUT_MS * 3, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/holder-scan-arm.log', join(chosen.logDir, 'holder-scan-arm.log'),], log: 'host-pull-holder-scan.log', });
+  const pulled = readFileSync(join(chosen.logDir, 'holder-scan-arm.log'), 'utf8');
+  for (const marker of EXPECTED_SCAN_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the pulled holder-scan log lacks ${marker}; the guest ran the arm without performing it`);
+  }
 }
 
 /**

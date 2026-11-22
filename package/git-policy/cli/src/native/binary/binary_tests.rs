@@ -1028,3 +1028,14 @@ mod zfs_adoption_guest;
 
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
+
+/// Plan step 9's holder-scan arms in the throwaway guest:
+/// the built scan against the design's layout and the clone the built sweep attached,
+/// a second mount namespace holding it,
+/// a confined consumer,
+/// task churn,
+/// a pinned namespace with no live member,
+/// a divergent process root,
+/// and one scan's cost against the number of live tasks.
+#[path = "binary_zfs_holder_scan_guest_tests.rs"]
+mod zfs_holder_scan_guest;
