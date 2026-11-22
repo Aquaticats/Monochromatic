@@ -61,6 +61,8 @@ fn timed(reader: SizeReader, context: &GitContext, repo: &Path, wanted: &[(Vec<u
 #[ignore = "measurement: times the size readers on a repository a variable names"]
 fn the_readers_answer_one_map_at_their_measured_costs() {
     let repo: PathBuf = repository();
+    // One reader, for a run that times what the fence pays in a fresh process: the read a single add takes.
+    let only: Option<SizeReader> = std::env::var("FENCE_SIZE_READER_ONLY").ok().and_then(|name| return SizeReader::named(name.as_str()));
     let context: GitContext = GitContext {
         real_git: PathBuf::from(crate::test_support::REAL_GIT),
         overlay: isolated_overlay(),
@@ -78,9 +80,13 @@ fn the_readers_answer_one_map_at_their_measured_costs() {
         distinct.len()
     )];
     let mut reference: Option<Vec<(String, u64)>> = None;
+    let readers: Vec<SizeReader> = match only {
+        Some(reader) => vec![reader],
+        None => SizeReader::ALL.to_vec(),
+    };
     for round in 1..=rounds() {
-        for at in 0..SizeReader::ALL.len() {
-            let reader: SizeReader = SizeReader::ALL[(at + round - 1) % SizeReader::ALL.len()];
+        for at in 0..readers.len() {
+            let reader: SizeReader = readers[(at + round - 1) % readers.len()];
             let (spent, sizes): (Duration, HashMap<Vec<u8>, u64>) = timed(reader, &context, repo.as_path(), wanted.as_slice(), format);
             let mut listed: Vec<(String, u64)> = sizes.iter().map(|(path, size)| return (String::from_utf8_lossy(path).to_string(), *size)).collect();
             listed.sort();

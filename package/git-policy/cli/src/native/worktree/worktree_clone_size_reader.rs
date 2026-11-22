@@ -227,7 +227,11 @@ fn read_by_path(read: &SizeRead, wanted: &[(Vec<u8>, Vec<u8>)]) -> Result<HashMa
 fn list_tree(read: &SizeRead) -> Result<HashMap<Vec<u8>, u64>, String> {
     let output: GitOutput = run(read, &["ls-tree", "-r", "-l", "-z", read.head_commit], None)?;
     if output.code != Some(0) {
-        return Err(String::from("the sizes of the committed blobs cannot be read: `git ls-tree` failed"));
+        return Err(format!(
+            "the sizes of the committed blobs cannot be read: `git ls-tree` failed with {}: {}",
+            output.code.map_or_else(|| String::from("a signal"), |code| code.to_string()),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
     let mut sizes: HashMap<Vec<u8>, u64> = HashMap::new();
     for record in output.stdout.split(|byte| return *byte == 0) {
@@ -265,7 +269,11 @@ fn ask_git(read: &SizeRead, ids: &[&[u8]]) -> Result<HashMap<Vec<u8>, u64>, Stri
     }
     let output: GitOutput = run(read, &["cat-file", "--batch-check=%(objectname) %(objectsize)"], Some(input))?;
     if output.code != Some(0) {
-        return Err(String::from("the sizes of the committed blobs cannot be read: `git cat-file` failed"));
+        return Err(format!(
+            "the sizes of the committed blobs cannot be read: `git cat-file` failed with {}: {}",
+            output.code.map_or_else(|| String::from("a signal"), |code| code.to_string()),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
     let mut by_id: HashMap<Vec<u8>, u64> = HashMap::with_capacity(ids.len());
     for line in output.stdout.split(|byte| return *byte == b'\n') {
