@@ -892,7 +892,7 @@ Read-only commands,
      every tracked path its proof settles is a clone,
      and only the paths a change or a conversion rule reaches are Git's.
      Two provisional limits send an add to Git's own checkout instead:
-     a tree of fewer than 32,000,000 tracked bytes,
+     a tree of fewer than 762,000,000 tracked bytes,
      and a source with more changed tracked files than a quarter of its tracked paths.
      Both are pinned in `src/native/worktree/worktree_clone_rung_limits.rs` with the measurements they rest on,
      and both are open to the project's veto.

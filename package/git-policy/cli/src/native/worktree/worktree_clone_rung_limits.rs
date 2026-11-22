@@ -34,31 +34,35 @@ use std::path::Path;
 /// The fewest tracked bytes a source must hold for the clone rung to serve its add.
 ///
 /// Provenance:
-/// pinned at the losing edge of the measured bracket,
-/// rounded up so the tree that lost is clearly below it.
-/// On the fenced rung this repository's own tree
-/// (763,309,482 bytes of tracked files)
-/// cloned at 0.73 to 0.77 of Git's own checkout in four balanced rounds,
-/// and the waiver's tree of 10,001 files of 2,600 bytes
-/// (about 26,005,200 bytes) lost at 1.30 of Git's own checkout (1.44 of the same build of `main`).
-/// Every value above 26 MB and up to 763 MB fits both measurements
-/// (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
-/// "The measurements it rests on").
+/// pinned at the winning edge of the measured bracket.
+/// On the fenced rung,
+/// in position-balanced rounds against Git's own checkout with an identical-binary control,
+/// a dirty source lost at every size below this repository's tree:
+/// 1.30 at 10,001 files of 2,600 bytes (about 26,000,028 bytes),
+/// and 1.32 (1.03 to 1.71, identical control 1.40, 8 counted rounds) at 10,001 files of 26,000 bytes
+/// (260,000,028 bytes, measured 2026-11-21 for this pin);
+/// this repository's own tree of 24,621 files and 763,289,228 bytes
+/// (the same shape as the 762,638,866-byte tree of the re-check) won at 0.73 to 0.81 of it.
+/// The rung's fence reads cost about as much whatever the tree holds
+/// (`git ls-tree` alone is 275 ms at 24,621 paths, 110 ms at 10,001),
+/// while Git's own checkout grows with the bytes,
+/// so the rung loses wherever Git's checkout is shorter than those reads.
+/// No size between 260 MB and this tree was measured a win,
+/// so the pin sits at the top of the bracket,
+/// just under the tree that won,
+/// and no unmeasured size is cloned.
 ///
-/// Why this edge and not the top of the bracket:
-/// the limit applies to a clean source as well,
-/// and a clean tree above this value keeps the clone rung's win that `main` already has there
-/// (`main` is 0.99
-/// to 1.19 of Git's own checkout on the clean small trees it measured, and 0.64 on this repository's tree),
-/// while a top-of-bracket value would hand every clean tree below 763 MB to Git's checkout and give that win up
-/// (`AGENTS.md`, rule `QJ1`).
-/// What this edge leaves unmeasured is a dirty source of small files between 32 MB and 763 MB,
-/// which clones and may lose where `main` would have taken Git's own checkout;
-/// no round has measured that shape.
+/// The limit applies to a clean source too,
+/// so a clean tree below it takes Git's own checkout,
+/// which is where the clean small-file cost the waiver records ends;
+/// the clean trees measured between these sizes are parity with Git's own checkout
+/// (`main` at 1.04 of it at 8.8 KB per file and 0.99 at 26 KB),
+/// so the only clean win this gives up is one near this tree's size,
+/// which still clones.
 ///
 /// Provisional and open to the project's veto,
-/// and to a lower value once more sizes are measured.
-pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 32_000_000;
+/// and to a lower value once a size below this tree is measured a win.
+pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 
 /// What:
 ///  The changed paths the clone rung still clones a source with:

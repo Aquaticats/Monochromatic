@@ -2852,16 +2852,22 @@ and Git's own checkout makes the worktree,
 for two provisional limits,
 each pinned with the measurement it rests on and both open to the project's veto
 (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
-The whole-tree size limit sends a source whose tracked files sum to fewer than 32,000,000 bytes to Git's own
+The whole-tree size limit sends a source whose tracked files sum to fewer than 762,000,000 bytes to Git's own
 checkout:
-the waiver's tree of 10,001 files of 2,600 bytes,
-about 26.0 MB, took 1.30 times Git's own checkout on the fenced rung,
-and this repository's tree of 763,309,482 bytes took 0.73 to 0.77 of it.
+a dirty source of 10,001 files of 2,600 bytes,
+about 26 MB, took 1.30 times Git's own checkout on the fenced rung,
+one of 10,001 files of 26,000 bytes,
+about 260 MB, took 1.32 of it in eight balanced rounds,
+and this repository's tree of 763,289,228 bytes took 0.73 to 0.81 of it.
+The rung's fence reads cost about the same whatever the tree holds,
+and Git's own checkout grows with the bytes,
+so the rung loses wherever a checkout is shorter than those reads;
+the pin sits at the top of that bracket,
+so no size nobody measured is cloned.
 The limit applies to a clean source too,
 so a clean tree below it takes Git's own checkout,
 which is where the clean small-file cost the waiver records ends;
-the edge is pinned low so every clean tree above it keeps the clone rung's win that `main` already has,
-and what it leaves unmeasured is a dirty source of small files between 32 MB and 763 MB.
+the clean trees measured between those sizes are parity with Git's own checkout.
 The changed-file cut sends a source with more changed tracked files than a quarter of its tracked paths to Git's own
 checkout,
 which is the share the conversion fence declines at,
