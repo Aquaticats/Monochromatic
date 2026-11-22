@@ -42309,9 +42309,17 @@ stated in this entry. What follows from them, as work:
   the second pass: it ships "a labelled 4,096-tuple placeholder" for the reader's bound until plan step 22 measures it,
   and it read both siblings at their first tips (`4daa6c66ce`, `1e9bc35f1e`), so its statements about them are stale
   where they have since changed (the binding record's folder among them). One question for the owner (what trace of a
-  destruction outlives the removal) and twelve veto choices. Its second gate pass WAITS for the origin cleanup design's fix
-  round (`pi-zfs-origin-cleanup-record-design-gate-findings`, still going): the first review's condition is that the
-  record designs be judged together. Step 7's
+  destruction outlives the removal) and twelve veto choices. THE ORIGIN CLEANUP DESIGN'S FIX ROUND ENDED `idle` (83
+  turns) at `987a3ba886` (report in its folder's `keep/report-gate-findings.md`): every finding fixed, none refuted.
+  Completion no longer rests on a missing name (it reads the dataset's GUID and origin first, so a promote reads as
+  unproved); the record is written at its step 6, after every refusal and before the first destroy request, in one order
+  the other two documents can cite; whether an ordinary command may destroy a leftover origin snapshot is now a question
+  for the owner; it carries the reviewer's five merged questions. Its statements about the binding record read like that
+  design's first version. GOING: the joint second gate pass of the plan and origin cleanup designs by their first
+  reviewer, reading the binding record at `428040d45d` for the points where the three meet, asked for three verdicts (each
+  design, and whether the three record designs now agree and can go to the owner together), the stale sibling statements
+  per document, and one merged set of questions; to `review-second-pass.md` beside the first review in
+  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
