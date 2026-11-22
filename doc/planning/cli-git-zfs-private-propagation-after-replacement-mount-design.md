@@ -3266,6 +3266,9 @@ with its committer time from `git log --format=%cI`:
   the cross-references,
   the record's set bound and the review labels are corrected;
   and the sibling section is rewritten against its tip `2c860b3930`.
+- `6ce5636f51`,
+  2026-11-22T18:49:43-05:00:
+  this list gained the commit that recorded this round.
 
 ## Links
 
