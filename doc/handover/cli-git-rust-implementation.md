@@ -41580,7 +41580,16 @@ stated in this entry. What follows from them, as work:
   tests red then green; the real guest check not run because another session's daemon stayed up. The host has 61 GiB, 35
   available at 22:4x. GOING: its integration pass on Sonnet (review to
   `~/temp/agent/integration-pass-mvm-cli-session-daemon-in-its-own-unit-2026-11-21/`). After merge, the MCP server's `dist`
-  may need a rebuild for sessions to get it (the pass is asked). Step 7's
+  may need a rebuild for sessions to get it (the pass is asked). THE LABELS RECHECK said not fit on wording only: the
+  code passes (manifest control red without the write; gate 9736 of 9738 with the cause-H pair), but "a stopped unit leaves
+  its containers running" is FALSE. The first probe read `podman ps`, which prints `Up` for an ended container; five probes
+  (S10, S11, S13, S14, S17 through the real `runGateContainer`) show a unit stop sends SIGTERM through the `podman run` client
+  to its container. The false claim had spread to the branch's README and cause J, to issue 6334's correction item (2), and
+  to this coordinator's brief rule "A gate container keeps running after its unit is stopped" (dropped from briefs now;
+  the running partial clone build was steered with the correction; the Sonnet briefs that carried it are for reviewers that
+  stop only their own gates). The coordinator committed the reviewer's scoped wording on the integration branch as
+  `7c6487c369` and posted the correction on issue 6334; GOING: the reviewer's confirmation, then merge (closes 6334). The
+  journal kept only hours today, so which unit, if any, was stopped at the incident hour cannot be read now. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
