@@ -2885,17 +2885,52 @@ and the local rules under `/etc/polkit-1/rules.d` are unreadable from this accou
 [busy-unmount]: cli-git-zfs-worktree-design-proposal.md#project-decisions
 [waiting-and-refusal]: cli-git-zfs-worktree-design-proposal.md#waiting-and-refusal
 [vm-15]: cli-git-zfs-measurements-owed-before-acceptance.md#15-mount-namespaces-created-after-attach
+
+The two sibling designs linked above are on their own branches until they merge into `main`,
+so they are read at their tips with `git show <branch>:<path>`.
+
 ## Revisions
 
-- The first revision,
-  written 2026-11-22T17:23:19-05:00 and committed as `54d164aec4`,
-  states every part of the three open items and owes every measurement it names.
-- The second revision,
-  committed as `bfb64b11eb`,
+Each entry is one commit of this document,
+with the committer time `git log --format=%cI` reports for it,
+oldest first.
+
+- `54d164aec4`,
+  2026-11-22T17:29:36-05:00:
+  the first text.
+  It states every part of the three open items,
+  the stop points,
+  the cancel command's proof and act,
+  the vetoes and questions,
+  the tests and the measurements it owes.
+- `bfb64b11eb`,
+  2026-11-22T17:32:06-05:00:
   corrects the stop points,
   the refusal wording and the receipt field,
   and states where each record of a removal stands at each point.
-- The third revision,
-  committed as `b53e0e081c`,
+- `b53e0e081c`,
+  2026-11-22T17:33:21-05:00:
   states the two claims the guard rests on,
   the deadline report and the two refusals whose state the open item asks about.
+- `02caf810b6`,
+  2026-11-22T17:33:31-05:00:
+  replaces the revision list with one entry per commit.
+- `797a7cf2d6`,
+  2026-11-22T17:35:26-05:00:
+  says the design needs no configuration and reads none.
+- `d9d2e1af50`,
+  2026-11-22T18:27:50-05:00:
+  answers the gate review.
+  It adds the pre-move scan and the per-chunk and per-destroy scans to the stop points,
+  adds the namespace-holder arm VM item 15 measured,
+  adds the forced failure path and the ownership split with the forced arm,
+  leaves the destruction plan unwritten by a cancellation,
+  moves the fresh-attach question to the project,
+  tabulates the cancelling sequence's states,
+  replaces "never half acting" with what a standing request does at each trigger,
+  corrects the deadline and cancellation reports,
+  marks the grammar and the fresh nonce as choices,
+  maps caller mistakes to exit `2`,
+  adds the merged questions Q7 to Q10,
+  adds the sibling documents and the section where the two disagree,
+  and corrects every citation the citation pass found wrong.
