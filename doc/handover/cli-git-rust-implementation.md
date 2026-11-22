@@ -41800,7 +41800,16 @@ stated in this entry. What follows from them, as work:
   and the partial clone round was told to take the fix branch's version. Removed at 2026-11-22T13:55-05:00, local and on the
   remote, after a check that each held only merges of commits `main` or a live branch has: the two reftable branches and
   their two integration branches, the step 8 first-pass integration branch (`567d1e5d32`; its commits are on the feature
-  branch), and the three skip-pass-lows branches, with their three worktrees. Step 7's
+  branch), and the three skip-pass-lows branches, with their three worktrees. THE 6341 FIX IS MERGED as `4929414f47`
+  (2026-11-22T14:14:51-05:00, pushed, issue 6341 closed): its pass on Sonnet said fit
+  (`~/temp/agent/integration-pass-btrfs-subvol-info-success-value-2026-11-22/keep/review.md`; the kernel read at eleven
+  versions; 0 of 8 on `main`, 10 of 10 merged; gate 9768 of 9770). With it the origin of a nested subvolume source is read on
+  btrfs where `main` read none, so a stage a kill left behind can be proved and removed. The partial clone round was told by
+  message to merge `main` again and take its copy of the document. GOING:
+  `pi-btrfs-subvol-info-call-site-control-and-doc-lows` on
+  `fix/git-policy-cli-btrfs-subvol-info-call-site-control-and-doc-lows` (the pass's medium: the portable control holds only
+  the reader, not the call site; and the document's lows; brief under
+  `~/temp/agent/btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
