@@ -385,6 +385,10 @@ impl SizeReadBesideTheCheck {
     /// answered 2026-11-22"),
     ///  and the record must say what it paid;
     /// a read the fence used has nothing left to settle.
+    /// The wait here has the same deadline as the fence's join,
+    ///  so a read that never answered is a debug line and no work entry;
+    /// the read's own runner still ends its Git step at that step's ceiling,
+    ///  and nothing here waits for that.
     /// Nothing here changes the add's answer:
     ///  a read that fails is only the record's work and a debug line.
     ///

@@ -159,16 +159,16 @@ fn the_symbolic_ref_moves(repo: &Path) {
     commit_of_the_same_tree(repo);
 }
 
-/// A loose ref appears where only `packed-refs` held the branch.
-fn the_loose_ref_appears_over_the_packed_one(repo: &Path) {
+/// The branch lives only in `packed-refs`,
+/// so the read has to resolve `HEAD` from there before a loose ref appears over it.
+fn the_branch_lives_only_in_packed_refs(repo: &Path) {
     git(repo, &["pack-refs", "--all"]);
-    commit_of_the_same_tree(repo);
 }
 
-/// A detached `HEAD` moves to a commit of the same tree.
-fn the_detached_head_moves(repo: &Path) {
+/// `HEAD` is detached,
+/// so the read resolves a direct `HEAD` before it moves.
+fn the_head_is_detached(repo: &Path) {
     git(repo, &["switch", "--quiet", "--detach"]);
-    commit_of_the_same_tree(repo);
 }
 
 /// `HEAD` moves to a commit whose tree is another one.
@@ -191,7 +191,10 @@ fn the_head_moves_to_another_tree(repo: &Path) {
 /// const started = startBesideTheCheck(context, identity); moveHead(repo); const fence = theFence(repo, context, started);
 /// expect(fence.gitWrites).toEqual(serial.gitWrites);
 /// ```
-fn the_stale_read_is_dropped(repo: &Path, move_head: MoveHead) {
+fn the_stale_read_is_dropped(repo: &Path, prepare: Option<MoveHead>, move_head: MoveHead) {
+    if let Some(before) = prepare {
+        before(repo);
+    }
     let context: GitContext = git_context();
     let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo)).expect("a read starts");
     move_head(repo);
@@ -213,7 +216,7 @@ fn the_stale_read_is_dropped(repo: &Path, move_head: MoveHead) {
 fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-symbolic");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), the_symbolic_ref_moves);
+    the_stale_read_is_dropped(repo.as_path(), None, the_symbolic_ref_moves);
     remove(root.as_path());
 }
 
@@ -222,7 +225,7 @@ fn a_moved_symbolic_ref_drops_the_read_beside_the_check() {
 fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-packed");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), the_loose_ref_appears_over_the_packed_one);
+    the_stale_read_is_dropped(repo.as_path(), Some(the_branch_lives_only_in_packed_refs), commit_of_the_same_tree);
     remove(root.as_path());
 }
 
@@ -231,7 +234,7 @@ fn a_packed_ref_overlaid_by_a_loose_one_drops_the_read_beside_the_check() {
 fn a_detached_head_moving_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-detached");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), the_detached_head_moves);
+    the_stale_read_is_dropped(repo.as_path(), Some(the_head_is_detached), commit_of_the_same_tree);
     remove(root.as_path());
 }
 
@@ -241,7 +244,7 @@ fn a_detached_head_moving_drops_the_read_beside_the_check() {
 fn a_head_moved_to_another_tree_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-tree");
     let repo: PathBuf = a_clean_source(root.as_path(), "moved");
-    the_stale_read_is_dropped(repo.as_path(), the_head_moves_to_another_tree);
+    the_stale_read_is_dropped(repo.as_path(), None, the_head_moves_to_another_tree);
     remove(root.as_path());
 }
 
@@ -267,6 +270,40 @@ fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
     let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
     assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried));
     held.expect("the read is settled by the add's end").settle();
+    remove(root.as_path());
+}
+
+/// A linked worktree's settled own `HEAD` is the positive control for its own resolution:
+/// the read lists that `HEAD`,
+/// not the main worktree's.
+#[test]
+fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
+    let root: PathBuf = fixture("linked-settled");
+    let repo: PathBuf = a_clean_source(root.as_path(), "linked-main");
+    let first: String = the_head_commit(repo.as_path());
+    // The main checkout moves on, so its `HEAD` names a commit the linked worktree's does not.
+    commit_of_another_tree(repo.as_path());
+    let made: PathBuf = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", made.to_str().expect("utf8"), first.as_str()]);
+    let linked: PathBuf = std::fs::canonicalize(made).expect("canonical");
+    age_every_file(linked.as_path());
+    // The checkout's index records the times the files had when it was written; refreshing them records the aged ones,
+    // so every entry is older than the index that holds it.
+    git(linked.as_path(), &["update-index", "--really-refresh"]);
+    let common: PathBuf = repo.join(".git");
+    let identity = WorktreeIdentity::LinkedWorktree { worktree_root: linked.clone(), git_dir: common.join("worktrees").join("linked"), common_dir: common };
+    let context: GitContext = git_context();
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
+    let source: SnapshotSource = source_refusal(&context, &identity).expect("the linked source is clean");
+    begin_timing(repo.join(".git"), true);
+    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence decides");
+    finish_timing(0);
+    assert!(held.is_none(), "the read listed the linked worktree's own HEAD, which is the commit the check proved");
+    let record: String = the_record(repo.as_path());
+    assert!(!the_record_states(record.as_str(), "git ls-tree"), "a read of the main checkout's HEAD would have been dropped and read here: {record}");
+    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
+    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried));
     remove(root.as_path());
 }
 
