@@ -41835,7 +41835,16 @@ stated in this entry. What follows from them, as work:
   boot reconciliation and the probe; brief under
   `~/temp/agent/zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/`). The step 8 follow-up round was told by
   message to leave low L-4 and the configuration code to it. Its integration pass must weigh who can make a name match
-  (the recheck ranked the pinned file first for that reason). Step 7's
+  (the recheck ranked the pinned file first for that reason). THE OBJECT READER'S FOLLOW-UP ROUND ended at `95afc3d863`
+  (`~/temp/agent/object-reader-declined-branches-controls-and-lows-2026-11-22/keep/report-from-summary.md`): controls for
+  the four questions left to Git on both repository kinds (6 of 6 red with the questions removed); `GIT_REFERENCE_BACKEND`
+  (in Git since 2.54.0) can make Git read a ref store the reader does not scan, the same wrong answer as issue 6340, and
+  the reader now declines under it; a declined landing asks Git once for a commit it has read; object names go on standard
+  input; the note corrected and its open rows run. Its gate was 9775 of 9778: the cause-H pair and
+  `shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`, which
+  passed alone and is filed as issue 6343 (undiagnosed, beside issue 6342). GOING: its integration pass on Sonnet (review
+  to `~/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/`), which also looks for
+  other ways Git can be pointed at a store the reader does not scan. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
