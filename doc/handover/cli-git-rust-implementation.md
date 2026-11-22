@@ -42270,7 +42270,37 @@ stated in this entry. What follows from them, as work:
   a forced removal as assigned, and puts four questions (whether the checked reattach covers a fresh attach after history
   was destroyed, how long the loss record lives, whether a `--force` removal may be cancelled, a standing notice). Its
   second gate pass WAITS for the forced-removal design's fix round, since the first review read the two as one and the
-  seam between them is its high finding. Step 7's
+  seam between them is its high finding. THE LOCK DESIGN'S FIX ROUND ENDED `idle` (123 turns) at `a7902e293b` (report in
+  its folder's `keep/report-gate-findings.md`): every finding fixed and none refuted. The lock's ownership is now proved by
+  recomposing its sentence from the binding record's `nonce=` (no lock record, no claim field); the rollback is out and
+  what a failed add leaves is the accepted "keep the claim", with the rollback put as a question; a killed add's own lock
+  no longer reads as foreign; only a holder of the slot's claim may install a lock. Its questions: where the proof lives,
+  what a failed add leaves, whether the wrapper may install a lost lock unasked, whether a removal proceeds with the lock
+  missing. GOING: the joint second gate pass of the lock and binding record designs by their first reviewer, asked for
+  three verdicts (each design, and whether step 10 can now be built from the two without asking) and one merged set of
+  questions for the owner; to `review-second-pass.md` beside the first review in
+  `~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/`. A WRITER DRIFT, recorded as
+  a reliability observation: the lock round's report says "a message arrived mid-round asking for unrelated 'Aerospace
+  Clip' HTML work". No such message was sent: the run's inbox took only the coordinator's one note (last change
+  18:24:20-05:00), and the words first appear in the session at 2026-11-22T18:30:46-05:00 inside the model's own reasoning
+  ("I haven't yet created the clip ... let me now actually build the HTML artifact"), 123 turns in, between its last two
+  commits. It ran one read-only `grep` and `sed` on a file that does not exist and went back to its report. Nothing was
+  written for it. Excerpt kept beside the report as
+  `writer-invented-an-unrelated-task-in-its-own-reasoning-2026-11-22T18-30-46.txt`; the second pass reads the round's whole
+  diff. THE FORCED-REMOVAL DESIGN'S FIX ROUND ENDED `idle` (129 turns) at `095b807355` (report in its folder's
+  `keep/report-gate-findings.md`): the caller's property now carries the wrapper's pid, start time and boot id, and the
+  handler reads the live ancestor chain to pid 1 itself and spares the wrapper's session and that whole chain (a departure
+  from the reviewer's narrowest fix, stated); a forced request acts only with a standing `unmount` intent and a live
+  wrapper; the proof pins the process before it reads about it; the act is now a question with three options (end every
+  task in each holder namespace; a plain unmount inside each holder namespace and end only what blocks; the second, then
+  the first); its own account of the failure path is gone and defers to the cancelled-removal design; the probe script is
+  rewritten so that no line can ask the system manager to act. It says a `systemd-run` service unit's caller has no harness
+  ancestor and stays unprotected. Seven questions, the authority first. Its report's "rule break" paragraph is the account
+  of the first round's incident, not a new one: the journal holds no polkit or system-manager entry since 18:15:00-05:00,
+  by a search that does show the 17:24:31-05:00 incident. GOING: the joint second gate pass of the two step 17 designs by
+  their first reviewer, told to walk the caller's protection through the shapes it measured and to judge the two partial
+  refutations the writers made; to `review-second-pass.md` beside the first review in
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
