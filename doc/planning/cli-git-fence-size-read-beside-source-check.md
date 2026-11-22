@@ -176,7 +176,8 @@ Probed with Git 2.56.1 on this host,
 `git ls-tree -r -l -z HEAD` under either switch exits 0 with the same output size,
 prints `BAD` in the size column of a blob the clone does not hold,
 and leaves 40 missing and 2 packs unchanged;
-without a switch the same read fetches (0 missing, 42 packs).
+without a switch the same read fetches (0 missing,
+42 packs).
 Ubuntu 24.04's Git 2.43.0 is older than both:
 its package carries the variable in `promisor-remote.c`,
 so the plain read exits 128 with `could not fetch ... from promisor remote`
@@ -184,7 +185,8 @@ and leaves 40 missing and 2 packs unchanged,
 and it refuses the option as an unknown global (exit 129).
 The shipped read asks for the no-fetch switches only where the source may hold a promisor remote
 (a `.promisor` pack or a `promisor` word in the common config);
-a plain source keeps today's read, so an older Git keeps the overlap there,
+a plain source keeps today's read,
+so an older Git keeps the overlap there,
 and on a promisor source an older Git reads nothing and the fence falls through to Git's own checkout.
 `parse_sizes` skips a size it cannot parse,
 and a missing size only ever sends a path to Git's writing,
@@ -1096,7 +1098,8 @@ one commit,
 25,034 loose objects,
 then `git gc` for the packed layouts.
 The arms are `main` (`e3c9b7e62d`),
-this branch, and `branch-again` (this branch's identical binary);
+this branch,
+and `branch-again` (this branch's identical binary);
 every round rotates the three and reverses every second pass,
 one uncounted warm-up runs per arm,
 and `sync --file-system` runs before every add.
@@ -1107,50 +1110,104 @@ named `fence-size-read-settle-never-waits-2026-11-22-...`.
 
 The shapes are the review's two losing ones (a cone sparse source,
 a refused source whose Git fails at once) and the build's four
-(a loose and a packed served add, a refused add with Git's whole checkout, a declined add).
+(a loose and a packed served add,
+a refused add with Git's whole checkout,
+a declined add).
 
-Medians, this branch against `main`,
+Medians,
+this branch against `main`,
 with the per-round branch-to-`main` ratios and the identical control's range
 (`branch-again` to `branch`):
 
-- loose served, 4 rounds:
+- loose served,
+  4 rounds:
   905.1 against 960.6 ms,
-  ratios 0.54, 1.51, 0.88, 0.92,
+  ratios 0.54,
+  1.51,
+  0.88,
+  0.92,
   control 0.70 to 1.71;
-- packed served, 4 rounds:
+- packed served,
+  4 rounds:
   599.9 against 677.4 ms,
-  ratios 0.97, 0.84, 0.83, 0.90,
+  ratios 0.97,
+  0.84,
+  0.83,
+  0.90,
   control 0.96 to 1.11;
-- refused with Git's whole checkout, loose, 4 rounds:
+- refused with Git's whole checkout,
+  loose,
+  4 rounds:
   2928.5 against 2988.8 ms,
-  ratios 0.94, 0.98, 1.06, 0.97,
+  ratios 0.94,
+  0.98,
+  1.06,
+  0.97,
   control 0.89 to 1.12;
-- the same, packed, 4 rounds:
+- the same,
+  packed,
+  4 rounds:
   2665.6 against 2623.7 ms,
-  ratios 1.08, 0.94, 1.19, 1.17,
+  ratios 1.08,
+  0.94,
+  1.19,
+  1.17,
   control 0.80 to 1.06;
-- declined packed, 4 rounds:
+- declined packed,
+  4 rounds:
   7455.0 against 7525.9 ms,
-  ratios 1.04, 1.14, 0.93, 1.02,
+  ratios 1.04,
+  1.14,
+  0.93,
+  1.02,
   control 0.94 to 1.11;
-- cone sparse refused, loose, 6 rounds:
+- cone sparse refused,
+  loose,
+  6 rounds:
   168.1 against 161.8 ms,
-  ratios 1.05, 1.00, 0.61, 0.94, 1.11, 2.20,
+  ratios 1.05,
+  1.00,
+  0.61,
+  0.94,
+  1.11,
+  2.20,
   control 0.30 to 1.65 (one round took 763 ms under host load);
-- the same, packed, 6 rounds:
+- the same,
+  packed,
+  6 rounds:
   115.4 against 99.9 ms,
-  ratios 0.90, 1.28, 1.07, 1.13, 1.27, 0.94,
+  ratios 0.90,
+  1.28,
+  1.07,
+  1.13,
+  1.27,
+  0.94,
   control 0.93 to 1.33;
-- refused with Git failing at once, loose, 6 rounds:
+- refused with Git failing at once,
+  loose,
+  6 rounds:
   16.0 against 13.0 ms,
-  ratios 1.10, 1.23, 1.21, 1.19, 1.36, 1.06,
+  ratios 1.10,
+  1.23,
+  1.21,
+  1.19,
+  1.36,
+  1.06,
   control 0.80 to 1.14;
-- the same, packed, 6 rounds:
+- the same,
+  packed,
+  6 rounds:
   23.5 against 21.4 ms,
-  ratios 1.45, 1.14, 1.23, 1.12, 1.00, 0.96,
+  ratios 1.45,
+  1.14,
+  1.23,
+  1.12,
+  1.00,
+  0.96,
   control 0.74 to 1.15.
 
-The served, refused and declined shapes no longer show the review's waits:
+The served,
+refused and declined shapes no longer show the review's waits:
 the read work is 0 in the refused and declined records (the read is ended at the refusal or the decline),
 and the served adds keep the overlap.
 The cone sparse shape's median ratio is 1.05 loose and 1.13 packed;
@@ -1159,7 +1216,8 @@ and the loose one's 2.20 round is the host stall that also moved its control.
 The two fail-fast shapes are 12 to 24 ms adds where one abandoned child and a scheduling jitter
 are a few milliseconds:
 their medians are 1.21 loose and 1.14 packed,
-and two rounds (loose 1.36, packed 1.45) sit above the control's own range,
+and two rounds (loose 1.36,
+packed 1.45) sit above the control's own range,
 so the strict "every round inside the control's spread or below it" bar is **not** met on those rounds.
 No shape is slower than `main` by more than 15 percent of the add,
 and every served add is faster than `main` where the overlap helps.
@@ -1176,7 +1234,8 @@ and every served add is faster than `main` where the overlap helps.
   the review measured it against the prototype,
   and this branch's own suite measures it against the shipped shape.
 - It did not measure a declined source in its own runs;
-  the shipped build's guest run does ("The settle that never waits, timed").
+  the shipped build's guest run does ("The settle that never waits,
+  timed").
 - It did not measure a cold cache,
   and it did not resolve rung 2's wall,
   because the host was loaded by other sessions throughout;
@@ -1245,4 +1304,5 @@ named `fence-size-read-settle-never-waits-2026-11-22-...`:
 
 The section "The shipped build,
 timed" says which row file is which run,
-and "The settle that never waits, timed" says which fix-round row is which shape.
+and "The settle that never waits,
+timed" says which fix-round row is which shape.
