@@ -424,6 +424,7 @@ fn carry_the_commit_parts(
     return Ok(());
 }
 
+/// Shadow creation controls stay out of the release executable.
 #[cfg(test)]
 #[path = "shadow_create_tests.rs"]
 mod tests;
