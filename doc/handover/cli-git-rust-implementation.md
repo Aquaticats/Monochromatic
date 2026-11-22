@@ -41969,9 +41969,33 @@ stated in this entry. What follows from them, as work:
   branches it builds on. WHAT A NEW WORKTREE COSTS NOW, measured on those ten adds, one after another, through the session's
   wrapper build (`0.6.1-alpha.44`, built by cargo): 13.0 to 58.4 s each (median 24.6 s), each copying 38,698 ignored
   entries; one new worktree is 5,820 MiB by `du`; the pool's `bclonesaved` rose from 802 G to 847 G over the ten, about
-  4.5 G shared per worktree (other programs clone blocks too, so that share is not exact). 56 worktrees are now on the new
-  drive, where the owner's bound for the ZFS steps is 64; removing the stale ones is owed. The owner's hold of 2026-11-18
-  on other work stands, and the owner is asked about it with these figures. Step 7's
+  45 G that this record does not attribute, because builds and containers clone blocks too. That wrapper build is of
+  2026-11-17T18:33:13-05:00, older than step 3's merge (`83d844942e`, 2026-11-19T21:23:36-05:00) and every later ZFS step,
+  so an add in this session still takes the route the owner's hold of 2026-11-18 was about. 34 worktrees were then under
+  `.claude/worktrees` on the new drive, where the owner's bound for the ZFS steps is 64 (`git worktree list` also prints 22
+  registrations marked `prunable`, whose folders were on the old drives; a count of 56 that this session first wrote here
+  took them for worktrees). Four superseded integration worktrees, each shown clean, pushed and with no process working in
+  it, were removed and their branches kept (`integrate-clone-rung-partial-clone`,
+  `integrate-fence-size-read-beside-source-check`, `integrate-fence-size-read-with-findings-fixed`,
+  `integrate-object-reader-declined-branches-controls-and-lows`), leaving 30. The hold on other work stands, and the owner
+  is asked about it with these figures. Guests, corrected: the first answer to the owner said one more guest fits and two do
+  not, from swap alone; the unit that holds the guests may keep 33 GiB resident and held 2.5 GiB, so about four more guests
+  of 8 GiB fit by that cap, and what gives first is the host's memory, which builds share. Five design runs were sent
+  notes: the lock and binding-record designs, that plain `git` is the wrapper, so a probe is labelled as run through it and
+  Git's source decides what Git does (a probe of Git alone may run inside a gate image already present, never on the host);
+  the deferred-destroy design, that two phrases its brief quoted as the proposal's are the handover's headings; the
+  propagation and lost-event designs, to read "the project" where their briefs said "the owner". ISSUE 6344'S ROUND ENDED
+  `idle` (266 turns) at `a6d910549b` (2026-11-22T17:17:47-05:00; report
+  `~/temp/agent/shadow-sibling-control-two-timing-windows-2026-11-22/keep/report-from-summary.md`): the stand-in learns the
+  attempt from the wrapper, the planted cut covers the first attempt alone, the every-time control asserts a lower bound on
+  its wait, `shadow_create.rs` is split into four files, and cause M says what its record cannot separate. Its gate ran
+  9876 of 9879: the cause-H pair, and
+  `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`, which the
+  troubleshooting document records as cause G and which passed alone, so by rule `SUF` it is a contention or ordering defect
+  to diagnose and its round is owed. GOING: its pass on Sonnet, review to
+  `~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/review.md`, integration branch
+  `integrate/git-policy-cli-shadow-sibling-control-two-timing-windows`. When the lock and binding-record designs both end,
+  their gate review starts together and does not wait for the other eight. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
