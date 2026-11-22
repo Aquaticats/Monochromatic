@@ -42139,7 +42139,17 @@ stated in this entry. What follows from them, as work:
   and to work through every way the single mount-table read or the skipped receipt write can answer wrongly; review to
   `~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`, integration branch
   `integrate/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost`. The figures and the bound of 4096 go to the owner
-  with that pass's verdict. Step 7's
+  with that pass's verdict. THE DEFERRED-DESTROY DESIGN'S FIX ROUND ENDED `idle` (76 turns) at `3e34817184` (report
+  `~/temp/agent/zfs-deferred-destroy-checks-design-2026-11-22/keep/report-gate-findings.md`): every finding fixed and none
+  refuted; the checks now sit after the verified unmount and the plan's first write, a refusal keeps the removal record on
+  every cause, the guest probes build their own account and grants and force the mark between the checks at a seam; 229
+  citations checked by script, the review's twenty-two and four more corrected. Its questions for the owner as they stand:
+  what a refusal at the first check does to the clone already unmounted (keep, cancel and reattach, or one more read
+  before the unmount), what a refusal before the head destroy keeps, and whether the wrapper may ever finish over a marked
+  origin. It names two disagreements with siblings: the forced-removal design supposes a refusal rewrites the intent to
+  `mount`, and the origin cleanup design says an administrator can remove the mark, which the source contradicts. GOING:
+  the second, short gate pass, by the same Sonnet reviewer resumed with its context, to
+  `~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
