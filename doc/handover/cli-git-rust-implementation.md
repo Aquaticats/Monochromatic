@@ -42300,7 +42300,18 @@ stated in this entry. What follows from them, as work:
   by a search that does show the 17:24:31-05:00 incident. GOING: the joint second gate pass of the two step 17 designs by
   their first reviewer, told to walk the caller's protection through the shapes it measured and to judge the two partial
   refutations the writers made; to `review-second-pass.md` beside the first review in
-  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`. Step 7's
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`. THE DESTRUCTION PLAN DESIGN'S FIX
+  ROUND ENDED `idle` (93 turns) at `76849b8d9b` (report in its folder's `keep/report-gate-findings.md`): all twenty-two
+  findings fixed, none refuted. The first write now records every verified tuple as `planned`; outcomes other than
+  `destroyed` return to `requested` on a retry; the absence rule compares GUIDs; resume branches for a head already gone;
+  no pointer is written inside a registration and one `stat` of the plan folder before a forwarded command finds a plan;
+  two removals rest on the per-slot claim, not on Git's lock; its step only confirms the origin cleanup record. To weigh at
+  the second pass: it ships "a labelled 4,096-tuple placeholder" for the reader's bound until plan step 22 measures it,
+  and it read both siblings at their first tips (`4daa6c66ce`, `1e9bc35f1e`), so its statements about them are stale
+  where they have since changed (the binding record's folder among them). One question for the owner (what trace of a
+  destruction outlives the removal) and twelve veto choices. Its second gate pass WAITS for the origin cleanup design's fix
+  round (`pi-zfs-origin-cleanup-record-design-gate-findings`, still going): the first review's condition is that the
+  record designs be judged together. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
