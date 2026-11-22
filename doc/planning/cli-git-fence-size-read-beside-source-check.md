@@ -239,6 +239,11 @@ in every build of this branch:
   so rung 2 and an add no rung serves never start it).
   It resolves `HEAD` in process (`worktree_clean::head_commit`,
   with `repository_hash_length` for the object format) and starts the read on a thread of its own.
+  One fall-through pays it for nothing:
+  a linked-worktree source whose snapshot is blocked after the check (a nested ordinary worktree)
+  takes rung 2 with the read already started,
+  and that add's end settles it unused.
+  Rung 2's own fence is unchanged and never starts it.
 - The read is one `git ls-tree -r -l -z <commit>` with `GIT_NO_LAZY_FETCH=1` in its environment
   and `GitRequest::beside_another_step` set,
   so it cannot fetch into the source
@@ -354,11 +359,12 @@ so the pair is one that can move at all.
 Five shapes,
 one control each:
 a symbolic ref moved to another commit of the same tree,
-a loose ref appearing over the branch `packed-refs` held,
-a detached `HEAD` moving,
+a branch that lives only in `packed-refs` before a loose ref appears over it,
+a `HEAD` that is detached before it moves,
 `HEAD` moving to a commit of another tree,
 and a linked worktree's own `HEAD` moving.
-Each starts the read on the commit before the move,
+Each puts its reference in that shape first,
+then starts the read on the commit before the move,
 moves `HEAD`,
 runs the check on the source it then finds,
 and fences:
@@ -367,10 +373,17 @@ the read is still held by the add,
 and the fence's answer equals the serial fence's answer for the commit the check proved
 (`fence_the_clone`),
 which is the set of paths Git writes and the clones carry.
+The destination bytes are not compared here:
+the measurement round's decision control did that on a settled source (26 of 26 files equal),
+and what this pair of answers proves is that the guard decides with the proved commit's map.
 The settled `HEAD` is the positive control:
 the fence takes the read,
 the record states `fenceSizesBesideTheCheck` work and no `git ls-tree` step,
 and the answer equals the serial one.
+The linked worktree gets a settled control of its own,
+with the main checkout's `HEAD` on a commit the linked worktree's is not:
+there the fence takes the read,
+so a read that had resolved the main checkout's `HEAD` would have been dropped.
 
 **A read that fails or outlives its deadline gives today's sentence.**
 - A read that cannot start (a `GitContext` whose real Git is not there)
@@ -564,14 +577,18 @@ Every round of set two puts `main` 3 to 9 percent above `branch`,
 the medians differ by **34.6 ms (6.2 percent)**,
 and the control's median difference is **+1.4 percent**.
 
-Both sets agree on the size and the direction.
-The control's worst round in either set,
-1.35 in set one,
-is wider than the effect,
-so what this document rests on is the two sets' medians and set two's every-round reading:
-on the layout most sources have,
-the shipped overlap is about **6 percent** of a rung-1 add,
-and it never waits at the fence,
+Both sets agree on the size and the direction:
+**33.4 and 34.6 ms**,
+**6.2 percent** of the add in each,
+against a control pair whose median difference is **0.7 and 1.4 percent**.
+No single round resolves it,
+because the control's spread in both sets (0.92 to 1.35 and 0.97 to 1.07)
+is as wide as the effect,
+and set two's every-round range (1.03 to 1.09) overlaps the control's 1.07.
+So what this document claims for the packed layout is the medians of two sets,
+and the direction they agree on,
+never one round.
+It never waits at the fence,
 because the read's 43 to 48 ms beside the check end before the fence reaches it.
 
 The read costs more beside the check on a packed source,
