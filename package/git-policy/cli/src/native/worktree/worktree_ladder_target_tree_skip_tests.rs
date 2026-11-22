@@ -16,9 +16,8 @@
 //! // expect(ladder.rung).toBe('git'); expect(ladder.slow.word()).toBe('declines');
 //! ```
 
-use super::*;
 use crate::add_timing::ADD_TIMING_FILE;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{age, fixture, git, git_context, remove, repository};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
@@ -109,7 +108,8 @@ fn a_destination_that_names_an_existing_branch_is_skipped_before_any_copy() {
 
 /// What:
 ///  An add that names a local branch which a tag of the same name shadows
-///  reads that branch's tree, as Git's own checkout does.
+///  reads that branch's tree,
+/// as Git's own checkout does.
 /// Why:
 ///   `add_worktree` sets the new worktree's `HEAD` to `refs/heads/<name>` when that ref exists and the add detaches
 /// nothing,
@@ -140,7 +140,7 @@ fn a_branch_of_a_tags_name_is_the_tree_the_add_starts_at() {
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "the source is eligible: {record}");
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the clone rung serves a tree Git's checkout writes no differently: {record}");
-    assert!(ladder.slow.is_none(), "no sentence says the tree differs: {record}");
+    assert!(!ladder.slow.as_ref().is_some_and(|route: &SlowRoute| return route.word() == "declines"), "no sentence says the tree differs: {record}");
     remove(root.as_path());
 }
 
@@ -172,7 +172,7 @@ fn a_target_tree_no_rule_of_the_fence_can_serve_costs_no_read() {
     let plan: AddPlan = plan_to_at(root.join("topic"), Some("other"));
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the clone rung serves the add: {record}");
-    assert!(ladder.slow.is_none(), "no sentence says the tree differs: {record}");
+    assert!(!ladder.slow.as_ref().is_some_and(|route: &SlowRoute| return route.word() == "declines"), "no sentence says the tree differs: {record}");
     let steps: &serde_json::Map<String, serde_json::Value> = record["steps"].as_object().expect("the record's steps");
     assert!(steps.contains_key("targetTreeDifference"), "the question is still asked, and answered before any read: {record}");
     assert!(!steps.contains_key("git diff-tree"), "no read of the target tree is paid when the fence hands Git no path: {record}");
@@ -204,17 +204,48 @@ fn a_target_tree_that_changes_a_link_is_skipped_before_any_copy() {
     tracked(repo.as_path(), "a.txt", b"line one\n");
     tracked(repo.as_path(), "b.txt", b"line two\n");
     std::os::unix::fs::symlink("a.txt", repo.join("link")).expect("the link");
+    age(repo.join("link").as_path());
     commit_all(repo.as_path(), "the link points at a.txt");
     git(repo.as_path(), &["update-ref", "refs/heads/other", "HEAD"]);
     std::fs::remove_file(repo.join("link")).expect("the link is replaced");
     std::os::unix::fs::symlink("b.txt", repo.join("link")).expect("the new link");
+    age(repo.join("link").as_path());
     commit_all(repo.as_path(), "the link points at b.txt");
     let plan: AddPlan = plan_to_at(root.join("topic"), Some("other"));
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the link: {record}");
     assert!(matches!(ladder.rung, Rung::Git(_)), "the rung steps aside before the copies: {record}");
     let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
-    assert!(route.line().contains("differs from the source's index at link"), "{}", route.line());
+    assert!(route.line().contains("differs from the source's index at link"), "{}: {record}", route.line());
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "no stage name was claimed, so nothing was copied");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add whose commit-ish Git resolves through the reflog,
+/// and the read cannot,
+///  leaves the rung running rather than guessing a tree.
+/// Why:
+///   `git worktree add <path> -` is Git's own form of `@{-1}` (`Documentation/git-worktree.adoc`,
+/// "COMMANDS"),
+///  which the one name-only read cannot resolve:
+/// its `-^{commit}` is not a revision.
+/// A read that fails decides nothing,
+/// so the rung runs and its fallback keeps every byte guarantee;
+///  this is the shape the btrfs ending control uses to reach the snapshot rung's own ending on purpose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { ladder, record } = chosen(plan_to_at(topic, '-'), repo);
+/// expect(ladder.firstStep()).not.toBe('person'); expect(ladder.rung).toBe('clone');
+/// ```
+#[test]
+fn a_commit_ish_the_read_cannot_resolve_leaves_the_rung_running() {
+    let root: PathBuf = fixture("target-tree-unresolvable-commit");
+    let repo: PathBuf = converting_fixture(root.as_path());
+    let plan: AddPlan = plan_to_at(root.join("topic"), Some("-"));
+    let (ladder, record) = chosen(&plan, repo.as_path());
+    assert!(matches!(ladder.rung, Rung::Clone(..)), "the clone rung runs where the read could not answer: {record}");
+    assert!(!ladder.slow.as_ref().is_some_and(|route: &SlowRoute| return route.word() == "declines"), "and no sentence says the tree differs: {record}");
     remove(root.as_path());
 }

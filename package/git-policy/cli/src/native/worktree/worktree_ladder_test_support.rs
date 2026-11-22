@@ -73,7 +73,8 @@ pub(crate) fn main_identity(repo: &Path) -> WorktreeIdentity {
 /// A plan for a destination,
 /// with the insertion point after `worktree add`,
 /// for the add Git reads as `git worktree add -b topic <destination>`:
-/// a new branch, so the commit-ish is resolved by `rev-parse` and no local branch is preferred.
+/// a new branch,
+/// so the commit-ish is resolved by `rev-parse` and no local branch is preferred.
 pub(crate) fn plan_to(destination: PathBuf) -> AddPlan {
     return plan_to_at(destination, None);
 }
@@ -94,7 +95,8 @@ pub(crate) fn plan_to_at(destination: PathBuf, target: Option<&str>) -> AddPlan 
 }
 
 /// A plan for the add Git reads as `git worktree add <destination>`:
-/// no commit-ish, no `-b` and no `--detach`,
+/// no commit-ish,
+/// no `-b` and no `--detach`,
 /// so Git checks out the branch the destination is named after when that branch exists,
 /// and starts at `HEAD` when it does not.
 pub(crate) fn plan_naming_no_commit(destination: PathBuf) -> AddPlan {
