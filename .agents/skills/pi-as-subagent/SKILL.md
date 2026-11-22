@@ -296,9 +296,14 @@ which `mise run toolchain:install` makes.
     one per run.
     The driver writes everything there.
     Choose where Pi works:
-    its own worktree (`git worktree add -b <branch> .claude/worktrees/<name> main`,
-    then `mise exec -- pnpm install --offline --frozen-lockfile` inside it),
+    its own worktree (`git worktree add -b <branch> .claude/worktrees/<name> main`),
     or the main checkout for a small change with nothing else in those packages.
+    Tell the run not to run `pnpm install` in a new worktree:
+    the wrapper's commit service relinks its `node_modules` after the add returns
+    (`package/git-policy/cli/README.md`,
+    "Package-manager state in a new worktree"),
+    and on 2026-11-21 an install started in that window left two worktrees whose copy could never finish,
+    with a warning about each on every `git` command of every session until they were removed (issue 6339).
 3.  Write the prompt to a file.
     Beside rules `ATH` and `NLD`,
     give it:
