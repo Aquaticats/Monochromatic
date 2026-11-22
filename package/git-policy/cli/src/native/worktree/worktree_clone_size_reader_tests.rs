@@ -8,6 +8,7 @@
 //! on a replaced blob,
 //! on a shallow history,
 //! on a partial clone's promisor,
+//! on a reftable repository's replace ref,
 //! and on a repository whose paths need no size at all.
 //! Why:
 //!  The fence's decision is the map,
@@ -26,7 +27,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_clone_size_reader::{SizeRead, SizeReader, read_sizes, wanted_paths};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Command, Output};
 
 /// The sizes as sorted path text and size,
 /// so two maps compare as the report reads them.
@@ -193,13 +194,64 @@ fn a_partial_clones_promisor_answers_the_same_sizes() {
     let root: PathBuf = fixture("size-reader-partial");
     std::fs::create_dir_all(root.as_path()).expect("fixture root");
     let origin: PathBuf = repository_with_shapes("size-reader-partial/origin");
-    let clone: PathBuf = root.join("clone");
+    // The origin has to understand the filter: without `uploadpack.allowFilter` Git prints "filtering not recognized
+    //  by server, ignoring", fetches every object, and the clone holds every blob, so the clone is no promisor at all.
+    git(origin.as_path(), &["config", "uploadpack.allowFilter", "true"]);
+    // Each reader gets a clone of its own: the first read that reaches Git fetches the absent blobs, and every later
+    //  reader of that clone would find them locally and never show whether it handles an absent one.
+    let shipped: HashMap<Vec<u8>, u64> = {
+        let clone: PathBuf = partial_clone_of(root.as_path(), origin.as_path(), "shipped");
+        let wanted: Vec<(Vec<u8>, Vec<u8>)> = wanted_of(clone.as_path());
+        assert_every_blob_absent(clone.as_path(), wanted.as_slice());
+        sizes_of(SizeReader::LsTree, clone.as_path(), wanted.as_slice())
+    };
+    assert!(!shipped.is_empty(), "the shipped read answered nothing for the promised blobs");
+    for reader in [SizeReader::CatFile, SizeReader::ObjectDatabase] {
+        let clone: PathBuf = partial_clone_of(root.as_path(), origin.as_path(), reader.name());
+        let wanted: Vec<(Vec<u8>, Vec<u8>)> = wanted_of(clone.as_path());
+        // The promisor shape this control is about: not one blob is in the database before the reader runs.
+        assert_every_blob_absent(clone.as_path(), wanted.as_slice());
+        let answered: HashMap<Vec<u8>, u64> = sizes_of(reader, clone.as_path(), wanted.as_slice());
+        // A reader that answers only what it finds in the files leaves the absent blobs out of the map, so this
+        //  control fails without the fallback to one Git run for the ids it cannot size.
+        assert_eq!(sorted(&answered), sorted(&shipped), "{} answered another map for the promised blobs", reader.name());
+    }
+}
+
+/// A clone of `origin` that asks for no blob and holds no checkout,
+/// with an index over `HEAD`.
+fn partial_clone_of(root: &Path, origin: &Path, name: &str) -> PathBuf {
+    let clone: PathBuf = root.join(name);
     let url: String = format!("file://{}", origin.display());
-    git(root.as_path(), &["clone", "--quiet", "--filter=blob:none", "--no-checkout", url.as_str(), clone.to_str().expect("a path")]);
+    git(root, &["clone", "--quiet", "--filter=blob:none", "--no-checkout", url.as_str(), clone.to_str().expect("a path")]);
     // An index over the tree and no checkout at all, so every blob is still absent until it is asked for.
     git(clone.as_path(), &["read-tree", "HEAD"]);
     assert!(promised_objects(clone.as_path()), "the clone holds no promisor pack");
-    assert_every_reader_agrees(clone.as_path());
+    return clone;
+}
+
+/// Assert not one id `wanted` names is in `repo`'s object database,
+/// with a promisor remote's lazy fetch turned off so no read can put it there.
+fn assert_every_blob_absent(repo: &Path, wanted: &[(Vec<u8>, Vec<u8>)]) {
+    for (_path, id) in wanted {
+        let hex: String = crate::repo_read_object::to_hex(id);
+        let found: Output = git_output_without_lazy_fetch(repo, &["cat-file", "-e", hex.as_str()]);
+        assert!(!found.status.success(), "the clone holds the promised blob {hex}");
+    }
+}
+
+/// One real-Git run of the fixture with the promisor remote's lazy fetch turned off.
+fn git_output_without_lazy_fetch(repo: &Path, arguments: &[&str]) -> Output {
+    return Command::new(crate::test_support::REAL_GIT)
+        .current_dir(repo)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .env("GIT_NO_LAZY_FETCH", "1")
+        .args(arguments)
+        .output()
+        .expect("native Git fixture command");
 }
 
 /// Whether a repository's packs include one a promisor remote named.
@@ -215,6 +267,27 @@ fn promised_objects(repo: &Path) -> bool {
         }
     }
     return false;
+}
+
+#[test]
+fn a_reftable_repositorys_replace_ref_answers_the_size_git_answers_for_it() {
+    let root: PathBuf = fixture("size-reader-reftable");
+    std::fs::create_dir_all(root.as_path()).expect("fixture root");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir_all(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--ref-format=reftable"]);
+    write(repo.as_path(), "small.txt", b"one line\n");
+    write(repo.as_path(), "large.bin", &vec![0x7eu8; 300_000]);
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=shapes"]);
+    // A reftable repository keeps its refs in `reftable/`, where this reader's scans never look, so it refuses the
+    //  database whole: Git then answers the replacement's size and the map stays the shipped read's.
+    assert!(repo.join(".git/reftable").exists(), "the fixture keeps its refs as files");
+    let small: String = String::from_utf8_lossy(&git_output(repo.as_path(), &["rev-parse", "HEAD:small.txt"]).stdout).trim().to_string();
+    let large: String = String::from_utf8_lossy(&git_output(repo.as_path(), &["rev-parse", "HEAD:large.bin"]).stdout).trim().to_string();
+    git(repo.as_path(), &["replace", small.as_str(), large.as_str()]);
+    assert_ne!(git_size_of(repo.as_path(), small.as_str()), String::from("9"), "the fixture holds no replace ref");
+    assert_every_reader_agrees(repo.as_path());
 }
 
 #[test]
