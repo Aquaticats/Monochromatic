@@ -42062,7 +42062,9 @@ stated in this entry. What follows from them, as work:
   through staging, the staged-folder record, the reattach, the wrapper's folder and its `rmdir`-only cleanup, and the two
   entry points later steps wait on, with 65 unit controls green. Not done, in the report's own words: "The guest was not
   started or run", so every arm ran on a tmpfs stand-in and VM items 3, 4 and 15 and M1 to M9 stay owed; no control drives
-  `EBUSY`; three guards have no red run; the new folder has no `uses/` entry. It also files a receipt for every unmount
+  `EBUSY`; three guards have no red run. (Its line "`cargo package --list`: no `uses/` entry" is the brief's check
+  passing, since the manifest keeps the `uses/` links out of the package; the continuation first read it as a missing
+  folder, and the run was sent the correction.) It also files a receipt for every unmount
   refusal and adds an outcome `reattached` with the outcome's bound raised from 7 to 10 bytes, where the project's step 8
   answer is that a refusal files no receipt except for an unavailable key and the accepted staging record names one
   unmount outcome that files one. Its gate ran 9942 of 9945: the cause-H pair, and
@@ -42090,7 +42092,53 @@ stated in this entry. What follows from them, as work:
   questions, the siblings' documents read where the designs lean on each other. A second, short gate pass reads the
   rewritten parts after it. The other six gate reviews get the same round when they return, from
   `gate-findings-template.md` and `make-a-gate-findings-continuation.ts` under
-  `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`. Step 7's
+  `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`. THE PROPAGATION DESIGN'S GATE REVIEW IS BACK, "fit after
+  the listed fixes, not as it stands"
+  (`~/temp/agent/gate-review-zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/review.md`). Two highs:
+  the document says nothing can start a unit when a mount appears outside systemd, where systemd's own source starts what
+  a mount unit `Upholds=` whether the mount was expected or not, so a drop-in on the checkout's mount unit is one more way;
+  and its step compares `statmount`'s unique mount id with the number the mount table prints, so it would refuse on every
+  run. Nine mediums (among them `zfs rollback` is no replacement, a plain `zfs rename` is one, and a second mount of a
+  detached clone is expected to succeed where the document says `EBUSY`), and about twenty wrong citations. GOING:
+  `pi-zfs-private-propagation-after-replacement-mount-design-gate-findings`, the same session on its
+  `continuation-gate-findings.md`; how a replacement systemd did not run as a job gets repaired is left to the owner, with
+  the reviewer's four ways as options. THE OBJECT READER'S RECHECK SAID NOT FIT
+  (`~/temp/agent/integration-recheck-object-reader-commit-memory-is-per-landing-2026-11-22/keep/review.md`; integration
+  branch `integrate/git-policy-cli-object-reader-commit-memory-is-per-landing` at `fb22af3fb4`; gate 9902 of 9904, the
+  cause-H pair). Every first-pass finding is fixed. One high, new: the commit refusal the round added refuses commits
+  `main` lands correctly, a harmless value of `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`,
+  `GIT_REPLACE_REF_BASE` or `GIT_REFERENCE_BACKEND` held by the command alone or by both, and an effective value the
+  service holds too; and its remedy "set it where the commit service runs" lifts nothing, because the check reads the
+  command's environment alone. One medium: a guard reported red was a failed build (an array length left unchanged), and
+  the control fails only with two guards removed together. Lows: the shared layout proof is stale after
+  `git refs migrate`; under the four variables the by-content clean check refuses where `main` leaves the removal to Git;
+  stale words. Picked without asking, open to the owner's veto, as the reviewer ranked first: the refusal comes out of this
+  branch, so nothing is worse than `main`, and the one row it was right about (a no-parent replacement under
+  `GIT_REPLACE_REF_BASE` held by the command alone, then an amend: one parent where Git reads none, as on `main`) is filed
+  as issue 6347, which wants a design because it reopens the record that a request carries no environment; the stale proof
+  is closed by one more stat. Issue 6347 is non-ZFS work and waits under the owner's hold. GOING:
+  `pi-object-reader-recheck-findings-the-commit-refusal-comes-out`, the same session resumed on
+  `continuation-recheck-findings.md` in `~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/` (run folder
+  `run-2`), in a worktree made again at the same path. THE LOST-EVENT DESIGN'S GATE REVIEW IS BACK, "fit after the listed
+  fixes, not as it stands" (`~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review.md`). Two
+  highs: the provider hook the design recommends finds no probe record at boot (the boot unit writes it later), its refusal
+  fails `zfs-mount.service` and so the boot unit never starts, and the command the design re-fires it with does nothing on
+  an active oneshot; and the nudge is written at the first read of every wait, so every add writes two events. Eleven
+  mediums and eleven wrong citations. GOING: `pi-zfs-lost-last-event-triggers-design-gate-findings`, the same session on
+  its `continuation-gate-findings.md`. STEP 8'S FOLLOW-UP ROUND ENDED `idle` at `d97a683346` (report
+  `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/report-from-summary.md`): M-1 to M-4 and the
+  lows fixed, each with a control shown red; the low about the configuration file left to the no-configuration branch. The
+  sweep's cost, in its own guest (four processors, 8 GB, OpenZFS 2.4.4), mounted clones, a one-child control in each round:
+  a steady sweep went from a median of 7,361 ms to 2,737 ms at 1,024 clones and from 32,286 ms to 6,113 ms at 2,048, by
+  reading the mount table once per sweep and by not rewriting a `done` receipt that already matches; 64 clones are
+  unchanged (330 against 331 ms); 4,096 clones, measured after only, take 22,288 ms steady and 174,754 ms cold. Not
+  explained by the round: the steady cost per child still rises at 4,096 (about 5 ms against 2.2 ms at 64), and the cold
+  sweep at 1,024 was slower after the change (42,181 against 20,191 ms). Its gate ran 9884 of 9886, the cause-H pair.
+  GOING: its integration pass on Sonnet, told to settle that slower cold sweep by an interleaved run against `main`'s build
+  and to work through every way the single mount-table read or the skipped receipt write can answer wrongly; review to
+  `~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`, integration branch
+  `integrate/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost`. The figures and the bound of 4096 go to the owner
+  with that pass's verdict. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
