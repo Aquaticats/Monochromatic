@@ -260,9 +260,6 @@ pub fn finish_a_staged_unmount(sweep: &StagedSweep<'_>) -> SweepOutcome {
         RecordReading::Absent => return SweepOutcome::NotCurrent { reading: String::from("absent"), why: String::from("no staged-folder record stands") },
         RecordReading::Refused { step, said } => return SweepOutcome::Retained { step, said },
     };
-    if let Err(pin) = check_live_pin(sweep.cache, sweep.pin) {
-        return SweepOutcome::Retained { step: String::from("user-cache-pin"), said: pin.message() };
-    }
     let cache_mount: u64 = match sweep.calls.mount_id(sweep.cache) {
         Ok(mount) => mount,
         Err(refusal) => return SweepOutcome::Retained { step: String::from(refusal.call.word()), said: refusal.message("the cache's mount could not be read") },
@@ -271,8 +268,20 @@ pub fn finish_a_staged_unmount(sweep: &StagedSweep<'_>) -> SweepOutcome {
         Ok(mount) => mount,
         Err(refusal) => return SweepOutcome::Retained { step: String::from(refusal.call.word()), said: refusal.message("the record's folder's mount could not be read") },
     };
-    if held_mount == cache_mount {
+    if held_mount != cache_mount {
+        return SweepOutcome::Retained { step: String::from("open-handle"), said: format!("the record's handle reopens the folder on mount {held_mount}, and the cache descriptor is on mount {cache_mount}; the handle names no folder on the cache") };
+    }
+    // The handle names the folder's inode on the cache mount, so it cannot see a mount covering that dentry. The
+    // mount table is the read that says whether anything stands there.
+    let table = match sweep.calls.mount_table() {
+        Ok(table) => table,
+        Err(refusal) => return SweepOutcome::Retained { step: String::from(refusal.call.word()), said: refusal.message("the sweep's mount table could not be read") },
+    };
+    if !table.iter().any(|facts| return facts.mount_point == folder_path) {
         return SweepOutcome::Empty;
+    }
+    if let Err(pin) = check_live_pin(sweep.cache, sweep.pin) {
+        return SweepOutcome::Retained { step: String::from("user-cache-pin"), said: pin.message() };
     }
     let name: String = record.component;
     match unmount_the_staged_mount(&HeldUnmount { cache: sweep.cache, folder: &folder, name: name.as_str(), clone_source: record.dataset.as_str(), calls: sweep.calls }) {

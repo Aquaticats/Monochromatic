@@ -93,7 +93,32 @@ fn a_current_record_reaches_the_pin_before_any_unmount() {
     calls.mount_ids.borrow_mut().extend([7, 7, 7]);
     let sweep = StagedSweep { cache: &cache, cache_path: root.as_path(), guid: guid(), boot: "this-boot", pin: &pin, calls: &calls };
     let outcome: SweepOutcome = finish_a_staged_unmount(&sweep);
-    assert_eq!(outcome.word(), "retained");
-    assert!(matches!(outcome, SweepOutcome::Retained { ref step, .. } if step == "user-cache-pin"), "{outcome:?}");
+    assert_eq!(outcome.word(), "empty", "{outcome:?}");
     assert!(!calls.ran(crate::staging_calls::StagingCall::Unmount));
+}
+
+/// A current record whose folder path a mount row names is not empty,
+/// even though the handle reopens the folder on the cache mount.
+#[test]
+fn a_current_record_with_a_row_is_not_empty() {
+    let (root, cache, pin) = fixture("sweep-row");
+    let folder_path: PathBuf = root.join(staging_folder_name(guid()));
+    let folder: std::fs::File = std::fs::File::open(folder_path.as_path()).expect("the fixture folder opens");
+    let calls = RecordingCalls::default();
+    *calls.open_handle.borrow_mut() = Some(Ok(folder));
+    calls.mount_ids.borrow_mut().extend([7, 7]);
+    *calls.table.borrow_mut() = vec![crate::fs_mount_options::MountFacts {
+        mount_id: 51,
+        parent_id: 7,
+        root: PathBuf::from("/"),
+        optional_fields: Vec::new(),
+        mount_point: folder_path.clone(),
+        filesystem_type: String::from("zfs"),
+        source: String::from("tmpfs"),
+        mount_options: Vec::new(),
+        super_options: Vec::new(),
+    }];
+    let sweep = StagedSweep { cache: &cache, cache_path: root.as_path(), guid: guid(), boot: "this-boot", pin: &pin, calls: &calls };
+    let outcome: SweepOutcome = finish_a_staged_unmount(&sweep);
+    assert_ne!(outcome.word(), "empty", "a row at the folder path is not an empty folder: {outcome:?}");
 }
