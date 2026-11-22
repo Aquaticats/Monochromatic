@@ -314,7 +314,7 @@ so its `worktree add` takes the old route and says nothing about the ZFS route.
 
 Run B ran real Git `2.56.1` inside the gate image already present as `localhost/git-policy-native-test:development`,
 in one throwaway container,
-with `podman run --rm --interactive --network none --cpus 2 --memory 512m --pids-limit 128`,
+with `podman run --rm --interactive --network none --cpus 2 --memory 512m --pids-limit 128 --blkio-weight 10`,
 no folder of the home mounted and every repository made inside the container.
 There `git` answered `git version 2.56.1` at `/usr/sbin/git`,
 so run B is Git itself.
@@ -2194,7 +2194,8 @@ because the wrapper lands a commit through a resident service a scratch home doe
 Run B:
 the same arms with real Git `2.56.1` inside the gate image `localhost/git-policy-native-test:development` that
 was already present,
-in one `podman run --rm --interactive --network none --cpus 2 --memory 512m --pids-limit 128` container with
+in one `podman run --rm --interactive --network none --cpus 2 --memory 512m --pids-limit 128 --blkio-weight 10`
+container with
 no folder of the home mounted and every repository made inside it;
 no image was built,
 pulled or removed.
