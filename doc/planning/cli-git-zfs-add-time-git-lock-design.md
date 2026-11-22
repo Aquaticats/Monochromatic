@@ -2286,10 +2286,16 @@ with each committer time from `git log --format=%cI`:
   the design,
   whole,
   including the gate image's Git-alone runs.
-- The commit that follows it on this branch,
-  whose hash `git log` reports:
+- `db99dc05eb`,
+  2026-11-22T17:31:40-05:00:
   this list,
   and the Markdown line breaks normalized to the repository's one clause per line.
+- `d0c43ad410`,
+  2026-11-22T17:33:30-05:00:
+  corrected line citations for Git's `worktree.c` and the wrapper's specification.
+
+Any commit after those carries this list;
+the round's report names every commit with its committer time.
 
 ## Links
 
