@@ -525,6 +525,42 @@ For the four variables that move a read this round declines at the reader
   which are not behind `history_is_plain`,
   and every caller the layout's environment gate already refuses never reaches either door.
 
+### The clean check and the ladder target
+
+Both open the reader from a common directory and not from a layout,
+so the layout's environment gate does not stand in front of them,
+which the integration pass left unestablished.
+Read on this branch:
+
+- The clean check (`worktree_clean.rs`):
+  `check_clean` → `check_tracked` → `read_state`,
+  which asks `head_commit` first and then `ObjectDatabase::open(common_dir, None, format)` with no environment gate
+  before it.
+  On a reftable repository `head_commit` refuses first,
+  as the note's earlier section records;
+  on a files repository the open is what reaches the reader,
+  so with any of the four variables set in the process that runs `git worktree add` it now declines and `read_state`
+  answers the `Unreadable` refusal,
+  `the object database has a layout the reader does not know`,
+  which is the refusal `main` already gives on a reftable repository.
+  `checked_source` hands that refusal to `choose_snapshot_source`,
+  which answers it as the reason the source cannot
+  be taken,
+  and the snapshot rung is not entered.
+- The ladder target (`worktree_ladder_target.rs`):
+  `prepare_target` opens the reader from
+  `source.common_dir`,
+  and its `source` is the `SnapshotSource` the clean check produced.
+  A source the clean check refused never reaches it,
+  so the rung's own open is not reached either;
+  an add whose rung does not run is completed with Git's own checkout
+  (`worktree_ladder_finish.rs`,
+  `serve_snapshot`).
+  No control here forces the rung past the clean check,
+  so both callers are covered by the reader's decline and by the
+  refusal their callers already handle,
+  not by a control of their own.
+
 The client's refusal is `refuse_a_setting_the_service_cannot_see` in `commit_command.rs`,
 placed beside the refusal of a command line Git itself refuses and before the transaction reads an index.
 It names the variable and says where to set it,
