@@ -228,15 +228,15 @@ where
 /// every tracked file in the slices the host's budget allows;
 /// the caller installs the index,
 /// and removes `created` when this fails.
-fn clone_all<S, T>(source: &SnapshotSource, destination: &File, created: &mut Vec<Created>, beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
+fn clone_all<S, T>(source: &SnapshotSource, entries: Option<Vec<StatEntry>>, destination: &File, created: &mut Vec<Created>, beside: Option<AJob<S, T>>) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
-    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+    let Some(read) = entries.or_else(|| { return stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length); }) else {
         return Err(String::from("the source's index changed shape"));
     };
-    return clone_these_entries(source, entries, destination, created, beside);
+    return clone_these_entries(source, read, destination, created, beside);
 }
 
 /// What:
@@ -258,7 +258,7 @@ where
 /// ```
 pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Result<ClonedBytes, String> {
     let mut created: Vec<Created> = Vec::new();
-    return match clone_all(source, destination, &mut created, None::<AJob<(), ()>>) {
+    return match clone_all(source, None, destination, &mut created, None::<AJob<(), ()>>) {
         Ok((stats, _beside)) => Ok(ClonedBytes { created, stats }),
         Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
     };
@@ -277,17 +277,19 @@ pub fn clone_tracked_bytes(source: &SnapshotSource, destination: &File) -> Resul
 /// it runs the job itself,
 ///  and only then waits for the copies.
 ///
+/// The index entries the caller already read are handed in rather than parsed again.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [cloned, beside] = cloneTrackedBytesBeside(source, destination, job); // throws a reason
+/// const [cloned, beside] = cloneTrackedBytesBeside(source, entries, destination, job); // throws a reason
 /// ```
-pub fn clone_tracked_bytes_beside<S, T>(source: &SnapshotSource, destination: &File, beside: AJob<S, T>) -> Result<(ClonedBytes, Option<T>), String>
+pub fn clone_tracked_bytes_beside<S, T>(source: &SnapshotSource, entries: Option<Vec<StatEntry>>, destination: &File, beside: AJob<S, T>) -> Result<(ClonedBytes, Option<T>), String>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
     let mut created: Vec<Created> = Vec::new();
-    return match clone_all(source, destination, &mut created, Some(beside)) {
+    return match clone_all(source, entries, destination, &mut created, Some(beside)) {
         Ok((stats, answered)) => Ok((ClonedBytes { created, stats }, answered)),
         Err(reason) => Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) }),
     };

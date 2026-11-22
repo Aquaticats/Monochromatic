@@ -23,7 +23,7 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, porcelain, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
-use super::worktree_snapshot::{commit_all, tracked, tracked_content};
+use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
 use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
@@ -46,6 +46,9 @@ use std::path::{Path, PathBuf};
 /// ```
 fn conversion_fixture(fixture: &Fixture, name: &str, attributes: &[u8], notes: &[u8], after: &dyn Fn(&Path)) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
+    // The anchor sits above the clone rung's mean-file edge on purpose: without it this clean source averages a few
+    // dozen bytes a file, the size limit declines it, and the conversion class these controls are about is never reached.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", 4);
     tracked(repo.as_path(), "dir/file.txt", b"line one\nline two\n");
     tracked(repo.as_path(), "notes.txt", notes);
     tracked(repo.as_path(), "tool.sh", b"#!/bin/sh\necho hi\n");
@@ -352,6 +355,9 @@ fn a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git() {
 /// and a source on each side of one must take the route the rule names.
 fn decline_fixture(fixture: &Fixture, name: &str, converting: usize, other: usize) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
+    // Above the clone rung's mean-file edge on purpose: this clean source of tiny files would otherwise be declined by
+    // its size before the decline share these controls are about is asked, and the served arms would fall to Git.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", (converting + other + 1) as u64);
     tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
     for index in 0..converting {
         tracked(repo.as_path(), format!("convert-{index}.txt").as_str(), b"line one\nline two\n");

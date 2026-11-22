@@ -627,7 +627,7 @@ fn btrfs_the_clone_rung_writes_nothing_when_the_registration_was_replaced() {
     std::fs::create_dir(admin.as_path()).expect("another registration");
     let steps: Steps = RefCell::new(Vec::new());
     let mut runner = recording_runner(&steps, false);
-    let reason: String = serve_clones(&source, crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(crate::worktree_clone_conversion_fence::fence_the_attributes(&source, &git_context()).expect("the attributes")), &plan, &bound, &mut runner, &git_context()).expect_err("refused");
+    let reason: String = serve_clones(&source, crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(crate::worktree_clone_conversion_fence::fence_the_attributes(&source, &git_context()).expect("the attributes")), &plan, &bound, &mut runner, &git_context(), None).expect_err("refused");
     assert!(reason.contains("no longer the one Git made"), "{reason}");
     let entries: Vec<String> = std::fs::read_dir(root.join("topic")).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
     assert_eq!(entries, vec![String::from(".git")], "nothing was written into the worktree");

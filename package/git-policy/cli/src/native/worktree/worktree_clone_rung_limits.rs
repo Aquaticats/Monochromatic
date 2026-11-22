@@ -1,6 +1,7 @@
 //! What:
 //!  The two provisional limits of the clone rung:
-//! a source whose tracked files sum below a whole-tree size threshold takes Git's own checkout,
+//! a source with changes whose tracked files sum below a whole-tree size threshold takes Git's own checkout,
+//! a clean source whose tracked files average too few bytes a file takes it too,
 //! and so does a
 //!  source with more changed files than a cut derived from its tracked path count.
 //! Why:
@@ -10,13 +11,17 @@
 //! and a source with many changed paths pays the write step per path,
 //! so the
 //!  rung must decline both shapes or an add would be slower than the checkout it replaced.
-//! Both limits send the add to
-//!  Git's own checkout,
+//! A clean source is judged by its mean file size rather than its total,
+//! because a clean tree of a few
+//!  large files clones far quicker than Git's write of them
+//! (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+//!  "The size limit on a clean source").
+//! Every limit sends the add to Git's own checkout,
 //! which is the baseline the decision record measures against,
 //! so a declined add is never made slower
 //!  than Git's own checkout by the rung;
 //! what a declined add loses is the clone's gain.
-//! Both values are
+//! Every value is
 //!  provisional and open to the project's veto:
 //! the decision record accepted the proposal's option "clone with limits",
 //! and left the values to this build,
@@ -26,14 +31,15 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const reason = reasonTheTreeIsTooSmall(source) ?? reasonTooManyChangedPaths(source); // undefined when the rung may clone
+//! const entries = storedStats(source.indexBytes, source.hashLength);
+//! const reason = entries && (source.dirty ? tooSmallATree(entries) : tooSmallAFilesMean(entries) ?? tooManyChangedPaths(source, entries));
 //! ```
 
-use crate::worktree_clean::stored_stats;
+use crate::worktree_clean::{StatEntry, stored_stats};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::path::Path;
 
-/// The fewest tracked bytes a source must hold for the clone rung to serve its add.
+/// The fewest tracked bytes a source with changes must hold for the clone rung to serve its add.
 ///
 /// Provenance:
 /// pinned at the winning edge of the measured bracket.
@@ -45,8 +51,7 @@ use std::path::Path;
 /// identical control 1.40,
 /// 8 counted rounds) at 10,001 files of 26,000 bytes (260,000,028 bytes,
 /// measured 2026-11-21 for this pin);
-/// this repository's own tree of 24,621 files and 763,289,228 bytes
-/// (the same shape as the 762,638,866-byte tree of the re-check) won at 0.73 to 0.81 of it.
+/// this repository's own tree of 24,648 files and 763,549,750 bytes won at 0.73 to 0.81 of it.
 /// The rung's fence reads cost about as much whatever the tree holds
 /// (`git ls-tree` alone is 275 ms at 24,621 paths,
 /// 110 ms at 10,001),
@@ -57,17 +62,38 @@ use std::path::Path;
 /// just under the tree that won,
 /// and no unmeasured size is cloned.
 ///
-/// The limit applies to a clean source too,
-/// so a clean tree below it takes Git's own checkout,
-/// which is where the clean small-file cost the waiver records ends;
-/// the clean trees measured between these sizes are parity with Git's own checkout
-/// (`main` at 1.04 of it at 8.8 KB per file and 0.99 at 26 KB),
-/// so the only clean win this gives up is one near this tree's size,
-/// which still clones.
+/// The limit applies only to a source with changes,
+/// where every measurement above was taken.
+/// A clean source is judged by `THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG`,
+/// so a clean tree of a few large files clones whatever its total.
 ///
 /// Provisional and open to the project's veto,
 /// and to a lower value once a size below this tree is measured a win.
 pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
+
+/// The smallest mean tracked file size a clean source may have and still be cloned.
+///
+/// Provenance:
+/// pinned at the mean file size where copying a clean tree stops being quicker than Git's write of it,
+/// measured on this build in one throwaway guest per filesystem,
+/// on trees of 10,001 files at 2,600, 4,400, 6,600, 8,800, 13,200, 17,600, 22,000, 26,000, 32,000
+/// and 44,000 bytes a file,
+/// in position-balanced rounds with an identical-binary control,
+/// against `main` and Git's own checkout
+/// (see the record beside this constant's measurement in the proposal,
+/// "The clean-source mean-file edge, measured").
+///
+/// The waiver record's ZFS round measured the same edge from below:
+/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time,
+/// 8.8 KB 1.18 times,
+/// 26 KB parity,
+/// and this repository's 32 KB files 0.64 times
+/// (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
+/// "The small-file clean-add cost, waived the same day"),
+/// which is the bracket this build measured again on both filesystems.
+///
+/// Provisional and open to the project's veto.
+pub const THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG: u64 = 26_000;
 
 /// What:
 ///  The changed paths the clone rung still clones a source with:
@@ -99,25 +125,64 @@ pub fn the_changed_file_cut(tracked: usize) -> usize {
 }
 
 /// What:
-///  The bytes the source's index records for its tracked files,
-/// or nothing when the index has a shape this reader does not know.
+///  The source's index entries with their recorded stat data,
+/// read once for every limit and for the rung itself.
 /// Why:
-///   The size limit sums the sizes the index already holds,
-/// so it costs one read of bytes the rung has in hand and no Git run,
-///  and an index this reader cannot read is a state the source check has already refused.
+///   The limits and the copies all read the same entries,
+/// and each parse of this repository's 24,648-entry index costs about 2 ms,
+/// so one read is shared rather than repeated
+/// (the integration pass's low L1).
+/// An index this reader cannot read is nothing here,
+/// and the rung refuses it later with its own reason.
+///
+/// The index records a tracked file's size in 32 bits,
+/// so a file of 4 GiB or more counts modulo 2^32,
+/// exactly as Git's own index records it,
+/// and a tree dominated by such files can read as small.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const total = storedStats(indexBytes, hashLength)?.reduce((sum, entry) => sum + entry.stored.size, 0);
+/// const entries = storedStats(source.clean.indexBytes, source.clean.hashLength) ?? undefined;
 /// ```
-pub fn tracked_bytes(source: &SnapshotSource) -> Option<u64> {
-    let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length)?;
-    let total: u64 = entries.iter().map(|entry| { return u64::from(entry.stored.size); }).sum();
-    return Some(total);
+pub fn tracked_entries(source: &SnapshotSource) -> Option<Vec<StatEntry>> {
+    return stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length);
 }
 
 /// What:
-///  The reason the whole-tree size limit sends this source to Git's own checkout,
+///  The bytes the source's index records for its tracked files.
+/// Why:
+///   The size limits sum the sizes the index already holds,
+/// so they cost no Git run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const total = entries.reduce((sum, entry) => sum + entry.stored.size, 0);
+/// ```
+pub fn tracked_bytes(entries: &[StatEntry]) -> u64 {
+    let total: u64 = entries.iter().map(|entry| { return u64::from(entry.stored.size); }).sum();
+    return total;
+}
+
+/// What:
+///  The mean tracked file size the index records,
+/// or nothing for a tree of no tracked paths.
+/// Why:
+///   A clean source is declined or cloned by this mean,
+/// and an empty tree is a state the source check has already refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mean = Math.floor(total / entries.length);
+/// ```
+pub fn mean_tracked_file(entries: &[StatEntry]) -> Option<u64> {
+    if entries.is_empty() {
+        return None;
+    }
+    return Some(tracked_bytes(entries) / entries.len() as u64);
+}
+
+/// What:
+///  The reason the whole-tree size limit sends a source with changes to Git's own checkout,
 /// in words,
 /// or nothing when the rung may clone it.
 /// Why:
@@ -125,17 +190,43 @@ pub fn tracked_bytes(source: &SnapshotSource) -> Option<u64> {
 /// so the person is owed the numbers the decision was made on rather than a bare refusal
 /// (`AGENTS.md`,
 /// rule `DGT`).
+/// The words name the input and what happens,
+/// and the route's own lead says who wrote the worktree
+/// (the integration pass's low L4).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const reason = total < THE_FEWEST_TRACKED_BYTES ? `...` : undefined;
 /// ```
-pub fn reason_the_tree_is_too_small(source: &SnapshotSource) -> Option<String> {
-    let total: u64 = tracked_bytes(source)?;
+pub fn reason_the_tree_is_too_small(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
+    let total: u64 = tracked_bytes(entries);
     if total >= THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG {
         return None;
     }
-    return Some(format!("the tracked files of {} sum to {} bytes, below the {} this rung needs to clone a tree at all, so Git's checkout writes the worktree", shown(source.root.as_path()), total, THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG));
+    return Some(format!("the tracked files of {} sum to {} bytes, below the {} a tree with changes needs for the clone to be quicker than Git's own checkout", shown(source.root.as_path()), total, THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG));
+}
+
+/// What:
+///  The reason the mean-file limit sends a clean source to Git's own checkout,
+/// in words,
+/// or nothing when the rung may clone it.
+/// Why:
+///   A clean tree of many small files costs more to clone than to write through Git,
+/// and a clean tree of few large files costs far less,
+/// so the mean file size decides rather than the total
+/// (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+/// "The size limit on a clean source").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reason = mean < THE_SMALLEST_MEAN ? `...` : undefined;
+/// ```
+pub fn reason_the_mean_file_is_too_small(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
+    let mean: u64 = mean_tracked_file(entries)?;
+    if mean >= THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG {
+        return None;
+    }
+    return Some(format!("the tracked files of {} average {} bytes each, below the {} a clean tree needs for the clone to be quicker than Git's own checkout", shown(source.root.as_path()), mean, THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG));
 }
 
 /// What:
@@ -152,14 +243,40 @@ pub fn reason_the_tree_is_too_small(source: &SnapshotSource) -> Option<String> {
 /// ```ts
 /// const reason = changed > theChangedFileCut(tracked) ? `...` : undefined;
 /// ```
-pub fn reason_too_many_changed_paths(source: &SnapshotSource) -> Option<String> {
-    let tracked: usize = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length)?.len();
+pub fn reason_too_many_changed_paths(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
+    let tracked: usize = entries.len();
     let changed: usize = source.dirty.as_ref().map_or(0, |changes| { return changes.tracked; });
     let cut: usize = the_changed_file_cut(tracked);
     if changed <= cut {
         return None;
     }
-    return Some(format!("{} of the {} tracked files of {} have changes, more than the {} this rung clones and has Git write the rest of, so Git's checkout writes the worktree", changed, tracked, shown(source.root.as_path()), cut));
+    return Some(format!("{} of the {} tracked files of {} have changes, more than the {} whose changes the clone copies and lets Git write the rest of", changed, tracked, shown(source.root.as_path()), cut));
+}
+
+/// What:
+///  The reason the clone rung declines this source for its size or its changes,
+/// in words,
+/// or nothing when the rung may clone it.
+/// Why:
+///   The limit is chosen by what the source is:
+/// a source with changes is judged by its whole-tree size,
+/// where every measurement of that limit was taken,
+/// and a clean source by its mean file size;
+/// the changed-file cut applies to both.
+/// Both limits are asked before the rung's fence, its claim on a stage name and its first copy,
+/// so a declined add pays none of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const size = source.dirty ? tooSmallATree(entries) : tooSmallAFilesMean(entries);
+/// const reason = size ?? tooManyChangedPaths(source, entries);
+/// ```
+pub fn decline_before_cloning(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
+    let by_size: Option<String> = match source.dirty.is_none() {
+        true => reason_the_mean_file_is_too_small(source, entries),
+        false => reason_the_tree_is_too_small(source, entries),
+    };
+    return by_size.or_else(|| { return reason_too_many_changed_paths(source, entries); });
 }
 
 /// What:

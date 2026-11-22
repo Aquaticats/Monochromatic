@@ -370,7 +370,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversion_beside_the_clone::CloneFence, plan: &AddPlan, git: GitStatus, claim: StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>, entries: Option<Vec<crate::worktree_clean::StatEntry>>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None, placed: None, trash: None, claim: Some(claim) };
     }
@@ -382,7 +382,7 @@ fn finish_clones(source: &SnapshotSource, fence: crate::worktree_clone_conversio
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None, placed: None, trash: None, claim: Some(claim) };
         }
     };
-    return match serve_clones(source, fence, plan, &bound, run_git, context) {
+    return match serve_clones(source, fence, plan, &bound, run_git, context, entries) {
         Ok(line) => {
             debug(TAG, format!("clones served {}", plan.destination.display()).as_str());
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
@@ -514,14 +514,14 @@ impl Ladder {
                 release_claim(claim, false);
                 LadderResult { git, carried: None, placed: None, trash: None, claim: None }
             }
-            (Rung::Clone(source, subvolume, claim, fence), Some(plan)) => {
-                let result: LadderResult = finish_clones(&source, fence, plan, git, claim, run_git, context, out, &mut slow);
+            (Rung::Clone(source, subvolume, claim, fence, entries), Some(plan)) => {
+                let result: LadderResult = finish_clones(&source, fence, plan, git, claim, run_git, context, out, &mut slow, entries);
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }
                 result
             }
-            (Rung::Clone(_, subvolume, claim, _), None) => {
+            (Rung::Clone(_, subvolume, claim, _, _), None) => {
                 if let Some(created) = subvolume.as_ref() {
                     settle_created_destination(created);
                 }

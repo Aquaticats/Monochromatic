@@ -122,6 +122,15 @@ const COMMITTED_STAGED: &[u8] = b"what the commit holds\n";
 const STAGED_BYTES: &[u8] = b"what the person stold\n";
 /// The bytes the deleted path's commit holds.
 const COMMITTED_DELETED: &[u8] = b"a path the person deleted\n";
+/// The unchanged tracked paths the fixture holds beside the paths its changes reach.
+///
+/// Why:
+///  The changed-file cut is a quarter of the tracked paths,
+///  and the partial clone takes the ladder's refusal path when the paths Git must write exceed it
+///  (the integration pass's finding M1).
+///  The paths of this fixture a change reaches are three or four,
+///  so ten more unchanged paths are what keeps the cut above them and the rung reached.
+const UNCHANGED_PATHS: usize = 10;
 
 /// What:
 ///  A repository in the state the design calls dirty:
@@ -146,6 +155,9 @@ fn dirty_repository(root: &Path) -> Dirty {
     tracked(repo.as_path(), "edited.txt", COMMITTED_EDIT);
     tracked(repo.as_path(), "staged.txt", COMMITTED_STAGED);
     tracked(repo.as_path(), "deleted.txt", COMMITTED_DELETED);
+    for index in 0..UNCHANGED_PATHS {
+        tracked(repo.as_path(), format!("kept/unchanged-{index}.txt").as_str(), KEPT);
+    }
     std::os::unix::fs::symlink("kept.txt", repo.join("link")).expect("link");
     crate::test_support::age(repo.join("link").as_path());
     commit_all(repo.as_path(), "the commit the person edits");
@@ -218,7 +230,7 @@ fn clone_through_the_fence(dirty: &Dirty) -> PartCloned {
     let held_fence: AttributeFence = crate::worktree_clone_conversion_fence::fence_the_attributes(&dirty.source, &context).expect("the attributes");
     let destination: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
     let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
-    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &dirty.source, destination: &destination, admin: &admin, admin_path: dirty.admin.as_path(), fence: held_fence });
+    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &dirty.source, entries: None, destination: &destination, admin: &admin, admin_path: dirty.admin.as_path(), fence: held_fence });
     let (part, decided, pending): (PartCloned, Fence, PendingIndex) = cloned.expect("the partial clone");
     assert!(!dirty.admin.join("index").exists(), "the worktree has no index while Git still has paths to write");
     assert!(pending.path_in().exists(), "the index waits under the fence's own name");
@@ -243,7 +255,7 @@ fn the_unchanged_paths_are_cloned_and_the_changed_ones_written() {
     let part: PartCloned = clone_through_the_fence(&dirty);
     eprintln!("DEBUG cloned={} written={} staged=[{}] edited=[{}]", part.cloned, part.written, String::from_utf8_lossy(&std::fs::read(dirty.destination.join("staged.txt")).unwrap_or_default()), String::from_utf8_lossy(&std::fs::read(dirty.destination.join("edited.txt")).unwrap_or_default()));
     // The two paths nothing changed, the executable and the link are clones; the three a change touches are Git's.
-    assert_eq!(part.cloned, 3, "kept.txt, bin/tool.sh and link are cloned; edited.txt, staged.txt and deleted.txt are not");
+    assert_eq!(part.cloned, 3 + UNCHANGED_PATHS, "kept.txt, bin/tool.sh, link and the unchanged paths are cloned; edited.txt, staged.txt and deleted.txt are not");
     assert_eq!(part.written, 3);
     assert_eq!(git_text(dirty.destination.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the worktree is clean");
     assert_eq!(std::fs::read(dirty.destination.join("edited.txt")).expect("the commit's bytes"), COMMITTED_EDIT);
@@ -291,6 +303,11 @@ fn a_path_a_conversion_rule_reaches_is_written_by_git() {
     tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
     tracked(repo.as_path(), "notes.txt", b"line one\nline two\n");
     tracked(repo.as_path(), "kept.md", KEPT);
+    // Unchanged paths, so the changed-file cut stays above the path this control changes. Their names no conversion rule
+    // of the fixture matches, so the fence hands Git only the paths the classes name.
+    for index in 0..6 {
+        tracked(repo.as_path(), format!("kept/unchanged-{index}.dat").as_str(), KEPT);
+    }
     commit_all(repo.as_path(), "the commit the person edits");
     std::fs::write(repo.join("kept.md"), PERSONAL_EDIT).expect("the person's change");
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
@@ -301,7 +318,7 @@ fn a_path_a_conversion_rule_reaches_is_written_by_git() {
     let part: PartCloned = clone_through_the_fence(&dirty);
     // The copies take every path the split settles, the rule's own path among them, and Git then overwrites it, which
     // is the whole rung's shape: the fence decides beside the copies and cannot unmake one of them.
-    assert_eq!((part.cloned, part.written), (2, 2), "the .gitattributes and notes.txt are copied, kept.md is only Git's, and Git writes notes.txt over its copy");
+    assert_eq!((part.cloned, part.written), (2 + 6, 2), "the .gitattributes, notes.txt and the unchanged paths are copied, kept.md is only Git's, and Git writes notes.txt over its copy");
     let served: Vec<u8> = std::fs::read(dirty.destination.join("notes.txt")).expect("the served path");
     assert_eq!(served, b"line one\r\nline two\r\n", "the served path holds the carriage returns Git's checkout writes");
     assert_ne!(served, std::fs::read(dirty.repo.join("notes.txt")).expect("the source's file"), "the source's file holds the blob, so a clone of it would fail here");
@@ -332,6 +349,10 @@ fn the_flow_runs_where_no_file_can_be_cloned() {
     std::os::unix::fs::symlink("empty.txt", repository.join("link")).expect("link");
     crate::test_support::age(repository.join("link").as_path());
     tracked(repository.as_path(), "edited.txt", COMMITTED_EDIT);
+    // Unchanged paths, so the changed-file cut stays above the path this control changes.
+    for index in 0..6 {
+        tracked(repository.as_path(), format!("kept/unchanged-{index}.txt").as_str(), KEPT);
+    }
     commit_all(repository.as_path(), "the commit the person edits");
     std::fs::write(repository.join("edited.txt"), PERSONAL_EDIT).expect("the person's change");
     git(repository.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
@@ -340,7 +361,7 @@ fn the_flow_runs_where_no_file_can_be_cloned() {
     let source: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repository.as_path())).expect("a source with changes");
     let dirty: Dirty = Dirty { repo: repository, destination, admin, source };
     let part: PartCloned = clone_through_the_fence(&dirty);
-    assert_eq!((part.cloned, part.written), (2, 1), "the empty file and the link are clones and the changed file is Git's");
+    assert_eq!((part.cloned, part.written), (2 + 6, 1), "the empty file, the link and the unchanged paths are clones and the changed file is Git's");
     assert_eq!(git_text(dirty.destination.as_path(), &["status", "--porcelain=v1"]), "");
     crate::test_support::remove(root.as_path());
 }
@@ -419,6 +440,11 @@ fn a_path_staged_after_the_source_check_is_refused() {
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
     tracked(repo.as_path(), "kept.txt", KEPT);
     tracked(repo.as_path(), "staged-later.txt", COMMITTED_STAGED);
+    // Unchanged paths, so the changed-file cut stays above the one path this control changes and the staged listing is
+    // the refusal this control is about.
+    for index in 0..6 {
+        tracked(repo.as_path(), format!("kept/unchanged-{index}.txt").as_str(), KEPT);
+    }
     commit_all(repo.as_path(), "the commit the source check reads");
     std::fs::write(repo.join("kept.txt"), PERSONAL_EDIT).expect("the person's change");
     git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
@@ -438,13 +464,74 @@ fn a_path_staged_after_the_source_check_is_refused() {
     let held_fence: AttributeFence = crate::worktree_clone_conversion_fence::fence_the_attributes(&source, &context).expect("the attributes");
     let destination_file: std::fs::File = open_root(destination.as_path()).expect("the destination");
     let admin_file: std::fs::File = open_root(admin.as_path()).expect("the administrative directory");
-    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &source, destination: &destination_file, admin: &admin_file, admin_path: admin.as_path(), fence: held_fence });
+    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &source, entries: None, destination: &destination_file, admin: &admin_file, admin_path: admin.as_path(), fence: held_fence });
     let refusal: String = match cloned {
         Err(reason) => reason,
         Ok(_) => panic!("a path staged after the source check is refused rather than cloned"),
     };
     assert!(refusal.contains("staged-later.txt"), "{refusal}");
     assert!(refusal.contains("is staged in the source and would have been cloned"), "{refusal}");
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A split that leaves Git more paths to write than the changed-file cut ends the rung before any copy.
+/// Why:
+///   The ladder's cut counts `git status` entries,
+/// and a tracked file whose recorded times are stale but whose bytes are unchanged is no status entry,
+/// although the split hands it to Git and Git pays a write for it:
+/// the integration pass measured 20,000 such paths at 1.39 times `main` (its finding M1).
+/// The refusal is the ladder's own path,
+/// so the add falls to Git's own checkout at about `main`'s cost.
+/// This control goes red when the guard is removed,
+/// because the rung then copies the proved paths and writes the stale ones.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// touchMostTrackedFiles(repo); // the index is not refreshed
+/// expect(() => cloneTheUnchanged({ source, ... })).toThrow(/would be written by Git/);
+/// ```
+#[test]
+fn a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy() {
+    let Some(root) = clone_capable_fixture("clone-partial-stale-past-the-cut") else { return };
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    let files: usize = 40;
+    for index in 0..files {
+        tracked(repo.as_path(), format!("plain-{index}.txt").as_str(), KEPT);
+    }
+    commit_all(repo.as_path(), "the commit the person's times fall behind");
+    // A file nobody tracks makes the source one with changes, so the partial clone is the rung the ladder chose.
+    std::fs::write(repo.join("untracked.txt"), b"nobody tracks this\n").expect("the untracked file");
+    let cut: usize = crate::worktree_clone_rung_limits::the_changed_file_cut(files);
+    // Every file but a few gets new times and the same bytes; the index is not refreshed, so Git's status names none of
+    // them and only the split's own comparison does.
+    let stale: usize = cut * 3 + 6;
+    let now: std::time::SystemTime = std::time::SystemTime::now();
+    for index in 0..stale {
+        let path: PathBuf = repo.join(format!("plain-{index}.txt").as_str());
+        std::fs::File::options().append(true).open(path.as_path()).expect("the file").set_modified(now).expect("new times");
+    }
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    let context: crate::transaction_git::GitContext = git_context();
+    let source: SnapshotSource = source_or_dirty(&context, &main_identity(repo.as_path())).expect("a source with changes");
+    assert!(source.dirty.is_some(), "the untracked file makes the source one with changes");
+    assert_eq!(source.dirty.as_ref().expect("the changes").tracked, 0, "a stale entry is no status change, which is the shape");
+    assert!(stale > cut, "the stale paths are more than the cut: {stale} of {files}, cut {cut}");
+    let held_fence: AttributeFence = crate::worktree_clone_conversion_fence::fence_the_attributes(&source, &context).expect("the attributes");
+    let destination_file: std::fs::File = open_root(destination.as_path()).expect("the destination");
+    let admin_file: std::fs::File = open_root(admin.as_path()).expect("the administrative directory");
+    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &source, entries: None, destination: &destination_file, admin: &admin_file, admin_path: admin.as_path(), fence: held_fence });
+    let refusal: String = match cloned {
+        Err(reason) => reason,
+        Ok(_) => panic!("a split that leaves Git more paths than the cut is refused rather than cloned"),
+    };
+    assert!(refusal.contains("would be written by Git"), "{refusal}");
+    assert!(refusal.contains(stale.to_string().as_str()), "the sentence names how many: {refusal}");
+    assert!(refusal.contains(cut.to_string().as_str()), "and the cut: {refusal}");
+    let copied: Vec<PathBuf> = std::fs::read_dir(destination.as_path()).expect("the destination").map(|entry| { return entry.expect("an entry").path(); }).filter(|path: &PathBuf| { return path.file_name().is_some_and(|name: &std::ffi::OsStr| return name != ".git"); }).collect();
+    assert!(copied.is_empty(), "nothing was copied into the destination: {copied:?}");
     crate::test_support::remove(root.as_path());
 }
 
@@ -464,9 +551,9 @@ fn a_new_head_that_differs_is_brought_in_after_the_clones() {
     let held_fence: AttributeFence = crate::worktree_clone_conversion_fence::fence_the_attributes(&dirty.source, &context).expect("the attributes");
     let destination: std::fs::File = open_root(dirty.destination.as_path()).expect("the destination");
     let admin: std::fs::File = open_root(dirty.admin.as_path()).expect("the administrative directory");
-    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &dirty.source, destination: &destination, admin: &admin, admin_path: dirty.admin.as_path(), fence: held_fence });
+    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &dirty.source, entries: None, destination: &destination, admin: &admin, admin_path: dirty.admin.as_path(), fence: held_fence });
     let (part, decided, pending): (PartCloned, Fence, PendingIndex) = cloned.expect("the partial clone");
-    assert_eq!(part.cloned, 3, "the paths the source's changes did not touch are clones");
+    assert_eq!(part.cloned, 3 + UNCHANGED_PATHS, "the paths the source's changes did not touch are clones");
     let program: PathBuf = context.real_git.clone();
     let mut runner = a_real_runner(program.as_path());
     apply_difference_with_index((&dirty.source, &target, dirty.destination.as_path(), &mut runner), Some(pending.path_in())).expect("the tree difference applied");

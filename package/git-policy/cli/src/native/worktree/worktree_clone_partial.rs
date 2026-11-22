@@ -113,6 +113,9 @@ pub(crate) struct PartialClone<'a> {
     pub context: &'a GitContext,
     /// What the source check proved about the source.
     pub source: &'a SnapshotSource,
+    /// The index entries the limits already read,
+    /// or nothing when this step must read them.
+    pub entries: Option<Vec<crate::worktree_clean::StatEntry>>,
     /// The directory Git made for the new worktree,
     /// with no checkout,
     /// held open.
@@ -158,15 +161,35 @@ pub(crate) struct PartialClone<'a> {
 /// const { created, decided, pending } = cloneTheUnchanged({ context, source, destination, admin, adminPath, fence }); // throws the reason
 /// ```
 pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned, Fence, PendingIndex), String> {
-    let PartialClone { context, source, destination, admin, admin_path, fence }: PartialClone<'_> = work;
+    let PartialClone { context, source, entries, destination, admin, admin_path, fence }: PartialClone<'_> = work;
     let read_entered: bool = begin_step("partRead");
-    let read_outcome = read_tracked(source);
+    let read_outcome = read_tracked(source, entries);
     end_step(read_entered);
     let tracked: Tracked = read_outcome?;
     let classify_entered: bool = begin_step("partClassify");
     let classify_outcome = split_the_tree(tracked.entries.as_slice(), tracked.indexed.as_slice(), tracked.tree.as_slice(), source.root.as_path(), source.clean.index_seconds);
     end_step(classify_entered);
     let split: Split = classify_outcome.map_err(|refusal| { return refusal.reason; })?;
+    // What:
+    //  A split that leaves Git more paths to write than the changed-file cut ends the rung here,
+    //  before any file is copied.
+    // Why:
+    //  The cut the ladder asks counts `git status` entries,
+    //  and a path whose recorded file times are stale but whose bytes are unchanged is no status entry,
+    //  although the split writes it and Git pays for it:
+    //  the integration pass measured 20,000 such paths at 1.39 times `main` (its finding M1).
+    //  The split already holds the count,
+    //  so the same refusal path the ladder takes costs nothing here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const cut = theChangedFileCut(tracked.entries.length);
+    // if (split.writes.length > cut) throw `...`;
+    // ```
+    let cut: usize = crate::worktree_clone_rung_limits::the_changed_file_cut(tracked.entries.len());
+    if split.writes.len() > cut {
+        return Err(format!("{} of the {} tracked paths of {} would be written by Git, more than the {} whose changes the clone copies and lets Git write the rest of", split.writes.len(), tracked.entries.len(), crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str()), cut));
+    }
     let staged_entered: bool = begin_step("partStaged");
     let staged_outcome = staged_paths(context, source).and_then(|staged| {
         return match a_staged_path_among_the_clones(staged.as_slice(), tracked.entries.as_slice(), split.clones.as_slice()) {

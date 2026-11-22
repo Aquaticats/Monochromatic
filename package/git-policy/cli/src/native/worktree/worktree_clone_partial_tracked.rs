@@ -73,15 +73,17 @@ pub(crate) struct Tracked {
 /// and the tree is the source's `HEAD`'s because that is what the split and the index name;
 /// the ladder's `read-tree -m -u` carries a differing new `HEAD` in afterwards.
 ///
+/// The index entries the ladder already read are handed in rather than parsed again.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const tracked = readTracked(source); // throws the reason
+/// const tracked = readTracked(source, entries); // throws the reason
 /// ```
-pub(crate) fn read_tracked(source: &SnapshotSource) -> Result<Tracked, String> {
+pub(crate) fn read_tracked(source: &SnapshotSource, known: Option<Vec<crate::worktree_clean::StatEntry>>) -> Result<Tracked, String> {
     let hash_length: usize = source.clean.hash_length;
     let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     let bytes: &[u8] = source.clean.index_bytes.as_slice();
-    let Some(entries) = stored_stats(bytes, hash_length) else { return Err(String::from("the source's index changed shape")) };
+    let Some(entries) = known.or_else(|| { return stored_stats(bytes, hash_length); }) else { return Err(String::from("the source's index changed shape")) };
     let Some(indexed) = parse_index(bytes, format) else { return Err(String::from("the source's index has a layout the reader does not know")) };
     let Some(database) = ObjectDatabase::open(source.common_dir.as_path(), None, format) else { return Err(String::from("the object database has a layout the reader does not know")) };
     let Some(tree) = flatten_tree(&database, source.clean.head_tree.as_slice(), format) else { return Err(String::from("the tree of HEAD is unreadable")) };

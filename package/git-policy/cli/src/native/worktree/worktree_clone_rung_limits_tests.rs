@@ -1,6 +1,7 @@
-//! Controls for the clone rung's two provisional limits:
+//! Controls for the clone rung's provisional limits:
 //! the changed-file cut is the fence's own share of the tracked paths,
-//! the byte sum is the index's own record,
+//! the whole-tree sum judges a source with changes,
+//! the mean file size judges a clean source,
 //! and each reason appears exactly at the edge it was pinned at.
 
 use super::*;
@@ -31,57 +32,139 @@ fn the_cut_is_the_fence_own_share_of_the_tracked_paths() {
 }
 
 /// What:
-///  A source of the given tracked files and changes,
+///  A source of the given tracked files and sizes,
 /// read through the source check,
 /// so a control asks the limits what the ladder asks them.
 /// Why:
 ///   Both reasons read the index the source check copied and the changes it listed,
 /// and a control that built
 ///  those by hand would not show what an add sees.
+/// The files are sparse: the limit reads the sizes the index records, never the bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const source = checkSource(repo); // the index, the tree of HEAD and the changes
 /// ```
-fn source_of(root: &std::path::Path, files: &[(&str, u64)]) -> SnapshotSource {
+fn source_of(root: &std::path::Path, files: &[(String, u64)]) -> SnapshotSource {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
     for (name, bytes) in files {
-        let path: PathBuf = repo.join(name);
+        let path: PathBuf = repo.join(name.as_str());
         std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
         let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the file");
         file.set_len(*bytes).expect("the file's length");
+        // Older than the index the commit writes, so the clean check proves the file instead of calling it racy.
+        crate::test_support::age(path.as_path());
     }
     commit_all(repo.as_path(), "fixture");
     return source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source");
 }
 
+/// The index entries of a source, as the ladder reads them.
+fn entries_of(source: &SnapshotSource) -> Vec<StatEntry> {
+    return tracked_entries(source).expect("the source's index entries");
+}
+
 /// What:
-///  A tree of exactly the pinned bytes is cloned,
+///  A source with changes of exactly the pinned bytes is cloned,
 /// and one byte fewer is declined,
 /// with the sum in the sentence.
 /// Why:
-///   The limit's edge is what the measurement was taken at,
+///   The whole-tree limit's edge is what the measurement was taken at,
 /// so the control is the arithmetic beside it:
 /// a
 ///  limit that said "at or below" or that summed something else would show here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(reason(tree(THE_FEWEST))).toBeUndefined(); expect(reason(tree(THE_FEWEST - 1))).toContain('sum to');
+/// expect(reason(tree(THE_FEWEST))).toBeUndefined(); expect(reason(dirtyTree(THE_FEWEST - 1))).toContain('sum to');
 /// ```
 #[test]
-fn the_size_limit_declines_one_byte_below_the_pinned_bytes_and_clones_it() {
+fn the_size_limit_declines_one_byte_below_the_pinned_bytes_for_a_source_with_changes() {
     let at: PathBuf = fixture("limit-at-the-size");
-    let at_source: SnapshotSource = source_of(at.as_path(), &[("one.bin", THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG)]);
-    assert_eq!(tracked_bytes(&at_source), Some(THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG));
-    assert!(reason_the_tree_is_too_small(&at_source).is_none(), "a tree of the pinned bytes is cloned");
+    let at_source: SnapshotSource = source_of(at.as_path(), &[(String::from("one.bin"), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG)]);
+    assert_eq!(tracked_bytes(entries_of(&at_source).as_slice()), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG);
+    assert!(reason_the_tree_is_too_small(&at_source, entries_of(&at_source).as_slice()).is_none(), "a tree of the pinned bytes is cloned");
     crate::test_support::remove(at.as_path());
     let below: PathBuf = fixture("limit-below-the-size");
-    let below_source: SnapshotSource = source_of(below.as_path(), &[("one.bin", THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG - 1)]);
-    let reason: String = reason_the_tree_is_too_small(&below_source).expect("one byte fewer is declined");
+    let below_source: SnapshotSource = source_of(below.as_path(), &[(String::from("one.bin"), THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG - 1)]);
+    let reason: String = reason_the_tree_is_too_small(&below_source, entries_of(&below_source).as_slice()).expect("one byte fewer is declined");
     assert!(reason.contains("sum to"), "{reason}");
     assert!(reason.contains((THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG - 1).to_string().as_str()), "{reason}");
     crate::test_support::remove(below.as_path());
+}
+
+/// What:
+///  A clean source whose mean tracked file is exactly the pinned edge is cloned,
+/// and one byte off the total declines it,
+/// with the mean in the sentence.
+/// Why:
+///   A clean source is judged by its mean file size,
+/// so the control is that arithmetic:
+/// the total divided by the paths,
+/// floored,
+/// and compared with the edge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(mean(tree(4, THE_SMALLEST))).toBe(THE_SMALLEST); expect(reason(tree(4, THE_SMALLEST) with one byte fewer)).toContain('average');
+/// ```
+#[test]
+fn the_mean_limit_declines_one_byte_below_the_pinned_mean_and_clones_it() {
+    let files: usize = 4;
+    let edge: u64 = THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
+    let at: PathBuf = fixture("limit-at-the-mean");
+    let at_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), edge); }).collect();
+    let at_source: SnapshotSource = source_of(at.as_path(), at_files.as_slice());
+    assert_eq!(mean_tracked_file(entries_of(&at_source).as_slice()), Some(edge), "a tree of the edge's mean");
+    assert!(reason_the_mean_file_is_too_small(&at_source, entries_of(&at_source).as_slice()).is_none(), "a tree of the pinned mean is cloned");
+    crate::test_support::remove(at.as_path());
+    let below: PathBuf = fixture("limit-below-the-mean");
+    let below_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), if index == 0 { edge - 1 } else { edge }); }).collect();
+    let below_source: SnapshotSource = source_of(below.as_path(), below_files.as_slice());
+    let mean: u64 = mean_tracked_file(entries_of(&below_source).as_slice()).expect("a mean");
+    assert!(mean < edge, "one byte off the total is under the edge: {mean}");
+    let reason: String = reason_the_mean_file_is_too_small(&below_source, entries_of(&below_source).as_slice()).expect("one byte fewer of the mean is declined");
+    assert!(reason.contains("average"), "{reason}");
+    assert!(reason.contains(mean.to_string().as_str()), "{reason}");
+    crate::test_support::remove(below.as_path());
+}
+
+/// What:
+///  The limits judge a clean source by its mean file size and a source with changes by its whole-tree sum.
+/// Why:
+///   This is the decision of 2026-11-22 built:
+/// a clean tree of a few large files clones whatever its total,
+/// and a small clean tree takes Git's own checkout even though its total is far above nothing,
+/// while a source with changes at the same small sizes is judged by the sum.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(decline(clean(fewLarge))).toBeUndefined(); expect(decline(clean(small))).toContain('average'); expect(decline(dirty(small))).toContain('sum to');
+/// ```
+#[test]
+fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_sum() {
+    let edge: u64 = THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
+    let few_large: PathBuf = fixture("limit-clean-few-large");
+    // Two files of twice the edge: 4 paths would average the edge, and these average it four times over, with a total
+    // nowhere near the whole-tree pin.
+    let large_files: Vec<(String, u64)> = vec![(String::from("first.bin"), edge * 8), (String::from("second.bin"), edge * 8)];
+    let large_source: SnapshotSource = source_of(few_large.as_path(), large_files.as_slice());
+    assert!(tracked_bytes(entries_of(&large_source).as_slice()) < THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG, "the total is far below the whole-tree pin");
+    assert!(large_source.dirty.is_none(), "the few large files are a clean source");
+    assert!(decline_before_cloning(&large_source, entries_of(&large_source).as_slice()).is_none(), "a clean tree of few large files clones");
+    crate::test_support::remove(few_large.as_path());
+    let small: PathBuf = fixture("limit-clean-small");
+    let small_source: SnapshotSource = source_of(small.as_path(), &[(String::from("one.txt"), 1), (String::from("two.txt"), 1)]);
+    let reason: String = decline_before_cloning(&small_source, entries_of(&small_source).as_slice()).expect("a clean tree of tiny files is declined");
+    assert!(reason.contains("average"), "the clean source's decline is about its mean: {reason}");
+    assert!(!reason.contains("sum to"), "the whole-tree sum says nothing about a clean source: {reason}");
+    // The same two files with one of them changed: now the whole-tree sum decides.
+    std::fs::write(small_source.root.join("one.txt"), b"a change\n").expect("the change");
+    let dirty_source: SnapshotSource = source_or_dirty(&git_context(), &main_identity(small_source.root.as_path())).expect("a source with changes");
+    let sum_reason: String = decline_before_cloning(&dirty_source, entries_of(&dirty_source).as_slice()).expect("a small tree with changes is declined");
+    assert!(sum_reason.contains("sum to"), "the source with changes is declined by its sum: {sum_reason}");
+    assert!(!sum_reason.contains("average"), "the mean says nothing about a source with changes: {sum_reason}");
+    crate::test_support::remove(small.as_path());
 }
 
 /// What:
@@ -109,13 +192,14 @@ fn the_cut_declines_one_changed_path_more_than_its_share_and_ignores_untracked_o
     }
     commit_all(repo.as_path(), "fixture");
     let cut: usize = the_changed_file_cut(files);
-    assert!(reason_too_many_changed_paths(&source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source")).is_none(), "a clean source is cloned");
+    let clean: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source");
+    assert!(reason_too_many_changed_paths(&clean, entries_of(&clean).as_slice()).is_none(), "a clean source is cloned");
     for index in 0..cut {
         std::fs::write(repo.join(format!("file-{index}.txt").as_str()), b"a change\n").expect("the change");
     }
     let at_cut: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source");
     assert_eq!(at_cut.dirty.as_ref().expect("the changes").tracked, cut);
-    assert!(reason_too_many_changed_paths(&at_cut).is_none(), "exactly the cut is cloned: the comparison is strict");
+    assert!(reason_too_many_changed_paths(&at_cut, entries_of(&at_cut).as_slice()).is_none(), "exactly the cut is cloned: the comparison is strict");
     std::fs::write(repo.join(format!("file-{cut}.txt").as_str()), b"a change\n").expect("one more change");
     // Three files nobody tracks: they are changes Git's status lists and no worktree takes.
     for index in 0..3 {
@@ -125,7 +209,7 @@ fn the_cut_declines_one_changed_path_more_than_its_share_and_ignores_untracked_o
     let changes = beyond.dirty.as_ref().expect("the changes");
     assert_eq!(changes.tracked, cut + 1, "the untracked files are no tracked change");
     assert_eq!(changes.count, cut + 4, "Git's status lists them all");
-    let reason: String = reason_too_many_changed_paths(&beyond).expect("one changed path more than the cut is declined");
+    let reason: String = reason_too_many_changed_paths(&beyond, entries_of(&beyond).as_slice()).expect("one changed path more than the cut is declined");
     assert!(reason.contains("have changes"), "{reason}");
     assert!(reason.contains(format!("{} of the {} tracked files", cut + 1, files).as_str()), "{reason}");
     crate::test_support::remove(root.as_path());
