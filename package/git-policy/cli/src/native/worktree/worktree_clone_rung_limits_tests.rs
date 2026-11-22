@@ -145,8 +145,8 @@ fn the_mean_limit_declines_one_byte_below_the_pinned_mean_and_clones_it() {
 fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_sum() {
     let edge: u64 = THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
     let few_large: PathBuf = fixture("limit-clean-few-large");
-    // Two files of twice the edge: 4 paths would average the edge, and these average it four times over, with a total
-    // nowhere near the whole-tree pin.
+    // Two files of eight times the edge average eight times it: a clean tree far above the mean edge and far below the
+    // whole-tree pin, which is the shape that must clone and that the whole-tree rule declined.
     let large_files: Vec<(String, u64)> = vec![(String::from("first.bin"), edge * 8), (String::from("second.bin"), edge * 8)];
     let large_source: SnapshotSource = source_of(few_large.as_path(), large_files.as_slice());
     assert!(tracked_bytes(entries_of(&large_source).as_slice()) < THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG, "the total is far below the whole-tree pin");
