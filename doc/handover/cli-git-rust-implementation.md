@@ -41616,7 +41616,9 @@ stated in this entry. What follows from them, as work:
   `main` passed after. L4's note is in the decision record. Left for a small round: R1 (the adoption's real removal path
   `list_and_remove_staging_entries` has no control that fails; re-point the design's control 5 and add a foreign name) and R2
   (narrow that method to `pub(crate)` returning only what its caller reads). STEP 8 IS UNBLOCKED (step 7 and the store are
-  on `main`). Step 7's
+  on `main`). GOING: `pi-zfs-step-8-attaching-sweep` in `.claude/worktrees/zfs-step-8-attaching-sweep` (brief under
+  `~/temp/agent/zfs-step-8-attaching-sweep-2026-11-21/`; carries step 7's claim-window acceptance item and the plan's step 8
+  wording lows). QUEUED: the store's R1 and R2 after step 8's first commits settle which files it touches. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
