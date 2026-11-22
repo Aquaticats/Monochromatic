@@ -24,7 +24,12 @@ This design was built on branch `feat/git-policy-cli-zfs-slot-identity-store-per
 on 2026-11-21,
 after the decision record accepted it,
 with the gate's recheck's low findings R1 to R8 answered in this text and in the code:
-R1 in the sweep's removal of known staging names and in sections 1,
+R1 in the removal of the two known staging names,
+which the project placed with plan step 18's `doctor` while the sweep stays unlisted,
+and in the sweep's control that a run lists nothing,
+as `doc/decision/cli-git-zfs-slot-identity-store-format.md` records under
+"Who removes a killed writer's staging file",
+and in sections 1,
 2,
 4 and 5,
 R2's citations,
@@ -608,7 +613,15 @@ and one rule tells them apart:
   so no slot can ever be named like one.
   Who removes them is section 2's answer:
   a writer removes its own,
-  and the adoption and the sweep remove the two known forms a killed writer left.
+  the adoption removes the two known forms a killed writer left,
+  and plan step 18's `doctor` reports and removes them
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file"),
+  so the adoption is their only remover until that step lands.
+  No sweep run lists the folder,
+  so no sweep run removes one,
+  and a leftover affects no reader,
+  because no reader reads a staging name.
 
 No suffix and no second level is needed,
 and the reason is the grammar of names that can arrive,
@@ -852,28 +865,30 @@ and each is readable:
   the record alone.
 
 Nothing reads a staging entry,
-and three parties remove one that a kill left,
-each at a moment its own precondition makes safe:
+and each party that removes one a kill left does so at a moment its own precondition makes safe:
 
 - a writer removes its own staging name on its normal path and on every failure path,
   so a writer that returned never leaves one;
 - the adoption lists the folder as its first step and removes every entry matching either known staging form
   before it stages its own record,
   and its quiescence precondition is what makes that safe,
-  because no other writer is live to own those names;
-- the sweep removes the same two forms,
-  once the built one does,
-  before it does anything else,
-  and its removal is not quiesced:
-  a live writer whose staging name it removed answers a `Write` refusal naming the folder,
-  publishes nothing and loses nothing,
-  and the next sweep publishes that slot.
+  because no other writer is live to own those names.
 
-`doctor` reports the known forms with their count and age and any dot entry that matches neither,
-and removes nothing,
-so a machine that runs neither an adoption nor a sweep keeps the litter and can see it in a report.
+A sweep run lists no name at all (choice 9),
+so no sweep run removes one,
+and the adoption is the only remover until plan step 18 lands.
+That step's `doctor` reports the known forms with their count and age and any dot entry that matches neither,
+and removes the known forms,
+which is the answer the project gave on 2026-11-21
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
+A machine that runs no adoption keeps a killed writer's litter until its next adoption or that report,
+and nothing is affected meanwhile:
+no reader reads a staging name,
+so a leftover entry changes no read,
+no compare and no mount.
 That is the reach the decision asked for when it added the removal beside the adoption (R1),
-and it is why option A's cons say what a machine that runs neither remover keeps.
+and it is why option A's cons say what a machine that runs no remover keeps.
 No run needs a lock or a timeout to be sure another writer is gone.
 
 ### The alternative this design flags: a file with no name and one link
@@ -934,8 +949,9 @@ and the same staging remover the parent's replacement needs anyway.
 
 Cons:
 a kill leaves a dot entry,
-which the writer's own path and the adoption remove and the sweep removes too,
-but which no remover reaches on a machine that never runs one of those;
+which the writer's own path and the adoption remove,
+and which plan step 18's `doctor` is to report and remove,
+but which stands on a machine that runs neither until then;
 one arm of the publication is the rename that never replaces,
 with its own two controls and its double-refusal arm;
 and the common path is two names and two calls more than a single create.
@@ -1305,7 +1321,10 @@ refused or removed,
 because it means a writer this design has not accounted for.
 `doctor` reports the two known forms too,
 with their count and age,
-so a machine that runs neither an adoption nor a sweep shows what a killed writer left.
+and removes them,
+so a machine that runs no adoption shows what a killed writer left and can have it removed there
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
 
 A record whose own key is not the name it is filed under refuses,
 because the record line carries its key:
@@ -1424,9 +1443,13 @@ so a slot that is recorded but whose clone is gone costs it nothing,
 and a store entry for a slot the walk did not reach is outside the sweep's business:
 the decision's lost single read is exactly that no check sees the set,
 and no check in this step needs it.
-Choice 9 offers the owner the other reading of that,
-one `readdir` per sweep run,
-and this design ranks it second.
+The owner answered choice 9 "A:
+no listing per sweep (Recommended)",
+so a sweep run lists no name and a staging file a killed writer left is not the sweep's to remove:
+the adoption removes it,
+and plan step 18's `doctor` reports and removes it
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
 
 ### The adoption, and the listing it needs
 
@@ -1481,13 +1504,18 @@ and what is not restored".
   reports "the recorded parent and slot identities with the failing field or component"
   (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:1636`),
   so it is the one reader that reads every record,
-  and it is read-only.
+  and it is read-only except for the staging names it removes.
   It lists the folder and reads each record,
   reports the entry count beside them,
   reports a record filed under a name its key does not match,
   reports a foreign entry,
   and reports a dot entry that matches neither of the two known staging forms.
-  It removes nothing and raises nothing.
+  It removes the two known staging forms a killed writer left,
+  with their count and age,
+  which is the removal the project placed at plan step 18 while the sweep stays unlisted
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file"),
+  and it raises nothing.
 - The removal workflow and its cancel command read what plan step 4 and the unmount read:
   the recorded parent and,
   for the slot they act on,
@@ -1780,8 +1808,9 @@ this is the list the build follows and the review judges.
   is where the folder's creation at mode `0755` and `.parent`'s first publication belong.
 - The clone-mount sweep,
   `package/git-policy/cli/src/native/worktree_clone_mount_handler/attaching_sweep_mode.rs`,
-  which removes the two known staging forms before it refuses its step,
-  so a machine that never adopts does not keep a killed writer's litter.
+  which lists nothing and removes nothing:
+  its stub refuses its step without opening the store,
+  and the removal of the two known staging forms left the sweep for plan step 18's `doctor`.
 - `doctor`'s store section,
   which plan step 18 builds:
   it reports the entry count,
@@ -1789,7 +1818,9 @@ this is the list the build follows and the review judges.
   a foreign entry,
   the two known staging forms with their count and age,
   and any dot entry matching neither form,
-  and removes nothing.
+  and it removes the two known staging forms
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file").
 - `package/git-policy/cli/e2e/README.md:838`,
   which says the guest adoption arm writes the store file,
   and `package/git-policy/cli/src/native/binary/binary_zfs_adoption_guest_tests.rs`,
@@ -1999,6 +2030,11 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     over the three files of section 1,
     including the parent's access ACL that the specification's own control asserts.
 
+The sweep's own run stands beside these:
+`a_sweep_run_lists_nothing` holds a hook at the store's open and another at the store's listing,
+and asserts that a run reaches neither and still answers its step's refusal,
+which is choice 9's answer and the reason the removal waits for plan step 18.
+
 If the project accepts section 2's option B instead,
 one more control is owed:
 both link spellings answering `ENOENT` or `EPERM` takes the staged path or a `Write` refusal naming both
@@ -2102,6 +2138,14 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
   a build that allowed it would also make a held read of a record able to go stale (section 5).
 - A dot entry that matches neither known staging form is reported by `doctor` and removed by nobody,
   which means a writer this design has not accounted for stays visible until an administrator acts.
+- A known staging form a killed writer left stands until the next adoption or until plan step 18's `doctor` runs,
+  because no sweep run lists the folder to find it;
+  no reader reads a staging name,
+  so it changes no read,
+  no compare and no mount.
+  Only the adoption removes it before that step
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file").
 - No measurement here is a release-profile build,
   and none was taken under a loaded pool.
 - The probe those primitive numbers came from lives in this round's scratch folder and not in the repository,
@@ -2220,6 +2264,14 @@ and the last two are flagged because they need a decision this design cannot mak
     Only root writes the store,
     and the adoption and `doctor` already run that listing,
     so the sweep's copy buys detection of a state a root-only writer rarely makes.
+    The project answered A on 2026-11-21,
+    so a sweep run lists nothing and the adoption is the only remover of the two known staging forms
+    until plan step 18 lands,
+    and that step's `doctor` reports and removes them;
+    a leftover affects no reader,
+    because no reader reads a staging name
+    (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+    "Who removes a killed writer's staging file").
 
 ## References
 
