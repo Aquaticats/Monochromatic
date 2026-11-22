@@ -420,7 +420,10 @@ The statistics carry `dds_guid`,
 `dds_creation_txg`,
 `dds_num_clones`,
 `dds_is_snapshot` and `dds_origin`
-(`layout/zfs_cmd_t.rs:73` to `:112`).
+(`layout/zfs_cmd_t.rs:73` to `:112`),
+and the kernel fills the clone count only for a snapshot,
+leaving it zero for a dataset
+(`module/zfs/dsl_dataset.c:2881` to `:2899`).
 F2 The property list those two reads return is `dsl_prop_get_all`'s
 (`module/zfs/zfs_ioctl.c:2244` to `:2253`,
 OpenZFS `zfs-2.4.4`),
