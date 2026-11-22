@@ -982,15 +982,16 @@ with the alternatives ranked in "Choices this design marks for the project's vet
 
 The route is `--no-checkout` (step 2),
 so the only long part of the add is Git's own preparation.
-Each moment names what stands on disk and what each prune can do there.
+Each moment is named D0 to D7,
+and it names what stands on disk and what each prune can do there.
 
-M0.
+D0.
 Before the invocation:
 the claim record stands in the Git common directory,
 with the nonce and the reason bytes it is about to give Git.
 Nothing in `worktrees` names this slot.
 
-M1.
+D1.
 Inside Git,
 after `worktrees/<id>` exists and before `locked` is written:
 a bare administrative directory.
@@ -1002,7 +1003,7 @@ the moment is Git's own (L4).
 A SIGKILL or power loss leaves the bare directory;
 a signal Git catches removes it (F11).
 
-M2.
+D2.
 After `locked` holds the wrapper's text,
 before the `gitdir` file and the slot's `.git`:
 a locked administrative directory with nothing else.
@@ -1012,7 +1013,7 @@ P3);
 a kill leaves it and the wrapper's claim attributes it by the nonce in the words (F2,
 A1).
 
-M3.
+D3.
 After `gitdir` and the slot's `.git`,
 before the add returns:
 a locked registration whose pointer stands in the empty slot.
@@ -1023,7 +1024,7 @@ A kill leaves it;
 a signal Git catches removes it (F11);
 the wrapper's resume reads it as a registration with no clone.
 
-M4.
+D4.
 After the add returns,
 before the wrapper writes the lock record beside the registration:
 a locked registration whose evidence is the claim only.
@@ -1031,13 +1032,13 @@ A kill leaves it,
 and the resume writes the record after checking the bytes against the claim (A1,
 A2).
 
-M5.
+D5.
 After the record,
 before the clone exists:
 a verified locked registration with no dataset.
 Every prune keeps it.
 
-M6.
+D6.
 After the clone is mounted and the copied Git administration is discarded,
 before the pointer is installed in the clone:
 the slot shows no `.git`,
@@ -1057,19 +1058,19 @@ a locked registration and the underlay pointer hidden;
 the resume re-attaches,
 verifies and installs the pointer.
 
-M7.
+D7.
 After the pointer is installed and the fill is verified:
 the lock stays,
 and it stays through every unmount and restart (the decision's own words).
 
 Two consequences worth stating plainly:
 
-- The window between M5 and M6,
+- The window between D5 and D6,
   the clone's own fill,
   is not exposed:
   the clone root still holds the copied `.git` directory,
   and `file_exists` counts any entry (F1).
-- The window M6 opens is reopened by every unmount that leaves the underlay pointer in place only when that pointer is deleted.
+- The window D6 opens is reopened by every unmount that leaves the underlay pointer in place only when that pointer is deleted.
   Without the deletion the unmounted slot shows the pointer again,
   and the lock is belt to the pointer's braces.
 
@@ -1135,7 +1136,7 @@ computed in code from those parts (L7).
 The nonce earns its place:
 it makes two registrations' locks distinguishable by their words,
 so a lock copied from another worktree of the same repository does not read as this one's,
-and it lets the resume at M2 and M4 attribute a lock whose record was never written (A1,
+and it lets the resume at D2 and D4 attribute a lock whose record was never written (A1,
 A6).
 
 Alternatives and their ranking are in "Choices this design marks for the project's veto",
@@ -1541,7 +1542,7 @@ and the ZFS boot unit's reconcile does not touch either file.
   no longer able to prove the lock,
   treats the slot as one it may not settle without an explicit recovery.
 - Any state of a pruned registration (above).
-- The lock's protection during the M1 window (L4).
+- The lock's protection during the D1 window (L4).
 
 ## What the lock changes for a person using Git directly
 
@@ -1692,18 +1693,18 @@ T2.
 A `--lock` add leaves the registration locked at every observable moment.
 Forced by sampling the administrative directory at one millisecond through an add of a fixture large enough to last (P2's method),
 and by the real-Git arm of T1.
-The M1 window inside Git is out of scope and named in L4.
+The D1 window inside Git is out of scope and named in L4.
 T3.
 Each kill state is recognised by the resume.
-Forced by building the state by hand for M1,
-M2,
-M3 and M4,
+Forced by building the state by hand for D1,
+D2,
+D3 and D4,
 from the measured shapes (P1,
 P3,
 P6),
 not by killing a real add at a lucky instant.
 T4.
-A registration at M4,
+A registration at D4,
 with the claim and no record,
 is adopted:
 the resume writes the record and classifies S1.
@@ -1789,7 +1790,7 @@ the locked arms keep it.
 Host fixtures already show the same on a plain directory,
 through the wrapper (P3 to P5) and as Git alone (G3 to G5);
 the guest adds the mount covering the underlay pointer,
-which is the state M6 describes.
+which is the state D6 describes.
 This is the one measurement that decides whether the design's single reason for the lock holds on a real clone.
 
 M2.
@@ -1839,7 +1840,7 @@ Under the adopted route the registration is locked from Git's own creation of it
 Under a separate `git worktree lock` the registration is unlocked in that window,
 with the pointer present,
 so prune keeps it and `git gc` keeps it while the index is young;
-the loss shows after the clone mounts over the pointer (M6).
+the loss shows after the clone mounts over the pointer (D6).
 The wrapper writing the file itself is the same window plus Git's private id derivation.
 Pros of the adopted route:
 no window the wrapper adds,
@@ -2035,7 +2036,7 @@ and the install is one exclusive write.
   the whole point of the lock,
   prune protection,
   is lost until a person acts,
-  and the window M6 is exactly when nobody is watching.
+  and the window D6 is exactly when nobody is watching.
   Ranking:
   A > B > C,
   because A restores the protection at the moment the wrapper already proves everything the install needs,
@@ -2149,7 +2150,7 @@ This design follows it without dropping a check whose absence would hurt even a 
   and the lock goes with the registration at the settle whatever the origin's state.
 - **The dirty-main restore on rung 1.**
   No interaction.
-  The fill window M6 is bounded by that design's discard and pointer-install steps,
+  The fill window D6 is bounded by that design's discard and pointer-install steps,
   and this design says only that the lock must stand across them.
 - **What re-applies private propagation after a replacement mount.**
   No interaction.
