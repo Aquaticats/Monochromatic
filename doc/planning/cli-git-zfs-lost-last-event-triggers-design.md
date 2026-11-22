@@ -642,7 +642,7 @@ decides whether it exists.
   The handler's
   own line reaches nobody (fact F13),
   which "Choices this design marks for the project's veto",
-  V7,
+  V8,
   fixes.
 - Filter:
   the handler filters the event before it opens `/dev/zfs` (V2),
