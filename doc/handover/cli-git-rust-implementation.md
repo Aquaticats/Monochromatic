@@ -42227,6 +42227,18 @@ stated in this entry. What follows from them, as work:
   The three record designs go to the owner together, after one second gate pass that reads all three. SCRATCH at this
   pass: `~/temp/agent` measures 11,916 MiB; largest are the forced-removal design's folder 1,292 MiB, the propagation
   gate review's 1,272 MiB and the cancelled-removal design's 1,244 MiB (source clones, cleared when each round ends).
+  THE DEFERRED-DESTROY DESIGN'S SECOND GATE PASS IS BACK, "fit after the listed fixes"
+  (`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`): both blockers of
+  the first review are fixed. One new high: four of the rewritten guest probes cannot run as written (they mark a snapshot
+  name the add route never creates, so the removal would run unmarked and destroy the guest's clone; one makes `zfs destroy
+  -d` on a snapshot with no clone, which destroys it; one leans on a pause seam that exists nowhere). Three mediums: the
+  refusal's stage sentences are false on a resumed removal, V1's reason is contradicted by the document's own probe, and
+  three statements about siblings are wrong. The reviewer would put three questions to the owner in one batch: keep the
+  pending removal or cancel and remount when the first check refuses; whether to add an early refusal before the unmount;
+  and what a refusal before the head destroy keeps. GOING: `pi-zfs-deferred-destroy-checks-design-second-pass-findings`,
+  the same session on `continuation-second-pass-findings.md` in its folder; after it only a diff check against
+  `3e34817184` by the same reviewer. THE ISSUE 6344 PASS stopped once with its nine merge-side runs still going, counting
+  on a monitor to wake it; it was resumed and told to wait in one bounded command (one run green by then, no verdict yet).
   Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
