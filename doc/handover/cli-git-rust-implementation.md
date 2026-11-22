@@ -41751,7 +41751,16 @@ stated in this entry. What follows from them, as work:
   refused and declined adds pay 40.1 and 62.3 ms of background work; sample 300 of 300; gate 9776 of 9778 (cause-H pair); an
   abandoned read runs to its Git step's ceiling (documented, not cancelled). Its two images removed; commit `b9f1eca8be`'s scope
   corrected by commit comment. GOING: its integration pass on Sonnet (review to
-  `~/temp/agent/integration-pass-fence-size-read-beside-source-check-2026-11-22/`). Step 7's
+  `~/temp/agent/integration-pass-fence-size-read-beside-source-check-2026-11-22/`). THE DECLINED-READER ROUND ended at
+  `41a47f6c4c` (report `~/temp/agent/object-database-declined-reader-callers-2026-11-22/keep/report-from-summary.md`):
+  `commit_content`, `batch_content_missing` and `prepared_content_missing` ask Git on a decline; the refusal also reads the
+  repository's `config` and declines any `extensions.refStorage` but `files`; controls red then green on reftable and on
+  files-plus-replace-ref; the push trigger still declines on purpose (no reftable repository reaches it; a reviewer
+  disagreed); the config read makes a files open 1.463 of `main` (about 7.5 µs on 16.5; control 0.999); gate 9766 of 9768. An
+  earlier gate of the round failed `lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone`
+  once, filed as issue 6342 (undiagnosed). GOING: its integration recheck on Sonnet (review to
+  `~/temp/agent/integration-recheck-object-database-declined-reader-2026-11-22/`), which weighs the config read's cost per
+  whole command. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
