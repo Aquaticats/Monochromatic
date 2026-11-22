@@ -11,7 +11,9 @@
 //!  these arms run only where `CLI_GIT_ZFS_SWEEP_GUEST` names a disposable guest
 //!  (`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`,
 //!  on OpenZFS 2.4.4 in an `mvm` Ubuntu guest),
-//!  and they print `SKIPPED` everywhere else,
+//!  and they print `SKIP` everywhere else,
+//!  which is why the arm carries no `#[ignore]`: a harness that skips an ignored
+//!  test would run it nowhere,
 //!  so the gate says what it did not run
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 8,
@@ -275,7 +277,6 @@ fn mount_request() -> String {
 ///  and a malformed,
 ///  an inherited and a foreign intent each authorize nothing.
 #[test]
-#[ignore = "mounts a real ZFS clone and writes /var/lib and /run: the throwaway mvm guest runs it, and any other machine answers SKIP"]
 fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     if !guest() {
         return;
