@@ -14,8 +14,7 @@ The round of 2026-11-22 that followed the integration pass
 (`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`)
 replaced the whole-tree limit for a clean source with the mean-file edge of each measured filesystem,
 pinned both edges in throwaway guests,
-and is recorded in "The clean-source mean-file edge,
-measured".
+and is recorded in "The measured clean-source mean-file edge".
 
 The design was proposed and a prototype measured it on `main`'s fenced clone rung,
 and "The decision asked for" records what was asked.
@@ -152,8 +151,7 @@ The clean-source rule replaces that limit for a source with no changes:
 its mean tracked file size is compared with its own filesystem's measured edge,
 49 bytes a file on btrfs and 8,799 on ZFS,
 and a filesystem nobody measured takes the higher of the two.
-The edge and every point behind it are in "The clean-source mean-file edge,
-measured".
+The edge and every point behind it are in "The measured clean-source mean-file edge".
 
 The changed-file cut is one quarter of the tracked paths,
 which is the fence's own decline share.
@@ -206,10 +204,9 @@ cut the ladder uses (the integration pass's finding M1):
 the sentence says how many of how many tracked paths Git would write and the cut they exceed.
 The control `a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy` builds 36 stale paths of 40
 and goes red when the guard is removed.
-The shape's re-timing is in "The clean-source mean-file edge,
-measured".
+The shape's re-timing is in "The measured clean-source mean-file edge".
 
-### The clean-source mean-file edge, measured
+### The measured clean-source mean-file edge
 
 The decision of 2026-11-22 left the edge to this round,
 and the waiver record's ZFS figures came from step 3's builds

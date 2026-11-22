@@ -87,8 +87,7 @@ pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 /// 32,000 and 44,000 bytes a file,
 /// in position-balanced rounds with an identical-binary control,
 /// against `main` and Git's own checkout
-/// (the record is "The clean-source mean-file edge,
-/// measured" in
+/// (the record is "The measured clean-source mean-file edge" in
 /// `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
 /// Measured on this build in a throwaway ZFS guest:
 /// trees of 10,001 files of 2,600,
@@ -169,8 +168,7 @@ pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 8_799;
 /// 32,000 and 44,000 bytes a file,
 /// in position-balanced rounds with an identical-binary control,
 /// against `main` and Git's own checkout
-/// (the record is "The clean-source mean-file edge,
-/// measured" in
+/// (the record is "The measured clean-source mean-file edge" in
 /// `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
 /// Measured:
 /// 10,001 files of 50 bytes averaged 49 bytes a file and cloned at 0.86 of Git's own checkout
