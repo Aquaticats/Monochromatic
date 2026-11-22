@@ -273,6 +273,36 @@ and was equal to Git's own checkout by `diff --recursive --no-dereference`.
   `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` names,
   and nothing else.
 
+### The guest arm
+
+One throwaway `mvm` guest of this round's own ran the crate's btrfs controls.
+It is Ubuntu 24.04 on kernel 6.8.0-147-generic,
+with a 12 GiB btrfs filesystem on a loop file as `CLI_GIT_TEST_ROOT` and no acknowledgement set,
+so every btrfs control ran rather than skipping.
+Result:
+186 tests run,
+174 passed,
+12 failed.
+`btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume` and
+`btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of`,
+the two this round rewrote,
+passed,
+and so did the snapshot rung's own btrfs controls.
+Six failures are this limit's:
+`worktree_ladder_finish`'s controls say "the source is eligible" and see `Person` where they expect
+`WithoutCheckout(2)`,
+because the size limit now declines their small fixtures.
+They need the sparse fixture the `worktree_ladder_run` controls got,
+and that is owed.
+The other six are outside this rung,
+two `fs_btrfs_ioctl` snapshot and destroy controls,
+and one each in removal,
+trash,
+stage claim and landed removal,
+and they were not diagnosed;
+their words name a snapshot whose record proves no object and a boundary set the sweep did not expect,
+which is what a loop-mounted btrfs may explain and which no control here settles.
+
 The work is **unapproved and non-final**.
 Only the owner declares it complete.
 
@@ -2160,6 +2190,11 @@ The entry point this round added belongs in a sibling when the rung is written f
 - The ladder's full routing control,
   with an `AddPlan` and both rungs on a clone-capable source,
   beyond `a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned`.
+- The six `worktree_ladder_finish` btrfs controls,
+  which a guest run of 2026-11-21 saw fail on "the source is eligible":
+  each needs a fixture above the size limit,
+  as the `worktree_ladder_run` controls got,
+  and no round has rerun them since.
 
 ## The decision asked for
 
