@@ -98,10 +98,12 @@ pub(super) fn serve_clones(source: &SnapshotSource, fence: crate::worktree_clone
         return Err(reason);
     }
     if !decided.git_writes.is_empty() {
+        let write_entered: bool = begin_step("writeConversions");
         let written: Result<(), String> = match pending.as_ref().map(|held| return held.path_in()) {
             Some(index) => crate::worktree_clone_conversion_fence::checkout_index_through_the_index_at((target.admin.as_path(), plan.destination.as_path(), context), index, decided.git_writes.as_slice(), source.clean.hash_length),
             None => crate::worktree_clone_conversion_fence::write_through_git(target.admin.as_path(), plan.destination.as_path(), context, decided.git_writes.as_slice(), source.clean.hash_length),
         };
+        end_step(write_entered);
         if let Err(reason) = written {
             discard_the_pending_index(pending, &bound.admin);
             return Err(reason);
@@ -148,6 +150,25 @@ pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context): 
             Ok((cloned.into_created(), decided, None))
         }
         crate::worktree_clone_conversion_beside_the_clone::CloneFence::Beside(held) => {
+            // What:
+            //  A source with uncommitted changes clones the paths its proof settles and lets Git write the rest.
+            // Why:
+            //  The index such a rung writes cannot be the source's, so the partial clone builds it from the tree and
+            //  installs it under the fence's waiting name itself; the copies, the fence beside them and the write step
+            //  after the tree difference are the whole rung's own.
+            if source.dirty.is_some() {
+                let part = crate::worktree_clone_partial::clone_the_unchanged(crate::worktree_clone_partial::PartialClone {
+                    context,
+                    source,
+                    destination: &bound.destination,
+                    admin: &bound.admin,
+                    admin_path,
+                    fence: held,
+                    rules: crate::worktree_clone_partial::SizeRules::from_the_environment(),
+                });
+                let (cloned, decided, pending): (crate::worktree_clone_partial::PartCloned, crate::worktree_clone_conversion_fence::Fence, PendingIndex) = part?;
+                return Ok((cloned.created, decided, Some(pending)));
+            }
             let beside_entered: bool = begin_step("conversionBesideTheClone");
             let (cloned, answered): (ClonedBytes, Option<Result<crate::worktree_clone_conversion_fence::Fence, String>>) = clone_tracked_bytes_beside(source, &bound.destination, fence_beside_the_clone(source, context, held))?;
             end_step(beside_entered);
