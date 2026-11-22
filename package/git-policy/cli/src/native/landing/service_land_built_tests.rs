@@ -253,9 +253,20 @@ fn a_shallow_file_sends_the_checks_to_rev_list() {
     remove(world.root.as_path());
 }
 
-/// A replacement object anywhere in the repository is left to `rev-list` too.
+/// What:
+///  A replacement object anywhere in the repository sends the commit's parents to `cat-file commit`
+///  and the objects to `rev-list`,
+///  never to the in-process reader.
+/// Why:
+///  The reader declines a store whose object names replacements change,
+///  so the parents are Git's own answer,
+///  the replacement applied,
+///  and the objects are checked by the `rev-list` the landing always ran.
+/// Before the reader asked Git for the commit they were both left to `rev-list`;
+/// one Git start remains for the objects,
+/// and two `cat-file` starts answer the parents and the reflog row.
 #[test]
-fn a_replacement_object_sends_the_checks_to_rev_list() {
+fn a_replacement_object_sends_the_parents_to_cat_file_and_the_objects_to_rev_list() {
     let (world, trace) = traced("service-built-replaced");
     let empty: String = git_text(world.repo.as_path(), &["hash-object", "-t", "tree", "-w", "--stdin"]);
     let first: String = git_text(world.repo.as_path(), &["commit-tree", empty.as_str(), "-m", "unrelated one"]);
@@ -265,7 +276,8 @@ fn a_replacement_object_sends_the_checks_to_rev_list() {
     let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
     let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
     assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
-    assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "replacement: the checks went to rev-list");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 1, "replacement: the objects went to rev-list");
+    assert_eq!(starts_of(trace.as_path(), "cat-file"), 2, "replacement: Git answers the parents and the row");
     crate::service_durable::drain();
     remove(world.root.as_path());
 }
