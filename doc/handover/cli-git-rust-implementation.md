@@ -41919,7 +41919,59 @@ stated in this entry. What follows from them, as work:
   M. GOING: `pi-shadow-sibling-control-two-timing-windows` on
   `fix/git-policy-cli-shadow-sibling-control-two-timing-windows` (both windows, the lows, cause M's wording, and splitting
   `shadow_create.rs`, which is over the line limit; brief under
-  `~/temp/agent/shadow-sibling-control-two-timing-windows-2026-11-22/`). Step 7's
+  `~/temp/agent/shadow-sibling-control-two-timing-windows-2026-11-22/`). THE OBJECT READER'S COMMIT-MEMORY ROUND ENDED `idle`
+  (379 turns) at `dcc7abd566` (2026-11-22T16:36:39-05:00; report
+  `~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/keep/report-from-summary.md`): the memory is emptied as
+  each landing begins, with a two-landing control that is red without it; each declined question is driven through its
+  caller; the reader also declines under `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES` and
+  `GIT_REPLACE_REF_BASE`; and a commit now refuses plainly when one of those four variables is set for the client alone,
+  which is new behaviour no review has read; its gate ran 9900 of 9902, the cause-H pair. GOING: its recheck on Sonnet,
+  told to find the real situations in which such a variable is set and `main` commits well, review to
+  `~/temp/agent/integration-recheck-object-reader-commit-memory-is-per-landing-2026-11-22/keep/review.md`, integration branch
+  `integrate/git-policy-cli-object-reader-commit-memory-is-per-landing`. THE OVERLAP'S RECHECK SAID NOT FIT
+  (`~/temp/agent/integration-recheck-fence-size-read-beside-source-check-2026-11-22/keep/review.md`; integration branch
+  `integrate/git-policy-cli-fence-size-read-beside-source-check-with-findings-fixed` at `978d77cb12`; gate 9897 of 9899). One
+  high: the early read sets `GIT_NO_LAZY_FETCH=1` only when a test sees a promisor remote, and the review made the read fetch
+  into a source the check refused with the remote's flags in an included config file, through `GIT_CONFIG_COUNT`, and in a
+  `--reference` clone. Mediums: an abandon that comes before the read's child starts ends nothing (80 of 80 cone sparse
+  adds); a control races on its marker file (2 of 8 grouped runs); `--no-lazy-fetch` sends a plain source to Git's checkout
+  on a Git older than the tested minimum (865.3 ms against 3509.2 ms on 2.43.0). The first pass's settle wait is fixed (29.1
+  against 27.2 ms where it was 451.4 against 17.3). Picked without asking, open to the owner's veto: the variable on every
+  early read with no option and no test, because the decision's text has no condition
+  (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md` lines 77 to 85) and the tested minimum is Git 2.56.0; and the
+  abandon is made to stick where the review ranked rewording `SPEC.md` first, because the decision's "may pay that read in
+  the background" is a bound and not a stop (rule `FBN`). GOING: `pi-fence-size-read-never-fetches-and-abandon-sticks` on the
+  same feature branch in a new worktree `.claude/worktrees/fence-size-read-never-fetches-and-abandon-sticks` (the wrapper
+  removed the author's at the recheck's merge), brief under
+  `~/temp/agent/fence-size-read-never-fetches-and-abandon-sticks-2026-11-22/`; it is asked to measure on a Git of 2.56.0 or
+  newer in its guest, since every guest figure of this branch so far is from 2.43.0. MORE RUNS AT ONCE: the owner asked "Can
+  we parallelize more?" after the 6344 round's start. Measured between then and 2026-11-22T17:16:54-05:00: eight Pi runs and
+  one Sonnet check going against a standard pool that takes 20; 29 GiB of memory available; three guests of 8 GiB each
+  (mvm's default) holding 2.5 GiB resident and 30 GiB of swap in a unit capped at 33 GiB; swap 44 of 63 GiB used (zram held
+  35.1 GB in 12.7 GB); load 19 to 27 on 30 processors. What held work back was the order of work and not the machine: none
+  of the designs the plan marks as blocking steps 10 to 19 was written. Step 10's "Depends on" (steps 2, 3, 6 and 8) is
+  met, but its "Open items" block it on the add-time Git lock, and its binding record has no home (plan lines 1479 and 2864
+  to 2869). TEN DESIGN ROUNDS STARTED between 2026-11-22T17:14:57-05:00 and 17:15:47-05:00 from `main` at `5dd8883a60`, one
+  open item or gap each, as documents, with no guest (a claim that needs one is written as a measurement owed):
+  `zfs-add-time-git-lock-design` and `zfs-add-binding-record-design` (the two that block step 10),
+  `zfs-removal-destruction-plan-record-design`, `zfs-origin-cleanup-record-design`,
+  `zfs-dirty-main-restore-on-rung-1-design`, `zfs-deferred-destroy-checks-design`,
+  `zfs-forced-removal-holders-ended-and-caller-spared-design` (two open items of step 17),
+  `zfs-cancelled-or-interrupted-removal-and-cancel-command-design` (three open items of step 17),
+  `zfs-private-propagation-after-replacement-mount-design` and `zfs-lost-last-event-triggers-design` (blocks no step; ships
+  no rate). For each name: the unit is `pi-<name>`, the folder `~/temp/agent/<name>-2026-11-22/`, the worktree
+  `.claude/worktrees/<name>`, the branch `docs/planning-cli-git-<name>`, the document `doc/planning/cli-git-<name>.md`. Each
+  brief is the shared text `common-template.md` with its own part from `specific/`, put together by
+  `make-briefs-and-worktrees.ts`, all under `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`. After each: a gate
+  review on Sonnet (the three record designs read together), fixes, then the designs' questions to the owner in one batch;
+  by what authority a forced removal ends another account's process is the owner's question, and that design only ranks
+  options. Step 10's code waits for the lock and binding-record designs, and for the no-configuration and clone-rung
+  branches it builds on. WHAT A NEW WORKTREE COSTS NOW, measured on those ten adds, one after another, through the session's
+  wrapper build (`0.6.1-alpha.44`, built by cargo): 13.0 to 58.4 s each (median 24.6 s), each copying 38,698 ignored
+  entries; one new worktree is 5,820 MiB by `du`; the pool's `bclonesaved` rose from 802 G to 847 G over the ten, about
+  4.5 G shared per worktree (other programs clone blocks too, so that share is not exact). 56 worktrees are now on the new
+  drive, where the owner's bound for the ZFS steps is 64; removing the stale ones is owed. The owner's hold of 2026-11-18
+  on other work stands, and the owner is asked about it with these figures. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
