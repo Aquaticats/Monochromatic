@@ -12,61 +12,93 @@ The implementation plan lists that item for step 16 as
 writer design work,
 with the owner asked only if its home changes the settle decision"
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:2823` to `:2827`).
-It makes no decision that the design record,
-the proposal or the project's answers did not make,
-beyond the writer's choices that "Choices this design marks for the project's veto" lists.
-It answers none of the questions that "Questions only the project can answer" lists.
+**The home does not change the settle decision:**
+the folder is the account's and the destroy authority is the account's,
+so settling proceeds exactly as the accepted design says,
+whether or not the record is still owed.
+That answers the one condition the plan puts on an owner question about the home,
+and no other part of this design asks the owner for the home.
+
+This is the second round of this document.
+Its first commit `3428988897` wrote it,
+and a gate review from another vendor read it whole at tip `4daa6c66ce`
+(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`).
+That review called this document O and found sixteen findings,
+two findings about the set of three record designs (X1 and X2),
+fourteen points where the three record designs disagree,
+and some wrong citations.
+This round fixes every finding,
+marks every elision in a quotation,
+checks every citation against the place it names,
+reads the two sibling documents at the commits named under "Sources read",
+adds "Where this design and its siblings disagree" and "Revisions",
+and changes no decision the project's records make.
+"Revisions" lists each commit with its committer time and what it changed.
+
+The review's condition on reaching the owner still stands and is now met from this side:
+the moment this document fixes (X1) and the answer about the slot (X2) are stated here as a single order and a single
+rule that the two sibling documents are being brought to,
+and "Where this design and its siblings disagree" says where each one stood when this round read it.
+The three should go to the owner together.
 
 This round wrote this document and nothing else.
 It edited no code,
 no file under `doc/handover/` or `doc/decision/`,
 no other planning document,
 and nothing `file-enforcer` generates.
-It ran no `pnpm install` in this worktree.
+It ran no `pnpm install` in this worktree,
+started no guest,
+no container and no service manager,
+ran no ZFS command that changes anything,
+and never asked the system service manager to change or signal anything.
 
 What it read:
+the gate review whole;
 the decision record whole;
 the proposal's sections named under "Sources read";
 the plan's steps 14 to 19 and its open-item tables;
 the accepted slot-identity-store decision and its design;
 the step 8 sweep answers;
-the staging decision and the opening of the staging design;
+the staging decision;
+the start-probe decision's answer about a failed arm;
 the measurement record's items 11,
 13,
 14,
 17 and 18;
 the specification's Doctor,
 descriptor-mount,
-recorded-identity store,
+recorded-identity,
 intent,
 receipt,
 readiness and claim sections;
 the credential rule;
 the removal passages;
-and the code under `package/git-policy/cli/src/native/` and
-`package/zfs/request-to-openzfs-kernel-device/src/` that this design reuses.
+the code under `package/git-policy/cli/src/native/` and
+`package/zfs/request-to-openzfs-kernel-device/src/` that this design reuses;
+and the two sibling documents at the commits named below,
+read through `git show`.
 Outside this repository it read OpenZFS at tag `zfs-2.4.4` and Git at tag `v2.56.1`,
-from clones in this round's scratch folder,
+from shallow clones in this round's scratch folder,
 and it cites file and line at those tags.
 
 What it ran:
 read-only ZFS probes on this host,
-a Git probe in a throwaway repository under this round's scratch folder,
+a Git slot-reuse probe in a throwaway repository whose exit codes and output are kept,
 and the repository's Markdown linter on this document.
 "What this round ran" states each probe,
 its command and its output.
 It started no guest,
-no container,
-no pool and no service manager,
-and it ran no ZFS command that changes anything.
-A claim that rests on kernel,
-pool or mount behaviour the repository has not measured is marked unmeasured,
+so every claim about kernel,
+pool or mount behaviour that the repository has not measured is marked as source reading or as unmeasured,
 and "Measurements owed" carries the probe that would measure it.
 
 Quotations here keep the words of the quoted record.
-Their line breaks follow the repository's prose rules,
+A quotation's line breaks follow the repository's prose rules,
 which ask for a break after every clause,
 so a quotation broken across lines differs from its source in line breaks only.
+Where a quotation drops words from its source,
+it marks the gap with `[...]`,
+and every citation names the exact range it quotes.
 
 ## The open item and the words that bind it
 
@@ -83,13 +115,18 @@ no writer,
 no fields and no state machine,
 and nothing says what a settled registration means while the record still holds an origin to destroy."
 
-The answer itself states what settling means
+The answer itself,
+which names the moment in its own words
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md:1460` to `:1466`):
 
-"the registration is settled once the clone is destroyed,
+"Decided:
+"Settle + own record",
+against the ranking the question round carried,
+which put keeping the registration first:
+the registration is settled once the clone is destroyed,
 and a separate durable record carries the origin cleanup.
 Settling frees the slot but requires recovery without its Git entry,
-and that record has no design or home yet.
+and that record has no design or home yet `[...]`
 If clone lineage itself is unproved,
 removal refuses and keeps the registration."
 
@@ -104,79 +141,125 @@ The settle-and-own answer separates that settlement from a blocked origin cleanu
 settling does not wait for the origin,
 and the separate durable record carries that cleanup".
 
-Who may destroy the origin,
-and what that authority must prove
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1409` to `:1415`):
+Who may destroy the origin
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1409` to `:1413`):
 
-"the descendants-only `mount,destroy` grant on the checkout.
+"Decided:
+"Account grant",
+against the ranking the question round carried,
+which put root-owned cleanup first:
+descendants-only `mount,destroy` on the checkout.
 Delegation keeps privilege out of the handler but allows the account to destroy any checkout snapshot,
-sanoid's included.
-VM item 11 showed why both authorities must prove origin identity and lineage before submission;
+sanoid's included."
+
+What that authority must prove
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1414` to `:1415`):
+
+"[VM item 11][vm-promote] showed why both authorities must prove origin identity and lineage before submission;
 a dependency refusal does not protect other snapshots."
 
 The removal step this record ends
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:947` to `:953`):
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:947` to `:951`):
 
-"prove the exact recorded origin dataset and snapshot GUIDs and confirm that the snapshot still belongs to that dataset.
-Apply the same identity rule using the delegated authority the project decided.
+"For separate origin cleanup,
+prove the exact recorded origin dataset and snapshot GUIDs and confirm that the snapshot still belongs to that dataset.
+Apply the same identity rule using the delegated authority the project decided `[...]`
 The kernel's `snapshot has dependent clones` refusal is the dependency check,
-not a scan of children or a name test.
-Leave a refused origin and report it;
+not a scan of children or a name test."
+
+And what that step leaves while the origin stands
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:952` to `:953`):
+
+"Leave a refused origin and report it;
 never destroy a dependent clone to free it.
 Preserve the separate durable record,
 which has no design yet,
 while an origin remains."
 
 The settle that follows it
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:954` to `:956`):
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:954`):
 
-"Settle only the matching Git registration and pointer after clone destruction is proven.
-The project decided to settle them even while origin cleanup is blocked".
+"Settle only the matching Git registration and pointer after clone destruction is proven."
 
-Which triggers the project allows for work with nobody waiting
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1393` to `:1398`):
+What the settle carries,
+at `doc/planning/cli-git-zfs-worktree-design-proposal.md:955`:
+
+"The project decided to settle them even while origin cleanup is blocked"
+
+Which triggers the project allows,
+in the owner's words
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1393` to `:1396`):
 
 "Triggers only,
 and we control the triggers,
 which makes the con of "unavailable until next trigger" moot.
 The triggers the design installs or writes are the boot unit's start reconcile,
 the verified checkout provider's post-key-load readiness hook,
-and the clone-local sweep nudge the wrapper writes on a caller's behalf".
+and the clone-local sweep nudge the wrapper writes on a caller's behalf `[...]`"
 
 Only the main checkout is an origin
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1381` to `:1385`):
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1381` to `:1384`):
 
-"Main checkout only (Recommended).
+"Decided:
+"Main checkout only (Recommended)".
 A linked origin would preserve that worktree's ignored state but chains dependencies and can block origin cleanup.
-Do not substitute a different origin from the one the caller supplied."
+`[...]` Neither route makes promotion automatic."
 
-Three further sentences bind every design of this route.
+And the rule that follows it
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:1385`):
+
+"Do not substitute a different origin from the one the caller supplied."
+
+What the decision record keeps out of the root handler
+(`doc/decision/cli-git-zfs-worktree-design.md:32` to `:33`):
+
+"The root-installed ZED handler and its lifecycle unit own clone mount and unmount,
+not Git or automatic deletion."
+
+What the same record means by destroying at once
+(`doc/decision/cli-git-zfs-worktree-design.md:36` to `:37`):
+
+"A normal authorized removal destroys the clone and its own snapshots in that invocation",
+and the answer that sentence carries is the one recorded as destroying at once.
+
 The threat model is the project's own sentence,
 and the record reads it so
-(`doc/decision/cli-git-zfs-staging-under-cache.md:223` to `:232`):
+(`doc/decision/cli-git-zfs-staging-under-cache.md:224` to `:226`):
 
 "In ~/.cache .
 We have to assume my machine isn't compromised.
-sudo is passwordless here anyway.
-The threat model that answer states is the project's own for this machine:
+sudo is passwordless here anyway."
+
+And the record states what that model is for this machine
+(`doc/decision/cli-git-zfs-staging-under-cache.md:230` to `:232`):
+
+"The threat model that answer states is the project's own for this machine:
 the account is trusted,
 and root and the account are not a security boundary here."
 
 No configuration decides whether this route works
-(`doc/decision/cli-git-zfs-step-8-sweep-choices.md:19`),
-and the case with no file at all is answered
-(`:44` to `:45`):
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md:19`):
 
 "The project first answered that everything must work by default with no configuration"
-and "The project answered "1:
-no file needed (Recommended)"".
+
+And the case with no file at all is answered
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md:44` to `:45`):
+
+"The project answered "1:
+no file needed (Recommended)"."
 
 The wrapper never asks a person for a secret
-(`package/git-policy/cli/SPEC.md:7345` to `:7350`):
+(`package/git-policy/cli/SPEC.md:7345`):
 
 "No command the wrapper runs or forwards asks a person for a credential",
-under "Avoid ever asking for someone to type a username or password.",
-with "Passphrases count too (Recommended)".
+
+under the owner decision at `package/git-policy/cli/SPEC.md:7348`:
+
+"Avoid ever asking for someone to type a username or password.",
+
+with `package/git-policy/cli/SPEC.md:7350`:
+
+"Passphrases count too (Recommended)".
 
 ## What the item asks, and where this design answers it
 
@@ -193,7 +276,8 @@ Each is answered in the section named beside it.
     its name grammar and its key".
 2.  The writer and the moment it writes,
     so that a kill leaves either the registration or the record:
-    "The writer and the moment it writes".
+    "The order,
+    and what a kill at each point leaves".
 3.  The fields with their types and encodings,
     and what proves the origin's identity and lineage later:
     "The fields and what proves the origin later".
@@ -208,7 +292,8 @@ Each is answered in the section named beside it.
 6.  Who carries the cleanup later,
     on which event,
     and what happens when the event never comes:
-    "Who carries the cleanup and when".
+    "Who carries the cleanup and when",
+    with the authority to destroy on an ordinary command put to the project as question one.
 7.  What `doctor` reports,
     and what a person can do about a blocked record:
     "What doctor reports and what a person can do".
@@ -226,9 +311,11 @@ each whole unless a line range is given:
 
 - `doc/decision/cli-git-zfs-worktree-design.md`,
   whole.
+- `doc/decision/cli-git-zfs-start-probe.md`,
+  the decision and its Q2 answer (`:183` to `:193`).
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   sections "Add and Git registration" (`:340` to `:435`),
-  and the passages about unmounted,
+  the passages about unmounted,
   pruned or moved worktrees (`:438` to `:483`),
   "Removal and recovery" (`:796` to `:1025`),
   "Project decisions" (`:1260` to `:1470`),
@@ -245,19 +332,32 @@ each whole unless a line range is given:
 - `doc/decision/cli-git-zfs-staging-under-cache.md`,
   `:200` to `:260`.
 - `doc/planning/cli-git-zfs-staging-under-cache-design.md`,
-  `:1` to `:120`,
-  for the shape a design document of this route takes.
+  `:1` to `:120`.
 - `doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
   its Status,
   Built,
-  Precedent and first section,
-  and the headings of its test and limitation sections,
-  for the depth a record design of this route is held to.
+  Precedent and first section.
 - `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
   items 11,
   13,
   14,
   17 and 18.
+
+The sibling documents,
+each read at the commit named with `git show <branch>:<path>` and none read as decided:
+
+- `doc/planning/cli-git-zfs-add-binding-record-design.md`,
+  branch `docs/planning-cli-git-zfs-add-binding-record-design`,
+  commit `1e9bc35f1e`.
+- `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+  branch `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
+  commit `a7823980b9`.
+
+The review:
+
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`,
+  whole,
+  which read this document at `4daa6c66ce`.
 
 The specification's sections
 (`package/git-policy/cli/SPEC.md`):
@@ -278,8 +378,9 @@ all under `package/git-policy/cli/src/native/`:
   `slot_identity_store_publication.rs`,
   `slot_identity_store_reading.rs`,
   `slot_identity_store_records.rs`,
-  `slot_identity_store_control.rs`
-  and `slot_name.rs`.
+  `slot_identity_store_control.rs`,
+  `slot_name.rs`
+  and `worktree_clone_mount/publishing_entries_in_one_open_folder.rs`.
 - `worktree_clone_mount_handler/per_slot_root_claim.rs`
   and `sweep_clone_check.rs`.
 - `lock/single_owner_claim.rs`.
@@ -289,7 +390,7 @@ all under `package/git-policy/cli/src/native/`:
   `path_bytes_in_records.rs`
   and `json_record.rs`.
 - `worktree/worktree_removal_leaving_that_outlives_its_record.rs`
-  and `worktree_removal_leavings_a_command_queues_again.rs`.
+  and `worktree/worktree_removal_leavings_a_command_queues_again.rs`.
 - `worktree_copying/worktree_copy_stage_claim.rs`,
   `worktree_copy_journal.rs`
   and `worktree_copy_stage_claim_reaping.rs`.
@@ -304,17 +405,21 @@ under `package/zfs/request-to-openzfs-kernel-device/src/`:
 
 - `kernel_device/read_requests.rs`,
   `kernel_device/write_requests.rs`,
-  `kernel_device/listed_object.rs`
+  `kernel_device/listed_object.rs`,
+  `requests/snapshot_requests.rs`
   and `layout/zfs_cmd_t.rs`.
 
 Outside this repository,
-from clones at the tags named,
-with the push address set to `DISABLED` before anything else ran:
+from shallow clones at the tags named,
+with each clone's push address set to `DISABLED` before anything else ran:
 
 - OpenZFS at `zfs-2.4.4`:
   `module/zfs/zfs_ioctl.c`,
   `module/zfs/dsl_destroy.c`,
   `module/zfs/dsl_dataset.c`,
+  `module/zfs/dsl_deleg.c`,
+  `module/zfs/dsl_synctask.c`,
+  `module/zfs/zcp.c`,
   `module/zcommon/zfs_prop.c`,
   `include/sys/fs/zfs.h`,
   `include/sys/dmu.h`,
@@ -338,27 +443,35 @@ and its job is to pick among them and say why.
   (`worktree/worktree_removal_leaving_that_outlives_its_record.rs:1` to `:25`).
   It holds short `key=value` lines followed by one JSON object
   (`:108` to `:128`),
-  it is published whole by one rename
-  (`:132` to `:138`),
-  and a look that every command of the repository makes reads it,
+  and it is published whole by one rename
+  (`:132` to `:138`).
+  Its look runs for every command of the repository,
   "so a repository in which no removal left anything pays one open that finds no folder"
   (`worktree/worktree_removal_leavings_a_command_queues_again.rs:82` to `:84`).
   Its reader proves what it can and leaves what it cannot,
   "because a person's directory must never be deleted for a leaving this program lost"
   (`:24` to `:27`).
+  It destroys nothing:
+  "Nothing here destroys a subvolume"
+  (`:22` to `:24`).
 - `foundation/private_storage.rs` writes a record whole or not at all.
-  `staging_beside` makes a hidden sibling with mode `0600`,
+  `staging_beside` makes a hidden sibling named `.<name>.<random>.partial` with mode `0600`
+  (`:198` to `:210`),
   `replace_private_file` publishes it by one rename after a flush,
   `replace_private_file_unsynced` is the variant a command's own path uses,
-  `create_private_directory_all` makes the folder at mode `0700`,
+  `create_private_directory_all` makes the folder at mode `0700`
+  (`:546` to `:564`),
   and `read_regular_file` reads a plain file under a byte bound.
+- `worktree_clone_mount/publishing_entries_in_one_open_folder.rs` is the folder held by descriptor:
+  `create_new_entry` makes one entry with `O_EXCL`,
+  `link_entry` gives it its record's name and replaces nothing,
+  and `rename_entry_replacing` is the one rename that replaces.
 - `foundation/path_bytes_in_records.rs` is how a path enters a text record without losing a byte:
   a text field when the path is text,
-  and a hexadecimal field always.
+  and a hexadecimal field always (`:1` to `:20`).
 - `foundation/json_record.rs` reads a JSON object the way the incumbent does.
-  Its `MAX_SAFE_INTEGER` is why no 64-bit GUID may travel as a JSON number.
-- `lock/single_owner_claim.rs` is the wrapper's lock-free claim.
-  It is made whole in a private file and published with one exclusive `link` under the next generation number,
+  Its `MAX_SAFE_INTEGER` is why no 64-bit GUID may travel as a JSON number (`:36`).
+- `lock/single_owner_claim.rs` is the wrapper's lock-free claim (`:1` to `:45`),
   and the root handler's per-slot claim builds on it
   (`worktree_clone_mount_handler/per_slot_root_claim.rs`).
 - `worktree_clone_mount/slot_identity_store.rs` is the wrapper's root-owned record folder:
@@ -372,25 +485,26 @@ and its job is to pick among them and say why.
   files of mode `0644`,
   names that are canonical numbers and never nonces,
   and a byte bound derived from the fields
-  (`doc/planning/cli-git-zfs-worktree-design-proposal.md:564` to `:571`).
+  (`doc/planning/cli-git-zfs-worktree-design-proposal.md:568` to `:570`).
   This design takes the shape and not the root ownership,
   and the veto entry for the home says why.
 - `conflict/discarded_report.rs` is how a `doctor` section reports a folder of records:
   one prefix,
   one line per finding,
   a ceiling on the read with a line for a read that did not finish,
-  and no change to the exit status.
+  and no change to the exit status (`:190` to `:240`).
 - The ZFS binding is how this route reads and writes OpenZFS without starting the `zfs` program.
   `objset_stats` answers a dataset's or a snapshot's statistics and its property values with their sources
   (`kernel_device/read_requests.rs:45` to `:62`),
   `snapshot_list_next` walks a dataset's snapshots one call at a time
   (`:83` to `:96`),
-  `destroy_snaps` submits one explicit name set
-  (`kernel_device/write_requests.rs:93` to `:104`),
+  `destroy_snaps` submits one explicit name set and sends no `defer` key
+  (`kernel_device/write_requests.rs:93` to `:104`,
+  `requests/snapshot_requests.rs:68` to `:75`),
   and `DatasetGuid` is the canonical numeric spelling a GUID enters any record with
-  (`worktree_clone_mount_protocol/dataset_guid.rs:1` to `:20`).
+  (`worktree_clone_mount_protocol/dataset_guid.rs:39` to `:60`).
 
-Two obvious precedents are not reused,
+Two precedents are not reused,
 and each place that matters says so.
 The staging design's `~/.cache` home is not reused,
 because a cache is a folder a system may drop,
@@ -405,10 +519,10 @@ Each fact is something this round read at the tag it names,
 or measured on this host.
 A fact's number is its handle in the rest of this document.
 
-F1 The ZFS binding offers the three reads this design needs,
+F1 The ZFS binding offers the reads and the write this design needs,
 with no `zfs` program.
 `objset_stats` is `ZFS_IOC_OBJSET_STATS`
-(`package/zfs/request-to-openzfs-kernel-device/src/requests/read_requests.rs:34` to `:44`)
+(`requests/read_requests.rs:34` to `:44`)
 and answers a dataset's or a snapshot's statistics and its property values with their sources
 (`kernel_device/read_requests.rs:45` to `:62`).
 `snapshot_list_next` walks one dataset's snapshots one call at a time,
@@ -420,7 +534,7 @@ The statistics carry `dds_guid`,
 `dds_creation_txg`,
 `dds_num_clones`,
 `dds_is_snapshot` and `dds_origin`
-(`layout/zfs_cmd_t.rs:73` to `:112`),
+(`layout/zfs_cmd_t.rs:73` to `:107`),
 and the kernel fills the clone count only for a snapshot,
 leaving it zero for a dataset
 (`module/zfs/dsl_dataset.c:2881` to `:2899`).
@@ -436,7 +550,7 @@ spelled `defer_destroy` and typed as a boolean index
 (`module/zcommon/zfs_prop.c:544` to `:546`),
 and `zfs destroy` uses `defer_destroy` and `userrefs`
 "to determine eligibility and marked status"
-(`man/man8/zfs-destroy.8:116` to `:120`).
+(`man/man8/zfs-destroy.8:117` to `:123`).
 F4 The kernel refuses a snapshot destroy with `EBUSY` while the snapshot has user references,
 and with `EEXIST` when it has more than one child,
 which is a clone
@@ -448,17 +562,20 @@ Such names are also removed from the request before the destroy,
 so a snapshot created in between is not destroyed unchecked
 (`module/zfs/zfs_ioctl.c:855` to `:869`).
 F6 A delegated snapshot destroy requires descendant `mount` and `destroy` permissions
-(`module/zfs/zfs_ioctl.c:824` to `:847`),
-and the check's own words at `:844` are
+(`module/zfs/zfs_ioctl.c:824` to `:845`),
+and the check's own comment at `module/zfs/zfs_ioctl.c:842` to `:845` says
 "Destroying snapshots with delegated permissions requires descendant mount and destroy permissions."
-F7 Destroying a clone's head can reap an origin snapshot that is already marked for deferred destroy
-(`module/zfs/dsl_destroy.c:1028` to `:1031`,
+F7 A head dataset cannot be destroyed while it has snapshots:
+the kernel refuses with `EBUSY` on the branch check
+(`module/zfs/dsl_destroy.c:783` to `:790`)
+and with `EEXIST` while it has child datasets (`:795` to `:800`).
+The snapshot-name table is destroyed with the head
+(`:1120` to `:1122`),
+and destroying a clone's head can reap an origin snapshot that is already marked for deferred destroy
+(`:1028` to `:1031`,
 which sets `rmorigin`,
 and `:1172`,
-which destroys that snapshot),
-and a dataset's snapshot-name table is destroyed with the dataset
-(`:1120` to `:1122`).
-A snapshot therefore cannot outlive the dataset that holds it.
+which destroys that snapshot).
 F8 Dataset and snapshot GUIDs are drawn from the kernel's random source
 (`module/zfs/dsl_dataset.c:1203` to `:1204` for a dataset,
 `:1768` to `:1769` for a snapshot),
@@ -481,8 +598,8 @@ F11 The kernel's own per-name error path prints
 with the auxiliary text
 "snapshot is cloned"
 for `EEXIST`,
-and a holds message for `EBUSY`
-(`lib/libzfs/libzfs_dataset.c:3972` to `:4000`).
+and a holds message naming `zfs holds -r` for `EBUSY`
+(`lib/libzfs/libzfs_dataset.c:3972` to `:3996`).
 The two records' wordings differ,
 so no design of this route may decide anything by parsing a message.
 F12 `zfs destroy -n` skips the destroy entirely
@@ -505,21 +622,22 @@ written at 2026-11-22T17:22:37-05:00 after the commands ran:
 "dataset does not exist"
 with the dataset named in the message,
 and exited 1.
-The kernel's listing answers `ESRCH` for a dataset it cannot hold,
+The kernel's snapshot listing answers `ESRCH` for a dataset it cannot hold,
 which is the same answer as the end of a listing
 (`module/zfs/zfs_ioctl.c:2503` to `:2506`).
-F15 Measured on this host.
-The kept log is `keep/git-worktree-slot-reuse.log`,
-written at 2026-11-22T17:22:57-05:00 after the commands ran,
-with Git 2.56.1 through the installed wrapper in a throwaway repository:
-after a worktree's folder was deleted by hand and its registration kept,
-`git worktree add` at the same path failed with exit 128 and
+F15 Measured on this host,
+with Git 2.56.1 through the installed wrapper in a throwaway repository whose `HOME` and `XDG_RUNTIME_DIR`
+are under this round's scratch folder.
+The kept log is `keep/git-worktree-slot-reuse-exitcodes.log`,
+written at 2026-11-22T18:28:25-05:00:
+the add at a fresh slot exited 0,
+the add at the same path with the registration standing exited 128 with
 "'<path>' is a missing but already registered worktree;
 use 'add -f' to override,
-or 'prune' or 'remove' to clear".
-After `git worktree prune`,
-the same add succeeded,
-and the registration's name was the slot folder's basename.
+or 'prune' or 'remove' to clear",
+`git worktree prune` exited 0,
+and the add at the same path after the prune exited 0.
+The registration's name was the slot folder's basename.
 The message is Git's own
 (`builtin/worktree.c:336` to `:339` at `v2.56.1`).
 F16 The wrapper already makes one look per command at a folder of durable records,
@@ -528,27 +646,87 @@ and in a repository with no such record that look is
 (`worktree/worktree_removal_leavings_a_command_queues_again.rs:82` to `:84`).
 The same module's record is written whole by one rename
 (`worktree/worktree_removal_leaving_that_outlives_its_record.rs:132` to `:138`).
+That look destroys nothing;
+it queues a delete for the service to run (`:22` to `:24`).
 F17 The wrapper's `doctor` reads a folder of records under a ceiling and prints one line per finding,
 keeping the exit status
 (`conflict/discarded_report.rs:190` to `:240`),
 and its filesystem section is informational text on standard error after the hook report
 (`health/doctor_filesystem.rs:1` to `:35`).
-F18 The wrapper's lock-free claim is made whole in a private file and published with one exclusive `link`
+F18 The wrapper's claims are lock-free.
+The shared claim is made whole in a private file and published with one exclusive `link`
 under the next generation number,
 so exactly one claimant wins and none waits
-(`lock/single_owner_claim.rs:1` to `:45`).
+(`lock/single_owner_claim.rs:1` to `:45`),
+and the root handler's per-slot claim builds on it.
+The binding design takes a per-slot claim for an add and a removal
+(its `:684` to `:732`).
 F19 The closest record bound in this package is the leaving record's 16,384 bytes,
 derived from three short lines and one work item that names three paths
 (`worktree/worktree_removal_leaving_that_outlives_its_record.rs:63` to `:69`).
+F20 Item 11's measurement of a promote shows the origin snapshot moving to the promoted clone's dataset with its
+GUID unchanged,
+and the checkout acquiring that snapshot as its origin
+(`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md:381` to `:384`).
+Item 13 repeated it and saw the same tuples after the move
+(`:552` to `:555`).
+So a promote leaves the recorded snapshot alive under another dataset,
+and leaves the dataset the record names with a non-empty `dds_origin`.
+F21 Source reading,
+not measured:
+the destroy-snapshots request runs a ZCP program in a sync task
+(`module/zfs/dsl_destroy.c:656` to `:659`),
+a sync task commits its transaction and then waits for that group
+(`module/zfs/zcp.c:1160` to `:1162`
+and `module/zfs/dsl_synctask.c:87` to `:101`),
+and transaction groups sync in order.
+A record written and published before the destroy is therefore on disk when the destroy returns,
+if the Git directory and the pool are on one machine and one pool's commit paths are what the record's folder
+inherits.
+The premise is not stated by any of the three record designs (L8).
+F22 Source reading,
+not measured:
+a snapshot's permission check treats the snapshot as a descendant only,
+so local permissions do not apply
+(`module/zfs/dsl_deleg.c:574` to `:579`),
+and the walk starts at the snapshot's own dataset directory with the descendant flag
+(`:588` to `:589`).
+With `zfs_secpolicy_destroy_perms` requiring `mount` then `destroy` (F6),
+a descendants-only `mount,destroy` grant on the checkout covers destroying the checkout's own snapshots.
+F23 The store decision puts the removal of known staging names in plan step 18's `doctor`,
+unconditionally,
+for the store folder
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md:161` to `:177`).
+That decision covers the store and does not decide this folder.
+F24 The binding design,
+read at `1e9bc35f1e` in `doc/planning/cli-git-zfs-add-binding-record-design.md`,
+puts its folder at `<common>/monochromatic-git-policy-cli-worktree-clone/v1/`
+(`:581` to `:601` of that document at that commit),
+keys its files by the slot name (`:637` to `:664`),
+writes ZFS names verbatim,
+flushes every publication (`:1136` to `:1164`),
+refuses a record whose owner or mode is not the account's (`:1191` to `:1196`),
+and lets `doctor` remove staging names only when the folder holds no live claim (`:1123` to `:1134`).
+Its step 4 both publishes the origin cleanup record and confirms one already published (`:1273` to `:1303`),
+and it keeps its binding when the origin cleanup is blocked (`:1296` to `:1303`).
+F25 The plan design,
+read at `a7823980b9` in `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+writes the plan before the first delete and the origin cleanup record after the registration's settle
+(`:904` to `:936` of that document at that commit),
+keys the plan by the clone's dataset GUID,
+serializes cooperating operations on the Git lock (`:990` to `:1009`),
+and expects "the removal writes that record in the same invocation,
+before the plan's removal" (`:2306` to `:2315`).
+F26 The start-probe decision answers that a probe arm that ran and failed
+"refuses new managed attaches,
+and every other operation keeps its route"
+(`doc/decision/cli-git-zfs-start-probe.md:183` to `:193`).
 
-### Where two records disagree
-
-Two records say different things about the dependency refusal,
-and this design does not pick between them silently.
+### Where two records disagree on the refusal's wording
 
 The proposal says
 "The kernel's `snapshot has dependent clones` refusal is the dependency check"
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:950`),
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:950` to `:951`),
 and the measurement record quotes that same sentence from a command's output
 (`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md:573`).
 At `zfs-2.4.4` that sentence is printed by the `zfs` program's own pre-check,
@@ -562,7 +740,7 @@ a request that names a snapshot with a clone is refused whatever the program pri
 and a clone of the snapshot is what the kernel counts (F4).
 The wording is not a decision input,
 which is why the attempt reads the errno and the live counts and never parses a message.
-A build that reads the `zfs` program's output instead of the binding's answer
+A build that read the `zfs` program's output instead of the binding's answer
 would be deciding from the pre-check's text and not from the kernel's refusal,
 and this design does not do that (F1).
 
@@ -571,31 +749,37 @@ and this design does not do that (F1).
 Each assumption is a thing this design needs that it did not verify,
 and each names what would confirm or refute it.
 
-A1 The add's durable binding record is readable by the removal before the clone is destroyed,
+A1 The add's durable binding record is readable by the removal before any destroy,
 and it carries the origin dataset and snapshot identities that the removal copies into this record.
-The sibling design that decides where the add's durable binding record lives and what its format is owns the answer.
+The binding design keys that record by the slot name (F24),
+so the removal reads it by the slot as the binding design's own reader does.
 If the binding record is unreadable at removal time,
 the removal refuses before its first delete,
-which is the accepted identity rule and not a new one (F4 and the proposal at `:947`).
-A2 The removal runs as the account,
-and the account's delegated `mount,destroy` on the checkout covers the origin snapshot's destroy,
-as the decision says and as the kernel's comment in F6 expects.
-"Measurements owed" M4 is the probe that confirms it.
-A3 The plan's step 15 check of the origin's deferred-destroy mark is available to this design's attempt as a read,
-because the sibling design "The deferred-destroy checks of a removal" owns how that read is made.
+which is the accepted identity rule and not a new one (the proposal `:947`).
+A2 The account's delegated `mount,destroy` on the checkout covers destroying the origin snapshot,
+as the decision says and as the kernel's descendant rule expects (F6 and F22).
+M4 is the guest check of the grants the wrapper really sets.
+A3 The removal's step 15 check of the origin's deferred-destroy mark is available to this design's attempt as a read,
+because the sibling design of the deferred-destroy checks owns how that read is made.
 Until it lands,
 this attempt refuses a snapshot whose `defer_destroy` is on,
 and treats an unreadable value as a refusal (F3).
 A4 Every worktree of one repository can compute the repository's common Git directory,
 which the wrapper already asks Git for
-(`health/doctor.rs:287` to `:290` and the hooks location it builds).
+(`health/doctor.rs:287` to `:290`).
 A5 A folder listing of a folder with no entries costs one open and one read,
 which F16 has for the leavings folder and which this design assumes for its own folder.
-"Measurements owed" M1 sizes it.
+M1 sizes it.
 A6 The `zfs` program's behaviour in F10,
 F11 and F12 stands as a description of the same kernel that the binding reaches.
 This design decides nothing by that wording (F11),
-and reads every value through the binding (F1 and F2).
+and reads every value through the binding (F1).
+A7 The record's folder and the pool share one machine and one durability path,
+which F21's ordering argument needs (L8).
+A8 A snapshot's absence can be proved only by reading its dataset,
+so a record whose dataset is gone stays `unproved` and waits for a person.
+That is this design's reading of the accepted "never from a missing name alone",
+and O1 in the review is the reason it is stated.
 
 ## Limitations
 
@@ -614,7 +798,7 @@ so root ownership would buy nothing this design can use.
 L4 Deleting a repository's Git directory deletes its pending records with it,
 and nothing in this design finds them again.
 The origin snapshot then stays until a person or another program destroys it,
-and the `doctor` line for an unaccounted origin snapshot is the only sight of it.
+and the unaccounted-snapshot line of `doctor` is the only sight of it.
 L5 A record's folder is found through the repository,
 so a repository moved to a new path keeps its records and a repository whose path vanished does not.
 L6 No timer exists (the trigger answer at the proposal `:1393`),
@@ -622,30 +806,49 @@ so a repository in which no command runs keeps its record and its snapshot indef
 L7 The record names the dependent clone only by count,
 because the binding exposes no dependents iteration.
 `doctor` prints the dry-run command that names them (F12).
-L8 A record's blocked reason is a code and a number,
-never free text,
-so nothing an attacker writes into a record can steer a report.
-L9 The record's 16,384-byte bound is derived from the field widths in "The bound".
+L8 The durability rule this design is written for (question four's option C) assumes one machine and one pool:
+the record's folder is on the pool whose destroy waits for the transaction group (F21).
+A Git directory on another pool,
+a network file system or a different machine breaks that argument,
+and the record then needs the flush question four's option B buys.
+L9 The record's bound is derived from the field widths and the JSON escape rule
+in "The bound".
 It is a bound on what the reader accepts,
 not a measured write size.
 L10 A same-account process can substitute objects between the identity read and the destroy.
 That is the accepted residual of the delegated answer
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md:1416` to `:1421`),
 and this design narrows nothing about it.
+L11 A promote leaves the record unprovable rather than complete (F20).
+The snapshot lives on under the promoted dataset,
+the named dataset gains an origin,
+and the record stays `unproved` until a person decides.
+Nothing here follows the snapshot to its new dataset:
+doing so would need a lineage proof the proposal does not design.
+L12 A record whose dataset was destroyed outside the wrapper is also `unproved` (A8),
+because the snapshot may have moved or the dataset name may now name another dataset.
+L13 The look adds one folder open and,
+when a record stands,
+a few reads on a command's path.
+No ceiling is shipped until M1 measures it,
+and every such read is a request to a pool the command already uses.
+L14 The folder stays after its last record (O10 in the review),
+so a command in a repository that once cleaned up pays one open and one listing of an empty folder,
+where F16's leavings precedent pays one open of a folder that is not there.
 
 ## What this round ran
 
-Three probes,
-each read-only or inside this round's scratch folder.
+Three probes.
 Their logs are under
-`~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/`.
+`~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/`,
+and each states its own time.
 
-### P1. The snapshot properties the identity proof reads
+### P1 The snapshot properties the identity proof reads
 
 Commands,
 run on this host as the account,
 with no `sudo` and no change to anything.
-Its kept log was written at 2026-11-22T17:22:37-05:00.
+Its kept log was written at 2026-11-22T17:22:37-05:00:
 
 ```sh
 zfs version
@@ -673,38 +876,46 @@ and a dataset that does not exist is an error and not an empty listing (F13 and 
 The host's dataset held 25 own snapshots,
 which is the observed size of the absence proof on a sanoid-pruned checkout (F13).
 
-### P2. A slot after its registration and without its folder
+### P2 A slot after its registration and without its folder
 
 Commands,
 inside a throwaway repository whose `HOME` and `XDG_RUNTIME_DIR` are under this round's scratch folder.
-Its kept log was written at 2026-11-22T17:22:57-05:00.
+Its kept log was written at 2026-11-22T18:28:25-05:00:
 
 ```sh
-git init --quiet repo2
-git worktree add ../wt2
-rm -rf /home/user/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/scratch/git-probe/wt2
-git worktree add ../wt2
+git init --quiet repo4
+git worktree add ../wt4
+rm -rf /home/user/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/scratch/git-probe/wt4
+git worktree add ../wt4
 git worktree prune --verbose
-git worktree add ../wt2
+git worktree add ../wt4
 ```
 
-Selected output:
+Output,
+with each step's exit code:
 
 ```text
-monochromatic-git-policy-cli: copied 0 ignored filesystem entries from ".../repo2" into 1 new worktree.
-fatal: '../wt2' is a missing but already registered worktree;
+### B: add at a fresh slot
+exit=0
+
+### D: add at the same path with the registration standing
+exit=128
+fatal: '../wt4' is a missing but already registered worktree;
 use 'add -f' to override, or 'prune' or 'remove' to clear
-monochromatic-git-policy-cli: copied 0 ignored filesystem entries from ".../repo2" into 1 new worktree.
+
+### E: prune
+exit=0
+
+### F: add at the same path after the prune
+exit=0
 ```
 
-The add before the prune exited 128.
-The add after the prune exited 0.
 What it showed:
 a missing registration blocks a new add at the same slot until it is settled,
 the settle that clears it is Git's own `prune`,
 and the registration's name is reused (F15).
 
-### P3. The linter
+### P3 The linter
 
 Command,
 in this worktree:
@@ -715,15 +926,150 @@ in this worktree:
 
 What it showed:
 the rule set enforces a line break after every prose clause,
-and a control file in this round's scratch folder,
+so this document is written one clause per line.
+A control file in this round's scratch folder,
 written with a pipe table and with clauses left unbroken,
 made the same run report both rules,
 so the empty result on this document is a result and not a silence.
-so this document is written one clause per line.
 The final run reports nothing,
-and this document's commit messages record when.
+and "Revisions" records when.
 
-## The home, its name grammar and its key
+### P4 The citation check
+
+Every quotation and every path-and-line citation in this document was checked by a scratch script that printed
+each cited range beside the words the document quotes.
+"Revisions" says how many the document holds and what the check corrected.
+
+## The order,
+and what a kill at each point leaves
+
+This is the one order this design fixes,
+and the two sibling documents are being brought to it.
+Steps 4,
+10 and 11 are the sibling records' steps;
+this design owns steps 5 and 6,
+the moment the origin record appears.
+
+The order:
+
+1.  The removal proves lineage and ownership,
+    and prints the names that will be lost (proposal step 1).
+2.  It writes the removal intent,
+    the clone's local `unmount` property,
+    and requests the unmount (proposal step 2).
+3.  The handler's unmount is verified,
+    and the removal checks the receipt's own fields for its nonce.
+4.  It writes the destruction plan's first record (the plan design's step 4,
+    read at `a7823980b9`).
+5.  It makes every refusal that must precede a delete:
+    the deferred-destroy check,
+    the fresh root all-namespace verification,
+    and the reproof immediately before the request.
+    These are the plan's step 15 and the proposal's step 3.
+6.  **It publishes the origin cleanup record,
+    with `owed`,
+    before it submits the first destroy request of this invocation.**
+    This is this design's moment (V4).
+7.  It submits each snapshot request,
+    and the plan records that request's tuples and their outcomes.
+8.  It submits the head destroy,
+    and the plan records `head=requested` and then the outcome.
+9.  It attempts the origin cleanup:
+    the identity proof,
+    one single-name destroy,
+    the absence proof,
+    and the record's removal once the absence is proved (proposal step 4).
+10. It settles the matching registration,
+    pointer and underlay (proposal step 5).
+11. It removes the plan (the plan design's section 7).
+
+### What a kill at each point leaves
+
+Three records matter here:
+the Git registration,
+the origin cleanup record,
+and the destruction plan.
+A point that leaves no origin record leaves it because nothing has been destroyed yet,
+and that is why step 6 sits after every refusal and before every destroy.
+
+- Before step 2 completes:
+  no plan and no origin record;
+  the registration and the clone are whole,
+  and nothing was destroyed.
+- Between steps 2 and 3:
+  the intent stands and no origin record stands;
+  the handler may still act,
+  and nothing was destroyed.
+- Between steps 3 and 4:
+  a verified unmount,
+  no plan and no origin record,
+  and nothing was destroyed.
+- Between steps 4 and 5:
+  a plan with `head=present` and no origin record.
+  A refusal at step 5 is the removal refusing,
+  and it leaves the plan beside a live clone and no origin record,
+  which is why the origin record is not written yet (O2).
+- Between steps 5 and 6:
+  the same,
+  with every refusal passed.
+- Between steps 6 and 7:
+  an origin record saying `owed` beside a live,
+  unmounted clone,
+  a plan,
+  and the registration.
+  The next command's look records `blocked` with reason `dependency`,
+  because the clone still pins the snapshot.
+  A removal that cancels itself after this point leaves the same record,
+  `doctor` prints its blocked line and names the live clone's dataset,
+  and the cancelled-removal design owns reversing the removal's intent (O2).
+- Inside step 7:
+  the plan says `requested`,
+  the origin record says `owed`,
+  the registration stands,
+  and the next run proves each tuple against the live inventory.
+- Inside step 8,
+  or between the head destroy and its outcome write:
+  the head may be gone,
+  the origin record stands,
+  the registration stands,
+  and the intent went with the head.
+  The next look may destroy the origin snapshot;
+  that is harmless to the settle,
+  which needs only the head's absence.
+- Between step 8's outcome and step 9:
+  `head=gone`,
+  the origin record stands,
+  the registration stands,
+  and a look may finish the origin cleanup.
+- Inside step 9,
+  after the destroy is submitted:
+  a record naming a snapshot that may be gone.
+  The next look proves the absence and removes the record,
+  so the lie is bounded by one look.
+- Between step 9's success and step 10:
+  no origin record,
+  the registration stands,
+  and the plan stands with `head=gone`.
+  The registration is settled by the finish pass or the next removal,
+  which is the plan's business.
+- Between step 10 and step 11:
+  no registration,
+  no origin record,
+  and a plan.
+  The plan is removed at step 11,
+  and a plan left here has no remover unless the plan design names one.
+- After step 11 with the origin cleanup blocked:
+  the origin record stands alone,
+  and this is the state the open item asks about.
+
+The invariant:
+no point leaves neither the registration nor the origin record **after something has been destroyed**,
+and the points before step 6 leave neither only because nothing has been destroyed yet.
+That is the strongest form of the item's sentence that survives a promote,
+which moves a snapshot after the clone is gone (F20).
+
+## The home,
+its name grammar and its key
 
 ### The cleanup folder
 
@@ -748,6 +1094,12 @@ That placement is what the repository's rename machinery moves when it moves tha
 (`foundation/kept_names_in_the_git_directories.rs:48`,
 and `foundation/wrapper_names_old_and_new.rs:74` to `:77`),
 so only the inner name `origin-cleanups` is a new constant.
+
+The folder is not in the binding design's folder family
+(`monochromatic-git-policy-cli-worktree-clone/v1/`,
+F24),
+and that is the first of the disagreements the two designs carry;
+"Where this design and its siblings disagree" states both choices and who could decide between them.
 
 Why the common directory and not a worktree's own Git directory:
 a linked worktree's Git directory is removed when that worktree is settled,
@@ -775,18 +1127,17 @@ well under the 255-byte dataset-name limit (F9),
 and the prefix is the one the add already gives the snapshot it clones from.
 
 The key is that name.
-The reader that walks the folder accepts only a name the grammar admits,
-and it accepts it as one record of one origin snapshot.
+The reader walks the folder,
+accepts only a name the grammar admits,
+and treats it as one record of one origin snapshot.
 A name that does not match is a foreign entry:
 never read,
 never destroyed,
 and reported by `doctor`.
 A name that begins with a dot is a staging name of this package's publication
-(`staging_beside` makes `.<name>.<random>.partial`),
+(`staging_beside` names `.<name>.<random>.partial`),
 never a record,
-and `doctor` reports and removes it at step 18.
-No other name is possible here,
-because nothing but this design writes into the folder and the folder is the account's.
+and `doctor` reports it (V8).
 
 Why the snapshot's name and not a fresh record identifier:
 the snapshot is the thing the record is about,
@@ -808,10 +1159,7 @@ and because no root-side channel remains once the clone is gone.
 A root-owned folder would need a root writer,
 and the only root writer this route has is the mount handler,
 which acts on a clone's property and has no clone to act on here.
-A second account-writable bit would be a hole with no purpose.
-`doctor` reads the folder as the account,
-as every command does,
-and reports a record it cannot read rather than raising privilege.
+The handler also owns mount and unmount and not deletion (the decision record `:32` to `:33`).
 
 Under the stated threat model this is enough (the decision's own sentence at `:230`:
 "the account is trusted,
@@ -821,134 +1169,28 @@ the account can rewrite or delete a record,
 and the same authority can destroy the snapshot directly,
 so root ownership protects nothing against that account.
 
-### The options and their ranking
+### What a reader refuses about owner and mode
 
-The four homes weighed,
-with the adopted one first,
-are in the veto entry "V1 The home".
-This design takes the common-directory folder for the reasons that entry ranks first:
-it is where the wrapper's durable per-repository records already live,
-it is found from any worktree without a machine-wide scan,
-it survives the registration's settling,
-and it needs no privilege the route does not have.
+The look destroys a snapshot on a record's word,
+so it refuses a record,
+a folder or an entry it cannot prove is this account's:
 
-## The writer and the moment it writes
+- a record whose owner is not this account,
+  or whose mode lets any account but its owner write it;
+- a folder whose owner or mode fails the same test;
+- an entry that is not a regular file,
+  which includes a link and a folder where a record belongs
+  (`read_regular_file` refuses both,
+  and the owner and mode check is this design's addition);
+- a record whose bytes are not its grammar ("The state machine").
 
-### The order
-
-The writer is the removal command,
-running as the account,
-and it writes the record before it destroys the first of the clone's own snapshots.
-The proposal's order for that command is steps 3 to 5 of "Removal and recovery"
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:894` to `:957`):
-the clone's snapshot batch,
-the head destroy,
-the origin cleanup,
-and the Git registration and pointer settle.
-The record is written between step 2's unmount and step 3's first delete,
-and it stays until the origin snapshot's recorded GUID is proven absent.
-
-Why there rather than at add time or after the head destroy:
-
-- The invariant the item asks for is that a kill at any point leaves the registration or the record.
-  The registration is settled only in step 5,
-  which is after the clone's destruction is proven (the proposal `:954`).
-  A record written before step 3's first delete therefore exists at every point from the first destruction onwards,
-  and before that point the registration and the clone are whole.
-- Before step 3 the removal has proved lineage and identity (step 1)
-  and has read the origin tuple from the binding record.
-  Those are exactly the values the record needs,
-  and they are the add's own record of the objects it created,
-  not a reading taken after something may have changed them.
-- At add time the record would exist for every live clone.
-  A live clone pins its origin snapshot,
-  so the record would say a cleanup is owed while nothing is owed yet,
-  and `doctor` would report a pending cleanup beside every healthy worktree.
-- After the head destroy the record would be missing in the one window where its absence matters:
-  a kill between the head destroy and the settle leaves the registration (so the invariant holds),
-  but the recorded tuple would exist only in the destruction plan,
-  whose home and lifetime are a sibling's undecided item.
-  Before the first delete there is no such dependence on a record this design does not own.
-
-The record's write is independent of the destruction plan's write.
-Whichever of the two comes first,
-a kill before either leaves nothing destroyed,
-and a kill after both leaves both.
-A resumed removal that finds a record for the same snapshot name compares its identity with the binding record's.
-If they agree it keeps the record and does not write a second one,
-and if they differ it refuses,
-because two snapshots of one dataset cannot share a name.
-
-A writer whose record write fails does not go on to destroy anything:
-the record is what carries the cleanup past the clone,
-so a removal that cannot write it refuses before its first delete in the same way it refuses an unreadable binding record.
-
-The writer writes the identity fields once.
-Later attempts only replace the short outcome lines,
-and "The state machine" says when even that is skipped.
-
-### The kill windows
-
-Each window below names the kill,
-then what stands afterwards,
-then what the next command does.
-No window leaves neither the registration nor the record.
-
-W1 A kill before the record's publication completes.
-The registration,
-the clone and every snapshot stand.
-A staging name may be left in the folder.
-The next command never reads it,
-and `doctor` reports it and step 18 removes it.
-W2 A kill after the record is published and before the first clone snapshot delete.
-The record says `owed`,
-and the registration,
-the clone and every snapshot stand.
-The next command's attempt reads the live identity,
-sees the clone that still depends on the snapshot,
-and records `blocked` with reason `dependency`.
-W3 A kill during the clone's snapshot batch.
-The record stands,
-and the registration and the clone stand,
-with some of the clone's own snapshots gone.
-The next attempt behaves as in W2.
-Nothing the record holds is lost,
-and what the interrupted batch leaves is the destruction plan's and the resume's business.
-W4 A kill after the head destroy and before the settle.
-The record stands,
-the registration stands,
-and the clone is gone.
-The next command's attempt finds nothing that depends on the origin snapshot,
-so it may destroy it and remove the record.
-The registration is settled by whatever resumes the interrupted removal,
-and this record neither holds nor needs it.
-W5 A kill after the settle.
-The record stands and the registration is gone.
-This is the state the item asks about,
-and the next command's attempt completes it.
-W6 A kill during the origin snapshot's destroy.
-A snapshot destroy is one request and either happened or did not (F5).
-The next attempt reads the live identity:
-if the recorded GUID is gone it completes the record,
-otherwise it repeats the identity comparison and may destroy again.
-W7 A kill after the absence proof and before the record's removal.
-The record stands with `owed` or `blocked`,
-and the next attempt proves the recorded GUID absent and removes it.
-W8 A kill during a later replacement of the outcome lines.
-The old lines or the new ones stand,
-never a prefix (the publication is one rename),
-and the next attempt re-reads the identity anyway.
-
-The staging name is the only litter any window leaves,
-and no reader treats it as a record.
-
-### The options and their ranking
-
-The three moments weighed are in "V4 The moment of the first write".
-The chosen moment is before the first delete for the reasons the entry ranks first:
-it is the earliest point at which the identity is already proved,
-it makes the invariant hold without depending on the destruction plan's home,
-and it keeps `owed` meaning exactly "an origin snapshot may outlive its clone".
+Under the threat model the account is trusted,
+so this check catches a mistake rather than an attack,
+and it stays for the same reason the binding design keeps it (F24):
+the record decides what a destroy may target,
+and a mistake there is not recoverable.
+It also keeps the rule the plan and the binding designs hold,
+so the three records treat a wrongly owned file the same way.
 
 ## The fields and what proves the origin later
 
@@ -960,12 +1202,12 @@ blocked because a clone of the snapshot still exists:
 ```text
 # monochromatic-git-policy-cli origin cleanup, version 1
 state=blocked
-attemptedAt=2026-11-22T17:31:04-05:00
+attemptedAt=2026-11-22T18:31:04-05:00
 blockedReason=dependency
 blockedErrno=0
 numClones=1
 userRefs=0
-{"originDataset":"zpcachyos/ROOT/cos/home/monochromatic-git-checkout","originDatasetGuid":"12039048377182978123","originSnapshot":"git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f","originSnapshotGuid":"3745620968172523788","originSnapshotCreatetxg":"93823","cloneDataset":"zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer","cloneGuid":"9012873465091283655","slotPath":"/home/user/Monochromatic/.claude/worktrees/add-cache-layer","slotPathHex":"2f686f6d652f757365722f4d6f6e6f6368726f6d617469632f2e636c617564652f776f726b74726565732f6164642d63616368652d6c61796572","removalStartedAt":"2026-11-22T17:28:41-05:00"}
+{"originDataset":"zpcachyos/ROOT/cos/home/monochromatic-git-checkout","originDatasetGuid":"12039048377182978123","originSnapshot":"git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f","originSnapshotGuid":"3745620968172523788","originSnapshotCreatetxg":"93823","cloneDataset":"zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer","cloneGuid":"9012873465091283655","slotPath":"/home/user/Monochromatic/.claude/worktrees/add-cache-layer","slotPathHex":"2f686f6d652f757365722f4d6f6e6f6368726f6d617469632f2e636c617564652f776f726b74726565732f6164642d63616368652d6c61796572","removalStartedAt":"2026-11-22T18:38:41-05:00"}
 ```
 
 The shape is the leaving record's,
@@ -973,6 +1215,8 @@ short `key=value` lines followed by one JSON object
 (F16 and `worktree/worktree_removal_leaving_that_outlives_its_record.rs:108` to `:128`),
 because it needs no escaping decision beyond the wrapper's own JSON writer,
 and because a person reading a blocked record sees the reason before the long line.
+A `blocked` record writes `blockedErrno=0` when the block came from the counts and no request was made,
+and a nonzero errno when a request was refused ("The state machine").
 
 ### The identity lines and the outcome lines
 
@@ -981,24 +1225,23 @@ It is written once and never changes.
 The lines before it hold the outcome,
 and they are the only bytes a later attempt may replace.
 A rewrite with an unchanged outcome writes the same bytes,
-which a control asserts.
+which control T1 asserts.
 
 The short lines:
 
-- `# monochromatic-git-policy-cli origin cleanup, version 1`,
-the header.
-A reader refuses a file whose first line is not exactly this,
-and it refuses one whose version it does not know.
+- `# monochromatic-git-policy-cli origin cleanup, version 1` is the header.
+  A reader refuses a file whose first line is not exactly this,
+  and it refuses one whose version it does not know.
 - `state` is one of `owed` and `blocked` ("The state machine").
 - `attemptedAt` is an ISO 8601 instant with its offset to the second,
-anchored to the command's clock,
-and absent until an attempt first records an outcome.
+  anchored to the command's clock,
+  and absent until an attempt first records an outcome.
 - `blockedReason` is one of `dependency` or `deferred` or `unproved` or `refused`,
-and absent unless the state is `blocked`.
+  and absent unless the state is `blocked`.
 - `blockedErrno` is the errno of a refused request as a decimal integer.
-It is `0` when the attempt submitted no request,
-which a `dependency` block read from the counts does,
-and when a refusal carried no errno.
+  It is `0` when the attempt submitted no request,
+  which a `dependency` block read from the counts does,
+  and when a refusal carried no errno.
 - `numClones` is the live clone count the attempt read (F1).
 - `userRefs` is the live user-hold count the attempt read (F2).
 
@@ -1006,22 +1249,22 @@ The JSON object's keys,
 in the fixed order the writer emits and the reader requires:
 
 - `originDataset` is the checkout dataset's full name as the add recorded it,
-at most 255 bytes (F9).
+  at most 255 bytes (F9).
 - `originDatasetGuid` is the dataset's GUID as a decimal string of a `u64`.
 - `originSnapshot` is the snapshot's own name,
-which must equal the file's name and the grammar of "The name grammar and the key".
+  which must equal the file's name and the grammar of "The name grammar and the key".
 - `originSnapshotGuid` is the snapshot's GUID as a decimal string.
 - `originSnapshotCreatetxg` is the transaction group that created the snapshot,
-as a decimal string.
+  as a decimal string.
 - `cloneDataset` is the clone's full dataset name,
-at most 255 bytes.
+  at most 255 bytes.
 - `cloneGuid` is the clone's GUID as a decimal string.
-- `slotPath` is the slot's path as text when the path is text,
-and absent when it is not.
+- `slotPath` is the slot's path as text when the path needs no JSON escape,
+  and absent when it does.
 - `slotPathHex` is the slot path's bytes as lowercase hexadecimal,
-always.
-- `removalStartedAt` is when the removal wrote the record,
-as an ISO 8601 instant with its offset to the second.
+  always.
+- `removalStartedAt` is when the removal first wrote the record,
+  as an ISO 8601 instant with its offset to the second.
 
 Why every GUID and transaction group is a JSON string and not a number:
 the wrapper's JSON reader follows the incumbent's semantics,
@@ -1039,6 +1282,8 @@ Why the path travels twice:
 a text record cannot hold a path that is not text
 (`foundation/path_bytes_in_records.rs:1` to `:20`),
 and the hexadecimal field is the only form that loses no byte.
+The text field is written only when it needs no escape,
+which is what keeps the bound below sound (O9).
 Nothing compares the two fields with each other;
 the hex field is what `doctor` prints for a person whose terminal can show it.
 
@@ -1054,41 +1299,44 @@ because a cap is a number that needs a measurement,
 and a counter would force a durable write on every attempt rather than only when the outcome changes.
 
 Why there is no line naming the command that wrote the record:
-the leaving record needs one because its writer may still be between its record and its rename,
-and a later command must leave that window alone.
-No window here depends on the removal's liveness:
-an attempt re-reads the world,
-and a live clone shows up as a dependency rather than as a missing fact.
+no window depends on the removal's liveness ("The order,
+and what a kill at each point leaves"),
+and the attempt re-reads the world,
+so a live clone shows up as a dependency rather than as a missing fact.
+The staging name is reported by `doctor` and read by nothing (V8).
 
 ### The bound
 
-The reader accepts at most 16,384 bytes of one record.
-That number is derived from the widest record these fields can spell:
+The reader accepts at most 13,374 bytes of one record.
+That number is the widest record these fields can spell,
+field by field:
 
+- The header line and its line feed:
+  57 bytes.
 - The short lines at their widest:
-  56 bytes of header,
   `state=` with `blocked` at 14,
   `attemptedAt=` with an instant at 38,
   `blockedReason=` with `dependency` at 25,
   `blockedErrno=` at 17,
   `numClones=` with twenty digits at 31,
   and `userRefs=` with twenty digits at 30.
-  That is 211 bytes.
-- The JSON object at its widest:
-  about 250 bytes of keys,
-  quotes and separators;
-  two dataset names at 255 each (F9);
-  the snapshot name at 59;
-  three decimal strings of twenty digits each;
-  a slot path of 4,095 bytes;
-  its hexadecimal form at 8,190 bytes;
+  That is 155 bytes.
+- The JSON object's keys,
+  its quotes and separators at 202 bytes.
+- Its values at their widest:
+  two dataset names at 255 each (F9),
+  the snapshot name at 59,
+  four decimal strings at 20 each,
+  a slot path of 4,095 bytes that needs no escape,
+  its hexadecimal form at 8,190 bytes,
   and two instants at 25 each.
-  That is 13,209 bytes.
-- The whole record is therefore at most 13,420 bytes.
+- A final line feed.
 
-16,384 is the next power of two above that,
-and it is the same bound the leaving record uses (F19),
-so one constant covers both records and a reader's buffer is a page-aligned unit a person can reason about.
+Those terms sum to 13,374 bytes.
+No rounding is applied,
+because a rounded power of two is a pick the accepted store's bound does not make
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md:140` to `:141`).
+A new field or a new escape changes the version number and the bound with it.
 The writer refuses to publish a record its own reader would refuse,
 which is the rule the receipts already hold to
 (`package/git-policy/cli/SPEC.md:6154` to `:6155`).
@@ -1107,49 +1355,67 @@ The attempt runs these steps in this order.
 1.  Read the record whole under the bound.
     A record that does not read is a refusal,
     and nothing is destroyed ("The state machine").
-2.  Read the origin dataset's live identity with `objset_stats` (F1):
-    its `dds_guid` and `dds_is_snapshot`.
-    The recorded snapshot is gone if that read answers that the dataset does not exist,
-    because a dataset's destruction destroys its snapshot-name table (F7).
-    That is a completion and not a refusal.
+2.  Read the named origin dataset's live identity with `objset_stats` (F1):
+    its `dds_guid`,
+    its `dds_is_snapshot`
+    and its `dds_origin`.
+    The attempt refuses as `unproved` when the dataset cannot be read,
+    when its GUID differs from `originDatasetGuid`,
+    when it is itself a snapshot,
+    or when its `dds_origin` is not empty.
+    The last of those is the promote signature (F20):
+    a promote gives the checkout an origin and moves the recorded snapshot under the promoted dataset,
+    so a dataset with an origin is not a dataset whose missing snapshot proves anything.
 3.  List the named dataset's snapshots with `snapshot_list_next` (F1),
     and compare every `dds_guid` with `originSnapshotGuid`.
     No match is a completion,
-    whatever else the dataset holds.
+    but only on the strength of step 2's checks:
+    a dataset whose identity did not match,
+    or which has an origin,
+    never reaches this completion.
     A match is the live snapshot,
     and its name must equal `originSnapshot`
     and its `dds_creation_txg` must equal `originSnapshotCreatetxg`.
     A match with any other name or group is `unproved`:
     nothing is destroyed.
-4.  Require the live dataset's `dds_guid` to equal `originDatasetGuid`
-    and `dds_is_snapshot` to be false.
-    A mismatch is `unproved`.
-    This half is redundant with the snapshot's GUID for a destroy,
-    and it is kept because the accepted rule proves both identities (the proposal `:947`),
-    and because a later change that relaxed either half would then have to say so.
-5.  Read the live snapshot's `dds_num_clones`,
+4.  Read the live snapshot's `dds_num_clones`,
     its `userrefs` and its `defer_destroy` (F1 to F3).
     A nonzero clone count or user-reference count is `dependency`,
     and a mark that is on is `deferred`.
     Either one ends the attempt before any destroy.
-6.  Submit one request naming exactly that snapshot,
+5.  Submit one request naming exactly that snapshot,
     through `destroy_snaps` (F1 and `requests/snapshot_requests.rs:68` to `:75`),
     which sends no `defer` key.
     The request never names a dataset,
     never recurses,
     and never names a second snapshot.
-7.  Prove absence again by step 3's listing.
+6.  Prove absence by repeating steps 2 and 3.
     A recorded GUID that is still listed is a refusal to settle,
     and the record says so.
     The next trigger re-reads the identity and may try again,
     which is safe because a destroy of a name that is gone is a no-op (F5)
     and because the identity is compared before every destroy.
-8.  Remove the record only after step 7's absence proof.
+7.  Remove the record only after step 6's absence proof.
     A removal that finds the name already gone is a completion of the same work.
+
+An attempt that cannot prove absence answers `unproved` and keeps the record:
+that is what a dataset the attempt cannot read,
+a dataset whose name now holds another dataset,
+a dataset with an origin (F20),
+and a dataset that is gone all produce.
+None of them completes,
+which is the accepted rule that a destroy is settled
+"only after proving the expected objects are gone,
+never from a missing name alone"
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md:963` to `:964`).
+The dataset-gone case is the sharpest:
+the snapshot may be alive under a promoted dataset (F20),
+so its absence from a dataset that is not there proves nothing,
+and the record waits for a person (L11 and L12).
 
 The kernel's dependency check is the dependency proof,
 not a scan of children or a name test (the proposal `:950`),
-and the counts in step 5 are read to report the block before a request that would be refused anyway.
+and the counts in step 4 are read to report the block before a request that would be refused anyway.
 A kernel refusal is reported by its errno and never by its wording,
 because the two layers spell the same refusal differently (F11).
 
@@ -1157,6 +1423,8 @@ What is not proof:
 
 - The snapshot's name (F5 allows a name to be absent and then present again,
   and a name can be reused by a new snapshot with another GUID).
+- A missing dataset name (F20).
+- A dataset whose snapshot list holds no matching GUID while the dataset has an origin (F20).
 - `createtxg` alone (L2).
 - The record's file name being the snapshot's name.
   It is the key and not the identity,
@@ -1166,7 +1434,7 @@ What is not proof:
   and the absence proof is what settles the record.
 - A blocked record's own words (L8).
 
-The same-account window between step 3 and step 6 stays open,
+The same-account window between step 3 and step 5 stays open,
 and L10 records it as the accepted residual.
 
 ### The options and their ranking
@@ -1185,14 +1453,14 @@ and one end is proved.
 
 ```text
 (nothing)
-  |  the removal writes the record before its first delete
+  |  the removal publishes the record after every refusal and before the first destroy
   v
-owed  --attempt: recorded GUID absent------------> (record removed)
+owed  --attempt: recorded GUID absent, dataset proved---> (record removed)
   |  \--attempt: destroy succeeded and absence proved--> (record removed)
   |   \--attempt refused or unproved--> blocked
   |
-blocked --attempt: recorded GUID absent------------> (record removed)
-  |   \--attempt succeeded---------------------> (record removed)
+blocked --attempt: recorded GUID absent, dataset proved---> (record removed)
+  |   \--attempt succeeded-------------------------> (record removed)
   \--attempt refused again--> blocked (no rewrite when unchanged)
 ```
 
@@ -1205,15 +1473,16 @@ and the absence is only written by removing the file after the proof.
 
 ### What moves each state
 
-The removal writes `owed` once,
-and its own invocation then attempts immediately.
+The removal writes `owed` once (step 6 of "The order,
+and what a kill at each point leaves"),
+and its own invocation then attempts immediately at step 9.
 That is the normal path:
 a clone with no other holder is destroyed,
 the origin snapshot has nothing depending on it,
-and the record is removed in the same invocation.
+and the record is removed in the same invocation before the settle.
 
 The look every command makes ("Who carries the cleanup and when") attempts every record it finds.
-An attempt re-reads the identity (the eight steps in "What proves the origin's identity and lineage later")
+An attempt re-reads the identity (the seven steps in "What proves the origin's identity and lineage later")
 and ends in one of three ways:
 completion,
 a recorded block,
@@ -1225,7 +1494,8 @@ or no durable write at all when the outcome is unchanged.
 the live snapshot has at least one clone,
 or at least one user hold (F4).
 This is the ordinary blocked case:
-an interrupted removal left a clone,
+the removal's own record was written before its first destroy,
+and a kill or a cancel left the clone standing,
 or another clone was made from the same origin snapshot by something this route does not know.
 It clears when the last clone or hold goes,
 and the next command's attempt then completes the record.
@@ -1243,11 +1513,14 @@ this design reads the same property for the cleanup (A3).
 
 `unproved`:
 the live identity disagreed with the record,
+the named dataset has an origin (F20),
+the dataset is gone,
+which leaves the snapshot's survival unproved (F20),
 or a value the proof needs could not be read.
 Nothing is destroyed in this state.
 It clears only when the live identity matches again,
 which is not expected,
-or when the recorded GUID is absent.
+or when the recorded GUID is absent under a dataset that passes step 2.
 That absence is a completion.
 A person should read this state as "the objects the record names are not the objects the pool has".
 
@@ -1267,7 +1540,9 @@ and the next attempt's live read decides whether the snapshot is still there.
 While that read cannot be made,
 the record stays exactly as it was and `doctor` reports the last reason it holds.
 
-A record whose bytes cannot be read is not a state.
+A record whose bytes cannot be read,
+or whose owner or mode is not the account's,
+is not a state.
 Nothing may be concluded from a record that does not parse,
 writing over it would destroy the only evidence of what was owed,
 so the attempt refuses,
@@ -1276,21 +1551,25 @@ and a person destroys the snapshot by hand if they can.
 After that the file is a record whose GUID is absent,
 but a reader that cannot parse it cannot prove that either,
 so a person removes the file.
-`doctor` names that as the way out.
+`doctor` names that as the way out,
+and question five carries the wider question about unreadable records.
 
 ### What ends it
 
-The record ends in exactly three ways,
+The record ends in exactly two ways,
 and each is proved by an absence and not by an intention.
 
-1.  The attempt proves the recorded GUID absent from the named dataset.
+1.  The attempt proves the recorded GUID absent from a dataset that passes step 2.
 2.  A person or another program destroys the snapshot,
-    and the next command's attempt proves the absence.
-3.  The origin dataset itself is destroyed or replaced,
-    which destroys every snapshot it holds (F7),
-    and the next attempt proves the absence.
+    and the next command's attempt proves the absence under a dataset that passes step 2.
 
-In all three the record is removed with one `unlink`,
+A destroyed origin dataset is not a third way.
+It takes its snapshot-name table with it (F7),
+but the same promote that moves a snapshot out of its dataset (F20) is why a gone dataset proves nothing,
+so that case stays `unproved`,
+`doctor` reports it,
+and a person decides (L12).
+A record is removed with one `unlink`,
 and a second removal that finds it gone is the same completion.
 
 What never happens:
@@ -1312,7 +1591,7 @@ and keeps the four reasons as codes.
 
 Settling removes the matching Git registration and pointer,
 releases the wrapper's lock,
-and frees the slot (the proposal `:466` to `:470` and `:1460` to `:1464`).
+and frees the slot (the proposal `:466` to `:470` and `:1462` to `:1463`).
 What it does not remove is the origin snapshot,
 which the record names,
 and which the pool keeps until something destroys it.
@@ -1327,11 +1606,35 @@ and neither can be the record's key.
 The record holds the dataset and snapshot GUIDs instead,
 and its `slotPath` field is history that no check compares.
 
+### The recovery the settle's sentence asks for
+
+The answer says settling "requires recovery without its Git entry" (the proposal `:1462` to `:1463`).
+This design's half of that recovery is:
+
+1.  The record is found from the repository's common Git directory,
+    by its own name grammar,
+    with no Git question asked.
+    A command in any worktree of the repository finds it,
+    and `doctor` finds it even when no registration stands.
+2.  The origin cleanup needs nothing from Git:
+    its identity proof is a pool read,
+    its destroy is a pool request,
+    and its completion is a pool read.
+3.  A slot that another worktree now holds changes nothing,
+    because the record never reads or writes the slot,
+    and the four rules of "What the pending cleanup and the new add do to each other" keep the two apart.
+
+What this design does not recover is the registration itself.
+A removal killed after the clone is gone but before the settle
+is the plan's finish pass and the registration's own recovery.
+That is the plan design's business (F25),
+and this record neither holds nor needs a Git entry.
+
 ### Whether a new add may take the same slot
 
-Yes.
-And at once.
-The decision's own reason is that settling frees the slot,
+Yes,
+and at once.
+The accepted design's own words are that settling frees the slot (the proposal `:1462` to `:1463`),
 and nothing about the pending snapshot depends on the slot:
 the snapshot belongs to the checkout dataset,
 and the slot is where a clone of it used to be mounted.
@@ -1342,6 +1645,12 @@ and registers Git under the same name.
 Its path through the pool touches none of the record's fields:
 the record names the previous snapshot and the previous clone,
 and the new add names neither.
+
+The binding design still keeps its binding for a blocked origin (F24),
+and its own Q2 keeps the slot blocked while a clone's absence is unproven.
+That is the second disagreement this design carries;
+the accepted words decide it for this design,
+and "Where this design and its siblings disagree" says so.
 
 ### What the pending cleanup and the new add do to each other
 
@@ -1360,13 +1669,14 @@ and each one is safe by a rule that already exists.
     The new clone depends on its own new snapshot and never on the old one,
     because an add never substitutes a different origin (the proposal `:1385`).
 3.  The identity comparison.
-    The cleanup destroys only a snapshot whose live GUID and group equal its record.
+    The cleanup destroys only a snapshot whose live GUID and group equal its record,
+    under a dataset that passes the proof's step 2.
     The new add's snapshot has another name and another GUID,
     so the comparison cannot match it.
     A reused nonce would show as `unproved` rather than as a destroy.
 4.  The slot's claim.
-    The removal route's per-slot claim serializes cooperating operations on one slot.
-    The cleanup takes no claim at all,
+    A removal takes the per-slot claim (F18 and the binding design's `:684` to `:732`),
+    and this cleanup takes no claim at all,
     so a pending record never holds a new add's slot,
     and a new add never waits on a cleanup.
 
@@ -1381,26 +1691,12 @@ and a warning would ask a person to decide something no check needs.
 `doctor` shows the pending record and the new worktree side by side,
 and the record's line names the slot path as the old clone's history.
 
-### What a settled registration means for recovery
-
-Without its Git entry the old clone is invisible to `git worktree list`,
-so the record is the only trace of what the slot held.
-That is why the `doctor` line prints the slot's path,
-the clone's dataset and GUID,
-and the snapshot's name and GUID:
-a person reading it can see which objects the record is about without a live registration.
-The record is never authority to settle a replacement registration.
-The proposal already requires that a removal whose clone and origin are gone
-"can settle a missing registration only after proving there is no replacement"
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md:461` to `:462`),
-and this record proves nothing about Git.
-
 ### The options and their ranking
 
 Whether a new add may take the slot is weighed in
 "V9 A new add over a slot with a pending record".
 The chosen answer is that it may,
-for the reasons that entry ranks first.
+and the accepted design's words are what decide it.
 
 ## Who carries the cleanup and when
 
@@ -1408,45 +1704,33 @@ for the reasons that entry ranks first.
 
 The cleanup is carried by the wrapper itself,
 as the account,
-in the look that every command of a repository already makes at its kept records.
-The leavings look is the precedent and the place:
+in a look that the removal's own invocation makes and that commands of the repository can make.
+The leavings look is the precedent for the shape:
 it runs for every command of the repository,
 it pays one open when its folder is absent (F16),
 and it acts only on what it can prove.
-This design adds a second folder to that look and a different proof to its action.
+It queues work for the service;
+this look destroys a snapshot itself.
+That difference is question one.
+
+Which commands make the look is the project's question (question one).
+The look is one function with two call sites:
+the removal's step 9,
+which every option keeps,
+and the command-path call site,
+which question one places.
+The design's text below describes the look;
+where it says "the look runs",
+question one is what says which commands reach it.
 
 The carrier is a trigger the project controls,
-which is what the trigger answer requires (the proposal `:1393` to `:1398`).
-It is also the only trigger that survives the clone:
-the boot unit's reconcile,
-the provider hook and the clone-local nudge all begin from a clone's mount request,
-and the clone this cleanup is about is gone.
+and that is all this design claims:
+the trigger answer says the project sets its own triggers (the proposal `:1393`),
+and it does not name an ordinary command as one of the mount route's triggers.
+A command that runs the look is therefore this design's proposal to the project,
+not an application of that answer.
 
-### The events
-
-1.  The removal's own invocation.
-    After the settle it attempts the record it wrote,
-    and on the normal path it destroys the snapshot and removes the record in the same invocation.
-    That is the project's "destroy at once" applied to the origin.
-2.  Any later wrapped command in that repository.
-    The look reads the folder,
-    attempts every record it finds,
-    and prints a line for each snapshot it destroys and for each record it leaves blocked.
-3.  Nothing else.
-    No timer,
-    no ZED event,
-    no boot unit,
-    no root channel,
-    and no configuration key.
-    Each of those would need a number,
-    a privilege or a channel this route does not have.
-
-A lost trigger therefore waits for the next command in that repository,
-which is the accepted cost of triggers alone (the proposal `:1404` to `:1405`),
-and it is a smaller loss here than for a mount,
-because the snapshot stays and only the space behind it waits.
-
-### One look, step by step
+### What the look does, step by step
 
 The look is ordered so that a command pays the least when nothing is owed.
 
@@ -1458,14 +1742,15 @@ The look is ordered so that a command pays the least when nothing is owed.
     A name beginning with a dot is a staging name and is skipped.
     Any other entry is foreign and is reported and never read.
 3.  For each record:
-    read it under the bound;
-    a record that does not read is reported and left alone.
+    read it under the bound,
+    and refuse as unreadable anything that is not the grammar or is not this account's.
 4.  Read the record's identity and the live identity ("What proves the origin's identity and lineage later").
-    A recorded GUID that is absent completes the record:
+    A recorded GUID that is absent under a dataset that passes step 2 completes the record:
     remove it and print nothing.
 5.  If the live snapshot is there,
     read its counts and its mark.
-    A block is recorded only when the reason or the detail changed since the record's last attempt.
+    A block is recorded only when the reason or the detail changed since the record's last attempt,
+    and the look prints one line when it changes.
 6.  Otherwise submit one single-name destroy and prove the absence.
     Print one line naming the snapshot that was destroyed.
 7.  Remove the record after the absence proof,
@@ -1478,20 +1763,53 @@ and never changes the command's exit status.
 Its lines go to standard error,
 as every informational line of this program does (F17).
 
+### When the route's gate refuses, or the device cannot be opened
+
+The look makes no ioctl when the route's runtime gate refuses
+(plan step 6's check)
+or when `/dev/zfs` cannot be opened.
+A failed probe arm refuses new attaches and keeps every other operation's route (F26),
+and a gate that refuses means the request layout has not been approved for this kernel,
+so an attempt would be a request this design cannot justify.
+
+The rule is:
+
+With no record standing,
+the look opens no device and prints nothing.
+- With a record standing,
+  the look prints one line naming the gate's refusal or the open's error and the record,
+  and does nothing else.
+  It repeats that line on each such command until the gate passes or a person acts,
+  because the wrapper has no other place to say a cleanup cannot run on this machine.
+
+`doctor` reports the gate's refusal and the standing record together,
+and neither the look nor `doctor` decides that the gate's refusal authorizes removing a record.
+
+### What the look prints
+
+The look prints one line when it destroys a snapshot,
+and one line when a record's reason changes.
+It prints nothing for a record whose block is unchanged,
+and nothing when the folder is absent.
+The record's own bytes are never printed,
+and the line names the snapshot it destroyed and the errno of a refusal it first met.
+Question three carries the wider question about how often a pending record speaks,
+and its first-ranked option is what this text describes.
+
 ### What the look costs
 
-No number is shipped.
-The empty case is one open of a folder that is not there (F16).
+No ceiling is shipped.
+The empty case is one open of a folder that may not be there (F16),
+and after a repository's first cleanup it is one open and one listing of an empty folder (L14).
 A record that is owed but pinned costs one `objset_stats` of the dataset,
 one listing step per snapshot of that dataset,
 one `objset_stats` of the snapshot,
 and no write.
 A blocked record that stays blocked costs the same and no durable write.
 Each of those reads is a request to the pool the command already uses,
-so the look adds no failure domain the command did not have,
-and it ships no ceiling because a ceiling would be a number this design cannot size yet.
+so the look adds no failure domain the command did not have.
 "Measurements owed" M1 sizes the added cost,
-and "V8 The carrier's frequency" says what a measurement above a chosen threshold would change.
+and question one is where the frequency is decided.
 
 ### Two commands at once
 
@@ -1505,14 +1823,15 @@ The one odd outcome is a writer that read the record before another removed it a
 which re-creates a record whose snapshot is already gone.
 The next command's look proves the absence and removes it again.
 That is self-healing and costs at most one extra look,
-which is why this design takes no claim ("V7 Serializing attempts").
+which is why this design takes no claim ("V7 Serializing attempts"),
+and control T17 forces the whole sequence.
 
 ### When the event never comes
 
 The record waits,
 and the snapshot stays.
 Nothing expires either of them (L6).
-The ways it still ends are the three in "What ends it",
+The ways it still ends are the two in "What ends it",
 and each begins with a command in that repository or with a person who read a `doctor` line.
 A repository whose path is gone and a repository whose Git directory was deleted keep nothing,
 and those are L4 and L5.
@@ -1530,16 +1849,19 @@ standard error,
 the same prefix for every line of one report,
 the section's ceiling with a line of its own when the read does not finish,
 and no change to the exit status.
-`doctor` never destroys a snapshot,
+`doctor` runs as the account,
+which no record states and which this design assumes (A4).
+The plan design assumes the opposite (F25).
+It never destroys a snapshot,
 never rewrites a record,
-and never removes a record.
+and never removes a record or a staging name (V8).
 
 ### The owed line
 
 A record that no attempt has ended:
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: zpcachyos/ROOT/cos/home/monochromatic-git-checkout@git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f is owed; recorded 2026-11-22T17:28:41-05:00 before the clone zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer was destroyed; the next command in this repository attempts it, so nobody needs to wait.
+git monochromatic-git-policy-cli doctor: origin cleanup: zpcachyos/ROOT/cos/home/monochromatic-git-checkout@git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f is owed; recorded 2026-11-22T18:38:41-05:00 before the clone zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/add-cache-layer was destroyed; the next command that runs the cleanup attempts it.
 ```
 
 It names the snapshot,
@@ -1558,62 +1880,71 @@ the last attempt,
 and the commands that show more.
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked by a dependency: the snapshot has 1 clone and 0 holds; the last attempt was 2026-11-22T17:31:04-05:00; `zfs destroy -n '<dataset>@<snapshot>'` names the datasets that depend on it and `zfs holds '<dataset>@<snapshot>'` names its holds; any command in this repository retries the cleanup once nothing depends on it.
+git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked by a dependency: the snapshot has 1 clone and 0 holds; the last attempt was 2026-11-22T18:31:04-05:00; `zfs destroy -n '<dataset>@<snapshot>'` names the datasets that depend on it and `zfs holds '<dataset>@<snapshot>'` names its holds; the next command that runs the cleanup retries it once nothing depends on it.
 ```
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked because it is marked for deferred destroy; the mark is not the wrapper's and the wrapper does not clear it; `zfs get -H -o name,value defer_destroy '<dataset>@<snapshot>'` reads it; the snapshot's owner destroys it, or an administrator removes the mark, and the next command in this repository finishes the cleanup.
+git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked because it is marked for deferred destroy; the mark is not the wrapper's and the wrapper does not clear it; `zfs get -H -o name,value defer_destroy '<dataset>@<snapshot>'` reads it; the snapshot's owner destroys it, or an administrator removes the mark, and the next cleanup attempt finishes it.
 ```
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked because the pool's identity for the named objects is not the record's identity; nothing was destroyed and nothing will be destroyed from this record until the identities agree; compare the record at <path> with `zfs get -H -o name,value guid,createtxg '<dataset>@<snapshot>'` and with `zfs get -H -o value guid '<dataset>'`; this needs an administrator.
+git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked because the pool's identity for the named objects is not the record's identity, or because the dataset has an origin of its own: nothing was destroyed and nothing will be destroyed from this record until the identities agree; compare the record at <path> with `zfs get -H -o name,value guid,createtxg,origin '<dataset>@<snapshot>'` and with `zfs get -H -o value guid,origin '<dataset>'`; this needs an administrator.
 ```
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked because the destroy was refused with errno 13; nothing else was destroyed; an administrator checks the account's delegated `mount,destroy` on the checkout and its descendants; any command in this repository retries the cleanup after that.
+git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@<snapshot> is blocked because the destroy was refused with errno 13; nothing else was destroyed; an administrator checks the account's delegated `mount,destroy` on the checkout and its descendants; the next cleanup attempt retries after that.
 ```
 
 Each of the four is the record's own reason ("The state machine") plus the world's counts and the errno.
 None of them quotes the record's text and none repeats a kernel message (F11 and L8).
+The third line is also what a person reads when a promote left the record unprovable (F20 and L11),
+and it says so in the words that name an origin.
 
-### The unreadable line and the litter lines
-
-```text
-git monochromatic-git-policy-cli doctor: origin cleanup: <path> cannot be read as a record of this program; nothing acts on it and it is left as it is; if the snapshot it names is already gone, remove the file, and if it is not, an administrator decides which snapshot it meant.
-```
-
-A record whose bytes do not parse is the one case where nothing can be proved and the file must not be overwritten ("The state machine").
-The same report names the folder's staging names and every foreign entry:
+### The unreadable and wrongly owned lines
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: the folder <path> holds 1 staging name from a command that was killed while it wrote a record, and 1 entry whose name is not a record of this program; step 18's doctor removes the staging names and leaves the foreign entry alone.
+git monochromatic-git-policy-cli doctor: origin cleanup: <path> cannot be read as a record of this program, or is not this account's: nothing acts on it and it is left as it is; if the snapshot it names is already gone, remove the file, and if it is not, an administrator decides which snapshot it meant.
 ```
 
-### The finished record
+A record whose bytes do not parse,
+or whose owner or mode is not the account's,
+is the case where nothing can be proved and the file must not be overwritten ("The state machine").
+Question five carries the wider choice about unreadable records.
 
-A finished record has no file,
-so `doctor` prints nothing for it and there is nothing for a person to do.
-The folder stays with no entry for it,
-the pool holds no snapshot under its name,
-and the line a command printed when it destroyed the snapshot is the only trace of the cleanup (Q3 weighs whether that is enough).
-A person who wants to know what a repository cleaned up can read the terminal history or the journal,
-and nothing in this design keeps a tombstone ("V6 The state vocabulary").
+### The litter line
+
+```text
+git monochromatic-git-policy-cli doctor: origin cleanup: the folder <path> holds 2 staging names from commands that were killed while they wrote a record; no reader reads them; no command removes them while a cleanup attempt may hold one; delete them by hand when no wrapper command is running, or leave them, and this report keeps naming them.
+```
+
+Staging names are `.<record name>.<random>.partial`,
+and a live writer's name looks exactly like a killed writer's (F19 and the publication's shape).
+This design therefore removes none,
+and V8 weighs that against removing them unconditionally or by age.
 
 ### The unaccounted origin snapshot line
 
 A third kind of line comes from the pool and not from a record:
 
 ```text
-git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@git-worktree-clone-origin-9ab18c2de4f507b3a1c8d2e6f4b09a7c has no clone and no record; nothing in this route will destroy it; confirm it is not another writer's snapshot of the same name and, if it is not, `zfs destroy '<dataset>@<snapshot>'` destroys it and the next command reports nothing.
+git monochromatic-git-policy-cli doctor: origin cleanup: <dataset>@git-worktree-clone-origin-9ab18c2de4f507b3a1c8d2e6f4b09a7c has no clone, no record and no live binding; nothing in this route will destroy it; confirm it is not another writer's snapshot of the same name and, if it is not, `zfs destroy '<dataset>@<snapshot>'` destroys it and the next report prints nothing.
 ```
 
 It is found by listing the checkout dataset's snapshots,
 keeping the names that begin with the wrapper's origin prefix,
-and dropping every snapshot that has a clone or a record.
-A snapshot with a clone is some live worktree's origin and is never named by this line.
+and dropping every snapshot that has a clone,
+a record,
+or a name a live binding record carries.
+The last of those is what an add in flight looks like (F24):
+the binding records the snapshot's name before the snapshot exists,
+so a snapshot with a live binding is an add and not litter.
+`doctor` reads the binding design's folder for those names and nothing else,
+and when that folder is absent it drops nothing for it.
+
+A snapshot with a clone is some live worktree's origin.
 A snapshot with a record is reported by the record's own line.
 What remains is a snapshot the route created and can no longer account for:
-a killed add between the snapshot and the clone,
+an add killed between the snapshot and the clone,
 a record lost with a repository (L4),
 or a record a person removed by hand.
 The account can list these without privilege,
@@ -1626,7 +1957,7 @@ It destroys nothing and names the command a person may run.
 - A dependency by a clone.
   Remove that clone with an ordinary removal,
   or leave the snapshot and its space,
-  and a later command finishes the cleanup.
+  and a later cleanup attempt finishes it.
   `zfs destroy -n` names the dependents without deleting anything (F12).
 - A dependency by a hold.
   `zfs holds` names the holder,
@@ -1640,13 +1971,15 @@ It destroys nothing and names the command a person may run.
 - An unproved or refused record.
   An administrator compares the record with the pool (the commands above)
   and decides whether the snapshot is the record's.
+  A promoted snapshot (F20) is the ordinary cause,
+  and the administrator decides whether the record is finished or kept.
   The wrapper does not guess.
-- An unreadable record.
+- An unreadable or wrongly owned record.
   A person may destroy the snapshot it appears to name and then remove the file.
   Nothing else is safe,
   because a reader that cannot parse the file can prove nothing from it.
 - Every blocked record.
-  Any command in that repository attempts it again,
+  Any command that runs the lookup attempts it again,
   and the attempt prints one line naming the snapshot it destroys.
 
 No step of that list asks a person to type a secret,
@@ -1668,129 +2001,364 @@ The controls follow the package's test practices:
 module tests in sidecar files,
 and facts built apart from wording where a report is tested.
 
+### How a control forces a point
+
+The points this design names are forced in two ways and no third.
+
+- A unit control uses the package's own test-only hooks,
+  which exist in the test build only:
+  `AFTER_THE_STAGING_FILE_IS_WRITTEN`
+  (`foundation/private_storage_replacing_a_record.rs:93` to `:94`),
+  the binding's fixture device
+  (`kernel_device/fixture.rs` and `fixture_reply.rs`),
+  the store's publication hooks
+  (`worktree_clone_mount/slot_identity_store_publication.rs:507` to `:522`),
+  and the seam the look offers between a record's read and its write.
+- A guest arm runs the crate's own test binary in the throwaway guest.
+  The test binary reaches the same hooks,
+  so a guest arm that must be killed at a publication,
+  at a destroy,
+  or between a read and a write
+  kills that process there with `SIGKILL`,
+  and the arm asserts what the next command's look does.
+  No production seam is added for a test,
+  and a guest arm that cannot use the test binary asserts only what a real command shows.
+
 ### Controls that need no pool
 
 T1 The record's bytes round-trip.
-  A record built from the fields in "The fields and what proves the origin later" encodes and decodes to itself,
-  and a rewrite with an unchanged outcome is byte-identical.
-  Forced by construction:
-  two encodes of one value and a compare.
+A record built from the fields in "The fields and what proves the origin later" encodes and decodes to itself,
+and a rewrite with an unchanged outcome is byte-identical.
+Forced by construction:
+two encodes of one value and a compare.
 T2 The reader's refusals.
-  Each is its own control.
-  a first line that is not the header;
-  a version the reader does not know;
-  an unknown `state`;
-  an unknown `blockedReason`;
-  a missing `attemptedAt` in a blocked record;
-  a `blockedErrno` that is no decimal integer;
-  a JSON object with a key the record does not have;
-  a key out of order;
-  a GUID with a sign or a leading zero;
-  a `snapshot` field that differs from the file's name;
-  a file wider than 16,384 bytes;
-  and an empty file.
+Each is its own control:
+a first line that is not the header;
+a version the reader does not know;
+an unknown `state`;
+an unknown `blockedReason`;
+a missing `attemptedAt` in a blocked record;
+a `blockedErrno` that is no decimal integer;
+a JSON object with a key the record does not have;
+a key out of order;
+a GUID with a sign or a leading zero;
+a `snapshot` field that differs from the file's name;
+a file wider than 13,374 bytes;
+and an empty file.
 T3 A file name outside the grammar is never read.
-  A planted `notes.txt` and a planted `git-worktree-clone-origin-<31 hex>` are listed and skipped,
-  and the look reports them without opening them.
-  The seam is the folder and not a mock.
-  the entries are planted and the control asserts the look's own report.
-T4 A killed publication leaves the old record and one staging name.
-  Forced with `private_storage`'s
-  `AFTER_THE_STAGING_FILE_IS_WRITTEN` hook,
-  which fails the write after the bytes are staged and before the rename.
-  The old record reads exactly as before,
-  the staging name is the only new entry,
-  and the look skips it.
-T5 A reader racing a rewrite sees one whole record.
-  Forced by running a read from inside the same hook,
-  so the read lands between the staged bytes and the rename,
-  which is the window a second command's look occupies.
-  The reader sees the previous whole record and never a prefix.
-T6 The first write never replaces a record.
-  Two writers for one snapshot name publish at once;
-  one wins and the loser reports the existing record instead of overwriting it.
-  Forced with the same hook.
-  The control lets the second writer run to the link first.
-T7 The attempt reads before it writes.
-  With the binding's fixture device
-  (`kernel_device/fixture.rs` and `fixture_reply.rs` replaced a reply),
-  a recorded identity that differs in GUID or in group is never followed by a destroy request,
-  and the record says `unproved`.
-  The control asserts the request sequence the fixture saw,
-  so the order is forced by the scripted answers and not by timing.
-T8 The absence proof completes without a destroy.
-  The fixture lists a snapshot with the same name and another GUID,
-  and the control asserts that no destroy was submitted and the record was removed.
-  That is the name-reuse arm without a pool.
-T9 A dataset that is gone completes without a destroy.
-  The fixture answers the dataset read with the kernel's missing answer,
-  and the record is removed with no destroy request.
-T10 The counts block before a request.
-  The fixture reports one clone and then one hold,
-  and the record says `dependency` with the count,
-  and no destroy request was submitted either time.
-T11 The empty case lists nothing.
-  A control asserts that a look in a repository with no cleanup folder opens the folder and calls no listing,
-  which is the store's own "a run that must read nothing" seam
-  (`worktree_clone_mount/slot_identity_store.rs:51` and the control named `BEFORE_THE_STORE_OPENS`).
-T12 A blocked record that stays blocked is not rewritten.
-  The fixture answers the same refusal twice and the control counts the record's writes:
-  one write for the first block and none for the second attempt.
-T13 The `doctor` lines.
-  Each is built from facts.
-  The owed,
-  the four blocked,
-  the unreadable,
-  the litter and the unaccounted lines are rendered from built facts,
-  and the ceiling's fallback line is a control of its own,
-  as the filesystem section's wording is tested now (F17).
-T14 The record's look never reads Git.
-  A control with a recording Git context
-  (`testing/recording_git.rs`)
-  asserts that no Git question is asked while a record is attempted.
+A planted `notes.txt` and a planted `git-worktree-clone-origin-<31 hex>` are listed and skipped,
+and the look reports them without opening them.
+The seam is the folder and not a mock:
+the entries are planted and the control asserts the look's own report.
+T4 A wrong owner or mode is refused.
+Each of the three is planted with one owner or mode the design rejects.
+Each of the three is planted with one owner or mode the design rejects,
+and the look reports it and destroys nothing.
+T5 A killed publication leaves the old record and one staging name.
+Forced with `AFTER_THE_STAGING_FILE_IS_WRITTEN`,
+which fails the write after the bytes are staged and before the rename.
+The old record reads exactly as before,
+the staging name is the only new entry,
+and the look skips it.
+T6 A reader racing a rewrite sees one whole record.
+Forced by running a read from inside the same hook,
+so the read lands between the staged bytes and the rename,
+which is the window a second command's look occupies.
+The reader sees the previous whole record and never a prefix.
+T7 The first write never replaces a record.
+Two writers for one snapshot name publish at once,
+by one exclusive create and one link that replaces nothing,
+and one wins while the loser reports the existing record instead of overwriting it.
+Forced with the store publication's own hook,
+`BETWEEN_THE_BYTES_AND_THE_LINK`,
+which runs the second writer while the first holds its bytes and no name
+(`worktree_clone_mount/slot_identity_store_publication.rs:507` to `:522`).
+T8 The attempt reads before it writes.
+With the binding's fixture device,
+a recorded identity that differs in GUID or in group is never followed by a destroy request,
+and the record says `unproved`.
+The control asserts the request sequence the fixture saw,
+so the order is forced by the scripted answers and not by timing.
+T9 The absence proof completes without a destroy.
+The fixture lists a snapshot with the same name and another GUID under a dataset that passes step 2,
+and the control asserts that no destroy was submitted and the record was removed.
+T10 A dataset with an origin or a different GUID is never a completion.
+The fixture answers step 2 with a non-empty `dds_origin`,
+and then with another GUID,
+and the control asserts `unproved` and no destroy in both arms.
+T11 A dataset that is gone is `unproved`.
+The fixture answers the dataset read with the kernel's missing answer,
+and the record stays `unproved` with no destroy.
+T12 The counts block before a request.
+The fixture reports one clone and then one hold,
+and the record says `dependency` with the count,
+and no destroy request was submitted either time.
+T13 The empty case lists nothing.
+A control asserts that a look in a repository with no cleanup folder opens the folder and calls no listing,
+which is the store's own "a run that must read nothing" seam
+(`worktree_clone_mount/slot_identity_store.rs:51`).
+T14 A refused gate or an unopenable device does nothing.
+With the gate refusing,
+and then with the device's open failing,
+a look with a record standing prints one line and submits no request;
+a look with no record prints nothing.
+T15 A blocked record that stays blocked is not rewritten.
+The fixture answers the same refusal twice and the control counts the record's writes:
+one write for the first block and none for the second attempt.
+T16 The `doctor` lines.
+Each is built from facts,
+and the ceiling's fallback line is a control of its own,
+as the filesystem section's wording is tested now (F17).
+T17 The resurrected record heals.
+A control pauses attempt A after its read,
+lets attempt B complete and unlink,
+resumes A so it writes a refusal,
+and asserts that the next look proves the absence and removes the record.
+T18 The look never reads Git and takes no claim.
+A control with a recording Git context
+(`testing/recording_git.rs`)
+asserts that no Git question is asked while a record is attempted,
+and that no claim file is created.
 
 ### Controls that need a guest
 
-G1 A real kill between the record's write and the first delete.
-  A removal is killed at the publication hook inside the throwaway guest,
-  and the next command's look is asserted to see `owed` and a live clone,
-  to record `dependency`,
-  and to destroy nothing.
+G1 A real kill between the record's publication and the first destroy.
+The crate's test binary is killed at the publication hook inside the throwaway guest,
+and the next command's look sees `owed` and a live clone,
+records `dependency`,
+and destroys nothing.
 G2 A real dependent clone blocks and then clears.
-  One clone of the origin snapshot exists;
-  the look records `dependency`;
-  the clone is removed by an ordinary removal;
-  and the next look destroys the snapshot and removes the record.
+One clone of the origin snapshot exists;
+the look records `dependency`;
+the clone is removed by an ordinary removal;
+and the next look destroys the snapshot and removes the record.
 G3 A real deferred mark blocks.
-  The guest marks the snapshot with `zfs destroy -d`,
-  the look records `deferred`,
-  and the snapshot survives.
+The guest marks the snapshot with `zfs destroy -d`,
+the look records `deferred`,
+and the snapshot survives.
 G4 A real name reuse completes.
-  The snapshot is destroyed outside the wrapper and one of the same name is created;
-  the look removes the record and destroys nothing,
-  and the new snapshot survives.
+The snapshot is destroyed outside the wrapper and one of the same name is created;
+the look removes the record and destroys nothing,
+and the new snapshot survives.
 G5 A real new add over a slot with a pending record.
-  A pending record exists,
-  a new add takes the same slot (F15's sequence),
-  and the new clone and its snapshot survive the look while the old record stays blocked by its own dependency.
-G6 The account's delegated destroy of a checkout snapshot.
-  This is M4's arm run as a control:
-  the snapshot is destroyed by the account under the planned grants and the record completes.
-G7 A kill during the destroy and a kill after the absence proof.
-  Two arms of one control:
-  the first finds the record and the snapshot in either state and completes on the next look;
-  the second finds the record with its GUID absent and only removes the file.
+A pending record exists,
+a new add takes the same slot (F15's sequence),
+and the new clone and its snapshot survive the look while the old record stays blocked by its own dependency.
+G6 A real promote leaves the record unproved.
+The guest promotes a clone of the checkout's snapshot,
+and the look records `unproved`,
+destroys nothing,
+and `doctor` names the origin (F20 and L11).
+G7 The account's delegated destroy of a checkout snapshot.
+This is M4's arm run as a control:
+the snapshot is destroyed by the account under the grants the wrapper really sets,
+and the record completes.
+G8 A kill during the destroy and a kill after the absence proof.
+Two arms of one control:
+the test binary submits one destroy and is killed before it reads the answer,
+so the next look finds the snapshot in either state and settles by the proof;
+the second kills it after the absence proof,
+so the next look only removes the file.
+G9 A power cut leaves the record.
+The guest writes the record and cuts power before the first destroy,
+and the record is there after boot (M6 and L8).
 
 ### What a green run shows and what it would not
 
 A green run shows that every refusal and every state transition this design names happens for the reason it names,
 that the empty case costs one open,
-and that no record path reads Git or waits on a person.
-It does not show that the account's delegation covers the origin snapshot (M4),
+and that no record path reads Git,
+takes a claim or waits on a person.
+It does not show that the account's delegation covers the origin snapshot in the wrapper's real grant set (M4),
 that the added cost is small (M1 and M2),
 or that a real power cut preserves the record (M6).
 Those are measurements,
 not controls.
+
+## Where this design and its siblings disagree
+
+The two sibling documents were read at the commits named under "Sources read".
+Neither is decided,
+and this section records what each does,
+whether this design now agrees,
+and who could decide between them where no project record does.
+
+The fourteen points are the review's,
+in its order.
+
+### 1. The folder family
+
+This design puts its folder at `<common>/monochromatic-git-policy-cli/origin-cleanups/` (V1).
+The binding design puts its family at `<common>/monochromatic-git-policy-cli-worktree-clone/v1/` (F24),
+and the plan design puts its plan folder inside the wrapper's own folder.
+No project record decides the family.
+This design's reason is the rename machinery that moves `monochromatic-git-policy-cli/` as one unit
+(`foundation/wrapper_names_old_and_new.rs:74` to `:77`),
+which the binding design's new top-level name would need its own entry for.
+The integration pass is where the three families settle,
+and "V12 The folder family" states this design's choice beside the binding design's.
+
+### 2. The key
+
+This design keys by the origin snapshot's name (V3).
+The plan design keys by the clone's dataset GUID,
+and the binding design keys by the slot name (F24).
+No project record decides it.
+The three keys reach each other through the binding design's fields,
+so the set works when each reader starts from the binding,
+and this design's own reason against a slot key is that the slot is reused (F15).
+"V3 The name grammar and the key" states the choice beside the other two.
+
+### 3. The encoding of names and the shape of the file
+
+This design writes short `key=value` lines then one JSON object,
+with ZFS names verbatim and paths as text only when no escape is needed plus hex always,
+and GUIDs as decimal strings (V2).
+The binding design writes a header line,
+ZFS names verbatim and paths as hex.
+The plan design writes ZFS names as hex and its numbers as lines.
+No record decides,
+and the two verbatim choices agree.
+The slot store's header line is the nearest precedent,
+and this design follows it.
+The plan design's hex names are safe and longer;
+the review's point 3 records both facts.
+"V2 The record's shape" states the choice.
+
+### 4. The moment of the origin carrier
+
+This design publishes the record at step 6 of "The order,
+and what a kill at each point leaves":
+after every refusal and before the first destroy request (V4).
+The plan design writes it after the registration's settle (F25),
+and the binding design publishes it there too,
+or confirms one already published (F24).
+No project record fixes the moment,
+and the review's X1 adopts this design's moment for the set.
+The two sibling rounds are told to read and confirm rather than write,
+and this document's order list is the reference they are told to cite.
+If the owner vetoes V4,
+all three reopen together,
+which is why the three should reach the owner together.
+
+### 5. Whether a blocked origin keeps the slot
+
+This design lets a new add take the slot at once (V9).
+The binding design keeps its binding while the origin cleanup is blocked (F24),
+and its own Q2 keeps a slot blocked while a clone's absence is unproven.
+The accepted words decide the case this record covers:
+"Settling frees the slot" (the proposal `:1462` to `:1463`),
+and settling does not wait for the origin (`:469` to `:470`).
+The binding design's Q2 is a different case,
+a clone gone with its absence unproven,
+and it does not conflict with this rule.
+For the origin-blocked case,
+this design's answer stands and the binding design's round is told so.
+
+### 6. The serializer of two removals
+
+This design's cleanup takes no claim at all (V7).
+A removal takes the per-slot claim the binding design defines (F18 and its `:684` to `:732`).
+The plan design rests its serialization on the Git lock,
+which is a marker and not a mutex,
+and the review's P7 states the Git lines that show it.
+The proposal's sentence that a per-slot claim serializes cooperating operations decides the removals' case,
+and this design takes the claim for none of its own work,
+so it agrees with the claim and disagrees only with the Git-lock argument,
+which is the plan design's to change.
+
+### 7. Durability
+
+This design is written for question four's option C:
+no flush for the record's first write,
+because it precedes an irreversible step and the destroy waits for the transaction group (F21 and L8),
+and no flush for an outcome rewrite,
+whose loss costs one repeated attempt.
+The binding design flushes every publication (F24),
+and the plan design writes unflushed on the wrapper's btrfs rule.
+No project record decides for these three records,
+the store's bound decision says nothing about flushes,
+and «question four» carries the choice with its premise stated.
+
+### 8. What a reader does with a bad entry
+
+All three refuse a partial,
+a foreign and an oversized record and change nothing.
+All three now refuse a wrongly owned record,
+which is this round's fix for the review's O5.
+For an unreadable record this design refuses and reports,
+the plan design refuses and never moves it aside,
+the binding design refuses and asks,
+and the specification's copy records move such a file aside
+(`package/git-policy/cli/SPEC.md:4863`).
+No record decides among those three policies for this record,
+and «question five» carries them.
+
+### 9. Who removes staging names
+
+This design removes none and reports them (V8).
+The store decision gives the removal of the two known forms to plan step 18's `doctor` unconditionally,
+for the store folder (F23).
+The binding design removes them only when the folder holds no live claim (F24).
+The store decision covers the store and does not decide this folder,
+and the binding design's reason applies here:
+a live cleanup attempt's staging name looks exactly like a killed writer's.
+"V8 The staging names `doctor` removes" states the choice beside the store's and the binding's.
+
+### 10. Listing on the command path
+
+This design lists its folder on the commands question one places,
+and `doctor` always (L14).
+The plan design refuses a per-command listing and uses a pointer.
+The binding design lists only in `doctor` and says no forwarded command reads its folder (F24).
+No record decides,
+the store's "no listing per sweep" is about a different sweep,
+and question one is where the call site is decided.
+This design states the departure and its cost in L14 rather than hiding it.
+
+### 11. Who `doctor` runs as
+
+This design assumes `doctor` runs as the account (A4).
+The plan design says it runs as root,
+and the binding design says root may read its folder and no root-run mode does (F24).
+No record decides it,
+and the review's P13 found no support for the plan design's claim.
+This design keeps its assumption and names it.
+
+### 12. What ends each record and who removes it
+
+This design ends its record on the absence proof under a dataset that passes step 2,
+and a person removes one left `unproved` (L11 and L12).
+The plan design removes the plan after the origin record stands,
+or by a finish pass.
+The binding design removes its binding at its step 5 and keeps it when the origin cleanup is blocked.
+The proposal's steps 4 and 5 decide the order only partly (the proposal `:947` to `:956`).
+The conflicts are the review's X1,
+X2 and P12,
+and this design's end condition stands with the two sibling rounds told to read it.
+
+### 13. Whether a removal has a record of its own
+
+This design writes no removal record.
+The removal intent is the clone's `unmount` property,
+the destruction plan is the plan design's record,
+and this record is about the origin.
+The binding design says the plan's presence and the live facts identify the removal's state (F24);
+the plan design treats the `unmount` property as the whole intent and its Choice 5 covers the records it changes.
+The plan and the proposal speak of a "removal record" that is kept or reversed,
+and no record decides what it is.
+This design neither writes nor reverses one,
+and the cancelled-removal design owns reversing the intent.
+
+### 14. Bounds and caps
+
+This design's reader bound is 13,374 bytes,
+derived field by field with the JSON escape rule and not rounded (L9 and "The bound").
+The plan design ships a derived bound plus a declared-count term and a placeholder ceiling.
+The binding design ships a derived fixed part and no cap on inventories.
+The store decision accepted a derived bound and no whole-store cap,
+and this design follows it without the rounding the review's point 14 objects to.
+"V5 The identity fields" and the bound section carry this design's choice.
 
 ## Which build step builds which part
 
@@ -1802,23 +2370,21 @@ The parts step 16 builds:
 
 - The cleanup folder,
   its name grammar,
-  its key and its modes:
-  "The home,
-  its name grammar and its key".
-- The writer and its moment,
-  with the record written before the clone's first delete:
-  "The writer and the moment it writes".
+  its key and its modes,
+  and the owner-and-mode rule of the reader.
+- The order and the moment,
+  with the record published at step 6 of that order.
 - The fields,
-  the bound and the identity proof:
-  "The fields and what proves the origin later".
-- The states and the attempt's rules:
-  "The state machine".
-- The settle's order and the answer that a new add may take the slot:
-  "A settled registration and a pending record".
-- The per-command look and its notices:
-  "Who carries the cleanup and when".
-- The controls T1 to T12 and T14,
-  and the guest arms G1 to G7.
+  the bound and the identity proof,
+  with the seven steps and the `unproved` answers.
+- The states and the attempt's rules.
+- The settle's order and the answer that a new add may take the slot.
+- The look,
+  its preconditions,
+  its printing rule and its notices,
+  at whichever call site question one settles.
+- The controls T1 to T18,
+  and the guest arms G1 to G9.
 
 The parts step 18 builds,
 because it is the step that builds `doctor`
@@ -1827,10 +2393,10 @@ because it is the step that builds `doctor`
 - The owed,
   blocked,
   unreadable,
+  wrongly owned,
   litter and unaccounted lines of
-  "What doctor reports and what a person can do",
-  and the staging names step 18 already removes.
-- The control T13.
+  "What doctor reports and what a person can do".
+- The control T16.
 
 Two steps build what this design reads and does not own.
 Step 10 writes the add's binding record whose origin identities the removal copies (A1),
@@ -1842,11 +2408,14 @@ Step 16's build writes three passages into `package/git-policy/cli/SPEC.md`:
   name grammar,
   record lines,
   states,
-  bound and refusals,
+  bound,
+  the owner-and-mode refusal and the other refusals,
   with the pointer to this design as the staging design's `SPEC.md` passages point to it.
-- The same section gains the per-command look,
+- The same section gains the look,
+  its preconditions,
   its notices,
-  and its rule that it reads no Git and changes no exit status.
+  and its rules that it reads no Git,
+  takes no claim and changes no exit status.
 - The doctor section gains the lines and their rules
   (`package/git-policy/cli/SPEC.md:683` to `:770`).
 
@@ -1855,16 +2424,16 @@ under `package/git-policy/cli/src/native/worktree/`,
 with the folder rules `LYD` and `LYL` applied to any folder it adds,
 and `doctor`'s lines join the ZFS part of `health/doctor_filesystem.rs`.
 
-The plan needs three amendments when this design is accepted:
+The plan needs four amendments when this design is accepted:
 
 - Step 16's "What it builds" gains
-  "the origin cleanup record and the look every command makes at it",
-  and its "Open items" entry for this item becomes its designed form.
-- Step 18's `doctor` list gains the record's three line kinds and the unaccounted snapshot line.
-- Step 16's acceptance tests gain the settle-while-blocked arm with a pending record:
-  the record exists,
-  the registration is settled,
-  and the acceptance checks the record and the settle together.
+  "the origin cleanup record at its moment in the order,
+  and the look every triggering command makes at it".
+- Step 18's `doctor` list gains the record's lines and the unaccounted snapshot line.
+- Step 16's acceptance tests gain the settle-while-blocked arm with a pending record.
+- The order's step 9 becomes "read and confirm the origin cleanup record already published",
+  for the plan design,
+  whose own step 9 now writes it after the settle (F25).
 
 ## Measurements owed
 
@@ -1879,74 +2448,69 @@ a ratio with its range,
 and no finding from a difference smaller than the run-to-run spread.
 
 M1 What one command pays for the look.
-  Arms,
-  interleaved in one round on the acceptance workload's repository:
-  a command with no cleanup folder,
-  a command with one owed record whose snapshot is pinned,
-  a command with one blocked record,
-  and a control command with the look removed.
-  Measure wall time and the ioctl count (`strace -c -e trace=ioctl`) per arm.
-  This sizes the statement in "What the look costs" and decides
-  "V8 The carrier's frequency".
-  If the added cost is above what the project accepts for every command,
-  the fallback is that the look runs only on the ZFS route's own paths,
-  which V8 lists as its second option.
+Arms,
+interleaved in one round on the acceptance workload's repository:
+a command with no cleanup folder,
+a command with one owed record whose snapshot is pinned,
+a command with one blocked record,
+and a control command with the look removed.
+Measure wall time and the ioctl count (`strace -c -e trace=ioctl`) per arm.
+This sizes L13 and decides question one's ranking for this machine.
+If the added cost is above what the project accepts for every command,
+question one's option B is the fallback,
+and it changes only the call site.
 M2 What the absence proof costs on the checkout dataset.
-  The same round,
-  on a checkout dataset holding the snapshots the acceptance workload has
-  (25 own snapshots on this host's home dataset at 2026-11-22T17:22:37-05:00,
-  which is a size and not a cost).
-  Count the `snapshot_list_next` calls and time one complete listing,
-  and compare it with the same listing on a dataset with one snapshot.
-  This sizes the per-look cost an owed record adds on a sanoid-pruned checkout.
+The same round,
+on a checkout dataset holding the snapshots the acceptance workload has
+(25 own snapshots on this host's home dataset at 2026-11-22T17:22:37-05:00,
+which is a size and not a cost).
+Count the `snapshot_list_next` calls and time one complete listing,
+and compare it with the same listing on a dataset with one snapshot.
 M3 What the binding's destroy answers for the four cases.
-  In the throwaway guest,
-  through the binding and not through the `zfs` program:
-  a snapshot with one dependent clone (expect the kernel's `EEXIST` and a per-name list),
-  a held snapshot (expect `EBUSY`),
-  an absent name (expect success and no list),
-  and a name marked with `zfs destroy -d` and submitted without the `defer` key.
-  The same round reads one snapshot's statistics through `objset_stats`,
-  which no host run has done,
-  and which the proof's first step needs.
-  This tests F4 and F5 through the code this design uses,
-  and it decides whether `blockedErrno` can carry an errno in each case.
-M4 Whether the account may destroy the checkout's own snapshot.
-  In the throwaway guest,
-  under the planned descendants-only `mount,destroy` grant on the checkout,
-  as the account:
-  create a snapshot of the checkout,
-  read its identity,
-  and destroy it with one `destroy_snaps` request.
-  Then the same request without the `mount` half of the grant,
-  and with the `destroy` half removed,
-  as the two refusal controls.
-  This decides A2 and therefore whether the accepted authority can carry
-  step 4 of "Removal and recovery" at all.
-  If it cannot,
-  the route needs the owner's decision and the project's records say so
-  rather than this design working around it.
+In the throwaway guest,
+through the binding and not through the `zfs` program:
+a snapshot with one dependent clone (expect the kernel's `EEXIST` and a per-name list),
+a held snapshot (expect `EBUSY`),
+an absent name (expect success and no list),
+and a name marked with `zfs destroy -d` and submitted without the `defer` key.
+The same round reads one snapshot's statistics through `objset_stats`,
+which no host run has done,
+and which the proof's first step needs.
+This tests F4 and F5 through the code this design uses,
+and it decides whether `blockedErrno` can carry an errno in each case.
+M4 The account's delegated destroy of a checkout snapshot,
+under the grants the wrapper really sets.
+The source reading in F22 answers the first half from the kernel:
+a snapshot is checked as a descendant,
+so the descendants-only grant covers it.
+What only a guest can show is that the grant set the build really issues is the planned one,
+that the request succeeds,
+and which refusal each missing half produces.
+The arm writes the grant set the build issues,
+destroys one checkout snapshot as the account,
+and repeats with the `mount` half and the `destroy` half removed.
+This decides A2 and nothing in the design's wording.
 M5 The deferred mark's read and the refusal path.
-  In the throwaway guest:
-  mark a snapshot with `zfs destroy -d`,
-  read `defer_destroy` through `objset_stats` and through the `zfs get` command,
-  and submit one destroy without the `defer` key.
-  This is shared with the sibling design of the deferred-destroy checks,
-  and it decides nothing in this design beyond the `deferred` reason's read (A3).
-M6 Whether a record written before the first delete survives a power cut.
-  In the throwaway guest:
-  write a record,
-  cut the guest's power or drop its caches in a way the guest permits,
-  and prove the record or its absence.
-  If the guest cannot drop caches honestly,
-  the arm is a process kill and the power-cut half stays a documented limit.
+In the throwaway guest:
+mark a snapshot with `zfs destroy -d`,
+read `defer_destroy` through `objset_stats` and through the `zfs get` command,
+and submit one destroy without the `defer` key.
+This is shared with the sibling design of the deferred-destroy checks,
+and it decides nothing here beyond the `deferred` reason's read (A3).
+M6 Whether a record written before the first destroy survives a power cut.
+This is the guest check of question four's answer,
+and of the one-pool premise L8.
+The arm writes the record,
+cuts the guest's power,
+and proves the record or its absence after boot.
+If the guest cannot cut power honestly,
+the arm is a process kill and the power-cut half stays a documented limit.
 M7 What the record's own write costs the removal.
-  In one interleaved round:
-  a removal arm with the record's 16 KiB staging write and rename,
-  and a control arm without it,
-  on the same pool and the same clone shape.
-  This is owed because the write is on the path a person waits on,
-  and it says whether the bound should be smaller.
+In one interleaved round:
+a removal arm with the record's publication,
+and a control arm without it,
+on the same pool and the same clone shape.
+This is owed because the write is on the path a person waits on.
 
 ## Choices this design marks for the project's veto
 
@@ -1963,7 +2527,7 @@ The adopted option is A.
   Example.
   A blocked removal in `/home/user/Monochromatic` leaves
   `.git/monochromatic-git-policy-cli/origin-cleanups/git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f`,
-  and `git status` in any worktree of that repository prints the cleanup line.
+  and a command in any worktree of that repository prints the cleanup line.
   Pros:
   no privilege beyond the account's;
   found from any worktree without a machine-wide scan;
@@ -2033,7 +2597,10 @@ while D needs a delegation the project did not decide and a value bound nothing 
 The adopted option is A.
 
 - A Short `key=value` lines and one JSON object,
-as the leaving record already reads.
+as the leaving record already reads,
+with ZFS names verbatim,
+paths as text only when no escape is needed plus hex always,
+and GUIDs as decimal strings.
   Example.
   A person runs `cat .git/monochromatic-git-policy-cli/origin-cleanups/git-worktree-clone-origin-4f0c1d3ae5b28c6907df1a2b3c4d5e6f`
   and reads `state=blocked` and `blockedReason=dependency` before the long JSON line.
@@ -2041,23 +2608,26 @@ as the leaving record already reads.
   the state reads first for a person;
   a header line carries the version;
   the JSON writer and reader already exist;
-  the file matches the shape of the package's other record.
+  it matches the leaving record and the binding design's header line.
   Cons:
   two grammars in one file;
   a reader must reject a key out of order.
 - B One space-separated line,
-as the recorded identities store writes.
+as the recorded identities store writes,
+with ZFS names as hex and numbers as fields.
   Example.
   The same record reads
   `cleanup v1 owed 12039048377182978123 zpcachyos/...@git-worktree-clone-origin-4f0c... 3745620968172523788 93823 ...`
   on one long line.
   Pros:
   one grammar;
-  a person's `grep` finds a field.
+  a person's `grep` finds a field;
+  no escape question.
   Cons:
   a path with a space needs an escape the store never needed;
   the state hides in the middle of a long line;
-  the JSON writer would go unused.
+  the JSON writer would go unused;
+  hex names are longer than the ZFS names every other record in this route writes verbatim.
 - C One JSON object with everything.
   Example.
   The same record reads `{"version":1,"state":"owed","attemptedAt":null,...}` in one line.
@@ -2074,7 +2644,7 @@ A over C:
 A gives a person the state first and a cheap version check,
 while C puts the state in the middle of escaped text.
 C over B:
-C needs no escaping for a path with a space,
+C needs no escaping for a path with a space and no new field grammar,
 while B would need a new escape rule the store's grammar does not have.
 
 ### V3 The name grammar and the key
@@ -2104,53 +2674,57 @@ The adopted option is A.
   a second key nothing needs;
   a reader must open the file to know which snapshot it is about;
   the pool holds no name to compare it with.
-- C The slot's name.
+- C The slot's name,
+as the binding design keys its record.
   Example.
   `ls` prints `add-cache-layer`,
   and the next add at that slot overwrites the file.
   Pros:
-  a person finds it by the slot they know.
+  a person finds it by the slot they know;
+  all three records could be found from one name.
   Cons:
   the slot is reused by the next add (F15);
   a record must survive exactly that reuse;
   one snapshot's cleanup would erase another's.
 
-The ranking is A then B then C.
-A over B:
-A's key is unique for the life of the snapshot and needs no lookup,
-while B adds a key that nothing in the pool can confirm.
-B over C:
-B's key is at least never reused,
+The ranking is A then C then B.
+A over C:
+A's key is unique for the life of the snapshot and survives the slot's reuse,
 while C's key is reused by the very add the record must outlive.
+C over B:
+C is a name a person and a reader already hold,
+while B adds a key that nothing in the pool can confirm.
 
 ### V4 The moment of the first write
 
 The adopted option is A.
 
-- A Before the first delete,
-after the removal proves lineage and unmounts.
+- A Immediately before the first destroy request,
+after every refusal that must precede a delete.
   Example.
-  A removal killed during the clone's snapshot batch leaves a record saying `owed`,
-  and the next command prints the pending line or records the dependency.
+  A removal killed during the clone's snapshot batch leaves a record saying `owed` beside its live clone,
+  and the next look records `blocked` with reason `dependency`.
+  A removal that refuses at the deferred-destroy check leaves no record at all.
   Pros:
-  the invariant needs nothing from another record's home;
-  `owed` means a snapshot may outlive its clone;
-  the identity was just proved.
+  no refusal leaves a record beside a live clone;
+  the record exists at every point from the first destroy onwards;
+  the tuple was just proved and copied from the binding.
   Cons:
-  the removal pays a durable write before its first delete;
-  a removal that would have refused later leaves a record that clears without work.
-- B At add time,
-with the binding record.
+  the removal pays a durable write before its first destroy;
+  a kill between the write and the first destroy leaves a record that blocks on its own live clone.
+- B Before the removal's refusals,
+just after the unmount.
   Example.
-  Every healthy worktree has a record saying `owed`,
-  and `doctor` prints a pending cleanup beside each one.
+  A removal whose origin is marked for deferred destroy refuses,
+  and leaves a record saying `owed` beside a live unmounted clone,
+  which every look then blocks on its own clone.
   Pros:
-  the record exists even if the removal never runs;
-  the tuple is written as the add proves it.
+  the record is written earlier;
+  one fewer point to reason about.
   Cons:
-  `owed` would be true for every live clone;
-  the report is noise for every worktree;
-  the record's absence stops meaning anything.
+  every refusal and every auto-cancel leaves a record that is not owed (O2);
+  `owed` stops meaning what it says;
+  every look pays a listing for it until the clone is removed.
 - C After the head destroy.
   Example.
   A removal killed between the head destroy and the settle leaves the registration and no record,
@@ -2159,17 +2733,30 @@ with the binding record.
   a record exists only when nothing depends on the snapshot;
   no record for a removal that never destroyed anything.
   Cons:
-  the tuple now depends on the destruction plan's home and lifetime,
-  which is a sibling's undecided item;
-  a kill in that window leaves a leak nothing records.
+  the tuple depends on another record's home and lifetime;
+  a kill in that window leaves a leak nothing records (X1).
+- D At add time,
+with the binding record.
+  Example.
+  Every healthy worktree has a record saying `owed`,
+  and `doctor` prints a pending cleanup beside each one.
+  Pros:
+  the record exists even if the removal never runs.
+  Cons:
+  `owed` would be true for every live clone;
+  the report is noise for every worktree;
+  the record's absence stops meaning anything.
 
-The ranking is A then C then B.
+The ranking is A then C then D then B.
 A over C:
 A's tuple never depends on a record this design does not own,
 while C's does in the one window that matters.
-C over B:
+C over D:
 C never writes a record for a healthy clone,
-while B makes `owed` true everywhere and the report useless.
+while D makes `owed` true everywhere.
+D over B:
+D's records at least mean something while they stand,
+while B writes records for removals that refused and destroyed nothing.
 
 ### V5 The identity fields
 
@@ -2177,13 +2764,17 @@ The adopted option is A.
 
 - A The dataset GUID,
 the snapshot GUID,
-the snapshot's creation group and the names.
+the snapshot's creation group,
+the names and the clone's identity,
+with the dataset's live `dds_origin` read at every attempt.
   Example.
   A live snapshot whose name matches and whose GUID differs makes the attempt record `unproved`,
   and nothing is destroyed.
+  A dataset that gained an origin through a promote does the same.
   Pros:
   both identities the accepted rule names;
   the group ties the snapshot to the add's record;
+  the promote signature is read rather than assumed;
   the comparison a later reviewer can check field by field.
   Cons:
   more fields to encode and to refuse;
@@ -2191,14 +2782,14 @@ the snapshot's creation group and the names.
 - B The snapshot GUID alone.
   Example.
   A live snapshot with the recorded GUID is destroyed,
-  and the dataset it belongs to is not compared.
+  and the dataset is not compared.
   Pros:
-  the smallest proof the absence check needs;
+  the smallest proof;
   the fewest refusals.
   Cons:
   the accepted rule proves the dataset too;
   a mis-filed record with a valid GUID from another dataset would pass;
-  nothing ties the snapshot to the add's group.
+  a promote's moved snapshot is indistinguishable from a deleted one.
 - C The dataset GUID and the snapshot GUID,
 without the group.
   Example.
@@ -2209,13 +2800,12 @@ without the group.
   one fewer field.
   Cons:
   the add's group is lost;
-  the record cannot say when the snapshot was made in the pool's own order;
-  L2's warning about group order is then moot but so is the tie.
+  the record cannot say when the snapshot was made in the pool's own order.
 
 The ranking is A then C then B.
 A over C:
-the group is the add's own statement of which transaction created the snapshot,
-and a record that drops it cannot show the tie V5's own section claims.
+the group and the live origin check are what separate a promoted snapshot from a destroyed one (F20),
+and C would complete on a promote.
 C over B:
 the dataset half states that the snapshot belongs to the named dataset,
 which a GUID alone leaves implicit.
@@ -2235,7 +2825,7 @@ with completion proved by the record's absence.
   the file's existence means work is still owed.
   Cons:
   a person cannot see history of what was cleaned up;
-  the only evidence of a cleanup is the line the command printed.
+  the only evidence is the line the command printed.
 - B A stored `completed` state that a later pass removes.
   Example.
   The same removal leaves `state=completed`,
@@ -2245,7 +2835,6 @@ with completion proved by the record's absence.
   a completion has a durable record.
   Cons:
   every tombstone is a record `doctor` must report and something must remove;
-  a writer killed after the destroy and before the write could leave a lie;
   the file's existence stops meaning work is owed.
 - C Three stored states:
   `owed` or `attempting` or `blocked`.
@@ -2257,8 +2846,7 @@ with completion proved by the record's absence.
   a second command could skip it.
   Cons:
   `attempting` needs a liveness rule the leaving record has only for its owner line;
-  the attempt is idempotent and safe to repeat;
-  a crashed owner would leave `attempting` until someone judged it.
+  the attempt is idempotent and safe to repeat.
 
 The ranking is A then B then C.
 A over B:
@@ -2276,7 +2864,7 @@ The adopted option is A.
 Each attempt re-reads the identity and acts only on a match,
 and two attempts are idempotent.
   Example.
-  Two terminals run `git status` at once with one owed record:
+  Two commands attempt one owed record at once:
   both print the line naming the destroyed snapshot,
   and one of them found the snapshot already gone.
   Pros:
@@ -2287,12 +2875,12 @@ and two attempts are idempotent.
   Cons:
   both commands may submit a destroy of the same name;
   a writer that read an old record may re-create a blocked record once,
-  and the next look removes it.
+  and the next look removes it (T17).
 - B The shared lock-free claim per record.
   Example.
   The same two commands:
   the second prints nothing,
-  and the record is attempted again on the slot's next trigger.
+  and the record is attempted again on the next trigger.
   Pros:
   exactly one attempt at a time;
   one report per attempt;
@@ -2307,49 +2895,52 @@ A over B:
 the effort is idempotent and the only cost of a race is one extra look,
 while B adds a durable folder whose entries nothing removes on purpose.
 
-### V8 The carrier's frequency
+### V8 The staging names doctor removes
 
 The adopted option is A.
 
-- A Every command of the repository.
+- A Report them and remove none.
   Example.
-  `git status` in the checkout prints one line naming the origin snapshot it destroyed,
-  or one line saying the record is blocked.
+  A killed writer leaves `.git-worktree-clone-origin-4f0c....<random>.partial`,
+  `doctor` prints its name and says to delete it when no command runs,
+  and the look never reads it.
   Pros:
-  the cleanup ends even if no worktree is added or removed again;
-  the same position as the leaving look;
-  no new channel and no timer.
+  a live attempt's staging name is never removed under it;
+  no second rule needs the writer's liveness;
+  nothing a person did not ask for is deleted.
   Cons:
-  a command that touches nothing of the ZFS route still pays the look;
-  the cost is unmeasured (M1);
-  no ceiling is shipped until M1 sizes one.
-- B Only commands that enter the ZFS route.
+  a killed writer's name stays until a person removes it;
+  the report repeats on every `doctor` run.
+- B Remove them unconditionally,
+as the store decision gives to step 18's `doctor` for the store.
   Example.
-  The record waits until the next `git worktree add` or `git worktree remove` in that repository.
+  Two `doctor` runs while a slow removal is publishing leave the removal's rename failing once,
+  and its record write is retried or the removal refuses.
   Pros:
-  the look only costs commands already doing ZFS work;
-  fewer notices.
+  no litter at all;
+  one rule for the store and this folder.
   Cons:
-  a repository whose last worktree was removed never cleans up from a person's ordinary commands;
-  the record waits on work that may never come.
-- C Only removals of that repository.
+  a live writer's file is removed under it;
+  the store's writer holds no claim and its decision covers the store (F23);
+  a cleanup attempt's write fails for a reason a person caused.
+- C Remove them only when older than a bound.
   Example.
-  The record waits for the next removal in that repository,
-  which may never happen.
+  A staging name older than the bound is removed;
+  a younger one is left.
   Pros:
-  the fewest looks of all.
+  litter is bounded;
+  a live writer is unlikely to be affected.
   Cons:
-  a single blocked removal leaves space pinned until another removal;
-  `doctor` would be the only sight of it;
-  the lost-trigger case becomes the normal case.
+  the bound is a number nothing measured (rule `LQM`);
+  a slow pool or a long queue can still race it.
 
-The ranking is A then B then C.
-A over B:
-A ends the cleanup on a command that will happen anyway,
-while B waits for a ZFS route the repository may never use again.
-B over C:
-B still fires on the route's next use and costs only commands already paying for ZFS work,
-while C waits for a removal that may never come.
+The ranking is A then C then B.
+A over C:
+A needs no unmeasured number and no race,
+while C's bound is exactly the number this design refuses to invent.
+C over B:
+C at least cannot remove a file a live writer wrote a moment ago,
+while B can.
 
 ### V9 A new add over a slot with a pending record
 
@@ -2367,7 +2958,8 @@ The adopted option is A.
   Cons:
   a person does not learn that a cleanup is pending from the add;
   the report carries two things a person must read together.
-- B Refuse the add until the record clears.
+- B Refuse the add until the record clears,
+as the binding design keeps its binding for a blocked origin.
   Example.
   The same add is refused with
   "an origin cleanup is pending for this slot".
@@ -2390,13 +2982,13 @@ The adopted option is A.
 
 - A Nothing new.
 `doctor` prints the commands that show the cause and the command that destroys the snapshot,
-and the record clears itself on the next command after the absence.
+and the record clears itself on the next attempt after the absence.
   Example.
-  A record is `unproved`;
-  a person runs `zfs get guid '<dataset>@<snapshot>'`,
-  sees another GUID,
-  and leaves the record because the snapshot is not the one it names;
-  or destroys the snapshot and the next command removes the record.
+  A record is `unproved` after a promote;
+  a person reads the origin with `zfs get origin`,
+  decides the snapshot is the one the record names,
+  destroys it,
+  and the next attempt finds the dataset's GUID matching and the snapshot absent.
   Pros:
   no new command to design,
   test and guard;
@@ -2444,7 +3036,8 @@ The adopted option is A.
 - A The unaccounted origin snapshot line,
 report only.
   Example.
-  `doctor` prints that `<dataset>@git-worktree-clone-origin-9ab1...` has no clone and no record,
+  `doctor` prints that `<dataset>@git-worktree-clone-origin-9ab1...` has no clone,
+  no record and no live binding,
   and prints the `zfs destroy` command a person may run.
   Pros:
   a lost record or a killed add becomes visible;
@@ -2453,7 +3046,8 @@ report only.
   Cons:
   one listing of the checkout's snapshots when `doctor` runs;
   a snapshot another writer made under the same prefix would be named;
-  the line is a suggestion this design makes and no decision asks for.
+  it reads the binding design's folder for live names,
+which no record asks a report to do.
 - B Nothing beyond the records.
   Example.
   `doctor` prints nothing for that snapshot,
@@ -2483,43 +3077,199 @@ C over B:
 C at least names what it acts on and can be refused,
 while B leaves the space invisible to every command.
 
+### V12 The folder family
+
+The adopted option is A.
+
+- A Inside the wrapper's own folder,
+as `<common>/monochromatic-git-policy-cli/origin-cleanups/`.
+  Example.
+  A person lists `.git/monochromatic-git-policy-cli/` and sees `leavings`,
+  `origin-cleanups` and the wrapper's logs in one place.
+  Pros:
+  the rename machinery moves it with the folder it is in;
+  one place holds every wrapper record of that repository;
+  a person finds it beside the leavings record.
+  Cons:
+  the folder's name says nothing of the route;
+  the plan design's folder and this one are siblings by accident rather than by grammar.
+- B A route family of its own,
+as `<common>/monochromatic-git-policy-cli-worktree-clone/v1/origin-cleanups/`,
+which the binding design's family would hold.
+  Example.
+  A person lists the route's family and sees `binding`,
+  `origin-cleanups` and the plan folder under one version.
+  Pros:
+  the route's records share one versioned family;
+  a later grammar cannot be read as this one.
+  Cons:
+  the family name needs its own entry in the rename machinery;
+  this record's folder then depends on the binding design's home;
+  two accounts of one route's records are told apart only by a folder name.
+- C A top-level folder beside the wrapper's own.
+  Example.
+  A person lists `.git/` and sees `monochromatic-git-policy-cli` and
+  `monochromatic-git-policy-cli-origin-cleanups` side by side.
+  Pros:
+  the record survives a rename of the wrapper's folder.
+  Cons:
+  two names to move at a rename;
+  a repository's `.git` gains another entry for one record.
+
+The ranking is A then B then C.
+A over B:
+A needs no new rename entry and no dependence on the binding design's home,
+and it is where every wrapper record of the repository already lives.
+B over C:
+B keeps the route's records together under one version,
+while C adds a second top-level name to every repository's `.git`.
+
 ## Questions only the project can answer
 
 Each question is about values,
-risk or cost,
+risk or authority,
 and no measurement settles it.
-Each option is whole,
-and each example names what a person would see.
+The first two are the review's merged questions,
+and this design's own question is the third.
 
-### Q1 When a pending record speaks
+### Question one: may an ordinary wrapped command destroy a leftover origin snapshot
 
-A record's attempt can destroy a snapshot on a command a person ran for something else.
-The question is how often the look may say so.
+The records say less than an answer would need,
+and this design quotes them exactly:
+the root handler and its unit own mount and unmount,
+"not Git or automatic deletion" (`doc/decision/cli-git-zfs-worktree-design.md:32` to `:33`);
+a normal authorized removal destroys "the clone and its own snapshots" in that invocation
+(`:36` to `:37`),
+which is not the origin snapshot;
+and the trigger answer names three triggers,
+none of which is an ordinary command (the proposal `:1393` to `:1398`).
+So the records leave open what the account's own commands may destroy,
+and no option below is one a record excludes:
+a root-side destroy is excluded by the decision record's `:32` to `:33`
+and by the proposal's `:483` to `:485`,
+and it is not offered.
+
+The scene:
+a person removed `fix-flaky-test` while a second clone made from the same origin snapshot kept it blocked,
+the second clone is removed later,
+and the person runs `git status` in `/home/user/Monochromatic`.
+
+- A The look runs on every wrapped command of the repository,
+destroying the snapshot on whichever command comes first.
+  The person sees one line on standard error:
+  "destroyed `...monochromatic-git-checkout@git-worktree-clone-origin-4f0c...`".
+  Pros:
+  the cleanup ends even if the repository never runs another worktree command;
+  the same position as the leavings look.
+  Cons:
+  `git status` issues a snapshot destroy,
+which the precedent look never does;
+  every command pays an unmeasured cost (M1);
+  it needs the gate and `/dev/zfs` rules of "When the route's gate refuses".
+- B The look runs only on commands that already enter the ZFS route
+(`git worktree add` or `remove` or `list` or `prune` or `repair`)
+and in `doctor`.
+  `git status` prints nothing;
+  the next `git worktree add` destroys the snapshot and prints the same line.
+  Pros:
+  the destructive act stays on commands chosen for worktree work;
+  unrelated commands pay nothing;
+  the trigger answer already accepted "unavailable until next trigger" as moot.
+  Cons:
+  a repository that never runs one of them keeps the snapshot and its space.
+- C Only the removal's own invocation destroys it,
+and a person-run step otherwise.
+  `doctor` prints `zfs destroy '<dataset>@<snapshot>'` and nothing else destroys.
+  Pros:
+  no destroy without a person;
+  no per-command cost.
+  Cons:
+  a blocked cleanup waits for a person who may never look.
+- D A user timer.
+  Pros:
+  no person or command needed.
+  Cons:
+  the trigger answer left a periodic sweep out and its coalescing rule is unwritten (the proposal `:1398` to `:1402`).
+
+The ranking is B then A then C then D.
+B beats A because the destructive act stays on commands a person chose for worktree work,
+the trigger answer already accepts waiting for the next trigger,
+and A's per-command cost and gate behaviour are unmeasured.
+A beats C because A ends the cleanup with no person and prints what it did.
+C beats D because C needs no period or timer the project has not designed.
+The design's look is one function at two call sites,
+so either A or B changes the call site and no rule of the attempt.
+
+### Question two: what trace of a destruction outlives the removal
+
+The scene:
+a removal printed `@earliest` and `@origin` as lost and finished;
+a week later the person asks what went.
+
+- A Nothing beyond the removal's printed report and the records while they stand.
+  Pros:
+  no new store;
+  the report is where the person looked.
+  Cons:
+  a person who missed the line has no answer.
+- B One line in the wrapper's audit log per removal and per origin cleanup,
+beside the discarded-side audit.
+  The log gains
+  `2026-11-22T18:40:12-05:00 removed fix-flaky-test; destroyed 2 snapshots; origin snapshot destroyed`.
+  Pros:
+  bounded to one line per event;
+  readable later;
+  an existing family.
+  Cons:
+  a new retention question for a log that grows with every removal.
+- C A notice the next commands print.
+  Pros:
+  the loss reaches a person who did not read the removal's output.
+  Cons:
+  a second record of the same fact,
+  printed on unrelated commands,
+  about work the wrapper destroyed and not kept.
+- D An append-only history `doctor` reports.
+  Pros:
+  always answerable.
+  Cons:
+  unbounded,
+  with no reader that acts on it.
+
+The ranking is A then B then C then D.
+A beats B because no project record asks for a new store and the report already prints the loss.
+B beats C because an audit line is bounded and silent until read,
+while a notice repeats on commands that had nothing to do with it.
+C beats D because a notice can be bounded and a history cannot.
+
+### Question three: when does a pending origin record speak
+
+This is this design's own question,
+and its answer depends on question one,
+because fewer commands mean fewer lines.
 
 - A One line when it destroys a snapshot or when a record's state changes,
 and nothing on an attempt that finds the same block again.
   Example.
-  A person runs `git status`;
-  the look destroys the snapshot and prints one line naming it.
-  A second `git status` in the same state prints nothing.
+  A person runs a command that runs the look;
+  it destroys the snapshot and prints one line naming it.
+  A second command in the same state prints nothing.
   Pros:
   a person sees every destruction;
-  a blocked record does not repeat itself on every command;
+  a blocked record does not repeat itself;
   the notice has a reason to appear.
   Cons:
-  a person who was not looking at the first line may miss the destruction;
+  a person who was not looking may miss the destruction;
   the eventual cleanup of a long-blocked record is silent until it happens.
 - B One line on every attempt,
 blocked or not.
   Example.
-  Every command in the repository prints the same blocked line until the cause clears.
+  Every command prints the same blocked line until the cause clears.
   Pros:
-  a person cannot miss the pending cleanup;
-  the state is visible at every turn.
+  a person cannot miss the pending cleanup.
   Cons:
   the line competes with every command's own output;
-  a long block makes the wrapper noisy enough that people stop reading it;
-  it is a change to every command of the repository.
+  a long block makes the wrapper noisy enough that people stop reading.
 - C Nothing outside `doctor`.
   Example.
   The look destroys the snapshot silently,
@@ -2528,8 +3278,7 @@ blocked or not.
   no command gains output;
   one place owns the report.
   Cons:
-  a destructive act with nobody waiting leaves no sight of it at the moment it happens;
-  a person must run `doctor` to learn of a cleanup their own repository owes.
+  a destructive act with nobody waiting leaves no sight of it when it happens.
 
 The ranking is A then C then B.
 A over C:
@@ -2540,101 +3289,88 @@ C over B:
 C keeps the wrapper's commands quiet in the normal case,
 while B prints a blocked line on every command for as long as the block lasts.
 
-### Q2 Whether a root-side trigger may reach the cleanup
+### Question four: one flush rule for the route's records
 
-This design's carrier is the wrapper's own look ("V8 The carrier's frequency").
-The question is whether the project wants a trigger that does not need a person's command in that repository.
+Only the project can answer how much evidence it will risk for how much cost.
+The cost half is measurable on ZFS (M7 and the binding design's M1);
+the risk half is not.
+The premise of the ordering argument is L8,
+and M6 is the guest check of whichever answer the project gives.
 
-- A The wrapper's own look only.
-  Example.
-  A blocked record in a repository nobody touches stays until someone runs any command there.
+The scene:
+power is cut right after `zfs destroy` of a clone's snapshot returns.
+
+- A No flush for any of the three records,
+stating the ZFS ordering as the reason.
+  Source reading (F21):
+  the destroy waits for its transaction group and groups sync in order,
+  so a record written before the destroy is on disk when it returns,
+  one pool assumed.
+  After boot the record says `owed` and the next look proves the snapshot gone.
   Pros:
-  no privilege crosses the account boundary;
-  no channel root does not already have;
-  the same trigger rule the project already answered;
-  nothing to install.
+  no wait;
+  matches the ZFS facts for write-ahead records.
   Cons:
-  an idle repository keeps the space;
-  a lost record can outlive the person's use of the repository.
-- B A root-side trigger that reads the account's cleanup folder and either destroys the snapshot as root
-or writes an account-readable nudge.
-  Example.
-  The boot unit reads every home's cleanup folders and prints a journal line for each pending record,
-  or destroys the snapshot with root's own authority.
+  a record written after an object exists (the binding) can be lost with an orphan clone.
+- B Flush every publication,
+as the binding design chooses.
   Pros:
-  the cleanup ends without a person's command;
-  an idle repository still cleans up.
+  simple,
+  one rule.
   Cons:
-  root would parse and act on account-owned content;
-  destroying as root contradicts the decided account authority;
-  reading every home at boot is a new cost and a new privilege seam;
-  a nudge needs a channel and a rate rule the project has not designed.
-- C A user timer that runs a wrapper sweep.
-  Example.
-  A `systemd` user timer runs `monochromatic-git-policy-cli` every hour in each repository.
+  a flush is a ZIL commit per write for the file only,
+  and OpenZFS logs a rename only when the dataset's `sync` is `always`,
+  so the name's durability is not bought;
+  every outcome write pays it.
+- C By position:
+no flush for a write made before an irreversible step,
+which is this design's record and the plan's `requested` and `head=requested` writes;
+a flush for a write made after an object exists that nothing else can prove,
+which is the binding's.
   Pros:
-  no privilege crosses the boundary;
-  the cleanup ends on a clock.
+  pays only where a loss costs an unprovable object or lost evidence;
+  one rule with one premise.
   Cons:
-  the project answered triggers only and rejected a periodic sweep;
-  a timer needs a period nothing measured;
-  it wakes a machine at intervals for space that may not matter.
+  two rules to keep;
+  the premise (L8) must hold and be tested.
 
-The ranking is A then C then B.
-A over C:
-A stays inside the project's trigger answer and needs no period to justify,
-while C reintroduces the periodic sweep the project rejected.
-C over B:
-C keeps root out of the account's records,
-while B gives root a new parser and a new authority over account-owned content.
+The ranking is C then A then B.
+C beats A because it spends a flush exactly where a loss is unrecoverable and A leaves the binding's orphan case
+unprotected.
+A beats B because B pays a commit on every write and still does not make the name durable.
+This design is written for C,
+and a veto of C changes one call in its publication.
 
-### Q3 Whether a cleanup leaves an audit line
+### Question five: what does a reader do with a record it cannot read
 
-The look prints a line when it destroys a snapshot (Q1's option A).
-The wrapper also keeps durable audit loops for other acts.
-The question is whether an origin cleanup writes one.
+The scene:
+a power cut leaves `7828944690444299989` cut short in a record's folder.
 
-- A No durable audit line.
-The printed line and the `doctor` lines are the whole record.
-  Example.
-  The snapshot is destroyed and the line is printed;
-  nothing in the repository's logs names the snapshot afterwards.
+- A Refuse and change nothing and name the file,
+which is what this design does.
+  The removal prints the path and what was read and says nothing was destroyed.
   Pros:
-  no log grows with every removal;
-  no second source of truth about what was destroyed.
+  the only evidence of a destroyed snapshot or an owed origin stays.
   Cons:
-  a person who missed the line cannot find the destruction later;
-  an audit of space reclaimed has nothing to read.
-- B A line in the wrapper's audit log for each cleanup,
-beside the discarded-side audit.
-  Example.
-  The repository's audit log gains one line naming the snapshot's GUID and the time.
+  the slot or the removal waits for a person.
+- B Move it into an `unreadable/` folder and go on,
+as the specification's copy records do (`package/git-policy/cli/SPEC.md:4863`).
   Pros:
-  a destruction with nobody waiting is auditable;
-  the line survives the terminal.
+  the removal can proceed;
+  the bytes are kept.
   Cons:
-  a new record family and its retention question;
-  the log grows with every removal;
-  nothing in the project's records asks for it.
-- C A line only when the outcome is blocked or unknown.
-  Example.
-  A blocked record writes one audit line when it first blocks,
-  and a success writes none.
+  the record's tuples are lost to their readers,
+  and a pinned origin has no record naming it.
+- C Say it once and drop it,
+as the existing finish pass does (`worktree/worktree_removal_finishes_an_interrupted_destroy.rs:241`).
   Pros:
-  the unusual case is auditable;
-  successes do not grow a log.
+  nothing waits.
   Cons:
-  the rule is asymmetric and needs its own reasoning;
-  a blocked record that clears writes nothing about the clearing.
+  the evidence is gone.
 
-The ranking is A then C then B.
-A over C:
-A's report is the line the person's own command printed,
-which is where they were looking,
-while C writes a second place for one case and not the other.
-C over B:
-C's growth is bounded by the blocked cases,
-while B grows with every removal the route makes.
+The ranking is A then B then C.
+A beats B because this record's one job is to be evidence and B's convenience spends it.
+B beats C because B keeps the bytes for a person.
 
 ## What this design does not cover
 
@@ -2642,11 +3378,11 @@ Each item below belongs to another record,
 and this design states the dependency it makes on each.
 
 - Where the add's durable binding record lives and what its format is.
-  This design reads that record's origin identities before the first delete (A1).
+  This design reads that record's origin identities before the first destroy (A1 and F24).
 - Where a removal's persisted destruction plan lives and what its format is.
   This design deliberately does not reuse it,
   because the plan may be finished when the removal is,
-  and the record must outlive the removal ("V4 The moment of the first write").
+  and the record must outlive the removal (V4 and F25).
 - How the add-time Git lock is written,
   told from an operator's lock,
   and released.
@@ -2660,55 +3396,88 @@ and this design states the dependency it makes on each.
   so the forced arm changes nothing here.
 - What a cancelled or interrupted removal leaves,
   and what the cancel command proves.
-  This design's record is written before the harm,
-  so an interrupted removal finds it ("The kill windows").
+  This design's record is written before the first destroy,
+  so a cancelled removal that had not destroyed anything leaves none,
+  and one that had destroyed something leaves the record beside its live clone (O2);
+  reversing a removal's intent is the cancelled-removal design's business.
 - Staging under `~/.cache` and the unmount from a held descriptor.
   This design starts after the unmount has been verified.
 - What re-applies private propagation after a replacement mount.
 - Which triggers a lost last mount event waits for.
-  This design's carrier is a trigger of its own ("Who carries the cleanup and when").
+  Question one is this design's own call site,
+  and the mount route's triggers are the proposal's.
 - The Git settle itself:
   which Git command removes the registration and the pointer,
   and what it prints.
   This design writes nothing to Git and reads nothing from it.
-- Whether the account's delegation covers a checkout snapshot's destroy.
-  M4 decides it,
-  and the design refuses to work around a refusal.
+- Whether the account's delegation covers a checkout snapshot's destroy in the wrapper's real grant set.
+  F22 answers it from the kernel and M4 is the guest check.
 - Where a cleanup in a repository whose path is gone is reported from.
   L4 and L5 say it is not reported,
   and the unaccounted-snapshot line reaches only the cases a live repository can see.
 - A machine-wide index of pending cleanups.
   The unaccounted-snapshot line is per checkout dataset,
   and nothing lists every account's repositories.
+- A removal record of its own.
+  This design writes none (disagreement 13).
 - Migration of written records.
   Nothing of the ZFS route is released,
   so no record exists to migrate
   (`doc/decision/cli-git-zfs-slot-identity-store-format.md:77` to `:78`).
 
-## This round
+## Revisions
 
-This document is the round's only product.
-It is non-final and unapproved,
-and no review of it was ordered,
-which the round's rules forbid while it runs.
+Each commit whose pathspec is this file,
+with the committer time `git log --format=%cI` reports and what it changed.
 
-The round read the records and the code named under "Sources read",
-cloned OpenZFS `zfs-2.4.4` and Git `v2.56.1` into its scratch folder,
-and set each clone's push address to `DISABLED` before anything else ran.
-It ran the three probes of "What this round ran".
-It started no guest,
-no container and no service manager,
-and it changed no pool,
-no mount and no file outside this document and its scratch and keep folders.
-
-Every measurement this design needs is unrun,
-and "Measurements owed" lists each with the arm that would run it.
-Nothing of this design is built,
-so no statement here rests on code this round wrote.
-
-The commits that carry this document are the ones whose subject begins
-`docs(planning):` and whose pathspec is this file,
-and the round's final report states each with the time `git log --format=%cI` reports for it.
+- `3428988897`,
+  2026-11-22T17:34:23-05:00:
+  the first version,
+  written in the round before the gate review,
+  with the home,
+  the writer,
+  the fields,
+  the states,
+  the carrier,
+  `doctor`,
+  the tests,
+  the veto list and the questions.
+- `377c74abe8`,
+  2026-11-22T17:37:36-05:00:
+  the carrier,
+  the `doctor` lines and the veto list of the first version.
+- `649f4f7b19`,
+  2026-11-22T17:37:57-05:00:
+  the kernel fact that the clone count is filled only for a snapshot.
+- `f42eb80232`,
+  2026-11-22T17:38:08-05:00:
+  the linter's positive control and what the first round ran.
+- `4daa6c66ce`,
+  2026-11-22T17:38:19-05:00:
+  what `doctor` prints for a finished cleanup,
+  which is the tip the gate review read.
+- The commit that activates this revision,
+  its time in `git log`:
+  it rewrites the order and the moment (X1 and O2),
+  the lifetime and the promote proof (O1),
+  the carrier's place in the questions (O3 and the merged question one),
+  the look's preconditions (O4),
+  the owner-and-mode rule (O5),
+  the first write's primitive and the guest seams (O6),
+  durability (O7 and question four),
+  the resurrect race's control (O8),
+  the bound (O9),
+  the folder's staying and the cost claims (O10),
+  the order's attempt before the settle (O11),
+  the unaccounted line's live bindings (O12),
+  M4 (O13),
+  the printing rule (O14),
+  the settle-decision sentence (O15),
+  the marked elisions (O16),
+  the recovery without a Git entry (X2),
+  the fourteen disagreements,
+  this section,
+  and every citation the check corrected.
 
 ## References
 
@@ -2730,27 +3499,35 @@ the threat model this design designs to.
 the staging design whose shape this document follows.
 - [`doc/decision/cli-git-zfs-step-8-sweep-choices.md`](../decision/cli-git-zfs-step-8-sweep-choices.md),
 the no-configuration answer.
+- [`doc/decision/cli-git-zfs-start-probe.md`](../decision/cli-git-zfs-start-probe.md),
+the answer that a failed arm refuses new attaches only.
 - [`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`](cli-git-zfs-measurements-owed-before-acceptance.md),
 the guest measurements this design cites.
 
-The designs this one depends on and does not read as decided:
+The sibling designs this design reads and does not edit:
+
+- `doc/planning/cli-git-zfs-add-binding-record-design.md`,
+  read at `1e9bc35f1e`.
+- `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+  read at `a7823980b9`.
+
+The other sibling designs this design depends on and does not read as decided:
 
 - `doc/planning/cli-git-zfs-add-time-git-lock-design.md`.
-- `doc/planning/cli-git-zfs-add-binding-record-design.md`.
-- `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`.
 - `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`.
 - `doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`.
 - `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`.
 - `doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`.
 - `doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`.
 
-The round's kept evidence:
+The review and the round's kept evidence:
 
+- `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`.
 - `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/host-zfs-snapshot-facts.log`,
   which F13 reads.
 - `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/host-zfs-missing-dataset.log`,
   which F14 reads.
 - `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/defer-read.txt`,
   which F13 reads.
-- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/git-worktree-slot-reuse.log`,
+- `~/temp/agent/zfs-origin-cleanup-record-design-2026-11-22/keep/git-worktree-slot-reuse-exitcodes.log`,
   which F15 reads.
