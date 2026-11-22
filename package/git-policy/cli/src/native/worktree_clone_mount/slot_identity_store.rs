@@ -29,7 +29,8 @@
 //! ```
 
 use super::clone_folder_identity::{CloneFolderIdentity, PERMISSION_BITS};
-use super::slot_identity_store_records::{STORE_HEADER, StoredIdentity, parse_records, slot_name_refusal};
+use super::slot_identity_store_records::{STORE_HEADER, StoredIdentity, parse_records};
+use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::{StoreRefusal, unreadable, write_refusal};
 use crate::diagnostic_log::{debug, warn};
 use crate::private_storage::{open_regular_file, read_regular_file, replace_private_file, sync_directory};

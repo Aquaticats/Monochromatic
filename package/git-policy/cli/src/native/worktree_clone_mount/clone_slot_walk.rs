@@ -23,7 +23,7 @@
 use super::clone_folder_identity::CloneFolderIdentity;
 use super::clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason, chain_walk_refusal, fields_refusal, one_component_refusal};
 use super::slot_identity_store::SlotIdentityStore;
-use super::slot_identity_store_records::slot_name_refusal;
+use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::StoreRefusal;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, device_of, handle_directory_at, identity_of, open_directory_at, open_root};
