@@ -127,7 +127,9 @@ impl StagedFolderIdentity {
         if self.inode != recorded.inode {
             fields.push(StagedFolderField::Inode);
         }
-        if self.birth != recorded.birth {
+        // A record that holds no birth time did not record the field, so it compares nothing there. A record that
+        // holds one compares it strictly.
+        if recorded.birth.is_some() && self.birth != recorded.birth {
             fields.push(StagedFolderField::Birth);
         }
         if self.owner != recorded.owner {
@@ -137,6 +139,24 @@ impl StagedFolderIdentity {
             fields.push(StagedFolderField::Mode);
         }
         return fields;
+    }
+
+    /// What:
+    ///  The same five fields read from the slot identity the store records.
+    /// Why:
+    ///  A reattach compares the slot folder's identity,
+    ///  and the store keeps device,
+    ///  inode,
+    ///  owner and mode plus both ACLs but no birth time,
+    ///  so the field the store does not hold is left unrecorded rather than
+    ///  guessed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const identity = StagedFolderIdentity.fromCloneFolder(recorded);
+    /// ```
+    pub fn from_clone_folder(recorded: &crate::worktree_clone_mount::CloneFolderIdentity) -> Self {
+        return StagedFolderIdentity { device: recorded.device, inode: recorded.inode, birth: None, owner: recorded.owner, mode: recorded.mode & 0o7777 };
     }
 
     /// The fields as one phrase,

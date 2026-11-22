@@ -26,11 +26,19 @@
 use super::sweep_attach_step::{AttachStepOutcome, VERIFY_STEP};
 use super::sweep_clone_check::{CloneRefusal, VerifiedClone, slot_of};
 use super::sweep_dataset_facts::CloneObjectFacts;
-use super::sweep_one_clone::{CloneOutcome, RECEIPT_STEP, SweepContext, UNMOUNT_AWAITS_STEP_NINE};
+use super::sweep_one_clone::{CloneOutcome, RECEIPT_STEP, SweepContext};
 use crate::diagnostic_log::{debug, warn};
 use crate::start_probe::first_attach_record::{FirstAttachClaim, FirstAttachOutcome, NONE as FIRST_ATTACH_NONE};
-use crate::worktree_clone_mount::{LookAgainAtSlotRequest, MountIdentity, mount_facts_of};
+use crate::worktree_clone_mount::{LookAgainAtSlotRequest, MountIdentity, SlotIdentityStore, look_again_at_the_slot, mount_facts_of};
 use crate::worktree_clone_mount_protocol::{CloneMountReceipt, IntentReading, MountIntent, ReceiptMountIdentity, ReceiptOutcome, read_intent};
+use crate::worktree_clone_unmount::slot_walk_calls::{DatasetGuids, LiveSlotWalk};
+use crate::worktree_clone_unmount::staged_folder_identity::StagedFolderIdentity;
+use crate::worktree_clone_unmount::staging_calls::LiveStagingCalls;
+use crate::worktree_clone_unmount::unmount_checks::ExpectedMount;
+use crate::worktree_clone_unmount::unmount_turn::{unmount_the_clone, UnmountOutcome, UnmountRequest};
+use crate::worktree_clone_unmount::user_cache_pin::{open_cache, passwd_home_of, read_pin, UserCachePin, USER_CACHE_PIN_PATH};
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 
 /// Module tag for diagnostics.
 const TAG: &str = "sweepOneCloneAnswers";
@@ -114,14 +122,109 @@ fn the_key_refusals_receipt(context: &SweepContext<'_>, facts: &CloneObjectFacts
 /// ```ts
 /// const outcome = answerUnmount(verified, request);
 /// ```
-pub(super) fn answer_unmount(verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
-    let said: String = format!(
-        "the clone `{}` asks for its mount to be unmounted under nonce {}, and the unmount is plan step 9's, so nothing was taken down and the durable intent stays on the clone",
-        verified.dataset_name,
-        request.nonce.as_str()
-    );
-    warn(TAG, said.as_str());
-    return CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(UNMOUNT_AWAITS_STEP_NINE), said };
+pub(super) fn answer_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
+    let fresh = match look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: context.checkout, slot: verified.slot.as_str() }) {
+        Ok(fresh) => fresh,
+        Err(refusal) => return refuse_an_unmount(context, verified, request, "look-again", refusal.message()),
+    };
+    let recorded = match SlotIdentityStore::open_under_root_control(context.store).and_then(|store| return store.slot(verified.slot.as_str())) {
+        Ok(recorded) => recorded,
+        Err(refusal) => return refuse_an_unmount(context, verified, request, "slot-identity", refusal.message()),
+    };
+    let owner_uid = match std::fs::metadata(context.checkout) {
+        Ok(facts) => facts.uid(),
+        Err(error) => return refuse_an_unmount(context, verified, request, "account-home", format!("the checkout's owner could not be read: {error}")),
+    };
+    let home = match passwd_home_of(owner_uid) {
+        Ok(home) => home,
+        Err(refusal) => return refuse_an_unmount(context, verified, request, "account-home", refusal.message()),
+    };
+    let cache = match open_cache(home.as_path()) {
+        Ok(cache) => cache,
+        Err(refusal) => return refuse_an_unmount(context, verified, request, "user-cache", refusal.message()),
+    };
+    let pin: UserCachePin = match read_pin(Path::new(USER_CACHE_PIN_PATH)) {
+        Ok(pin) => pin,
+        Err(refusal) => return refuse_an_unmount(context, verified, request, "user-cache-pin", refusal.message()),
+    };
+    let canonical_slot = context.checkout.join(".claude/worktrees").join(verified.slot.as_str());
+    let expected = ExpectedMount {
+        mount_id: fresh.mount_id,
+        parent_mount_id: fresh.parent_mount_id,
+        device: fresh.slot_identity.device,
+        inode: fresh.slot_identity.inode,
+        canonical_slot: canonical_slot.clone(),
+        source: verified.dataset_name.clone(),
+        guid: verified.dataset,
+    };
+    let slot_identity: StagedFolderIdentity = StagedFolderIdentity::from_clone_folder(&recorded);
+    let guids = HandlerDatasetGuids { reader: context.reader };
+    let calls = LiveStagingCalls;
+    let walk = LiveSlotWalk;
+    let cache_path = home.join(".cache");
+    let turn = UnmountRequest {
+        checkout: context.checkout,
+        slot: verified.slot.as_str(),
+        nonce: request.nonce.as_str(),
+        expected: &expected,
+        slot_identity: &slot_identity,
+        pin: &pin,
+        cache: &cache,
+        cache_path: cache_path.as_path(),
+        boot: context.boot,
+        calls: &calls,
+        walk: &walk,
+        guids: &guids,
+    };
+    let outcome: UnmountOutcome = unmount_the_clone(&turn);
+    return answer_the_unmount(context, verified, request, outcome);
+}
+
+/// What:
+///  The live dataset GUID read,
+///  from the sweep's own pool reader.
+/// Why:
+///  The unmount's GUID comparison needs the pool's answer,
+///  and the handler already holds the one reader a control can script.
+struct HandlerDatasetGuids<'a> {
+    reader: &'a dyn crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader,
+}
+
+impl DatasetGuids for HandlerDatasetGuids<'_> {
+    fn live_guid(&self, dataset: &str) -> Result<crate::worktree_clone_mount_protocol::DatasetGuid, String> {
+        let identity = self.reader.identity(dataset).map_err(|refusal| return refusal.message())?;
+        return crate::worktree_clone_mount_protocol::DatasetGuid::parse(identity.stats.dds_guid.to_string().as_str()).map_err(|refusal| return refusal.message());
+    }
+}
+
+/// File the receipt of one unmount outcome and answer the clone's line.
+fn answer_the_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent, outcome: UnmountOutcome) -> CloneOutcome {
+    let (receipt_outcome, failed_step, errno): (ReceiptOutcome, Option<String>, Option<String>) = match &outcome {
+        UnmountOutcome::Unmounted { .. } => (ReceiptOutcome::Done, None, None),
+        UnmountOutcome::Reattached { .. } => (ReceiptOutcome::Reattached, None, None),
+        UnmountOutcome::Retained { step, errno, .. } => (ReceiptOutcome::Failed, Some(step.clone()), if *errno == 0 { None } else { Some(errno.to_string()) }),
+        UnmountOutcome::Refused { step, errno, .. } => (ReceiptOutcome::Refused, Some(step.clone()), if *errno == 0 { None } else { Some(errno.to_string()) }),
+    };
+    let receipt: CloneMountReceipt = receipt_of(context, verified, request, receipt_outcome, None, failed_step.as_deref(), errno);
+    if let Err(filed) = context.receipts.publish(&receipt) {
+        return CloneOutcome::Failed { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(RECEIPT_STEP), said: format!("the unmount's receipt could not be filed: {}", filed.message()) };
+    }
+    return match outcome {
+        UnmountOutcome::Unmounted { mount_id, .. } => CloneOutcome::Unmounted { name: verified.dataset_name.clone(), slot: verified.slot.clone(), mount_id },
+        UnmountOutcome::Reattached { mount_id, bind_gone, .. } => CloneOutcome::Reattached { name: verified.dataset_name.clone(), slot: verified.slot.clone(), mount_id, bind_gone },
+        UnmountOutcome::Retained { step, said, .. } => CloneOutcome::Failed { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step, said },
+        UnmountOutcome::Refused { step, said, .. } => CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step, said },
+    };
+}
+
+/// File the refusal that stops an unmount before its turn can build a request,
+/// and answer the clone's line.
+fn refuse_an_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent, step: &str, said: String) -> CloneOutcome {
+    let receipt = receipt_of(context, verified, request, ReceiptOutcome::Refused, None, Some(step), None);
+    if let Err(filed) = context.receipts.publish(&receipt) {
+        return CloneOutcome::Failed { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(RECEIPT_STEP), said: format!("{said} The receipt could not be filed either: {}", filed.message()) };
+    }
+    return CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(step), said };
 }
 
 /// What:

@@ -1,5 +1,6 @@
 //! What:
-//!  The one name a removal's staging folder, its record and its claim carry,
+//!  The one name a removal's staging folder,
+//! its record and its claim carry,
 //!  all derived from the clone's canonical numeric dataset GUID.
 //! Why:
 //!  No request carries a path,

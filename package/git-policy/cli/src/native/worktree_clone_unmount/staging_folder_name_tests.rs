@@ -1,9 +1,11 @@
 //! What:
 //!  Controls for the one staging component and its two beside-files.
 //! Why:
-//!  The wrapper, the handler and `doctor` derive the same names from
+//!  The wrapper,
+//! the handler and `doctor` derive the same names from
 //!  one GUID,
-//!  and each reader must tell a folder from a record, from a claim and from a
+//!  and each reader must tell a folder from a record,
+//! from a claim and from a
 //!  name it did not derive.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +22,8 @@ fn guid() -> DatasetGuid {
     return DatasetGuid::parse("18446744073709551615").expect("the largest GUID parses");
 }
 
-/// The component, the record and the claim one GUID gives.
+/// The component,
+/// the record and the claim one GUID gives.
 #[test]
 fn the_three_names_share_one_component() {
     let folder: String = staging_folder_name(guid());

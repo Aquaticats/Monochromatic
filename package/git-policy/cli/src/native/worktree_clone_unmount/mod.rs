@@ -31,7 +31,8 @@
 //! each using only the files listed before it:
 //!
 //! - `staging_folder_name.rs`:
-//!   the folder, record and claim names one GUID derives.
+//!   the folder,
+//!   record and claim names one GUID derives.
 //! - `staged_folder_identity.rs`:
 //!   the five recorded fields and their compare.
 //! - `staged_folder_record.rs`:
@@ -40,13 +41,37 @@
 //! - `user_cache_pin.rs`:
 //!   the `user-cache` pin,
 //!   the account's passwd home and the cache descriptor.
+//! - `staging_calls.rs`:
+//!   the bind,
+//!   propagation change,
+//!   move,
+//!   unmount and handle calls,
+//!   and the reads that decide whether they may run.
+//! - `staged_record_reading.rs`:
+//!   the boot-id test before the handle,
+//!   the `ESTALE` pair and the identity compare.
+//! - `slot_walk_calls.rs`:
+//!   the checkout's root,
+//!   the two final hops and the fresh lookup.
+//! - `unmount_checks.rs`:
+//!   the identity comparisons before any move.
+//! - `reattach.rs`:
+//!   the checked move back to the slot.
+//! - `unmount_turn.rs`:
+//!   the record,
+//!   bind,
+//!   move,
+//!   placement,
+//!   unmount and busy answer.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const outcome = unmountOneClone(context, verified, request); // the sweep's unmount arm
 //! ```
 
-/// The names one GUID derives: the folder, its record and its claim.
+/// The names one GUID derives:
+/// the folder,
+/// its record and its claim.
 pub mod staging_folder_name;
 
 /// The five fields one staging folder's identity holds.
@@ -55,5 +80,39 @@ pub mod staged_folder_identity;
 /// The record beside a staging folder and its write and read.
 pub mod staged_folder_record;
 
-/// The `user-cache` pin, the account's home and the cache descriptor.
+/// The `user-cache` pin,
+/// the account's home and the cache descriptor.
 pub mod user_cache_pin;
+
+/// The kernel calls the unmount route makes,
+/// behind one trait.
+pub mod staging_calls;
+
+/// The order the staged-folder record is judged in.
+pub mod staged_record_reading;
+
+/// The walks to the slot and the dataset GUID read.
+pub mod slot_walk_calls;
+
+/// The identity comparisons the unmount makes before any move.
+pub mod unmount_checks;
+
+/// The checked move of a staged clone back to its slot.
+pub mod reattach;
+
+/// One removal's unmount turn.
+pub mod unmount_turn;
+
+/// The held-descriptor unmount and the later sweep from the record.
+pub mod staged_unmount;
+
+/// The staging claim one repository keeps.
+pub mod staging_claim;
+
+/// The wrapper's rmdir-only cleanup and the folder's creation.
+pub mod staging_cleanup;
+
+/// A recording implementation of the calls,
+/// never in the release build.
+#[cfg(test)]
+pub(crate) mod staging_calls_control;

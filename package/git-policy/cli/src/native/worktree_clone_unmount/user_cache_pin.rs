@@ -159,6 +159,7 @@ impl PinRefusal {
 /// The pin record as the file holds it.
 impl UserCachePin {
     /// The record's text.
+    #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
     pub fn encode(&self) -> String {
         let object: serde_json::Value = serde_json::json!({
             "version": PIN_VERSION,

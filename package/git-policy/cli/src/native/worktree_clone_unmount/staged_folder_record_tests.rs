@@ -65,10 +65,10 @@ fn a_record_of_another_guid_is_refused() {
 #[test]
 fn a_foreign_shape_is_refused() {
     assert!(matches!(record_from_text("[]", guid()), Err(StagedFolderRefusal::Malformed { .. })));
-    let text: String = record().encode().replace("\"version\":\"v1\"", "\"version\":\"v2\"");
-    assert!(matches!(record_from_text(text.as_str(), guid()), Err(StagedFolderRefusal::Malformed { .. })));
-    let text: String = record().encode().replace("\"mode\":\"0700\"", "\"mode\":\"700z\"");
-    assert!(matches!(record_from_text(text.as_str(), guid()), Err(StagedFolderRefusal::Field { field: "mode", .. })));
+    let version: String = record().encode().replace("\"version\":\"v1\"", "\"version\":\"v2\"");
+    assert!(matches!(record_from_text(version.as_str(), guid()), Err(StagedFolderRefusal::Malformed { .. })));
+    let mode: String = record().encode().replace("\"mode\":\"0700\"", "\"mode\":\"700z\"");
+    assert!(matches!(record_from_text(mode.as_str(), guid()), Err(StagedFolderRefusal::Field { field: "mode", .. })));
 }
 
 /// The write leaves one whole record and no temporary name.
@@ -97,7 +97,8 @@ fn an_oversized_record_is_refused() {
     assert!(matches!(read_record_text(&cache, guid()), Err(StagedFolderRefusal::TooLarge { .. })));
 }
 
-/// An absent record is no record, not a refusal.
+/// An absent record is no record,
+/// not a refusal.
 #[test]
 fn an_absent_record_is_nothing() {
     let root: std::path::PathBuf = crate::testing::test_support::fixture_root().join("staging-record-absent");

@@ -216,6 +216,7 @@ fn number(map: &Map<String, Value>, key: &'static str) -> Result<u64, StagedFold
 
 impl StagedFolderRecord {
     /// The record as the one JSON object the file holds.
+    #[allow(clippy::disallowed_methods, reason = "the JSON macro builds one object of every field; no fallible read is made here")]
     pub fn encode(&self) -> String {
         let object: Value = serde_json::json!({
             "version": RECORD_VERSION,

@@ -254,6 +254,27 @@ pub fn open_directory_crossing_one_mount(parent: &File, name: &OsStr) -> std::io
     return open_beneath_by(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
 }
 
+/// What:
+///  A path handle naming the directory `name` below `parent`,
+///  refusing a link,
+///  a magic link and a `..` escape,
+///  but crossing the one mount at that name.
+/// Why:
+///  The unmount's final slot hop differs from the attach's:
+///  the clone's own mount stands at the slot,
+///  so that one hop must cross it,
+///  and every earlier hop stayed on the checkout's own filesystems
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Descriptor mount and unmount").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slot = openHandleAtAMount(worktrees, 'one'); // crosses the clone's mount only
+/// ```
+pub fn open_handle_at_a_mount(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    return open_beneath_by(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
+}
+
 /// The device number of an open file.
 pub fn device_of(file: &File) -> std::io::Result<u64> {
     use std::os::unix::fs::MetadataExt;
@@ -511,7 +532,8 @@ pub fn widen_directory(directory: &File) -> std::io::Result<()> {
 /// a name the kernel resolves again may lead to another directory,
 ///  and a removal that widened
 /// through the name would change the mode of whatever stands there by then.
-///  A directory this user does not own keeps the mode the kernel gives it, and the caller reads the refusal where its
+///  A directory this user does not own keeps the mode the kernel gives it,
+/// and the caller reads the refusal where its
 ///  own opening fails.
 ///
 /// In TS you'd write (pseudocode):

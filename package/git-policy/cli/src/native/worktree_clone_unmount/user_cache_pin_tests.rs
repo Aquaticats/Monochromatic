@@ -47,7 +47,8 @@ fn one_pin_survives_its_text() {
     assert_eq!(pin_from_text(text.as_str()), Ok(written));
 }
 
-/// A pin file that is absent is a refusal, not a silent default.
+/// A pin file that is absent is a refusal,
+/// not a silent default.
 #[test]
 fn an_absent_pin_is_refused() {
     let path: PathBuf = crate::testing::test_support::fixture_root().join("user-cache-pin-absent/pin");

@@ -19,7 +19,7 @@
 //! expect(sweepOneClone(context, CLONE).kind).toBe('attached');
 //! ```
 
-use super::{CloneOutcome, IDENTITY_RECORD_STEP, StandingMounts, SweepContext, UNMOUNT_AWAITS_STEP_NINE, sweep_one_clone};
+use super::{CloneOutcome, IDENTITY_RECORD_STEP, StandingMounts, SweepContext, sweep_one_clone};
 use crate::start_probe::first_attach_record::{FIRST_ATTACH_NAME, FirstAttachClaim, FirstAttachOutcome, FirstAttachPlace};
 use crate::start_probe::probe_fingerprint::ProbeFingerprint;
 use crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace;
@@ -584,9 +584,11 @@ fn an_unmount_request_is_answered_by_the_step_that_builds_it() {
     let receipts: ReceiptsFolder = fixture.opened_receipts();
     let claims: SlotClaimDirectory = fixture.opened_claims();
     let outcome: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
-    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == UNMOUNT_AWAITS_STEP_NINE), "{outcome:?}");
-    assert_eq!(attach.asked.get(), 0);
-    assert!(receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).unwrap_or_default().is_none(), "a refusal files no receipt");
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == "slot-identity"), "{outcome:?}");
+    assert_eq!(attach.asked.get(), 0, "an unmount request attaches nothing");
+    let filed: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the unmount turn files its refusal for the waiter");
+    assert_eq!(filed.outcome, ReceiptOutcome::Refused);
+    assert_eq!(filed.operation.word(), "unmount");
 }
 
 /// What:
@@ -856,12 +858,12 @@ fn a_request_that_arrives_while_the_claim_is_held_is_read_after_the_release() {
         },
         CLONE,
     );
-    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == UNMOUNT_AWAITS_STEP_NINE), "the second turn answers the request that arrived: {outcome:?}");
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step != "intent"), "the second turn answers the request that arrived: {outcome:?}");
     assert_eq!(attach.asked.get(), 1, "the first turn attached once and the second turn attached nothing");
     assert_eq!(reader.reads.get(), 4, "the sweep reads the clone under the claim and once after the release, then turns once more");
-    let filed: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the turn that attached answered the nonce it mounted");
-    assert_eq!(filed.outcome, ReceiptOutcome::Done, "the mount the first turn made is answered before the turn reads the intent again");
-    assert_eq!(filed.nonce.as_str(), MOUNT_NONCE);
+    let filed: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the unmount turn answers the nonce it was asked under");
+    assert_eq!(filed.outcome, ReceiptOutcome::Refused, "the unmount turn's refusal answers the request that arrived");
+    assert_eq!(filed.operation.word(), "unmount");
 }
 
 /// What:
