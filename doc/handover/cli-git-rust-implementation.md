@@ -42007,7 +42007,57 @@ stated in this entry. What follows from them, as work:
   `--user` on a unit the run started, no call to `org.freedesktop.systemd1`, `login1` or `PolicyKit1` on the system bus, no
   `pkexec`, `--no-ask-password` on every `systemctl`, no signal to a process the run did not start; the answer comes from
   the source or is owed to a guest), the shared brief text carries it, and the skill `pi-as-subagent` now tells every
-  brief to say it. The build rounds going were not sent it: their briefs put root-only work in guests. Step 7's
+  brief to say it. The build rounds going were not sent it: their briefs put root-only work in guests. THE OWNER'S ANSWERS
+  of 2026-11-22, in the question tool between about 17:28 and 17:33-05:00. On the overlap: "A: variable on every read
+  (Recommended)" and "B: really stop the read (Recommended)", both recorded in
+  `doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md` (`152a194e99`); they confirm what the fix round was told. On
+  the hold on other work the owner chose no option and wrote: "What? Why are we still creating worktrees the old way? I
+  thought we've implemented enough?" So the hold stands unanswered, and the answer given was: the `git` every shell in the
+  checkout runs was the cargo build of `main` at `899b8e7cbd` from 2026-11-17, older than every ZFS step; of the merged
+  steps only step 3 changes an add; the clone route for an add is step 10, with the machine's one-time setup in step 19.
+  Asked when to switch that build, the owner answered "B: switch now". THE SESSION'S WRAPPER WAS SWITCHED at
+  2026-11-22T17:40:59-05:00 to a release build of `main` at `ee0cf2268b`, made with `native:build:release` in a clean
+  detached worktree (2 min 36 s; sha256 beginning `6b9d569b`, the old one `0e9220cf`) and kept at
+  `.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/`. Three things were done together, by
+  `~/temp/agent/session-wrapper-switch-to-main-build-2026-11-22/switch-the-git-link-to-a-wrapper-build.ts`:
+  `.cache/monochromatic-git-policy-cli-bin/git` re-pointed; the wrapper's runtime program link
+  `/run/user/1000/monochromatic-git-policy-cli-bin` re-pointed; and the twenty running commit-service instances stopped,
+  so each starts again on the new program at its next connection. They were stopped because the service's messages
+  changed between the two commits (thirty files under `src/native/service/`, the push programs held in memory) while
+  `PROTOCOL_VERSION` stayed 12 and the release stayed `0.6.1-alpha.44`, so a new client and an old service accept each
+  other by number and speak different messages; a release changes the release string, so this bites only two builds of
+  one unreleased version. Read before the switch: the journal's change is additive (an intent without `transports` reads
+  as none chosen); the provisioning code is unchanged and the unit's text names the program link, so the switch asks for
+  no reload of the user manager (issue 6286's hazard), and the journal shows none since. The way back is the same script
+  with `wrapper-built-by-cargo-for-agent-sessions-until-the-toolchain-installs`. Checked after: `152a194e99` landed
+  through the new build, and the main checkout's service process runs the new executable. A first check in a throwaway
+  repository with a runtime directory of its own showed nothing (both builds refuse a commit there) and left a socket
+  unit, which was stopped. MEASURED ON ONE REAL ADD AFTER THE SWITCH (a detached worktree of `main`, diagnostics on, then
+  removed): 67.6 s. The route, in the wrapper's words: "Git checks the worktree out (no rung applies; snapshot:
+  Some("/home/user/Monochromatic is not a btrfs subvolume"); clone: None)", from a checkout it found "snapshotted with 4
+  uncommitted paths". Git's checkout of 24,685 files took about 9 s, and the copy of 38,700 ignored entries 57.6 s (walk
+  3.1 s, copy by eight workers 18.4 s, settling and modes 33.2 s; 32,404 entries cloned). So the new build does not make
+  an add from this checkout faster (one sample, against the old build's ten of 13.0 to 58.4 s under other load, so no
+  ratio is claimed): the checkout's uncommitted edits keep every rung out, which the partial clone branch addresses, and
+  the wait is the per-entry copy of ignored files, which step 10's clone replaces. ALL TEN DESIGN ROUNDS ENDED `idle`
+  between 17:27:06 and 17:40:40-05:00, after 136 to 247 turns, with documents of 1,744 to 2,914 lines: the lock at
+  `05a0eadf9d`, the binding record at `1e9bc35f1e`, the destruction plan at `a7823980b9`, the origin cleanup record at
+  `4daa6c66ce`, the dirty-main restore at `1f24dcc10d`, the deferred-destroy checks at `124ea5b573`, the forced removal at
+  `2dda3d993e`, the cancelled removal and cancel command at `797a7cf2d6`, the propagation at `fecdc987b1`, the lost-event
+  triggers at `641fbc1ad4`; each report is in its folder's `keep/`. GOING: seven gate reviews on Sonnet, each told the
+  document was written in a quarter of an hour and to check it the harder for that, reviews to
+  `~/temp/agent/gate-review-<name>-2026-11-22/keep/review.md` with these names:
+  `zfs-add-time-git-lock-and-binding-record-designs` (the two that block step 10, read together),
+  `zfs-removal-side-record-designs` (the destruction plan and the origin cleanup record),
+  `zfs-forced-removal-and-cancellation-designs`, `zfs-deferred-destroy-checks-design`,
+  `zfs-dirty-main-restore-on-rung-1-design`, `zfs-private-propagation-after-replacement-mount-design` and
+  `zfs-lost-last-event-triggers-design`. After them: a fix round for each design that needs one, then the designs'
+  questions to the owner in one batch. ISSUE 6345 FILED for the cause-G control that failed in two gates (the second
+  journal shows two service instances for the fixture and a removal record another instance moved). GOING:
+  `pi-worktree-removal-held-commit-control-failed-in-two-gates` on
+  `fix/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` (brief under
+  `~/temp/agent/worktree-removal-held-commit-control-failed-in-two-gates-2026-11-22/`; its worktree was added by the old
+  build). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
