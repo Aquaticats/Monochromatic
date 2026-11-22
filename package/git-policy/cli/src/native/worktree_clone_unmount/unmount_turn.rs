@@ -254,6 +254,19 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
 #[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
 fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
     let reading: RecordReading = read_staged_record(request.cache, request.expected.guid, request.boot, request.cache_path.join(name).as_path(), request.calls);
+    let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
+        Ok(identity) => identity,
+        Err(refusal) => return Err(refused("staged-record", refusal.message())),
+    };
+    if let RecordReading::Current { record, .. } = &reading {
+        let moved = identity.differences(&record.identity);
+        if !moved.is_empty() {
+            return Err(refused(
+                "staged-record",
+                format!("the folder the record describes differs from the folder this invocation opened in the {}, so the record is kept and the bind refused", StagedFolderIdentity::field_names(moved.as_slice())),
+            ));
+        }
+    }
     if BindingDecision::of(&reading) == BindingDecision::Refuse {
         let said: String = match reading {
             RecordReading::Refused { step, said } => format!("the staged record refused at its {step} step: {said}"),
@@ -261,10 +274,6 @@ fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: 
         };
         return Err(refused("staged-record", said));
     }
-    let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
-        Ok(identity) => identity,
-        Err(refusal) => return Err(refused("staged-record", refusal.message())),
-    };
     let (handle_type, handle): (i32, Vec<u8>) = match request.calls.name_handle(staging) {
         Ok(handle) => handle,
         Err(refusal) => return Err(call_refused("name-handle", refusal, None)),
