@@ -164,7 +164,6 @@ pub(super) fn clone_with_the_fence((source, fence, admin_path, bound, context): 
                     admin: &bound.admin,
                     admin_path,
                     fence: held,
-                    rules: crate::worktree_clone_partial::SizeRules::from_the_environment(),
                 });
                 let (cloned, decided, pending): (crate::worktree_clone_partial::PartCloned, crate::worktree_clone_conversion_fence::Fence, PendingIndex) = part?;
                 return Ok((cloned.created, decided, Some(pending)));

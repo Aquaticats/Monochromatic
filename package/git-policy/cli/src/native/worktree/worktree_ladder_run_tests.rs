@@ -21,6 +21,87 @@ fn no_runner() -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, crate::worktree_
     return |_step| { panic!("no Git run is expected"); };
 }
 
+/// Whether a file on this fixture root can be reflinked,
+/// said once as a control that did not run when it cannot.
+fn can_clone_a_file(root: &Path) -> bool {
+    let from: PathBuf = root.join("probe-from");
+    let to: PathBuf = root.join("probe-to");
+    std::fs::write(from.as_path(), b"probe\n").expect("the probe's file");
+    std::fs::write(to.as_path(), b"").expect("the probe's clone");
+    let opened = (std::fs::File::open(from.as_path()), std::fs::OpenOptions::new().write(true).open(to.as_path()));
+    let cloned: bool = match opened {
+        (Ok(source), Ok(destination)) => crate::fs_clone_exchange::clone_file(&source, &destination, to.as_path()).is_ok(),
+        _unreadable => false,
+    };
+    let _removed = (std::fs::remove_file(from.as_path()), std::fs::remove_file(to.as_path()));
+    if !cloned {
+        eprintln!("CLONE CONTROL NOT RUN: a dirty source's routing (the fixture root cannot reflink a file)");
+    }
+    return cloned;
+}
+
+/// What:
+///  A tracked file of `bytes` zero bytes,
+/// written sparse so a fixture can be above the clone rung's size limit without holding the bytes.
+/// Why:
+///   The size limit sums what the index records for each tracked file,
+/// and a control that reaches the rung must be above it;
+/// a sparse file costs the fixture nothing on disk and Git still records its length,
+///  and the length is derived from the limit so no control carries a stale number (`AGENTS.md`, rule `MGN`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = createFile(repo + '/' + name); file.truncate(bytes);
+/// ```
+fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
+    let path: PathBuf = repo.join(name);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
+    let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the sparse file");
+    file.set_len(bytes).expect("the sparse file's length");
+}
+
+/// What:
+///  Every tracked file of `worktree` with its bytes and its executable bit,
+/// in path order.
+/// Why:
+///   Byte equality with Git's own checkout is the promise both size rules make,
+/// and a name list alone would
+///  miss the bytes a conversion or a clone could change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const content = git('ls-files', '-z').split('\0').map((name) => [name, read(name), isExecutable(name)]);
+/// ```
+fn tracked_content_of(worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt;
+    let listing: Vec<u8> = crate::test_support::git_output(worktree, &["ls-files", "-z"]).stdout;
+    let mut files: Vec<(String, Vec<u8>, bool)> = Vec::new();
+    for name in listing.split(|byte: &u8| { return *byte == 0; }).filter(|name| { return !name.is_empty(); }) {
+        let path: PathBuf = worktree.join(std::ffi::OsStr::from_bytes(name));
+        let executable: bool = std::fs::symlink_metadata(path.as_path()).expect("the file's own metadata").permissions().mode() & 0o111 != 0;
+        files.push((String::from_utf8_lossy(name).into_owned(), std::fs::read(path.as_path()).expect("the file's bytes"), executable));
+    }
+    return files;
+}
+
+/// What:
+///  Add a worktree through Git's own checkout from `repo`,
+/// the way the person's run does once the ladder has chosen the Git rung.
+/// Why:
+///   A declined add leaves the worktree to Git,
+/// so the control runs exactly the run the person's command makes
+///  and compares its bytes with a second one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it('adds through Git\'s own checkout', () => run(['worktree', 'add', '--quiet', '-b', name, '../' + name]));
+/// ```
+fn gits_own_worktree(repo: &Path, name: &str, destination: &Path) -> PathBuf {
+    crate::test_support::git(repo, &["worktree", "add", "--quiet", "-b", name, destination.to_str().expect("a UTF-8 destination")]);
+    return destination.to_path_buf();
+}
+
 /// Without a plan the ladder asks for the person's own run and settles to Git's status.
 #[test]
 fn no_plan_means_the_persons_run() {
@@ -34,13 +115,24 @@ fn no_plan_means_the_persons_run() {
     assert!(result.claim.is_none(), "no plan means no record");
 }
 
-/// A source that cannot be snapshotted gets an empty subvolume at the destination,
+/// A source neither rung serves gets an empty subvolume at the destination,
 /// removed again when Git failed.
+/// What:
+///  The source is an ordinary directory on btrfs in the middle of a merge,
+/// so the snapshot rung refuses it for its filesystem and
+///  both rungs refuse it for the unfinished operation,
+///  and the reason the person reads is the structural one.
+/// Why:
+///  An untracked file was this fixture's source while a source with changes ended the clone rung;
+/// a source with changes
+///  now clones the paths its proof settles, so the fixture needs a state no rung can serve
+///  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
 #[test]
 fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of() {
     let Some(root) = btrfs_fixture("run-bootstrap") else { return };
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "ordinary")).expect("canonical");
-    std::fs::write(repo.join("untracked.txt"), b"u").expect("an untracked file rules every source out");
+    let head: String = String::from_utf8_lossy(&crate::test_support::git(repo.as_path(), &["rev-parse", "HEAD"]).stdout).trim().to_string();
+    std::fs::write(repo.join(".git/MERGE_HEAD"), format!("{head}\n")).expect("an unfinished merge rules every source out");
     let plan = plan_to(root.join("topic"));
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::Person);
@@ -63,6 +155,9 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
 fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     let Some(root) = btrfs_fixture("run-clone") else { return };
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "ordinary")).expect("canonical");
+    // Above the clone rung's size limit, which declines a tree of too few bytes before this rung is chosen.
+    tracked_sparse(repo.as_path(), "bulk/kept.bin", crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG + 1_000);
+    commit_all(repo.as_path(), "a tree above the size limit");
     let plan = plan_to(root.join("topic"));
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at));
@@ -187,6 +282,8 @@ fn a_converting_source_is_declined_before_anything_is_claimed_or_copied() {
     for index in 0..=crate::worktree_clone_conversion_fence::DECLINE_PATHS_FLOOR {
         crate::worktree_ladder_test_support::tracked(repo.as_path(), format!("file-{index}.txt").as_str(), b"line\n");
     }
+    // Above the clone rung's size limit, so the fence is the limit this shape reaches and not the size.
+    tracked_sparse(repo.as_path(), "bulk/kept.bin", crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG + 1_000);
     crate::worktree_ladder_test_support::commit_all(repo.as_path(), "fixture");
     let plan = plan_to(root.join("topic"));
     let identity = main_identity(repo.as_path());
@@ -208,25 +305,6 @@ fn a_converting_source_is_declined_before_anything_is_claimed_or_copied() {
     remove(root.as_path());
 }
 
-/// Whether a file on this fixture root can be reflinked,
-/// said once as a control that did not run when it cannot.
-fn can_clone_a_file(root: &Path) -> bool {
-    let from: PathBuf = root.join("probe-from");
-    let to: PathBuf = root.join("probe-to");
-    std::fs::write(from.as_path(), b"probe\n").expect("the probe's file");
-    std::fs::write(to.as_path(), b"").expect("the probe's clone");
-    let opened = (std::fs::File::open(from.as_path()), std::fs::OpenOptions::new().write(true).open(to.as_path()));
-    let cloned: bool = match opened {
-        (Ok(source), Ok(destination)) => crate::fs_clone_exchange::clone_file(&source, &destination, to.as_path()).is_ok(),
-        _unreadable => false,
-    };
-    let _removed = (std::fs::remove_file(from.as_path()), std::fs::remove_file(to.as_path()));
-    if !cloned {
-        eprintln!("CLONE CONTROL NOT RUN: a dirty source's routing (the fixture root cannot reflink a file)");
-    }
-    return cloned;
-}
-
 /// A source with uncommitted changes takes the clone rung and runs Git without a checkout,
 /// where the filesystem clones its files:
 /// the change is no longer the refusal that sent the add to Git's whole checkout.
@@ -238,6 +316,12 @@ fn a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned() {
     }
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "ordinary")).expect("canonical");
     tracked(repo.as_path(), "kept.txt", b"the commit's bytes\n");
+    // Above the clone rung's size limit and with enough tracked paths that the changed-file cut does not take this one
+    //  change, so the change is what brings the source to the clone rung and neither limit is the reason.
+    tracked_sparse(repo.as_path(), "bulk/kept.bin", crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG + 1_000);
+    for index in 0..crate::worktree_clone_conversion_fence::DECLINE_SHARE_DIVISOR {
+        tracked(repo.as_path(), format!("plain-{index}.txt").as_str(), b"the commit's bytes\n");
+    }
     commit_all(repo.as_path(), "the commit the person edits");
     std::fs::write(repo.join("kept.txt"), b"a change nobody committed\n").expect("the person's change");
     let plan = plan_to(root.join("topic"));
@@ -280,6 +364,9 @@ fn a_target_tree_that_changes_a_fenced_path_is_skipped_before_anything_is_claime
     crate::worktree_ladder_test_support::tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
     crate::worktree_ladder_test_support::commit_all(repo.as_path(), "conversion");
     crate::test_support::git(repo.as_path(), &["update-ref", "refs/heads/other", "HEAD"]);
+    // Above the clone rung's size limit: a tree of too few bytes is declined by the size before the skip is asked, and this
+    //  control is about the skip the attributes decide.
+    tracked_sparse(repo.as_path(), "bulk/kept.bin", crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG + 1_000);
     crate::worktree_ladder_test_support::tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
     crate::worktree_ladder_test_support::commit_all(repo.as_path(), "second");
     let plan = crate::worktree_ladder_test_support::plan_to_at(root.join("topic"), Some("other"));
@@ -300,5 +387,114 @@ fn a_target_tree_that_changes_a_fenced_path_is_skipped_before_anything_is_claime
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed, so nothing can have been copied into or out of a stage");
     let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };
     assert_eq!(prepared, 0, "the rung copied nothing into the destination");
+    remove(root.as_path());
+}
+
+/// What:
+///  A source below the size limit takes Git's own checkout,
+/// says which sum and which limit declined it,
+/// claims nothing,
+/// and the add's worktree equals Git's own checkout byte for byte.
+/// Why:
+///   The size limit exists because a clone of too little data costs more than Git's write of it;
+/// a
+///  control that only checked the reason would stay green if the limit moved to Git's checkout for another
+/// reason,
+///  and one that only checked the route would not show that the person gets Git's result.
+/// Removing the limit makes the rung clone the fixture and the worktree holds a shared extent,
+///  which this control's byte comparison alone would not catch, so the clone-capable skip and the extent are what make
+/// it red.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(ladder.rung).toBe('git'); expect(ladder.slow.word).toBe('declines');
+/// expect(trackedContent(topic)).toEqual(trackedContent(control));
+/// ```
+#[test]
+fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
+    let root: PathBuf = fixture("run-size-limit");
+    if !can_clone_a_file(root.as_path()) {
+        remove(root.as_path());
+        return;
+    }
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    tracked(repo.as_path(), "kept.txt", b"the commit's bytes\n");
+    tracked(repo.as_path(), "edited.txt", b"the commit's bytes\n");
+    commit_all(repo.as_path(), "a tree far below the limit");
+    std::fs::write(repo.join("edited.txt"), b"a change nobody committed\n").expect("the person's change");
+    let plan: AddPlan = plan_to(root.join("topic"));
+    let identity: WorktreeIdentity = main_identity(repo.as_path());
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
+    assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "a tree below the size limit takes Git's checkout");
+    let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
+    assert_eq!(route.word(), "declines", "{route:?}");
+    assert!(route.line().contains("sum to"), "the sentence names the sum it found: {}", route.line());
+    assert!(route.line().contains(crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG.to_string().as_str()), "and the limit it is below: {}", route.line());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed");
+    let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };
+    assert_eq!(prepared, 0, "the rung copied nothing into the destination");
+    let topic: PathBuf = gits_own_worktree(repo.as_path(), "topic", plan.destination.as_path());
+    let control: PathBuf = gits_own_worktree(repo.as_path(), "control", root.join("control").as_path());
+    assert_eq!(tracked_content_of(topic.as_path()), tracked_content_of(control.as_path()), "the add's worktree is Git's own checkout");
+    assert_eq!(std::fs::read(topic.join("edited.txt")).expect("the commit's bytes"), b"the commit's bytes\n", "the person's change reaches no worktree");
+    assert_eq!(crate::test_support::git_text(topic.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the worktree is clean");
+    remove(root.as_path());
+}
+
+/// What:
+///  A source above the size limit with more changed paths than the cut takes Git's own checkout,
+/// says how many of how many changed,
+/// claims nothing,
+/// and the add's worktree equals Git's own checkout byte for byte.
+/// Why:
+///   The cut exists because the write step costs one run a path,
+/// so the shape must be above the size limit or the
+///  size limit would be the one that declined it and this control would stay green with the cut removed;
+/// the
+///  fixture's files are sparse, so being above the limit costs it no disk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(ladder.rung).toBe('git'); expect(ladder.slow.line()).toContain('have changes');
+/// expect(trackedContent(topic)).toEqual(trackedContent(control));
+/// ```
+#[test]
+fn a_source_above_the_changed_file_cut_gets_gits_own_checkout_and_its_bytes() {
+    let root: PathBuf = fixture("run-changed-file-cut");
+    if !can_clone_a_file(root.as_path()) {
+        remove(root.as_path());
+        return;
+    }
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    // Five tracked files, together just above the size limit, so the cut is the limit this shape reaches.
+    let files: usize = 5;
+    let per_file: u64 = crate::worktree_clone_rung_limits::THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG / files as u64 + 1_000;
+    for index in 0..files {
+        tracked_sparse(repo.as_path(), format!("bulk/{index}.bin").as_str(), per_file);
+    }
+    commit_all(repo.as_path(), "a tree above the size limit");
+    let cut: usize = crate::worktree_clone_rung_limits::the_changed_file_cut(files);
+    // One path more than the cut takes, and the cut is the share of the tracked paths the fence declines at.
+    for index in 0..=cut {
+        let path: PathBuf = repo.join(format!("bulk/{index}.bin").as_str());
+        let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path.as_path()).expect("the file");
+        std::io::Write::write_all(&mut file, b"one changed byte\n").expect("the change");
+    }
+    let plan: AddPlan = plan_to(root.join("topic"));
+    let identity: WorktreeIdentity = main_identity(repo.as_path());
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
+    assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "a source above the cut takes Git's checkout");
+    let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
+    assert_eq!(route.word(), "declines", "{route:?}");
+    assert!(route.line().contains("have changes"), "the sentence names the changes it found: {}", route.line());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed");
+    let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };
+    assert_eq!(prepared, 0, "the rung copied nothing into the destination");
+    let topic: PathBuf = gits_own_worktree(repo.as_path(), "topic", plan.destination.as_path());
+    let control: PathBuf = gits_own_worktree(repo.as_path(), "control", root.join("control").as_path());
+    assert_eq!(tracked_content_of(topic.as_path()), tracked_content_of(control.as_path()), "the add's worktree is Git's own checkout");
+    assert_eq!(crate::test_support::git_text(topic.as_path(), &["status", "--porcelain=v1"]), "", "the first status of the worktree is clean");
     remove(root.as_path());
 }

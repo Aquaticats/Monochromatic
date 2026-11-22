@@ -875,8 +875,9 @@ Read-only commands,
      a file you write into an ignored directory between the snapshot and the swap is not in the new
      worktree,
      and the source keeps it.
-  2. Clones (`FICLONE`) of every tracked file of a clean worktree,
-     with its index,
+  2. Clones (`FICLONE`) of every tracked file the source's proof settles,
+     with the index the rung builds from the tree of the source's `HEAD`,
+     while Git writes the paths a change or the conversion fence reaches,
      on btrfs,
      XFS with reflink,
      overlayfs and ZFS.
@@ -887,6 +888,14 @@ Read-only commands,
      a slot a mounted clone already occupies,
      a mounted clone used as the source of a slot in the checkout's dataset,
      and any slot on another dataset than the source get Git's own checkout instead.
+     A source with uncommitted changes is cloned the same way:
+     every tracked path its proof settles is a clone,
+     and only the paths a change or a conversion rule reaches are Git's.
+     Two provisional limits send an add to Git's own checkout instead:
+     a tree of fewer than 32,000,000 tracked bytes,
+     and a source with more changed tracked files than a quarter of its tracked paths.
+     Both are pinned in `src/native/worktree/worktree_clone_rung_limits.rs` with the measurements they rest on,
+     and both are open to the project's veto.
      It shares disk,
      and it is measured:
      on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to

@@ -356,8 +356,8 @@ fn a_restore_keeps_the_ignored_files_the_new_commit_does_not_ignore() {
 /// The note counts the paths in the singular and the plural.
 #[test]
 fn the_note_counts_paths() {
-    let one = ChangedPaths { count: 1, first: Some(String::from("a")), attributes_changed: false };
-    let many = ChangedPaths { count: 3, first: Some(String::from("a")), attributes_changed: false };
+    let one = ChangedPaths { count: 1, tracked: 1, first: Some(String::from("a")), attributes_changed: false };
+    let many = ChangedPaths { count: 3, tracked: 3, first: Some(String::from("a")), attributes_changed: false };
     assert!(left_out_note(&one).contains(format!("({} path)", one.count).as_str()), "{}", left_out_note(&one));
     assert!(left_out_note(&many).contains(format!("({} paths)", many.count).as_str()), "{}", left_out_note(&many));
     assert!(left_out_note(&one).ends_with('\n'));

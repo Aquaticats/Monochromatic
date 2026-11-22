@@ -324,6 +324,23 @@ pub mod worktree_clone_partial_split;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_partial_index;
 
+/// The source's index and the tree of its `HEAD`,
+/// the paths Git writes,
+/// and the stat fields the new index records.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_tracked;
+
+/// The live listing of the paths the source staged,
+/// and the refusal of a staged path among the clones.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_partial_staged;
+
+/// The two provisional limits that send an add to Git's own checkout:
+/// a whole-tree size threshold and a changed-file cut,
+/// each with the measurement it rests on.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_rung_limits;
+
 /// Git's conversion rules for one path,
 /// read from its attributes and `core.autocrlf`/`core.eol`,
 /// as the decision whether a clone may carry the file.

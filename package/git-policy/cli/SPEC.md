@@ -1278,8 +1278,7 @@ a sparse checkout;
 a source that is a linked worktree,
 whose index lies outside
 its directory and so is not in the snapshot;
-and the clone rung,
-which is only for clean sources.
+and the clone rung only where its proof cannot settle the source.
 The restore reads the index inside the snapshot before the snapshot's `.git` is replaced by the new worktree's pointer,
 and
 installs that index as it is (stat data kept,
@@ -2671,10 +2670,14 @@ the reason is written in
 and the package README names the gap left by
 gates that ran the claim-only source.
 
-Rung 2 needs a clean source on btrfs,
+Rung 2 needs a source whose tracked paths it can prove,
+on btrfs,
 XFS,
 overlayfs or ZFS,
 with the source and the destination in one clone domain.
+A source whose every tracked file equals its index and whose index equals the tree of `HEAD` is cloned whole,
+and a source with uncommitted changes clones every tracked path the proof still settles while Git writes the rest;
+see "Rung 2 on a source with changes".
 A clone domain is one btrfs filesystem,
 whose every mount carries one source in the mount table;
 one device,
@@ -2818,6 +2821,57 @@ taken from their descriptors;
 a cloned link keeps the source's stat fields,
 which Git compares by target.
 The ignored-state copy then runs as for Git's checkout.
+
+Rung 2 on a source with changes.
+A path is cloned when its index entry is plain,
+at stage 0 with no extended flags and no assume-unchanged bit,
+names the tree's mode and object,
+is a file or a link,
+its file equals the entry by type,
+size,
+inode,
+owner and both times to the nanosecond,
+and its modification time is older than the index file,
+and the conversion fence this section describes carries it.
+Every other tree path is written through the one `git checkout-index` this section describes,
+whose paths are the union of the changes' paths and the fence's,
+and Git's own live listing of the paths the source staged is a second answer that refuses a path the split would
+have cloned.
+The index the new worktree takes is built from the tree of the source's `HEAD`,
+with the stat data of the files the clones made,
+a link's entry keeping the source's fields,
+and no stat data for the paths Git writes;
+the ladder's `git read-tree -m -u` brings a different new `HEAD` in against that index,
+and the file takes the worktree's name only after Git's write.
+After Git's write the worktree holds what Git's checkout holds:
+a path the clones carried is one whose file its entry proves and whose checkout writes its blob,
+and the paths a change or the fence reaches are Git's own bytes.
+
+Rung 2 declines the add,
+and Git's own checkout makes the worktree,
+for two provisional limits,
+each pinned with the measurement it rests on and both open to the project's veto
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
+The whole-tree size limit sends a source whose tracked files sum to fewer than 32,000,000 bytes to Git's own
+checkout:
+the waiver's tree of 10,001 files of 2,600 bytes,
+about 26.0 MB, took 1.30 times Git's own checkout on the fenced rung,
+and this repository's tree of 763,309,482 bytes took 0.73 to 0.77 of it.
+The limit applies to a clean source too,
+so a clean tree below it takes Git's own checkout,
+which is where the clean small-file cost the waiver records ends;
+the edge is pinned low so every clean tree above it keeps the clone rung's win that `main` already has,
+and what it leaves unmeasured is a dirty source of small files between 32 MB and 763 MB.
+The changed-file cut sends a source with more changed tracked files than a quarter of its tracked paths to Git's own
+checkout,
+which is the share the conversion fence declines at,
+and a quarter of this repository's 24,620 tracked paths is 6,155:
+6,000 changed paths took 1.00 to 1.05 times Git's own checkout, which is parity,
+and 20,000 took 1.68 to 1.74 of it.
+An untracked file is no changed file:
+no worktree takes it.
+A declined add is Git's own checkout,
+so it is never slower than the checkout it replaced, and what it loses is the clone's gain.
 
 Rung 3 is Git's checkout and the ignored-state copy.
 Where the destination's parent is on btrfs and the rung is 2 or 3,
