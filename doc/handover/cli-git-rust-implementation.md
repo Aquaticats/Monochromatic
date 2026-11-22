@@ -41543,7 +41543,17 @@ stated in this entry. What follows from them, as work:
   claim). MERGED as `248115ecab` at 2026-11-21T21:31:11-05:00. Lows carried in that review: plan step 8's paragraph wording
   ("all before any sweep" when the reconciliation is the sweep; no design heading cited; no dated amendment note; the owner
   may veto the assignment of `boot-reconcile` to step 8), an overstating comment in `claim`, a third copy of the directory
-  maker, the sleep control under a severe stall. Step 7's
+  maker, the sleep control under a severe stall. THE OWNER ASKED why Plasma keeps showing "Memory Shortage Avoided":
+  libvirt's session daemon starts in the capped scope of whichever command runs `virsh` first, every later guest joins
+  it, and that scope's cap, `RuntimeMaxSec=` or cleanup kills them all (two kills today, 21:23:58 and 21:47:52, scopes
+  capped at 2 GiB; Plasma's wording blames system memory). Recorded in
+  `doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md`; issue 6338. At
+  21:58 the daemon lived in `integ-store-guest-arms.scope` (the store findings round's, `RuntimeMaxSec=1h` from 21:35:55);
+  the round was steered not to stop it by hand. Guest failures near those times are these kills, not code. Briefs that
+  start guests now say: never stop a scope that holds `virtqemud`; let it end when the daemon exits. The fix's placement is
+  put to the owner with the partial clone decision. THE PARTIAL CLONE'S RECHECK said ready on condition the owner question
+  asks what the waiver is if the clone lands before B's threshold and F's cut are measured (N1); 15 of 15 earlier findings
+  closed; five lows (N2 to N6) left; its folder's `keep/review.md`, section "Recheck of dc7b5e5624". Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
