@@ -398,7 +398,7 @@ fn git_directory_of(directory: &Path) -> Option<PathBuf> {
             continue;
         }
         let Ok(text) = std::fs::read_to_string(marker.as_path()) else { return None };
-        let Some(named) = text.lines().next().and_then(|line| { return line.strip_prefix("gitdir: "); }) else { return None };
+        let named: &str = text.lines().next().and_then(|line| { return line.strip_prefix("gitdir: "); })?;
         if named.is_empty() {
             return None;
         }
