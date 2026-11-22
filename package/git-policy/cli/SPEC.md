@@ -6035,7 +6035,8 @@ the design's prerequisites are the ABI,
 the keys,
 the checkout and the private propagation,
 and the sweep is none of them,
-so a failed prerequisite authorizes no attachment while a running sweep does
+so a failed prerequisite authorizes no attachment,
+while a running sweep blocks none
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 "Boot and shutdown unit").
 
