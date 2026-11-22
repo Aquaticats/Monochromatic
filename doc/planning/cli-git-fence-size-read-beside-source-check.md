@@ -207,6 +207,28 @@ with the identical pair's range beside it,
 and the step records as the account of where the time went.
 Medians are the upper middle element of an even count.
 
+### The decision control
+
+One small control runs beside the timing sets,
+on this host's ZFS,
+because the change is where the sizes are read and a map of the wrong commit is what it could break:
+
+- a 26-path fixture whose `.gitattributes` gives `*.txt text eol=lf`,
+  so the size proof leaves 4 converting files to Git and carries 22;
+- one add through `branch-serial` and one through `branch-overlap`,
+  same binary,
+  same source,
+  same commit;
+- both take the `clones` rung,
+  both print `the fence carries 22 paths and leaves 4 to Git`,
+  both leave `git status --porcelain` empty,
+  and the two destinations are byte-for-byte equal over all 26 files.
+
+This shows the two arms decide the same thing on a settled source.
+It does not exercise the guard's own case,
+a `HEAD` that moves between the read's start and the check,
+which no control here builds.
+
 ## Rung 1, the btrfs snapshot rung
 
 ### Loose objects
@@ -509,6 +531,7 @@ inside the guest),
 `host-measure.ts` (rung 2,
 on the host,
 and the refused-source rounds),
+`control-identical-fence.ts` (the decision control),
 and the five row files `loose-adds.jsonl`,
 `packed-adds.jsonl`,
 `loose-host-adds.jsonl`,
