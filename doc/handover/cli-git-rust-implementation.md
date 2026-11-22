@@ -41639,7 +41639,17 @@ stated in this entry. What follows from them, as work:
   then green); the `rel` shape now 0.98 of `main` (floor 0.81 to 1.19); a rung-1 btrfs control added but not run (no btrfs
   root on this host); the reflog forms named; `#[cfg(unix)]` on the option table; gate 9740 of 9742. It also found
   `native:test:container` stops at `cargo-shadow: command not found` here (that lock row is not installed); it ran
-  `node bin/test-native-container.ts` directly. GOING: the reviewer's recheck with the btrfs control in a guest. Step 7's
+  `node bin/test-native-container.ts` directly. GOING: the reviewer's recheck with the btrfs control in a guest. THE SIZE
+  READER'S RECHECK said not ready, narrowly (highs closed; numbers confirmed against the records; the `perf/` records placed
+  right; the owner question's sub-decisions were prose, two advantages overstated, and the branch changed shipped
+  `ObjectDatabase::open` to refuse reftable with only a `measurement-routes` control). The coordinator put the question with
+  the recheck's corrected figures. THE OWNER ANSWERED at 2026-11-21T23:35:36-05:00 "A: keep git ls-tree" and "A: measure it"
+  (the overlap with the source check): `doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`; plan step 10 amended;
+  the follow-up is closed. The proposal branch `docs/planning-cli-git-fence-faster-size-reader` stays unmerged (prototype
+  commits); its records stay there. GOING: `pi-fence-size-read-beside-source-check` (brief under
+  `~/temp/agent/fence-size-read-beside-source-check-2026-11-21/`) and `pi-object-database-reftable-replace-refs` (whether
+  `main` answers reftable replace refs wrongly; brief under
+  `~/temp/agent/object-database-reftable-replace-refs-2026-11-21/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
