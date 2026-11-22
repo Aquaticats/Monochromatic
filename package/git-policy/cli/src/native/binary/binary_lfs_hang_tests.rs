@@ -28,8 +28,10 @@ const HOLD_SECONDS: u64 = 3_000;
 /// Extra time a control allows beyond a derived bound for process starts under host load.
 const LOAD_ALLOWANCE: Duration = Duration::from_secs(60);
 
-/// How long the second worktree's upload takes before it announces itself, in whole seconds.
-/// The two worktrees of the control commit at once, so the wait after the first commit cannot stand in for the second push:
+/// How long the second worktree's upload takes before it announces itself,
+/// in whole seconds.
+/// The two worktrees of the control commit at once,
+/// so the wait after the first commit cannot stand in for the second push:
 /// a control that waits for the wrong worktree reads the origin while this upload is still running,
 /// every run,
 /// and its assertion fails (issue 6336).

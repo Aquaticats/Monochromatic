@@ -117,7 +117,8 @@ fn client_config(route: &Route) -> ClientConfig {
 /// a running service's units were provisioned by the commit that holds the record,
 /// and a worktree whose service is down has no memory for the values to be given up from.
 ///  Asking first is what keeps a command that only settles a record from reading or writing the unit links of a worktree
-///  (the low a Claude Sonnet review of this branch left, that the seam provisioned before it asked).
+///  (the low a Claude Sonnet review of this branch left,
+///  that the seam provisioned before it asked).
 /// The route is a parameter so a control can hand one whose provisioning would be seen,
 /// and prove that order with no session bus
 /// (`a_forget_for_a_service_that_is_not_running_provisions_nothing`).
