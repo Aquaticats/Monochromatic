@@ -222,8 +222,6 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
     remove(root.as_path());
 }
 
-/// A clean ordinary repository with two commits:
-/// the clone rung serves it.
 /// What:
 ///  A main checkout that is an ordinary directory on btrfs,
 /// with two commits and a tracked sparse file above the clone rung's size limit.
