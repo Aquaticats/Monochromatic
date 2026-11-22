@@ -1497,7 +1497,7 @@ checkout-propagation`;
   `namespace`,
   `before-table`,
   `set` or `verify-after`.
-- `errno` is the kernel's error number in decimal on a `set` or `verify-after` refusal,
+- `errno` is the kernel's error number in decimal where a kernel call answered,
   and `none` otherwise.
 - `time` is the time with its offset,
   as the readiness record writes it.
