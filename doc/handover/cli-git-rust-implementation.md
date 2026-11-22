@@ -42183,7 +42183,32 @@ stated in this entry. What follows from them, as work:
   hook now asks the boot unit to reconcile, the nudge waits a delay owed to a measurement, and no count or number ships.
   Its questions for the owner as they stand: which trigger runs when the checkout becomes ready, whether "moot" accepts an
   unbounded wait with nobody waiting, whether the cost rule may hold a pass while a caller waits, and what nudges may cost
-  root. GOING: its second, short gate pass by the same reviewer, to `review-second-pass.md` beside the first. Step 7's
+  root. GOING: its second, short gate pass by the same reviewer, to `review-second-pass.md` beside the first. THE
+  PROPAGATION DESIGN'S FIX ROUND ENDED `idle` (135 turns) at `5e6a2ff9dc` (report in its folder's
+  `keep/report-gate-findings.md`, with `citations-final.txt` and `quotes-final.txt`): every finding fixed and none refuted.
+  It read systemd `v262` and agrees that a unit a mount unit `Upholds=` is started whenever that mount is up, expected or
+  not, and that a drop-in loads for a mount unit learned from the mount table; the step now compares `statmount`'s old
+  mount id with the mount table's first field and keeps the unique id for the check after; propagation is a set; `zfs
+  rollback` is in place and a plain `zfs rename` is a replacement, from the OpenZFS source. Its questions for the owner as
+  they stand: who may set the propagation with no person present, which trigger repairs a replacement systemd did not run
+  as a job (the drop-in, the sibling's event filter widened, a root command, a watcher; ranked on source reading only), what
+  to do with a `slave` or `unbindable` checkout, and whether the set is on the checkout alone or recursive. GOING: its
+  second, short gate pass by the same reviewer, told to say whether this design and the lost-event design now describe one
+  mechanism or two. ISSUE 6342'S ROUND ENDED `idle` at `c40f1cece6` on
+  `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` (report
+  `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/keep/report-from-summary.md`). Its
+  account: the removal unlinks a lock's PID file only when device, inode and change time in whole milliseconds equal what
+  it judged; the old control's hook truncated the judged file in place, so only the change time could differ, and it fails
+  when both writes share a millisecond (10 of 100 runs with the plant rewritten just before the call, each of them a
+  same-millisecond pair; 0 of 320 as the control stood). It calls this the control's defect, since Git creates the PID file
+  exclusively and writes nothing when refused, and replaced the control with two, the first red 5 of 5 with the comparison
+  removed. Written up as cause L. Its gates: 9878 of 9880 twice (the cause-H pair), and one attempt between them that
+  stopped at 9855 of 9880 with no summary and no message, not attributed. The incident gate's journal has left retention.
+  It ran its fixtures on `/dev/shm`, which the scratch rule forbids; its pass is told not to. GOING: its integration pass on
+  Sonnet, told to test the product-or-control judgement (who else could rewrite a PID file in place within one millisecond,
+  and whether a live holder's file can then be unlinked) and to read the silent gate's journal; review to
+  `~/temp/agent/integration-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`, integration branch
+  `integrate/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate`. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
