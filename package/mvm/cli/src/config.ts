@@ -73,6 +73,25 @@ export const WINDOWS_GUEST_MOUNT_POINT = 'Z:\\';
 export const LIBVIRT_URI = 'qemu:///session';
 
 /**
+ Name of the user unit mvm runs libvirt's session daemon in, without `.service`.
+
+ The name is what makes one daemon: a second `systemd-run` for the same name
+ fails, and mvm then waits for the daemon the first starter began.
+ */
+export const SESSION_DAEMON_UNIT = 'mvm-libvirt-session';
+
+/**
+ Seconds the session daemon may stay idle before it exits.
+
+ Basis: libvirt forks its own session daemon with `--timeout=120` (libvirt 12.9
+ `src/rpc/virnetsocket.c`, `virNetSocketForkDaemon`), so a daemon mvm starts
+ behaves like the one `virsh` used to start. The daemon does not count a
+ running domain as idle (`virNetDaemonAddShutdownInhibition`,
+ `src/rpc/virnetdaemon.c`), so guests keep it up.
+ */
+export const SESSION_DAEMON_IDLE_TIMEOUT_SECONDS = 120;
+
+/**
  Timeout for guest agent during Windows template creation (40 minutes).
  Windows unattended install takes 15-30 minutes: OS installation,
  first boot, OOBE, and guest agent installation via FirstLogonCommands.
