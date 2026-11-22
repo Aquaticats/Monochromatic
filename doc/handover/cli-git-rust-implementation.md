@@ -41481,7 +41481,126 @@ stated in this entry. What follows from them, as work:
   (`~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`): `git_directory_of` has
   no controls of its own; the `>= 1 s` assertion times more than the wait; the settle doc overstates its reach; a possible
   trailing-space trim in the product's own `.git` resolver (read, not run, not this branch's); "above" pointers and a long
-  line; `AskTheService::forget_programs` still has no control. Step 7's
+  line; `AskTheService::forget_programs` still has no control. THE UP-FRONT SKIP'S PASS said fit (the caught add 0.73 of
+  `main` against a same-binary 1.04; the size-proof add 0.98; same-tree adds 0.96 to 1.02; harness 26 of 26, sample 300 of
+  300, guest ZFS 20 of 20; gate 9627 of 9629). MERGED as `5d2a6c58b3` at 2026-11-21T20:16:22-05:00. Lows in its review
+  (`~/temp/agent/integration-pass-clone-rung-skips-a-differing-fenced-tree-2026-11-21/keep/review.md`): an unnamed add that
+  checks out an existing branch named after the destination is never caught (as on `main`) while three comments say an
+  unnamed add starts at `HEAD`; the rung-1 ending control reaches its ending by accident; the planning doc's record claim
+  and noise floor are wrong; the read is paid when the fence names nothing; a tag and a branch of one name (p16) took Git's
+  checkout where `main` cloned, bytes equal, time not measured; a changed symlink also ends the clone rung after copies (on
+  `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
+  defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement
+  (`pi-fence-faster-size-reader-design` in `.claude/worktrees/fence-faster-size-reader`; no new dependency added, a crate
+  measured in scratch only; brief under `~/temp/agent/fence-faster-size-reader-design-2026-11-21/`). STEP 7'S CLOSURE
+  CHECK said fit (the claim on `take_claim`: one holder per slot over eight claimants and ten slots; the `/run` place fits
+  if the claim makes its folder each boot; the proof-to-claim window acceptable until step 8, which carries it as an
+  acceptance item; gate 9729 of 9731; guest arm green). MERGED as `5d130df425` at 2026-11-21T20:27:42-05:00: ZFS step 7 is
+  on `main`. Carried, not blocking: the owner's veto on the `/run` place, refuse-not-wait, whether the removal text's
+  "per-slot claim" is this object (step 14's). GOING, side by side: `pi-zfs-step-7-closure-lows` (the claim makes its `/run`
+  folder, controls that can fail for a failed publish's cleanup and the poll's sleep, two doc lows; brief under
+  `~/temp/agent/zfs-step-7-closure-lows-2026-11-21/`) and `pi-clone-rung-skip-pass-lows` (the skip resolving the target as
+  `git worktree add` does, p16 timed, the rung-1 control, the doc's record and noise-floor claims, no read when the fence
+  names nothing, the symlink limitation; brief under `~/temp/agent/clone-rung-skip-pass-lows-2026-11-21/`). Step 8 waits on
+  the per-slot store's merge. THE SWEEP-UNLISTED ROUND ended at `2b3e13f439` (`main` merged as `39300d28c4`): the sweep
+  touches no store; the control `a_sweep_run_lists_nothing` red with the removal put back (`["opened", "listed"]`), green
+  after; SPEC, the design and plan step 18 say `doctor` removes the known staging forms at step 18; two gates 9635 of 9638,
+  each with the cause-H pair plus one different test that passes alone (cause G's
+  `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`, and
+  `commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`, a 13 ms excess in a stop-ceiling record,
+  recorded nowhere yet). GOING: the per-slot store's integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-zfs-slot-identity-store-per-slot-files-2026-11-21/keep/review.md`). THE PARTIAL CLONE'S
+  GATE RE-CHECK said not ready (1 high, 7 medium, 7 low; its folder's `keep/review.md`): the gain reproduces (usual dirty
+  0.69 of `main`, control 0.74; classes 28 of 28; sample 300 of 300); H1 the waiver's baseline is Git's own checkout (the
+  record was written when `main` used it), not today's `main`: against it the usual shape is 0.77 (met), 6,000 changed 1.05
+  and the small dirty tree 1.31 (not met), and the small-file half's claim contradicts option B; M1 the 6,000-path figure
+  does not reproduce (0.93 against a control 1.02); M2 the rotation was not position-balanced; M3 to M7 (small-tree ratios,
+  B's bracket, one guard with no failing control, the skip unnamed, options bundled and no changed-path bound: 20,000 paths
+  1.44 of `main`). GOING: `pi-clone-rung-partial-clone-recheck-findings` in the proposal worktree (merge `main`, the
+  balanced rerun, every finding; brief `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/prompt-recheck-findings.md`).
+  STEP 7'S CLOSURE LOWS ROUND ended at `2dd61371ea` (the claim makes its `/run` folder, red then green; the publish
+  cleanup and the poll sleep held by controls that fail without them, 3,981 reads in 200 ms without the sleep; the readiness
+  sentence and `boot-reconcile` given to plan step 8; gate 9736 of 9738). It printed `PATH` through a filter, against the
+  rule (no secret). GOING: the step 7 reviewer's narrow check. `~/temp/agent` measures 12,907 MiB (fence reader design
+  4,536, partial clone 2,239, the BTF reader validation 970). THE PER-SLOT STORE'S INTEGRATION PASS said not fit: the merge
+  with `main` conflicts with step 7 (step 7 moved `slot_name_refusal` into `slot_name.rs`; the branch keeps its own copy
+  that three new files import; three `mod.rs` hunks), so nothing merged was built; the tip itself is as accepted (four
+  plants red, guest arms 22 and 23 green, gate on the tip 9636 of 9638); mediums: an unnamed 65,536-entry listing cap, the
+  setup-run writer comparing after it links, the rename fallback's loser arm with no failing control; the `commit_timing`
+  one-off to be recorded as its own incident. The reviewer left its integration worktree mid-merge (the wrapper refused
+  `merge --abort` over its own staged resolution): the coordinator aborted it with `--no-enforce-worktree` after confirming
+  the staged content was the pushed feature branch's and the conflict was saved in that review's `keep/`, then removed the
+  worktree and the `integrate/...` branch locally and on `origin` (it equalled an older `main`). GOING:
+  `pi-zfs-slot-identity-store-integration-findings-fixed` in the build worktree (brief under
+  `~/temp/agent/zfs-slot-identity-store-integration-findings-fixed-2026-11-21/`). THE PARTIAL CLONE'S RE-CHECK FINDINGS
+  ROUND ended at `dc7b5e5624` (`main` merged as `e86faecf31`): the end condition read against Git's own checkout in a
+  position-balanced order (usual 0.73 met, 300 changed 0.73 met, 6,000 changed 1.00 parity, 20,000 changed 1.74 not met, the
+  small dirty tree 1.30 under A and 1.04 under B); options unbundled A, B, E (size rule alone), F (changed-path bound), C, D,
+  ranked B > F > A > E > D > C, B's threshold and F's cut unpinned; a new control red when the second staged-path listing is
+  ignored; classes 29 of 29, sample 300 of 300; five of the re-check's six re-plants owed before any merge. GOING: the
+  re-check's recheck on Sonnet; then the owner. STEP 7'S CLOSURE LOWS' CHECK said fit (the three controls red with their
+  guards removed: missing folder, both leftovers named, 4,831 reads in 200 ms without the sleep; no non-test code beyond the
+  claim). MERGED as `248115ecab` at 2026-11-21T21:31:11-05:00. Lows carried in that review: plan step 8's paragraph wording
+  ("all before any sweep" when the reconciliation is the sweep; no design heading cited; no dated amendment note; the owner
+  may veto the assignment of `boot-reconcile` to step 8), an overstating comment in `claim`, a third copy of the directory
+  maker, the sleep control under a severe stall. THE OWNER ASKED why Plasma keeps showing "Memory Shortage Avoided":
+  libvirt's session daemon starts in the capped scope of whichever command runs `virsh` first, every later guest joins
+  it, and that scope's cap, `RuntimeMaxSec=` or cleanup kills them all (two kills today, 21:23:58 and 21:47:52, scopes
+  capped at 2 GiB; Plasma's wording blames system memory). Recorded in
+  `doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md`; issue 6338. At
+  21:58 the daemon lived in `integ-store-guest-arms.scope` (the store findings round's, `RuntimeMaxSec=1h` from 21:35:55);
+  the round was steered not to stop it by hand. Guest failures near those times are these kills, not code. Briefs that
+  start guests now say: never stop a scope that holds `virtqemud`; let it end when the daemon exits. The fix's placement is
+  put to the owner with the partial clone decision. THE PARTIAL CLONE'S RECHECK said ready on condition the owner question
+  asks what the waiver is if the clone lands before B's threshold and F's cut are measured (N1); 15 of 15 earlier findings
+  closed; five lows (N2 to N6) left; its folder's `keep/review.md`, section "Recheck of dc7b5e5624". THE OWNER ANSWERED
+  at 2026-11-21T22:04:07-05:00: "A: mvm starts it" (issue 6338; recorded in `package/mvm/cli/README.md` and the
+  troubleshooting doc) and "1: clone with limits" (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`;
+  the waiver record amended). GOING: `pi-mvm-cli-session-daemon-in-its-own-unit` (brief under
+  `~/temp/agent/mvm-cli-session-daemon-in-its-own-unit-2026-11-21/`) and `pi-clone-rung-partial-clone-build` (brief under
+  `~/temp/agent/clone-rung-partial-clone-build-2026-11-21/`). THE SKIP'S LOWS ROUND ended at `4c9531233b` (all six fixed,
+  each red then green; p16 0.92 of `main` against a same-binary 0.98; harness 26 of 26, sample 300 of 300; gate 9738 of
+  9740; the btrfs rung-1 control not run because its guest met "Connection reset by peer" from the session daemon); GOING:
+  its integration pass on Sonnet (review to `~/temp/agent/integration-pass-clone-rung-skip-pass-lows-2026-11-21/`). THE
+  LABELS FINDINGS ROUND (`fix/git-policy-cli-gate-containers-carry-a-run-label`, commits to `7ee9aaf6f4`) lost its report
+  again (issue 6337: its last message was mid-run); GOING: its reviewer's recheck. THE FASTER SIZE READER'S DESIGN ended at
+  `3dbc2819f3`: the 338 ms did not reproduce (the read is 33 to 53 ms of a 650 to 713 ms add; no arm separates from the
+  identical pair on rung 1); `gix` reads in 10.7 ms against `ls-tree`'s 34.5 but is a new dependency; its guest was shut
+  down twice, which matches the daemon kills. GOING: its gate review on Sonnet (review to
+  `~/temp/agent/gate-review-fence-faster-size-reader-2026-11-21/`). THE PER-SLOT STORE'S FINDINGS ROUND ended at
+  `d314e71364` (`main` merged as `9b1ee66797`, `slot_name.rs` the one definition; M1 cap removed with its reason; M2 compare
+  before any name, red then green; M3 loser control, red then green; L1 to L10 except L4; guest arms 22 and 23 green on the
+  second attempt, the first dying at 21:49 in `virsh` transport, which matches the daemon kill; gate 9750 of 9752; Incident J
+  recorded for the one-off `commit_timing` failure; its daemon scope ended by itself). OWED AT MERGE by the coordinator: L4,
+  the in-place note in `doc/decision/cli-git-zfs-slot-identity-store-format.md` for `STORE_LOCK_WAIT` (gone) and
+  `doc/slot-identity-store-lock-hold.md` (now `doc/slot-identity-store-write-cost.md`). GOING: its reviewer's recheck.
+  THE MVM DAEMON BUILD ended at `ba04350a6d` (issue 6338): unit `mvm-libvirt-session` (`MemoryMax=36G` for four 8 GiB guests
+  plus overhead, `OOMPolicy=continue`, no time limit, `virtqemud --timeout=120`), every `virsh` call with
+  `LIBVIRT_AUTOSTART=0` so none can fork a daemon into its caller; no session-bus name claimed (libvirt 12.9 source); eight
+  tests red then green; the real guest check not run because another session's daemon stayed up. The host has 61 GiB, 35
+  available at 22:4x. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-mvm-cli-session-daemon-in-its-own-unit-2026-11-21/`). After merge, the MCP server's `dist`
+  may need a rebuild for sessions to get it (the pass is asked). THE LABELS RECHECK said not fit on wording only: the
+  code passes (manifest control red without the write; gate 9736 of 9738 with the cause-H pair), but "a stopped unit leaves
+  its containers running" is FALSE. The first probe read `podman ps`, which prints `Up` for an ended container; five probes
+  (S10, S11, S13, S14, S17 through the real `runGateContainer`) show a unit stop sends SIGTERM through the `podman run` client
+  to its container. The false claim had spread to the branch's README and cause J, to issue 6334's correction item (2), and
+  to this coordinator's brief rule "A gate container keeps running after its unit is stopped" (dropped from briefs now;
+  the running partial clone build was steered with the correction; the Sonnet briefs that carried it are for reviewers that
+  stop only their own gates). The coordinator committed the reviewer's scoped wording on the integration branch as
+  `7c6487c369` and posted the correction on issue 6334. The reviewer confirmed it fit, with four optional narrowings, which
+  the coordinator made too. MERGED as `365fdd594e` at 2026-11-21T22:46:22-05:00; closes 6334. Both integration branches, the
+  feature branch and their worktrees are removed (no commit beyond `main` on either). The journal kept only hours today, so
+  which unit, if any, was stopped at the incident hour cannot be read now. THE SIZE READER'S GATE REVIEW said not ready:
+  the 338 ms came from a fixture with every object loose (built without `git gc`); packed, the read is about 47 ms (6 percent
+  of the add) against about 440 ms loose (39 percent), and 98 percent of this repository's `HEAD` blobs are packed; the
+  proposal measured `gix` 0.77.0 (shares none of the lock's plumbing; wrong replaced-blob size) instead of 0.90.0; vetting
+  facts wrong (`unsafe` in `gix-pack`, MPL-2.0, Zlib and BSD-3-Clause licences, 26 s build); the partial-clone control cannot
+  fail; missing and corrupt objects pass silently to Git; reftable replace refs missed; no owner question. Its proposed
+  question ranks A (keep `git ls-tree`, close step 10's follow-up) > B (`gix` or `gix-odb` after vetting) > C (in-process,
+  wins only on loose btrfs sources) > D (`cat-file`). GOING: `pi-fence-faster-size-reader-gate-findings` in the proposal
+  worktree (brief `~/temp/agent/fence-faster-size-reader-design-2026-11-21/prompt-gate-findings.md`); then the reviewer's
+  recheck; then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under

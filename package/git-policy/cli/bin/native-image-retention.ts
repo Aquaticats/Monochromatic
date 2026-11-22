@@ -6,6 +6,7 @@
  until somebody prunes the store by hand (issue 991). The gate removes exactly the image its own build replaced, and
  only while nothing else names it: a tag another worktree made, and an image a container still runs, are left alone.
  */
+import { runCommand, } from './native-verification-process.ts';
 
 /**
  What podman prints for both the repository and the tag of an image no name points at.
@@ -192,4 +193,32 @@ export function imagesToRemove({
         id: candidate,
       },);
     },);
+}
+
+/**
+ Every name of the local image store, as the retention decisions read it.
+
+ @returns one entry per name podman lists, in podman's order; an unreadable listing is empty, so a gate never fails over
+ it
+
+ @example
+ ```ts
+ const namesBeforeBuild = await localImageNames();
+ ```
+ */
+export async function localImageNames(): Promise<readonly ImageName[]> {
+  /**
+   Result of asking podman for the store, which a host without podman answers with a failure instead of output.
+   */
+  const listing = await runCommand({
+    command: 'podman',
+    args: [
+      'images',
+      '--format',
+      '{{.ID}} {{.Repository}}:{{.Tag}}',
+    ],
+    capture: true,
+    allowFailure: true,
+  });
+  return imageNames({ output: listing.stdout, },);
 }

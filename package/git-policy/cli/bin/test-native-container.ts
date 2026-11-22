@@ -26,6 +26,9 @@ import {
 import { runGateChecks, } from './native-gate-checks.ts';
 import { gateClippyToolchain, } from './native-gate-clippy-toolchain.ts';
 import { runGateContainer, } from './native-gate-container.ts';
+import { gateRunLineOf, } from './native-gate-container-identity.ts';
+import { gateRunContainersOf, } from './native-gate-run-containers.ts';
+import { gateRunManifestOf, } from './native-gate-run-manifest.ts';
 import {
   gateContainerLimitOptions,
   gateLimitsFrom,
@@ -48,8 +51,8 @@ import {
 } from './native-sidecar-lock-check.ts';
 import {
   type ImageName,
-  imageNames,
   imagesToRemove,
+  localImageNames,
 } from './native-image-retention.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
 import { repositorySettingsFileName, } from './native-test-settings-file.ts';
@@ -59,29 +62,6 @@ import {
   runCommand,
 } from './native-verification-process.ts';
 import { wrapperCrates, } from './native-wrapper-snapshot.ts';
-
-/**
- Every name of the local image store, as the retention decisions read it.
-
- @returns one entry per name podman lists; an unreadable listing is empty, so a gate never fails over it
- */
-async function localImageNames(): Promise<readonly ImageName[]> {
-  /**
-   Result of asking podman for the store, which a host without podman answers with a failure instead of output.
-   */
-  const listing = await runCommand({
-    command: 'podman',
-    args: [
-      'images',
-      '--format',
-      '{{.ID}} {{.Repository}}:{{.Tag}}',
-    ],
-    capture: true,
-    allowFailure: true,
-  });
-  return imageNames({ output: listing.stdout, },);
-}
-
 
 // Resource limits default to the repository's test-container bounds, with the gate's own CPU count; `--memory`, `--cpus`
 // and `--pids-limit` after the `--` of the task override them, except that the process bound never goes below what the
@@ -192,6 +172,15 @@ const evidence = await mkdtemp(join(
   evidenceRoot,
   'native-',
 ));
+// Every container this run starts carries this id in its name and its label, so a session that wants to stop its own
+// gate stops a container whose label is this run's and never one it guessed at (issue 6334).
+/**
+ The containers of this gate run, whose run id is the random name of the run's evidence directory.
+ */
+const run = gateRunContainersOf({ evidenceDirectory: evidence, },);
+// The run's id is printed before the build, so the name and label every container of this run carries are in the log
+// from its first minute, not only once a container starts.
+console.log(gateRunLineOf({ runId: run.runId, },),);
 // The base is the newest CachyOS image on its `latest` tag with pacman's current Git, Node, pnpm, strace, cargo-nextest and the Rust toolchain on top
 // (doc/decision/container-base-distro.md): the pull happens here, once, and every step after it is offline.
 /**
@@ -300,29 +289,28 @@ const limits = [
     withPidsLimit: true,
   }),
 ];
-await writeFile(
-  join(
-    evidence,
-    'manifest.json',
-  ),
-  `${JSON.stringify(
-    {
-      base,
-      baseTag: testBase.tag,
-      cachyosImage: testBase.cachyosImage,
-      cachyosImageId: testBase.cachyosImageId,
-      image,
-      fixtureRoot: {
-        path: gateFixtureRoot,
-        mount: gateFixtureRootMountOptions,
-      },
-      limits,
-      user: '1000:1000',
-    },
-    null,
-    2,
-  )}\n`,
-);
+// The manifest is written before any container starts, and after the image exists because it carries the image's ID: a
+// gate that refuses during the build leaves only the log's run-id line, which names the run and what every one of its
+// containers would have been called.
+/**
+ This run's manifest, whose writer records each container's ID as its client reports it.
+ */
+const evidenceManifest = gateRunManifestOf({
+  evidenceDirectory: evidence,
+  base,
+  baseTag: testBase.tag,
+  cachyosImage: testBase.cachyosImage,
+  cachyosImageId: testBase.cachyosImageId,
+  image,
+  fixtureRoot: {
+    path: gateFixtureRoot,
+    mount: gateFixtureRootMountOptions,
+  },
+  limits,
+  run,
+  user: '1000:1000',
+},);
+await evidenceManifest.writeManifest();
 console.log(`Native wrapper verification evidence: ${evidence}`);
 // The Clippy step takes the repository's locked toolchain and refuses when its sysroot holds no Clippy: a sysroot
 // taken from the caller's environment was the default `nightly`, which has no Clippy component, so the image's older
@@ -333,6 +321,17 @@ console.log(`Native wrapper verification evidence: ${evidence}`);
  */
 const clippyToolchain = await gateClippyToolchain({ startDirectory: subjectDirectory, },);
 console.log(`The Clippy step runs the repository's locked Rust toolchain ${clippyToolchain.toolchain}: ${clippyToolchain.sysroot}`);
+// A container's ID exists only while its `--rm` container does, so the manifest is written again as each ID is read and
+// once this scope ends, whether the gate passed or refused: a refused gate is the one whose containers a person most
+// needs to name.
+/**
+ This run's manifest, rewritten when the scope ends with the IDs its containers' clients reported.
+ */
+await using manifestWithContainerIds = {
+  async [Symbol.asyncDispose](): Promise<void> {
+    await evidenceManifest.writeManifest();
+  },
+};
 // The suite and Clippy start together and the gate waits for both: a clean Clippy is silent, and a Clippy compile
 // behind the suite cost a fifth of the gate's wall time while both checks had nothing to say to each other. Each is
 // bounded, so a container that never ends refuses the gate instead of holding it open
@@ -340,26 +339,27 @@ console.log(`The Clippy step runs the repository's locked Rust toolchain ${clipp
 await runGateChecks({
   testRun: function runTheWholeSuite(deadlineMilliseconds) {
     return runGateContainer({
-      cidFile: join(
-        evidence,
-        'suite.cid',
-      ),
+      cidFile: run.suite
+        .cidFile,
+      identity: run.suite
+        .identity,
       deadlineMilliseconds,
       args: [
         ...limits,
         ...fixtureRootArguments(),
         image,
       ],
+      onStarted: evidenceManifest.recorded('suite',),
     },);
   },
   // Its diagnostics are captured rather than streamed, so the run stays the one stream a person reads and a refused
   // Clippy still quotes what Clippy said.
   clippyRun: function runClippy(deadlineMilliseconds) {
     return runGateContainer({
-      cidFile: join(
-        evidence,
-        'clippy.cid',
-      ),
+      cidFile: run.clippy
+        .cidFile,
+      identity: run.clippy
+        .identity,
       deadlineMilliseconds,
       args: [
         ...limits,
@@ -385,9 +385,10 @@ await runGateChecks({
       ],
       capture: true,
       allowFailure: true,
+      onStarted: evidenceManifest.recorded('clippy',),
     },);
   },
-});
+},);
 await writeFile(
   join(
     evidence,

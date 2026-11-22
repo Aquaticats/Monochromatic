@@ -15,6 +15,8 @@ The installed notification definition is `/usr/share/knotifications6/oom_notifie
 It belongs to Plasma and identifies its displayed source as `Linux Kernel`.
 The decisive workload evidence is the kernel journal,
 not the generic notification title.
+The same notification also follows a guest killed inside the scope that holds libvirt's session daemon;
+see `libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md`.
 
 ## Cause and corrected evidence window
 

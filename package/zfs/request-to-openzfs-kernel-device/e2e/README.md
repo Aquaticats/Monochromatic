@@ -38,7 +38,31 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-attach-arm --
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-arm --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-version-arm --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-gate-change-arm --name my-guest
+# the step 7 arms (the intent property, the receipt and the nudge), in this order, on the same guest:
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-pool --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-teardown --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-record --name my-guest
 ```
+
+The four `zfs-protocol-*` steps are the step 7 arm of
+`doc/planning/cli-git-zfs-worktree-implementation-plan.md`'s
+"Step 7:
+The intent property,
+the receipts and the readiness record".
+`zfs-protocol-pool` makes a 1 GiB encrypted pool and starts a real `zfs-zed` with
+one test zedlet,
+`zfs-protocol-arm` pushes the wrapper's packages,
+builds its tests inside the guest and runs
+`mount_protocol_arm_intent_receipt_and_nudge`
+(refusing when the arm skips or prints no `MEASUREMENT mount-protocol` line),
+`zfs-protocol-teardown` destroys the pool and records what it left,
+and `zfs-protocol-record` reads the guest's versions and pulls the logs.
+The run's own log names are `step7-pool.log`,
+`step7-wrapper-build.log`,
+`step7-suite.log`,
+`step7-teardown.log` and
+`step7-versions.log`.
 
 - `create` makes the guest with `mvm`,
   whose default `libvirt` backend runs it on

@@ -149,6 +149,15 @@ mvm does not start libvirt's session daemon.
 and the daemon keeps running while a domain runs and exits after two idle minutes.
 The first `virsh` call after that takes a few seconds longer.
 
+That daemon,
+and every guest it starts,
+runs in the cgroup of the command whose `virsh` call started it,
+so that command's memory cap,
+time limit or cleanup ends every guest on the machine;
+see `doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md` in the repository root.
+On 2026-11-21 the project chose that mvm starts the daemon itself in a user unit of its own (issue 6338);
+this section changes when that lands.
+
 Every `virsh` call has a deadline:
 two minutes,
 or the guest agent timeout plus thirty seconds for a guest agent request.

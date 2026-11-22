@@ -5,6 +5,7 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
+import { writeFileSync, } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -15,6 +16,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { runGateContainer, } from './native-gate-container.ts';
+import {
+  announceContainerId,
+  containerIdWhenWritten,
+} from './native-gate-container-id-file.ts';
+import { gateContainerIdentityOf, } from './native-gate-container-identity.ts';
 import { NativeVerificationError, } from './native-verification-process.ts';
 
 /**
@@ -33,29 +39,57 @@ const scratchParent = join(
 const standInDeadlineMilliseconds = 3_000;
 
 /**
+ A run id in the shape the evidence directory gives one, which every stand-in below is told.
+ */
+const runId = 'native-HZPg8O';
+
+/**
+ The suite's identity, which every run below gives its container.
+ */
+const suiteIdentity = gateContainerIdentityOf({
+  runId,
+  role: 'suite',
+});
+
+/**
+ An ID in the shape podman writes to the ID file, so the test can tell which run it read.
+ */
+const containerId = '3f2a9c1e'.repeat(8,);
+
+/**
+ The client's arguments that name this run's container, which both stand-ins below write their ID file for.
+ */
+const identityWriting = `  const cidFile = args[args.indexOf('--cidfile') + 1];
+  require('node:fs').writeFileSync(cidFile, process.env.PODMAN_CONTAINER_ID + '\\n');
+`;
+
+/**
  A stand-in `podman` that records every argument array it is given and answers as the run this test needs.
 
- Its `run` is a client whose container never exits, which is the client the gate's deadline has to stop; every other
- subcommand answers as a program that found nothing to do.
+ Its `run` writes the container's ID to the ID file its client was given and then never exits, which is the client the
+ gate's deadline has to stop; every other subcommand answers as a program that found nothing to do.
  */
 const standInPodman = `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs');
 const args = process.argv.slice(2);
 appendFileSync(process.env.PODMAN_LOG, JSON.stringify(args) + '\\n');
 if (args[0] === 'run') {
-  setTimeout(() => {}, 60000);
+${identityWriting}  setTimeout(() => {}, 60000);
 } else {
   process.exit(0);
 }
 `;
 
 /**
- A stand-in `podman` whose `run` answers at once, so the removal is exercised on a container that ended by itself.
+ A stand-in `podman` whose `run` writes the container's ID and answers at once, so the removal is exercised on a
+ container that ended by itself.
  */
 const standInPodmanThatEnds = `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs');
 const args = process.argv.slice(2);
 appendFileSync(process.env.PODMAN_LOG, JSON.stringify(args) + '\\n');
+if (args[0] === 'run') {
+${identityWriting}}
 process.exit(0);
 `;
 
@@ -187,6 +221,66 @@ function optionValue({ args, name, }: {
     : args[at + 1] ?? '';
 }
 
+/**
+ A scratch directory holding the ID file one container's client writes, removed when the test's scope ends.
+ */
+async function identityTestTree(): Promise<{ readonly cidFile: string; readonly [Symbol.asyncDispose]: () => Promise<void>; }> {
+  await mkdir(
+    scratchParent,
+    {
+      recursive: true,
+      mode: 0o700,
+    },
+  );
+  /**
+   The directory, removed when the caller's scope ends.
+   */
+  const tree = await mkdtempDisposable(join(
+    scratchParent,
+    'gate-container-id-test-',
+  ),);
+  return {
+    cidFile: join(
+      tree.path,
+      'suite.cid',
+    ),
+    async [Symbol.asyncDispose](): Promise<void> {
+      await tree[Symbol.asyncDispose]();
+    },
+  };
+}
+
+/**
+ Collect the lines that would go to stdout, putting the real reporter back when the scope ends.
+
+ @param lines - collector the caller reads afterwards
+
+ @returns the collector, and the restore that disposal runs
+
+ @example
+ ```ts
+ using printed = collectingLines({ lines: [], },);
+ ```
+ */
+function collectingLines(
+  { lines, }: { readonly lines: string[]; },
+): { readonly lines: readonly string[]; } & Disposable {
+  /**
+   The real reporter, put back when this scope ends.
+   */
+  const reported = console.log;
+  console.log = (...parts: readonly unknown[]) => {
+    lines.push(parts.map(String,)
+      .join(' ',),);
+  };
+  return {
+    lines,
+    [Symbol.dispose]: () => {
+      console.log = reported;
+    },
+  };
+}
+
 await describe({
   name: runGateContainer.name,
   children: [
@@ -195,6 +289,10 @@ await describe({
       fn: async () => {
         await using tree = await containerTestTree({ delegate: standInPodmanThatEnds, },);
         /**
+         Every ID the run reported as it read it, which the evidence records.
+         */
+        const started: string[] = [];
+        /**
          What the client answered.
          */
         const outcome = await runGateContainer({
@@ -202,6 +300,7 @@ await describe({
             tree.path,
             'ended.cid',
           ),
+          identity: suiteIdentity,
           args: ['image'],
           capture: true,
           deadlineMilliseconds: standInDeadlineMilliseconds,
@@ -209,6 +308,10 @@ await describe({
             ...process.env,
             PATH: `${tree.standInDirectory}:${process.env.PATH ?? ''}`,
             PODMAN_LOG: tree.argumentLog,
+            PODMAN_CONTAINER_ID: containerId,
+          },
+          onStarted: async function recorded(id) {
+            started.push(id,);
           },
         },);
         expect(outcome.status,).toBe(0,);
@@ -230,6 +333,42 @@ await describe({
           args: calls[1] ?? [],
           name: '--cidfile',
         },),).toContain('ended.cid',);
+        expect(started,).toEqual([containerId,],);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'gives the container the name and label of its run, so a person stops it by a name this run printed',
+      fn: async () => {
+        await using tree = await containerTestTree({ delegate: standInPodmanThatEnds, },);
+        await runGateContainer({
+          cidFile: join(
+            tree.path,
+            'named.cid',
+          ),
+          identity: suiteIdentity,
+          args: ['image'],
+          capture: true,
+          deadlineMilliseconds: standInDeadlineMilliseconds,
+          environment: {
+            ...process.env,
+            PATH: `${tree.standInDirectory}:${process.env.PATH ?? ''}`,
+            PODMAN_LOG: tree.argumentLog,
+            PODMAN_CONTAINER_ID: containerId,
+          },
+        },);
+        /**
+         The client's own call, which is where the options go.
+         */
+        const [run] = await recordedCalls(tree.argumentLog,);
+        expect(optionValue({
+          args: run ?? [],
+          name: '--name',
+        },),).toBe(suiteIdentity.name,);
+        expect(optionValue({
+          args: run ?? [],
+          name: '--label',
+        },),).toBe(suiteIdentity.label,);
       },
       timeout: 20_000,
     },),
@@ -237,6 +376,10 @@ await describe({
       name: 'removes the container of a client the deadline stopped, so a stopped check leaves nothing running',
       fn: async () => {
         await using tree = await containerTestTree({ delegate: standInPodman, },);
+        /**
+         Every ID the run reported before its deadline stopped the client.
+         */
+        const started: string[] = [];
         /**
          The failure of a client whose container never exits.
          */
@@ -247,6 +390,7 @@ await describe({
               tree.path,
               'stopped.cid',
             ),
+            identity: suiteIdentity,
             args: ['image'],
             capture: true,
             deadlineMilliseconds: standInDeadlineMilliseconds,
@@ -254,6 +398,10 @@ await describe({
               ...process.env,
               PATH: `${tree.standInDirectory}:${process.env.PATH ?? ''}`,
               PODMAN_LOG: tree.argumentLog,
+              PODMAN_CONTAINER_ID: containerId,
+            },
+            onStarted: async function recorded(id) {
+              started.push(id,);
             },
           },);
         }
@@ -276,6 +424,228 @@ await describe({
           args: calls[1] ?? [],
           name: '--cidfile',
         },),).toContain('stopped.cid',);
+        expect(started,).toEqual([containerId,],);
+      },
+      timeout: 20_000,
+    },),
+  ],
+},);
+
+await describe({
+  name: containerIdWhenWritten.name,
+  children: [
+    it({
+      name: 'answers at once with an ID its client wrote before this wait looked',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        await writeFile(
+          tree.cidFile,
+          `${containerId}\n`,
+        );
+        /**
+         A client that is still running, so only the file can end this wait.
+         */
+        const ended = Promise.withResolvers<unknown>();
+        expect(await containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: ended.promise,
+        },),).toEqual({
+          kind: 'written',
+          id: containerId,
+        },);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'reads an ID its client writes while the gate waits, so the line naming it comes before the container speaks',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        /**
+         The client, writing its ID while the gate is between two looks.
+         */
+        const ended = Promise.withResolvers<unknown>();
+        expect(await containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: ended.promise,
+          wait: async function writing(): Promise<undefined> {
+            await writeFile(
+              tree.cidFile,
+              `${containerId}\n`,
+            );
+            return undefined;
+          },
+        },),).toEqual({
+          kind: 'written',
+          id: containerId,
+        },);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'looks once more when the client ended, so an ID written just before it ended is still read',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        expect(await containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: Promise.resolve(),
+          // Written where the client would write it: synchronously, before the race that sees the client end is decided.
+          wait: async function writing(): Promise<undefined> {
+            writeFileSync(
+              tree.cidFile,
+              `${containerId}\n`,
+            );
+            return undefined;
+          },
+        },),).toEqual({
+          kind: 'written',
+          id: containerId,
+        },);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'answers that the client ended when no ID was ever written, which means it created no container',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        expect(await containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: Promise.resolve(),
+          wait: async function waiting(): Promise<undefined> {
+            return undefined;
+          },
+        },),).toEqual({ kind: 'client-ended', },);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'answers at its own bound when the client neither ends nor writes an ID',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        /**
+         Milliseconds this wait is given, far below the two minutes a real client that stopped answering costs.
+         */
+        const boundMilliseconds = 20;
+        /**
+         A client that is still running, so only the bound can end this wait.
+         */
+        const ended = Promise.withResolvers<unknown>();
+        expect(await containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: ended.promise,
+          deadlineMilliseconds: boundMilliseconds,
+          wait: async function waiting(): Promise<undefined> {
+            return undefined;
+          },
+        },),).toEqual({ kind: 'deadline', },);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'refuses to name a container when its ID file is there and cannot be read',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        // A directory in the ID file's place is there and unreadable as a file, whatever the test runs as.
+        await mkdir(tree.cidFile,);
+        /**
+         The wait that meets an ID file it cannot read.
+         */
+        const refused = containerIdWhenWritten({
+          cidFile: tree.cidFile,
+          ended: Promise.withResolvers<unknown>().promise,
+        },);
+        await expect(refused,).rejects.toThrow(NativeVerificationError,);
+        await expect(refused,).rejects.toThrow('could not be read',);
+      },
+      timeout: 20_000,
+    },),
+  ],
+},);
+
+await describe({
+  name: announceContainerId.name,
+  // Each check below diverts stdout for its own duration, so they run one after the other.
+  concurrency: 1,
+  children: [
+    it({
+      name: 'prints the ID its client wrote and hands it to the run as soon as it is read',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        await writeFile(
+          tree.cidFile,
+          `${containerId}\n`,
+        );
+        /**
+         Every line this announce printed.
+         */
+        const lines: string[] = [];
+        using printed = collectingLines({ lines, },);
+        /**
+         Every ID the run recorded.
+         */
+        const started: string[] = [];
+        await announceContainerId({
+          identity: suiteIdentity,
+          cidFile: tree.cidFile,
+          running: Promise.withResolvers<unknown>().promise,
+          onStarted: async function recorded(id) {
+            started.push(id,);
+          },
+        },);
+        expect(started,).toEqual([containerId,],);
+        expect(printed.lines.join('\n',),).toContain(`Gate container suite: ID ${containerId}`,);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'prints that a client which ended before writing an ID created no container',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        /**
+         Every line this announce printed.
+         */
+        const lines: string[] = [];
+        using printed = collectingLines({ lines, },);
+        /**
+         Every ID the run recorded, which this ended client never gives it one of.
+         */
+        const started: string[] = [];
+        await announceContainerId({
+          identity: suiteIdentity,
+          cidFile: tree.cidFile,
+          running: Promise.resolve(),
+          onStarted: async function recorded(id) {
+            started.push(id,);
+          },
+        },);
+        expect(started,).toEqual([],);
+        expect(printed.lines.join('\n',),).toContain('created no container',);
+        expect(printed.lines.join('\n',),).toContain(tree.cidFile,);
+      },
+      timeout: 20_000,
+    },),
+    it({
+      name: 'prints the name and label left to stop a container by when no ID arrived in the time it waited',
+      fn: async () => {
+        await using tree = await identityTestTree();
+        /**
+         Every line this announce printed.
+         */
+        const lines: string[] = [];
+        using printed = collectingLines({ lines, },);
+        /**
+         Milliseconds this announce waits, far below the two minutes a real client that stopped answering costs.
+         */
+        const waitedMilliseconds = 20;
+        await announceContainerId({
+          identity: suiteIdentity,
+          cidFile: tree.cidFile,
+          running: Promise.withResolvers<unknown>().promise,
+          deadlineMilliseconds: waitedMilliseconds,
+        },);
+        expect(printed.lines.join('\n',),).toContain('no ID reached',);
+        expect(printed.lines.join('\n',),).toContain(`name ${suiteIdentity.name}`,);
+        expect(printed.lines.join('\n',),).toContain(`label ${suiteIdentity.label}`,);
+        expect(printed.lines.join('\n',),).toContain(`${String(waitedMilliseconds)} ms`,);
       },
       timeout: 20_000,
     },),

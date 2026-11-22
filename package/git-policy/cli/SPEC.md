@@ -5883,6 +5883,240 @@ because no account-side binary dispatch exists until step 5;
 it is the driver for those arms.
 The `first-attach` record a separate start-probe design assigns to this step is not part of this section.
 
+### The clone's mount intent, receipts and readiness
+
+A ZFS worktree clone carries its mount request as a user property on itself,
+and the root handler answers it with a file under `/run`.
+This section states the protocol the ZFS worktree plan's step 7 builds
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 7:
+The intent property,
+the receipts and the readiness record"):
+the two property grammars,
+their bounds,
+the receipts and their modes,
+the readiness record and its refusal,
+the per-slot claim,
+and the wrapper's side that writes a request and waits for its answer.
+The code is `package/git-policy/cli/src/native/worktree_clone_mount_protocol/`
+for both sides and `per_slot_root_claim.rs` in
+`worktree_clone_mount_handler/` for the root claim.
+The sweep that reads the intent and publishes a result is step 8's,
+the unmount is step 9's,
+the add route that writes the intent is step 10's,
+and the removal intent is step 14's.
+
+#### The durable intent
+
+The clone's local `org.monochromatic:git-worktree-clone-mount-desired-state`
+property carries exactly one of two values:
+`v1:<nonce>:mount` or `v1:<nonce>:unmount`.
+The nonce is 32 lowercase ASCII hexadecimal digits,
+and an uppercase digit is a different value rather than the same one folded.
+The longest accepted value is 43 bytes,
+which is the unmount form,
+and the byte length is checked before any field is split,
+so an oversized value is refused without being parsed.
+No request supplies a path,
+a dataset name or mount flags:
+the value is the whole request.
+
+A property reply names each property with the pair OpenZFS writes,
+`value` and `source`,
+and a value is local only when its source is the clone's own full dataset
+name.
+A value inherited from an ancestor is ignored and authorizes nothing,
+and a value whose source is missing or unreadable is refused rather than
+guessed.
+A malformed local value is refused before any filesystem operation on its
+behalf,
+and the refusal names the property,
+what was read and the way forward.
+An absent property asks for nothing.
+
+The clone-local `org.monochromatic:git-worktree-clone-mount-sweep-nonce`
+property is a nudge and never an instruction.
+Its value is the 32-hex nonce alone,
+with no operation and no field separator,
+and the same local-source rule decides whether it is a nudge.
+An inherited value nudges nothing,
+and any other value is refused as a nudge rather than read as a request.
+
+#### The receipts
+
+The handler files one result per clone in
+`/run/git-worktree-clone-mount-results`,
+a root-owned directory of mode `0755` that the writer makes itself when a fresh
+boot has none,
+because a sweep can reach its first attach before anything else wrote there.
+A receipt is a root-owned regular file of mode `0644`,
+and its name is only the clone's canonical numeric dataset GUID,
+with no sign and no leading zero.
+The nonce appears only as validated data in the file,
+never in a name.
+The directory is opened as a descriptor and every receipt is opened relative
+to it with no link followed,
+and a caller checks the directory's and the file's ownership and mode before
+it reads a byte.
+A receipt over 4,819 bytes is refused,
+and a file whose keys are not the receipt's own,
+in the receipt's order,
+is refused rather than searched.
+That bound is derived from the receipt's own field bounds and its fifteen line
+keys,
+so a field at its widest still fits the file,
+and the writer refuses a receipt its own reader would not read back rather than
+file one nobody can read.
+The widest field is the canonical slot path at 4,095 bytes,
+the kernel's `PATH_MAX` without its terminator,
+and the whole bound is 4,819 bytes.
+
+A receipt carries its format version,
+its kind,
+the dataset GUID,
+the request's nonce,
+operation and boot,
+the outcome (`done`,
+`refused` or `failed`),
+the mount identity a done mount observed (mount id,
+device,
+inode,
+source dataset and canonical slot path),
+the failed step and errno where one applies,
+and the time with its offset.
+A done mount carries the mount identity and no failing step;
+a done unmount carries `none` for every mount field,
+because an unmount that verified absence has no mount to identify;
+a refused or failed result names the step and carries no mount identity.
+A result is published by writing a staging sibling,
+syncing it,
+renaming it over the GUID's name and syncing the directory,
+so a caller reads one whole receipt.
+A live clone's next result replaces its own entry,
+and nothing in this build removes a receipt for a destroyed clone.
+
+#### The readiness record
+
+One boot's readiness is a root-owned file of mode `0644` named `result` in
+`/run/git-worktree-clone-mount-readiness`,
+a root-owned directory of mode `0755` that the writer makes itself when a fresh
+boot has none,
+published atomically the same way a receipt is,
+and refused by the writer when its own reader would not read it back.
+Its file bound is derived from its field bounds the same way a receipt's is,
+and is 4,547 bytes.
+It records the kernel's own boot identifier,
+the pool's name and whether it is `ready`,
+`not-ready` or `unknown`,
+the checkout's path and the same three states,
+the sweep's state (`finished`,
+`running`,
+`failed` or `never`) and its nonce
+where one applies,
+and the time with its offset.
+
+An attach is admitted only when the record names this boot,
+the caller's pool and the caller's checkout,
+and both the pool and the checkout are `ready`;
+`unknown` admits nothing.
+The refusal names the first field that is not ready,
+says that no clone was attached,
+mounted or unmounted,
+and names the boot unit,
+the journal query and the triggers that can run the sweep again.
+A key-load event that arrives before the checkout is mounted therefore refuses
+with no waiter and no timer.
+The record is a cache and never authority to act:
+every reader compares it with the live boot,
+pool and checkout.
+The sweep's state is recorded for an operator and gates no attach,
+because one running sweep does not make the pool or the checkout unready:
+the design's prerequisites are the ABI,
+the keys,
+the checkout and the private propagation,
+and the sweep is none of them,
+so a failed prerequisite authorizes no attachment,
+while a running sweep blocks none
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit").
+
+#### The per-slot claim
+
+A root handler takes an exclusive claim on one slot before it rechecks the
+clone's desired state and identities and acts.
+The claims live in
+`/run/git-worktree-clone-mount-slot-claims`,
+a root-owned directory of mode `0755` that the claim makes itself when it is
+absent,
+and one slot's claim is a numbered generation file of mode `0600` named
+`<slot>.<generation>`.
+A held slot is refused rather than queued,
+so a slow step in one sweep does not hold every later sweep of the same slot
+without a deadline;
+the refused sweep tries the slot again on its next trigger.
+The claim serializes cooperating wrapper operations only,
+and no claim proves anything about another account's actions.
+
+The claim holds no lock,
+because rule `NLK` allows one only where it cannot be avoided and the
+repository already has the lock-free claim this needs
+(`lock/single_owner_claim.rs`,
+`take_claim`,
+used by the worktree conversion and the subvolume command).
+A claim record is made whole in a private file and published under the next
+generation number with one exclusive `link`,
+so the kernel lets exactly one claimant create it,
+no claimant ever waits,
+and a claimant that finds a live owner stops with the owner's process id.
+The owner is named by process birth rather than by a process id a later command
+can reuse,
+and a newer generation replaces an older one only when the older one records a
+released claim or an owner whose process no longer exists with that birth,
+so a killed claimant leaves nothing to clean by hand and nothing that blocks
+the next one.
+The claims belong under `/run` rather than in persistent state:
+a claim means nothing across a boot,
+and every take writes and syncs a record,
+which a durable folder would pay on every sweep.
+The slot identity store beside it is a different object:
+the project made it a folder of `O_EXCL` files with no lock on 2026-11-21
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`),
+while this is an operation's hold on one mount.
+
+#### The wrapper's side and its deadline
+
+The wrapper writes an intent or a nudge only after the start-time
+compatibility gate passes,
+and it opens `/dev/zfs` only then.
+A refusal of the gate,
+of the device or of the write is reported as itself,
+with the way forward,
+and never as a filed request;
+an unknown write outcome is inspected before any retry.
+
+The wrapper waits for the receipt that answers its request:
+the nonce,
+the operation and the boot must all match,
+and a receipt carrying another of them is a stale result and never the
+answer.
+A stale result is kept as the last observation,
+the wait keeps looking until its deadline,
+and the timeout report shows the request,
+that observation,
+and the `doctor` and journal commands that inspect the handler.
+A deadline is not cancellation:
+the durable request stays on the clone and a later sweep may still act on it,
+so the report says so rather than promising nothing happened.
+
+The mount-request deadline is this route's first ZFS wait constant.
+It ships as a provisional 30 seconds,
+marked provisional in the code and in
+`package/git-policy/cli/doc/zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
+which records the guest rounds that exist now;
+step 22 sizes it from the acceptance workload and replaces the value.
+The wait polls once every 50 milliseconds,
+which is a bounded interval and not a measured latency.
+
 ### Post-commit
 
 After a successful non-dry-run commit lands
@@ -19907,9 +20141,9 @@ and reports a successful commit of another file.
 The root-run handler `mount-git-worktree-clone-datasets` runs one gate before
 its first request to `/dev/zfs`,
 and no raw request is made until it passes.
-The wrapper `monochromatic-git-policy-cli` makes no request in this build and
-runs no gate;
-the step that gives the wrapper a ZFS request route adds that call.
+The wrapper `monochromatic-git-policy-cli` runs the same gate before its first
+request,
+which step 7 added for the clone's durable intent and its sweep nudge.
 The gate is this repository's own code except for the type reader:
 `compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
 holds the bounded read,
@@ -20041,11 +20275,13 @@ way:
   mounts nothing,
   unmounts nothing and records nothing,
   and registrations and durable recovery state stay as they were.
-- The wrapper has no ZFS route and makes no request in this build,
-  so its commands take the same-dataset reflink route or the ordinary Git
-  route as they do today.
-  The step that gives the wrapper a request route adds its gate call and the
-  fallback for an unused slot,
+- The wrapper runs the same gate before its first request,
+  which step 7 added
+  for the clone's durable intent and its sweep nudge.
+  Its managed commands therefore still take the same-dataset reflink route or
+  the ordinary Git route until the add route lands,
+  because no command calls the writer yet.
+  That step also adds the fallback for an unused slot,
   which is the ladder's route for a slot nothing is attached to.
   A clone that is already attached keeps its binding:
   a refusal never authorizes an unrelated mount or cleanup.
