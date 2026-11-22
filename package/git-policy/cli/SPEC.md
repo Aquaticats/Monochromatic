@@ -4361,7 +4361,8 @@ The source's UUID is read for every btrfs subvolume,
 a nested one as much as the filesystem's top-level one.
 Before `c5615e51eb`
 (`doc/troubleshooting/btrfs-get-subvol-info-returns-one-on-success.md`),
-the read answered no origin for a source that was itself a nested subvolume,
+the request's answer of 1 was read as a failure,
+which is the answer a source subvolume gives where its backref search ends inside a leaf,
 so the record named no source,
 and the stage a kill left beside its destination was kept and reported;
 the record now names that source,
