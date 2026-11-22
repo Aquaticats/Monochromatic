@@ -20151,6 +20151,11 @@ The build phase's names are `branch`,
 `commit read back` and `amend fields`,
 and a build that stops inside itself closes the phase where the command stops,
 so its time is stated by `buildMs` and never left to `otherMs`.
+`offsetMs` counts from the command's start,
+and the route and the preparation are the two phases that precede the build,
+so the build's window is `routeMs + prepareMs` to `routeMs + prepareMs + buildMs`:
+a step that began before it lies in the route or the preparation,
+and `prepareParts` or `buildParts` states the time it spent there in that phase's `childrenMs`.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to the next free generation (`monochromatic-git-policy-cli-commit-timing.jsonl.1`,
