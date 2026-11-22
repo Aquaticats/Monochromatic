@@ -43,7 +43,7 @@ built in the scratch folder with real Git:
 
 What `main`'s reader answered there,
 from the probe in `scratch/odb-probe` linked against this branch's base
-(`5632932...` is the released wrapper of that base,
+(`5632932...` is the release build of that base,
 `9f95002...` the probe):
 
 - `odb-probe open .git` printed `Some`.
@@ -53,24 +53,28 @@ from the probe in `scratch/odb-probe` linked against this branch's base
 
 ## Which shipped callers reach it
 
-`ObjectDatabase::open` has two shipped entry points,
-and one group of callers gives it a value no layout read vouched for:
+`ObjectDatabase::open` has two kinds of shipped caller,
+and only one kind is stopped by a check before it:
 
-- The repository layout,
-  `read_layout`,
-  refuses a reftable repository twice:
+- The index reset (`index_reset_file.rs`),
+  the LFS plan (`lfs_object_plan.rs`) and the push trigger (`auto_push_trigger.rs`) open the database
+  from the in-process repository layout.
+  `read_layout` refuses a reftable repository twice:
   `extensions.refstorage` with any value but `files` returns `None`
   (`repo_read_layout.rs`,
   `format_of`),
   and a `reftable` directory in the Git directory or the common directory returns `None`
   (`repo_read_layout.rs`,
   `finish`).
-  The clean check (`worktree_clean.rs`),
-  the ladder target (`worktree_ladder_target.rs`),
-  the index reset (`index_reset_file.rs`),
-  the LFS plan (`lfs_object_plan.rs`) and the push trigger (`auto_push_trigger.rs`) open the database
-  from that layout,
-  so on a reftable repository they never reach the reader and ask Git.
+  On a reftable repository these three never reach the reader and ask Git.
+- The clean check and the ladder target receive their paths from `WorktreeIdentity`,
+  which asks real Git which repository and worktree an invocation selects
+  (`worktree_identity.rs`).
+  The clean check reads the database in `read_state`
+  (`worktree_clean.rs`,
+  reached from `worktree_snapshot_source.rs` and `worktree_remove.rs`),
+  and the ladder target reads it in its target check (`worktree_ladder_target.rs`),
+  so on a reftable repository they open the database and the reader answers what the files hold.
 - The landing reads objects from the `common_dir` the client's commit request carries
   (`service_built_checks.rs`,
   `service_pruned.rs`).
@@ -85,7 +89,7 @@ and one group of callers gives it a value no layout read vouched for:
   `read_commit` answers the parents an amend of a replaced commit stands on,
   and the import stream builds the new commit with them.
 
-The shipped divergence,
+The shipped divergence measured here,
 in the binary control added to `binary_service_commit_tests.rs`:
 an amend of the commit a replace ref stands for landed a commit whose one parent is the commit the
 files hold,
@@ -94,6 +98,9 @@ which are none.
 The control's files-backend arm,
 where the reader declines the database,
 answered as Git does.
+The clean check and the ladder target are read,
+not measured:
+neither has a control here.
 
 ## The refusal and its controls
 
@@ -174,11 +181,13 @@ process:
 the amend control's service record reports `reads_parents_ms=0` before the refusal and `3` after it,
 one `git rev-list --parents` start,
 while the files-backend arm of the same control reports `5`.
-The clean check,
-the ladder target,
-the index reset,
+The index reset,
 the LFS plan and the push trigger pay nothing new:
 the layout already refused the repository.
+The clean check and the ladder target stop reading the database on a reftable repository,
+so every answer they took from it now comes from Git or from the refusal their caller handles;
+what that changes in a `git add` snapshot or a `git worktree add` was read,
+not measured.
 A narrower refusal,
 one that reads the tables for `refs/replace/`,
 was not built:
