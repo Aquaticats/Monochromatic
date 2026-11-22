@@ -42,6 +42,13 @@ const LANDED: &str = "feature.txt";
 /// The name of the linked worktree inside the repository's own registrations.
 const LINKED_REGISTRATION: &str = "worktrees/linked";
 
+/// How long a control waits for the removal a merge handed over,
+/// far beyond what a healthy run needs.
+const HANDOVER_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The pause between two looks at the worktree a handed-over removal names.
+const HANDOVER_STEP: std::time::Duration = std::time::Duration::from_millis(10);
+
 /// Real Git's answer to a question,
 /// trimmed,
 /// as text.
@@ -147,6 +154,47 @@ fn a_held_commit(label: &str) -> HeldScene {
     };
     write(worktree_git_dir.as_path(), &record).expect("the record of the hold");
     return HeldScene { fixture, repo, linked, common, held };
+}
+
+/// What:
+///  Wait,
+/// bounded,
+/// for the worktree whose landed branch a merge handed to the commit service to go.
+/// Why:
+///   The merge records that removal and returns
+///  (`SPEC.md`,
+///  "A worktree whose branch a merge landed is removed by those same routes"),
+///  so the worktree stands until the service runs Git there,
+///  and the sweep's own line says as much
+///  (`done` under the record means the worktree is gone).
+///  Reading the worktree right after the merge is therefore reading a state the merge is allowed to leave
+///  (issue 6345,
+///  where the service lost the race with the merge's remaining work in two whole container gates).
+///  A worktree that stays is the product's own answer,
+///  and the reason it kept the worktree is the repository's record of a kept worktree,
+///  which this names so a failure says why instead of guessing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitForTheHandedOverRemoval(scene, sweepLine); // throws with the reason when the worktree stays
+/// ```
+fn the_handed_over_removal_finishes(scene: &HeldScene, said: &str) -> Result<(), String> {
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < HANDOVER_PATIENCE {
+        if !scene.linked.exists() {
+            return Ok(());
+        }
+        std::thread::sleep(HANDOVER_STEP);
+    }
+    let notices: Vec<String> = match std::fs::read_dir(git_policy_cli::worktree_kept_notices::kept_notice_directory(scene.common.as_path()).as_path()) {
+        Ok(listing) => listing.flatten().filter_map(|entry| { return std::fs::read_to_string(entry.path()).ok(); }).collect(),
+        Err(_unreadable) => Vec::new(),
+    };
+    return Err(format!(
+        "the worktree {} is still there {:?} after the merge handed its removal to the commit service, so the removal did not finish. What the merge said: {said} What this repository recorded about keeping it: {notices:?}",
+        scene.linked.display(),
+        HANDOVER_PATIENCE
+    ));
 }
 
 /// What:
@@ -356,6 +404,10 @@ fn a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes(
     let said: String = stderr_of(&ran);
     assert_eq!(ran.code, Some(0), "the merge ran: {said}");
     assert!(said.contains(scene.kept_name().as_str()), "the person is told where the commit is kept: {said}");
+    // The merge records the removal for the commit service and returns, so the worktree stands until that service has
+    // run Git there: the control waits for the outcome the merge named instead of reading the state the merge may
+    // leave (issue 6345), and a worktree that stays is the product's own answer, with its words below.
+    the_handed_over_removal_finishes(&scene, said.as_str()).expect("the removal the merge handed over finished");
     assert!(!scene.linked.exists(), "the sweep removed the worktree whose branch landed: {said}");
     assert!(!scene.common.join(LINKED_REGISTRATION).exists(), "the removal took the worktree's registration: {said}");
     assert_eq!(git_said(&scene.fixture, &scene.repo, &["rev-parse", scene.kept_name().as_str()]).trim(), scene.held, "the kept reference names the held commit");
