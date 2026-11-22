@@ -143,7 +143,7 @@ A reader that accepts every non-negative answer serves both.
 ## The guest evidence
 
 One 12 GiB btrfs guest mounted its loop file at `/mnt/btrfs-fixtures` as `CLI_GIT_TEST_ROOT` and set `user_subvol_rm_allowed`;
-its versions were Ubuntu 24.04.5,
+its versions were those of the `mvm` Ubuntu image,
 kernel 6.8.0-147-generic,
 Git 2.43.0
 and btrfs-progs 6.6.3.
