@@ -7,7 +7,7 @@ use super::*;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
 use crate::repo_read_odb::ObjectDatabase;
-use crate::test_support::{fixture, git, git_output, remove, repository};
+use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment `git_output` gives Git:
@@ -327,26 +327,81 @@ fn a_ref_store_the_configuration_moves_away_is_left_to_git() {
     remove(root.as_path());
 }
 
-/// A shallow or grafted history keeps the layout the files backend has,
-/// and the object reader declines it because Git may show another history.
+/// What:
+///  A shallow file and a graft file each change the history Git reads,
+///  the layout the files backend has stays the same,
+///  and the object reader declines it.
+/// Why:
+///  A fixture whose files change nothing Git answers would prove only that their presence declines the reader;
+///  the positive control compares what Git answers for the same commit before and after the file is written,
+///  so a reader that declared nothing is left to the question these files raise.
 #[test]
 fn a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader() {
     let root: PathBuf = fixture("repo-read-shallow-and-graft");
     for kind in ["shallow", "graft"] {
-        let repo: PathBuf = repository(root.as_path(), kind);
-        let head: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
+        let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), kind);
+        // The shallow line cuts the older commit from the second one; the graft puts the oldest before the newest.
+        let asked: &str = match kind {
+            "shallow" => commits[1].as_str(),
+            _ => commits[2].as_str(),
+        };
+        let before: String = parents_git_reads(repo.as_path(), asked);
         if kind == "shallow" {
-            std::fs::write(repo.join(".git/shallow"), format!("{head}\n")).expect("shallow");
+            std::fs::write(repo.join(".git/shallow"), format!("{}\n", commits[1])).expect("shallow");
         } else {
             std::fs::create_dir_all(repo.join(".git/info")).expect("info");
-            std::fs::write(repo.join(".git/info/grafts"), "").expect("grafts");
+            std::fs::write(repo.join(".git/info/grafts"), format!("{} {}\n", commits[2], commits[0])).expect("grafts");
         }
-        assert!(git_output(repo.as_path(), &["rev-parse", "HEAD"]).status.success(), "{kind}: the control reads the history");
+        let after: String = parents_git_reads(repo.as_path(), asked);
+        assert_ne!(before, after, "{kind}: the file changes the parents Git reads for {asked}");
         answered_equal(root.as_path(), repo.as_path(), kind);
         let opened: Option<ObjectDatabase> = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1);
         assert!(opened.is_none(), "{kind}: the reader declines a history Git may show differently");
     }
     remove(root.as_path());
+}
+
+/// What:
+///  The layout's proof settles the ref store and nothing else:
+///  an open from that proof still declines a repository holding a replace ref.
+/// Why:
+///  `open_where_the_layout_proved_the_store` skips the reftable folder and the configuration read,
+///  never the replace refs, the shallow file or the grafts,
+///  which the layout does not look at.
+#[test]
+fn a_store_a_layout_proved_still_declines_a_replacement_object() {
+    let root: PathBuf = fixture("repo-read-layout-proved-replacement");
+    let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), "repo");
+    git(repo.as_path(), &["replace", commits[0].as_str(), commits[2].as_str()]);
+    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "a files store holding a replace ref");
+    assert!(
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_none(),
+        "the layout proves the ref store, not that no object is replaced"
+    );
+    assert!(ObjectDatabase::open(repo.join(".git").as_path(), None, layout.object_format).is_none(), "the unproved open declines it too");
+    remove(root.as_path());
+}
+
+/// A repository of three commits, each adding one line to `a.txt`,
+/// and their names, the oldest first.
+fn three_commits(parent: &Path, name: &str) -> (PathBuf, Vec<String>) {
+    let repo: PathBuf = parent.join(name);
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let mut commits: Vec<String> = Vec::new();
+    for text in ["one\n", "two\n", "three\n"] {
+        std::fs::write(repo.join("a.txt"), text).expect("a");
+        git(repo.as_path(), &["add", "--", "a.txt"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message", text.trim()]);
+        commits.push(git_text(repo.as_path(), &["rev-parse", "HEAD"]));
+    }
+    return (repo, commits);
+}
+
+/// The line `git rev-list --parents --max-count=1 <asked>` prints:
+/// the commit and the parents Git reads for it.
+fn parents_git_reads(repo: &Path, asked: &str) -> String {
+    return String::from_utf8_lossy(&git_output(repo, &["rev-list", "--parents", "--max-count=1", asked]).stdout).trim().to_string();
 }
 
 /// The entry limit bounds the walk,

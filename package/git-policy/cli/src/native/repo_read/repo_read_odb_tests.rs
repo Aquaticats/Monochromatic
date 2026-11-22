@@ -542,3 +542,157 @@ fn an_environment_that_moves_the_ref_store_declines_the_database() {
     assert!(output.status.success(), "the environment's store was not declined:\n{said}");
     assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
 }
+
+/// The marker that tells the child of the replacement-base control which body it runs.
+const REPLACE_BASE_CHILD: &str = "CLI_GIT_READER_REPLACE_BASE_CHILD";
+
+/// The namespace replacement refs are read from in that control:
+/// a path under the common directory, as Git resolves it.
+const NAMED_REPLACE_BASE: &str = "refs/probe/";
+
+/// The marker that tells the child of the object-store control which body it runs.
+const OBJECT_STORE_CHILD: &str = "CLI_GIT_READER_OBJECT_STORE_CHILD";
+
+/// The object store the environment names in that control,
+/// relative to the repository as Git resolves it.
+const NAMED_OBJECT_STORE: &str = "relocated-objects";
+
+/// The marker that tells the child of the alternate-store control which body it runs.
+const ALTERNATE_STORE_CHILD: &str = "CLI_GIT_READER_ALTERNATE_STORE_CHILD";
+
+/// The environment a fixture Git runs with,
+/// and the variables of one control's arm.
+fn environment_with(repo: &Path, variables: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
+    let mut environment: Vec<(OsString, OsString)> = environment_of(repo, None);
+    for (name, value) in variables {
+        environment.push((OsString::from(*name), OsString::from(*value)));
+    }
+    return environment;
+}
+
+/// What one real Git run in a fixture answers,
+/// with `variables` set for it and the fixture's own hermetic environment.
+fn git_with(repo: &Path, variables: &[(&str, &str)], arguments: &[&str]) -> std::process::Output {
+    let environment: Vec<(OsString, OsString)> = environment_with(repo, variables);
+    let words: Vec<OsString> = arguments.iter().map(|argument| { return OsString::from(*argument); }).collect();
+    return real_git_within(Path::new(REAL_GIT), Some(repo), environment.as_slice(), words.as_slice(), None, FIXTURE_GIT_BOUND).output;
+}
+
+/// What:
+///  The base of the replacement refs the environment names declines the database,
+///  because Git reads replacements from there and this reader scans only `refs/replace`.
+/// Why:
+///  `GIT_REPLACE_REF_BASE` moves every replacement read of the command,
+///  and the service's landing callers are not behind a check of the history variables.
+#[test]
+fn an_environment_that_moves_the_replacement_base_declines_the_database() {
+    if std::env::var_os(REPLACE_BASE_CHILD).is_some() {
+        let root: PathBuf = fixture("object-questions-replace-base");
+        let (repo, older, head) = two_commits_for_the_environment_control(root.as_path());
+        let git_dir: PathBuf = repo.join(".git");
+        std::fs::create_dir_all(git_dir.join(NAMED_REPLACE_BASE)).expect("the named base");
+        std::fs::write(git_dir.join(NAMED_REPLACE_BASE).join(older.as_str()), format!("{head}\n")).expect("the replacement");
+        // Positive control: Git reads the replacement from the base the environment names.
+        let environment: &[(&str, &str)] = &[("GIT_REPLACE_REF_BASE", NAMED_REPLACE_BASE)];
+        let answer = git_with(repo.as_path(), environment, &["cat-file", "commit", older.as_str()]);
+        assert!(answer.status.success(), "Git reads the named base: {}", String::from_utf8_lossy(answer.stderr.as_slice()));
+        assert_eq!(answer.stdout, git_output(repo.as_path(), &["cat-file", "commit", head.as_str()]).stdout, "the environment's answer is the replacement");
+        assert!(
+            ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(),
+            "a replacement base the environment names outside refs/replace is outside what this reader scans"
+        );
+        remove(root.as_path());
+        return;
+    }
+    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
+        "repo_read::repo_read_odb::tests::an_environment_that_moves_the_replacement_base_declines_the_database",
+        &[
+            (OsString::from(REPLACE_BASE_CHILD), OsString::from("1")),
+            (OsString::from("GIT_REPLACE_REF_BASE"), OsString::from(NAMED_REPLACE_BASE)),
+        ],
+    );
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(output.status.success(), "the environment's replacement base was not declined:\n{said}");
+    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+}
+
+/// What:
+///  An object store the environment names declines the database,
+///  because Git reads the objects from there and this reader reads the repository's own store.
+/// Why:
+///  `GIT_OBJECT_DIRECTORY` replaces the objects directory of every read of the command,
+///  and a commit Git finds there and this reader does not is a wrong answer by another route than a replace ref.
+#[test]
+fn an_environment_that_names_another_object_store_declines_the_database() {
+    if std::env::var_os(OBJECT_STORE_CHILD).is_some() {
+        let root: PathBuf = fixture("object-questions-object-store");
+        let (repo, older, head) = two_commits_for_the_environment_control(root.as_path());
+        let git_dir: PathBuf = repo.join(".git");
+        // The named store holds the newer commit alone, in the loose layout Git reads.
+        let store: PathBuf = repo.join(NAMED_OBJECT_STORE);
+        std::fs::create_dir_all(store.join(&head[..2])).expect("the named store");
+        std::fs::copy(git_dir.join("objects").join(&head[..2]).join(&head[2..]), store.join(&head[..2]).join(&head[2..])).expect("the copy");
+        // Positive control: with the variable Git finds the commit in the named store and the older one nowhere.
+        let environment: &[(&str, &str)] = &[("GIT_OBJECT_DIRECTORY", NAMED_OBJECT_STORE)];
+        assert!(git_with(repo.as_path(), environment, &["cat-file", "-e", head.as_str()]).status.success(), "Git reads the named store");
+        assert_eq!(git_with(repo.as_path(), environment, &["cat-file", "-e", older.as_str()]).status.code(), Some(1), "the older commit is not in the named store");
+        assert_eq!(git_output(repo.as_path(), &["cat-file", "-e", older.as_str()]).status.code(), Some(0), "the repository's own store holds it");
+        assert!(
+            ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(),
+            "an object store the environment names is outside what this reader scans"
+        );
+        remove(root.as_path());
+        return;
+    }
+    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
+        "repo_read::repo_read_odb::tests::an_environment_that_names_another_object_store_declines_the_database",
+        &[
+            (OsString::from(OBJECT_STORE_CHILD), OsString::from("1")),
+            (OsString::from("GIT_OBJECT_DIRECTORY"), OsString::from(NAMED_OBJECT_STORE)),
+        ],
+    );
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(output.status.success(), "the environment's object store was not declined:\n{said}");
+    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+}
+
+/// What:
+///  Alternate object directories the environment names decline the database,
+///  because Git finds objects there that this reader does not search.
+/// Why:
+///  `GIT_ALTERNATE_OBJECT_DIRECTORIES` is searched beside the repository's own store by every read of the command,
+///  so a commit only the named directory holds is one Git reads and this reader does not.
+#[test]
+fn an_environment_that_names_alternate_object_directories_declines_the_database() {
+    if std::env::var_os(ALTERNATE_STORE_CHILD).is_some() {
+        let root: PathBuf = fixture("object-questions-alternate-store");
+        let (repo, _older, _head) = two_commits_for_the_environment_control(root.as_path());
+        let git_dir: PathBuf = repo.join(".git");
+        let tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+        let elsewhere: String = git_text(repo.as_path(), &["commit-tree", tree.as_str(), "-m", "elsewhere"]);
+        // The commit is moved out of the repository's store, so only the named directory holds it.
+        let store: PathBuf = repo.join(NAMED_OBJECT_STORE);
+        std::fs::create_dir_all(store.join(&elsewhere[..2])).expect("the named store");
+        std::fs::rename(git_dir.join("objects").join(&elsewhere[..2]).join(&elsewhere[2..]), store.join(&elsewhere[..2]).join(&elsewhere[2..])).expect("the move");
+        let environment: &[(&str, &str)] = &[("GIT_ALTERNATE_OBJECT_DIRECTORIES", NAMED_OBJECT_STORE)];
+        // Positive control: Git finds the commit only in the directory the environment names.
+        assert_eq!(git_output(repo.as_path(), &["cat-file", "-e", elsewhere.as_str()]).status.code(), Some(1), "the repository alone does not hold it");
+        assert!(git_with(repo.as_path(), environment, &["cat-file", "-e", elsewhere.as_str()]).status.success(), "Git reads the alternate directory");
+        assert!(
+            ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(),
+            "alternate object directories the environment names are outside what this reader scans"
+        );
+        remove(root.as_path());
+        return;
+    }
+    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
+        "repo_read::repo_read_odb::tests::an_environment_that_names_alternate_object_directories_declines_the_database",
+        &[
+            (OsString::from(ALTERNATE_STORE_CHILD), OsString::from("1")),
+            (OsString::from("GIT_ALTERNATE_OBJECT_DIRECTORIES"), OsString::from(NAMED_OBJECT_STORE)),
+        ],
+    );
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(output.status.success(), "the environment's alternate directories were not declined:\n{said}");
+    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
+}

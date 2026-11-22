@@ -149,20 +149,38 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
 /// and `setup.c` reads it before applying the format).
 const REFERENCE_BACKEND_ENVIRONMENT: &str = "GIT_REFERENCE_BACKEND";
 
+/// The variables that send a read of one command to an object store or a replacement base this reader does not look
+/// at:
+/// the object store itself (`GIT_OBJECT_DIRECTORY`),
+/// the directories searched beside it (`GIT_ALTERNATE_OBJECT_DIRECTORIES`),
+/// and the namespace replacement refs are read from (`GIT_REPLACE_REF_BASE`).
+const MOVED_READ_ENVIRONMENTS: [&str; 3] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE"];
+
 /// What:
-///  Whether the environment names a ref store this reader does not scan.
+///  Whether the environment sends an object read where this reader does not look.
 /// Why:
+///  The service's landing callers read objects in process and their Git children inherit the service's environment,
+///  so a variable that moves the read makes the reader answer from the repository's own store where Git reads
+///  another one:
+///  `GIT_OBJECT_DIRECTORY` and `GIT_ALTERNATE_OBJECT_DIRECTORIES` name the store,
+///  `GIT_REPLACE_REF_BASE` names where replacement refs are read,
+///  and `GIT_REFERENCE_BACKEND` names the ref store.
 ///  `GIT_REFERENCE_BACKEND` overrides the repository's configuration for every Git start
 /// (`git(1)`,
 /// entry `GIT_REFERENCE_BACKEND`;
 /// Git 2.54 and later),
 ///  and any value but exactly `files` puts the store where this reader does not look:
 ///  a files payload is another directory,
-///  and the reftable backend keeps its replace refs in tables.
-///  A variable that names the default files backend changes nothing,
-///  so it leaves the repository open.
-fn environment_names_another_ref_store() -> bool {
-    return std::env::var_os(REFERENCE_BACKEND_ENVIRONMENT).is_some_and(|value| { return value.as_os_str() != OsStr::new("files"); });
+///  and the reftable backend keeps its replace refs in tables,
+///  while a value of `files` changes nothing and leaves the repository open.
+///  The other three change what a read means whatever their value,
+///  even a value that names the store this reader already scans,
+///  so their presence declines: Git answers there, at the price of its starts.
+fn environment_names_another_read() -> bool {
+    if std::env::var_os(REFERENCE_BACKEND_ENVIRONMENT).is_some_and(|value| { return value.as_os_str() != OsStr::new("files"); }) {
+        return true;
+    }
+    return MOVED_READ_ENVIRONMENTS.iter().any(|name| { return std::env::var_os(name).is_some(); });
 }
 
 /// What:
@@ -183,7 +201,7 @@ fn environment_names_another_ref_store() -> bool {
 /// 7.5 microseconds added to a 16.5 microsecond open on the host measured on 2026-11-22,
 /// and the note `doc/object-database-and-a-reftable-ref-store.md` records the paired run.
 fn ref_store_is_reftable(common_dir: &Path) -> bool {
-    if environment_names_another_ref_store() {
+    if environment_names_another_read() {
         return true;
     }
     if common_dir.join("reftable").exists() {
@@ -222,12 +240,10 @@ fn config_names_another_ref_store(text: &[u8]) -> bool {
 /// Whether the repository changes what an object name means:
 /// replace refs,
 /// a shallow file,
-/// grafts,
-///  a ref store whose replacements this reader cannot see.
+/// or grafts.
+///  The ref store is asked apart by `ObjectDatabase::open`,
+///  because a caller that read the layout has already proved it.
 fn objects_are_replaced(common_dir: &Path) -> bool {
-    if ref_store_is_reftable(common_dir) {
-        return true;
-    }
     let replace_dir: PathBuf = common_dir.join("refs/replace");
     if let Ok(mut entries) = std::fs::read_dir(&replace_dir)
         && entries.next().is_some()
@@ -251,6 +267,46 @@ fn objects_are_replaced(common_dir: &Path) -> bool {
         Err(ReadRefusal::Missing) => false,
         Err(_) => true,
     };
+}
+
+/// What:
+///  The objects of a repository whose ref store the caller has settled:
+///  its own objects directory (or the one given) and the directories its `info/alternates` names,
+///  with every pack of each.
+/// Why:
+///  `ObjectDatabase::open` settles the ref store first and a caller that read the layout has already done so,
+///  and the listing below is the same work either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// openTheObjects({ commonDir, objectsDir, format }): ObjectDatabase | undefined;
+/// ```
+fn open_the_objects(common_dir: &Path, objects_dir: Option<&Path>, format: ObjectFormat) -> Option<ObjectDatabase> {
+    if objects_are_replaced(common_dir) {
+        return None;
+    }
+    let objects: PathBuf = match objects_dir {
+        Some(directory) => directory.to_path_buf(),
+        None => common_dir.join("objects"),
+    };
+    let own: PathBuf = std::fs::canonicalize(objects).ok()?;
+    let mut roots: Vec<PathBuf> = vec![own.clone()];
+    alternates_of(own.as_path(), 0, &mut roots)?;
+    let mut packs: Vec<Pack> = Vec::new();
+    for root in &roots {
+        let listing = match std::fs::read_dir(root.join("pack")) {
+            Ok(listing) => listing,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return None,
+        };
+        for entry in listing {
+            let path: PathBuf = entry.ok()?.path();
+            if path.extension() == Some(std::ffi::OsStr::new("idx")) {
+                packs.push(Pack::open(path.as_path(), name_length(format))?);
+            }
+        }
+    }
+    return Some(ObjectDatabase { roots, packs, format });
 }
 
 /// What:
@@ -290,31 +346,33 @@ impl ObjectDatabase {
     /// openObjectDatabase({ commonDir, objectsDir, format }): ObjectDatabase | undefined;
     /// ```
     pub fn open(common_dir: &Path, objects_dir: Option<&Path>, format: ObjectFormat) -> Option<ObjectDatabase> {
-        if objects_are_replaced(common_dir) {
+        if ref_store_is_reftable(common_dir) {
             return None;
         }
-        let objects: PathBuf = match objects_dir {
-            Some(directory) => directory.to_path_buf(),
-            None => common_dir.join("objects"),
-        };
-        let own: PathBuf = std::fs::canonicalize(objects).ok()?;
-        let mut roots: Vec<PathBuf> = vec![own.clone()];
-        alternates_of(own.as_path(), 0, &mut roots)?;
-        let mut packs: Vec<Pack> = Vec::new();
-        for root in &roots {
-            let listing = match std::fs::read_dir(root.join("pack")) {
-                Ok(listing) => listing,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(_) => return None,
-            };
-            for entry in listing {
-                let path: PathBuf = entry.ok()?.path();
-                if path.extension() == Some(std::ffi::OsStr::new("idx")) {
-                    packs.push(Pack::open(path.as_path(), name_length(format))?);
-                }
-            }
-        }
-        return Some(ObjectDatabase { roots, packs, format });
+        return open_the_objects(common_dir, objects_dir, format);
+    }
+
+    /// What:
+    ///  The same database for a repository whose layout the caller has already read,
+    ///  so its ref store is not read a second time.
+    /// Why:
+    ///  `RepoLayout` exists only for a repository whose configuration names the files backend,
+    ///  whose Git and common directories hold no `reftable` folder,
+    ///  and whose environment sets no variable that can move an answer
+    ///  (`repo_read_layout.rs`),
+    ///  which is the proof `ref_store_is_reftable` makes.
+    ///  Reading the configuration again on every open cost about 7.5 microseconds of a 16.5 microsecond open
+    ///  on the host measured on 2026-11-22 (`doc/object-database-and-a-reftable-ref-store.md`),
+    ///  and the callers that already hold the layout paid it for nothing.
+    ///  Replace refs and the shallow and graft files are still read here:
+    ///  the layout does not look at them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// openObjectDatabaseFromProof({ commonDir: layout.commonDir, objectsDir, format: layout.objectFormat }): ObjectDatabase | undefined;
+    /// ```
+    pub fn open_where_the_layout_proved_the_store(layout: &crate::repo_read_layout::RepoLayout, objects_dir: Option<&Path>) -> Option<ObjectDatabase> {
+        return open_the_objects(layout.common_dir.as_path(), objects_dir, layout.object_format);
     }
 
     /// The object named `name`,
