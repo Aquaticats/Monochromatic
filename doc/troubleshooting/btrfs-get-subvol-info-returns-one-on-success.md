@@ -1,11 +1,12 @@
 # btrfs `BTRFS_IOC_GET_SUBVOL_INFO` answers 1 on success, and the crate reads any nonzero as an error
 
-Status:
-diagnosed by the clone rung's fixtures round,
+## Status
+
+Diagnosed by the clone rung's fixtures round,
 whose first record is `cf6708e424` of 2026-11-22T01:32:52-05:00,
 fixed in `c5615e51eb` of 2026-11-22T02:07:45-05:00,
 unapproved and non-final.
-Its guest evidence and the controls that hold it are "The fix" below.
+Its guest evidence and the controls that hold it are in "The fix".
 
 ## Symptom
 
@@ -59,13 +60,14 @@ where neither `ret` from the search nor the copy is reset to zero on this path.
 checked the result against zero:
 
 ```rust
+// package/git-policy/cli/src/native/subvolume/fs_btrfs_ioctl.rs, `subvolume_info` before c5615e51eb
 let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut arguments) };
 if result != 0 {
     return Err(PrimitiveError::last_os_error(operation, path));
 }
 ```
 
-So a successful read of any nested subvolume became a `PrimitiveError`,
+So a successful read of a subvolume answering 1 became a `PrimitiveError`,
 carrying whatever `errno` the process last set,
 which in a nextest worker is often 22 from another call.
 
@@ -73,6 +75,7 @@ btrfs-progs accepts the same answer,
 `libbtrfsutil/subvolume.c` lines 396 and 397 at v6.6.3:
 
 ```c
+// libbtrfsutil/subvolume.c v6.6.3 lines 396 and 397
 ret = ioctl(fd, BTRFS_IOC_GET_SUBVOL_INFO, &info);
 if (ret == -1)
     return BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_FAILED;
@@ -81,8 +84,8 @@ if (ret == -1)
 ## Which controls it explains
 
 In a 12 GiB btrfs guest these failed on `main` and on the clone rung's branch,
-with the messages above;
-"The guest evidence" below shows them red on `main` and green on the fix:
+with the messages quoted in "Symptom";
+"The guest evidence" shows them red on `main` and green on the fix:
 
 - `subvolume::fs_btrfs_ioctl::tests::btrfs_create_snapshot_and_destroy_each_work_once`;
 - the four `worktree_copying::worktree_copy_stage_snapshot_origin::tests::` controls,
@@ -122,7 +125,8 @@ Lines read here at `fs/btrfs/ioctl.c` v6.8:
 
 `FICLONE` answers 0 on success for the same reason:
 `ioctl_file_clone` in `fs/ioctl.c` v6.8 (line 231) sets the answer to 0 at line 247
-where the cloned length matches the request.
+where the copy failed nowhere and either the requested length is 0 (the whole file)
+or the copied length equals it.
 
 The controls that hold the reading:
 
@@ -191,7 +195,7 @@ and the `copy_to_user` line:
   copy 2053.
 
 v4.17 holds no `btrfs_ioctl_get_subvol_info` at all.
-`btrfs_ioctl_get_subvol_info` leaves its root-backref search's return value in its result in every version above
+`btrfs_ioctl_get_subvol_info` leaves its root-backref search's return value in its result in every version listed here
 and copies the structure out anyway,
 so it answers 1 for a subvolume whose search ends inside a leaf,
 0 when that search ends at a leaf boundary
@@ -218,7 +222,7 @@ and the top-level subvolume with `result=0`:
 
 - on `main` (`8db0b80095`),
   `8 tests run: 0 passed, 8 failed`,
-  the eight controls above with the messages quoted here;
+  the eight controls of "Which controls it explains" with the messages quoted here;
 - on the fix (`c5615e51eb`),
   `10 tests run: 10 passed`,
   the eight plus `a_positive_ioctl_answer_is_not_a_failure`
