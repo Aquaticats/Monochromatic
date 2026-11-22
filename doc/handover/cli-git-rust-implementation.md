@@ -41860,7 +41860,24 @@ stated in this entry. What follows from them, as work:
   gate image). The 6341 merge message's "where main always read none" was too broad (corrected by commit comment on
   `4929414f47`): `main` misread only an answer of 1. GOING: its integration pass on Sonnet (review to
   `~/temp/agent/integration-pass-btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/`), which runs that control in
-  a btrfs guest. Step 7's
+  a btrfs guest. THE OVERLAP'S FIX ROUND ended at `23f8584609`
+  (`~/temp/agent/fence-size-read-settle-never-waits-2026-11-22/keep/report-from-summary.md`): the settle is one `try_recv`
+  and never waits; a read the add will not use has its child killed at the refusal or decline, and a read alive at process
+  end carries `PR_SET_PDEATHSIG`; the no-fetch switches (first honoured by Git 2.45.0) are added only on a source that may
+  hold a promisor remote; the fail-fast refused shape is 16.0 against `main`'s 13.0 ms loose and 23.5 against 21.4 packed
+  (two rounds above the control's range); the loose served add's gain was not resolved in its run; gate 9788 of 9790. GOING:
+  its integration recheck on Sonnet (review to
+  `~/temp/agent/integration-recheck-fence-size-read-beside-source-check-2026-11-22/`), which weighs the kill, the promisor
+  test and whether ending the read still fits the decision. THE OBJECT READER FOLLOW-UP'S PASS said not fit
+  (`~/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/keep/review.md`): the memory
+  of commits read lives for the whole service, so after a landing, a replace ref added and an amend, the amend lands with the
+  commit's old parent where `main` and Git give none (measured on reftable and on files with a replace ref); the three
+  questions' call sites are still held by no control; a failed standard-input write answers "not missing";
+  `GIT_REPLACE_REF_BASE`, `GIT_OBJECT_DIRECTORY` and `GIT_ALTERNATE_OBJECT_DIRECTORIES` still make the reader answer where
+  Git reads elsewhere, as on `main`. Its gate was 9885 of 9887 and the shadow control passed. GOING:
+  `pi-object-reader-commit-memory-is-per-landing` on the same branch in
+  `.claude/worktrees/object-reader-commit-memory-is-per-landing` (brief under
+  `~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
