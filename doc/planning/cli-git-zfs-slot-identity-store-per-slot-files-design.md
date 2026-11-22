@@ -2009,7 +2009,10 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     modification times and bytes of every slot file unchanged across an adoption.
 10. `a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption`:
     a hook between the listings,
-    asserting `SlotNotListed` names the slot and `.parent` is unchanged.
+    asserting `SlotNotListed` names the slot,
+    `.parent` is unchanged,
+    and the folder was listed exactly twice,
+    which is the count the first listing's removal must not raise.
 11. `a_publisher_whose_walked_parent_differs_from_the_parent_record_publishes_nothing`:
     the live folder's identity differs from `.parent`,
     asserting `ParentIdentity` with every field that moved,
