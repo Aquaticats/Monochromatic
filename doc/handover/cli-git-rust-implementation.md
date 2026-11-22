@@ -41466,7 +41466,14 @@ stated in this entry. What follows from them, as work:
   never takes the partial clone and that cost is now `main`'s own fenced rung); harness 27 of 27, sample 300 of 300; four
   red proofs not re-planted. GOING: its gate re-check on Sonnet (to
   `~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`), rerunning three shapes
-  against the wide spreads; then the owner. Step 7's
+  against the wide spreads; then the owner. STEP 7'S FINDINGS ROUND ended at `55bc803319` (`main` merged as `e6c03d2a20`):
+  the per-slot claim on `take_claim` (held slot refused; dead owner taken over; killed claimant blocks nothing; the
+  lock-inventory guard gained `per_slot_`, red with the old file); claims moved to `/run/git-worktree-clone-mount-slot-claims`
+  (adopted by the coordinator as the narrow reading the review proposed, open to the owner's veto); the window between the
+  folder proof and `take_claim`'s path-based calls documented and left to step 8; the two `/run` folders made, the wait
+  kept past an absent folder, per-attempt staging names, a done unmount in the grammar, derived bounds with a read-back
+  refusal; lows mostly fixed; guest arm green on the final tree (event to receipt 16.9 ms); gate 9678 of 9680. GOING: the
+  step 7 reviewer's closure check. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
