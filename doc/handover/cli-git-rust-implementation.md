@@ -41743,7 +41743,15 @@ stated in this entry. What follows from them, as work:
   on its parent folder, deleting the driver's live `run-1` and the brief, so the driver exited 1 with no `summary.json` and
   no report (the brief is in this session's record only). The three running rounds were steered not to do the same, and
   `.agents/skills/pi-as-subagent/SKILL.md` now says a run deletes only inside its own scratch folder with literal paths.
-  GOING: `pi-fence-size-read-beside-source-check-build-2` resumes its session for the report (`continuation-1.md`). Step 7's
+  GOING: `pi-fence-size-read-beside-source-check-build-2` resumes its session for the report (`continuation-1.md`). ITS REPORT
+  came (`~/temp/agent/fence-size-read-beside-source-check-build-2026-11-22/keep/report-from-summary.md`): a named thread
+  started in `choose_rung` before `checkSource` (a runtime task refuses, because Git runs refuse inside the runtime), joined
+  with a 127 s deadline, used only for the proved commit, carried on the `Ladder`; loose 726.6 against 1023.9 ms (control 0.95
+  to 1.07), packed 6.2 percent inside the control's spread (the read costs 43 to 48 ms beside the check against 29 to 31 alone);
+  refused and declined adds pay 40.1 and 62.3 ms of background work; sample 300 of 300; gate 9776 of 9778 (cause-H pair); an
+  abandoned read runs to its Git step's ceiling (documented, not cancelled). Its two images removed; commit `b9f1eca8be`'s scope
+  corrected by commit comment. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-fence-size-read-beside-source-check-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
