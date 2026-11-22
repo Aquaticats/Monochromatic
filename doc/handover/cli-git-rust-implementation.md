@@ -41877,7 +41877,15 @@ stated in this entry. What follows from them, as work:
   Git reads elsewhere, as on `main`. Its gate was 9885 of 9887 and the shadow control passed. GOING:
   `pi-object-reader-commit-memory-is-per-landing` on the same branch in
   `.claude/worktrees/object-reader-commit-memory-is-per-landing` (brief under
-  `~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/`). Step 7's
+  `~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/`). ISSUE 6343'S ROUND ended at `9eee1a5a42`
+  (`~/temp/agent/shadow-control-init-cut-every-time-failed-once-in-a-gate-2026-11-22/keep/report-from-summary.md`): the
+  control counted `git init` starts in a file its stand-in Git writes, and the wrapper may end a start at its 500 ms test
+  ceiling before that write, so two attempts read as one; reproduced line for line with a planted delay; the wrapper now
+  counts its own attempts in a test-only thread-local and both shadow controls assert on that; documented as cause M (cause L
+  is left for issue 6342's round); gate 9875 of 9877. The sibling control
+  `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` keeps one such exposure, documented and unchanged. GOING:
+  its integration pass on Sonnet (review to `~/temp/agent/integration-pass-shadow-control-init-cut-every-time-2026-11-22/`).
+  The partial clone round's folder reached 6.0 GiB of a 12 GiB `~/temp/agent`; it was told by message to stay under 10 GiB. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
