@@ -2278,9 +2278,18 @@ at `main` `5dd8883a60`:
 ## Revisions
 
 This is the first revision of this document.
-It was committed as the subject named in each commit's message,
-with these committer times from `git log --format=%cI`:
-see "Commits" below.
+Its commits,
+with each committer time from `git log --format=%cI`:
+
+- `e053ad7807`,
+  2026-11-22T17:31:11-05:00:
+  the design,
+  whole,
+  including the gate image's Git-alone runs.
+- The commit that follows it on this branch,
+  whose hash `git log` reports:
+  this list,
+  and the Markdown line breaks normalized to the repository's one clause per line.
 
 ## Links
 
