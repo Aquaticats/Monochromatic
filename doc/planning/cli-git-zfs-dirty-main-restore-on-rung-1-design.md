@@ -2203,9 +2203,8 @@ V1 to V6 and Q1 to Q3.
 - `1f24dcc10d` at `2026-11-22T17:36:49-05:00`:
 named the package docs the design read,
 in "What it read" and "Sources read".
-- The gate-review revision,
-the commit after `1f24dcc10d`,
-whose hash and committer time the next commit records here:
+- `414d9901fc` at `2026-11-22T18:38:11-05:00`:
+the gate-review revision.
 H1's rewrite removed,
 H2's order,
 the tick and Git's seconds,
