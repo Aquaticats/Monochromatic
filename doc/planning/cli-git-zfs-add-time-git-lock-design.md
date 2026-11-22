@@ -123,7 +123,7 @@ line 1162),
 did not run in these fixtures:
 no stage claim or destination record was written under the common directory.
 `git worktree move` is forwarded by the wrapper unchanged ([spec][spec],
-lines 873 to 874),
+line 880),
 and `git worktree prune` and `git gc` are forwarded too,
 so those runs show Git's own answers.
 
@@ -354,7 +354,7 @@ The claim record's home is named,
 the Git common directory,
 and that is the only record of an add whose home the proposal names ([proposal][proposal],
 "Add and Git registration",
-lines 414 to 421):
+lines 418 to 420):
 
 > This design does not name where that binding and lineage record lives:
 > only the per-add claim record has a named home,
@@ -542,7 +542,7 @@ Three things the wrapper adds matter to a probe read as evidence about Git:
   An add through the wrapper leaves `monochromatic-git-policy-cli-copy-owner` and `monochromatic-git-policy-cli-worktree-added` in the registration (F13,
   observed in P1),
   and the cheap ladder's stage claim and destination record are written before real Git runs and rewritten when it returns ([spec][spec],
-  lines 4410 to 4415).
+  lines 4401 to 4405).
 - It copies the source's ignored entries into the new worktree and says so on standard error ([spec][spec],
   from line 867,
   "Linked-worktree ignored-state synchronization"),
@@ -553,7 +553,7 @@ Three things the wrapper adds matter to a probe read as evidence about Git:
   lines 3100 to 3290),
   with the lock lookup at line 3252.
   `git worktree move` is forwarded like any other command ([spec][spec],
-  lines 873 to 874).
+  line 880).
 
 So a host probe's answer about `git worktree add` is the wrapper's answer plus Git's,
 and only the gate image's runs are Git's alone.
@@ -627,20 +627,20 @@ and Git's own failure path removes the directory it made.
 
 `git worktree prune` lists `worktrees`,
 and for each entry `should_prune_worktree` decides (`builtin/worktree.c:212` to `:247`,
-`worktree.c:937` to `:1000`):
+`worktree.c:937` to `:1025`):
 
 1.  An entry that is not a directory is pruned,
     with the reason `not a valid directory`.
 2.  An entry holding `locked` is kept,
     whatever the file says,
-    and it is not even offered to the duplicate check (`worktree.c:956` to `:958`,
-    and the caller's `else if (path)` at `builtin/worktree.c:236` to `:238`,
+    and it is not even offered to the duplicate check (`worktree.c:966` to `:969`,
+    and the caller's `else if (path)` at `builtin/worktree.c:232` to `:233`,
     which skips it because a locked entry answers no path).
 3.  An entry with no `gitdir` file is pruned at once,
     with `gitdir file does not exist`.
-4.  An entry whose `gitdir` names a path that does not exist is pruned when the entry's `index` is missing or no newer than the expiry (`worktree.c:990` to `:999`).
+4.  An entry whose `gitdir` names a path that does not exist is pruned when the entry's `index` is missing or no newer than the expiry (`worktree.c:1013` to `:1018`).
 
-The default expiry of an explicit `git worktree prune` is `TIME_MAX` (`builtin/worktree.c:255`),
+The default expiry of an explicit `git worktree prune` is `TIME_MAX` (`builtin/worktree.c:259`),
 which is why an unlocked registration with a missing pointer and a recent index still goes,
 as item 6 measured on 2.43.0 and P3 measured on 2.56.1.
 
@@ -741,8 +741,8 @@ Prune keeps any entry that holds `locked`,
 skips it in the duplicate check,
 and never reads who wrote it.
 Source:
-`worktree.c:956` to `:958`,
-`builtin/worktree.c:236` to `:238`;
+`worktree.c:966` to `:969`,
+`builtin/worktree.c:232` to `:233`;
 P3,
 P6,
 P7,
@@ -756,8 +756,8 @@ Prune removes an entry with no `gitdir` file at once,
 and an entry whose `gitdir` names a missing path at once when the entry has no index,
 or after the expiry when it has one.
 Source:
-`worktree.c:960` to `:999`,
-`builtin/worktree.c:255`;
+`worktree.c:966` to `:1018`,
+`builtin/worktree.c:259`;
 P3,
 P4,
 P5,
