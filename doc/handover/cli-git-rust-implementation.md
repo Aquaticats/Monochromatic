@@ -41797,9 +41797,10 @@ stated in this entry. What follows from them, as work:
   it shows a red per fix, runs the sweep with no `cloneMounts` member and with no file, and times 64 and 1,024 children); the
   6341 fix's pass on Sonnet (review to `~/temp/agent/integration-pass-btrfs-subvol-info-success-value-2026-11-22/`). Merge
   the 6341 fix before the partial clone: both carry `doc/troubleshooting/btrfs-get-subvol-info-returns-one-on-success.md`,
-  and the partial clone round was told to take the fix branch's version. Superseded and still to remove once checked:
-  worktree and branch `integrate/git-policy-cli-object-database-reftable-replace-refs` (first pass, now on `main`), worktree
-  `integrate-git-policy-cli-zfs-step-8-attaching-sweep` (first pass at `567d1e5d32`). Step 7's
+  and the partial clone round was told to take the fix branch's version. Removed at 2026-11-22T13:55-05:00, local and on the
+  remote, after a check that each held only merges of commits `main` or a live branch has: the two reftable branches and
+  their two integration branches, the step 8 first-pass integration branch (`567d1e5d32`; its commits are on the feature
+  branch), and the three skip-pass-lows branches, with their three worktrees. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
