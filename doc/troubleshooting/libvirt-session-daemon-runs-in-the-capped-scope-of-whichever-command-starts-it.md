@@ -66,7 +66,9 @@ mvm does not start libvirt's session daemon.
 and the daemon keeps running while a domain runs and exits after two idle minutes.
 ```
 
-On 2026-11-21, after this diagnosis, that section changed:
+On 2026-11-21,
+after this diagnosis,
+that section changed:
 `mvm` now starts the daemon itself,
 as described under "Workarounds".
 
@@ -192,14 +194,17 @@ an agent's own 2-GiB slice:
 
 ### Not run
 
-- One guest created by `mvm` in the unit, with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64`
+- One guest created by `mvm` in the unit,
+  with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64`
   showing the daemon and the guest in it:
   on 2026-11-21 after the build another session's daemon was running
-  (PID 3017633, started 22:18:15)
+  (PID 3017633,
+  started 22:18:15)
   in `app.slice/integ-skip-lows-guest-create.scope`,
   together with two guests that each asked for `-m size=8388608k`;
   stopping or replacing that daemon would have killed them.
-  `mvm` used that daemon as it is, which is the behaviour a running daemon gets,
+  `mvm` used that daemon as it is,
+  which is the behaviour a running daemon gets,
   but it is not the behaviour this fix adds.
 
 - A minimal reproduction
@@ -246,8 +251,11 @@ and waits for the daemon the first starter began.
 so no call ever lets `virsh` start a daemon in `mvm`'s own cgroup.
 
 Where it lives:
-`package/mvm/cli/src/session-daemon.ts` (the start, the question and the wait),
-`package/mvm/cli/src/config.ts` (the unit name, caps and idle limit, each with its basis),
+`package/mvm/cli/src/session-daemon.ts` (the start,
+the question and the wait),
+`package/mvm/cli/src/config.ts` (the unit name,
+caps and idle limit,
+each with its basis),
 and the "Session daemon" section of `package/mvm/cli/README.md` (for users).
 Measured on 2026-11-21:
 the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
@@ -262,7 +270,9 @@ so a fifth default guest at once gets the largest guest killed rather than the d
 a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs;
 and the Flatpak path is untested,
 where the unit runs `flatpak run --command=virtqemud`.
-Still open: one real guest created by `mvm`, with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64` showing the daemon and the guest in the unit,
+Still open:
+one real guest created by `mvm`,
+with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64` showing the daemon and the guest in the unit,
 then the guest destroyed and the daemon left to exit at its idle timeout.
 
 ### Not built: socket-activated user units for the daemon
