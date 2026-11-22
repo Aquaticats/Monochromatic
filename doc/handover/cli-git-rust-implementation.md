@@ -41639,7 +41639,73 @@ stated in this entry. What follows from them, as work:
   then green); the `rel` shape now 0.98 of `main` (floor 0.81 to 1.19); a rung-1 btrfs control added but not run (no btrfs
   root on this host); the reflog forms named; `#[cfg(unix)]` on the option table; gate 9740 of 9742. It also found
   `native:test:container` stops at `cargo-shadow: command not found` here (that lock row is not installed); it ran
-  `node bin/test-native-container.ts` directly. GOING: the reviewer's recheck with the btrfs control in a guest. Step 7's
+  `node bin/test-native-container.ts` directly. GOING: the reviewer's recheck with the btrfs control in a guest. THE SIZE
+  READER'S RECHECK said not ready, narrowly (highs closed; numbers confirmed against the records; the `perf/` records placed
+  right; the owner question's sub-decisions were prose, two advantages overstated, and the branch changed shipped
+  `ObjectDatabase::open` to refuse reftable with only a `measurement-routes` control). The coordinator put the question with
+  the recheck's corrected figures. THE OWNER ANSWERED at 2026-11-21T23:35:36-05:00 "A: keep git ls-tree" and "A: measure it"
+  (the overlap with the source check): `doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`; plan step 10 amended;
+  the follow-up is closed. The proposal branch `docs/planning-cli-git-fence-faster-size-reader` stays unmerged (prototype
+  commits); its records stay there. GOING: `pi-fence-size-read-beside-source-check` (brief under
+  `~/temp/agent/fence-size-read-beside-source-check-2026-11-21/`) and `pi-object-database-reftable-replace-refs` (whether
+  `main` answers reftable replace refs wrongly; brief under
+  `~/temp/agent/object-database-reftable-replace-refs-2026-11-21/`). THE MVM FINDINGS ROUND ended at `17aef95941`: H1 lint
+  fixed; cap half of `MemTotal` (`31576M` here) per the owner's answer; `ExitType=cgroup` keeps the unit and guests after a
+  daemon exit (probed with `sleep` children, default arm goes dead); a loaded name is retried every 250 ms in the deadline;
+  no `systemd-run` or an unreachable user bus falls back to `virsh`'s own start with a warning, other failures refuse; README
+  says never stop the unit; `package/vm-builder/cli` left with a reason (it runs in the caller's cgroup, so autostart off
+  would leave it no daemon). Not probed: a daemon crash, a cap overshoot, `systemd-oomd`. THE MVM RECHECK said fit (every
+  finding closed; a `sleep`-child crash probe: SIGKILL or exit 3 leaves the unit active with its children, the name refused
+  until they end, then `--collect` frees it). MERGED as `1f187c44de` at 2026-11-22T00:00:28-05:00 (issue 6338 stays open
+  until the real check). For the owner's eyes, not blocking: O1 no real daemon has run under the new arguments; O2 after a
+  daemon death with guests alive mvm cannot start a daemon until they end or the unit is stopped. OWED BEFORE THE MAIN
+  CHECKOUT'S `dist` IS REBUILT: one real guest check while no daemon runs, with the CLI built in the throwaway worktree
+  `.claude/worktrees/mvm-real-guest-check` (waiter unit `coordinator-wait-until-no-session-daemon`, scratch
+  `~/temp/agent/mvm-real-guest-check-2026-11-22/`); then rebuild `package/mvm/cli` and `package/mcp/mvm` in the main
+  checkout, and the owner restarts or reconnects the mvm MCP server. Old and new integration and feature branches are
+  removed. THE SKIP LOWS' RECHECK said fit (the btrfs rung-1 control red and green in a guest; `rel` 1.00 of `main`; 44
+  probes none worse). MERGED as `2b325ad27b` at 2026-11-22T00:02:51-05:00. NEW, ISSUE 6339: a `pnpm install` run right
+  after `git worktree add` races the commit service's relink, leaves the worktree's ignored-state copy unable to finish, and
+  puts a warning about it on every `git` command of every session until that worktree is removed (now:
+  `object-database-reftable-replace-refs`, a running round's, and `mvm-real-guest-check`, mine; remove both when their work
+  ends). The `pi-as-subagent` skill no longer tells runs to install; briefs written before it still do. THE OVERLAP ROUND
+  ended at `916e49b56c` (`doc/planning/cli-git-fence-size-read-beside-source-check.md`; prototype `5c6177cff1` behind
+  `measurement-routes`): rung 1 loose, the read beside the check is 683 of 909 ms (0.72 to 0.80 against a same-binary 0.95 to
+  1.06, every round); rung 1 packed direction only (about 29 ms); rung 2 already overlaps the read with the copies and its
+  wall did not resolve under load; a refused source pays the unused read; ranking B (rung 1 only) > A (serial) > C (both).
+  Unmeasured: `HEAD` moving between the read's start and the check. The round ran one read-only `mvm exec` in another
+  session's guest (disclosed; against the rule). GOING: its gate review on Sonnet (review to
+  `~/temp/agent/gate-review-fence-size-read-beside-source-check-2026-11-22/`); then the owner. THE PARTIAL CLONE BUILD
+  ended at `28d06e70b7`: size limit pinned at 762,000,000 tracked bytes (a new 260 MB dirty shape lost at 1.32 of Git's own
+  checkout, so the pin sits at the bracket's top; this repository is 763,289,228 bytes, 1.3 MB above it), changed-file cut a
+  quarter of tracked paths, counted from the check's own status read (untracked files are not changes); usual dirty 0.63 of
+  `main` and 0.81 of Git's own checkout, 6,000 changed parity, 20,000 changed, the 26 MB tree and the 260 MB tree all routed
+  to Git's own checkout at parity; six re-plants all red; sample 300 of 300; gate 9768 of 9770. Owed: six
+  `worktree_ladder_finish` btrfs controls red in the guest (their small fixtures are now declined by the size limit) and six
+  other guest failures undiagnosed. GOING: `pi-clone-rung-partial-clone-btrfs-fixtures` in the build worktree (brief under
+  `~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/`); then the integration pass on Sonnet. THE REFTABLE
+  CHECK found a defect on `main` (issue 6340): in a reftable repository the in-process object reader ignores replace refs,
+  and an amend of a replaced commit landed with one parent where Git reads none (measured); the clean check and the ladder
+  target read the same way (read, not measured); the index reset, LFS plan and push trigger go through `RepoLayout`, which
+  refuses reftable. Fix at `e347a4c8c0` on `fix/git-policy-cli-object-database-reftable-replace-refs`: the reader declines a
+  reftable store (one `stat`, about 0.8 microseconds per open); two default-build controls red then green; gate 9755 of 9757.
+  The worktree's `node_modules` was incomplete (issue 6339) and the round forced a reinstall. GOING: its integration pass on
+  Sonnet (review to `~/temp/agent/integration-pass-object-database-reftable-replace-refs-2026-11-22/`). THE OVERLAP'S
+  GATE REVIEW said not ready on text only: the read is not write-free (on a sparse partial clone the check refuses, the
+  early read fetched blobs; `GIT_NO_LAZY_FETCH=1` stops it); the shipped shape differs from the measured one (estimate 140
+  to 150 ms instead of 217); packed resolved at 22 of 523 ms; refused and declined adds pay the read; the `HEAD`-moves guard
+  held in every probed case. THE OWNER ANSWERED at 2026-11-22T00:40:29-05:00 "B: start before the check" and "Yes, record
+  the cost" (`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`, section "The overlap, answered 2026-11-22").
+  GOING: `pi-fence-size-read-beside-source-check-build` (brief under
+  `~/temp/agent/fence-size-read-beside-source-check-build-2026-11-22/`). THE REFTABLE FIX'S INTEGRATION PASS said not fit:
+  the amend repair works, but a declined reader does not make every caller ask Git, so on every reftable repository a commit
+  Git builds loses its reflog subject (`commit_content` falls back to an empty message and no parents) and a pruned-content
+  landing gives the general failure and leaves `fast_import_crash_<pid>` (`batch_content_missing` answers false); both
+  already happen on `main` for a files repository holding a replace ref. `extensions.refStorage=reftable://<path>` still
+  evades the refusal (not worse than `main`). The issue body's claim about the clean check and the ladder target was wrong
+  (`head_commit` refuses first); corrected on issue 6340. Integration branch at `24e1776e63` with a corrective commit
+  comment. GOING: `pi-object-database-declined-reader-callers` in `.claude/worktrees/object-database-reftable-declined-reader`
+  (brief under `~/temp/agent/object-database-declined-reader-callers-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under

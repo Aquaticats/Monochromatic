@@ -1457,7 +1457,10 @@ The fence's two reads run on the add's waiting path in this rung:
 a snapshot copies everything anyway,
 so there is no copy for them to run beside.
 The same comparison decides rung 1 before its stage name is claimed:
-one `git diff-tree --name-only` between the source's frozen commit and the commit the add names,
+one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
+which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
+and the branch its destination is named after when the add names no commit-ish at all
+(one `git for-each-ref` answers which),
 and a tree that changes a path the fence hands to Git ends the rung there,
 so the add costs Git's own checkout and that read and no snapshot.
 A source with uncommitted changes is restored to its `HEAD` rather than tree-differenced,
@@ -2782,12 +2785,17 @@ A rung that ends after the fence,
 for any other reason,
 says
 `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
-A commit the add names is compared with the source's index before the add's record is claimed and before the first
-copy:
-one `git diff-tree --name-only` between the source's frozen commit and that commit,
-and an add whose tree changes a path the attributes alone hand to Git ends the rung there,
+An add is compared with the source's index before the add's record is claimed and before the first copy:
+one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
+which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
+and the branch its destination is named after when the add names no commit-ish at all
+(one `git for-each-ref` answers which),
+and an add whose tree changes a path the attributes alone hand to Git,
+or a tracked link the copies make again and so cannot vouch for,
+ends the rung there,
 told as a decline whose sentence names the commit and the path.
-That add is Git's own checkout and that one read.
+That add is Git's own checkout and those reads,
+and an add whose rung hands Git no path at all pays no read.
 A path the size proof alone hands to Git is not in that answer,
 because the attributes cannot see the file's size,
 and a tree difference there still ends the rung after its copies,

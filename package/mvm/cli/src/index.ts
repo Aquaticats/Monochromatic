@@ -79,6 +79,16 @@ export type {
   BackendMeta,
 } from './backend/types.ts';
 export * from './clone.ts';
+/**
+ The session daemon's unit name and idle limit, exposed for built-artifact
+ verification.
+
+ @internal
+ */
+export {
+  SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,
+  SESSION_DAEMON_UNIT,
+} from './config.ts';
 export * from './create.ts';
 export * from './destroy.ts';
 export * from './exec.ts';
@@ -108,6 +118,10 @@ export * from './meta-errors.ts';
 export * from './path-exists.ts';
 export * from './registry.ts';
 export * from './run.ts';
+export * from './session-daemon.ts';
+export * from './session-daemon-fallback.ts';
+export * from './session-daemon-memory.ts';
+export * from './session-daemon-question.ts';
 export * from './spawn-errors.ts';
 /**
  Host command runner, exposed for built-artifact verification.

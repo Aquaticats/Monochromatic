@@ -66,6 +66,37 @@ A source with many loose objects keeps paying the read's full cost
 until `git gc` packs it,
 or until the overlap measured next hides it.
 
+## The overlap, answered 2026-11-22
+
+Recorded 2026-11-22T00:40:29-05:00,
+after the measurement round's proposal
+(`doc/planning/cli-git-fence-size-read-beside-source-check.md` on `docs/planning-cli-git-fence-size-read-beside-source-check`)
+and its gate review
+(`~/temp/agent/gate-review-fence-size-read-beside-source-check-2026-11-22/keep/review.md`).
+
+The project answered "B:
+start before the check (Recommended)":
+on rung 1 only,
+the fence's `git ls-tree` starts as a background task before the source check,
+the fence waits for it,
+and the read never fetches from a server (`GIT_NO_LAZY_FETCH=1`),
+because on a partial clone the read otherwise downloads missing blobs to learn their sizes,
+which the gate review measured on a source the check then refused.
+Rung 2 is unchanged.
+Measured with an identical-binary control:
+217 ms of a 927 ms snapshot add on loose objects (23 percent),
+22 ms of 523 ms on packed objects (4 percent).
+
+It also answered "Yes,
+record the cost (Recommended)":
+an add the source check refuses,
+or the fence declines,
+may pay that read in the background.
+The rule that a refused rung costs no extra Git run,
+and the decline's stated price,
+are amended to say so,
+and the cost goes into the crate's `SPEC.md`.
+
 ## Left open
 
 The proposal branch also changed shipped code:

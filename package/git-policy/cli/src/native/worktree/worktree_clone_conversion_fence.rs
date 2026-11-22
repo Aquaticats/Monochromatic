@@ -44,6 +44,15 @@ use crate::worktree_clean::{StatEntry, stored_stats};
 use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, checkout_converts, conversion_rules_from_config, decide, needs_blob_size};
 use crate::worktree_ladder_target::{checkout_environment, checkout_environment_with_index};
 use crate::worktree_snapshot_source::SnapshotSource;
+/// The change a rung cannot serve,
+/// and why,
+/// re-exported so every caller of this fence names it here.
+pub use crate::worktree_change_a_rung_cannot_serve::{ChangeNotServed, WhyNotServed};
+/// How many paths a rule of their own converts,
+/// and the share that declines the rung,
+/// re-exported so every caller of this fence names them here.
+pub use crate::worktree_clone_conversion_decline::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR, converting_paths, declines};
+use crate::worktree_clone_conversion_decline::{MODE_SYMLINK, MODE_TYPE_MASK};
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
@@ -52,82 +61,12 @@ use std::path::{Path, PathBuf};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeCloneConversionFence";
 
-/// The mode masks that name an entry's type,
-/// and the type a symbolic link has.
-const MODE_TYPE_MASK: u32 = 0o170000;
-const MODE_SYMLINK: u32 = 0o120000;
-
 /// The name of the attributes file whose untracked presence refuses the rung.
 const ATTRIBUTES_NAME: &str = ".gitattributes";
 
 /// The paths beyond which the fence logs no more reasons,
 /// because the count says the rest and a line per path would bury it.
 const WRITTEN_PATHS_REPORTED: usize = 8;
-
-/// The share of the tracked paths past which the rung declines instead of writing them through Git,
-/// as `1 / DECLINE_SHARE_DIVISOR`.
-/// Why this share:
-///  the write step prices a path through Git's own rules at about 0.12 ms for a text path and 0.31 to 0.57 ms for an
-///  LFS path across kept runs (`measure-recheck2-md-*` and `-real-*`,
-///  `measure-gdc-real-*`;
-/// both classes in one `git checkout-index`),
-///  and the rule's threshold is above the break-even those prices give:
-///  the fence stays under `main` while the paths it writes cost less than `main`'s checkout minus the fence's non-write
-///  work,
-/// which lies between this repository's 0.065 and the measured 0.199 share.
-///  The part of that band the rule does not decline is a cost the proposal states.
-///  One measured source above the threshold is the converting one (0.644 of its paths) and it declines.
-pub const DECLINE_SHARE_DIVISOR: usize = 4;
-
-/// The counted paths below which the share is not worth a decline.
-/// Why:
-///  the write of a thousand text paths (60 to 80 ms) is inside the run-to-run spread of an add this size,
-/// so a small repository with a converting rule should keep its clone rung,
-/// and the class controls of four paths must still reach the fence.
-pub const DECLINE_PATHS_FLOOR: usize = 1000;
-
-/// What:
-///  Whether the rung declines the add instead of writing its converting paths through Git.
-/// Why:
-///   The rule is two boundaries a control can stand on:
-/// a repository below the path floor keeps its rung whatever its
-/// share,
-/// and a share must be strictly more than `1 / DECLINE_SHARE_DIVISOR` of the tracked paths.
-/// The share is counted from the attributes alone,
-/// before any blob is read and before anything is cloned.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const declines = (converting, tracked) => converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > tracked;
-/// ```
-pub fn declines(converting: usize, tracked: usize) -> bool {
-    return converting > DECLINE_PATHS_FLOOR && converting * DECLINE_SHARE_DIVISOR > tracked;
-}
-
-/// What:
-///  How many tracked paths a rule of their own would convert,
-/// from the attributes and the configuration alone.
-/// Why:
-///   This is the count the decline rule prices before it reads a blob,
-/// and a link is never converted by its path's
-/// rules;
-/// a path Git answers nothing for keeps the defaults,
-/// which the configuration then decides.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const convertingPaths = (entries, attributes, rules) => entries.filter((entry) => !isLink(entry) && checkoutConverts(attributes.get(entry.path), rules)).length;
-/// ```
-pub fn converting_paths(entries: &[StatEntry], attributes: &HashMap<Vec<u8>, PathAttributes>, rules: &ConversionRules) -> usize {
-    let mut converting: usize = 0;
-    for entry in entries {
-        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
-        if entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && checkout_converts(&held, rules) {
-            converting += 1;
-        }
-    }
-    return converting;
-}
 
 /// What:
 ///  What one clone rung's fence decided.
@@ -403,17 +342,40 @@ pub struct AttributeFence {
     attributes: HashMap<Vec<u8>, PathAttributes>,
     /// The conversion rules the answer is judged by.
     rules: ConversionRules,
+    /// Whether any changed path could change this fence's answer:
+    /// a path a rule of its own converts,
+    ///  or a link whose copy no index entry can vouch for.
+    a_changed_path_could_matter: bool,
 }
 
 impl AttributeFence {
     /// What:
-    ///  The first of `changed` this fence hands to Git for its own rules,
+    ///  Whether a changed path could change this fence's answer at all,
+    ///  so one read of the target tree could end the rung.
+    /// Why:
+    ///   The skip's read is one Git run,
+    /// and in a repository no rule converts and no link is tracked no changed path can be one the rung cannot serve,
+    /// so the read buys nothing and is not paid.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const matters = (read) => read.converting > 0 || read.hasALink;
+    /// ```
+    pub fn a_changed_path_could_matter(&self) -> bool {
+        return self.a_changed_path_could_matter;
+    }
+
+    /// What:
+    ///  The first of `changed` a clone of this source cannot serve,
     ///  in the source's index order,
-    ///  or nothing when the attributes leave all of them to the clones.
+    ///  and why,
+    ///  or nothing when every changed path is one the clones make and vouch for.
     /// Why:
     ///   This is the half of the fence that is decided before the copies,
     /// so it is what lets the ladder see a target tree its tree difference would refuse before it claims anything:
-    /// a path here whose entry the fence installs without stat data is a path `git read-tree -m -u` refuses.
+    /// a path here whose entry the fence installs without stat data,
+    ///  or whose link the copies make again,
+    ///  is a path `git read-tree -m -u` refuses.
     /// A path the source's index does not hold has no entry to refuse,
     ///  so the search runs over the entries and asks which of them changed,
     ///  not over the changed paths and their attributes,
@@ -421,20 +383,23 @@ impl AttributeFence {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const firstConvertingChange = (read, changed) => read.entries.find((entry) => changed.has(entry.path) && !isLink(entry) && checkoutConverts(read.attributes.get(entry.path), read.rules))?.path;
+    /// const firstNotServed = (read, changed) => read.entries.find((entry) => changed.has(entry.path) && (isLink(entry) || checkoutConverts(read.attributes.get(entry.path), read.rules)));
     /// ```
-    pub fn first_converting_change(&self, changed: &[Vec<u8>]) -> Option<Vec<u8>> {
+    pub fn first_change_it_cannot_serve(&self, changed: &[Vec<u8>]) -> Option<ChangeNotServed> {
         if changed.is_empty() {
             return None;
         }
         let changed_paths: HashSet<&[u8]> = changed.iter().map(|path| return path.as_slice()).collect();
         for entry in &self.entries {
-            if entry.mode & MODE_TYPE_MASK == MODE_SYMLINK || !changed_paths.contains(entry.path.as_slice()) {
+            if !changed_paths.contains(entry.path.as_slice()) {
                 continue;
+            }
+            if entry.mode & MODE_TYPE_MASK == MODE_SYMLINK {
+                return Some(ChangeNotServed { path: entry.path.clone(), why: WhyNotServed::ALinkIsCopied });
             }
             let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
             if checkout_converts(&held, &self.rules) {
-                return Some(entry.path.clone());
+                return Some(ChangeNotServed { path: entry.path.clone(), why: WhyNotServed::TheFenceWritesIt });
             }
         }
         return None;
@@ -482,7 +447,10 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
             entries.len()
         ));
     }
-    return Ok(AttributeFence { entries, attributes, rules });
+    // A link is never converted by its path's rules, so the two questions are counted separately: a changed link is a path
+    //  the copies cannot make Git's own entry, and one converting path is what the fence hands Git.
+    let a_changed_path_could_matter: bool = converting > 0 || entries.iter().any(|entry| return entry.mode & MODE_TYPE_MASK == MODE_SYMLINK);
+    return Ok(AttributeFence { entries, attributes, rules, a_changed_path_could_matter });
 }
 
 /// What:
@@ -499,7 +467,7 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
 /// function decideThePaths(source, context, read): Fence; // throws the reason the rung cannot be proven
 /// ```
 pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: AttributeFence) -> Result<Fence, String> {
-    let AttributeFence { entries, attributes, rules }: AttributeFence = read;
+    let AttributeFence { entries, attributes, rules, a_changed_path_could_matter: _matters }: AttributeFence = read;
     // One `git ls-tree` for every path whose checkout can write the blob unchanged, which is every path this fence may
     // carry: the blob's size is the proof the file holds it, and a file can hold another rule's form even when today it
     // has no rule at all (an unset `core.autocrlf`, a tracked attributes file a later commit deleted).
@@ -545,14 +513,14 @@ pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: Att
 /// ```ts
 /// const firstWrittenChange = (fence, changed) => fence.gitWrites.find((path) => changed.has(path));
 /// ```
-pub fn first_written_change(fence: &Fence, changed: &[Vec<u8>]) -> Option<Vec<u8>> {
+pub fn first_written_change(fence: &Fence, changed: &[Vec<u8>]) -> Option<ChangeNotServed> {
     if changed.is_empty() {
         return None;
     }
     let changed_paths: HashSet<&[u8]> = changed.iter().map(|path| return path.as_slice()).collect();
     for path in &fence.git_writes {
         if changed_paths.contains(path.as_slice()) {
-            return Some(path.clone());
+            return Some(ChangeNotServed { path: path.clone(), why: WhyNotServed::TheFenceWritesIt });
         }
     }
     return None;
