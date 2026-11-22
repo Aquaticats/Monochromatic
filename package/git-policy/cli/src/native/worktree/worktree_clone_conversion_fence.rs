@@ -327,6 +327,7 @@ fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Re
 /// ```ts
 /// function blobSizes(context, root, commit): Map<string, number>;
 /// ```
+#[cfg(not(feature = "measurement-routes"))]
 fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap<Vec<u8>, u64>, String> {
     let output: GitOutput = run_in(context, root, &words(&["ls-tree", "-r", "-l", "-z", commit]), None, Vec::new())?;
     if output.code != Some(0) {
@@ -344,6 +345,47 @@ fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap
         sizes.insert(record[tab + 1..].to_vec(), size_value);
     }
     return Ok(sizes);
+}
+
+/// What:
+///  The blob sizes the size proof reads,
+///  as the reader this build takes answers them.
+/// Why:
+///   The shipped read is one `git ls-tree`,
+/// and a measurement build may take another
+/// (`worktree_clone_size_reader`, a prototype for measurement),
+/// which must answer the same map for the same paths.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sizes = readSizes(chosenReader(), source, entries); // throws
+/// ```
+#[cfg(not(feature = "measurement-routes"))]
+fn sizes_of_the_blobs(source: &SnapshotSource, context: &GitContext, _entries: &[StatEntry], _attributes: &HashMap<Vec<u8>, PathAttributes>, _rules: &ConversionRules) -> Result<HashMap<Vec<u8>, u64>, String> {
+    return blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str());
+}
+
+/// The same sizes,
+/// from the reader the measurement build names by `MONOCHROMATIC_CLONE_SIZE_READER`.
+#[cfg(feature = "measurement-routes")]
+fn sizes_of_the_blobs(source: &SnapshotSource, context: &GitContext, entries: &[StatEntry], attributes: &HashMap<Vec<u8>, PathAttributes>, rules: &ConversionRules) -> Result<HashMap<Vec<u8>, u64>, String> {
+    let reader: crate::worktree_clone_size_reader::SizeReader = crate::worktree_clone_size_reader::SizeReader::chosen();
+    let Some(format) = crate::worktree_clone_size_reader::format_of(source.clean.hash_length) else {
+        return Err(String::from("the source's object format is not one the size readers know"));
+    };
+    let wanted: Vec<(Vec<u8>, Vec<u8>)> = crate::worktree_clone_size_reader::wanted_paths(source.clean.index_bytes.as_slice(), format, &|path: &[u8], mode: u32| {
+        let held: PathAttributes = attributes.get(path).cloned().unwrap_or_default();
+        return mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, rules);
+    })?;
+    let _ = entries;
+    let read: crate::worktree_clone_size_reader::SizeRead<'_> = crate::worktree_clone_size_reader::SizeRead {
+        context,
+        root: source.root.as_path(),
+        common_dir: source.common_dir.as_path(),
+        format,
+        head_commit: source.clean.head_commit.as_str(),
+    };
+    return crate::worktree_clone_size_reader::read_sizes(reader, &read, wanted.as_slice());
 }
 
 /// What:
@@ -507,7 +549,7 @@ pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: Att
         let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
         return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &rules);
     }) {
-        Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?)
+        Some(sizes_of_the_blobs(source, context, &entries, &attributes, &rules)?)
     } else {
         None
     };

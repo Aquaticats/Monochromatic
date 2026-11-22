@@ -21,7 +21,7 @@
 
 #![cfg(unix)]
 
-use crate::repo_read_object::{ObjectKind, OBJECT_SIZE_LIMIT, RawObject, inflate_exact};
+use crate::repo_read_object::{ObjectKind, OBJECT_SIZE_LIMIT, RawObject, inflate_exact, inflate_prefix};
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::Path;
@@ -305,6 +305,80 @@ impl Pack {
         let mut array: [u8; 8] = [0; 8];
         array.copy_from_slice(bytes.as_slice());
         return Some(u64::from_be_bytes(array));
+    }
+
+    /// What:
+    ///  The uncompressed size of the object stored at `offset`,
+    ///  read from the pack's own headers and never rebuilding the object.
+    /// Why:
+    ///  A non-delta entry states its size in the entry header,
+    /// and a delta states its result size in the delta's own header,
+    ///  so a caller that needs sizes and no bytes neither inflates a blob nor
+    ///  follows a delta chain
+    /// (`worktree_clone_size_reader`, a prototype for measurement).
+    /// Nothing here is used by a shipped read.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const size = pack.sizeAt(offset); // undefined: bad entry, or a code this reader does not know
+    /// ```
+    pub fn size_at(&self, offset: u64) -> Option<usize> {
+        if offset < 12 || offset >= self.data_length {
+            return None;
+        }
+        // Room for the size and distance varints and, for a `REF_DELTA`, the base name that follows them.
+        let room: usize = usize::try_from(self.data_length - offset).ok()?.min(32 + self.hash_length);
+        let head: Vec<u8> = read_at(&self.data, offset, room)?;
+        let mut cursor: usize = 0;
+        let first: u8 = *head.first()?;
+        cursor += 1;
+        let code: u8 = (first >> 4) & 7;
+        let mut size: usize = usize::from(first & 15);
+        let mut shift: u32 = 4;
+        let mut byte: u8 = first;
+        while byte & 0x80 != 0 {
+            byte = *head.get(cursor)?;
+            cursor += 1;
+            size |= usize::from(byte & 0x7f).checked_shl(shift)?;
+            shift += 7;
+            if shift > 60 {
+                return None;
+            }
+        }
+        match code {
+            // A base object's header states the size of its content, which is the answer.
+            1..=4 => return Some(size),
+            6 => {
+                let mut c: u8 = *head.get(cursor)?;
+                while c & 0x80 != 0 {
+                    cursor += 1;
+                    c = *head.get(cursor)?;
+                }
+                cursor += 1;
+                return self.delta_result_size(offset.checked_add(cursor as u64)?);
+            }
+            7 => {
+                let start: u64 = offset.checked_add(cursor as u64)?.checked_add(self.hash_length as u64)?;
+                return self.delta_result_size(start);
+            }
+            _ => return None,
+        }
+    }
+
+    /// The result size stated in the delta header of the stream at `start`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const resultSize = pack.deltaResultSize(start); // undefined: not a delta header
+    /// ```
+    fn delta_result_size(&self, start: u64) -> Option<usize> {
+        let room: u64 = self.data_length.checked_sub(start)?.min(4096);
+        let window: Vec<u8> = read_at(&self.data, start, usize::try_from(room).ok()?)?;
+        // Two varints of at most ten bytes each, so a window of this many inflated bytes holds both.
+        let header: Vec<u8> = inflate_prefix(window.as_slice(), 32)?;
+        let mut cursor: usize = 0;
+        let _base: usize = delta_size(header.as_slice(), &mut cursor)?;
+        return delta_size(header.as_slice(), &mut cursor);
     }
 
     /// What:

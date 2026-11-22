@@ -20,11 +20,16 @@
 
 #![cfg(unix)]
 
-use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::private_storage::{ReadRefusal, open_regular_file, read_regular_file};
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
+use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, loose_header, name_length, parse_loose, to_hex};
 use crate::repo_read_pack::{BaseByName, Pack};
+use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
+
+/// The most bytes of a loose object a size read inflates,
+/// which is its header and no content.
+const LOOSE_SIZE_WINDOW: usize = 4096;
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
 ///  Exempt from a citation under `LQM` (class:
@@ -268,6 +273,50 @@ impl ObjectDatabase {
             }
         }
         return false;
+    }
+
+    /// What:
+    ///  The size of the object named `name`,
+    /// without rebuilding it;
+    /// `None` for an object this database does not hold or cannot size.
+    /// Why:
+    ///  A size is all a caller that proves a file equals its blob needs,
+    /// and the pack and loose headers hold it,
+    ///  so the object's bytes are never inflated
+    /// (`worktree_clone_size_reader`, a prototype for measurement).
+    /// No shipped read calls this.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const size = database.size(name); // undefined: ask Git, which fetches a promised object itself
+    /// ```
+    pub fn size(&self, name: &[u8]) -> Option<u64> {
+        if name.len() != name_length(self.format) {
+            return None;
+        }
+        for pack in &self.packs {
+            if let Some(offset) = pack.find(name) {
+                return pack.size_at(offset).and_then(|size| return u64::try_from(size).ok());
+            }
+        }
+        let hex: String = to_hex(name);
+        for root in &self.roots {
+            let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
+            note_loose_look();
+            let Ok(file) = open_regular_file(path.as_path()) else {
+                continue;
+            };
+            let mut window: Vec<u8> = vec![0; LOOSE_SIZE_WINDOW];
+            let read: usize = file.read_at(window.as_mut_slice(), 0).ok()?;
+            window.truncate(read);
+            let (kind, size): (crate::repo_read_object::ObjectKind, u64) = loose_header(window.as_slice())?;
+            // The fence's size read asks about blobs only, so another kind is a mistake the caller must see.
+            if kind != crate::repo_read_object::ObjectKind::Blob {
+                return None;
+            }
+            return Some(size);
+        }
+        return None;
     }
 
     /// The same read,

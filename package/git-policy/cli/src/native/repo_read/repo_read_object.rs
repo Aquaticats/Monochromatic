@@ -176,6 +176,65 @@ pub fn inflate_zlib(whole_input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)
 }
 
 /// What:
+///  Inflate the zlib stream at the start of `input` until it produced `want` bytes,
+/// and return those bytes.
+/// Why:
+///   A delta entry's result size sits in the delta's own header,
+/// which is the first few bytes of its stream,
+///  so a reader that wants only the size must stop the inflater early instead of
+///  rebuilding the object
+/// (`worktree_clone_size_reader`, a prototype for measurement).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const prefix = inflatePrefix(window, 32); // undefined when the stream is bad or shorter
+/// ```
+pub fn inflate_prefix(whole_input: &[u8], want: usize) -> Option<Vec<u8>> {
+    if want == 0 {
+        return Some(Vec::new());
+    }
+    let input: &[u8] = &whole_input[..whole_input.len().min(INFLATE_INPUT_LIMIT)];
+    let flags: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
+    let mut output: Vec<u8> = vec![0; want];
+    let mut state: Box<DecompressorOxide> = Box::<DecompressorOxide>::default();
+    let (status, _consumed, written) = decompress(&mut state, input, &mut output, 0, flags);
+    match status {
+        // The stream produced the wanted bytes, or ended before it did: both answers are what it holds.
+        TINFLStatus::Done | TINFLStatus::HasMoreOutput => {
+            output.truncate(written);
+            return Some(output);
+        }
+        _ => return None,
+    }
+}
+
+/// What:
+///  The kind and size a loose object's own header states,
+/// from the first bytes of its zlib stream.
+/// Why:
+///   A loose object's size is written in its header,
+/// so a size read needs those bytes and not the object;
+/// a header that does not read as Git writes it is left to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { kind, size } = looseHeader(fileBytes.slice(0, 4096));
+/// ```
+pub fn loose_header(file_bytes: &[u8]) -> Option<(ObjectKind, u64)> {
+    let header_and_more: Vec<u8> = inflate_prefix(file_bytes, 64)?;
+    let nul: usize = first_index_of_byte(header_and_more.as_slice(), 0)?;
+    let header: &[u8] = &header_and_more[..nul];
+    let space: usize = first_index_of_byte(header, b' ')?;
+    let kind: ObjectKind = ObjectKind::from_word(&header[..space])?;
+    let size_text: &str = std::str::from_utf8(&header[space + 1..]).ok()?;
+    if size_text.is_empty() || (size_text.len() > 1 && size_text.starts_with('0')) || !size_text.bytes().all(is_digit_byte) {
+        return None;
+    }
+    let size: u64 = size_text.parse::<u64>().ok()?;
+    return Some((kind, size));
+}
+
+/// What:
 ///  Read a loose object file's bytes:
 /// the zlib stream of `<kind> <size>\0<content>`;
 /// the kind and content come back

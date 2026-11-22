@@ -326,6 +326,13 @@ pub mod worktree_clone_conversion_fence;
 #[cfg(all(target_os = "linux", feature = "measurement-routes"))]
 pub mod worktree_clone_conversion_fence_measurement_routes;
 
+/// The fence's size read as three readers (a prototype for measurement):
+/// one `git ls-tree`,
+/// one `git cat-file --batch-check` over the ids the fence needs,
+/// and one in-process read of the object database.
+#[cfg(all(target_os = "linux", feature = "measurement-routes"))]
+pub mod worktree_clone_size_reader;
+
 /// The same fence beside the clone:
 /// its reads on a thread of their own while the tracked files are copied,
 /// and the seed the index is installed from once both have answered.
