@@ -846,7 +846,8 @@ Read-only commands,
      `v2.45.1`,
      the commit `7b70e9efb`)
      and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`;
-     a Git older than those ignores it and can fetch a missing blob,
+     a Git older than those that does not carry the fix
+     (Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores it and can fetch a missing blob,
      which is the recorded limit of this read there.
      The read's answer is used only when it listed the commit the check proved,
      and when no path needs a size it is not used at all;

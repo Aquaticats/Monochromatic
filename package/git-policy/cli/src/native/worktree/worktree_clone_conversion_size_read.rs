@@ -98,7 +98,7 @@ const THREAD: &str = "clone-size-read-beside-the-check";
 /// `v2.45.1`,
 /// the commit `7b70e9efb`)
 /// and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`;
-/// a Git older than those ignores it and can fetch,
+/// a Git older than those that does not carry the fix ignores it and can fetch,
 ///  which is a recorded limit,
 /// not something this read can avoid.
 /// The option `--no-lazy-fetch` is deliberately not used:

@@ -1483,7 +1483,8 @@ and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`:
 with it an unavailable size prints `BAD` in the size column,
 the run exits 0 with its output,
 and the clone is unchanged.
-A Git older than those releases ignores the variable and can fetch a missing blob,
+A Git older than those releases that does not carry the fix
+(Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores the variable and can fetch a missing blob,
 which is the recorded limit of this read there;
 a size it cannot parse only ever sends its path to Git's writing,
 so the fence's answer is unchanged,
