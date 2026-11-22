@@ -2889,7 +2889,7 @@ Each filesystem the rung serves takes its own measured edge,
 and a filesystem nobody measured takes the higher of the two:
 btrfs at 49 bytes a file,
 where the lowest mean measured cloned at 0.86 of Git's own checkout and every larger mean cloned at parity or better;
-ZFS at 8,800 bytes a file,
+ZFS at 8,799 bytes a file,
 where the copy measured 1.02 of Git's own checkout and every larger mean 0.60 or less,
 with losses measured below it (1.20 at 2,599);
 and any other kind at the higher of the two.

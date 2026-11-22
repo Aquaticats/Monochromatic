@@ -105,7 +105,7 @@ pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 /// "The small-file clean-add cost, waived the same day").
 ///
 /// Provisional and open to the project's veto.
-pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 8_800;
+pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 8_799;
 
 /// The smallest mean tracked file size a clean source on btrfs may have and still be cloned.
 ///

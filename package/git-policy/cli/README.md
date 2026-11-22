@@ -895,7 +895,7 @@ Read-only commands,
      a source with changes whose tracked files sum to fewer than 762,000,000 bytes,
      a source with more changed tracked files than a quarter of its tracked paths,
      and a clean source whose mean tracked file is under its filesystem's measured edge
-     (49 bytes a file on btrfs, 8,800 on ZFS, the higher of the two on a filesystem nobody measured).
+     (49 bytes a file on btrfs, 8,799 on ZFS, the higher of the two on a filesystem nobody measured).
      All are pinned in `src/native/worktree/worktree_clone_rung_limits.rs` with the measurements they rest on,
      and all are open to the project's veto.
      It shares disk,
