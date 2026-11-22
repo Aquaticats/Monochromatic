@@ -7,8 +7,11 @@ No workaround is verified yet.
 On 2026-11-21 the project chose that `mvm` starts the daemon itself in a user unit of its own
 ("A:
 mvm starts it",
-issue 6338);
-it is not built yet.
+issue 6338),
+and that first workaround is now built.
+It is not verified:
+no real guest has run in the unit yet.
+See "Workarounds" for what is built and what is open.
 
 ## Symptom
 
@@ -62,6 +65,10 @@ mvm does not start libvirt's session daemon.
 `virsh` starts `virtqemud` on demand,
 and the daemon keeps running while a domain runs and exits after two idle minutes.
 ```
+
+On 2026-11-21, after this diagnosis, that section changed:
+`mvm` now starts the daemon itself,
+as described under "Workarounds".
 
 A process started by another inherits its cgroup.
 So when no daemon is running,
@@ -168,7 +175,32 @@ an agent's own 2-GiB slice:
   `OOMPolicy=stop`,
   started 21:35:55).
 
+### Run on 2026-11-21 after the build
+
+- `mvm list` against the session daemon another session had running:
+  it asked with `LIBVIRT_AUTOSTART=0`,
+  found that daemon answering,
+  used it as it is,
+  and listed both VMs in 191 ms,
+  the question itself taking 37 ms.
+- A `virtqemud --timeout=120` started in a user unit of its own named for this measurement,
+  with a private `XDG_RUNTIME_DIR` so it could not reach the running daemon's socket:
+  it answered 203 ms after `systemd-run` returned,
+  its unit held 11.6 MiB (peak 14 MiB),
+  the unit's journal held its log lines,
+  and stopping the unit left no process.
+
 ### Not run
+
+- One guest created by `mvm` in the unit, with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64`
+  showing the daemon and the guest in it:
+  on 2026-11-21 after the build another session's daemon was running
+  (PID 3017633, started 22:18:15)
+  in `app.slice/integ-skip-lows-guest-create.scope`,
+  together with two guests that each asked for `-m size=8388608k`;
+  stopping or replacing that daemon would have killed them.
+  `mvm` used that daemon as it is, which is the behaviour a running daemon gets,
+  but it is not the behaviour this fix adds.
 
 - A minimal reproduction
   (start `virsh -c qemu:///session list` inside a fresh capped scope while no daemon runs,
@@ -184,29 +216,66 @@ an agent's own 2-GiB slice:
 ## Workarounds
 
 None is verified yet.
-The project chose the first candidate on 2026-11-21:
+The project chose the first candidate on 2026-11-21,
+and it is built;
+the others are not.
 
-- `mvm` starts the daemon itself,
-  in a named user unit of its own
-  (for example `systemd-run --user --unit=<name> --property=MemoryMax=<sized to the guests> virtqemud --timeout=120`),
-  when no daemon answers,
-  before its first `virsh` call.
-  A second starter gets "unit already exists",
-  so the name is the single owner.
-  Tradeoffs:
-  `mvm` takes over a choice its README says it leaves to `virsh`;
-  every guest is still charged to one cap,
-  now one sized for guests;
-  a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs.
-- Socket-activated user units for the daemon,
-  so systemd starts it in its own service.
-  No libvirt user units are installed here (`/usr/lib/systemd/user` holds none),
-  so this means writing and enabling units in the owner's user configuration,
-  which is the owner's act.
-- Until either lands:
-  a command that may be the first to start a guest gets a cap sized for every guest that may join it,
-  and its starter never stops that scope by hand while a daemon is inside;
-  it lets the scope end when the daemon exits after two idle minutes.
+### Built: `mvm` starts the daemon itself
+
+Before its first `virsh` call in a process,
+`mvm` runs `virsh list --all` with `LIBVIRT_AUTOSTART=0`,
+which asks libvirt whether a session daemon answers without letting libvirt start one.
+A daemon that answers is used as it is,
+in whatever cgroup it runs.
+When none answers,
+`mvm` starts `virtqemud --timeout=120` itself,
+as the transient user unit `mvm-libvirt-session.service`,
+with `--collect`,
+`MemoryMax=36G` and `OOMPolicy=continue`:
+
+```sh
+systemd-run --user --unit=mvm-libvirt-session --collect \
+  --property=MemoryMax=36G --property=OOMPolicy=continue \
+  virtqemud --timeout=120
+```
+
+The unit name is the single owner:
+a second starter gets systemd's "already loaded" answer
+and waits for the daemon the first starter began.
+`mvm` also runs every `virsh` call with `LIBVIRT_AUTOSTART=0`,
+so no call ever lets `virsh` start a daemon in `mvm`'s own cgroup.
+
+Where it lives:
+`package/mvm/cli/src/session-daemon.ts` (the start, the question and the wait),
+`package/mvm/cli/src/config.ts` (the unit name, caps and idle limit, each with its basis),
+and the "Session daemon" section of `package/mvm/cli/README.md` (for users).
+Measured on 2026-11-21:
+the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
+a started daemon answered 203 ms after `systemd-run` returned,
+and `systemd-run --user` returned in 8 to 29 ms.
+
+Tradeoffs:
+`mvm` takes over a choice its README leaves to `virsh`;
+every guest is still charged to one cap,
+now one sized for four default guests of 8 GiB each,
+so a fifth default guest at once gets the largest guest killed rather than the daemon;
+a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs;
+and the Flatpak path is untested,
+where the unit runs `flatpak run --command=virtqemud`.
+Still open: one real guest created by `mvm`, with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64` showing the daemon and the guest in the unit,
+then the guest destroyed and the daemon left to exit at its idle timeout.
+
+### Not built: socket-activated user units for the daemon
+
+Socket-activated user units would let systemd start the daemon in its own service.
+No libvirt user units are installed here (`/usr/lib/systemd/user` holds none),
+so this means writing and enabling units in the owner's user configuration,
+which is the owner's act.
+
+Until the built workaround is verified,
+a command that may be the first to start a guest still gets a cap sized for every guest that may join it,
+and its starter never stops that scope by hand while a daemon is inside;
+it lets the scope end when the daemon exits after two idle minutes.
 
 ## What does not work
 
