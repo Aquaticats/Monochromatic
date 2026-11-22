@@ -48,10 +48,11 @@ fn running_the_mode_answers_the_refusal() {
 ///  because a run that removes a staging name must list the folder to find it,
 ///  and the project answered that step 18's `doctor` is where that report and removal belong.
 ///  The listing hook stands where either listing call starts,
-///  so a run that listed would be caught whether or not the folder it names is there,
-///  and the open hook stands at the store's own open,
-///  because this host has no store folder and a plant that put the removal back would otherwise
-///  reach nothing and pass.
+///  so a run that listed a store folder is caught whatever the listing then answers;
+///  the open hook stands at the store's own open,
+///  because this host has no store folder at the design's path,
+///  and a plant that put the removal back would reach that open and stop there,
+///  passing a control that watched the listing alone.
 #[test]
 fn a_sweep_run_lists_nothing() {
     let reached: Arc<Mutex<Vec<&'static str>>> = Arc::default();

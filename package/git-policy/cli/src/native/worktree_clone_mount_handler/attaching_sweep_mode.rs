@@ -23,7 +23,7 @@
 //!  "Who removes a killed writer's staging file"),
 //!  so the adoption is their only remover until that step lands.
 //!  A leftover standing until then affects no reader,
-//! because no reader reads a staging name.
+//!  because no reader reads a staging name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
