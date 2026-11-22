@@ -2217,6 +2217,9 @@ the allocation to step 10,
 the cost and test sections rebuilt,
 the citations rechecked,
 and the sibling passages read at their commits.
+- `b46a064030` at `2026-11-22T18:38:49-05:00`:
+says in "What it reuses,
+and where ZFS differs from btrfs" that the clone rung's index install is `write_index_under_a_name` and not `install_index`.
 
 ## Sources read
 
