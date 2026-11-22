@@ -30,7 +30,8 @@ use crate::publishing_entries_in_one_open_folder::{
 use super::slot_identity_store::SlotIdentityStore;
 use super::slot_identity_store_control::RECORD_MODE;
 use super::slot_identity_store_reading::RECORD_MAXIMUM_BYTES;
-use super::slot_identity_store_records::{PARENT_RECORD_NAME, StoredIdentity, slot_name_refusal};
+use super::slot_identity_store_records::{PARENT_RECORD_NAME, StoredIdentity};
+use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::{StoreRefusal, write_refusal};
 use crate::diagnostic_log::{debug, warn};
 use crate::hexadecimal_of_bytes::hexadecimal_of_bytes;

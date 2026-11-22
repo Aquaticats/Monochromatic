@@ -202,6 +202,23 @@ Issue 6335,
 filed for that reading,
 is closed in favour of 6336.
 
+### The control's race, fixed
+
+`ddd3ade4e4` (`2026-11-21T19:02:11-05:00`) fixed that race:
+`settle_service_work` now follows a linked worktree's `.git` file to the administrative directory that holds its own queue,
+so the wait after the second worktree's commit covers its push.
+The control forces the order rather than waiting for a rare interleaving:
+its second worktree's stand-in upload sleeps one second before it announces itself,
+and the control asserts that the wait outlasted that upload,
+so a fixture that stopped forcing the order fails loudly.
+It failed three of three on the old helper,
+and passes on the new one,
+whose wait covered a 1037 ms push.
+The same blind spot skipped a `--separate-git-dir` worktree,
+and the fix covers that too.
+The fixing commit's body says `Closes #6336`,
+so the issue closes when its branch lands on `main`.
+
 ## Verification
 
 The condition is forced by a seam in a scratch copy of the package,
@@ -273,7 +290,11 @@ with the cause named" show it did not.
   so the field is gone before any line names it.
 - Reproducing by repetition:
   the control passed in twelve runs of the gate image and in most gates,
-  and the failure needs a push that dies without a word.
+  and the failure needs a push that dies without a word,
+  which the seam in `## Verification` forces.
+  The control's own race needed no repetition after `ddd3ade4e4`:
+  the slowed second upload forces it every run,
+  and the run before that commit's helper failed three of three.
 - Supposing a held-back push:
   `held_back_line`,
 `undecided_line` and `unanswered_line` always name a commit,

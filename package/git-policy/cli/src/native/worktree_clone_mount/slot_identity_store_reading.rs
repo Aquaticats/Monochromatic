@@ -24,7 +24,8 @@
 use crate::entries_of_one_open_folder::{entry_names, open_entry_for_reading, read_entry_bytes};
 use crate::publishing_entries_in_one_open_folder::{remove_entry, sync_folder};
 use super::slot_identity_store_control::check_under_root_control;
-use super::slot_identity_store_records::{PARENT_RECORD_NAME, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_a_dot_name, is_known_staging_name, parse_one_record, slot_name_refusal};
+use super::slot_identity_store_records::{PARENT_RECORD_NAME, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_a_dot_name, is_known_staging_name, parse_one_record};
+use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::{StoreRefusal, unreadable, write_refusal};
 use crate::private_storage::ReadRefusal;
 use std::ffi::{OsStr, OsString};

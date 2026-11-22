@@ -482,7 +482,32 @@ fn older_target_fixture(fixture: &Fixture) -> PathBuf {
 }
 
 /// What:
-///  An add to a commit whose tree lacks the paths the source's `HEAD` holds ends after its copies,
+///  A repository whose newer commit holds a path the fence hands to Git by its size proof and a folder of paths the older
+///  commit lacks:
+///  an `*.txt text eol=lf` rule,
+///  a `crlf.txt` whose worktree bytes are the CRLF form the checkout rewrites to the LF blob,
+///  and a commit `other` made before `crlf.txt` and the `old/` folder were added.
+/// Why:
+///   The attributes alone do not convert this path (`eol=lf` writes no carriage return),
+/// so the fence says so only with the blob's size against the size the index recorded,
+///  and the skip decided before the copies reads no blob:
+///  the shape is the ending the skip cannot catch,
+///  which the ladder still owes a worktree equal to Git's checkout with nothing left behind.
+fn size_fenced_older_target_fixture(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = conversion_fixture(fixture, "repo", b"*.txt text eol=lf\n", b"line one\nline two\n", &|_repo| {});
+    tracked(repo.as_path(), "crlf.txt", b"line one\r\nline two\r\n");
+    git(fixture, repo.as_path(), &["add", "--", "crlf.txt"]);
+    git(fixture, repo.as_path(), &["update-index", "--refresh"]);
+    git(fixture, repo.as_path(), &["update-ref", "refs/heads/other", "HEAD"]);
+    for index in 0..OLD_PATHS_ADDED {
+        tracked(repo.as_path(), format!("old/file-{index}.dat").as_str(), b"line one\n");
+    }
+    commit_all(fixture, repo.as_path(), "second");
+    return repo;
+}
+
+/// What:
+///  An add to a commit whose tree lacks a path the fence hands to Git by its size proof ends after its copies,
 /// and the worktree it publishes equals Git's checkout of that commit:
 /// every tracked path's bytes and mode,
 /// a clean status,
@@ -492,6 +517,9 @@ fn older_target_fixture(fixture: &Fixture) -> PathBuf {
 /// does not leave on either filesystem;
 /// a served worktree that ends after its copies owes the same tree Git's own checkout makes,
 /// so a leftover is a regression against `main` and not a limitation.
+/// A path the attributes alone convert is skipped before the copies
+/// (`a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy`),
+/// so this control keeps the ending the skip cannot catch.
 #[test]
 fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() {
     let fixture: Fixture = fixture("zfs-clone-conversion-older-target");
@@ -499,7 +527,7 @@ fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() 
         remove(&fixture);
         return;
     }
-    let repo: PathBuf = older_target_fixture(&fixture);
+    let repo: PathBuf = size_fenced_older_target_fixture(&fixture);
     let created: Observed = run_wrapped_verbose(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic", "other"]);
     let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "control", "../control", "other"]);
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
@@ -511,11 +539,79 @@ fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() 
     assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, reference.as_path()), "every tracked path is Git's checkout's");
     assert_eq!(porcelain(&fixture, topic.as_path()), "", "the served worktree is clean");
     assert_eq!(paths_below(topic.as_path(), &[".git"]), paths_below(reference.as_path(), &[".git"]), "a path the clones copied and the target tree lacks stays behind");
-    assert!(!topic.join("extra.txt").exists(), "the fenced path the older tree lacks is gone");
+    assert!(!topic.join("crlf.txt").exists(), "the fenced path the older tree lacks is gone");
     assert!(!topic.join("old").exists(), "the folder the older tree lacks is gone");
     let admin: PathBuf = repo.join(".git/worktrees/topic");
     assert!(admin.join("index").is_file(), "the rung gives the index the worktree's name once Git's checkout is done");
     assert!(!admin.join("index.pending").exists() && !admin.join("index.pending.lock").exists(), "nothing of the rung's waiting name stays in the administrative directory: {:?}", paths_below(admin.as_path(), &[]));
+    std::fs::remove_dir_all(topic.as_path()).expect("remove the worktree");
+    std::fs::remove_dir_all(reference.as_path()).expect("remove the control");
+    remove(&fixture);
+}
+
+/// What:
+///  The add records of `repo`,
+///  oldest first,
+/// as the JSON objects the wrapper appended.
+/// Why:
+///   A control that reads the route an add took reads the record the wrapper wrote,
+/// and the record is the only place the choice of rung outlives the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const records = readFileSync(recordPath).trimEnd().split('\n').map(JSON.parse);
+/// ```
+fn add_records(repo: &Path) -> Vec<serde_json::Value> {
+    let path: PathBuf = repo.join(".git").join(git_policy_cli::worktree::add_timing::ADD_TIMING_FILE);
+    let text: String = std::fs::read_to_string(path.as_path()).expect("the add's record");
+    return text.lines().map(|line: &str| return serde_json::from_str::<serde_json::Value>(line).expect("one JSON object per line")).collect();
+}
+
+/// What:
+///  An add to a commit whose tree lacks a path the fence hands to Git is skipped before the add's record is taken and before any copy,
+///  so nothing of the source is copied and Git's own checkout writes the worktree.
+/// Why:
+///   The two-tree update refuses the zeroed entry of a fenced path the new tree changes,
+/// so a rung that copies first pays the whole copy and then Git's checkout over it
+///  (the closure check measured 508 ms against `main`'s 378 on a 10,002-file fixture,
+/// `doc/planning/cli-git-clone-rung-conversion-fence.md`,
+///  "Limitations").
+/// The fence's own reads already say which paths it hands to Git,
+///  so the rung can see the case before it claims anything or copies anything;
+/// the record's route,
+///  the absent clone steps and the empty claim are what say no copy ran,
+///  and the sentence names the path and the commit.
+#[test]
+fn a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy() {
+    let fixture: Fixture = fixture("zfs-clone-conversion-older-target-skip");
+    if !on_zfs_or_acknowledged(&fixture, "a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = older_target_fixture(&fixture);
+    let created: Observed = run_wrapped_verbose(&fixture, repo.as_path(), &["worktree", "add", "-b", "topic", "../topic", "other"]);
+    let control: Observed = run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "control", "../control", "other"]);
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    assert_eq!(control.code, Some(0), "{}", stderr_of(&control));
+    let records: Vec<serde_json::Value> = add_records(repo.as_path());
+    let record: &serde_json::Value = records.last().expect("the add's record");
+    assert_eq!(record["notes"]["route"].as_str(), Some("Git's checkout"), "the route the add's record names, and not the clone rung: {record}");
+    let steps: &serde_json::Map<String, serde_json::Value> = record["steps"].as_object().expect("the record's steps");
+    for clone_step in ["cloneEntries", "conversionBesideTheClone", "claimStage", "installIndexFile"] {
+        assert!(!steps.contains_key(clone_step), "no step of the clone rung ran, so nothing was claimed and no file was copied ({clone_step}): {record}");
+    }
+    assert!(stderr_of(&created).contains("differs from the source's index at extra.txt"), "the sentence names the path the target tree changes: {}", stderr_of(&created));
+    assert!(stderr_of(&created).contains("so this rung declines and Git's checkout writes the worktree"), "the sentence says what the rung did: {}", stderr_of(&created));
+    assert!(!stderr_of(&created).contains("clones served"), "the clone rung served nothing: {}", stderr_of(&created));
+    let topic: PathBuf = fixture.root.join("topic");
+    let reference: PathBuf = fixture.root.join("control");
+    assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, reference.as_path()), "every tracked path is Git's checkout's");
+    assert_eq!(porcelain(&fixture, topic.as_path()), "", "the worktree is clean");
+    assert_eq!(paths_below(topic.as_path(), &[".git"]), paths_below(reference.as_path(), &[".git"]), "nothing of the source's tracked set stays behind");
+    assert!(!topic.join("extra.txt").exists(), "the fenced path the older tree lacks is not there");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    assert!(admin.join("index").is_file(), "Git's own checkout wrote the index");
+    assert!(!admin.join("index.pending").exists() && !admin.join("index.pending.lock").exists(), "the rung's waiting name never existed: {:?}", paths_below(admin.as_path(), &[]));
     std::fs::remove_dir_all(topic.as_path()).expect("remove the worktree");
     std::fs::remove_dir_all(reference.as_path()).expect("remove the control");
     remove(&fixture);

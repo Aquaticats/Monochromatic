@@ -73,7 +73,13 @@ pub(crate) fn main_identity(repo: &Path) -> WorktreeIdentity {
 /// A plan for a destination,
 /// with the insertion point after `worktree add`.
 pub(crate) fn plan_to(destination: PathBuf) -> AddPlan {
-    return AddPlan { destination, insert_at: 2, quiet: false };
+    return plan_to_at(destination, None);
+}
+
+/// `plan_to` with the commit-ish the person named,
+/// so a control can add a worktree at a tree that differs from the source's `HEAD`.
+pub(crate) fn plan_to_at(destination: PathBuf, target: Option<&str>) -> AddPlan {
+    return AddPlan { destination, insert_at: 2, quiet: false, target: target.map(|named| return std::ffi::OsString::from(named)) };
 }
 
 /// The modification time every fixture that hides an edit gives its file:

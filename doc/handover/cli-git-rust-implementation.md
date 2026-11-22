@@ -41458,7 +41458,81 @@ stated in this entry. What follows from them, as work:
   (recorded in the decision record, "Who removes a killed writer's staging file"). GOING:
   `pi-zfs-slot-identity-store-sweep-unlisted` in the build worktree (the sweep's removal out, a control that a sweep lists
   nothing, SPEC, design and plan step 18; brief under `~/temp/agent/zfs-slot-identity-store-sweep-unlisted-2026-11-21/`);
-  then its integration pass on Sonnet. Step 7's
+  then its integration pass on Sonnet. THE PARTIAL CLONE ROUND ended at `e8169161d6` (`main` merged as `ec4dd92ae2`; the
+  prototype's dirty path takes the fence's beside shape, writes the union of the split's and the fence's paths through Git
+  under the waiting index): dirty adds of this tree 0.64 of `main` (3 changed, range 0.23 to 2.84), 0.74 (300), 0.86
+  (6,000); the dirty small-file tree 1.44, which option B hands to Git's checkout at 0.91; ranking B > A > D > C; the
+  waiver's dirty half met by A on this tree's shapes, its small-file half not endable by this proposal (a clean source
+  never takes the partial clone and that cost is now `main`'s own fenced rung); harness 27 of 27, sample 300 of 300; four
+  red proofs not re-planted. GOING: its gate re-check on Sonnet (to
+  `~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`), rerunning three shapes
+  against the wide spreads; then the owner. STEP 7'S FINDINGS ROUND ended at `55bc803319` (`main` merged as `e6c03d2a20`):
+  the per-slot claim on `take_claim` (held slot refused; dead owner taken over; killed claimant blocks nothing; the
+  lock-inventory guard gained `per_slot_`, red with the old file); claims moved to `/run/git-worktree-clone-mount-slot-claims`
+  (adopted by the coordinator as the narrow reading the review proposed, open to the owner's veto); the window between the
+  folder proof and `take_claim`'s path-based calls documented and left to step 8; the two `/run` folders made, the wait
+  kept past an absent folder, per-attempt staging names, a done unmount in the grammar, derived bounds with a read-back
+  refusal; lows mostly fixed; guest arm green on the final tree (event to receipt 16.9 ms); gate 9678 of 9680. GOING: the
+  step 7 reviewer's closure check. THE LFS_HANG RACE FIX'S PASS said fit (`main`'s settle code fails the forced control,
+  the branch passes it; the seam control red with the old order; the 100-line production change a behaviour-free
+  extraction; the settle fix probed for absolute, relative, missing and malformed `gitdir:` lines; 83 fixtures had shared
+  the blind spot, three with open work; gate 9625 of 9627). MERGED as `2bceadd125` at 2026-11-21T20:03:12-05:00; issue
+  6336 closes; corrective comment on `ddd3ade4e4` ("the only caller" was false). Lows left in that review
+  (`~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`): `git_directory_of` has
+  no controls of its own; the `>= 1 s` assertion times more than the wait; the settle doc overstates its reach; a possible
+  trailing-space trim in the product's own `.git` resolver (read, not run, not this branch's); "above" pointers and a long
+  line; `AskTheService::forget_programs` still has no control. THE UP-FRONT SKIP'S PASS said fit (the caught add 0.73 of
+  `main` against a same-binary 1.04; the size-proof add 0.98; same-tree adds 0.96 to 1.02; harness 26 of 26, sample 300 of
+  300, guest ZFS 20 of 20; gate 9627 of 9629). MERGED as `5d2a6c58b3` at 2026-11-21T20:16:22-05:00. Lows in its review
+  (`~/temp/agent/integration-pass-clone-rung-skips-a-differing-fenced-tree-2026-11-21/keep/review.md`): an unnamed add that
+  checks out an existing branch named after the destination is never caught (as on `main`) while three comments say an
+  unnamed add starts at `HEAD`; the rung-1 ending control reaches its ending by accident; the planning doc's record claim
+  and noise floor are wrong; the read is paid when the fence names nothing; a tag and a branch of one name (p16) took Git's
+  checkout where `main` cloned, bytes equal, time not measured; a changed symlink also ends the clone rung after copies (on
+  `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
+  defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement
+  (`pi-fence-faster-size-reader-design` in `.claude/worktrees/fence-faster-size-reader`; no new dependency added, a crate
+  measured in scratch only; brief under `~/temp/agent/fence-faster-size-reader-design-2026-11-21/`). STEP 7'S CLOSURE
+  CHECK said fit (the claim on `take_claim`: one holder per slot over eight claimants and ten slots; the `/run` place fits
+  if the claim makes its folder each boot; the proof-to-claim window acceptable until step 8, which carries it as an
+  acceptance item; gate 9729 of 9731; guest arm green). MERGED as `5d130df425` at 2026-11-21T20:27:42-05:00: ZFS step 7 is
+  on `main`. Carried, not blocking: the owner's veto on the `/run` place, refuse-not-wait, whether the removal text's
+  "per-slot claim" is this object (step 14's). GOING, side by side: `pi-zfs-step-7-closure-lows` (the claim makes its `/run`
+  folder, controls that can fail for a failed publish's cleanup and the poll's sleep, two doc lows; brief under
+  `~/temp/agent/zfs-step-7-closure-lows-2026-11-21/`) and `pi-clone-rung-skip-pass-lows` (the skip resolving the target as
+  `git worktree add` does, p16 timed, the rung-1 control, the doc's record and noise-floor claims, no read when the fence
+  names nothing, the symlink limitation; brief under `~/temp/agent/clone-rung-skip-pass-lows-2026-11-21/`). Step 8 waits on
+  the per-slot store's merge. THE SWEEP-UNLISTED ROUND ended at `2b3e13f439` (`main` merged as `39300d28c4`): the sweep
+  touches no store; the control `a_sweep_run_lists_nothing` red with the removal put back (`["opened", "listed"]`), green
+  after; SPEC, the design and plan step 18 say `doctor` removes the known staging forms at step 18; two gates 9635 of 9638,
+  each with the cause-H pair plus one different test that passes alone (cause G's
+  `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`, and
+  `commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`, a 13 ms excess in a stop-ceiling record,
+  recorded nowhere yet). GOING: the per-slot store's integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-zfs-slot-identity-store-per-slot-files-2026-11-21/keep/review.md`). THE PARTIAL CLONE'S
+  GATE RE-CHECK said not ready (1 high, 7 medium, 7 low; its folder's `keep/review.md`): the gain reproduces (usual dirty
+  0.69 of `main`, control 0.74; classes 28 of 28; sample 300 of 300); H1 the waiver's baseline is Git's own checkout (the
+  record was written when `main` used it), not today's `main`: against it the usual shape is 0.77 (met), 6,000 changed 1.05
+  and the small dirty tree 1.31 (not met), and the small-file half's claim contradicts option B; M1 the 6,000-path figure
+  does not reproduce (0.93 against a control 1.02); M2 the rotation was not position-balanced; M3 to M7 (small-tree ratios,
+  B's bracket, one guard with no failing control, the skip unnamed, options bundled and no changed-path bound: 20,000 paths
+  1.44 of `main`). GOING: `pi-clone-rung-partial-clone-recheck-findings` in the proposal worktree (merge `main`, the
+  balanced rerun, every finding; brief `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/prompt-recheck-findings.md`).
+  STEP 7'S CLOSURE LOWS ROUND ended at `2dd61371ea` (the claim makes its `/run` folder, red then green; the publish
+  cleanup and the poll sleep held by controls that fail without them, 3,981 reads in 200 ms without the sleep; the readiness
+  sentence and `boot-reconcile` given to plan step 8; gate 9736 of 9738). It printed `PATH` through a filter, against the
+  rule (no secret). GOING: the step 7 reviewer's narrow check. `~/temp/agent` measures 12,907 MiB (fence reader design
+  4,536, partial clone 2,239, the BTF reader validation 970). THE PER-SLOT STORE'S INTEGRATION PASS said not fit: the merge
+  with `main` conflicts with step 7 (step 7 moved `slot_name_refusal` into `slot_name.rs`; the branch keeps its own copy
+  that three new files import; three `mod.rs` hunks), so nothing merged was built; the tip itself is as accepted (four
+  plants red, guest arms 22 and 23 green, gate on the tip 9636 of 9638); mediums: an unnamed 65,536-entry listing cap, the
+  setup-run writer comparing after it links, the rename fallback's loser arm with no failing control; the `commit_timing`
+  one-off to be recorded as its own incident. The reviewer left its integration worktree mid-merge (the wrapper refused
+  `merge --abort` over its own staged resolution): the coordinator aborted it with `--no-enforce-worktree` after confirming
+  the staged content was the pushed feature branch's and the conflict was saved in that review's `keep/`, then removed the
+  worktree and the `integrate/...` branch locally and on `origin` (it equalled an older `main`). GOING:
+  `pi-zfs-slot-identity-store-integration-findings-fixed` in the build worktree (brief under
+  `~/temp/agent/zfs-slot-identity-store-integration-findings-fixed-2026-11-21/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under

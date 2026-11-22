@@ -235,6 +235,24 @@ pub mod worktree_clone_mount;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount::*;
 
+/// The protocol between the account's wrapper and the root-run clone-mount
+/// handler:
+///  the durable mount intent,
+///  the clone-local sweep nudge,
+///  the receipts under `/run`,
+///  the readiness record,
+///  and the wrapper's wait for a matching receipt.
+/// It is shared by both executables,
+///  so both read one grammar,
+///  and it is Linux only,
+///  like the directory-relative calls its receipts use.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_mount_protocol;
+
+/// The same re-export for `worktree_clone_mount_protocol`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_mount_protocol::*;
+
 /// The root-run clone-mount handler,
 /// `mount-git-worktree-clone-datasets`:
 ///  its mode grammar,

@@ -14,7 +14,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! throw new AwaitingItsStep({ mode: 'boot-reconcile', step: 6, does: 'verifies the start gate' });
+//! throw new AwaitingItsStep({ mode: 'boot-reconcile', step: 8, does: 'verifies the start gate' });
 //! ```
 
 /// What:

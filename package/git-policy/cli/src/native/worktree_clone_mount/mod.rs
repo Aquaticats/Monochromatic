@@ -40,6 +40,10 @@
 //! - `slot_identity_store_control.rs`:
 //!   whose the folder and its records must be,
 //!   and the refusal naming an account that could write them.
+//! - `slot_name.rs`:
+//!   the one rule a slot name is held to,
+//!   shared by the store,
+//!   the walk and the per-slot claim.
 //! - `slot_identity_store_records.rs`:
 //!   one record file's grammar,
 //!   its kinds and its parsing.
@@ -103,6 +107,11 @@ pub mod slot_identity_store_refusals;
 /// Whose the store folder and its records must be,
 /// and the permission bits that say another account could write them.
 mod slot_identity_store_control;
+
+/// What makes a name no plain slot name,
+/// shared by the store,
+/// the walk and the per-slot claim.
+mod slot_name;
 
 /// One record file's grammar:
 /// its header,
@@ -185,6 +194,7 @@ pub use slot_identity_store_publication::{publish_parent_identity_under_root_con
 /// The store's header line,
 /// its record type and the key its parent record carries.
 pub use slot_identity_store_records::{PARENT_KEY, PARENT_RECORD_NAME, STORE_HEADER, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_known_staging_name};
+pub(crate) use slot_name::slot_name_refusal;
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.

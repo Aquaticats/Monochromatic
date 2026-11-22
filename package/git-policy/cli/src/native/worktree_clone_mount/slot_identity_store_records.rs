@@ -19,6 +19,7 @@
 //! ```
 
 use super::clone_folder_identity::CloneFolderIdentity;
+use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::StoreRefusal;
 use std::path::Path;
 
@@ -196,32 +197,6 @@ fn parse_record_line(path: &Path, number: usize, line: &str) -> Result<StoredIde
         other => Err(StoreRefusal::Line { path: path.to_path_buf(), number, reason: format!("`{other}` is neither `{PARENT_KIND}` nor `{SLOT_KIND}`") }),
     };
 }
-
-/// What makes `name` no plain slot name,
-/// or nothing when it is one.
-///
-/// Why:
-///  A slot is a folder `git worktree add` made below `.claude/worktrees`,
-///  whose name is a branch name's last component;
-///  Git refuses a name that starts with a dot,
-///  so a leading dot here is a folder this route could only reach outside the add,
-///  and a dot name is also how this layout names its parent record and its staging entries.
-pub(super) fn slot_name_refusal(name: &str) -> Option<String> {
-    if name.is_empty() {
-        return Some(String::from("it is empty"));
-    }
-    if name == "." || name == ".." || name.contains('/') {
-        return Some(String::from("it holds a path separator or names a folder above"));
-    }
-    if name.starts_with('.') {
-        return Some(String::from("it starts with a dot, and no worktree Git adds is named that way"));
-    }
-    if name.chars().any(char::is_whitespace) || name.chars().any(char::is_control) {
-        return Some(String::from("it holds a space, a tab or another control character"));
-    }
-    return None;
-}
-
 /// Whether `name` is a dot name:
 /// a parent record,
 /// a staging entry,

@@ -842,3 +842,41 @@ fn the_fallback_checkout_rewrites_a_zeroed_entry_and_leaves_a_recorded_one_trust
         remove(root.as_path());
     }
 }
+
+/// What:
+///  An add at a commit whose tree lacks a path the snapshot rung's fence must have Git write is skipped before the stage
+///  name is claimed and before the snapshot,
+///  so the add is Git's own checkout and the snapshot pays nothing.
+/// Why:
+///   The index the snapshot installs holds no stat data for a fenced path,
+/// and the tree difference refuses such an entry,
+///  so the rung would end after the snapshot and pay Git's whole checkout over it.
+/// The fence is decided before the snapshot in this rung,
+///  so its own answer and one name-only read settle it there,
+///  and the same fence decides the clone rung's skip.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ladder = beginLadder(planAt('other'), context, identity);
+/// expect(ladder.firstStep()).toBe('person'); expect(ladder.rung).toBe('git'); expect(ladder.slow.word()).toBe('declines');
+/// ```
+#[test]
+fn btrfs_a_target_tree_that_changes_a_fenced_path_is_served_by_gits_checkout_without_a_snapshot() {
+    let Some(root) = btrfs_fixture("finish-older-target-skip") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "conversion");
+    git(repo.as_path(), &["update-ref", "refs/heads/other", "HEAD"]);
+    tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "second");
+    let plan = crate::worktree_ladder_test_support::plan_to_at(root.join("topic"), Some("other"));
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
+    assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "the snapshot rung steps aside before the snapshot");
+    let route = ladder.slow.as_ref().expect("the sentence that says why");
+    assert_eq!(route.word(), "declines", "{route:?}");
+    assert!(route.line().contains("differs from the source's index at extra.txt"), "{}", route.line());
+    assert!(!crate::worktree_copy_stage_claim::stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "no stage name was claimed, so nothing was snapshotted");
+    remove(root.as_path());
+}

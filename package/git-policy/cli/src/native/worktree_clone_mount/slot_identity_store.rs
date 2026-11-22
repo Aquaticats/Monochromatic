@@ -30,6 +30,7 @@ use super::slot_identity_store_reading::{listed_slot_names, read_record};
 use crate::entries_of_one_open_folder::open_folder;
 use super::slot_identity_store_records::{PARENT_RECORD_NAME, StoredIdentity};
 use super::slot_identity_store_refusals::StoreRefusal;
+use super::slot_name::slot_name_refusal;
 use crate::diagnostic_log::debug;
 use std::path::Path;
 use std::path::PathBuf;
@@ -182,7 +183,7 @@ impl SlotIdentityStore {
     /// a name that is no plain slot name,
     /// and `NoSlotRecord` when nothing is filed under it.
     pub fn slot(&self, name: &str) -> Result<super::clone_folder_identity::CloneFolderIdentity, StoreRefusal> {
-        if let Some(reason) = super::slot_identity_store_records::slot_name_refusal(name) {
+        if let Some(reason) = slot_name_refusal(name) {
             return Err(StoreRefusal::SlotName { slot: name.to_string(), reason });
         }
         return match self.read(name)? {
