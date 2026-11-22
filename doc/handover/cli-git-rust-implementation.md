@@ -41481,7 +41481,18 @@ stated in this entry. What follows from them, as work:
   (`~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`): `git_directory_of` has
   no controls of its own; the `>= 1 s` assertion times more than the wait; the settle doc overstates its reach; a possible
   trailing-space trim in the product's own `.git` resolver (read, not run, not this branch's); "above" pointers and a long
-  line; `AskTheService::forget_programs` still has no control. Step 7's
+  line; `AskTheService::forget_programs` still has no control. THE UP-FRONT SKIP'S PASS said fit (the caught add 0.73 of
+  `main` against a same-binary 1.04; the size-proof add 0.98; same-tree adds 0.96 to 1.02; harness 26 of 26, sample 300 of
+  300, guest ZFS 20 of 20; gate 9627 of 9629). MERGED as `5d2a6c58b3` at 2026-11-21T20:16:22-05:00. Lows in its review
+  (`~/temp/agent/integration-pass-clone-rung-skips-a-differing-fenced-tree-2026-11-21/keep/review.md`): an unnamed add that
+  checks out an existing branch named after the destination is never caught (as on `main`) while three comments say an
+  unnamed add starts at `HEAD`; the rung-1 ending control reaches its ending by accident; the planning doc's record claim
+  and noise floor are wrong; the read is paid when the fence names nothing; a tag and a branch of one name (p16) took Git's
+  checkout where `main` cloned, bytes equal, time not measured; a changed symlink also ends the clone rung after copies (on
+  `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
+  defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement
+  (`pi-fence-faster-size-reader-design` in `.claude/worktrees/fence-faster-size-reader`; no new dependency added, a crate
+  measured in scratch only; brief under `~/temp/agent/fence-faster-size-reader-design-2026-11-21/`). QUEUED: the skip's lows. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
