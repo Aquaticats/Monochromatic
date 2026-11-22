@@ -42239,7 +42239,38 @@ stated in this entry. What follows from them, as work:
   the same session on `continuation-second-pass-findings.md` in its folder; after it only a diff check against
   `3e34817184` by the same reviewer. THE ISSUE 6344 PASS stopped once with its nine merge-side runs still going, counting
   on a monitor to wake it; it was resumed and told to wait in one bounded command (one run green by then, no verdict yet).
-  Step 7's
+  THE DIRTY-MAIN RESTORE DESIGN'S GATE REVIEW IS BACK, "fit to put to the owner after the listed fixes, not as it stands"
+  (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review.md`, probe logs beside it). The
+  shape is sound. Two highs, both ways another session's uncommitted edit could be published as the new worktree's clean
+  content: step 5 rewrites index entries with fields taken from the file, which the specification forbids (`SPEC.md` lines
+  1289 to 1293); and the index and pointer are published before the restore finishes, in a slot other sessions can see.
+  Ten mediums, among them a measured one: on this host's ZFS a file's change time stayed the same in 385 of 399
+  back-to-back rewrites and the installed Git compares whole seconds, so "no writer can hide a change" is false. Four
+  questions for the owner (the fallback after the mount, a changed-path cut for rung 1, which writes the proof must refuse,
+  what the slot looks like during the fill). GOING: `pi-zfs-dirty-main-restore-on-rung-1-design-gate-findings`. THE BINDING
+  RECORD DESIGN'S FIX ROUND ENDED `idle` (115 turns) at `428040d45d` (report in its folder's
+  `keep/report-gate-findings.md`): every finding fixed and none refuted, the note's two cross-findings included. It now
+  holds one ordered list of the add's writes (A0 to A12) with what a kill leaves at each, a claim rule a reader can meet,
+  identities with no device number, a section "The route's record convention" for the other two record designs to cite,
+  and a binding that ends once the origin cleanup record is confirmed. Its second gate pass WAITS for the lock design's fix
+  round (`pi-zfs-add-time-git-lock-design-gate-findings`, still going), because the pass's question is whether step 10 can
+  be built from the two together; the same reviewer then reads both. THE LOST-EVENT DESIGN'S SECOND GATE PASS IS BACK, "fit
+  after the listed fixes" (`review-second-pass.md` beside its first review): the earlier findings are fixed and the hook
+  that asks the boot unit holds against systemd `v262`. Left: the printed root command is `reload`, refused on the failed
+  unit it exists for (`reload-or-restart` works in every state, and is safe only while `ExecReload=` exists, since without
+  it an active unit restarts and unmounts every clone); the hook's reach is misdescribed; two tests fire `start` on an
+  active unit; the order inside a trigger is the opposite of the propagation design's; build steps and the "numbers not
+  shipped" list disagree. The reviewer would put three of its four questions now and hold the one whose figures come from
+  the unmerged sweep-cost branch. Ownership set between the two boot-unit designs: the propagation design owns its step and
+  the step's position; the lost-event design owns the triggers and the hook. GOING:
+  `pi-zfs-lost-last-event-triggers-design-second-pass-findings`; after it a diff check against `80a874b773`. THE
+  CANCELLED-REMOVAL DESIGN'S FIX ROUND ENDED `idle` (138 turns) at `42f01440f3` (report in its folder's
+  `keep/report-gate-findings.md`): findings fixed, with one premise refuted from the "Destroy anyway" decision (a holder a
+  scan sees does not cancel the removal; the blocked unmount and the refused head destroy do); it owns the failure path of
+  a forced removal as assigned, and puts four questions (whether the checked reattach covers a fresh attach after history
+  was destroyed, how long the loss record lives, whether a `--force` removal may be cancelled, a standing notice). Its
+  second gate pass WAITS for the forced-removal design's fix round, since the first review read the two as one and the
+  seam between them is its high finding. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
