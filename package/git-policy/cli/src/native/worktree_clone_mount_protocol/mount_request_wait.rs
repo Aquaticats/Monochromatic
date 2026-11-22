@@ -360,7 +360,8 @@ pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, de
 }
 
 /// What:
-///  One read of one dataset's receipt, on the blocking pool.
+///  One read of one dataset's receipt,
+///  on the blocking pool.
 /// Why:
 ///   The read opens,
 ///  checks and reads a file,
@@ -383,7 +384,8 @@ async fn read_the_receipt(
     .map_err(|refusal| return WaitRefusal::Unread { refusal });
 }
 
-/// The deadline's report for `request`, with what the wait last saw.
+/// The deadline's report for `request`,
+/// with what the wait last saw.
 fn timeout_report(request: &MountRequest, last: Option<LastObservation>, deadline: Duration) -> WaitRefusal {
     return WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() };
 }

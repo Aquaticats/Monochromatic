@@ -379,7 +379,8 @@ fn a_staging_sibling_of_this_process_blocks_nothing() {
 }
 
 /// What:
-///  Two publishes of one dataset in one process, at the same time,
+///  Two publishes of one dataset in one process,
+///  at the same time,
 ///  leave one whole receipt and no staging sibling,
 ///  so neither can remove the other's live sibling or rename a half-written
 ///  file into the receipt's name.

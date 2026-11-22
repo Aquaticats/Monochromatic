@@ -176,7 +176,8 @@ fn an_unpublished_boot_has_no_directory_and_no_refusal() {
 }
 
 /// What:
-///  Two publishes of one record in one process, at the same time,
+///  Two publishes of one record in one process,
+///  at the same time,
 ///  leave one whole record and no staging sibling.
 /// Why:
 ///   The record has several writers once the boot unit and the sweeps land,
