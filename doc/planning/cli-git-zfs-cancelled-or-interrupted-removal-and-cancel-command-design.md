@@ -296,6 +296,10 @@ in its auto-push section):
 
 Nothing in this design prompts,
 and a place where authority it does not have would be needed is a refusal that names the next step.
+This design adds no configuration key and reads none:
+every record it writes is named from the clone's dataset GUID and the pinned parent,
+and the cancel command takes one argument and no setting.
+A person sets nothing up for it.
 
 The same rule reaches the host's service manager.
 Nothing in this design asks `systemctl`,
