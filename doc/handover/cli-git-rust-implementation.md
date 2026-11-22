@@ -41553,7 +41553,21 @@ stated in this entry. What follows from them, as work:
   start guests now say: never stop a scope that holds `virtqemud`; let it end when the daemon exits. The fix's placement is
   put to the owner with the partial clone decision. THE PARTIAL CLONE'S RECHECK said ready on condition the owner question
   asks what the waiver is if the clone lands before B's threshold and F's cut are measured (N1); 15 of 15 earlier findings
-  closed; five lows (N2 to N6) left; its folder's `keep/review.md`, section "Recheck of dc7b5e5624". Step 7's
+  closed; five lows (N2 to N6) left; its folder's `keep/review.md`, section "Recheck of dc7b5e5624". THE OWNER ANSWERED
+  at 2026-11-21T22:04:07-05:00: "A: mvm starts it" (issue 6338; recorded in `package/mvm/cli/README.md` and the
+  troubleshooting doc) and "1: clone with limits" (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`;
+  the waiver record amended). GOING: `pi-mvm-cli-session-daemon-in-its-own-unit` (brief under
+  `~/temp/agent/mvm-cli-session-daemon-in-its-own-unit-2026-11-21/`) and `pi-clone-rung-partial-clone-build` (brief under
+  `~/temp/agent/clone-rung-partial-clone-build-2026-11-21/`). THE SKIP'S LOWS ROUND ended at `4c9531233b` (all six fixed,
+  each red then green; p16 0.92 of `main` against a same-binary 0.98; harness 26 of 26, sample 300 of 300; gate 9738 of
+  9740; the btrfs rung-1 control not run because its guest met "Connection reset by peer" from the session daemon); GOING:
+  its integration pass on Sonnet (review to `~/temp/agent/integration-pass-clone-rung-skip-pass-lows-2026-11-21/`). THE
+  LABELS FINDINGS ROUND (`fix/git-policy-cli-gate-containers-carry-a-run-label`, commits to `7ee9aaf6f4`) lost its report
+  again (issue 6337: its last message was mid-run); GOING: its reviewer's recheck. THE FASTER SIZE READER'S DESIGN ended at
+  `3dbc2819f3`: the 338 ms did not reproduce (the read is 33 to 53 ms of a 650 to 713 ms add; no arm separates from the
+  identical pair on rung 1); `gix` reads in 10.7 ms against `ls-tree`'s 34.5 but is a new dependency; its guest was shut
+  down twice, which matches the daemon kills. GOING: its gate review on Sonnet (review to
+  `~/temp/agent/gate-review-fence-faster-size-reader-2026-11-21/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
