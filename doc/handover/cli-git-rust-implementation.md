@@ -41509,7 +41509,15 @@ stated in this entry. What follows from them, as work:
   `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`, and
   `commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`, a 13 ms excess in a stop-ceiling record,
   recorded nowhere yet). GOING: the per-slot store's integration pass on Sonnet (review to
-  `~/temp/agent/integration-pass-zfs-slot-identity-store-per-slot-files-2026-11-21/keep/review.md`). Step 7's
+  `~/temp/agent/integration-pass-zfs-slot-identity-store-per-slot-files-2026-11-21/keep/review.md`). THE PARTIAL CLONE'S
+  GATE RE-CHECK said not ready (1 high, 7 medium, 7 low; its folder's `keep/review.md`): the gain reproduces (usual dirty
+  0.69 of `main`, control 0.74; classes 28 of 28; sample 300 of 300); H1 the waiver's baseline is Git's own checkout (the
+  record was written when `main` used it), not today's `main`: against it the usual shape is 0.77 (met), 6,000 changed 1.05
+  and the small dirty tree 1.31 (not met), and the small-file half's claim contradicts option B; M1 the 6,000-path figure
+  does not reproduce (0.93 against a control 1.02); M2 the rotation was not position-balanced; M3 to M7 (small-tree ratios,
+  B's bracket, one guard with no failing control, the skip unnamed, options bundled and no changed-path bound: 20,000 paths
+  1.44 of `main`). GOING: `pi-clone-rung-partial-clone-recheck-findings` in the proposal worktree (merge `main`, the
+  balanced rerun, every finding; brief `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/prompt-recheck-findings.md`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
