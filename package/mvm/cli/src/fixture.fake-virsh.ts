@@ -26,6 +26,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { constants, } from 'node:os';
@@ -36,6 +37,7 @@ import {
   guestFileCommand,
   isFileCommand,
 } from './fixture.fake-guest-files.ts';
+import { SESSION_DAEMON_UNIT_MARKER, } from './fixture.fake-systemd-run.ts';
 
 //region Shapes
 
@@ -71,7 +73,13 @@ type ProcessEntry = {
  - `loseLaunchedEntry`: when true a launch reports a process ID but the agent keeps no entry for it.
  - `domstate`: state reported by `domstate`; an object with a `failure` text makes it fail.
  - `domains`: list of `{ name, state }` printed by `list --all`.
- - `connectFailure`: when true every command fails the way virsh does without a session daemon.
+ - `sessionDaemon`: what answers a connection. `'running'`, the default, answers
+   every command. `'absent'` fails while `LIBVIRT_AUTOSTART` is `0` and no
+   stand-in `systemd-run` has claimed the unit, and answers once one has.
+   `'never'` fails every command, even after a unit start.
+ - `daemonStopsAfterDomainCall`: when true the daemon is gone again after it
+   answers a command that names a domain, as one that exited at its idle
+   timeout would be.
  - `virtiofsd`: when true libvirt can serve a virtiofs share; otherwise `start` and `domxml-to-native` fail for a domain that has one.
  - `probeFailure`: standard-error text making `domxml-to-native` fail for another reason.
 
@@ -888,6 +896,76 @@ const CANNOT_CONNECT = [
 ].join('\n',);
 
 /**
+ Text the fake fails with when a call would have let libvirt start the daemon on
+ demand. The fake has no daemon to fork, and mvm must start the daemon itself, so
+ a call that leans on the on-demand start fails loudly rather than passing.
+ */
+const WOULD_START_ON_DEMAND =
+  'error: fake virsh: this call would have let virsh start libvirt\'s session daemon on demand';
+
+/**
+ What answers this invocation, as the scenario describes it.
+
+ `'would-start-on-demand'` is a call made without `LIBVIRT_AUTOSTART=0` while no
+ daemon runs: real virsh would fork one into the caller's cgroup.
+ */
+type DaemonAnswer = 'absent' | 'answers' | 'would-start-on-demand';
+
+/**
+ Reads whether the simulated session daemon answers this invocation.
+
+ @param scenario - Scenario for this invocation
+
+ @returns How the invocation must proceed
+ */
+async function daemonAnswer(scenario: Scenario,): Promise<DaemonAnswer> {
+  if ((scenario.sessionDaemon === undefined) || (scenario.sessionDaemon === 'running'))
+    return 'answers';
+
+  if (scenario.sessionDaemon === 'never')
+    return 'absent';
+
+  /**
+   Whether this call lets libvirt start the daemon itself, as it does unless mvm turns that off.
+   */
+  const autostart = process.env
+    .LIBVIRT_AUTOSTART;
+  if (autostart !== '0')
+    return 'would-start-on-demand';
+
+  return (await readdir(String(directory,))).includes(SESSION_DAEMON_UNIT_MARKER,)
+    ? 'answers'
+    : 'absent';
+}
+
+/**
+ Forgets the started unit after a command that names a domain, when the scenario
+ says the daemon exits at its idle timeout.
+
+ @param scenario - Scenario for this invocation
+
+ @param subcommand - Subcommand this invocation ran
+ */
+async function forgetDaemonAfterDomainCall({
+  scenario,
+  subcommand,
+}: {
+  readonly scenario: Scenario;
+  readonly subcommand: string;
+},): Promise<void> {
+  if ((scenario.daemonStopsAfterDomainCall !== true) || (subcommand === 'list'))
+    return;
+
+  await rm(
+    join(
+      String(directory,),
+      SESSION_DAEMON_UNIT_MARKER,
+    ),
+    { force: true, },
+  );
+}
+
+/**
  Handles `list --all` and `list --all --name` in virsh's output layout.
 
  @param namesOnly - Whether only names are printed, one per line
@@ -974,7 +1052,15 @@ await appendFile(
  */
 const scenario = await readScenario();
 
-if (scenario.connectFailure === true) {
+/**
+ What answers this invocation.
+ */
+const answer = await daemonAnswer(scenario,);
+
+if (answer === 'would-start-on-demand') {
+  fail(WOULD_START_ON_DEMAND,);
+}
+else if (answer === 'absent') {
   fail(CANNOT_CONNECT,);
 }
 else if (subcommand === 'list') {
@@ -1024,5 +1110,10 @@ else if (subcommand === 'domstate') {
 else {
   fail(`error: unknown command: '${String(subcommand,)}'`,);
 }
+
+await forgetDaemonAfterDomainCall({
+  scenario,
+  subcommand: String(subcommand,),
+},);
 
 //endregion Dispatch

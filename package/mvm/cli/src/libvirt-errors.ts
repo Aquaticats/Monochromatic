@@ -5,6 +5,9 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+
+import { SESSION_DAEMON_UNIT, } from './config.ts';
 import {
   type ToolCommand,
   VIRT_MANAGER_FLATPAK,
@@ -13,11 +16,16 @@ import {
 //region Advice
 
 /**
- Explains how to start libvirt's session daemon by hand for the way `virsh` runs on this host.
+ Text `virsh` prints first when it cannot reach libvirt at all.
+ */
+export const CANNOT_CONNECT_TEXT = 'failed to connect to the hypervisor';
 
- mvm does not start the daemon: `virsh` starts it on demand, and it keeps
- running while a domain runs. Starting it by hand is for finding out why it
- does not come up.
+/**
+ Explains how to start libvirt's session daemon by hand for the way `virsh` runs
+ on this host.
+
+ mvm starts the daemon itself, in a user unit of its own; starting it by hand
+ is for finding out why it does not come up.
 
  @param virsh - Command mvm runs `virsh` with
 
@@ -38,8 +46,7 @@ export function sessionDaemonAdvice(virsh: ToolCommand,): string {
    */
   const hostStart = 'virtqemud --verbose';
   return [
-    'virsh starts libvirt\'s session daemon on demand, so mvm does not start it.',
-    'To see why it does not come up, start it by hand in the background, with its output sent to a file rather than a pipe:',
+    'To see why libvirt\'s session daemon does not come up, start it by hand in the background, with its output sent to a file rather than a pipe:',
     ...(virsh.origin === 'flatpak' ? [`  ${flatpakStart}`,] : []),
     ...(virsh.origin === 'path' ? [`  ${hostStart}`,] : []),
     ...(virsh.origin === 'environment'
@@ -141,3 +148,95 @@ export class LibvirtUnresponsiveError extends Error {
 }
 
 //endregion Errors
+
+//region Session daemon errors
+
+/**
+ mvm could not get libvirt's session daemon answering in its own user unit.
+
+ @example
+ ```ts
+ try {
+   await ensureSessionDaemon();
+ }
+ catch (error) {
+   if (error instanceof SessionDaemonStartError) console.error(error.unit);
+ }
+ ```
+ */
+export class SessionDaemonStartError extends Error {
+  /**
+   Unit name without `.service`.
+   */
+  readonly unit: string;
+
+  /**
+   @param cause - Failed start or last failed check, kept for its text
+
+   @param startCommandLine - Rendered start command, named in the message
+
+   @param virsh - Command mvm runs `virsh` with, used for the start advice
+   */
+  constructor({
+    cause,
+    startCommandLine,
+    virsh,
+  }: {
+    readonly cause?: unknown;
+    readonly startCommandLine: string;
+    readonly virsh: ToolCommand;
+  },) {
+    super(
+      [
+        `mvm starts libvirt's session daemon in the user unit ${SESSION_DAEMON_UNIT}.service, and it is not answering:`,
+        `  ${startCommandLine}`,
+        ...(cause === undefined ? [] : [caughtValueText(cause,),]),
+        'Read what the unit reported:',
+        `  journalctl --user-unit=${SESSION_DAEMON_UNIT}.service`,
+        `  systemctl --user status ${SESSION_DAEMON_UNIT}.service`,
+        sessionDaemonAdvice(virsh,),
+      ].join('\n',),
+      { cause, },
+    );
+    this.name = 'SessionDaemonStartError';
+    this.unit = SESSION_DAEMON_UNIT;
+  }
+}
+
+/**
+ The command that runs `virsh` says nothing about which command runs `virtqemud`.
+
+ @example
+ ```ts
+ try {
+   sessionDaemonCommand({ override: '', virsh: { argv: ['virt-wrapper'], origin: 'environment' } });
+ }
+ catch (error) {
+   if (error instanceof SessionDaemonCommandError) console.error(error.message);
+ }
+ ```
+ */
+export class SessionDaemonCommandError extends Error {
+  /**
+   @param variable - Environment variable that names the daemon command
+
+   @param virsh - Command mvm runs `virsh` with, quoted in the message
+   */
+  constructor({
+    variable,
+    virsh,
+  }: {
+    readonly variable: string;
+    readonly virsh: ToolCommand;
+  },) {
+    super(
+      [
+        `mvm cannot tell which command runs libvirt's session daemon, because nothing in the command it runs virsh with (${JSON.stringify(virsh.argv,)}) says \`virsh\`.`,
+        `Set ${variable} to a JSON array holding the executable that runs \`virtqemud\` and its leading arguments, for example ${variable}='["virtqemud"]'.`,
+      ].join('\n',),
+    );
+    this.name = 'SessionDaemonCommandError';
+  }
+}
+
+//endregion Session daemon errors

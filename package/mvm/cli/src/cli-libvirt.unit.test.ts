@@ -59,7 +59,14 @@ await describe({
         expect(result.stdout,).toContain('dev',);
         expect(result.stdout,).toContain('running',);
         expect(result.stdout,).not.toContain('someone-elses-vm',);
+        // The first call asks whether a session daemon answers; the second is the listing. Both ask libvirt for the same table.
         expect(await sandbox.calls(),).toEqual([
+          [
+            '--connect',
+            'qemu:///session',
+            'list',
+            '--all',
+          ],
           [
             '--connect',
             'qemu:///session',
@@ -122,17 +129,18 @@ await describe({
     },),
 
     it({
-      name: 'says how to start the session daemon inside the Flatpak when virsh cannot connect',
+      name: 'names systemd-run and how to start the session daemon by hand inside the Flatpak when none answers',
       fn: async () => {
-        await using sandbox = await createSandbox({ connectFailure: true, },);
+        await using sandbox = await createSandbox({ sessionDaemon: 'absent', },);
         await installFakeFlatpak(sandbox,);
         const result = await runCli({
           args: ['list',],
           sandbox,
         },);
         expect(result.exitCode,).not.toBe(0,);
-        expect(result.stderr,).toContain('virsh could not connect to libvirt\'s session daemon',);
-        expect(result.stderr,).toContain('virtqemud-sock',);
+        expect(result.stderr,).toContain('`systemd-run` was not found',);
+        expect(result.stderr,).toContain('mvm-libvirt-session.service',);
+        expect(result.stderr,).toContain('journalctl --user-unit=mvm-libvirt-session.service',);
         expect(result.stderr,).toContain(
           'flatpak run --command=virtqemud org.virt_manager.virt-manager --verbose',
         );

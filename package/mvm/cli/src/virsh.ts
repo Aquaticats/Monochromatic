@@ -15,14 +15,20 @@ import {
   VM_PREFIX,
 } from './config.ts';
 import {
+  CANNOT_CONNECT_TEXT,
   LibvirtSessionUnavailableError,
   LibvirtUnresponsiveError,
 } from './libvirt-errors.ts';
 import {
   libvirtTools,
+  type ToolCommand,
   toolNotFoundRemedy,
   VIRSH_COMMAND_ENV,
 } from './libvirt-tools.ts';
+import {
+  ensureSessionDaemon,
+  LIBVIRT_ENV,
+} from './session-daemon.ts';
 import {
   CommandFailedError,
   CommandTimedOutError,
@@ -40,27 +46,108 @@ import { spawn, } from './spawn.ts';
 const l = tagged({ tag: 'mvm', },);
 
 /**
- Environment virsh runs with: the `C` locale, so that state names such as
- `shut off` and error texts read by this package do not change with the
- caller's language settings.
- */
-const VIRSH_ENV = { LC_ALL: 'C', } as const;
-
-/**
  Milliseconds a virsh call gets unless its caller knows better.
- The first call on a host starts the session daemon, measured at 3 to 8 seconds;
- no operation mvm asks for takes minutes, so a call still running after two is stuck.
+
+ mvm starts the session daemon itself before its first call (see
+ `session-daemon.ts`), measured at a few seconds on a cold host; no operation
+ mvm asks for takes minutes, so a call still running after two is stuck.
  */
 export const VIRSH_DEADLINE_MS = 120_000;
 
 /**
- Text virsh prints first when it cannot reach libvirt at all.
+ Runs one virsh command against the user session QEMU/KVM connection, through
+ the command {@link libvirtTools} chose for this host.
+
+ @param args - Array of command-line arguments for virsh
+
+ @param deadlineMs - Milliseconds after which the call is stopped
+
+ @param tool - Command that runs virsh on this host
+
+ @returns Trimmed stdout output
+
+ @throws {@link LibvirtSessionUnavailableError} when virsh cannot connect to libvirt's session daemon
+
+ @throws {@link LibvirtUnresponsiveError} when virsh is still running at its deadline
+
+ @throws {@link ExecutableNotFoundError} when the command's executable does not exist; the message says how to configure another
+
+ @throws {@link CommandFailedError} when virsh exits with non-zero code for another reason
+
+ @example
+ ```ts
+ const output = await runVirsh({ args: ['list', '--all'], deadlineMs: VIRSH_DEADLINE_MS, tool });
+ ```
  */
-const CANNOT_CONNECT = 'failed to connect to the hypervisor';
+async function runVirsh({
+  args,
+  deadlineMs,
+  tool,
+}: {
+  readonly args: readonly string[];
+  readonly deadlineMs: number;
+  readonly tool: ToolCommand;
+},): Promise<string> {
+  /**
+   Logger scoped to the call so a connection failure is attributable.
+   */
+  const rl = tagged({
+    tag: runVirsh.name,
+    l,
+  },);
+  /**
+   Executable and the arguments that precede virsh's own.
+   */
+  const [command, ...leading] = tool.argv;
+  try {
+    return await spawn({
+      args: [
+        ...leading,
+        '--connect',
+        LIBVIRT_URI,
+        ...args,
+      ],
+      command,
+      deadlineMs,
+      env: LIBVIRT_ENV,
+      notFoundRemedy: toolNotFoundRemedy({
+        command: tool,
+        tool: 'virsh',
+        variable: VIRSH_COMMAND_ENV,
+      },),
+    },);
+  }
+  catch (error) {
+    if (error instanceof CommandTimedOutError) {
+      rl.debug(`virsh was stopped at its deadline of ${String(deadlineMs,)} ms`,);
+      throw new LibvirtUnresponsiveError({
+        cause: error,
+        seconds: Math.round(deadlineMs / MS_PER_SECOND,),
+        virsh: tool,
+      },);
+    }
+    if ((error instanceof CommandFailedError)
+      && error.stderr
+        .includes(CANNOT_CONNECT_TEXT,)) {
+      rl.debug('virsh could not connect to the session daemon',);
+      throw new LibvirtSessionUnavailableError({
+        cause: error,
+        stderr: error.stderr,
+        virsh: tool,
+      },);
+    }
+    throw error;
+  }
+}
 
 /**
  Runs a virsh command against the user session QEMU/KVM connection,
  through the command {@link libvirtTools} chose for this host.
+
+ Makes sure libvirt's session daemon answers first, so that no `virsh` call
+ starts one inside this command's cgroup (see `session-daemon.ts`). When a call
+ finds the daemon gone anyway, the daemon is started again and the call is
+ repeated once.
  
  @param args - Array of command-line arguments for virsh
  
@@ -89,7 +176,7 @@ export async function virsh({
   readonly deadlineMs?: number;
 },): Promise<string> {
   /**
-   Logger scoped to the call so a connection failure is attributable.
+   Logger scoped to the call so a restart is attributable.
    */
   const rl = tagged({
     tag: virsh.name,
@@ -99,48 +186,27 @@ export async function virsh({
    Command that runs virsh on this host.
    */
   const { virsh: tool, } = await libvirtTools();
-  /**
-   Executable and the arguments that precede virsh's own.
-   */
-  const [command, ...leading] = tool.argv;
+  await ensureSessionDaemon();
   try {
-    return await spawn({
-      args: [
-        ...leading,
-        '--connect',
-        LIBVIRT_URI,
-        ...args,
-      ],
-      command,
+    return await runVirsh({
+      args,
       deadlineMs,
-      env: VIRSH_ENV,
-      notFoundRemedy: toolNotFoundRemedy({
-        command: tool,
-        tool: 'virsh',
-        variable: VIRSH_COMMAND_ENV,
-      },),
+      tool,
     },);
   }
   catch (error) {
-    if (error instanceof CommandTimedOutError) {
-      rl.debug(`virsh was stopped at its deadline of ${String(deadlineMs,)} ms`,);
-      throw new LibvirtUnresponsiveError({
-        cause: error,
-        seconds: Math.round(deadlineMs / MS_PER_SECOND,),
-        virsh: tool,
-      },);
-    }
-    if ((error instanceof CommandFailedError)
-      && error.stderr
-        .includes(CANNOT_CONNECT,)) {
-      rl.debug('virsh could not connect to the session daemon',);
-      throw new LibvirtSessionUnavailableError({
-        cause: error,
-        stderr: error.stderr,
-        virsh: tool,
-      },);
-    }
-    throw error;
+    if (!(error instanceof LibvirtSessionUnavailableError))
+      throw error;
+
+    // The daemon exited since mvm asked, as it does after its idle timeout. Starting it again here keeps virsh from
+    // starting it inside this command's cgroup.
+    rl.debug('the session daemon stopped answering; starting it again',);
+    await ensureSessionDaemon({ force: true, },);
+    return runVirsh({
+      args,
+      deadlineMs,
+      tool,
+    },);
   }
 }
 

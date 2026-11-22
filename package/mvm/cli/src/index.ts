@@ -108,6 +108,7 @@ export * from './meta-errors.ts';
 export * from './path-exists.ts';
 export * from './registry.ts';
 export * from './run.ts';
+export * from './session-daemon.ts';
 export * from './spawn-errors.ts';
 /**
  Host command runner, exposed for built-artifact verification.

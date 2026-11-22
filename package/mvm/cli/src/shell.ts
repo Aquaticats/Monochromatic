@@ -12,6 +12,10 @@ import {
   VIRSH_COMMAND_ENV,
 } from './libvirt-tools.ts';
 import {
+  ensureSessionDaemon,
+  LIBVIRT_ENV,
+} from './session-daemon.ts';
+import {
   ExecutableNotFoundError,
   isMissingExecutable,
 } from './spawn-errors.ts';
@@ -65,6 +69,8 @@ export async function shell({ name, }: { readonly name: string; },): Promise<voi
 
   rl.info(`connecting to VM ${name} via console (press Ctrl+] to disconnect, not exit)`,);
 
+  await ensureSessionDaemon();
+
   try {
     await nanoSpawn(
       command,
@@ -76,6 +82,7 @@ export async function shell({ name, }: { readonly name: string; },): Promise<voi
         fullName,
       ],
       {
+        env: LIBVIRT_ENV,
         stderr: 'inherit',
         stdin: 'inherit',
         stdout: 'inherit',

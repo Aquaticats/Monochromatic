@@ -11,6 +11,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -20,6 +21,11 @@ import { join, } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 
 import spawn, { SubprocessError, } from 'nano-spawn';
+
+import {
+  SYSTEMD_RUN_CALLS_FILE,
+  systemdRunBody,
+} from './fixture.fake-systemd-run.ts';
 
 //region Paths
 
@@ -289,6 +295,97 @@ export async function installFakeFlatpak(sandbox: Sandbox,): Promise<void> {
     name: 'flatpak',
     sandbox,
   },);
+}
+
+/**
+ Installs a stand-in `systemd-run` that starts nothing: it records its arguments
+ and leaves the marker that makes the fake virsh answer as a started session
+ daemon unit would.
+
+ @param sandbox - Sandbox receiving the executable
+
+ @example
+ ```ts
+ await installFakeSystemdRun(sandbox);
+ ```
+ */
+export async function installFakeSystemdRun(sandbox: Sandbox,): Promise<void> {
+  await writeExecutable({
+    body: systemdRunBody(),
+    name: 'systemd-run',
+    sandbox,
+  },);
+}
+
+/**
+ One invocation of the stand-in `systemd-run`.
+ */
+export type SystemdRunCall = {
+  /**
+   Whether the stand-in claimed the unit name; false when systemd's "already loaded" answer was given.
+   */
+  readonly accepted: boolean;
+  /**
+   Arguments after the executable name.
+   */
+  readonly args: readonly string[];
+};
+
+/**
+ Reads the invocations of the stand-in `systemd-run`, oldest first.
+
+ @param sandbox - Sandbox whose stand-in recorded them
+
+ @returns One entry per invocation; empty when the stand-in never ran
+
+ @example
+ ```ts
+ const starts = await systemdRunCalls(sandbox);
+ ```
+ */
+export async function systemdRunCalls(sandbox: Sandbox,): Promise<readonly SystemdRunCall[]> {
+  if (!(await readdir(sandbox.state,)).includes(SYSTEMD_RUN_CALLS_FILE,))
+    return [];
+
+  /**
+   The stand-in's log, one JSON object per line.
+   */
+  const log = await readFile(
+    join(
+      sandbox.state,
+      SYSTEMD_RUN_CALLS_FILE,
+    ),
+    'utf8',
+  );
+  return log
+    .split('\n',)
+    .filter(function isCall(line,) {
+      return line !== '';
+    },)
+    .map(function parseCall(line,): SystemdRunCall {
+      /**
+       One logged invocation, typed as unknown until its fields are checked.
+       */
+      const parsed: unknown = JSON.parse(line,);
+      if (((typeof parsed) !== 'object')
+        || (parsed === null)
+        || (!('args' in parsed)))
+        throw new Error(`the stand-in systemd-run wrote a line this harness cannot read: ${line}`,);
+
+      /**
+       Logged arguments; anything that is not text is dropped.
+       */
+      const args = Array.isArray(parsed.args,)
+        ? parsed.args
+          .filter(function isText(argument: unknown,): argument is string {
+            return (typeof argument) === 'string';
+          },)
+        : [];
+      return {
+        accepted: ('accepted' in parsed) && (parsed.accepted === true),
+        args,
+      };
+    },);
 }
 
 //endregion Sandbox
