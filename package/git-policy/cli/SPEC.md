@@ -5976,12 +5976,24 @@ The ordinary run is one over a clone whose own mount still stands at its slot,
 because a clone whose intent is `mount` keeps that intent after it attached:
 the sweep reads the canonical slot's mount from the kernel's table,
 and when its source is this clone's dataset it answers `attached` from that
-mount and files the same `done` receipt for the request's nonce,
+mount and keeps the same `done` receipt for the request's nonce,
 instead of walking a slot that stands on another device and refusing it.
+A sweep reads the kernel's mount table once for its own standing-mount
+answers,
+and a standing clone whose `done` receipt is already the one this request would
+file is answered without writing anything.
 A slot holding another dataset's mount is refused as the walk refuses it.
-The holder reads the intent again after it releases the claim,
-and when the nonce or the operation changed it turns once more,
+The holder reads the intent again after every release of a claim the turn took:
+after an attach,
+after answering a standing mount,
+after a reading that changed under the claim,
+and after a refused re-read.
+When the nonce or the operation changed it turns once more,
 so a request made during a sweep is acted on rather than left to a trigger.
+A turn whose own answer is a failure keeps that failure when the second turn
+runs,
+so a retained mount still reaches the run's failure count and the readiness
+record cannot publish `finished` over it.
 The attach then runs the walk again,
 `fsmount` with `nosuid,nodev`,
 `move_mount` onto the held slot descriptor,

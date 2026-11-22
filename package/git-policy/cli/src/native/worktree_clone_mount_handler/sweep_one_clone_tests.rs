@@ -19,10 +19,11 @@
 //! expect(sweepOneClone(context, CLONE).kind).toBe('attached');
 //! ```
 
-use super::{CloneOutcome, IDENTITY_RECORD_STEP, StandingMounts, SweepContext, UNMOUNT_AWAITS_STEP_NINE, sweep_one_clone};
+use super::{CloneOutcome, IDENTITY_RECORD_STEP, StandingMounts, SweepContext, UNMOUNT_AWAITS_STEP_NINE, is_this_clones_own_mount, sweep_one_clone};
 use crate::start_probe::first_attach_record::{FIRST_ATTACH_NAME, FirstAttachClaim, FirstAttachOutcome, FirstAttachPlace};
 use crate::start_probe::probe_fingerprint::ProbeFingerprint;
 use crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace;
+use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::{CloneFolderIdentity, LookAgainAtSlotRequest, MountIdentity, SlotIdentityStore, publish_parent_identity_under_root_control};
 use crate::worktree_clone_mount_handler::per_slot_root_claim::SlotClaimDirectory;
 use crate::worktree_clone_mount_handler::sweep_attach_step::{AttachRequest, AttachStepOutcome, CloneAttachStep};
@@ -720,16 +721,21 @@ fn a_standing_mount_of_this_clone_is_attached_and_keeps_its_done_receipt() {
 }
 
 /// What:
-///  An intent that changed while the sweep waited for the claim attaches
-///  nothing.
+///  An intent that changed under the claim attaches nothing on the first
+///  reading,
+///  and the holder reads it again after the claim is released.
 /// Why:
 ///  The design says desired state and identities are rechecked under the claim,
 ///  and from plan step 14 on a standing `unmount` intent excludes new attaches;
 ///  a sweep acting on the reading it took before the claim could attach against
 ///  it.
+///  The project also decided the holder reads the intent again after it releases
+///  the claim,
+///  so the changed reading is answered in the second turn rather than left to
+///  the next trigger.
 #[test]
-fn an_intent_that_changed_under_the_claim_attaches_nothing() {
-    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::an_intent_that_changed_under_the_claim_attaches_nothing") {
+fn a_changed_intent_is_read_again_after_the_claim_is_released() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_changed_intent_is_read_again_after_the_claim_is_released") {
         return;
     }
     /// A pool whose clone answers `first` on the first read and `then` after it.
@@ -782,9 +788,217 @@ fn an_intent_that_changed_under_the_claim_attaches_nothing() {
         },
         CLONE,
     );
-    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == "intent"), "{outcome:?}");
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == UNMOUNT_AWAITS_STEP_NINE), "the second turn answers the changed reading: {outcome:?}");
     assert_eq!(attach.asked.get(), 0, "an intent that changed under the claim attaches nothing");
     assert!(!fixture.first_attach.claimed(), "an intent that changed under the claim claims no first attach");
+}
+
+/// What:
+///  A standing mount's turn releases its claim and still reads the intent
+///  again,
+///  so a request that arrives while the slot was claimed is acted on.
+/// Why:
+///  The holder reads the intent again after every release of a claim it took,
+///  and the standing-mount answer is one of those releases;
+///  a turn that returned there would leave the request to a trigger that may
+///  not come.
+#[test]
+fn a_standing_mount_is_read_again_after_the_claim_is_released() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_standing_mount_is_read_again_after_the_claim_is_released") {
+        return;
+    }
+    /// A pool that answers the mount request for the first two reads and an
+    /// unmount request after them.
+    struct Arriving {
+        /// The mount request.
+        mounting: NvList,
+        /// The unmount request written during the turn.
+        unmounting: NvList,
+        /// How many reads were answered.
+        reads: Cell<usize>,
+    }
+
+    impl DatasetReader for Arriving {
+        fn identity(&self, _dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+            let read: usize = self.reads.get();
+            self.reads.set(read + 1);
+            let properties: NvList = if read < 2 { self.mounting.clone() } else { self.unmounting.clone() };
+            return Ok(DatasetIdentity { stats: stats_of_a_clone(), properties });
+        }
+
+        fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+            return Ok(None);
+        }
+    }
+
+    let fixture: Fixture = Fixture::build("standing-request-arrived");
+    fixture.standing.mount.replace(Some(mounted()));
+    let unmounting: String = format!("v1:{MOUNT_NONCE}:unmount");
+    let reader: Arriving = Arriving {
+        mounting: reply_of_a_clone(Some(request_nonce().as_str()), CLONE),
+        unmounting: reply_of_a_clone(Some(unmounting.as_str()), CLONE),
+        reads: Cell::new(0),
+    };
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let outcome: CloneOutcome = sweep_one_clone(
+        &SweepContext {
+            parent_dataset: PARENT,
+            checkout: fixture.checkout.as_path(),
+            checkout_dataset: CHECKOUT_DATASET,
+            store: fixture.store.as_path(),
+            claims: &claims,
+            receipts: &receipts,
+            boot: BOOT,
+            time: &|| return String::from(TIME),
+            reader: &reader,
+            attach: &attach,
+            first_attach: &fixture.first_attach,
+            standing: &fixture.standing,
+        },
+        CLONE,
+    );
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == UNMOUNT_AWAITS_STEP_NINE), "the second turn answers the request that arrived: {outcome:?}");
+    assert_eq!(attach.asked.get(), 0, "the standing mount was recognised and the attach was never asked");
+}
+
+/// What:
+///  A first turn that retained a mount keeps that failure when the intent
+///  changes after the release.
+/// Why:
+///  A run whose only failure is replaced by the second turn's refusal counts no
+///  failure,
+///  and `boot-reconcile` would then publish `finished` over a mount that still
+///  stands.
+#[test]
+fn a_retained_mount_is_kept_when_the_intent_changes_after_the_attach() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_retained_mount_is_kept_when_the_intent_changes_after_the_attach") {
+        return;
+    }
+    /// A pool that answers the mount request for the first two reads and an
+    /// unmount request after them.
+    struct Arriving {
+        /// The mount request.
+        mounting: NvList,
+        /// The unmount request written during the turn.
+        unmounting: NvList,
+        /// How many reads were answered.
+        reads: Cell<usize>,
+    }
+
+    impl DatasetReader for Arriving {
+        fn identity(&self, _dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+            let read: usize = self.reads.get();
+            self.reads.set(read + 1);
+            let properties: NvList = if read < 2 { self.mounting.clone() } else { self.unmounting.clone() };
+            return Ok(DatasetIdentity { stats: stats_of_a_clone(), properties });
+        }
+
+        fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+            return Ok(None);
+        }
+    }
+
+    let fixture: Fixture = Fixture::build("retained-request-arrived");
+    let unmounting: String = format!("v1:{MOUNT_NONCE}:unmount");
+    let reader: Arriving = Arriving {
+        mounting: reply_of_a_clone(Some(request_nonce().as_str()), CLONE),
+        unmounting: reply_of_a_clone(Some(unmounting.as_str()), CLONE),
+        reads: Cell::new(0),
+    };
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Retained { said: String::from("the mount 41 is still attached at /fixture/elsewhere") }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let outcome: CloneOutcome = sweep_one_clone(
+        &SweepContext {
+            parent_dataset: PARENT,
+            checkout: fixture.checkout.as_path(),
+            checkout_dataset: CHECKOUT_DATASET,
+            store: fixture.store.as_path(),
+            claims: &claims,
+            receipts: &receipts,
+            boot: BOOT,
+            time: &|| return String::from(TIME),
+            reader: &reader,
+            attach: &attach,
+            first_attach: &fixture.first_attach,
+            standing: &fixture.standing,
+        },
+        CLONE,
+    );
+    assert!(matches!(outcome, CloneOutcome::Failed { ref step, .. } if step == "rollback"), "the retained mount stays the turn's answer: {outcome:?}");
+    assert_eq!(attach.asked.get(), 1, "the first turn attached once and retained the mount");
+}
+
+/// What:
+///  An unavailable key keeps the `done` receipt of a clone whose own mount
+///  stands at its slot.
+/// Why:
+///  The key question is not the answer to the request that mount already
+///  answered,
+///  and overwriting the `done` receipt with a `refused` one would make a waiting
+///  caller read the later key state as its mount's answer.
+#[test]
+fn an_unavailable_key_keeps_the_done_receipt_of_a_standing_mount() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::an_unavailable_key_keeps_the_done_receipt_of_a_standing_mount") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("key-kept-standing");
+    let reader: ScriptedReader = reader_with(Some(request_nonce().as_str()), CLONE);
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let attached: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
+    assert!(matches!(attached, CloneOutcome::Attached { mount_id: 41, .. }), "{attached:?}");
+
+    fixture.standing.mount.replace(Some(mounted()));
+    let mut reply: NvList = reply_of_a_clone(Some(request_nonce().as_str()), CLONE);
+    reply.add_nvlist(ENCRYPTION_PROPERTY, pair_number(1, CLONE));
+    reply.add_nvlist(KEY_STATUS_PROPERTY, pair_number(KEY_STATUS_UNAVAILABLE, CLONE));
+    let refused_reader: ScriptedReader = ScriptedReader { children: vec![String::from(CLONE)], replies: RefCell::new(vec![(String::from(CLONE), stats_of_a_clone(), reply)]), reads: Cell::new(0) };
+    let refused: CloneOutcome = sweep_one_clone(&context(&fixture, &refused_reader, &attach, &receipts, &claims), CLONE);
+    assert!(matches!(refused, CloneOutcome::Refused { ref step, .. } if step == "key-unavailable"), "{refused:?}");
+    let kept: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the done receipt stands");
+    assert_eq!(kept.outcome, ReceiptOutcome::Done, "the done receipt is kept");
+    assert_eq!(kept.nonce.as_str(), MOUNT_NONCE);
+    assert_eq!(kept.mount.as_ref().map(|mount| return mount.mount_id), Some(41));
+}
+
+/// What:
+///  Only a mount of this clone's own dataset,
+///  at root `/`,
+///  as the ZFS type and with both enforced attributes,
+///  is recognised as this clone's own mount.
+/// Why:
+///  A bind of the same dataset shows another root,
+///  a mount another route made can lack `nosuid` or `nodev`,
+///  and another type or source is another mount;
+///  the standing-mount answer must not adopt any of them.
+#[test]
+fn only_this_clones_own_mount_carries_every_clause() {
+    let own: MountFacts = MountFacts {
+        mount_id: 41,
+        parent_id: 40,
+        root: PathBuf::from("/"),
+        optional_fields: Vec::new(),
+        mount_point: PathBuf::from("/fixture/checkout/.claude/worktrees/one"),
+        filesystem_type: String::from("zfs"),
+        source: String::from(CLONE),
+        mount_options: vec![String::from("rw"), String::from("nosuid"), String::from("nodev")],
+        super_options: Vec::new(),
+    };
+    assert!(is_this_clones_own_mount(&own, CLONE), "the clone's own mount is recognised");
+    let bind: MountFacts = MountFacts { root: PathBuf::from("/sub"), ..own.clone() };
+    assert!(!is_this_clones_own_mount(&bind, CLONE), "a bind with another root is not this clone's own mount");
+    let without_nosuid: MountFacts = MountFacts { mount_options: vec![String::from("rw"), String::from("nodev")], ..own.clone() };
+    assert!(!is_this_clones_own_mount(&without_nosuid, CLONE), "a mount without nosuid is not this route's own");
+    let without_nodev: MountFacts = MountFacts { mount_options: vec![String::from("rw"), String::from("nosuid")], ..own.clone() };
+    assert!(!is_this_clones_own_mount(&without_nodev, CLONE), "a mount without nodev is not this route's own");
+    let another_type: MountFacts = MountFacts { filesystem_type: String::from("tmpfs"), ..own.clone() };
+    assert!(!is_this_clones_own_mount(&another_type, CLONE), "another filesystem type is not this clone's own mount");
+    let another_source: MountFacts = MountFacts { source: String::from("zpcachyos/nosnap/clones/two"), ..own };
+    assert!(!is_this_clones_own_mount(&another_source, CLONE), "another dataset's mount is not this clone's own mount");
 }
 
 /// What:

@@ -17,10 +17,15 @@
 //!  then the sweep,
 //!  then this boot's readiness record,
 //!  which is what step 19's unit makes a boot wait for.
-//!  A readiness record published before the sweep would let a caller read
-//!  readiness for a boot whose clones were never reconciled,
-//!  and one published instead of a failed prerequisite would promise a route the
-//!  boot does not have:
+//!  The project adopted one deviation with its veto open:
+//!  a `running` record is published before the sweep as well,
+//!  so a crash mid-sweep leaves a state `doctor` can show,
+//!  while the design's sentence names only the publish after the
+//!  reconciliation
+//!  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+//!  "Adopted with the project's veto open").
+//!  A readiness record published instead of a failed prerequisite would promise
+//!  a route the boot does not have:
 //!  a failed prerequisite therefore publishes nothing and authorizes no
 //!  attachment.
 //!

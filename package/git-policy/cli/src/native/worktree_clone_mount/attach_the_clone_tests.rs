@@ -15,7 +15,9 @@
 //! expect(attachWith('no-such-filesystem', 'pool/clone', folder).call).toBe('fsopen');
 //! ```
 
-use super::{ATTACH_FSMOUNT_ATTRIBUTES, AttachCall, attach_with, unmount_through_descriptor};
+use super::{ATTACH_FSMOUNT_ATTRIBUTES, AttachCall, Placement, attach_with, unmount_through_descriptor};
+use crate::fs_beneath_mount_facts::mount_id_of;
+use crate::fs_mount_options::parse_mount_table;
 use crate::worktree_clone_mount::ATTACH_MOUNT_FLAGS;
 
 /// A filesystem type this kernel does not have,
@@ -61,7 +63,7 @@ impl Fixture {
 fn a_filesystem_type_the_kernel_does_not_have_is_refused_at_fsopen() {
     let fixture: Fixture = Fixture::new("fsopen");
     let target: std::fs::File = fixture.open();
-    let refusal = attach_with(ABSENT_FILE_SYSTEM, "pool/clone", &target).expect_err("a type no module registers cannot be opened");
+    let refusal = attach_with(ABSENT_FILE_SYSTEM, "pool/clone", &target, &mount_id_of).expect_err("a type no module registers cannot be opened");
     assert_eq!(refusal.call, AttachCall::FileSystemContext, "the refusal names fsopen: {refusal:?}");
     assert_eq!(refusal.call.word(), "fsopen");
     assert!(FSOPEN_ERRNOS.contains(&refusal.errno), "the errno is the call's own (EPERM without mount authority, ENODEV for a type no module registers): {refusal:?}");
@@ -74,6 +76,51 @@ fn a_filesystem_type_the_kernel_does_not_have_is_refused_at_fsopen() {
         assert!(!said.contains(later), "the message names no later call than the one that refused, and it names {later}: {said}");
     }
     assert!(said.contains("Nothing was mounted"), "a refused fsopen mounted nothing, and the message says so: {said}");
+}
+
+/// What:
+///  A mount-number read that fails after the move takes the placed mount down
+///  and says it did.
+/// Why:
+///  A mount is placed at the slot before the number is read,
+///  so a failure there that left the mount standing would report "nothing was
+///  mounted" over a mount nobody named;
+///  this control attaches a tmpfs through the same calls in a namespace of its
+///  own and fails the read on purpose.
+#[test]
+fn a_mount_number_read_that_fails_after_the_move_takes_the_placed_mount_down() {
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        "CLI_GIT_ATTACH_TAKE_DOWN_ROOT",
+        "worktree_clone_mount::attach_the_clone::tests::a_mount_number_read_that_fails_after_the_move_takes_the_placed_mount_down",
+    ) {
+        return;
+    }
+    let root: std::path::PathBuf = crate::test_support::fixture("attach-take-down");
+    let target_path: std::path::PathBuf = root.join("target");
+    std::fs::create_dir_all(target_path.as_path()).expect("the target folder is made");
+    let target: std::fs::File = std::fs::File::open(target_path.as_path()).expect("the target opens");
+    let mount_id_at = |path: &std::path::Path| -> u64 {
+        let opened: std::fs::File = std::fs::File::open(path).expect("the folder opens");
+        return mount_id_of(&opened).expect("the folder's mount number reads");
+    };
+    let parent_before: u64 = mount_id_at(root.as_path());
+    assert_eq!(mount_id_at(target_path.as_path()), parent_before, "the target starts on its parent's own mount");
+    let refusal = attach_with(
+        "tmpfs",
+        "monochromatic-attach-take-down-control",
+        &target,
+        &|_held: &std::fs::File| -> std::io::Result<u64> { Err(std::io::Error::from_raw_os_error(libc::EIO)) },
+    )
+    .expect_err("the control fails the mount-number read on purpose");
+    assert_eq!(refusal.call, AttachCall::MountNumber, "the refusal names the read that failed: {refusal:?}");
+    assert_eq!(refusal.placement, Placement::PlacedThenTakenDown, "the placed mount was taken down again: {refusal:?}");
+    assert_eq!(mount_id_at(target_path.as_path()), parent_before, "the target is back on its parent's own mount");
+    let table = parse_mount_table(std::fs::read("/proc/self/mountinfo").expect("this namespace's mount table reads").as_slice());
+    let canonical: std::path::PathBuf = std::fs::canonicalize(target_path.as_path()).expect("the target resolves");
+    assert!(!table.iter().any(|facts| return facts.mount_point == canonical), "no mount stands at the target after the take-down");
+    let said: String = refusal.message();
+    assert!(said.contains("took it down again"), "the message says the mount was taken down: {said}");
+    assert!(!said.contains("could not be taken down again"), "the message does not claim the mount was retained: {said}");
 }
 
 /// What:

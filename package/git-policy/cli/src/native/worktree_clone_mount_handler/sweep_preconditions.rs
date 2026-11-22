@@ -452,6 +452,9 @@ pub struct BootFacts {
     pub checkout: PathBuf,
     /// Whether the checkout is ready.
     pub checkout_state: ReadyState,
+    /// What the checkout's check answered,
+    /// which the refusal quotes when the checkout is not ready.
+    pub checkout_said: String,
 }
 
 impl BootFacts {
@@ -468,7 +471,7 @@ impl BootFacts {
             return Err(ProbeRefusal::PoolNotReady { pool: self.pool_name.clone(), state: self.pool_state });
         }
         if self.checkout_state != ReadyState::Ready {
-            return Err(ProbeRefusal::CheckoutNotReady { checkout: self.checkout.clone(), state: self.checkout_state, said: String::from("the walk from the checkout did not reach its worktrees folder") });
+            return Err(ProbeRefusal::CheckoutNotReady { checkout: self.checkout.clone(), state: self.checkout_state, said: self.checkout_said.clone() });
         }
         return Ok(());
     }
@@ -496,6 +499,8 @@ pub struct PreparedBoot {
     pub checkout: PathBuf,
     /// Whether the checkout is walkable.
     pub checkout_state: ReadyState,
+    /// What the checkout's check answered.
+    pub checkout_said: String,
     /// The probe's standing for this boot.
     pub standing: ProbeStanding,
 }
@@ -521,8 +526,8 @@ pub struct PreparedBoot {
 pub fn prepare(configuration: &SweepConfiguration, probe_record: &Path, mounts: &dyn CheckoutMounts) -> Result<PreparedBoot, ProbeRefusal> {
     let standing: ProbeStanding = read_probe_standing(probe_record)?;
     let boot: String = boot_identifier()?;
-    let (checkout_state, _said): (ReadyState, String) = checkout_state(configuration.checkout.as_path(), mounts);
-    return Ok(PreparedBoot { boot, checkout: configuration.checkout.clone(), checkout_state, standing });
+    let (checkout_state, checkout_said): (ReadyState, String) = checkout_state(configuration.checkout.as_path(), mounts);
+    return Ok(PreparedBoot { boot, checkout: configuration.checkout.clone(), checkout_state, checkout_said, standing });
 }
 
 /// What:
@@ -546,6 +551,7 @@ pub fn complete(prepared: PreparedBoot, reader: &dyn DatasetReader, parent: &str
         pool_state: pool_state(reader, parent),
         checkout: prepared.checkout,
         checkout_state: prepared.checkout_state,
+        checkout_said: prepared.checkout_said,
     };
     facts.admit()?;
     return Ok(facts);

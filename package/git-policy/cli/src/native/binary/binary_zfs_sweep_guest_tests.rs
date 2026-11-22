@@ -417,7 +417,7 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let receipt: String = std::fs::read_to_string(receipt_path.as_str()).expect("the sweep filed a receipt under the clone's GUID");
     assert!(receipt.contains("outcome done"), "the receipt says the mount was observed: {receipt}");
     assert!(receipt.contains(nonce), "the receipt carries the request's nonce: {receipt}");
-    // M5: this boot's first attach records the verified mount and the flags read back.
+    // The first attach's record: this boot's verified mount and the flags read back.
     let first_attach: String = std::fs::read_to_string(FIRST_ATTACH).expect("this boot's first attach is recorded");
     assert!(first_attach.contains("kind operation-outcome"), "{first_attach}");
     assert!(first_attach.contains("outcome attached"), "the first attach records the mount: {first_attach}");

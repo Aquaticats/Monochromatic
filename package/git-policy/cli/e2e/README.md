@@ -928,8 +928,8 @@ The arms:
   a clone of the container's own snapshot and a clone of another checkout
   dataset's snapshot are each refused with nothing attached,
   which is item 2's shape through the product's own code,
-  and a clone of the container's snapshot is the shape H1 of step 8's
-  integration pass let through wrongly;
+  and a clone of the container's snapshot carries an origin outside the
+  checkout dataset, which the origin check refuses;
 - the descriptor unmount a rollback makes:
   a clone attached through a held descriptor after the walk's parent was
   renamed lands at the moved path,

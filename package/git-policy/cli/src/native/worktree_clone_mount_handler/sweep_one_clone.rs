@@ -409,13 +409,13 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
         Ok(reread) => reread,
         Err(outcome) => {
             claim.release();
-            return outcome;
+            return turn_again_after_the_release(context, name, request, outcome, may_read_again);
         }
     };
     if under_the_claim.0.dataset != verified.dataset || under_the_claim.1.nonce != request.nonce || under_the_claim.1.operation != request.operation {
         claim.release();
         let said: String = format!(
-            "the clone `{name}` was read as GUID {} asking `{}` under nonce {} before this sweep took slot `{}`, and under the claim it reads as GUID {} asking `{}` under nonce {}. Nothing was attached on the first reading, and the second reading is left to the next trigger",
+            "the clone `{name}` was read as GUID {} asking `{}` under nonce {} before this sweep took slot `{}`, and under the claim it reads as GUID {} asking `{}` under nonce {}. Nothing was attached on the first reading, and the intent is read again after the claim is released",
             verified.dataset.file_name(),
             request.operation.word(),
             request.nonce.as_str(),
@@ -425,11 +425,13 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
             under_the_claim.1.nonce.as_str()
         );
         warn(TAG, said.as_str());
-        return CloneOutcome::Refused { name: String::from(name), slot: Some(verified.slot.clone()), step: String::from(INTENT_STEP), said };
+        let refused: CloneOutcome = CloneOutcome::Refused { name: String::from(name), slot: Some(verified.slot.clone()), step: String::from(INTENT_STEP), said };
+        return turn_again_after_the_release(context, name, request, refused, may_read_again);
     }
     if let Some(mount) = context.standing.standing_mount_of(&LookAgainAtSlotRequest { checkout: context.checkout, slot: verified.slot.as_str() }, verified.dataset_name.as_str()) {
         claim.release();
-        return answer_the_standing_mount(context, verified, request, mount);
+        let answered: CloneOutcome = answer_the_standing_mount(context, verified, request, mount);
+        return turn_again_after_the_release(context, name, request, answered, may_read_again);
     }
     // This boot's first attach is claimed after the key check that the re-read ran and before the walk that opens the
     // slot, which is the order the start-probe design states; a sweep that finds this clone already mounted above has
@@ -438,7 +440,8 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
     if let Err(said) = ensure_the_slot_record(context, verified) {
         claim.release();
         record_the_first_attach(context, first_attach, &the_first_attach_refusal(verified, IDENTITY_RECORD_STEP, None));
-        return CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(IDENTITY_RECORD_STEP), said };
+        let refused: CloneOutcome = CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(IDENTITY_RECORD_STEP), said };
+        return turn_again_after_the_release(context, name, request, refused, may_read_again);
     }
     let outcome: AttachStepOutcome = context.attach.attach(&AttachRequest { checkout: context.checkout, slot: verified.slot.as_str(), clone: name, store: context.store });
     record_the_first_attach(context, first_attach, &the_first_attach_outcome(verified, &outcome));
@@ -446,14 +449,41 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
     // was made for even when a request arrived meanwhile.
     let answered: CloneOutcome = answer_the_attach(context, verified, request, outcome);
     claim.release();
-    // The holder reads the intent again after it releases the claim, so a request that arrived while this sweep held the
-    // slot is acted on in a second turn rather than waiting for a trigger that may not come. One turn may re-read, so a
-    // request that keeps changing cannot make the sweep loop.
-    if may_read_again && the_intent_changed(context, name, request) {
-        debug(TAG, format!("the intent of `{name}` changed while the slot was claimed, so the sweep turns once more").as_str());
-        return sweep_one_clone_once(context, name, false);
+    return turn_again_after_the_release(context, name, request, answered, may_read_again);
+}
+
+/// What:
+///  Turn once more after every release of a claim this turn took,
+///  when the intent changed while the claim was held.
+/// Why:
+///  The project decided the holder reads the intent again after it releases
+///  the claim,
+///  so a request that arrived during a sweep is acted on rather than left to a
+///  trigger that may not come.
+///  The same rule holds wherever the turn releases a claim it took,
+///  not only after an attach:
+///  a standing mount,
+///  a changed reading under the claim and a refused re-read all release it.
+///  One turn may re-read,
+///  so a request that keeps changing cannot make the sweep loop.
+///  A turn whose own answer is a failure keeps that answer,
+///  because a retained mount must reach the run's failure count rather than be
+///  replaced by the second turn's refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = turnAgainAfterTheRelease(context, name, request, answered, mayReadAgain);
+/// ```
+fn turn_again_after_the_release(context: &SweepContext<'_>, name: &str, request: &MountIntent, answered: CloneOutcome, may_read_again: bool) -> CloneOutcome {
+    if !may_read_again || !the_intent_changed(context, name, request) {
+        return answered;
     }
-    return answered;
+    debug(TAG, format!("the intent of `{name}` changed while the slot was claimed, so the sweep turns once more").as_str());
+    let second: CloneOutcome = sweep_one_clone_once(context, name, false);
+    if matches!(answered, CloneOutcome::Failed { .. }) {
+        return answered;
+    }
+    return second;
 }
 
 /// What:
