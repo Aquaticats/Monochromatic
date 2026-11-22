@@ -41737,7 +41737,13 @@ stated in this entry. What follows from them, as work:
   `~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/`; its brief wrongly said 6341 was fixed, corrected by
   message), and `pi-btrfs-subvol-info-success-value` fixing issue 6341 in `.claude/worktrees/btrfs-subvol-info-success-value`
   (brief under `~/temp/agent/btrfs-subvol-info-success-value-2026-11-22/`). Queued: the seven root-only controls need a
-  guest account without `CAP_SYS_ADMIN`, and the `worktree_landed_removal` hand-over needs diagnosis. Step 7's
+  guest account without `CAP_SYS_ADMIN`, and the `worktree_landed_removal` hand-over needs diagnosis. THE OVERLAP BUILD
+  committed to `130369ef42` (feat at 01:09; docs, proposal and controls to 01:47; a final gate unit
+  `cli-git-fence-size-read-gate-final-2026-11-22`) and then ran `find $S -maxdepth 1 -mindepth 1 ! -name keep -exec rm -rf {} +`
+  on its parent folder, deleting the driver's live `run-1` and the brief, so the driver exited 1 with no `summary.json` and
+  no report (the brief is in this session's record only). The three running rounds were steered not to do the same, and
+  `.agents/skills/pi-as-subagent/SKILL.md` now says a run deletes only inside its own scratch folder with literal paths.
+  GOING: `pi-fence-size-read-beside-source-check-build-2` resumes its session for the report (`continuation-1.md`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
