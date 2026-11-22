@@ -2793,7 +2793,7 @@ nothing here claims their behaviour.
 - `6ea002aa7d`,
   committed `2026-11-22T18:11:08-05:00`:
   the version that answers the gate review,
-  with the changes "What this revision rewrote" lists.
+  with the changes the first part of "What this revision rewrote" lists.
 - `3e34817184`,
   committed `2026-11-22T18:11:19-05:00`:
   the metadata-only commit that recorded the two above.
@@ -2801,18 +2801,16 @@ nothing here claims their behaviour.
   committed `2026-11-22T18:39:07-05:00`:
   the version that answers the second pass,
   with the changes the second part of "What this revision rewrote" lists.
-- The commit that re-read the three siblings whose tips moved while this revision was written,
-  subject beginning "docs(planning):
-  follow the sibling tips that moved",
-  which corrects the plan record's head-gone rule,
-  the dirty-main design's dependency,
-  and the origin-cleanup read.
-- The metadata-only commit after it,
-  subject beginning "docs(planning):
-  record the second pass's revisions",
-  whose only change is the times this list is missing,
-  read from `git log --format=%cI` before it is made.
-  Its own committer time can only be read from `git log --format=%cI` for it,
+- `2c59ed3329`,
+  committed `2026-11-22T18:39:13-05:00`:
+  the metadata-only commit that recorded `8228a9efdb`'s time.
+- `139061f746`,
+  committed `2026-11-22T18:40:22-05:00`:
+  the three sibling tips re-read and their statements corrected.
+- The metadata-only commit that writes this list:
+  its change is this list,
+  each older commit's time read from `git log --format=%cI`,
+  and its own time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
 [vm-12]: cli-git-zfs-measurements-owed-before-acceptance.md
