@@ -62,6 +62,9 @@
 //!   and the adoption's replacement.
 //! - `attached_mount_identity.rs`:
 //!   the attach's flags and the mount facts recorded for one folder.
+//! - `attach_the_clone.rs`:
+//!   the attach's own calls and its refusal,
+//!   and the descriptor-bound unmount a rollback makes.
 //! - `clone_slot_walk_refusals.rs`:
 //!   why a walk or an identity compare refused,
 //!   naming the component or field.
@@ -140,6 +143,10 @@ pub mod slot_identity_store_publication;
 /// The attach's flags and the mount facts one folder's descriptor reports.
 pub mod attached_mount_identity;
 
+/// The attach's calls,
+/// its refusal and the descriptor-bound unmount.
+pub mod attach_the_clone;
+
 /// Why the walk or an identity compare refused.
 pub mod clone_slot_walk_refusals;
 
@@ -199,6 +206,9 @@ pub(crate) use slot_name::slot_name_refusal;
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.
 pub use attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, MountIdentityRefusal, mount_facts_of, mount_identity_of};
+/// The attach's calls,
+/// the mount it made and the descriptor-bound unmount.
+pub use attach_the_clone::{AttachCall, AttachRefusal, AttachedMount, attach_the_clone, unmount_through_descriptor};
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
 /// The walks and what they hold.
