@@ -41675,7 +41675,15 @@ stated in this entry. What follows from them, as work:
   wall did not resolve under load; a refused source pays the unused read; ranking B (rung 1 only) > A (serial) > C (both).
   Unmeasured: `HEAD` moving between the read's start and the check. The round ran one read-only `mvm exec` in another
   session's guest (disclosed; against the rule). GOING: its gate review on Sonnet (review to
-  `~/temp/agent/gate-review-fence-size-read-beside-source-check-2026-11-22/`); then the owner. Step 7's
+  `~/temp/agent/gate-review-fence-size-read-beside-source-check-2026-11-22/`); then the owner. THE PARTIAL CLONE BUILD
+  ended at `28d06e70b7`: size limit pinned at 762,000,000 tracked bytes (a new 260 MB dirty shape lost at 1.32 of Git's own
+  checkout, so the pin sits at the bracket's top; this repository is 763,289,228 bytes, 1.3 MB above it), changed-file cut a
+  quarter of tracked paths, counted from the check's own status read (untracked files are not changes); usual dirty 0.63 of
+  `main` and 0.81 of Git's own checkout, 6,000 changed parity, 20,000 changed, the 26 MB tree and the 260 MB tree all routed
+  to Git's own checkout at parity; six re-plants all red; sample 300 of 300; gate 9768 of 9770. Owed: six
+  `worktree_ladder_finish` btrfs controls red in the guest (their small fixtures are now declined by the size limit) and six
+  other guest failures undiagnosed. GOING: `pi-clone-rung-partial-clone-btrfs-fixtures` in the build worktree (brief under
+  `~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/`); then the integration pass on Sonnet. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
