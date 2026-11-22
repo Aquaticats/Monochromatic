@@ -41600,7 +41600,15 @@ stated in this entry. What follows from them, as work:
   question ranks A (keep `git ls-tree`, close step 10's follow-up) > B (`gix` or `gix-odb` after vetting) > C (in-process,
   wins only on loose btrfs sources) > D (`cat-file`). GOING: `pi-fence-faster-size-reader-gate-findings` in the proposal
   worktree (brief `~/temp/agent/fence-faster-size-reader-design-2026-11-21/prompt-gate-findings.md`); then the reviewer's
-  recheck; then the owner. Step 7's
+  recheck; then the owner. THE SKIP LOWS' INTEGRATION PASS said not fit on one finding: a tag `rel` beside a branch `rel/one`
+  makes the branch read decide nothing, so the add copies then falls back where `main` skips first (1.11 of `main`, control
+  0.96 to 1.07; rung 1 loses its skip too); narrow fix `the_one_branch` answers `Ok(None)` when no record equals the wanted
+  ref (the reviewer's scratch fix restored the route and moved no other probe). Medium: `@{...}` forms are read, only a bare
+  `-` is not. Lows: `#[cfg(unix)]` on the option table, the extra 1 ms `git for-each-ref`. Otherwise fit (44 probes; p16
+  0.86 of `main`; the btrfs rung-1 ending control passed in the reviewer's guest; harness 26 of 26; sample 300 of 300; gate
+  9741 of 9743; integration branch `integrate/git-policy-cli-clone-rung-skip-pass-lows` at `00059ac588`). GOING:
+  `pi-clone-rung-skip-pass-lows-integration-findings` in `.claude/worktrees/clone-rung-skip-pass-lows-findings` (brief under
+  `~/temp/agent/clone-rung-skip-pass-lows-integration-findings-2026-11-21/`); then the reviewer's recheck. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
