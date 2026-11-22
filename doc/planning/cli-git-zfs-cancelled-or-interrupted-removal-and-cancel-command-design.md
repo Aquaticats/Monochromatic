@@ -2225,8 +2225,9 @@ Options:
   only a staged mount moved back.
   A clone left unmounted stays so,
   and the report says how to attach it.
-  The same run leaves the worktree unmounted and names
-  `git monochromatic-git-policy-cli cancel-worktree-removal one` as unable to attach it.
+  The same run leaves the worktree unmounted and prints that the wrapper has no command that attaches a clone the
+  cancellation left behind,
+  so the worktree stays unusable until an administrator attaches it or a later removal finishes the slot.
 
 Pros and cons:
 (a) returns a usable worktree,
@@ -2944,3 +2945,16 @@ oldest first.
   adds the merged questions Q7 to Q10,
   adds the sibling documents and the section where the two disagree,
   and corrects every citation the citation pass found wrong.
+- `4d60e1ddfc`,
+  2026-11-22T18:28:21-05:00:
+  lists every commit the document had at that point
+  and notes that the two sibling links live on their own branches.
+- `a432d9250a`,
+  2026-11-22T18:29:40-05:00:
+  reads an already-cancelled removal from the intent,
+  the claim and the clone rather than from a plan that may not
+  exist,
+  and corrects the last citation ranges.
+- The commit that carries this entry,
+  written 2026-11-22T18:29:43-05:00:
+  adds the entries for `4d60e1ddfc` and `a432d9250a`.
