@@ -1494,7 +1494,7 @@ issue 6344's sections below close both windows of it.
 
 The wrapper now counts its own attempts,
 and both controls count that.
-`note_init_attempt` (`shadow_init_attempts.rs:82`) adds one to a thread-local before each
+`note_init_attempt` (`shadow_init_attempts.rs:157`) adds one to a thread-local before each
 `run_git` of the loop (`shadow_create_init.rs:84`),
 and `init_attempts` (`shadow_init_attempts.rs:185`) reads the count.
 The item is `#[cfg(test)]` and per thread,
@@ -1599,7 +1599,7 @@ before the start:
 counts the attempt,
 and in test builds it also sets `MONOCHROMATIC_TEST_SHADOW_INIT_ATTEMPT`
 to the loop's `attempt` in the request's environment
-(`shadow_init_attempts.rs:82`).
+(`shadow_init_attempts.rs:157`).
 The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:503`),
 and no file a start writes decides anything.
 The variable exists in test builds alone:
@@ -1645,11 +1645,11 @@ The fix plants the cut instead of setting the thread's ceiling:
 `cut_the_first_init_attempt_at(Duration::from_millis(700))`
 (`shadow_create_tests.rs:534`)
 shortens the ceiling of the first attempt alone
-(`shadow_init_attempts.rs:115`),
-and `apply_the_planted_cut` (`:156`)
+(`shadow_init_attempts.rs:82`),
+and `apply_the_planted_cut` (`:123`)
 gives the thread back its class's ceiling before the attempt after it,
 forgets the plant at that attempt,
-and `clear_the_planted_cut` (`:133`) does the same once the creation returned,
+and `clear_the_planted_cut` (`:100`) does the same once the creation returned,
 so no other test on that thread inherits a shortened ceiling.
 The start made again is therefore waited for as production waits for a start of `init`,
 `PLUMBING_STEP_CEILING` or `OBJECT_STEP_CEILING` (minutes),
