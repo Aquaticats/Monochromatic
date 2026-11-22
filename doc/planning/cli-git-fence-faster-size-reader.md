@@ -108,14 +108,13 @@ and no content is needed at all.
    kind,
    object name and size,
    and the fence parses the 24,575 records and keeps the ones it needs.
-2. **One `git cat-file --batch-check` **,
+2. **One `git cat-file --batch-check`**,
    fed the distinct object names of the paths that need a size,
    read from the index in process.
    No tree walk and no path output;
    one Git process,
    one line per distinct blob,
-   formatted `%(objectname) %(objectsize)`
-   .
+   formatted `%(objectname) %(objectsize)`.
 3. **The object database in process**,
    from the prototype this branch carries,
    `package/git-policy/cli/src/native/worktree/worktree_clone_size_reader.rs`.
@@ -193,7 +192,7 @@ and the add has to write the bytes Git's own checkout writes.
 
 What each option does in those shapes:
 
-- **`git ls-tree` and `git cat-file` ** are Git.
+- **`git ls-tree` and `git cat-file`** are Git.
   A partial clone's missing blob is fetched from the promisor remote by the run itself,
   a replaced blob answers the replacement's size,
   a shallow or grafted history answers from the objects that are present,
@@ -422,7 +421,7 @@ with what taking it costs:
    Cons:
    one process per read,
    and 24,575 path records printed and parsed for 23,106 answers.
-3. **One `git cat-file --batch-check` **,
+3. **One `git cat-file --batch-check`**,
    no dependency but new code:
    40.9 ms.
    Pros:
