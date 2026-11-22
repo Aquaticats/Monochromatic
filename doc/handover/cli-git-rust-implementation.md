@@ -41844,7 +41844,82 @@ stated in this entry. What follows from them, as work:
   `shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`, which
   passed alone and is filed as issue 6343 (undiagnosed, beside issue 6342). GOING: its integration pass on Sonnet (review
   to `~/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/`), which also looks for
-  other ways Git can be pointed at a store the reader does not scan. Step 7's
+  other ways Git can be pointed at a store the reader does not scan. GOING since 2026-11-22T14:45-05:00, the two one-off
+  gate failures, each diagnosed by reading and a narrow reproduction (no whole-suite reruns):
+  `pi-lock-control-freed-name-pid-file-failed-once-in-a-gate` (issue 6342, brief under
+  `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/`) and
+  `pi-shadow-control-init-cut-every-time-failed-once-in-a-gate` (issue 6343, brief under
+  `~/temp/agent/shadow-control-init-cut-every-time-failed-once-in-a-gate-2026-11-22/`). Both add a cause section to
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, so the second to merge resolves the letters. THE MVM
+  MCP SERVER was reconnected by the owner: process 695452 started 2026-11-22T14:51:10-05:00 on the build of 01:54, so it
+  carries the daemon unit fix. THE BTRFS FOLLOW-UP ROUND ended at `bf67907b52`
+  (`~/temp/agent/btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/keep/report-from-summary.md`): one function
+  reads the answer and a portable control drives it with 1, 0 and -1 (red with the comparison written back); the document
+  corrected (the request first appears in v4.18; a subvolume answers 0 at a leaf boundary); `SPEC.md` says what the fix
+  changed; gate 9770 of 9772; a new control for the top-level subvolume's 0 never ran (no btrfs root on this host or in the
+  gate image). The 6341 merge message's "where main always read none" was too broad (corrected by commit comment on
+  `4929414f47`): `main` misread only an answer of 1. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/`), which runs that control in
+  a btrfs guest. THE OVERLAP'S FIX ROUND ended at `23f8584609`
+  (`~/temp/agent/fence-size-read-settle-never-waits-2026-11-22/keep/report-from-summary.md`): the settle is one `try_recv`
+  and never waits; a read the add will not use has its child killed at the refusal or decline, and a read alive at process
+  end carries `PR_SET_PDEATHSIG`; the no-fetch switches (first honoured by Git 2.45.0) are added only on a source that may
+  hold a promisor remote; the fail-fast refused shape is 16.0 against `main`'s 13.0 ms loose and 23.5 against 21.4 packed
+  (two rounds above the control's range); the loose served add's gain was not resolved in its run; gate 9788 of 9790. GOING:
+  its integration recheck on Sonnet (review to
+  `~/temp/agent/integration-recheck-fence-size-read-beside-source-check-2026-11-22/`), which weighs the kill, the promisor
+  test and whether ending the read still fits the decision. THE OBJECT READER FOLLOW-UP'S PASS said not fit
+  (`~/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/keep/review.md`): the memory
+  of commits read lives for the whole service, so after a landing, a replace ref added and an amend, the amend lands with the
+  commit's old parent where `main` and Git give none (measured on reftable and on files with a replace ref); the three
+  questions' call sites are still held by no control; a failed standard-input write answers "not missing";
+  `GIT_REPLACE_REF_BASE`, `GIT_OBJECT_DIRECTORY` and `GIT_ALTERNATE_OBJECT_DIRECTORIES` still make the reader answer where
+  Git reads elsewhere, as on `main`. Its gate was 9885 of 9887 and the shadow control passed. GOING:
+  `pi-object-reader-commit-memory-is-per-landing` on the same branch in
+  `.claude/worktrees/object-reader-commit-memory-is-per-landing` (brief under
+  `~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/`). ISSUE 6343'S ROUND ended at `9eee1a5a42`
+  (`~/temp/agent/shadow-control-init-cut-every-time-failed-once-in-a-gate-2026-11-22/keep/report-from-summary.md`): the
+  control counted `git init` starts in a file its stand-in Git writes, and the wrapper may end a start at its 500 ms test
+  ceiling before that write, so two attempts read as one; reproduced line for line with a planted delay; the wrapper now
+  counts its own attempts in a test-only thread-local and both shadow controls assert on that; documented as cause M (cause L
+  is left for issue 6342's round); gate 9875 of 9877. The sibling control
+  `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` keeps one such exposure, documented and unchanged. GOING:
+  its integration pass on Sonnet (review to `~/temp/agent/integration-pass-shadow-control-init-cut-every-time-2026-11-22/`).
+  The partial clone round's folder reached 6.0 GiB of a 12 GiB `~/temp/agent`; it was told by message to stay under 10 GiB.
+  THE BTRFS FOLLOW-UP IS MERGED as `473dccebbc` (2026-11-22, pushed): its pass on Sonnet said fit
+  (`~/temp/agent/integration-pass-btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/keep/review.md`; 24 of 24 btrfs
+  controls in a guest; the top-level control ran on a real top-level root; 2 of 1,500 subvolumes answered 0, so the
+  leaf-boundary 0 is observed; gate 9877 of 9879). Its lows wait for a btrfs-guest round with the seven root-only controls
+  and the `worktree_landed_removal` hand-over: `SPEC.md` names only the source read; the document's unchecked list is stale;
+  two test doc comments and the stated limit overclaim; the top-level control's wrapper assertion has never been red. Host
+  facts read at 2026-11-22T15:50-05:00, for whoever reads a guest timing: swap is zram (61.7 G, 36 G used) at
+  `vm.swappiness` 150; three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G); the ZFS cache was at
+  2.1 G of 60.7 G; memory pressure about 4 percent; 30 processors at a load of 17 to 25. Three notes went to running rounds
+  on a second check's advice: the no-configuration round runs, in its guest, whether an account with the design's delegation
+  can make a dataset of the checkout's leaf name that a boot then mounts as root (this decides its merge; the staging record
+  says the account is trusted on this machine, so the answer goes to the owner as a fact); the object reader round adds a
+  control with a variable set on the client only, through the real service; the step 8 follow-up was told a `tmpfs` inside
+  the repository's namespace helper is not a host mount. ZFS STEP 9 STARTED at 2026-11-22T16:10-05:00 as two rounds from
+  `main` at `473dccebbc`, because the holder scan is a module of its own and the unmount meets the step 8 follow-up in the
+  sweep's turn: `pi-zfs-step-9-holder-scan-across-mount-namespaces` on
+  `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces` (the plan's holder scan paragraph, reusing the start
+  probe's grouping and source match; brief under `~/temp/agent/zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/`)
+  and `pi-zfs-step-9-unmount-staging-and-reattach` on `feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach` (the
+  handler's unmount, the staged-folder record, the rollback and the reattach, the wrapper's folder and cleanup, the
+  interface steps 14, 16 and 17 wait on; brief under `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
+  No staging code existed on `main` (only the start probe's private unmount and scan), so the unmount round owns the staging
+  build. Each puts its guest arms in new files; the unmount round was told to expect a message to merge `main` when the
+  step 8 follow-up or the no-configuration round lands. ISSUE 6343'S FIX IS MERGED as `356a889a32` (2026-11-22, pushed, issue
+  closed): its pass on Sonnet said fit
+  (`~/temp/agent/integration-pass-shadow-control-init-cut-every-time-2026-11-22/keep/review.md`; reproduced on `main` with the
+  plant, the fixed control green under it and red with the retry disabled; gate 9875 of 9877). The pass found the sibling
+  control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` has two timing windows (the file the cut start
+  writes; its real second start under a 700 ms ceiling), filed as issue 6344, and that cause M states as fact what the record
+  cannot separate (corrected by commit comment on `a49ccb8610`). The 6342 round was told by message that `main` gained cause
+  M. GOING: `pi-shadow-sibling-control-two-timing-windows` on
+  `fix/git-policy-cli-shadow-sibling-control-two-timing-windows` (both windows, the lows, cause M's wording, and splitting
+  `shadow_create.rs`, which is over the line limit; brief under
+  `~/temp/agent/shadow-sibling-control-two-timing-windows-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under

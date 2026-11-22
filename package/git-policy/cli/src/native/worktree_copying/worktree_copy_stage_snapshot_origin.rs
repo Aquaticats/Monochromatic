@@ -64,6 +64,10 @@ pub struct SnapshotOrigin {
 /// and a folder a kill leaves is
 ///  reported instead of removed,
 /// which is the safe direction.
+/// A source that is itself a nested subvolume reads like any other:
+/// the request answers 1 for it,
+/// or 0 when its backref search ends at a leaf boundary,
+/// and either answer fills the record this reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -74,6 +74,10 @@ pub mod shadow_ref_write;
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;
 
+/// How many times one thread's shadow creations started `init`,
+/// counted for the controls.
+pub mod shadow_init_attempts;
+
 /// The pool of finished shadows a commit can take instead of making one.
 pub mod shadow_pool;
 
