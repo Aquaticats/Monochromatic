@@ -6,11 +6,13 @@
 
 use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
+use crate::path_bytes::path_bytes_of;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::shadow_git::shadow_request;
 use crate::shadow_init_attempts::{init_attempts, reset_init_attempts};
-use crate::transaction_git::run_git_checked;
+use crate::transaction_git::{GitOutput, run_git_checked};
 use crate::transaction_journal::RefFormat;
+use std::ffi::OsString;
 
 /// Captures the invocation of a repository's working directory,
 /// as the transaction does.
