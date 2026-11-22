@@ -458,6 +458,7 @@ const STEP_SENTENCES: &[(&str, &str)] = &[
     ("refusals", "it is deciding how to make the worktree"),
     ("checkSource", "it is deciding how to make the worktree"),
     ("claimStage", "it is deciding how to make the worktree"),
+    ("trackedEntries", "it is deciding how to make the worktree"),
     ("walkSource", "it is reading the checkout the worktree is made from"),
     ("readIndexAndTree", "it is comparing the source's index with the files it recorded"),
     ("indexAgainstTree", "it is comparing the source's index with the files it recorded"),
