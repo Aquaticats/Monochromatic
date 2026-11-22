@@ -145,6 +145,28 @@ pub struct SizeReadBesideTheCheck {
 }
 
 /// What:
+///  Whether this source may fetch a missing object from a promisor remote.
+/// Why:
+///   `GIT_NO_LAZY_FETCH` and `--no-lazy-fetch` are Git 2.45.0's;
+///  an older Git refuses the option and reads nothing,
+///  so the fence may retry the serial read only where nothing could be fetched.
+///  A promisor pack or a `promisor` word in the common config is proof enough to keep the read's failure;
+///  anything it cannot prove is treated as a source that may fetch, which is the safe direction.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mayFetch = (commonDir) => readdir(join(commonDir, 'objects/pack')).some((name) => name.endsWith('.promisor')) || readFile(join(commonDir, 'config')).toLowerCase().includes('promisor');
+/// ```
+fn may_fetch(common_dir: &Path) -> bool {
+    let packs: std::path::PathBuf = common_dir.join("objects").join("pack");
+    if std::fs::read_dir(packs).is_ok_and(|entries| entries.flatten().any(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("promisor")))) {
+        return true;
+    }
+    let config: Vec<u8> = std::fs::read(common_dir.join("config")).unwrap_or_default();
+    return String::from_utf8_lossy(config.as_slice()).to_lowercase().contains("promisor");
+}
+
+/// What:
 ///  The worktree root and its two Git directories,
 /// or nothing for an identity without a worktree.
 /// Why:
@@ -196,8 +218,9 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
         debug(TAG, "the commit HEAD names is not a plain ref, so the size read does not start beside the check");
         return None;
     };
+    let may_fetch: bool = may_fetch(common_dir);
     let (sender, answer): (Sender<ReadAnswer>, std::sync::mpsc::Receiver<ReadAnswer>) = std::sync::mpsc::channel();
-    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>) = (context.clone(), root.to_path_buf(), commit.clone(), sender);
+    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>, bool) = (context.clone(), root.to_path_buf(), commit.clone(), sender, may_fetch);
     if let Err(error) = spawn_named(THREAD, move || {
         return read_the_sizes_where_nothing_is_fetched(state);
     }) {
@@ -222,38 +245,46 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// ```ts
 /// function readTheSizesWhereNothingIsFetched([context, root, commit, sender]) { const began = performance.now(); sender.send([performance.now() - began, sizesOf(context, root, commit)]); }
 /// ```
-fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender): (GitContext, PathBuf, String, Sender<ReadAnswer>)) {
+fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_fetch): (GitContext, PathBuf, String, Sender<ReadAnswer>, bool)) {
     let began: Instant = Instant::now();
-    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str());
+    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), may_fetch);
     let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> = sender.send((began.elapsed(), sizes));
 }
 
 /// What:
 ///  The one request the early read makes:
-/// `git --no-lazy-fetch ls-tree -r -l -z` of `commit`,
-/// which may not fetch what the source does not hold,
+/// `git ls-tree -r -l -z` of `commit`,
+///  with the no-fetch switches when the source may hold a promisor remote,
 ///  which leaves the process-wide failed-step note alone,
 ///  and whose child ends with the thread that starts it.
 /// Why:
-///   Both of the first facts are conditions of starting before the source check:
-/// the check may refuse this source,
-///  so the read must write nothing (a lazy fetch would write packs),
-///  and the add's own steps may fail while this read runs,
-///  so the read must not take their note (`GitRequest::beside_another_step`).
-/// The option is beside the variable because Git before 2.45.0 does not know the variable:
-///  it refuses the option before it reads anything, so an older Git fails here instead of fetching,
-///  and a read that fails only refuses the rung or is ignored at the add's end.
+///   Both of the last facts are conditions of starting before the source check:
+/// the add's own steps may fail while this read runs,
+///  so the read must not take their note (`GitRequest::beside_another_step`),
+///  and an add that ends with the read still running must leave no child (`end_with_the_starting_thread`).
+/// The no-fetch switches are there only where a fetch is possible:
+///  `GIT_NO_LAZY_FETCH` and `--no-lazy-fetch` are Git 2.45.0's,
+///  and Git before that refuses the option before it reads anything.
+///  A plain source has no promisor remote, so today's read is safe there and an older Git keeps its overlap;
+///  a source that may fetch gets the option, so an older Git reads nothing and the fence falls back to Git's checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const theEarlyReadRequest = (root, commit) => ({ cwd: root, args: ['--no-lazy-fetch', 'ls-tree', '-r', '-l', '-z', commit], env: { GIT_NO_LAZY_FETCH: '1' }, besideAnotherStep: true, endWithTheStartingThread: true });
+/// const theEarlyReadRequest = (root, commit, mayFetch) => ({ cwd: root, args: [...(mayFetch ? ['--no-lazy-fetch'] : []), 'ls-tree', '-r', '-l', '-z', commit], env: mayFetch ? { GIT_NO_LAZY_FETCH: '1' } : {}, besideAnotherStep: true, endWithTheStartingThread: true });
 /// ```
-fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
+fn the_early_read_request(root: &Path, commit: &str, may_fetch: bool) -> GitRequest {
+    let mut arguments: Vec<OsString> = Vec::with_capacity(6);
+    let mut environment: Vec<(OsString, OsString)> = Vec::new();
+    if may_fetch {
+        arguments.push(OsString::from("--no-lazy-fetch"));
+        environment.push((OsString::from(NO_LAZY_FETCH), OsString::from("1")));
+    }
+    arguments.extend([OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)]);
     return GitRequest {
         cwd: root.to_path_buf(),
-        arguments: vec![OsString::from("--no-lazy-fetch"), OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from(commit)],
+        arguments,
         without_prefix: true,
-        environment: vec![(OsString::from(NO_LAZY_FETCH), OsString::from("1"))],
+        environment,
         ..GitRequest::default()
     }.beside_another_step().ends_with_the_starting_thread();
 }
@@ -270,12 +301,12 @@ fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
 /// ```ts
 /// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): Map<string, number>;
 /// ```
-fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str) -> Result<BlobSizes, String> {
+fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, may_fetch: bool) -> Result<BlobSizes, String> {
     #[cfg(test)]
     hold_the_read_where_a_control_asked();
     #[cfg(test)]
     die_where_a_control_asked();
-    let output: GitOutput = run_git(context, &the_early_read_request(root, commit)).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
+    let output: GitOutput = run_git(context, &the_early_read_request(root, commit, may_fetch)).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }

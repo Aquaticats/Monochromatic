@@ -401,17 +401,25 @@ fn the_read_beside_the_check_leaves_another_steps_note_alone() {
     remove(root.as_path());
 }
 
-/// The early read's request is the only thing that differs from the serial one.
+/// The early read's request is the only thing that differs from the serial one,
+/// and its no-fetch switches are there only where a source may fetch.
 #[test]
 fn the_early_read_runs_without_lazy_fetch_and_outside_the_note() {
-    let request: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD");
-    assert!(request.beside_another_step, "the read leaves the failed-step note alone");
-    assert!(request.end_with_the_starting_thread, "the read's child ends with the thread that starts it");
-    assert!(request.environment.contains(&(OsString::from("GIT_NO_LAZY_FETCH"), OsString::from("1"))), "{:?}", request.environment);
+    let fetching: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD", true);
+    assert!(fetching.beside_another_step, "the read leaves the failed-step note alone");
+    assert!(fetching.end_with_the_starting_thread, "the read's child ends with the thread that starts it");
+    assert!(fetching.environment.contains(&(OsString::from("GIT_NO_LAZY_FETCH"), OsString::from("1"))), "{:?}", fetching.environment);
     assert_eq!(
-        request.arguments,
+        fetching.arguments,
         vec![OsString::from("--no-lazy-fetch"), OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")],
         "Git before 2.45.0 refuses the option and reads nothing, where it would ignore the variable"
+    );
+    let plain: GitRequest = the_early_read_request(Path::new("/nowhere"), "HEAD", false);
+    assert!(plain.environment.is_empty(), "a source that cannot fetch gets no variable: {:?}", plain.environment);
+    assert_eq!(
+        plain.arguments,
+        vec![OsString::from("ls-tree"), OsString::from("-r"), OsString::from("-l"), OsString::from("-z"), OsString::from("HEAD")],
+        "a source that cannot fetch keeps today's read, so an older Git still takes the overlap"
     );
 }
 
@@ -824,5 +832,67 @@ fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     let elapsed: Duration = began.elapsed();
     assert!(output.status.success(), "the read and the fence answered under the stand-in: {}", String::from_utf8_lossy(output.stderr.as_slice()));
     assert!(elapsed < Duration::from_secs(60), "the stand-in's build deadline and the read are bounded: {elapsed:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A Git that refuses `--no-lazy-fetch`, as every release before 2.45.0 does,
+///  and runs everything else.
+/// Why:
+///   The old Git's refusal is what a served add has to survive;
+///  the fixture's real Git is 2.56.1 and takes the option.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const script = '#!/bin/sh\nif [ "$1" = "--no-lazy-fetch" ]; then exit 129; fi\nexec /usr/bin/git "$@"\n';
+/// ```
+fn a_git_that_refuses_the_no_fetch_option(path: &Path) -> GitContext {
+    std::fs::write(path, b"#!/bin/sh\nif [ \"$1\" = \"--no-lazy-fetch\" ]; then exit 129; fi\nexec /usr/bin/git \"$@\"\n").expect("the fake Git");
+    std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let mut context: GitContext = git_context();
+    context.real_git = path.to_path_buf();
+    return context;
+}
+
+/// An old Git's refusal of the no-fetch option never reaches a served add,
+/// because a plain source's read carries no such option and still overlaps the check.
+#[test]
+fn a_served_add_on_an_old_git_reads_without_the_no_fetch_option() {
+    let root: PathBuf = fixture("old-git-served");
+    let repo: PathBuf = a_clean_source(root.as_path(), "old-git-served");
+    let context: GitContext = a_git_that_refuses_the_no_fetch_option(root.join("git-before-2.45").as_path());
+    let identity: WorktreeIdentity = main_identity(repo.as_path());
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &identity).expect("a read starts");
+    let source: SnapshotSource = source_refusal(&context, &identity).expect("the source is clean");
+    begin_timing(repo.join(".git"), true);
+    let mut held: Option<SizeReadBesideTheCheck> = Some(started);
+    let fence: Fence = fence_the_clone_with_the_read_beside_the_check(&source, &context, &mut held).expect("the fence takes the read");
+    finish_timing(0);
+    assert!(held.is_none(), "the fence took the read, so the old Git refused nothing");
+    let record: String = the_record(repo.as_path());
+    assert!(!the_record_states(record.as_str(), "git ls-tree"), "the fence paid no serial read: {record}");
+    let serial: Fence = fence_the_clone(&source, &context).expect("the serial fence decides");
+    assert_eq!((fence.git_writes, fence.carried), (serial.git_writes, serial.carried), "the read decides the same paths");
+    remove(root.as_path());
+}
+
+/// A source with a promisor pack or remote is never retried with today's fetching read.
+#[test]
+fn a_source_with_a_promisor_is_not_read_again_by_the_fetching_read() {
+    let root: PathBuf = fixture("promisor");
+    let origin: PathBuf = root.join("origin");
+    for directory in ["dir0", "dir1"] {
+        std::fs::create_dir_all(origin.join(directory)).expect("a directory");
+        for index in 0..3 {
+            std::fs::write(origin.join(directory).join(format!("f{index}.txt")), format!("{directory}-{index}\n")).expect("a blob");
+        }
+    }
+    git(origin.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    git(origin.as_path(), &["add", "--", "dir0", "dir1"]);
+    git(origin.as_path(), &["commit", "--quiet", "--message=blobs"]);
+    git(origin.as_path(), &["config", "uploadpack.allowfilter", "true"]);
+    let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "partial");
+    assert!(may_fetch(clone.join(".git").as_path()), "a partial clone names its promisor pack or remote");
+    assert!(!may_fetch(root.join("origin/.git").as_path()), "the plain origin names none");
     remove(root.as_path());
 }
