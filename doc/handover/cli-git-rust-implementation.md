@@ -41618,7 +41618,17 @@ stated in this entry. What follows from them, as work:
   (narrow that method to `pub(crate)` returning only what its caller reads). STEP 8 IS UNBLOCKED (step 7 and the store are
   on `main`). GOING: `pi-zfs-step-8-attaching-sweep` in `.claude/worktrees/zfs-step-8-attaching-sweep` (brief under
   `~/temp/agent/zfs-step-8-attaching-sweep-2026-11-21/`; carries step 7's claim-window acceptance item and the plan's step 8
-  wording lows). QUEUED: the store's R1 and R2 after step 8's first commits settle which files it touches. Step 7's
+  wording lows). QUEUED: the store's R1 and R2 after step 8's first commits settle which files it touches. THE MVM DAEMON
+  PASS said not fit on H1 (27 line-break lint errors in the two docs) and found M1 (an exiting daemon's unit makes a caller
+  wait 30 s and fail), M3 (guests now die whenever the daemon exits: the service stops and its cgroup is killed; on `main`
+  they survived), M4 (no `systemd-run`, or a different runtime folder, fails where `main` worked), M5 (README: never stop the
+  unit while a guest runs), and `package/vm-builder/cli` still running bare `virsh`. The real check passed: two concurrent
+  `mvm list` started one unit; one `mvm create` put the daemon, `virtlogd`, `virtiofsd` and the guest in the unit; libvirt
+  12.9 confirms every source claim. THE OWNER ANSWERED at 2026-11-21T23:07:05-05:00 "A: half of total" for the unit's cap
+  (issue 6338 comment). GOING: `pi-mvm-cli-session-daemon-integration-findings` in
+  `.claude/worktrees/mvm-cli-session-daemon-findings`. AFTER MERGE: rebuild `package/mvm/cli` and `package/mcp/mvm` in the main
+  checkout (the `mvm` shim runs a `dist` built 2026-11-01), and the owner restarts or reconnects the mvm MCP server (PID 5607,
+  started 2026-11-19), which holds the old code. Until then old callers still fork a daemon into their own cgroup. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
