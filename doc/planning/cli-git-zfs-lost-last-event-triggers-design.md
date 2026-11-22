@@ -2,88 +2,77 @@
 
 ## Status
 
-Non-final,
-unapproved design proposal by an agent.
-The project owner has not read it,
-no reviewer has read it,
-and
-nothing in it is final or approved;
-only the owner declares a design accepted.
+Non-final and unapproved.
+No reviewer has read this revision,
+and the project has not read it;
+only the project declares a design accepted.
+A cross-vendor gate review read the version at `641fbc1ad4` and returned "fit after the listed fixes,
+not as it
+stands" (`/home/user/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review.md`).
+This revision answers every finding in it;
+"Revisions" lists the commits and what each changed.
 
 It designs the open item "Which triggers a lost last event waits for" of the accepted ZFS worktree route
 ([decision][decision],
 "Decision";
 [proposal][proposal],
-"Open items the decisions leave",
-the item beginning
-"Which triggers a lost last event waits for").
-The plan puts that item on steps 7 and 22,
+"Open items the decisions leave").
+The plan puts that item on
+steps 7 and 22,
 "not blocking either,
-writer
-design work;
+writer design work;
 the rate rule waits for step 22's measurement"
 ([plan][plan],
-"Open items and the step that needs each").
-This design therefore ships no rate:
-it designs the rule's
-shape and names the measurement that sizes it.
+"Open items and the step that needs each",
+lines 2850 to 2854).
+This design ships no rate:
+it designs
+the rule's shape and names the measurement that sizes it.
 
 What it read:
-the ZFS decision,
-the accepted proposal's sections named in "The records that bind this design",
-its
-open-item list,
-the implementation plan's steps 7,
-8,
-10,
-14,
-18,
-19 and 22,
-`package/git-policy/cli/SPEC.md`'s
-sections on the intent,
-receipts,
-readiness and the sweep,
-the step 8 choices record,
-the slot identity store record,
-the step 7 measurement record,
-the code under `package/git-policy/cli/src/native/` named in the facts,
-and the source
-of OpenZFS at `zfs-2.4.4` and systemd at `v262`.
+the records named in "The records that bind this design" and in "Sources read",
+the built handler code
+the facts name,
+the accepted start-probe design,
+the sibling design documents on their branches,
+and OpenZFS at
+`zfs-2.4.4` and systemd at `v262`.
 
 What it ran:
 read-only probes of this host,
-listed in "Facts" with the result each gave;
-two shallow clones of the
-outside sources under this round's scratch folder.
+listed in "Facts";
+two shallow clones of the outside sources under this
+round's scratch folder;
+a script that printed every cited line range beside the words the document quotes from it.
 What it did not run:
 no guest,
 no virtual machine,
 no container,
-no ZFS command that changes anything,
-no mount or namespace of its own,
+no ZFS or pool command that changes anything,
+no
+mount or namespace of its own,
 no handler,
-no wrapper command that makes a
-request,
+no wrapper command that makes a request,
 no test suite,
-and no systemd unit.
-Nothing here was measured.
-Every measurement this design owes sits under
-"Measurements owed" and is still owed.
+and no service
+manager action of any kind.
+Nothing here was measured on this machine,
+and every measurement it owes sits under
+"Measurements owed".
 
 It edits no code,
 no specification,
 no decision record,
-no handover and no other planning document.
-It reads no
-sibling round's unfinished branch as decided;
-"Dependencies on other designs" states each dependency and the
-assumption made for it.
+no handover,
+no sibling design and no other planning
+document.
 
 ## The open item, and the answer it carries
 
 The item,
 quoted whole from [proposal][proposal],
-"Open items the decisions leave":
+"Open items the decisions leave",
+lines 1780 to 1787:
 
 > Which triggers a lost last event waits for.
 > The answer's words:
@@ -107,17 +96,20 @@ quoted whole from [proposal][proposal],
 > ([Lost last event without a waiter](#project-decisions));
 > none of that is designed here.
 
-The answer it carries,
-in the owner's words,
-is quoted whole in [proposal][proposal],
+The answer itself,
+in the project's words,
+from [proposal][proposal],
 "Project decisions",
-under "Lost
-last event without a waiter":
+under "Lost last event
+without a waiter",
+lines 1393 to 1395:
 "Triggers only,
 and we control the triggers,
-which makes the con of "unavailable until
-next trigger" moot."
-The same entry keeps the gap this design closes:
+which makes the con of
+"unavailable until next trigger" moot."
+The same entry,
+lines 1404 to 1407,
+keeps the gap this design closes:
 
 > how the nudges pending for one clone merge into a single sweep,
 > and how many sweeps may run in a period across
@@ -135,29 +127,37 @@ when,
 as which user,
 what each
 guarantees and which lost event each recovers.
-The no-waiter case has no statement of what happens between the loss and
-the next trigger.
+The no-waiter case has no statement of what happens between the loss
+and the next trigger.
 The provider hook is "proposed and unrun" and has no shape.
-The merge and rate rule have no shape at
-all.
+The merge and rate rule have no
+shape at all.
 This design answers those four,
 and nothing else.
 
-## What this design did not take from the brief
+## The project's word "moot" is put to the project
 
-The design reads the answer's "moot" as a claim about a caller that waits,
-not a claim that a lost event is recovered
-promptly with no caller.
-A caller that waits installs its own trigger by writing a nudge,
-so for that caller the
-answer's words hold.
-A clone whose last event was lost with nobody waiting is recovered by the next trigger the
-project controls,
-and that next trigger can be the next boot,
-so the recovery time has no upper bound that this design
-promises (section "The no-waiter case").
-Stating that plainly is part of the answer,
-not a departure from it.
+The answer's word "moot" can carry at least two readings:
+that a waiting caller always has a trigger of its own,
+so
+the old objection to triggers-only does not apply;
+or that a lost event with nobody waiting is recovered soon enough
+not to matter.
+The first reading is true of a caller that waits,
+because its own nudge is a trigger (T4).
+The second
+is not something this design can show:
+with no timer,
+the next trigger can be the next boot.
+
+This design does not choose between them.
+"Questions only the project can answer",
+question Q-B,
+puts the reading to
+the project with its options and a ranking,
+and nothing in this document depends on the answer beyond the statement
+that no timer exists,
+which is the project's recorded decision.
 
 ## The records that bind this design
 
@@ -165,21 +165,17 @@ Each passage is quoted with its path and line,
 and the sentence after it states what it settles here.
 
 The route is accepted with its open items open,
-and it decides that "The root-installed ZED handler and its lifecycle
-unit own clone mount and unmount,
-not Git or automatic deletion"
-([decision][decision],
+and the root-installed ZED handler and its lifecycle unit own clone
+mount and unmount,
+"not Git or automatic deletion" ([decision][decision],
 "Decision",
 line 32).
-So the triggers are root's units and ZED,
-and never a Git
-invocation's side effect.
 
 The intent is a clone-local property,
-the receipt is a root-owned file,
-readiness is a root-owned record,
-and the
-nudge is a property written by a waiter:
+the receipt a root-owned file,
+readiness a root-owned record,
+and the nudge a
+property a waiter writes:
 "A waiter may change the local
 `org.monochromatic:git-worktree-clone-mount-sweep-nonce` as often as it needs on the verified managed clone it is
 waiting for,
@@ -189,32 +185,41 @@ The nudge uses the same hex format and is not a mount instruction."
 "Requests,
 results and ordering",
 lines 573 to 576).
-The same passage states the handler's
-limit and the plan's shape:
+The same passage states the limit and the
+shape:
 "The handler cannot limit the nudge to one write:
-the account owns that property and may
-change it repeatedly,
+the account owns that property and may change it repeatedly,
 and each change may start a sweep that scans every task,
-so bound the work of one sweep instead
-of counting nudges."
-(lines 576 to 578).
+so bound the work of one sweep instead of counting nudges."
+(lines 575 to 578).
 So a burst of nudges is expected,
 the handler cannot refuse the write,
-and a
-rule must bound work rather than count writes.
+and a rule must bound work
+rather than count writes.
 
-Requests are answered by a receipt that carries the request's nonce,
-and a stale receipt is never the answer
-([proposal][proposal],
+A handler's refusal is never a success,
+and only work reaches zero:
+"A refusal is never a success:
+a boot unit's `ExecStart` that could not reconcile must fail,
+so a status of zero is
+written only after a mode did its work" (`handler_mode_dispatch.rs`,
+lines 11 to 14),
+with `EXIT_REFUSED` 2 (lines 35
+to 40).
+So a trigger that passes at nothing,
+held or filtered,
+exits 2 and says why.
+
+A receipt carries the request's nonce,
+and a stale receipt is never the answer ([proposal][proposal],
 "Requests,
 results and ordering",
-lines 561 to 572;
+lines 564 to 572;
 [spec][spec],
 "The receipts",
-lines 6132 to 6170).
-So a caller's confirmation is its own nonce,
-and a sweep that replaces a receipt under the same
-nonce robs nobody.
+lines 6131 to 6183).
+So a caller's
+confirmation is its own nonce.
 
 Waits are bounded and monotonic,
 and a deadline is not cancellation:
@@ -229,158 +234,154 @@ lines 782 to 785),
 and "A deadline is not cancellation:
 the
 durable request may act later."
-(lines 793 to 795).
-So a held-back sweep lengthens a caller's wait but never cancels
-its request,
-and the timeout text must say so.
+(lines 792 to 794).
 
-The built protocol states the three triggers in its own refusals:
-a refused attach tells the caller to "wait for the
-boot unit's `boot-reconcile` to verify the provider and publish this boot's readiness,
-then let the next trigger (a
-ZED event,
-the checkout provider's post-key-load hook,
-or the caller's own sweep nudge) run the sweep"
-(`package/git-policy/cli/src/native/worktree_clone_mount_protocol/clone_mount_readiness_admission.rs`,
-line 100).
-So
-the shipped texts already name the trigger set this design has to make true.
-
-A ready checkout is a condition of every attach,
-and a record that says `not-ready` refuses regardless of live state
-(the same file,
-lines 102 to 150;
-[spec][spec],
+A ready checkout is a condition of every attach:
+"An attach is admitted only when the record names this boot,
+the
+caller's pool and the caller's checkout,
+and both the pool and the checkout are ready;
+`unknown` admits nothing."
+([spec][spec],
 "The readiness record",
-lines 6210 to 6257).
-So a trigger that
-reconciles after a late checkout readiness must republish readiness,
-not only sweep.
+lines 6184 to 6228).
+The builder of that record publishes it only from facts
+that passed,
+so a boot whose checkout is not ready has no record for this boot rather than a `not-ready` one (fact
+F16).
+
+A failed prerequisite publishes nothing and authorizes no attachment ([spec][spec],
+lines 6224 to 6228;
+`sweep_preconditions.rs`,
+lines 535 to 551;
+`boot_reconcile_mode.rs`,
+lines 22 to 26).
 
 A held slot is refused rather than queued,
-and the holder reads the intent again after it releases so that a request
-arriving during a turn is not lost ([decision 8][step8],
-"A slot whose claim is held";
+and the holder reads the intent again after it releases,
+"a sweep that
+finds the slot's claim held refuses ... so a request that arrives during a sweep is not lost"
+([decision 8][step8],
+"A slot whose claim is held",
+lines 78 to 86;
 [spec][spec],
-"The per-slot
-claim",
-lines 6307 to 6330).
-So the per-slot device already answers the request-during-a-turn race for one clone,
-and
-this design's merge device answers the cost of many turns,
-not their safety.
+"The per-slot claim",
+lines 6229 to
+6271).
+The accepted text also keeps parallel passes:
+"parallel handlers can sweep at once but cannot take conflicting
+actions on the same mount" ([proposal][proposal],
+lines 561 to 562).
 
 A refusal files no receipt except an unavailable key's ([decision 8][step8],
-"Receipts for refusals";
+"Receipts for refusals",
+lines 70 to 76;
 [spec][spec],
 "The sweep,
 and the boot it reconciles",
-lines 6360 to 6390).
-So a held-back or filtered trigger files
-no receipt and reaches a waiting caller only as its deadline.
+lines 6272 to 6387).
 
-The sweep visits at most 4096 children,
-and the number is measured:
-one sweep over 4097 children visited the first
-4096 and stopped in 14183 milliseconds,
-and one handler run over a single clone took 99 milliseconds
-(`package/git-policy/cli/src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`,
-lines 26 to 58).
-A round
-is changing that cost now on the branch `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost`,
-so the two
-numbers are the merged ones as they stand and may move;
-this design cites them and nothing here depends on their
-exact value.
+The boot unit is `Type=oneshot` with `RemainAfterExit=yes`,
+`Requires=` and `After=` the checkout provider,
+`ExecStart` running `boot-reconcile` and `ExecStopPost` running `shutdown-unmount`
+([proposal][proposal],
+"Boot and shutdown unit",
+lines 499 to 540).
+Its `Requires=` carries the dependency's other
+face:
+"with or without specifying `After=`,
+this unit will be stopped (or restarted) if one of the other units is
+explicitly stopped (or restarted)" (`systemd.unit(5)`,
+`Requires=`,
+lines 681 to 694 at tag `v262`).
 
-The mount-request deadline is provisional and unsized:
-"The mount-request deadline is this route's first ZFS wait
-constant.
-It ships as a provisional 30 seconds" ([spec][spec],
-lines 6413 to 6416),
-the constant is
-`PROVISIONAL_MOUNT_REQUEST_DEADLINE` at 30,000 milliseconds with a 50 millisecond poll
-(`package/git-policy/cli/src/native/worktree_clone_mount_protocol/mount_request_wait.rs`,
+The start probe runs as `ExecStartPre=-` of that same boot unit,
+in a private mount namespace of its own,
+and writes
+this boot's probe record before the unit's `ExecStart` reads it
+([start probe design][probedesign],
+"Who runs it,
+and where",
+lines 1390 to 1401;
+[start probe decision][probdecision],
+"Decision").
+So the probe record exists only after the provider has finished
+starting,
+because the boot unit is ordered after the provider.
+
+The sweep reads that record first,
+and a record that is absent,
+names another boot or carries any verdict but
+`passed` refuses the run ([spec][spec],
+"The sweep,
+and the boot it reconciles",
+lines 6272 to 6300).
+
+On this host the checkout provider is `zfs-mount.service`,
+a oneshot with `RemainAfterExit=yes` whose `ExecStart` is
+`/usr/bin/zfs mount -a` and which is ordered `Before=local-fs.target` (fact F3).
+
+The mount-request deadline is provisional and unsized ([spec][spec],
+"The wrapper's side and its deadline",
+lines
+6388 to 6416),
+the constant is `PROVISIONAL_MOUNT_REQUEST_DEADLINE` at 30,000 milliseconds with a 50 millisecond poll
+(`mount_request_wait.rs`,
 lines 59 and 68),
-and step
-22 sizes it ([plan][plan],
+and step 22 sizes it ([plan][plan],
 "Step 22",
-lines 2340 to 2360).
-So this design's rate rule must be expressible in terms
-step 22 can size,
-and no number in it may ship before that measurement.
+lines 2340 to 2354).
 
-The plan's step 7 says the coalescing and rate rule stay unwritten there ("Open items",
-lines 1148 to 1153),
-and step
-22 repeats that it "Proceeds without "Which triggers a lost last event waits for" and measures before any rate rule
-ships" (lines 2410 to 2416).
-So this document is the writing the plan anticipated,
-and after acceptance the plan's two
-sentences and its open-item entry need amending (section "Dependencies on other designs and on the plan").
+The wait reads before it sleeps,
+and a fresh request's first read cannot match its own nonce
+(`mount_request_wait.rs`,
+lines 326 to 359).
+So any nudge written by a wait is written after at least one read,
+and a
+nudge written on the first read is a nudge at the start.
 
-No configuration is needed and no person makes a setting:
+No configuration is needed and nobody makes a setting:
 "The project first answered that everything must work by
 default with no configuration",
-and for a host with no file at all the project answered "1:
-no file needed
-(Recommended)" ([decision 8][step8],
+and "1:
+no file needed (Recommended)" for a host with no file
+([decision 8][step8],
 "The datasets the sweep acts on" and "With no configuration file",
 lines 17 to 68).
-So every trigger and record here works with no file,
-and the parent name the event filter needs comes from the same
-configuration the handler already reads,
-with the design's own names as its fallback.
 
-The wrapper never asks a person for a secret,
-and where it lacks authority it refuses and says what to do:
-"Avoid ever asking for someone to type a username or password."
-with "Passphrases count too (Recommended)"
-([spec][spec],
-lines 7348 to 7352).
-So no trigger here prompts,
-and a trigger a person must fire is printed as a
-command for that person's own shell.
+The wrapper never asks for a secret and refuses where it lacks authority ([spec][spec],
+lines 7347 to 7352).
+
+A request to a system unit is answered by the caller session's authorization agent,
+and the command waits while that
+agent asks,
+so a printed command is printed and never run by a step,
+and it carries `--no-ask-password` so that no shell of a script waits on the agent
+([sibling propagation][sibprop],
+"Where it runs,
+as whom,
+and in what order" and the paragraph after its refusal
+quote).
+That is why this design prints levers and runs none.
 
 Concurrency is lock-free first,
 "one owner per item",
 and an unavoidable lock covers the smallest unit with its reason
 written beside it ([AGENTS.md](../../AGENTS.md),
 rule `NLK`).
-So the merge device reuses the repository's numbered
-claim,
-no one waits on it,
-and its reason sits in this document.
-
-A shipped resource limit cites a workload measurement or an owner decision beside the value
-([AGENTS.md](../../AGENTS.md),
+A shipped resource limit cites a workload measurement or
+an owner decision beside the value (the same file,
 rule `LQM`).
-So the rate rule's two numbers ship only with step 22's measurement,
-and
-the one-extra-pass cap cites the measured sweep cost named in the facts.
-
-The precedent for a small durable record without a lock is one file per item,
-made with `O_EXCL` and linked into place,
-with no listing on the waiting path and `doctor` reporting leftovers ([decision store][store],
-whole file).
-So this
-design's records are one file per meaning,
+The precedent for a small durable record without a lock
+is one file per item,
 published whole,
-never appended under a lock,
-and never listed on a path
-that must not list.
-
-Every worktree of this repository lives under `.claude/worktrees/` in the main checkout,
-and paths come from the
-injected home ([AGENTS.md](../../AGENTS.md),
-rules `WTU` and `HOM`).
-So no path here is hardcoded and no trigger writes
-inside a checkout's own tree.
+with no listing on a waiting path ([decision store][store],
+whole file).
 
 ### Where the records need amending
 
-Three statements in the project's records do not hold after this design,
-and none of them is edited here.
+Five statements do not hold after this design,
+and none is edited here.
 
 1.  The shipped refusals say `doctor` reports a receipt,
     a readiness record and a claim "once plan step 10 adds it"
@@ -396,294 +397,339 @@ and none of them is edited here.
     `doctor` in step 18 ([plan][plan],
     "Step 18",
     lines 2017 to 2120).
-    The plan's assignment is the one this design
-    follows,
-    so those four sentences name the wrong step and should say step 18.
-2.  The plan's step 7 "Open items" and step 22 "Open items" say the coalescing and rate rule stay unwritten.
-    This
-    document writes them,
-    so after acceptance both sentences,
-    the open-item entry at lines 2846 to 2854,
-    and the plan's
-    "Gaps the design's open-item list does not name" gain the one record family named in "Merging the nudges pending
-    for one clone".
-3.  The proposal says a rule should "bound the work of one sweep instead of counting nudges"
-    ([proposal][proposal],
-    lines 576 to 578),
-    and the decision requires a measurement "before any bound on how many
-    sweeps may run in a period is shipped" ([proposal][proposal],
-    lines 1404 to 1407).
-    Both stand:
-    the child bound
-    bounds one pass's work and stays;
-    the rate rule bounds passes per period and ships with step 22's number.
-    No
-    sentence here replaces the child bound.
+2.  The plan's step 7 and step 22 "Open items" sentences say the coalescing and rate rule stay unwritten
+    ([plan][plan],
+    lines 1148 to 1153 and 2410 to 2416).
+    This document writes them.
+3.  The accepted text says parallel passes may run at once ([proposal][proposal],
+    lines 561 to 562).
+    This design's route-wide claim makes
+    event-driven passes exclusive,
+    which narrows that sentence;
+    "Choices this design marks for the project's veto",
+    V4,
+    offers the alternative and the project decides.
+4.  The plan's step 22 says "no existing constant changes" ([plan][plan],
+    lines 2340 to 2354),
+    while this design puts
+    code there if the project keeps the bound's number for that step;
+    "Dependencies on other designs and on the plan"
+    names the plan edits owed.
+5.  The specification edits this design implies,
+    the three cost records and the timeout sentence,
+    are listed in the
+    same dependencies section,
+    because this design edits no specification.
 
 ## ZED's delivery, read at zfs-2.4.4
 
-Every statement in this section is read from OpenZFS at tag `zfs-2.4.4`,
-cloned at
-`/home/user/temp/agent/zfs-lost-last-event-triggers-design-2026-11-22/scratch/openzfs`,
-and none of it is measured on
-this host.
+Every statement here is read from OpenZFS at tag `zfs-2.4.4`,
+cloned in this round's scratch folder,
+and none is
+measured on this host.
 
 A user property change reaches ZED as a `history_event`.
 The kernel posts that class from the history record's sync
-task,
-and only for an internal history record:
-the code branch that calls the notify is
-`nvlist_exists(nvl, ZPOOL_HIST_INT_NAME)` (`module/zfs/spa_history.c`,
+task and only for an internal history record (`module/zfs/spa_history.c`,
 lines 296 to 331,
 with the call at line 329),
 and the class string is `history_event` (`include/sys/sysevent/eventdefs.h`,
 line 121).
-A `zfs set` of a user
-property is such an internal record:
-the step 7 measurement records that "the property and its value are in
-`history_internal_str` and `ZEVENT_HISTORY_CMD` is empty"
+A `zfs set` of a user property
+is such a record:
+the step 7 measurement records that "the property and its value are in `history_internal_str` and
+`ZEVENT_HISTORY_CMD` is empty"
 (`package/git-policy/cli/doc/zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
 "Where",
-lines 60 to 66).
+lines 64 to 66).
 
 The kernel holds events in one in-memory list,
-by default 512 of them (`module/zfs/fm.c`,
+512 by default (`module/zfs/fm.c`,
 line 72).
-A new event is
-inserted at the head,
-and when the list is at the bound the kernel drains the tail,
-which is the oldest event
-(`module/zfs/fm.c`,
-lines 180 to 192),
-and counts a drop against any reader that had not yet consumed it (lines 148
-to 156).
-The next read reports the count (lines 344 to 359),
-ZED logs it as `Missed N events` and doubles the bound up
-to a ceiling (`cmd/zed/zed_event.c`,
-lines 190 to 198 and 111 to 152).
+A new event goes in at the
+head,
+and at the bound the kernel drains the tail,
+which is the oldest (`module/zfs/fm.c`,
+lines 180 to 192).
+A drain
+credits a drop only to a reader that holds a cursor on the drained event (lines 143 to 156);
+a fresh reader starts at
+the tail with no count (lines 316 to 323 and 353 to 359).
+So a drain that happens while ZED holds no cursor,
+which is
+every drain while ZED is stopped or restarting,
+is silent:
+no `Missed N events` line is ever written for it.
+
+When ZED reads,
+the count reaches it and it logs `Missed N events` and doubles the bound up to a ceiling
+(`cmd/zed/zed_event.c`,
+lines 969 to 978;
+lines 111 to 152).
 Nothing re-posts a drained event.
 
-ZED reads events one at a time and never replays:
-it opens and reads a state file that records the last event it wrote
-state for,
-seeks past it,
-then services the queue (`cmd/zed/zed.c`,
+A post can fail before any event exists:
+an event larger than the report payload bound,
+or an allocation failure,
+is
+counted and dropped (`module/zfs/fm.c`,
+lines 224 to 255).
+
+ZED records the last event it wrote state for and seeks to it at start (`cmd/zed/zed.c`,
 lines 264 to 299;
 `cmd/zed/zed_conf.c`,
-lines 543
-to 665).
-On this install the state file is the build's `RUNSTATEDIR "/zed.state"` (`cmd/zed/zed.h`,
+lines 543 to 665).
+The seek has two outcomes:
+if the saved event is still there,
+ZED services
+what follows it;
+if it is not there and a saved id existed,
+or if no state file exists,
+ZED seeks to the start and
+services the whole queued stream from its oldest event (`cmd/zed/zed_event.c`,
+lines 168 to 221).
+So a ZED start
+replays the queue,
+and an event posted while ZED was down is delivered when ZED starts,
+unless the queue drained it.
+The state file is `RUNSTATEDIR "/zed.state"` (`cmd/zed/zed.h`,
 line 27),
-and the installed binary embeds `/var/run/zed.state` (`strings /usr/bin/zed`,
-2026-11-22),
-which `/var/run`'s link to `/run` makes a per-boot path that does not cross a boot.
+which this host's installed binary embeds as
+`/var/run/zed.state`,
+a per-boot path (fact F11).
 
 ZED forks each matching zedlet and,
 for an asynchronous one,
 does not wait for it:
 the state for the event is written
-immediately after the fork (`cmd/zed/zed_event.c`,
-lines 1020 to 1030),
-and the loop services the next event.
-A
-zedlet whose name puts `-sync-` right after its class prefix makes ZED wait for all its children before and after that
-fork (`cmd/zed/zed_exec.c`,
-lines 339 to 357 and 422 to 441).
-The built handler's installed name,
+right after the fork (`cmd/zed/zed_event.c`,
+lines 1020 to 1030).
+A zedlet whose name puts `-sync-` right after its
+class prefix makes ZED wait for all its children around that fork (`cmd/zed/zed_exec.c`,
+lines 339 to 357 and 422 to
+441).
+The installed handler's name,
 `history_event-mount_git_worktree_clone_datasets` ([spec][spec],
-lines 265 to 268),
+lines 262 to 268),
 has no `-sync-`,
-so the handler is
-asynchronous today.
+so the handler is asynchronous today.
 
 ZED runs at most 16 zedlet processes at once (`cmd/zed/zed_conf.c`,
-line 51),
-and while that many are alive it blocks
-before forking the next one,
-sleeping in 200 millisecond steps (`cmd/zed/zed_exec.c`,
+line 51) and blocks before forking while that many
+are alive (`cmd/zed/zed_exec.c`,
 lines 130 to 140).
-Blocked that
-way it is not reading the queue,
-so the kernel's 512 slots can fill and drain the oldest events,
-which is the loss ZED
-then reports.
+Blocked that way it is not reading the queue,
+so a burst can drain
+events only if ZED holds a cursor,
+which it does between reads.
 
-ZED's unit restarts it on any exit (`/usr/lib/systemd/system/zfs-zed.service`,
-`Restart=always`),
-and a restart seeks
-past the last state write,
-so events still in the kernel queue are delivered to the restarted daemon,
-and events that
-the last daemon wrote state for are not delivered again.
+A `fork` that fails is logged and the event's other zedlets still run (`cmd/zed/zed_exec.c`,
+lines 149 to 156),
+so one
+zedlet can miss an event while ZED reports success for it.
 
-A zedlet matches by class prefix and runs for every pool:
-the loop compares each zedlet's name against the event's
-class,
-its subclass and the string `all` (`cmd/zed/zed_exec.c`,
-lines 409 to 421).
-The installed zedlet therefore runs
-for every `history_event` of every pool on the machine,
-and an installed history zedlet does its own filtering,
-as
-`history_event-zfs-list-cacher.sh.in` does with `ZEVENT_SUBCLASS` and `ZEVENT_POOL` (`cmd/zed/zed.d/`,
-lines 12 to
-82).
-The handler built today reads no `ZEVENT_` variable at all (`rg 'ZEVENT' package/git-policy/cli/src` returns
-nothing),
-so today every history event on every pool starts a full pass.
+ZED scans its zedlet directory at start and again on `SIGHUP` (`cmd/zed/zed.c`,
+lines 243 and 291 to 293),
+so a zedlet
+installed under a running ZED is not run until that scan.
 
-The four ways the last event for a clone is lost follow,
-and each is a different recovery problem:
+The host's unit runs `/usr/bin/zed -F` (`/usr/lib/systemd/system/zfs-zed.service`),
+and in the foreground ZED points
+each zedlet's standard input,
+output and error at `/dev/null` (`cmd/zed/zed_exec.c`,
+lines 161 to 166).
+So a
+ZED-started handler's own lines reach nobody.
+What the journal does hold is ZED's `Invoking` line and its `Finished`
+line with the exit status or signal (`cmd/zed/zed_exec.c`,
+lines 189 and 240 to 261).
 
-1.  The queue drained it because 512 newer events arrived while ZED was not reading.
-    ZED logs a count and never
-    re-posts it.
+The ways the last event for a clone is lost,
+not an exhaustive list:
+
+1.  The queue drained it because events arrived while ZED held a cursor and did not read fast enough,
+    or because more
+    events arrived than the queue holds while ZED was stopped,
+    which is silent (see above).
 2.  The module unloaded or the machine rebooted,
     which empties the list.
     Nothing on disk is replayed as an event.
-3.  ZED forked the handler and then wrote the event's state,
+3.  ZED forked the handler and wrote the event's state,
     and the handler then failed or was killed.
-    The event is
-    never delivered again.
+    The event is not
+    delivered again.
     A handler killed by a ZED restart is this case,
-    because systemd kills the whole control group of a stopped service by default
-    (`KillMode=` defaults to `control-group`,
-    `src/core/load-fragment.c`,
-    lines 855 to 861 at tag `v262`),
-    children included.
+    because systemd kills the whole control group of a
+    stopped service by default (`KillMode=` defaults to `control-group`,
+    `src/core/kill.h`,
+    line 8,
+    and
+    `systemd.kill(5)`,
+    lines 99 to 103 at tag `v262`).
 4.  The event reached ZED and the handler ran,
-    but the handler's own pass refused or was held back,
-    so no receipt
-    answers the request even though the event was delivered.
+    but the pass refused or was held back,
+    so no receipt answers the
+    request.
+5.  The kernel dropped the post,
+    the fork failed,
+    or the zedlet was not in ZED's scanned set.
+    Each leaves no event for
+    the clone and each is consistent with the trigger set here,
+    because a pass reads live state.
 
-A fifth case is not a loss:
+A sixth case is not a loss:
 a request whose event was never written,
 because the account's `zfs set` failed or its
 outcome is unknown.
-The wrapper treats an unknown write outcome as unknown and inspects it before any retry
-(`clone_mount_intent_write.rs`,
-lines 68 to 82),
+The wrapper inspects an unknown outcome before any retry (`clone_mount_intent_write.rs`,
+lines 68
+to 82),
 and this design's triggers do not cover it.
 
 ## The triggers, one by one
 
-Five triggers exist after this design,
-and one device that looks like a trigger is not one.
-Each entry names who fires
-it,
+Six entries follow.
+Five are triggers;
+the sixth is a state of the trigger that is easiest to mistake for one.
+Each
+entry names who fires it,
 when,
 as which user,
-what it guarantees and which lost event it recovers.
-The names `T1` to `T5` are this
-document's handles and appear nowhere in code.
+what it guarantees,
+which lost event it recovers,
+and where its
+decisions are recorded.
+T3 is the option this design recommends for the provider hook;
+the project's answer to Q-A
+decides whether it exists.
 
-### T1: a ZED `history_event` delivery
+### T1: a ZED `history_event` delivery, or a ZED start that replays the queue
 
 - Fired by:
   the ZED daemon (`zfs-zed.service`),
   for each event it reads from the kernel queue whose class matches the
-  installed zedlet's name.
+  installed zedlet,
+  and at its own start,
+  which replays the queue from the saved event or from the oldest.
 - When:
-  whenever the kernel posts a `history_event`,
-  which for this route means any internal history record on any
-  pool,
-  including the account's `zfs set` of an intent or a nudge on a managed clone (fact F9).
+  whenever the kernel posts a `history_event` for any pool,
+  which includes the account's `zfs set` of an intent
+  or a nudge,
+  and whenever ZED starts,
+  which delivers what the queue still holds.
 - As which user:
-  ZED runs as root,
-  and the zedlet it forks inherits that;
-  the handler runs in the host mount
-  namespace ([proposal][proposal],
-  "Boot and shutdown unit",
-  line 512).
+  ZED runs as root and the zedlet inherits that;
+  the handler runs in the host mount namespace
+  ([proposal][proposal],
+  lines 483 to 484).
 - Guarantees:
-  one delivery attempt per event that is still in the kernel queue when ZED reads it,
-  at most once after
-  the state write,
-  and no retry.
-  It guarantees nothing about an event the queue drained (fact F10).
+  one delivery attempt per queued event that ZED holds a cursor on,
+  at most once after the state write,
+  and
+  a replay of everything still queued at a start.
+  It guarantees nothing about a drained event,
+  a failed fork,
+  or a
+  zedlet installed after the last scan.
 - Recovers:
   a request whose event is delivered,
-  which includes a request written while a pass ran and a request
-  written after a lost event when any later history event arrives.
-  It does not recover its own loss.
-- This design's addition:
-  the handler filters on the event's pool and dataset before it opens `/dev/zfs`,
-  because the
-  installed zedlet runs for every pool (section "The event filter").
+  a request whose event was posted while ZED was down but not drained,
+  and therefore most lost last events of a ZED stop or crash.
+  It does not recover a drained event.
+- Recorded where:
+  ZED's `Invoking` and `Finished` lines with the exit status,
+  under `zfs-zed.service`.
+  The handler's
+  own line reaches nobody (fact F13),
+  which "Choices this design marks for the project's veto",
+  V7,
+  fixes.
+- Filter:
+  the handler filters the event before it opens `/dev/zfs` (V2),
+  because the zedlet runs for every pool.
 
 ### T2: the boot unit's start reconcile
 
 - Fired by:
-  `reconcile-git-worktree-clone-mounts.service`'s `ExecStart`,
-  installed by plan step 19
-  ([plan][plan],
+  `reconcile-git-worktree-clone-mounts.service`,
+  whose `ExecStartPre=-` runs the start probe and whose
+  `ExecStart` runs `boot-reconcile` ([plan][plan],
   "Step 19",
-  lines 2121 to 2150).
+  lines 2121 to 2150;
+  [start probe design][probedesign],
+  lines 1390 to 1401).
 - When:
   once per boot,
   ordered after the checkout provider,
   the key providers and `zfs-import.target`
   ([proposal][proposal],
-  "Boot and shutdown unit",
   lines 499 to 514).
+  It is also re-fired by `start` when the unit is failed or inactive,
+  and by
+  `reload` once the sibling's `ExecReload=` exists (T5).
 - As which user:
   root,
-  in the host mount namespace
-  ([proposal][proposal],
-  "Boot and shutdown unit",
+  in the host mount namespace ([proposal][proposal],
   line 513).
 - Guarantees:
-  one pass per boot after the route's prerequisites,
-  and a readiness record for the boot whose `running`
-  publish precedes the pass and whose `finished` or `failed` follows it
+  one probe record and one pass per start after the route's prerequisites,
+  and a readiness record published
+  `running` before the pass and `finished` or `failed` after it,
+  or nothing at all when a prerequisite refuses
   ([spec][spec],
-  "The sweep,
-  and the boot it reconciles",
-  lines 6332 to 6360).
-  A failed prerequisite publishes
-  nothing ([spec][spec],
-  lines 6350 to 6360).
+  lines 6272 to 6387;
+  fact F16).
 - Recovers:
   every lost event of the previous boot and of this boot so far,
-  because the pass reads live intents rather
-  than a queue.
-  It recovers nothing until the next boot.
-- It is a oneshot with `RemainAfterExit=yes`,
-  so `systemctl start` on an active unit does nothing and
-  `Restart=` never applies to a oneshot (`systemd.service(5)`,
-  `Restart=`,
-  and the note that oneshot services are
-  never restarted on a clean exit).
-  A person cannot re-fire it with `start`;
-  the person's lever is T5.
+  because the pass reads live intents.
+  It
+  recovers nothing until it runs.
+- Recorded where:
+  the unit's journal,
+  under `reconcile-git-worktree-clone-mounts.service`.
 
-### T3: the checkout provider's readiness hook
+### T3: the checkout provider's start asks the boot unit to reconcile
 
 - Fired by:
-  the checkout provider's own start,
-  through a drop-in on the unit that mounts the checkout (section "The
-  provider's readiness hook").
+  `zfs-mount.service`'s `ExecStartPost=`,
+  once step 19 installs the drop-in (Q-A's option B).
 - When:
-  whenever that provider runs under systemd,
-  which on this host is at boot and whenever a person or a unit
-  starts `zfs-mount.service` again.
+  whenever the provider starts as a job,
+  which on this host is the boot and any later start after the unit was
+  stopped.
+  A `start` of the already active unit does nothing (fact F15),
+  and a `restart` restarts the boot unit
+  through `Requires=` and so reconciles even without the hook (fact F17).
+- Runs:
+  `/usr/bin/systemctl --no-block --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service`,
+  which reloads
+  the active unit through the sibling's `ExecReload=`,
+  starts it when it is inactive,
+  and restarts it when it is failed
+  (`systemctl(1)`,
+  `reload-or-restart`,
+  lines 530 to 537 at tag `v262`).
+  The hook itself runs no handler and makes no
+  pass.
 - As which user:
   root,
-  in the host mount namespace.
+  through the service manager,
+  which runs the unit in its own namespace and journal.
 - Guarantees:
-  one pass after the checkout is mounted and its key is available,
-  and a readiness record that replaces a
-  `not-ready` one,
-  which is what admits callers again (fact F14).
+  one enqueued job for the boot unit,
+  and never a failed provider:
+  the hook is prefixed `-` and the
+  command it runs is a job request,
+  not a reconcile (Q-A's cons list the rest).
 - Recovers:
-  a boot whose boot unit refused because the checkout was not ready,
-  including the key-load-after-boot case
-  the proposal names ([proposal][proposal],
-  lines 546 to 550),
-  and any request written between the two.
-- It cannot see a checkout mounted by a person's own `zfs mount`,
+  a boot whose reconcile refused because the checkout was not ready,
+  once the provider is started again,
+  and
+  any request written between the two.
+- It cannot see a checkout mounted by a hand-run `zfs mount`,
   because no unit runs then.
-  That case's lever is T5.
+  T5 is that case's lever.
+- This is Q-A's option B and does not exist until the project answers.
 
 ### T4: the wrapper's clone-local nudge
 
@@ -700,443 +746,493 @@ document's handles and appear nowhere in code.
   plan step 10's add route and step 14's removal are the callers.
 - When:
   once per wait,
-  on the first receipt read that finds no receipt answering the wait's own nonce (section "The
-  wrapper's nudge policy").
+  after the wait's measured delay `D` has passed with no receipt answering its own nonce,
+  and
+  after the wait's first read,
+  which is at its start (fact F20).
+  The nudge policy is V3,
+  and `D` is owed to step 22
+  (measurement M7).
 - As which user:
   the account writes the property,
   which its `mount,userprop` grant on the parent's descendants allows
   ([proposal][proposal],
   "Scoped delegation",
-  lines 336 to 345);
+  line 338);
   the delivery and the pass are root's,
   as T1.
 - Guarantees:
   one further history event,
   hence one more delivery attempt of T1,
   and nothing more.
-  A nudge is not an
-  instruction and carries no state the handler reads ([proposal][proposal],
-  lines 573 to 576).
+  It carries no state
+  the handler reads.
 - Recovers:
-  a request whose own event was lost,
-  and a request written after a running pass had already read that
-  clone,
-  when the nudge's event is delivered.
-  It does not survive its own event's loss.
+  a request whose own event was lost but ZED is alive and the queue did not drain the nudge too,
+  and a
+  request written after a running pass had read that clone.
+  It recovers nothing while ZED is stopped,
+  which is a
+  likely cause of the first loss.
+- Recorded where:
+  the handler's line,
+  which needs V8's answer.
 
-### T5: a trigger a person fires
+### T5: a trigger the project fires
 
 - Fired by:
-  a person,
-  with the two commands `doctor` prints:
-  `/usr/libexec/monochromatic-git-policy-cli/
-  mount-git-worktree-clone-datasets boot-reconcile` as root,
-  and a `zfs set` of a fresh nudge nonce on the clone as the
-  account.
-- When:
-  when a person reads a timeout,
-  a refusal or `doctor`'s report and chooses to.
+  the project,
+  with the commands `doctor` prints,
+  and run by nobody the design starts.
+- The root lever,
+  recommended:
+  `systemctl --no-ask-password reload reconcile-git-worktree-clone-mounts.service`,
+  which runs the sibling's
+  `ExecReload=` in the unit's own namespace and journal
+  ([sibling propagation][sibprop],
+  "What becomes of `Type=oneshot` with `RemainAfterExit=yes`",
+  lines 1269 to 1290).
+  `start` re-runs the unit when it is failed or inactive;
+  `restart` runs the stop pass first and
+  unmounts every clone (fact F17).
+  Running the handler binary from a person's shell is not recommended,
+  because that
+  shell's mount namespace is not the host's (fact F18).
+- The account lever:
+  a `zfs set` of a fresh nudge nonce on the clone,
+  which is T1's delivery and therefore ZED-bound:
+  while ZED is stopped it recovers nothing.
 - As which user:
-  root for the first,
-  the account for the second.
-  Neither prompts:
-  this machine's `sudo` is
-  passwordless ([decision staging][staging],
-  lines 221 to 237),
-  and the wrapper itself asks for no credential
-  (fact F20).
+  root for the reload,
+  the account for the nudge.
 - Guarantees:
-  one pass,
-  with the readiness publish for the root command,
-  and exactly the guarantees of T1 for the
-  account command.
+  one pass in the unit's own context for the reload,
+  and exactly T1's guarantees for the nudge.
 - Recovers:
-  any lost event,
-  including the no-waiter case,
-  because it is a trigger the person can always fire.
-- It is documented,
-  not installed.
-  This design's answer to "which triggers exist" therefore includes the person,
-  and
-  the project's answer that "we control the triggers" holds:
-  the two commands are the design's own,
-  not an event
-  source nobody controls (section "Questions only the project can answer",
-  Q3).
+  any lost event when ZED is alive (the account lever),
+  and any lost event including a stopped ZED (the root
+  lever).
+- Recorded where:
+  the unit's journal for the reload,
+  and V8's answer for the nudge.
+- Q3 of the earlier revision is replaced by Q-A and by the levers printed in "What doctor reports";
+  the choice of what
+  `doctor` prints is V9.
 
 ### What is not a trigger
 
-A ZED restart is not a trigger and not a loss of its own:
-the daemon seeks past its last state write and delivers what
-is still queued (fact F11),
-so a `systemctl restart zfs-zed.service` re-delivers the tail and skips what it already
-handled.
-A systemd mount being noticed after the fact is not a trigger:
-systemd shows a mount made outside a unit as a mount unit,
-but no unit file ran for it and no `ExecStartPost=` fires
-(`systemd.mount(5)`,
-"Mount points created at runtime",
-lines 84 to 90 of the v262 manual source).
-A wrapper's read of a receipt is not a
-trigger:
-the wrapper only waits (fact F25).
-And `doctor` is not a trigger:
-it reports,
-and prints T5's two commands
-without running them ([plan][plan],
+A ZED restart is not a separate trigger,
+but a ZED *start* is a delivery:
+it replays the queue (T1),
+so its effect is
+T1's guarantee and not a silence.
+A systemd mount noticed after the fact is not a trigger:
+systemd shows a mount made
+outside a unit as a mount unit,
+but no unit file ran and no `ExecStartPost=` fires (`systemd.mount(5)`,
+"Mount points
+created at runtime",
+lines 72 to 78 at tag `v262`).
+A wrapper's read of a receipt is not a trigger:
+the wrapper only
+waits (fact F20).
+`doctor` is not a trigger;
+it reports and prints T5's commands without running them
+([plan][plan],
 "Step 18",
-lines 2030 to 2045).
+line 2064).
 
-### The event filter
+### The event filter, in brief
 
-Today's handler reads no event variable,
-so T1 starts a full pass for every history event of every pool on the machine,
-including every sanoid snapshot of the checkout and the home datasets,
-every `zfs set` by another tool,
-and every
-event of another pool.
-This design adds one filter at the start of the default invocation,
-before the compatibility
-gate and before any `/dev/zfs` open:
-
-- Read the event's pool name and dataset name from the environment (`ZEVENT_POOL` and `ZEVENT_HISTORY_DSNAME`),
-  strip
-  any `@snapshot` suffix from the dataset name,
-  and read the configured parent dataset from the same configuration the
-  pass reads,
-  with the design's own names as its fallback ([decision 8][step8],
-  "With no configuration file").
-- Accept the event when the pool equals the parent's first path component and the dataset equals the parent or begins
-  with `<parent>/`.
-- Refuse nothing:
-  an event outside that scope prints one line naming the event's dataset and says no pass was run,
-  and
-  exits 0.
-  An absent variable means the mode was not started by ZED,
-  so it passes.
-- The filter reads no ZFS state,
-  opens no device,
-  and takes no claim,
-  so it cannot fail into a refused pass.
-
-The filter is cost work and not security work:
-the account cannot start a handler by any means the filter changes,
-and
-the events it drops are events the pass could not have acted on.
-It is part of T1's guarantee,
-and step 19 installs
-the zedlet,
-so step 19 owns the filter (section "Which build step builds which part").
+The built handler reads no event variable,
+so T1 would start a pass for every history event of every pool,
+including
+every sanoid snapshot of the checkout and the home datasets and every `zfs set` by another tool.
+V2 puts the filter's
+options to the project;
+the route this design describes accepts an event whose pool is the parent's pool and whose
+dataset,
+with any `@snapshot` suffix removed,
+is the parent or below it,
+and drops every other event with one line and
+no device open.
+The filter keeps the bound for real requests,
+and its cost is the accidental recovery it gives up:
+a
+pass it drops could have attached a clone whose own event was lost (section "The no-waiter case").
 
 ## The no-waiter case
 
 A clone carries a durable intent,
-its event was lost by one of the four mechanisms in "ZED's delivery",
-and no caller
-waits:
+its last event was lost by one of the ways in "ZED's delivery",
+and no caller waits:
 the add that wrote the intent timed out and reported,
 or the last caller exited long ago.
-Which trigger fires
-next,
+Which trigger fires next,
 and when:
 
-- T1 fires at the next history event of any dataset under the pinned parent,
-  which any caller's intent or nudge
-  produces.
-  That is the earliest possible recovery and has no bound of its own.
-- T3 fires at the next run of the checkout provider under systemd,
-  which at boot is the same order as T2 and later
-  only when a person or a unit starts that provider.
-- T2 fires at the next boot,
-  which is the only trigger whose maximum delay is one boot.
-- T5 fires whenever a person chooses.
-  Before a person does,
-  `doctor` is the only thing that names the state.
-- T4 fires only if some wrapper wait happens,
+- T1 at the next history event of any dataset under the pinned parent,
+  or at the next ZED start,
+  which replays what the
+  queue holds.
+  With ZED running this is the earliest recovery;
+  with ZED stopped the next start delivers what was not
+  drained,
+  and a drain while ZED was stopped is silent (fact F12).
+- T3 at the next start of the checkout provider as a job,
+  which is rare on this host because the unit stays active.
+- T2 at the next start of the boot unit,
+  which the next boot always causes,
+  and a failed boot unit can be re-fired with
+  `start` (fact F15).
+- T5 whenever the project fires one of its two levers.
+  The root lever works with ZED stopped;
+  the account lever does
+  not.
+- T4 only if some wrapper wait happens on that clone,
   and after this design every such wait writes one.
 
 No trigger here is a timer,
 and the decision keeps it that way:
 "Periodic reconciliation without a waiter is not part
 of this route" ([proposal][proposal],
-"Boot and shutdown unit",
 lines 537 to 539).
-So the honest answer to "how long
-can that be" is:
-as long as it takes for one of those triggers to occur,
-which in the worst case is the next boot,
-and
-no sentence here promises less.
+So how long the no-waiter case lasts is "until one of those
+occurs",
+which in the worst case is the next boot;
+whether that is what the answer's "moot" accepted is Q-B,
+and this
+design states no bound.
 
-Meanwhile the clone's state is not lost and not silently changed:
+The clone's state meanwhile is not lost and not silently changed:
 
-- Its durable intent stands on the dataset,
+- Its durable intent stands,
   because nothing but its owner or a removal clears it,
-  and a timeout is not
-  cancellation ([proposal][proposal],
-  lines 793 to 795).
+  and a timeout is not cancellation
+  ([proposal][proposal],
+  lines 792 to 794).
 - Its slot,
   if the add registered it,
   holds the Git registration and the pointer the add wrote,
-  and the clone's
-  dataset is not attached there,
-  so the folder shows what the underlay holds and Git reports the registration without
-  the worktree's files.
+  and the clone's dataset
+  is not attached there,
+  so the folder shows what the underlay holds.
 - The receipt for the clone,
   if any,
   answers an earlier request,
-  so a reader sees a stale result and never a false
+  so a reader sees a stale result rather than a wrong
   answer ([spec][spec],
-  "The receipts",
-  lines 6160 to 6170).
+  lines 6131 to 6183).
 - This boot's readiness record names whatever the last readiness trigger published,
-  so a caller is either admitted or
-  refused with the field that is not ready,
-  and never admitted on a guess (fact F14).
+  or does not exist;
+  a caller is
+  either admitted or refused by the rule that reads it,
+  never admitted on a guess (fact F14,
+  F16).
 - Nothing removes the clone,
   mounts it elsewhere,
   or changes its intent while it waits.
   The next trigger's pass is the
   only writer of its mount state.
+- The filter's trade applies:
+  an event outside the parent that would have started a pass is dropped (V2),
+  so the next
+  trigger might be later than it would be without the filter.
 
 `doctor` reports that state as a clone whose live intent has no receipt answering it (section "What doctor reports for
-a clone whose last event was lost"),
-and prints T5's two commands,
-so a person who wants the worktree now has a lever
-that is a trigger the design wrote down.
+a clone whose last event was lost") and prints the two levers,
+so a project that wants the worktree now has a trigger
+the design wrote down.
 
 ## The provider's readiness hook
 
 This section answers what the hook is on this machine,
-what has to be installed or decided outside the wrapper for it to exist,
+what has to be installed or decided outside the wrapper for it
+to exist,
 by which command,
 where that is recorded,
-and what it runs.
-The host facts it builds on were read on 2026-11-22 and are listed with their commands in "Facts".
+what it runs,
+and why a direct hook cannot work.
 
-On this machine today:
+### What exists on this host today
+
 `zfs-mount.service` is enabled and active,
-and its `ExecStart` is `/usr/bin/zfs mount -a`
-(`/usr/lib/systemd/system/zfs-mount.service`,
-`[Service]`).
+a oneshot with `RemainAfterExit=yes`,
+`Before=local-fs.target`,
+whose
+`ExecStart` is `/usr/bin/zfs mount -a` (fact F3).
 There is no `.mount` unit for the checkout,
-because the
-checkout is not a dataset yet:
+because the checkout is
+not a dataset:
 `/home/user/Monochromatic` resolves to `zpcachyos/ROOT/cos/home`,
-an inherited dataset
-(`findmnt --target /home/user/Monochromatic`),
-and no `monochromatic-git-checkout` dataset exists (`zfs list`).
+an inherited dataset (fact F6).
 `zfs-load-key.service` is masked and `/etc/default/zfs` sets `ZFS_LOAD_KEY='yes'`,
 while the pool's keystatus is
 `available`;
 the root datasets are encrypted,
-so the keys are available before the boot units run on this host.
+so keys are available before the boot units run here (fact F31).
 The
-handler is installed nowhere:
-`/usr/libexec/monochromatic-git-policy-cli` and `/etc/monochromatic-git-policy-cli` do
-not exist,
-and `zfs-zed.service` is disabled and inactive.
+handler is installed nowhere,
+`zfs-zed.service` is disabled and inactive,
+and none of the `/run` folders exists (fact
+F16).
 So today no trigger of this design exists on this machine,
 and nothing here claims one runs.
 
-What step 19 installs,
-in the interface this design gives it:
-a drop-in
-`/etc/systemd/system/zfs-mount.service.d/reconcile-git-worktree-clone-mounts-after-checkout.conf` whose body is
-`[Service]` and one line,
-`ExecStartPost=/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets
-boot-reconcile`.
-The directive is the provider service's own:
-`ExecStartPost=` runs after every `ExecStart=` command
-exits successfully for a oneshot,
-and its execution counts for `Before=` and `After=` ordering
-(`systemd.service(5)`,
-`ExecStartPost=`,
-lines 427 to 465 of the v262 manual source).
-A drop-in adds this list without
-touching `ExecStart=`,
-so `zfs mount -a` still mounts everything and this host's unit file is not edited.
-A `.mount`
-unit could not carry it:
-mount units take `[Unit]` and `[Mount]` settings and run `mount(8)` themselves,
-with no
-`Exec` list (`systemd.mount(5)`,
-lines 40 to 66 of the v262 manual source),
-and `OnSuccess=` cannot serve either,
-because it activates on entering `inactive`,
-which a `RemainAfterExit=yes` service or a live mount does not do while it
-is up (`systemd.unit(5)`,
-`OnSuccess=`,
-lines 878 to 882 of the v262 manual source).
+### Why the direct hook cannot work, and what happens if it is written anyway
 
-What it runs,
-and why the same mode as the boot unit:
-`boot-reconcile`,
-the mode step 8 built,
-because a late checkout
-readiness needs a republished readiness record and not only a pass (fact F14).
-Its order therefore repeats the boot
-unit's:
-the start probe record,
-the key and checkout checks,
-the private propagation,
-`running`,
-the pass,
-then
-`finished` or `failed` ([spec][spec],
-lines 6332 to 6400).
-At a boot where both fire,
-the hook runs first,
-inside the
-provider's start,
-and the boot unit runs after it,
-so the boot spends two passes;
-the second is idempotent and the
-merge device does not join them,
-because readiness passes are outside the bound (choice V3).
-Step 22 owes that boot
-cost a measurement arm,
-and this design names it (measurement M5).
+Five things,
+each read from a source or from the project's records.
 
-The bootstrap refusal a caller can see is not changed by the hook:
-a `not-ready` record still refuses,
-and its text
-already names this hook as the next trigger (`clone_mount_readiness_admission.rs`,
-line 100).
-The hook's own journal
-line names the checkout state it found,
-and `journalctl -u reconcile-git-worktree-clone-mounts.service` reads it,
-because the drop-in runs the handler inside that service's cgroup,
-and the handler's diagnostics go to standard error,
-which the journal collects for the unit that started it.
+1.  The probe record does not exist yet.
+    The probe is `ExecStartPre=-` of the boot unit ([start probe
+    design][probedesign],
+    lines 1390 to 1401),
+    and the boot unit is ordered after the provider
+    ([proposal][proposal],
+    lines 499 to 505).
+    The provider's `ExecStartPost=` therefore runs before the probe writes
+    anything for this boot,
+    and `boot-reconcile` refuses a missing record (fact F19) with exit 2 (fact F21).
+    At every
+    boot the direct hook is a refusal,
+    not a pass.
+2.  An unprefixed refusal fails the provider:
+    "If any of those commands (not prefixed with `-`) fail,
+    the rest are not
+    executed and the unit is considered failed" (`systemd.service(5)`,
+    `ExecStartPost=`,
+    lines 427 to 437 at tag
+    `v262`).
+    The boot unit has `Requires=` and `After=` on the provider,
+    so a failed provider means the boot unit "will
+    not be started" (`systemd.unit(5)`,
+    `Requires=`,
+    lines 681 to 694).
+    An unprefixed direct hook at boot would fail
+    the host's mount provider and keep the reconcile,
+    its probe and its readiness from ever starting.
+3.  With the dash prefix the failure is recorded and has no further effect (`systemd.service(5)`,
+    the special
+    executable prefixes),
+    so the direct hook is harmless at boot and does nothing there.
+4.  `start` cannot re-fire it:
+    the unit is active,
+    and a start job on an active unit returns `-EALREADY`
+    (`src/core/unit.c`,
+    lines 1955 to 1962 at tag `v262`).
+    The verbs that run it again are `restart`,
+    which restarts
+    the boot unit through `Requires=` and so runs its `ExecStopPost=` `shutdown-unmount` first,
+    unmounting every
+    attached clone before the hook's pass puts them back (fact F17),
+    and `reload`,
+    which needs the sibling's
+    `ExecReload=`.
+5.  The hook runs inside the provider's start,
+    on the boot's critical path:
+    the provider is `Before=local-fs.target`
+    (fact F3),
+    `ExecStartPost=` counts for ordering (`systemd.service(5)`,
+    lines 454 to 465),
+    a oneshot's start timeout
+    is disabled by default (`systemd.service(5)`,
+    `TimeoutStartSec=`,
+    lines 682 to 692),
+    and the hook only runs after
+    `zfs mount -a` exits zero,
+    so a boot where that fails for any dataset never reaches it.
+    The delay it adds is a
+    delay to `local-fs.target`,
+    which measurement M5 measures.
 
-What the hook needs from the project,
+Two smaller consequences:
+a direct hook's output is read under `zfs-mount.service`,
+not under the boot unit,
+because
+that is the unit whose start ran it;
+and a boot with the direct hook and the boot unit spends two passes only in the
+sense that the first is a refusal.
+
+### The shape this design recommends
+
+Q-A's option B,
+and the only shape that avoids all five:
+the drop-in's line is
+`ExecStartPost=-/usr/bin/systemctl --no-block reload-or-restart reconcile-git-worktree-clone-mounts.service`.
+The hook
+asks the unit that already owns the ordering,
+the namespace,
+the probe,
+the journal and the stop pass to reconcile;
+the provider itself is never failed,
+never carries the pass on its critical path,
+and never needs a second verb to be
+re-fired.
+
+What it runs is a job request:
+`reload-or-restart` reloads an active unit through `ExecReload=`,
+starts an inactive
+one,
+and restarts a failed one (`systemctl(1)`,
+lines 530 to 537 at tag `v262`).
+Each of the three unit states needs a
+guest arm (test 12).
+
+Sharing one mechanism with the sibling:
+the propagation sibling already proposes `ExecReload=<the same handler>
+boot-reconcile` on the boot unit as its veto choice V4,
+and names `systemctl reload` as its manual lever
+([sibling propagation][sibprop],
+lines 1269 to 1290 and 1955 to 1965).
+This design's Q-A option B uses exactly that
+line:
+one `ExecReload=`,
+two consumers (the hook's job request and the project's printed lever).
+The sibling's answer
+is unreviewed and not adopted here;
+if its V4 is vetoed,
+Q-A option B loses its reload arm and only its
+start-when-inactive arm remains,
+and Q-A's ranking changes.
+
+What it needs from the project,
 outside the wrapper,
 and where each part is recorded:
 
-- The provider integration question Q1 settles.
-  It is recorded in this design's answer to Q1
-  and in the decision record the acceptance writes,
-  and until then the first-ranked route is the one described here.
-- The handler binary,
-  installed at
-  `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`.
-  Its installation is plan step 19's,
-  the release archive is step 5's,
-  and the path is recorded in `SPEC.md`'s handler paragraph ([spec][spec],
+- The provider integration question Q-A settles,
+  recorded in this design's answer to it and in the decision record the
+  acceptance writes;
+  until then the first-ranked route is the one above.
+- The handler binary at `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`,
+  installed by
+  plan step 19 and recorded in `SPEC.md`'s handler paragraph ([spec][spec],
   lines 262 to 270).
-- The zedlet,
-  installed at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`,
-  also step 19's and also recorded there.
-- The checkout dataset,
-  `monochromatic-git-checkout`,
-  mounted at the checkout path with a mountpoint,
-  which step 19's migration creates and records in the plan's step 19
-  ([plan][plan],
-  "Step 19",
+- The zedlet at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`,
+  also step 19's and recorded there.
+- The checkout dataset `monochromatic-git-checkout`,
+  mounted at the checkout path,
+  created by step 19's migration and
+  recorded in the plan's step 19 ([plan][plan],
   lines 2121 to 2145).
   Until it exists,
-  this host's provider has nothing to mount for the hook to follow.
-- The drop-in file itself,
-  at the path above,
-  with the one `ExecStartPost=` line.
-  It is step 19's interface and is recorded in its runbook;
-  the command that applies it is step 19's printed setup command,
+  this host's provider has nothing
+  to mount for the hook to follow.
+- The drop-in at `/etc/systemd/system/zfs-mount.service.d/reconcile-git-worktree-clone-mounts-after-checkout.conf`,
+  with the one `ExecStartPost=-` line,
+  and the unit's `ExecReload=` line.
+  Both are step 19's interface and are recorded in its runbook;
+  the commands that apply them are step 19's printed
+  setup commands,
   run on the project's authorisation,
-  because writing under `/etc/systemd` is never a step's act on this host
-  ([plan][plan],
-  "Step 19",
-  lines 2126 to 2136).
-- The command that fires the hook,
-  once installed,
-  is the provider's own start or restart,
-  `systemctl start zfs-mount.service`,
-  and nothing in the wrapper calls it.
+  because none of this runs on this host and writing under
+  `/etc/systemd` is the project's act ([plan][plan],
+  lines 2150 to 2162).
+- The unit states the hook must cover,
+  active,
+  failed and inactive,
+  and the guest arms that cover them (test 12).
 
 It needs nothing from the key:
 the wrapper never prompts for a passphrase,
-and the hook never asks for one.
+and no part of this asks for one.
 
-The one trigger it cannot provide is a checkout mounted outside a unit.
-`systemd.mount(5)` says systemd monitors
-runtime mount points,
-but no unit file ran,
-so no `ExecStartPost=` exists to fire;
-that case waits for T2 or T5,
-and
-`doctor` prints both.
+### The shape this design does not take, and why Q-A still lists it
+
+A `.mount` unit for the checkout with a companion unit bound to it (Q-A's option C) fires on every activation of the
+checkout mount and gives the checkout a unit state `doctor` can read,
+but it changes how the checkout is provisioned
+and needs the checkout excluded from `zfs mount -a`,
+which is a larger design than this open item.
 
 ## Merging the nudges pending for one clone
 
 ### The principle
 
 A pass derives its work from live state,
-not from a queue:
-it enumerates the parent's children,
-reads each clone's
-intent,
-and acts under the slot's claim (fact F24).
-So two nudges for one clone need no two work items;
-they need one
-pass that reads the clone after both writes.
-The merge rule is therefore about how many passes run and who runs them,
-not about accumulating requests.
-A nudge carries no state any pass reads,
-and a pass that runs after a nudge sees
-exactly what the nudge's writer asked for.
+not from a queue (fact F24).
+Two nudges for one clone therefore need no two
+work items;
+they need one pass that reads the clone after both writes.
+The merge rule is about how many passes run and
+who runs them.
+A nudge carries no state a pass reads,
+and a pass that runs after a nudge sees what the nudge's writer
+asked for.
 
 What one waiting caller needs is a pass that reads its clone after its intent write.
 Its own T1 delivery is one
-attempt at that;
+attempt;
 the nudge is a second;
-this device is what makes either of them enough even when a pass is already
-running.
+this device makes either enough when a pass is already running.
 
 ### The records
 
-Three names under one root-owned folder,
+One root-owned folder,
 `/run/git-worktree-clone-mount-sweeps`,
-made by the handler when a fresh boot
-has none,
-mode `0755`,
+made by the handler when a fresh boot has none,
+mode
+`0755`,
 beside the receipts and readiness folders this route already publishes (fact F16):
 
-- `run/`,
-  the run claim's own folder.
-  It holds only the numbered generations `take_claim` writes,
-  because that call
-  lists its folder and must see nothing else (fact F22).
-  One pass of the whole route runs at a time.
+- `run.<generation>`,
+  the run claim's numbered generations.
+  The repository's numbered claim keeps only names of the
+  form `<prefix>.<digits>` and ignores every other name in its folder (`single_owner_claim.rs`,
+  lines 208 to 234),
+  and
+  the per-slot directory already holds every slot's claim files in one folder,
+  so the other two names sit beside the
+  generations and no subfolder is needed (fact F22).
 - `another-pass-is-due`,
-  a root-owned regular file of mode `0644` whose presence means a trigger has asked for a pass
-  that no pass has yet covered.
-  Its whole content is one line,
-  `v1:<32 lowercase hex digits>`,
-  so a writer's nonce and
-  the file's modification time let `doctor` say who asked and when.
+  a root-owned regular file of mode `0644` whose presence means a trigger asked for a pass no
+  pass has covered.
+  Its content is the single line `v1`;
+  its modification time is the time it was written,
+  because a
+  handler has no nonce of its own to record and a non-property event carries none.
 - `recent-starts`,
   a root-owned regular file of mode `0644` holding the last `B` passes' start times,
   one per line,
-  each a count of seconds since boot from `CLOCK_MONOTONIC` followed by the same moment as an ISO 8601 timestamp with
-  its offset.
+  each
+  a count of seconds from `CLOCK_BOOTTIME`,
+  which includes suspend,
+  followed by the same moment as an ISO 8601
+  timestamp with its offset.
   It is replaced whole,
   never appended.
 
 All three live under `/run`,
 so a boot clears them,
-a claim means nothing across a boot as the route's other claim
-does (fact F23),
-and nothing here needs a migration or a durable format.
+and "a claim means nothing across a boot" ([spec][spec],
+line
+6264).
+The shape is V6.
 
-The folder and names are the writer's choice (choice V6).
-The reasons are the ones the route already gives for
-`/run`:
-a pass and its claim mean nothing across a boot,
-every take writes and syncs a record,
-and a durable folder
-would pay that on every trigger ([spec][spec],
-"The per-slot claim",
-lines 6310 to 6325).
+### Order inside a trigger
+
+The dispatch runs the filter first,
+because the filter opens nothing and can drop an event without the gate;
+then the
+compatibility gate,
+which is the dispatch's own rule for any mode that will make a request
+(`handler_mode_dispatch.rs`,
+lines 103 to 145);
+then the default mode,
+which reads the configuration,
+takes the run
+claim,
+reads or writes `recent-starts`,
+then reads the probe record,
+then the propagation step
+([sibling propagation][sibprop],
+"Where it runs,
+as whom,
+and in what order"),
+then the pool and the checkout,
+and then
+the pass.
+A held run has paid the gate and nothing else.
 
 ### What a taker does
 
@@ -1144,41 +1240,36 @@ A handler that may pass,
 which is T1's or T4's delivery,
 does this in order:
 
-1.  Take `run/`'s claim with the repository's numbered claim (fact F22).
+1.  Take the run claim with the repository's numbered claim (fact F22).
     If it is held,
     go to step 8.
 2.  Read `recent-starts`.
-    If the last `B` starts are all within the last `P`,
+    If the last `B` starts are all inside the last `P` seconds,
     write `another-pass-is-due`,
-    release the
-    claim,
+    release the claim,
     print the held line naming the bound and the last start,
-    and exit 0.
-    Nothing was read,
-    mounted,
-    unmounted or
-    recorded on a clone.
+    and exit 2,
+    because it did no work.
 3.  Rewrite `recent-starts` with this pass's start appended and the oldest entry dropped when the list is full.
-4.  Remove `another-pass-is-due` if it is there,
-    because this pass covers everything marked before it began.
-5.  Run one pass,
-    exactly the pass step 8 built:
-    the start probe record,
+4.  Remove `another-pass-is-due` if it is there:
+    this pass covers everything marked before it began.
+5.  Run one pass:
+    the probe record,
+    the propagation step,
     the pool and checkout checks,
-    the
-    enumeration,
-    each clone's turn under its slot claim,
+    the enumeration,
+    each clone's
+    turn under its slot claim,
     and the receipts.
 6.  Release the claim.
 7.  Look for `another-pass-is-due`.
     If it is absent,
-    report the outcome and exit.
+    report and exit 0 or 2 as the pass's own outcome.
     If it is there,
-    take the claim once
-    more and do steps 2 to 6 once more,
+    take the claim once more and do steps 2 to 6 once more,
     without step 7;
-    a mark that survives that second pass is left standing for the
-    next taker,
+    a mark that survives the second pass is
+    left standing for the next taker,
     and the line says so.
 8.  When step 1 found the claim held:
     write `another-pass-is-due`,
@@ -1186,296 +1277,232 @@ does this in order:
     If that second try
     succeeds,
     continue at step 2,
-    which removes the mark the handler itself wrote.
+    which removes the mark the handler wrote.
     If it fails,
-    print the held line and
-    exit 0.
-    The second try never waits:
-    the claim call returns at once with the owner's identity (fact F22).
+    print the held line and exit 2.
+    The second try never waits (fact F22).
 
 A readiness trigger,
-which is T2's or T3's run,
+T2 or T3's unit run,
 does steps 4 and 5 only:
-it never takes `run/`,
+it never takes the run claim,
 never reads or writes
 `recent-starts`,
-and is never held (choice V3).
-Its pass may therefore overlap an event-driven pass,
+and is never held (V5's first option).
+Its pass may overlap an event-driven pass,
 which the per-slot
-claim already makes safe for each clone (fact F24);
-the cost of that overlap is one extra pass per readiness
-transition,
-and readiness transitions are one per boot and one per provider run.
+claim makes safe for each clone (fact F24),
+at the cost of one extra pass per readiness transition.
 
-### Why no mark waits for ever
+### What the marks guarantee, and what they do not
 
-The device's invariant is that a mark always has a live attempt behind it.
-A mark written at step 8 is followed by a
-claim attempt;
-if that attempt fails,
-some other process holds the claim,
-and every holder releases before its own
-look for the mark at step 7,
-so that holder's look sees a mark written before its release.
-A mark written at step 2 is
-followed by the release;
-a later taker removes it at step 4,
-or it stands for the next trigger,
-which is the deferral the bound intends.
-So:
+The sequence holds in the interleavings traced by the review for two and three handlers:
+a mark written before the
+running pass's release is seen by that pass's look,
+and a mark written after the look finds the claim free for its own
+second attempt.
+Two things are weaker than an earlier revision claimed:
 
-- A nudge written while a pass runs is covered by that pass's second pass when its mark is written before the pass's
-  release,
-  and by the next taker otherwise,
-  and a handler that fails to take the claim tries again after marking,
-  so
-  the window in which a mark stands with nobody attempting a pass is the moment between a pass's release and a
-  handler's first claim attempt,
-  which no order can close without a waiting queue.
-- A nudge written while no pass runs is covered by its own delivery:
-  its handler takes the claim,
-  removes the mark it
-  or an earlier handler wrote,
-  and passes.
+- A mark written while the second pass runs is left standing for the next taker,
+  and that is the cap in step 7,
+  not a
+  bug:
+  with one nudge per wait,
+  an event and its nudge can both be marked and left,
+  and the wait's deadline is the only
+  report.
+  L3 states it.
+- A mark written by a rate-refused handler,
+  step 2,
+  is followed by its release and nothing else;
+  a later taker removes
+  it at step 4,
+  or it stands for the next trigger,
+  which is the deferral the bound intends.
 
-The residual window is a limit and not a defect this design hides:
-a trigger whose mark lands after the last taker
-released,
-and whose own second attempt fails because a third taker arrived first,
-waits for the next trigger,
-and the
-waiting caller's own deadline reports it.
-No nudges are lost in the record;
-only the pass that would answer them waits.
+So the invariant this design claims is:
+while a pass holds the claim,
+a mark written before its release is seen by
+that pass or by the next taker;
+a mark written after the last look stands for the next trigger.
+No nudge is lost in
+the record;
+only the pass that would answer it can wait.
 
 ### Why this needs no lock
 
-No process waits on `run/`.
+No process waits on the run claim.
 The claim is the repository's numbered one:
-the kernel lets exactly one process create the
-next generation,
-a holder is named by process birth so a killed taker leaves nothing to clean by hand,
-and a loser
-returns at once with the owner's identity (fact F22).
-The mark is one `O_EXCL` creation,
-and its removal is one
-`unlink`;
-a writer that loses the creation race is in the same state as a writer that won it,
-because presence is the
-whole meaning.
-`recent-starts` is replaced by one staging write and one rename (fact F21).
-So the device is lock-free
-in the repository's sense,
-its unit is one pass of the route's single parent,
-and no smaller unit exists:
-the per-slot
-claim is the smaller unit and stays where it is for safety ([AGENTS.md](../../AGENTS.md),
-rule `NLK`).
+the kernel lets exactly one process
+create the next generation,
+a holder is named by process birth,
+and a loser returns at once with the owner's identity
+(fact F22).
+The mark is one `O_EXCL` creation and one `unlink`;
+presence is the whole meaning.
+`recent-starts` is
+replaced by one staging write and one rename (fact F23).
+The device is lock-free in the repository's sense,
+and its
+unit is one pass of the route's single parent.
+It does narrow the accepted "parallel handlers can sweep at once"
+([proposal][proposal],
+lines 561 to 562) for event-driven passes,
+which V4 puts to the project.
 
 ### The device is cost, not safety
 
-Every interleaving here is safe without it.
-Two passes at once take different slots' claims,
-a clone whose slot is held
-is left to that holder,
-and a clone already attached is recognised and keeps its receipt (facts F24 and F26).
-The
-merge device only decides how many passes run.
+Every interleaving here is safe without it:
+two passes take different slots' claims,
+a clone whose slot is held is
+left to its holder,
+and a clone already attached keeps its receipt (facts F24 and F26).
+The device decides how many
+passes run.
 Therefore an unreadable,
-corrupt or missing record never refuses a
-pass:
-a taker that cannot take the claim because `run/` is unreadable passes anyway,
-prints that the cost device could
-not be read,
-and a taker that cannot read `recent-starts` passes and prints that the bound was not applied (choice V5).
-The same rule keeps a bug in this device from becoming an availability bug in the route.
+corrupt or missing record never refuses a pass:
+a taker that cannot take the claim
+passes anyway and prints that the cost device could not be read,
+and one that cannot read `recent-starts` passes and
+prints that the bound was not applied (V7's first option).
 
 ### The wrapper's nudge policy
 
-The wrapper writes at most one nudge per wait,
-and it writes it on the first receipt read that finds no receipt
-answering the wait's own nonce;
-a wait answered on its first read writes none.
-The reason is cost:
-an add's intent
-write already produces T1's event,
-so a nudge written at the start would double every add's events for nothing.
-The
-wait's poll interval is 50 milliseconds today (fact F25),
-so the nudge lands about that soon after the intent,
-well
-inside the provisional deadline,
-and it carries a fresh nonce so the write is a change even when the previous value was
-its own (fact F18).
-The writer is the same gated writer the intent uses,
-so no raw request leaves the wrapper before the
-compatibility gate passes (fact F20).
-This is choice V7.
+The wait reads,
+then checks the deadline,
+then sleeps (`mount_request_wait.rs`,
+lines 326 to 359),
+so a fresh request's
+first read is at its start and cannot match.
+A nudge written then is a nudge at the start:
+two events per add within
+milliseconds,
+sharing the intent's loss window,
+which is the case the policy's own cost argument avoids.
+V3's options
+are,
+in this design's ranking,
+C a single nudge after a delay `D` set from the measured wait,
+A at the start,
+E none,
+D at the deadline.
+`D` is owed to step 22 (measurement M7),
+the wrapper writes at most one nudge per wait,
+and the
+nudge uses a fresh nonce so the write is a change (fact F18).
 
 ## The rate rule's shape, with no number
 
-### What is bounded, and what is not
+### What is bounded
 
 Bounded:
-the number of passes that T1's deliveries and T4's nudges start,
-per period,
-across every clone of the route's
-one pinned parent.
-The bound is expressed as `B` starts in any window of `P` seconds,
-both measured in step 22,
-and it
-is counted per pass rather than per nudge or per event,
-so one nudge,
-one event and one second pass of an existing run
-each cost one start.
+the passes that T1's deliveries and T4's nudges start,
+in the unit Q-D chooses,
+a count `B` in a window `P`
+or a budget of pass time in a window,
+with every number owed to step 22.
 
 Not bounded,
-and each for a stated reason:
+each for a stated reason:
 
-- The number of handler invocations ZED forks.
-  Every `history_event` of the machine forked one before this design's
-  filter existed;
-  after the filter,
-  an event outside the parent forks one that opens no device and exits.
-  The bound
-  cannot reach this,
-  because ZED forks before any of this route's code runs (fact F9).
-  ZED's own 16-process ceiling
-  and the kernel's 512-slot queue bound it instead (facts F12 and F10).
-- The account's ability to write the property.
-  The proposal says the handler cannot limit it (fact F4),
-  and the honest
-  consequence is that a loop of writes still costs one fork and one claim attempt per write.
+- The handler invocations ZED forks.
+  ZED forks before any of this route's code runs,
+  so the bound cannot reach it;
+  the
+  16-process ceiling and the queue bound it instead (facts F10 and F12).
+- The account's ability to write the property,
+  which the proposal says the handler cannot limit ([proposal][proposal],
+  lines 575 to 578).
 - Readiness passes,
-  which are T2's and T3's (choice V3).
-  A rate rule must not decide whether callers are admitted.
+  V5's first option,
+  because a cost rule must not decide whether callers are admitted.
 
 ### What a caller sees when a pass is held back
 
-The caller's intent write stands,
-its nudge stands,
-and no receipt answers it.
-Its wait therefore ends at the
-provisional deadline with the text built today,
-which already names the request,
+The intent and the nudge stand and no receipt answers the wait,
+so the wait ends at its deadline with the built text,
+which names the request,
 the last observation,
-`doctor` and the
-journal,
-and already says that a deadline is not cancellation (fact F25).
-This design adds one sentence to that text:
-that a pass can be held back by the route's cost rule,
-that `doctor` reports the last starts and whether a pass is due,
-and that the next trigger passes when the bound allows.
-The text does not read the records itself,
-so the waiting path
-gains no read (choice V8).
-
-The reason to keep the read off the waiting path is measured in the route's own record:
-the wait's answer came 36 to 64
-microseconds after a receipt that was already on disk,
-and every read on that path is paid on every poll
-(`zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
-"The rounds").
-A held pass is rare,
-and the report that
-explains it is `doctor`'s.
+`doctor` and the journal (fact F20).
+V11 adds one sentence about the
+cost rule and the `doctor` report,
+and the waiting path gains no read.
 
 ### The measurement that sizes it
 
-Step 22 owns the number ([plan][plan],
+Step 22 owns the numbers ([plan][plan],
 "Step 22",
 lines 2340 to 2400).
 This design fixes what the measurement must
-produce,
-and it ships nothing until then:
+produce:
 
-1.  Measure the pass's cost on the acceptance workload at two populations:
-    the clone count the acceptance workload
-    uses,
-    and one more than the child bound,
-    which is the already measured worst case.
-    Report each pass's wall time and
-    the per-clone increment,
-    interleaved with a control arm of the same binary in the same round,
-    and report the
-    spread of repeated rounds before any difference is called a difference (rule `QNB`).
-2.  Measure how many passes one add starts,
-    with this design's merge device on and with it off.
-    The control is the same
-    binary with the device's two decisions compiled out;
-    it shows what the device saves and that the device has a
-    measurable effect at all.
-3.  Measure the caller cost of a bound:
-    with a candidate `(B, P)`,
-    run the acceptance workload and count the waits that
-    end at the deadline.
-    The positive control is a deliberately tiny bound,
-    `B` of 1 in a window of one hour,
-    which
-    must produce a held pass and a timed-out wait with the sentence above;
-    if it does not,
-    the arm cannot detect a
-    held pass and its zero must not be read as none.
-4.  Choose `(B, P)` so that `B` passes fit inside the spare capacity the control arm measured on the host during the
-    workload,
-    and so that the acceptance workload's waits time out zero times in the interleaved control.
-    Report both
-    numbers with the measurement beside them,
-    as rule `LQM` requires.
-5.  Measure the lost-event behaviour and the trigger recovery separately (measurements M1 to M4),
-    because no bound on
-    passes may be read as a bound on recovery.
+1.  Measure a pass's cost at two populations,
+    the acceptance workload's clone count and one more than the child bound,
+    interleaved in the same round with a control arm of the same binary running the same workload with the device's
+    decisions compiled out,
+    and report the spread of repeated rounds before any difference is called one (rule
+    `QNB`).
+2.  Measure the passes one add starts and the history events one add produces,
+    with the device on and off,
+    because the
+    add also snapshots and clones and those are in-scope events (low finding L-2).
+3.  Measure the caller cost of a candidate rule:
+    the acceptance workload's waits that end at the deadline,
+    with the
+    rule absent,
+    with the candidate,
+    with Q-C's spare-the-answered-clone rule,
+    and with a positive control of one pass
+    per hour,
+    which must produce a held pass and a timed-out wait with V11's sentence.
+    If the positive control does not,
+    a zero is not read as none.
+4.  Hand the resource and the threshold to the project (Q-D);
+    the measurement reports what each candidate would allow,
+    not which is acceptable.
+5.  Measure lost-event behaviour and trigger recovery separately (M1 to M6),
+    because no bound on passes bounds
+    recovery.
 
 ### Where this design stands on the threat model
 
 The project's sentence is "We have to assume my machine isn't compromised.
 sudo is passwordless here anyway.",
-and the
-record reads it as "the account is trusted,
-and root and the account are not a security boundary here"
-([decision staging][staging],
+read as
+"the account is trusted,
+and root and the account are not a security boundary here" ([decision staging][staging],
 lines 221 to 237).
-Applying it here:
+Applying it:
 
-- The rate rule exists for cost and not for security.
-  An account that writes the property in a loop is trusted not to
-  do it,
-  and the rule's real work is to keep a buggy caller,
-  a confused editor integration or a person's stray
-  `zfs set` in a shell loop from spending root's time.
-  The rule's reason survives that sentence because it is not about
-  an attacker.
-- The event filter also exists for cost.
-  It removes passes for events the pass could not act on,
-  and it is not a
-  boundary:
-  the account cannot reach the handler's dispatch anyway.
-- The records' ownership and mode checks survive the threat model as accident protection (a stray write by another
-  root process) and are not claimed as a boundary between root and the account.
-  Where a check exists only because a
-  hostile account was imagined,
-  this design says so in the entry:
-  none of the three records adds one.
-- One thing this design does not do,
-  and says it does not:
-  it does not stop a trusted account from making root pass as
-  often as the bound allows.
-  Only the bound does that,
-  and the bound ships with a measured number.
+- The rate rule is cost,
+  not security:
+  it keeps a buggy caller or a stray shell loop from spending root's time,
+  and it
+  does not imagine an attacker.
+- The event filter is cost too,
+  and not a boundary.
+- The records' ownership and mode checks are accident protection,
+  not a boundary between root and the account.
+- Nothing here stops a trusted account from making root pass as often as the rule allows;
+  only the rule does,
+  and its
+  number ships with a measurement.
 
-A further boundary this design keeps,
-and states because this host runs a desktop session:
+A further boundary this design keeps:
 nothing here asks the system service manager to change or signal anything.
-The only acting service-manager commands the design names are the two it prints for the project's own act,
-`systemctl start zfs-mount.service` and the handler's `boot-reconcile`,
-and no step or agent runs either on this host.
-Nothing here signals a process at all:
-the killed-handler case is a guest arm that runs as root inside the guest (test 10),
-and the design needs no fact about what an unprivileged signal to another account's process or a system unit's task answers.
-That question belongs to the removal's holder designs,
-not here.
-The drop-in takes effect when the service manager next reloads its configuration,
-which step 19's runbook owns and no agent performs on this host.
+The
+only acting service-manager commands it names are the printed levers of T5 and Q-A's hook line,
+and no step or agent
+runs them on this host.
+Nothing here signals a process:
+the killed-handler case is a guest arm that runs as root inside
+the guest (test 10),
+and the design needs no fact about what an unprivileged signal answers;
+that question belongs to
+the removal's holder designs.
+The drop-in takes effect when the manager next reloads its configuration,
+which step 19's
+runbook owns and no agent performs here.
 
 ## What doctor reports for a clone whose last event was lost
 
@@ -1483,22 +1510,24 @@ which step 19's runbook owns and no agent performs on this host.
 reads the records read-only,
 and runs nothing it prints ([plan][plan],
 "Step 18",
-lines 2030 to 2045).
+line
+2064).
 For each managed clone it reports these readings,
+each with its source,
 and for a clone whose live intent has no
 receipt answering it,
-it says so in one line and then prints the two triggers of T5.
-
-The readings,
-each with the source it comes from:
+it says so in one line and prints the levers of T5.
 
 - The clone's dataset name,
   slot and live intent,
-  with its nonce and operation,
+  with the nonce and operation,
   read from the clone's own property and
-  only when that property's source is the clone itself (fact F17).
+  only when the property's source is the clone (fact F17).
+  A user property has no write time an account can read,
+  so
+  the report prints no "written at" for it.
 - The clone's mount state at its slot,
-  as present or absent,
+  present or absent,
   read from the live mount table the way the sweep reads it.
 - The receipt under the clone's canonical GUID,
   if any:
@@ -1508,322 +1537,323 @@ each with the source it comes from:
   boot,
   failed step and time,
   and
-  one of three verdicts:
-  it answers the live intent,
-  it answers an earlier request and is therefore stale,
-  or there is
-  no receipt (fact F19).
-- This boot's readiness record:
+  one of three verdicts,
+  that it answers the live intent,
+  that it answers an earlier request and is stale,
+  or that
+  there is no receipt (fact F25).
+- This boot's readiness record,
+  if any:
   its boot,
   pool and checkout states,
-  its sweep state and nonce,
+  its sweep state,
   and its time.
   A record
-  that names another boot is reported as another boot's,
-  because it says nothing about this one (fact F14).
-- The run claim's newest generation and its owner birth,
-  so a pass that is running or whose owner died is visible
-  (fact F22).
+  that names another boot is reported as another boot's;
+  an absent record is reported as absent,
+  which is what a
+  refused boot leaves (fact F16);
+  what the wrapper says when no record exists is step 10's,
+  and this design does not show it.
+- The run claim's newest generation,
+  and that its owner needs root to read,
+  because claim records are mode `0600`
+  (`single_owner_claim.rs`,
+  line 252).
+  The account can see that a pass is running,
+  not who runs it.
 - Whether `another-pass-is-due` is present,
-  and its time,
-  so a trigger that asked for a pass that has not run is
-  visible.
+  and its time.
 - The last starts in `recent-starts`,
-  the `B` and `P` in force,
+  and the rule in force,
   or,
-  before step 22 ships them,
-  the sentence that the
-  rate rule is not in force because its measurement is owed (choice V7's consequence).
-- The ZED installation facts it can read without a bus:
-  the zedlet's path and mode under `/etc/zfs/zed.d`,
-  and this boot's ZED state file when it exists,
-  whose path this host's binary embeds as `/var/run/zed.state` (fact F11).
-  The unit's enabled and active state is printed as the two commands to run,
-  because
-  `doctor` asks no service manager.
+  before step 22 ships it,
+  the sentence that the rule is
+  not in force because its measurement is owed.
+- The handler's last decisions,
+  from V8's answer;
+  a ZED-started handler's own lines are not in any journal today (fact
+  F13),
+  so today the report points at ZED's `Finished` lines for exit statuses and at nothing for the handler's lines.
+- The service-manager facts:
+  V9 decides whether the report prints the `systemctl` commands or reads their answers.
 
-The lost-event line,
+The lost-event block,
 with concrete values:
 
 ```text
 clone zpcachyos/nosnap/monochromatic-git-worktree-clone-datasets/one
-  intent   v1:6f1c0a9d8b7e5f4a3c2b1d0e9f8a7b6c:mount, source the clone, written 2026-11-22T17:30:04-05:00
+  intent   v1:6f1c0a9d8b7e5f4a3c2b1d0e9f8a7b6c:mount, source the clone
   mount    absent at /home/user/Monochromatic/.claude/worktrees/one
   receipt  1234567890123456789: none, so no pass has answered this request
-  ready    boot 5d0f..., pool ready, checkout ready, sweep finished under nonce 0a9b... at 2026-11-22T17:29:58-05:00
-  runs     no pass is running; a pass is due since 2026-11-22T17:30:05-05:00
-  zed      /etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets present; run `systemctl is-enabled zfs-zed.service` and `systemctl is-active zfs-zed.service`
-  events   the last event for this clone may be lost; the next trigger is a ZED event, the provider hook, or a pass you fire
-  fix      as root: /usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets boot-reconcile
+  ready    boot 5d0f..., pool ready, checkout ready, sweep finished at 2026-11-22T17:29:58-05:00
+  runs     no pass is running, as far as the account can read; a pass is due since 2026-11-22T17:30:05-05:00
+  events   the last event for this clone may be lost; the next triggers are a ZED event or start, a provider start, or a lever you fire
+  fix      as root: systemctl --no-ask-password reload reconcile-git-worktree-clone-mounts.service
   fix      as you: zfs set org.monochromatic:git-worktree-clone-mount-sweep-nonce=<32 fresh lowercase hex digits> <clone>
   journal  journalctl -u reconcile-git-worktree-clone-mounts.service ; journalctl -u zfs-zed.service
 ```
 
 The lines reuse the route's wording for a stale result,
-for a claim,
-and for a readiness refusal,
-so a person reads
-one vocabulary in the refusal,
-the timeout and `doctor`.
-The two `fix` lines are the design's answer to the no-waiter
-case for a person,
-and `doctor` never runs them.
+a claim and a readiness refusal.
+The two `fix` lines are T5's
+levers,
+and `doctor` never runs them;
+the account lever works only while ZED is alive.
 A record that cannot be read,
-or a check that cannot be proved,
-is
-reported as unknown rather than as a pass,
-which is the rule the plan already gives `doctor`
-([plan][plan],
+or
+a check that cannot be proved,
+is reported as unknown,
+which is the plan's rule ([plan][plan],
 "Step 18",
-lines 2060 to 2070).
+line 2090).
 
-The exit status follows the command's existing rule:
-a finding that a check could not be read is the error status the
-hooks report as 2 ([spec][spec],
+Whether a lost event is a finding or an error status is V10;
+this design ranks it a finding,
+and the exit-status rule
+V10 quotes is this design's proposal,
+because `SPEC.md`'s Doctor section describes only the hooks listing today
+([spec][spec],
 `### Doctor`,
-lines 683 to 760),
-and a clone with a lost event is a finding,
-not an
-error,
-so it does not by itself choose that status.
-Which of the two a lost event is,
-is the wording `doctor` already uses for a stale result and a refusal,
-and this design ranks it a finding.
+lines 683 to 760).
 
 ## Which build step builds which part
 
 Plan steps 1 to 8 are merged,
 so nothing here reopens them;
-the parts land on steps still ahead,
-and the plan needs
-the edits named in "Dependencies on other designs and on the plan".
+the parts land on steps still ahead.
 
 - Step 10,
   the add route:
-  the wrapper's nudge policy (one nudge per wait,
-  on the first unanswered read),
-  and the
-  call to the existing nudge writer ([plan][plan],
+  the nudge call and V3's policy ([plan][plan],
   "Step 10",
   lines 1399 to 1587).
 - Step 14,
   removal:
-  the same nudge policy for a removal's waits,
-  so a lost event for an `unmount` intent is recovered
-  by the same triggers;
-  the unmount itself stays step 9's and the removal's own state reporting stays step 17's
-  ([plan][plan],
+  the same policy for a removal's waits,
+  so a lost `unmount` event is recovered by the same
+  triggers;
+  the unmount stays step 9's ([plan][plan],
   "Step 14",
   lines 1738 to 1814).
 - Step 18,
   `doctor`:
-  the readings and the lost-event line above,
-  the two printed commands,
-  and the correction of the
-  four shipped sentences that name step 10 ([plan][plan],
-  "Step 18",
-  lines 2017 to 2120).
+  the readings,
+  the lost-event block,
+  the printed levers,
+  V8's decisions record,
+  V9's service
+  reading,
+  V10's status,
+  and the correction of the four shipped sentences that name step 10 ([plan][plan],
+  lines 2017
+  to 2120).
 - Step 19,
   the units and the zedlet:
   the event filter,
-  the provider drop-in,
-  enabling `zfs-zed.service`,
-  and the boot
-  unit exactly as the plan already describes it ([plan][plan],
-  "Step 19",
-  lines 2121 to 2240).
+  the provider drop-in and `ExecReload=`,
+  enabling
+  `zfs-zed.service`,
+  the boot unit as the plan describes it,
+  and the merge device with its mark (V12's first option).
 - Step 22,
   the measurements:
-  the run claim,
-  the mark,
   `recent-starts`,
-  the taker's sequence,
-  and the bound's `B` and
-  `P` with the measurement beside them ([plan][plan],
-  "Step 22",
-  lines 2340 to 2420).
+  the rule in Q-D's unit,
+  and its numbers with the measurement beside them.
 
-The merge device and the rate rule land in one step because the rule's record is the same record the merge reads;
-a
-provisional bound would ship an unmeasured limit,
-which rule `LQM` and the decision both forbid (choice V7).
+The device and the mark land in step 19 because step 19 enables ZED,
+and without them every event starts its own pass;
+the record and the number land in step 22 because the number is a limit that rule `LQM` lets no step ship unmeasured
+(V12).
 
 ## The tests a build must have
 
 Each test names the race or the case it forces and how it forces it without timing luck.
 Tests marked guest run only in
-the throwaway guest,
-which this round does not start;
-the repository's guest gate is
-`CLI_GIT_ZFS_SWEEP_GUEST` (`package/git-policy/cli/src/native/binary/binary_zfs_sweep_guest_tests.rs`,
-lines 1 to 40),
-and the driver is `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`.
+the throwaway guest;
+the repository's guest gate is `CLI_GIT_ZFS_SWEEP_GUEST`
+(`binary_zfs_sweep_guest_tests.rs`,
+lines 1 to 40) and its driver is
+`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`.
+Tests marked host can run here with fixtures,
+the injected gate (`run_behind`) and the claim's existing seam (`take_claim_seamed`,
+fact F22).
 
 1.  Filter accepts and drops,
-    host-side unit test:
-    the default invocation with `ZEVENT_POOL` and
-    `ZEVENT_HISTORY_DSNAME` set for the parent,
-    a clone,
+    host:
+    the default invocation with the event's pool and dataset set for the parent,
+    a
+    clone,
     a clone's snapshot,
     a dataset outside the parent,
     another pool,
-    and with both absent.
-    Each case asserts the decision and,
-    for the dropping cases,
-    that `/dev/zfs` was never opened
-    and no claim was taken.
-    The forced race is none:
-    the inputs are the whole decision.
+    both absent,
+    and no resolvable parent.
+    Each
+    asserts the decision and,
+    for a drop,
+    that `/dev/zfs` was never opened and no claim was taken.
 2.  A nudge during a pass,
     guest:
-    start a pass over a parent with enough children that its enumeration is observable,
-    wait for `run/`'s newest generation to appear,
-    write a nudge on one clone,
-    and assert that the pass's second pass
-    ran and removed the mark.
-    Forcing is by the record's appearance,
-    not by a sleep (race R2).
-3.  Two triggers at once,
-    guest:
-    the test takes the run claim itself with a live owner,
-    starts two default invocations,
+    start a pass on a parent with enough children that it lasts,
+    wait for the run claim's
+    newest generation to appear,
+    write a nudge,
+    and assert the mark was removed by the second pass.
+    The forcing is the
+    record's appearance;
+    the clone population is the measurement's,
+    not a bet (M4).
+3.  The device's contended paths,
+    host:
+    the test holds the run claim with its own owner,
+    starts two default
+    invocations,
     and asserts both printed the held line,
     both wrote the mark,
-    and neither read a clone;
-    it then releases the claim
-    and starts one more invocation,
+    neither read a clone,
+    and both exited
+    2,
+    with the gate injected as compatible;
+    it then releases the claim and starts one more invocation,
     which must remove the mark and pass.
-    This forces the contention with the test's own
-    claim (race R3).
-4.  A mark written after a pass releases,
-    guest:
-    the test writes the mark between the pass's release and its look,
-    by
-    taking the claim in that window through the test's own claim file;
-    the handler's second attempt must pass,
-    or the
-    next invocation must remove the mark on entry.
-    The test asserts no nudge is left waiting without an attempt
-    (race R4).
-5.  The bound holds a pass,
-    host-side unit test with a fixture record:
-    `recent-starts` holding `B` starts inside `P`
-    must produce the held line,
+    This forces the
+    contention with the test's own claim (race R3).
+4.  A mark written after the last look,
+    host:
+    the device's module gains a seam between the release and the look,
+    called
+    as `take_claim_seamed` is,
+    and the test writes the mark there;
+    it asserts the second attempt passed,
+    or the next
+    invocation removed the mark on entry.
+    No window inside the handler is targeted from outside (race R4).
+5.  The rule holds a pass,
+    host with a fixture record and an injected clock:
+    `recent-starts` holding `B` starts inside
+    `P` must produce the held line,
     no receipt and the mark;
     holding `B` starts with the oldest outside `P` must pass.
-    Time
-    is written into the fixture,
-    so no test waits (race R5).
-6.  The bound's positive control repeats test 5 with `B` of 1 and `P` of one hour,
-    and then asserts a caller's wait
-    ends with the new sentence,
-    so the arm is proved able to show a hold (measurement M3's control).
+6.  The rule's positive control repeats test 5 with the smallest admissible value and asserts a wait's deadline report
+    carries V11's sentence,
+    so the arm is proved able to show a hold (M3's control).
 7.  Unreadable cost records,
-    host-side unit test:
-    `run/` unreadable,
+    host:
+    the claim folder unreadable,
     `recent-starts` corrupt,
-    and the mark a directory
-    instead of a file.
-    Each must still pass,
+    and the mark a directory.
+    Each
+    must still pass,
     print which record could not be read,
-    and leave the clones' state alone
-    (choice V5).
+    and leave the clones' state alone (V7's first option).
 8.  A lost event and its recovery per trigger,
-    guest:
-    stop `zfs-zed.service`,
-    write an intent on a clone,
-    assert no
-    receipt after a bounded wait;
-    then fire exactly one trigger per arm (start `zfs-zed.service` and write one nudge;
-    run `boot-reconcile`;
-    start `zfs-mount.service`;
-    run the pass by hand) and assert a receipt under the intent's nonce
-    appears in each arm.
-    Each arm proves one trigger alone recovers what the queue lost (race R6).
+    guest,
+    in separate arms:
+    stop ZED,
+    write an intent,
+    assert no receipt;
+    then fire exactly one thing per arm,
+    which are a ZED start,
+    a nudge with ZED running,
+    a boot-unit `start`,
+    a
+    provider `start`,
+    and a reload,
+    and assert a receipt under the intent's nonce appears in each arm.
+    The ZED-start arm
+    proves the replay;
+    the nudge arm proves the delivery (race R6).
 9.  A drained queue,
     guest:
     with ZED stopped,
-    write more property changes than `zfs_zevent_len_max` on the pool,
-    then
-    start ZED and assert its journal contains `Missed` and that no clone was attached by the drained events;
-    the arm
-    then fires one trigger and asserts recovery.
-    This proves the loss is real in the fixture before any recovery is
-    claimed (race R7).
+    write more property changes than the kernel queue holds,
+    start ZED,
+    and
+    assert that ZED logged no `Missed` line,
+    that the first intents have no receipt,
+    and that `zpool events` shows the
+    property change's event id no longer queued.
+    The evidence is the event id,
+    not a `Missed` line,
+    because a drain with
+    no reader is silent (fact F12).
 10. A handler killed mid-pass,
     guest:
-    the arm runs as root inside the guest and kills the handler's process group during a pass,
-    so no unprivileged signal is attempted anywhere,
-    then fire one trigger and assert
-    the next taker took the next claim generation,
-    that the killed pass's mount,
-    if any,
-    is recognised as already
-    standing,
-    and that its receipt is answered under the live intent's nonce (race R8).
+    the arm runs as root in the guest and kills the handler's process group during a
+    pass,
+    so no unprivileged signal is attempted anywhere;
+    it then fires one trigger and asserts the next taker took
+    the next generation,
+    recognised a standing mount,
+    and answered the receipt under the live intent's nonce
+    (race R8).
 11. No feedback,
     guest:
-    install a logging zedlet beside the handler,
-    run one pass,
-    and assert the handler's own work
-    produced no `history_event`.
-    This proves the loop the design forbids cannot start (fact F27).
-12. Boot with both readiness triggers,
+    a logging zedlet beside the handler,
+    one pass,
+    and an assertion that the pass produced no
+    `history_event`,
+    which proves the loop the design forbids cannot start (assumption A5).
+12. The provider hook's unit states,
     guest:
-    enable the boot unit,
-    the drop-in and the zedlet,
-    reboot,
-    and assert one
-    readiness record for the boot,
-    two passes in the journal,
-    and every pending clone attached without a caller
-    (measurement M5).
+    a boot with the hook and the boot unit;
+    the unit active and reloaded;
+    the
+    unit failed and `reload-or-restart`;
+    the unit inactive and started.
+    Each asserts the provider stays active,
+    the
+    reconcile ran in the boot unit's journal,
+    and no clone was unmounted by a reload (Q-A's option B;
+    fact F17).
 13. The provider's late readiness,
     guest:
-    boot with the checkout's key unloaded so the boot unit refuses,
-    assert a
-    caller is refused naming the checkout,
-    load the key and start `zfs-mount.service`,
-    and assert the drop-in's pass
-    published readiness and attached the clone without another add (the proposal's unrun acceptance item,
+    boot with the checkout's key unloaded so the boot's reconcile refuses and
+    publishes no record,
+    assert a caller is refused and that no readiness record for this boot exists,
+    load the key,
+    start the provider,
+    and assert the hook's job published readiness and attached the clone without another add (the
+    proposal's unrun item,
     [proposal][proposal],
     lines 2024 to 2030).
 14. `doctor`'s lost-event report,
-    host-side unit test over planted records:
+    host over planted records:
     one clone with a matching receipt,
-    one with
-    a stale receipt,
+    one with a stale
+    receipt,
     one with none,
-    one whose record belongs to another boot.
+    one whose record belongs to another boot,
+    and no record at all.
     Assert the exact lines,
-    the two printed
-    commands,
+    the
+    two printed levers,
     and that nothing was run.
 
 Tests 1,
-5,
-6,
-7 and 14 run on the host with no ZFS access.
-Tests 2,
 3,
 4,
+5,
+6,
+7 and 14 run on the host.
+Tests 2,
 8,
 9,
 10,
 11,
 12 and 13 need the guest,
-because each needs a real pool,
+because each needs a
+real pool,
 a real ZED,
 real mounts or a real systemd.
 
 ## Measurements owed
 
-Each measurement names its exact probe,
-its control arm,
-and what it decides.
-None is run in this round,
-and no
-sentence above rests on one.
+Each names its probe,
+its control and what it decides.
+None ran.
 
 - M1,
   lost-event behaviour per trigger.
@@ -1832,338 +1862,424 @@ sentence above rests on one.
   stop `zfs-zed.service`,
   write one intent,
   then fire one
-  trigger at a time in separate arms and record the time from the trigger to the receipt.
+  trigger per arm (a ZED start,
+  a nudge with ZED running,
+  a boot-unit `start`,
+  a provider `start`,
+  a reload) and record
+  the time from the trigger to the receipt.
   Control:
-  the same intent
-  with ZED running and no nudge,
-  which gives the delivery's own latency.
+  the same intent with ZED running and no nudge,
+  which gives the
+  delivery's own latency.
   Decides:
-  how long each trigger takes,
-  and that
-  each one alone recovers.
+  each trigger's recovery and its delay.
 - M2,
   a drained queue.
   Probe:
   with ZED stopped,
-  write more property changes than the kernel's queue holds,
+  write more property changes than the queue holds,
   start ZED,
-  and record its `Missed` line and which intents still have no receipt.
+  and record
+  whether ZED logged `Missed`,
+  which intents still have no receipt,
+  and whether `zpool events` still lists the property
+  change's event id.
   Control:
-  the same writes with ZED running.
+  the same writes with ZED running,
+  where a `Missed` line can appear.
   Decides:
-  that the loss mechanism the design names is the one that occurs,
-  and that the count is the kernel's.
+  that a
+  stopped-ZED drain is silent and that the event id is the evidence.
 - M3,
-  the bound's caller cost.
+  the rule's caller cost.
   Probe:
-  the acceptance workload with a candidate `(B, P)`,
-  counting waits that end at
-  the deadline;
-  positive control `B` of 1 and `P` of one hour;
-  control with the bound absent.
+  the acceptance workload with a candidate in Q-D's unit,
+  counting waits that end
+  at the deadline;
+  positive control the smallest admissible value;
+  control with the rule absent;
+  and one arm with
+  Q-C's spare-the-answered-clone rule,
+  which needs one clone read per event.
   Decides:
-  `(B, P)`.
+  the numbers and Q-C.
 - M4,
   the merge device's saving.
   Probe:
-  passes started per add with the device on and off,
-  and the pass's wall time at
-  the acceptance clone count.
+  passes started and history events produced per add,
+  with the device on and
+  off,
+  and the pass's wall time at the acceptance population.
   Decides:
   whether the device earns its code,
-  and the one-extra-pass cap's cost.
+  and the
+  counts in "Counts and numbers this design does not ship".
 - M5,
-  the boot's cost with both readiness triggers.
+  the boot's critical path.
   Probe:
-  boot wall time to the boot unit's exit with the drop-in
-  installed and with it absent,
-  interleaved over repeated boots.
+  the time from the provider's `ExecStart` to `local-fs.target` reaching active,
+  with the hook and with it absent,
+  interleaved over repeated boots;
+  and,
+  for Q-A's option A,
+  the time to the boot
+  unit's exit.
   Decides:
-  whether the double pass at boot is
-  acceptable,
-  or whether step 19 needs the guard the plan should then carry.
+  whether any provider hook is acceptable on the critical path.
 - M6,
   the event filter's saving.
   Probe:
   on the guest's fixture,
-  with sanoid's snapshot cadence emulated by the test's
-  own property writes on the checkout and the home datasets,
-  count passes with the filter and with it compiled out.
+  with the test's own property writes on the checkout and
+  the home datasets at sanoid's cadence,
+  count handler starts and passes with the filter and with it compiled out.
   Decides:
-  whether the filter's cost is worth stating as a number in the specification.
+  whether the filter's cost is worth a number in the specification.
+- M7,
+  the nudge's delay.
+  Probe:
+  the acceptance workload's waits,
+  recording each wait's receipt latency and the point at
+  which a nudge after delay `D` would have been written,
+  for several candidate `D`;
+  control the same workload with no
+  nudge.
+  Decides:
+  `D`,
+  as the smallest delay that leaves a fast wait alone while still catching a slow one.
+
+## Counts and numbers this design does not ship
+
+Each is a count the design uses and cannot size,
+with what would size it.
+None ships before its measurement or the
+project's decision.
+
+- One extra pass per admitted run.
+  Sized by M4's pass cost and by whether the second pass is worth its cost at the
+  acceptance population;
+  the shape is "What a taker does" steps 7 and 8.
+- One second claim attempt after a mark.
+  Sized by the same measurement,
+  because it is one `take_claim` call on the
+  contended path;
+  the shape is "What a taker does" step 8.
+- One nudge per wait.
+  Sized by M7,
+  which also gives its delay.
+- `B` in `P`,
+  or the budget of pass time,
+  in Q-D's unit.
+  Sized by M3 and decided by Q-D.
+- The pass's child bound of 4096 is already shipped with the merged measurement named in fact F28,
+  and nothing here
+  changes it.
 
 ## Facts
 
 Each fact is one thing read or measured,
-with its source,
-so a reviewer can check it alone.
-Nothing here is new
-measurement.
+with its source.
+Nothing here is new measurement on this host.
 
 - F1.
   This host runs systemd 262 (262.2-1-arch),
   kernel `7.3.5-1-cachyos`,
-  OpenZFS `zfs-2.4.4-1` and Git `2.56.1`
-  (`systemctl --version`,
+  OpenZFS `zfs-2.4.4-1` and Git `2.56.1`,
+  and
+  the installed wrapper reports `monochromatic-git-policy-cli 0.6.1-alpha.44` (`systemctl --no-ask-password --version`,
   `uname -r`,
   `zfs version`,
   `git --version`,
-  2026-11-22;
-  `git --version` reached the
-  installed wrapper,
-  which reported `monochromatic-git-policy-cli 0.6.1-alpha.44`).
+  2026-11-22).
 - F2.
   `zfs-zed.service` is loaded,
-  disabled and inactive on this host,
-  with preset `enabled`
-  (`systemctl status zfs-zed.service`).
-  Its unit runs `/usr/bin/zed -F` with `Restart=always`
-  (`/usr/lib/systemd/system/zfs-zed.service`).
+  disabled and inactive,
+  preset `enabled`;
+  its unit runs `/usr/bin/zed -F` with
+  `Restart=always` (`systemctl --no-ask-password status zfs-zed.service`,
+  `/usr/lib/systemd/system/zfs-zed.service`).
 - F3.
   `zfs-mount.service` is enabled and active (exited),
-  with `Type=oneshot`,
+  `Type=oneshot`,
   `RemainAfterExit=yes`,
   `ExecStart=/usr/bin/zfs mount -a`,
   `After=zfs-import.target`,
   `Before=local-fs.target`,
   `WantedBy=zfs.target`
-  (`systemctl status zfs-mount.service`,
+  (`systemctl --no-ask-password status zfs-mount.service`,
   `/usr/lib/systemd/system/zfs-mount.service`).
 - F4.
-  The project says the handler cannot limit the nudge writes ([proposal][proposal],
-  lines 575 to 578).
+  `zfs-load-key.service` is masked,
+  `/etc/default/zfs` sets `ZFS_LOAD_KEY='yes'`,
+  and the pool and the checkout's
+  ancestor report `keystatus available` with `encryption aes-256-gcm` (`systemctl --no-ask-password is-enabled`,
+  `/etc/default/zfs`,
+  `zfs get encryption,keystatus`).
 - F5.
-  The acceptance route installs the handler at
-  `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets` and at
-  `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets` ([spec][spec],
-  lines 262 to 270).
+  No managed dataset exists:
+  `zfs list -d 2` shows the pool's `nosnap` children and no `monochromatic-git-*` name
+  (`zfs list -o name,mountpoint,mounted,canmount -d 2`).
 - F6.
-  The handler's modes are the default,
-  `boot-reconcile`,
-  `shutdown-unmount` and `adopt-worktree-parent`,
-  and the
-  first two run a pass ([spec][spec],
-  lines 270 to 280;
-  lines 6332 to 6360).
+  `/home/user/Monochromatic` is on `zpcachyos/ROOT/cos/home`,
+  an inherited dataset,
+  not a mount of its own
+  (`findmnt --target /home/user/Monochromatic`,
+  `findmnt --target /home/user`).
 - F7.
-  The installed zedlet's name has no `-sync-` segment,
-  so ZED forks it asynchronously
-  ([spec][spec],
-  lines 262 to 268;
-  `cmd/zed/zed_exec.c`,
-  lines 339 to 357 at `zfs-2.4.4`).
+  None of `/usr/libexec/monochromatic-git-policy-cli`,
+  `/etc/monochromatic-git-policy-cli`,
+  `/var/lib/monochromatic-git-policy-cli`,
+  `/run/git-worktree-clone-mount-results`,
+  `/run/git-worktree-clone-mount-readiness`,
+  `/run/git-worktree-clone-mount-slot-claims` or `/run/zed.state` exists
+  (`ls -d` on each,
+  2026-11-22).
 - F8.
-  A user property change reaches ZED as a `history_event` carrying the property and value in the internal string,
-  observed in the guest on 2026-11-21
-  (`package/git-policy/cli/doc/zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
-  "Where",
-  lines 60 to 66;
-  [proposal][proposal],
-  "Lost last event without a waiter",
-  line 1400).
+  `/etc/zfs/zed.d` holds the distribution's zedlets,
+  including `all-syslog.sh` and
+  `history_event-zfs-list-cacher.sh`,
+  and no handler zedlet (`ls /etc/zfs/zed.d`).
 - F9.
-  The kernel posts the class only for an internal history record (`module/zfs/spa_history.c`,
-  lines 296 to 331),
-  and the class string is `history_event` (`include/sys/sysevent/eventdefs.h`,
-  line 121),
-  both at `zfs-2.4.4`.
+  This host's kernel queue bound is 512 (`cat /sys/module/zfs/parameters/zfs_zevent_len_max`).
 - F10.
-  The kernel's event list holds 512 events by default,
-  inserts at the head and drains the tail,
-  which is the
-  oldest,
-  counting a drop against unconsuming readers (`module/zfs/fm.c`,
-  lines 72,
-  148 to 156,
-  180 to 192 and 344 to
-  359 at `zfs-2.4.4`).
+  ZED runs at most 16 zedlet processes at once and blocks before forking while that many are alive
+  (`cmd/zed/zed_conf.c`,
+  line 51;
+  `cmd/zed/zed_exec.c`,
+  lines 130 to 140 at `zfs-2.4.4`).
 - F11.
-  ZED reads a state file,
-  seeks past the last event it wrote state for,
-  then services the queue
-  (`cmd/zed/zed.c`,
-  lines 264 to 299;
-  `cmd/zed/zed_conf.c`,
-  lines 543 to 665 at `zfs-2.4.4`),
-  and the state file is
-  `RUNSTATEDIR "/zed.state"` (`cmd/zed/zed.h`,
+  ZED's state file is `RUNSTATEDIR "/zed.state"` (`cmd/zed/zed.h`,
   line 27),
-  which this host's installed binary embeds as `/var/run/zed.state`
-  (`strings /usr/bin/zed`,
-  2026-11-22),
-  and `/var/run` links to `/run` on this Linux userspace,
-  so the path is per boot.
+  and this host's installed binary embeds
+  `/var/run/zed.state` (`strings /usr/bin/zed`),
+  which links to `/run` and so is per boot.
 - F12.
-  ZED runs at most 16 zedlet processes at once (`cmd/zed/zed_conf.c`,
-  line 51) and blocks before forking while
-  that many are alive (`cmd/zed/zed_exec.c`,
-  lines 130 to 140).
+  The kernel's event list holds 512 events by default,
+  inserts at the head,
+  drains the tail (the oldest),
+  credits a
+  drop only to a reader holding a cursor on the drained event,
+  and starts a fresh reader at the tail with no count
+  (`module/zfs/fm.c`,
+  lines 72,
+  143 to 156,
+  180 to 192 and 316 to 359 at `zfs-2.4.4`).
+  So a drain while ZED holds no
+  cursor is silent.
 - F13.
-  ZED writes an event's state right after forking its zedlets,
-  before they finish
-  (`cmd/zed/zed_event.c`,
-  lines 1020 to 1030).
+  In the foreground,
+  ZED points each zedlet's standard input,
+  output and error at `/dev/null`,
+  so a ZED-started
+  handler's own lines reach nobody,
+  and the journal holds only ZED's `Invoking` and `Finished` lines with the exit
+  status (`cmd/zed/zed_exec.c`,
+  lines 161 to 166,
+  189 and 240 to 261 at `zfs-2.4.4`).
 - F14.
   An attach is admitted only on a readiness record naming this boot,
-  pool and checkout with both provider facts
-  ready,
-  and a `not-ready` field refuses
-  (`package/git-policy/cli/src/native/worktree_clone_mount_protocol/clone_mount_readiness_admission.rs`,
-  lines 100 to
-  150;
-  [spec][spec],
-  lines 6210 to 6300).
-- F15.
-  The handler reads no `ZEVENT_` variable (`rg 'ZEVENT' package/git-policy/cli/src` returns no match,
-  2026-11-22),
-  and a zedlet matches by class prefix only,
-  so it runs for every pool (`cmd/zed/zed_exec.c`,
-  lines 409 to 421).
-- F16.
-  On 2026-11-22 this host has no `/usr/libexec/monochromatic-git-policy-cli`,
-  no
-  `/etc/monochromatic-git-policy-cli`,
-  no `/var/lib/monochromatic-git-policy-cli`,
-  no
-  `/run/git-worktree-clone-mount-results`,
-  no `/run/git-worktree-clone-mount-readiness` and no `/run/zed.state`,
+  pool and checkout with both facts ready,
   and
-  the checkout is `zpcachyos/ROOT/cos/home` (`ls -d` on each path,
-  `findmnt --target /home/user/Monochromatic`).
-- F17.
-  An intent value is read only from a local source;
-  an inherited value authorizes nothing ([spec][spec],
-  "The
-  durable intent",
-  lines 6100 to 6130).
-- F18.
-  The nudge shares the nonce's bound and alphabet:
-  32 lowercase hexadecimal digits,
-  no field separator
-  (`clone_mount_sweep_nonce.rs`,
+  `unknown` admits nothing (`clone_mount_readiness_admission.rs`,
   lines 100 to 150;
   [spec][spec],
-  lines 6123 to 6130).
+  lines 6184 to 6228).
+- F15.
+  A start job on an active unit returns `-EALREADY` (`src/core/unit.c`,
+  lines 1955 to 1962 at `v262`);
+  a oneshot that
+  failed can be started again and re-runs its `ExecStartPre=` and `ExecStart=`;
+  a reload needs an `ExecReload=` and is
+  admitted only in the running or exited states (`src/core/service.c`,
+  lines 3762 to 3790);
+  and `reload-or-restart`
+  reloads,
+  starts or restarts as the state needs (`systemctl(1)`,
+  lines 530 to 537 at `v262`).
+- F16.
+  `boot-reconcile` publishes readiness only after `complete()` returns facts that passed `admit()`,
+  and its record
+  carries `sweep_nonce: None`
+  (`boot_reconcile_mode.rs`,
+  lines 122 to 181;
+  `sweep_preconditions.rs`,
+  lines 535 to 551).
+  So a boot whose checkout is
+  not ready has no record for this boot,
+  not a `not-ready` one.
+- F17.
+  `Requires=` with `After=` means the boot unit "will be stopped (or restarted) if one of the other units is explicitly
+  stopped (or restarted)",
+  so a restart of the provider restarts the boot unit and runs its `ExecStopPost=`
+  `shutdown-unmount` first (`systemd.unit(5)`,
+  `Requires=`,
+  lines 681 to 694 at `v262`;
+  [proposal][proposal],
+  line 525).
+- F18.
+  The handler runs in the host mount namespace ([proposal][proposal],
+  lines 483 to 484 and 513),
+  and the probe is
+  `ExecStartPre=` of the boot unit,
+  which is the service manager's own child
+  ([start probe design][probedesign],
+  lines 1390 to 1401).
+  A person's shell is not that namespace.
 - F19.
-  A receipt is named by the clone's GUID,
-  carries the nonce and outcome,
-  is replaced by a live clone's next
-  result,
-  and a stale result is never the answer ([spec][spec],
-  "The receipts",
-  lines 6132 to 6170;
-  `mount_request_wait.rs`,
-  lines 280 to 300).
-- F20.
-  The wrapper's intent and nudge writes pass the compatibility gate first and never prompt for a credential
-  (`clone_mount_intent_write.rs`,
-  lines 34 to 82;
+  The sweep reads the probe record first,
+  and a record that is absent,
+  unreadable,
+  names another boot or carries any
+  verdict but `passed` refuses the run (`sweep_preconditions.rs`,
+  lines 281 to 296;
   [spec][spec],
-  lines 7348 to 7352).
+  lines 6272 to 6300).
+- F20.
+  The wrapper waits for a matching receipt for a provisional 30,000 milliseconds,
+  polling every 50 milliseconds,
+  and
+  reads before it sleeps,
+  so a fresh request's first read is at its start;
+  its timeout text names the request,
+  the last
+  observation,
+  `doctor` and the journal (`mount_request_wait.rs`,
+  lines 59,
+  68,
+  326 to 359 and 290 to 300).
 - F21.
-  The route publishes a receipt and the readiness record by a staging write,
-  a sync,
-  a rename and a directory
-  sync ([spec][spec],
-  "The receipts",
-  lines 6150 to 6165;
-  "The readiness record",
-  lines 6175 to 6190).
+  A mode's refusal exits 2 and only completed work exits 0 (`handler_mode_dispatch.rs`,
+  lines 11 to 14 and 35 to 40).
 - F22.
-  The repository's numbered claim is lock-free,
-  published by one exclusive `link` under the next generation,
-  names its owner by process birth,
+  The repository's numbered claim keeps only names of the form `<prefix>.<digits>` in its folder,
+  writes its records
+  mode `0600`,
+  names an owner by process birth,
   never waits,
-  and a killed owner leaves nothing to clean by hand
-  (`package/git-policy/cli/src/native/lock/single_owner_claim.rs`,
-  lines 1 to 40).
+  and has a seam for tests
+  (`single_owner_claim.rs`,
+  lines 208 to 234,
+  252 and 355 to 370).
 - F23.
-  `/run` is per boot for this route's records,
-  and "a claim means nothing across a boot"
+  A receipt and the readiness record are published by a staging write,
+  a sync,
+  a rename and a directory sync
   ([spec][spec],
-  "The per-slot claim",
-  lines 6310 to 6325).
+  lines 6131 to 6183 and 6184 to 6228).
 - F24.
   A pass enumerates the parent's immediate children,
   takes each slot's claim,
   re-reads the intent under it,
-  leaves
-  a held slot to its holder,
+  leaves a
+  held slot to its holder,
   and the holder reads the intent again after releasing
-  ([spec][spec],
-  "The sweep,
-  and the boot it reconciles",
-  lines 6332 to 6420;
-  `package/git-policy/cli/src/native/worktree_clone_mount_handler/sweep_one_clone.rs`,
-  lines 1 to 55).
-- F25.
-  The wrapper waits for a matching receipt for a provisional 30,000 milliseconds,
-  polls every 50 milliseconds,
-  and its timeout text names the request,
-  the last observation,
-  `doctor` and the journal
-  (`mount_request_wait.rs`,
-  lines 59,
-  68 and 290 to 300).
-- F26.
-  A clone whose mount already stands at its slot keeps the `done` receipt rather than having a refusal overwrite
-  it,
-  and a turn files its answer before reading the intent once more
   (`sweep_one_clone.rs`,
+  lines 1 to 55;
+  [spec][spec],
+  lines 6272 to 6387).
+- F25.
+  A receipt carries the request's nonce and a stale result is never the answer ([spec][spec],
+  lines 6131 to 6183;
+  `mount_request_wait.rs`,
+  lines 280 to 300).
+- F26.
+  A clone whose mount already stands at its slot keeps its `done` receipt rather than having a refusal overwrite it,
+  and
+  a turn files its answer before reading the intent once more (`sweep_one_clone.rs`,
   lines 44 to 50 and 440 to 450).
 - F27.
-  No step of the route writes an acknowledgement property from root ([proposal][proposal],
-  lines 571 to 573),
-  so
-  a pass creates no property change and no event of its own.
+  The shipped readiness refusal already names the trigger set:
+  "let the next trigger (a ZED event,
+  the checkout
+  provider's post-key-load hook,
+  or the caller's own sweep nudge) run the sweep"
+  (`clone_mount_readiness_admission.rs`,
+  line 100).
 - F28.
-  The pass visits at most 4096 children,
-  measured at 14,183 milliseconds for 4097 children and 99 milliseconds for
-  one clone (`sweep_dataset_reader.rs`,
+  `main`'s child bound is 4096,
+  with the merged measurement beside it:
+  one sweep over 4,097 children visited the first
+  4,096 in 14,183 milliseconds,
+  and one handler run over a single clone took 99 milliseconds
+  (`sweep_dataset_reader.rs`,
   lines 26 to 58).
+  The branch
+  `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `d97a683346` replaces those figures and is unmerged
+  and unreviewed (F34).
 - F29.
-  This host's kernel queue bound is 512 (`/sys/module/zfs/parameters/zfs_zevent_len_max`,
-  2026-11-22).
-- F30.
-  The four shipped refusals that name `doctor` say "once plan step 10 adds it"
-  (`mount_request_wait.rs` line 298,
-  `clone_mount_readiness_admission.rs` line 100,
-  `clone_mount_receipts_folder_refusals.rs` line 185,
-  `per_slot_root_claim.rs` line 151),
+  Four shipped refusals say `doctor` reports a receipt,
+  a readiness record and a claim "once plan step 10 adds it"
+  (`mount_request_wait.rs`,
+  line 298;
+  `clone_mount_readiness_admission.rs`,
+  line 100;
+  `clone_mount_receipts_folder_refusals.rs`,
+  line 185;
+  `per_slot_root_claim.rs`,
+  line 151),
   and the plan builds
   `doctor` in step 18 ([plan][plan],
   lines 2017 to 2120).
+- F30.
+  The step 7 measurement puts a test zedlet's arrival 10,218 to 10,581 microseconds after the property change and the
+  product wait's answer 36 to 64 microseconds after a receipt that was already on disk
+  (`zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
+  "The rounds",
+  lines 105 to 121).
 - F31.
-  `zfs-load-key.service` is masked on this host,
-  `/etc/default/zfs` sets `ZFS_LOAD_KEY='yes'`,
-  and the pool and
-  checkout ancestor report `keystatus available` with `encryption aes-256-gcm`
-  (`systemctl is-enabled zfs-load-key.service`,
-  `sed -n '1,60p' /etc/default/zfs`,
-  `zfs get encryption,keystatus`).
+  `zfs-load-key.service` is masked on this host while the pool's keys are available (F4).
 - F32.
-  systemd's `ExecStartPost=` runs after a oneshot's `ExecStart=` exits successfully and counts for ordering,
-  and
-  `OnSuccess=` activates on entering `inactive`
+  `ExecStartPost=` runs after a oneshot's `ExecStart=` succeeds,
+  an unprefixed failure fails the unit,
+  its execution
+  counts for ordering,
+  and a oneshot's start timeout is disabled by default;
+  `OnSuccess=` activates on entering
+  `inactive`;
+  and a mount unit carries no `Exec` list
   (`systemd.service(5)`,
-  lines 427 to 465;
+  lines 427 to 437,
+  454 to 465 and 682 to 692;
   `systemd.unit(5)`,
-  lines 878 to 882,
-  at tag `v262`),
-  and mount units carry
-  no `Exec` list (`systemd.mount(5)`,
-  lines 40 to 66).
+  lines 878 to 882;
+  `systemd.mount(5)`,
+  lines 40 to 66,
+  all at `v262`).
 - F33.
-  This design's host probes on 2026-11-22 were reads only:
-  `systemctl --version`,
-  `systemctl status`,
-  `systemctl is-enabled`,
-  and file reads under `/usr/lib/systemd/system` and `/etc/default/zfs`.
-  No acting `systemctl` verb,
+  This design's host probes are reads only:
+  `systemctl --no-ask-password --version`,
+  `status` and `is-enabled`,
+  `journalctl` was not used,
+  `strings /usr/bin/zed`,
+  and file reads under `/usr/lib/systemd/system`,
+  `/etc/zfs`,
+  `/etc/default/zfs` and `/sys/module/zfs/parameters`.
+  No acting verb,
   no D-Bus call,
   no `pkexec`,
-  no `journalctl` and no signal to any process was issued,
-  so no service manager of this host was asked to authorize anything.
+  and no signal to any
+  process was issued.
+- F34.
+  The branch `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `d97a683346`
+  (2026-11-22T17:32:12-05:00) replaces the cost comment in `sweep_dataset_reader.rs` with cold and steady sweeps per
+  population (64 children 1,254 milliseconds cold and 303 to 402 steady;
+  4,096 children 174,754 cold and 20,092 to
+  22,288 steady) and says the earlier figure counted children the origin check refuses.
+  It is unmerged,
+  unreviewed,
+  and
+  cited here only as existing.
+- F35.
+  The step 7 measurement observed `ZEVENT_POOL`,
+  `ZEVENT_HISTORY_DSNAME` and the property and value in
+  `ZEVENT_HISTORY_INTERNAL_STR` for a `zfs set`
+  (`zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
+  "Where",
+  lines 60 to 66).
+- F36.
+  `SPEC.md`'s `### Doctor` section describes the traditional-hooks listing only ([spec][spec],
+  lines 683 to 760).
 
 ## Assumptions
 
@@ -2172,104 +2288,129 @@ measurement.
   because both come from one
   configuration read with one fallback.
 - A2.
-  ZED sets `ZEVENT_POOL` and `ZEVENT_HISTORY_DSNAME` for a `history_event`,
-  as the installed list-cacher zedlet
-  relies on for the same class (fact F15's source file).
-- A3.
   The handler is started by ZED only as root,
   so the filter's environment cannot be chosen by another account.
+- A3.
+  ZED sets the event variables a filter reads,
+  as the installed list-cacher zedlet relies on for the same class (F35).
 - A4.
-  The readiness passes at a hooked boot are at most two,
-  one from the drop-in and one from the boot unit,
-  because
-  each of those units starts once in that boot.
+  A pass's own work writes no property and mounts nothing that posts a ZFS history event.
+  The earlier revision carried this as a fact;
+  it is an inference and is an assumption here.
+  Test 11 checks it.
 - A5.
-  A pass's own work writes no property and mounts nothing that posts a ZFS history event (fact F27).
+  A hooked boot's readiness triggers are at most the hook's job request and the boot unit's own start,
+  because each of
+  those units acts once in that boot.
 - A6.
-  The wrapper can write a nudge on a clone it is waiting for under the agreed `mount,userprop` grant,
-  and not on
-  the parent ([proposal][proposal],
+  The wrapper can write a nudge on a clone it waits for under the agreed `mount,userprop` grant,
+  and not on the parent
+  ([proposal][proposal],
   lines 573 to 580).
 - A7.
   A person's `sudo` needs no passphrase on this machine,
   as the project's threat model states;
   if it does,
-  T5's
-  root command asks that person's shell for it,
+  the printed
+  lever asks that person's shell,
   and the wrapper never does.
 - A8.
   The guest's kernel and OpenZFS behave like the host's for the queue and ZED,
-  because both are `zfs-2.4.4` and a
-  kernel the module supports;
-  the guest's kernel is `6.8.0-147-generic` in the recipe,
-  not this host's `7.3.5-1`,
-  which is why measurement M2 belongs to the guest and not to a host claim.
+  because both are `zfs-2.4.4` and the
+  guest's kernel is one the module supports;
+  the guest's kernel is not this host's `7.3.5-1`,
+  which is why M2 belongs
+  to the guest.
+- A9.
+  A `systemctl --no-block` job request from a unit's `ExecStartPost=` is sound;
+  it is unprobed here (Q-A's option B) and
+  the review did not run it either.
+- A10.
+  `recent-starts` has one writer at a time,
+  because only an event-driven pass writes it and every such pass holds the run
+  claim.
 
 ## Limitations
 
 - L1.
   The no-waiter case has no time bound:
-  the recovery happens at the next trigger,
-  which in the worst case is the
-  next boot,
-  and no timer exists by the project's decision.
+  the next trigger can be the next boot,
+  and no timer exists by the project's
+  decision.
 - L2.
   A caller can time out because a pass was held back by the cost rule,
-  and its request then waits for a trigger
-  that the bound admits.
+  and its request then waits for a trigger the rule
+  admits.
 - L3.
-  A trigger's mark can land in the window after the last taker released,
-  so its pass waits for the next trigger;
-  the mark itself is never lost.
+  A mark written after the last look,
+  including one written while the second pass runs,
+  stands for the next trigger;
+  the
+  record never loses it,
+  but the wait is not answered sooner.
 - L4.
-  The rate rule bounds passes and not handler invocations:
-  a loop of property writes still costs one fork and one
-  claim attempt per write,
+  The rule bounds passes and not handler invocations:
+  a loop of property writes still costs one fork and one claim
+  attempt per write,
   and ZED's 16-process ceiling is what bounds that.
 - L5.
-  The event filter can drop an event whose dataset is outside the parent even if a future feature puts an intent
-  on such a dataset;
-  the filter would then need that scope.
+  The event filter gives up the accidental recovery an out-of-scope event would have provided,
+  and the no-waiter case's
+  next trigger can be later because of it.
 - L6.
   The provider hook cannot see a checkout mounted outside a unit,
   so that case waits for T2 or T5.
 - L7.
-  A hooked boot runs two passes,
-  and step 22 has not measured whether that is acceptable.
+  A direct hook at boot is a refusal,
+  not a pass,
+  and a hooked boot spends two readiness actions only in the sense that
+  the first does nothing;
+  Q-A's option B spends one action and one unit job.
 - L8.
-  Readiness passes can overlap an event-driven pass,
-  so a boot or provider transition can coincide with a second
-  pass over the same clones;
+  A readiness pass can overlap an event-driven pass,
+  so a boot or provider transition can coincide with a second pass
+  over the same clones;
   the per-slot claim keeps it safe,
-  and the cost is one extra pass.
+  at one extra pass.
 - L9.
-  The handler's `Missed N events` line is the only evidence a queue drain happened;
-  if ZED's journal is rotated
-  away,
-  the loss is invisible and only the unanswered intent remains.
+  A drain while ZED holds no cursor is invisible:
+  no `Missed` line exists,
+  and only the unanswered intent and the event
+  ids `zpool events` still lists show it.
 - L10.
-  `doctor` reads no service manager,
+  `doctor` reads no service manager today,
   so a disabled ZED is visible only through the commands it prints unless the
-  person runs them.
+  project reads them;
+  V9 offers the alternative.
 - L11.
   This design's records are per boot,
-  so nothing here can report a loss that happened in a previous boot beyond
-  the live intent and its unanswered state.
+  so no report can name a loss from a previous boot beyond the live intent and its
+  unanswered state.
 - L12.
-  Every number named here is either the merged measurement named in the facts,
-  which a round is changing,
-  or is
-  owed.
-  No number is shipped by this document.
+  Every number here is either the merged measurement F28 names,
+  which an unmerged branch is changing,
+  or is owed.
+  No
+  number ships by this document.
+- L13.
+  The account lever works only while ZED is alive,
+  and the root lever depends on the sibling's `ExecReload=` if it is
+  the reload;
+  without it,
+  `start` after a failed unit and `restart` with its stop pass remain.
+- L14.
+  The route-wide claim narrows the accepted parallel-pass sentence ([proposal][proposal],
+  lines 561 to 562),
+  and the project decides in V4.
 
 ## Choices this design marks for the project's veto
 
 Each entry gives the options,
-a concrete example of what a person would see,
-the pros and cons,
-and a ranking with the
-reason for each adjacent pair.
-The adopted option is first and is what the rest of this document describes.
+a concrete example with an input and the result a person would see,
+pros and cons,
+and a
+ranking with the reason for each adjacent pair.
+The first option is what the rest of the document describes.
 
 ### V1. The ZED handler stays an asynchronous zedlet
 
@@ -2279,572 +2420,891 @@ The adopted option is first and is what the rest of this document describes.
   the installed name keeps no `-sync-` segment.
   Example:
   a sanoid snapshot of a clone writes a history event;
-  ZED forks the handler and reads the next event
-  immediately,
-  and the handler prints `held` or runs its pass.
+  ZED forks the handler and reads the next event at once,
+  and the handler prints nothing a journal holds,
+  and exits after its pass.
   Pro:
-  ZED's event loop keeps draining the queue,
-  so a pass can never fill the queue on its own,
-  and two triggers
-  become one pass through the mark.
+  ZED's event loop keeps reading,
+  so a pass cannot lengthen the queue's exposure through ZED's own loop,
+  and two
+  triggers become one pass through the mark.
   Con:
   up to 16 handlers can be alive at once,
-  so concurrent passes exist and the
-  merge device is needed.
+  and ZED's 16-process ceiling
+  is shared with the distribution's zedlets,
+  so a pass can wait for a slot there (fact F10),
+  which the earlier revision
+  denied.
 - B,
   `history_event-sync-mount_git_worktree_clone_datasets`:
   ZED waits for all its children around that fork.
   Example:
   the same snapshot event;
   ZED waits for the pass to finish before it reads the next event,
-  and a 14-second
-  pass means 14 seconds of no event reading.
+  so a long pass is a
+  long pause in ZED's reading.
   Pro:
   at most one handler at a time,
   so no concurrent passes.
   Con:
-  the pass's duration is added to the queue's
-  drain time,
-  which makes the oldest-event loss more likely under a burst,
-  and `wait_for_children` waits for every
-  child,
-  including unrelated notification zedlets.
+  the pass's duration is added to the time ZED is not
+  reading,
+  which makes a drain more likely under a burst,
+  and `wait_for_children` waits for every child,
+  including
+  unrelated notification zedlets.
 - Ranking:
   A > B,
-  because the loss the design is about is a queue drain,
-  and B lengthens the queue's exposure to make
-  a problem the merge device already solves cheaper.
+  because the loss this design is about is a drain,
+  and B lengthens ZED's exposure to make cheaper a
+  problem the merge device already solves.
 
-### V2. One set of cost records for the route's single parent
+### V2. The event filter's scope, and what an unresolved parent does
 
 - A,
   adopted:
-  one `run/`,
-  one mark and one `recent-starts` for the route,
-  because the route has one pinned parent per
-  boot.
+  accept an event whose pool is the parent's and whose dataset,
+  with any `@snapshot` suffix removed,
+  is the
+  parent or below it;
+  drop everything else with one line and no device open.
+  An unresolved parent passes the event on,
+  so the handler's own checks run and refuse or pass on live facts;
+  it never fails closed.
   Example:
-  the checkout's parent is `zpcachyos/nosnap/monochromatic-git-worktree-clone-datasets`;
-  its clones'
-  triggers share one claim,
-  and a second checkout would report a refused configuration rather than get its own claim.
+  a sanoid snapshot of `zpcachyos/ROOT/cos/home` while clone `one` has an unanswered request is dropped;
+  a
+  `zfs set` on `one` is accepted.
   Pro:
-  one record,
-  one name,
-  no dataset name to escape,
-  and the bound is the decision's "across every clone" in its
-  simplest reading.
+  the bound stays for real requests,
+  and a pass is not spent on another dataset's event.
   Con:
-  a second checkout is unsupported by this design.
+  it gives up the
+  accidental recovery an out-of-scope event would have made (L5),
+  and an unresolved parent costs one gate run.
 - B,
-  per-parent records named by the parent's escaped dataset name.
+  filter by pool only:
+  every `history_event` of the parent's pool passes.
   Example:
-  a second checkout at a second path would get a second `run/` folder whose name encodes
-  `pool/container`,
-  with an escaping grammar of its own.
+  the same sanoid snapshot passes and the pass attaches `one`;
+  an event on another pool is dropped.
   Pro:
-  two checkouts could each pass.
+  keeps that accidental recovery.
   Con:
-  a new name grammar,
-  a new refusal path for a name that does not fit,
-  and a
-  second parent nothing in the route supports today.
+  same-pool events spend the bound and can hold a real request's pass.
+- C,
+  no filter:
+  every event of every pool starts a handler and a pass.
+  Example:
+  every event on every pool starts a pass.
+  Pro:
+  the most recovery.
+  Con:
+  a full pass per event of unrelated datasets and pools.
 - Ranking:
-  A > B,
-  because the route supports one checkout,
-  and a name grammar for a configuration nobody can use yet
-  is a cost with no user.
+  A > B > C,
+  because A keeps the bound for real requests while B lets a snapshot cadence spend it,
+  and B keeps
+  some recovery where C makes every unrelated event a pass.
 
-### V3. Readiness passes are outside the bound and never held
+### V3. Where a waiting command writes its nudge
+
+- C,
+  adopted:
+  one nudge after a delay `D` has passed with no answering receipt,
+  `D` owed to M7.
+  Example:
+  an add writes its intent at 17:30:04,
+  its receipt does not appear,
+  and at 17:30:04 plus `D` the wrapper writes
+  one nudge;
+  a fast add writes none.
+  Pro:
+  one extra event only on a slow wait,
+  and a loss window independent of the intent's own first milliseconds;
+  a fast
+  add pays nothing.
+  Con:
+  `D` is unmeasured,
+  and a wait answered just before `D` still writes one nudge.
+- A,
+  at the start,
+  after the first read:
+  the policy the earlier revision described by mistake,
+  and the one the wait's
+  code does if a nudge is written on its first read.
+  Example:
+  every add writes two events within milliseconds.
+  Pro:
+  simplest,
+  and no timer to size.
+  Con:
+  doubles every add's events and shares the intent's loss window,
+  so it barely
+  widens recovery.
+- E,
+  none:
+  T4 does not exist.
+  Example:
+  a lost intent event is recovered by T1's next event,
+  T2,
+  T3 or T5 only.
+  Pro:
+  one event per add,
+  nothing to bound.
+  Con:
+  the answer's own trigger set loses one of its three,
+  and a caller has
+  only its deadline.
+- D,
+  at the deadline:
+  one nudge when the wait gives up.
+  Example:
+  an add times out at 17:30:34 and writes its nudge as it reports,
+  which may attach the clone after the add has
+  failed.
+  Pro:
+  no cost on any wait that succeeds.
+  Con:
+  it arrives when the caller has already been told the add failed.
+- Ranking:
+  C > A > E > D,
+  because C keeps recovery while sparing fast waits,
+  A recovers little for twice the events,
+  E
+  drops a recorded trigger where A at least keeps it,
+  and D helps only after the failure it exists to prevent.
+
+### V4. Whether event-driven passes are exclusive route-wide
 
 - A,
   adopted:
-  `boot-reconcile` from the boot unit and from the provider hook never takes `run/`,
+  one run claim for the route,
+  so one event-driven pass at a time,
+  and a contender marks instead of running.
+  Example:
+  two nudges a second apart:
+  the second marks and exits 2,
+  and the first pass runs a second pass.
+  Pro:
+  bounded passes and coalescing,
+  which is this item's task.
+  Con:
+  it narrows the accepted "parallel handlers can
+  sweep at once" ([proposal][proposal],
+  lines 561 to 562),
+  and a long pass makes every other event wait for the next trigger.
+- B,
+  per slot only:
+  no run claim,
+  so every trigger runs a pass and only the per-slot claim serializes them.
+  Example:
+  two nudges a second apart run two passes at once,
+  each attaching different clones.
+  Pro:
+  the accepted behaviour stands,
+  and no pass waits for another.
+  Con:
+  no coalescing and no bound:
+  N triggers are N
+  passes,
+  which is the cost this item exists to answer.
+- Ranking:
+  A > B,
+  because the item's task is the coalescing B does not give,
+  and A's narrowing is offered for the
+  project's veto rather than assumed.
+
+### V5. Whether readiness passes are outside the bound
+
+- A,
+  adopted:
+  `boot-reconcile` from the boot unit or its reload never takes the run claim,
   never reads or writes
   `recent-starts`,
   and is never held.
   Example:
-  a caller whose checkout key was loaded late sees readiness published by the provider's pass,
-  and is admitted
-  on its next attach,
-  even if the bound was exhausted a second earlier.
+  a late key load,
+  with the bound spent a second earlier:
+  the reloaded unit publishes readiness and attaches
+  the clone.
   Pro:
-  a cost rule can never decide whether callers are admitted,
+  a cost rule never decides whether callers are admitted,
   and a boot always publishes readiness.
   Con:
-  two
-  passes can overlap,
-  and a hooked boot runs two passes.
+  two passes
+  can overlap,
+  and a hooked boot runs one extra action.
 - B,
   readiness passes inside the bound and holdable.
   Example:
-  the same late key,
-  with the bound exhausted:
-  readiness stays `not-ready`,
-  and every caller is refused until
-  a trigger the bound admits runs.
+  the same late key with the bound spent:
+  readiness stays unpublished and every caller is refused until an
+  admitted trigger runs.
   Pro:
   one number covers all root work.
   Con:
-  a cost rule becomes an availability rule,
-  and a boot can end with no
-  readiness record at all.
+  a cost rule becomes an availability rule.
 - Ranking:
   A > B,
-  because availability must not depend on a limit whose number is not yet measured,
-  and the cost of A
-  is one measured pass per transition.
+  because availability must not depend on a limit whose number is not yet measured.
 
-### V4. The mark, the second attempt and the one-extra-pass cap
+### V6. The cost records' shape
 
 - A,
   adopted:
-  the taker removes the mark on entry,
-  runs one pass,
-  releases,
-  and runs at most one more pass if a mark
-  appeared;
-  a handler that fails the claim marks and tries the claim once more;
-  a mark left after the second pass
-  stands for the next trigger.
+  one folder,
+  `/run/git-worktree-clone-mount-sweeps`,
+  holding `run.<generation>`,
+  `another-pass-is-due`
+  (content `v1`) and `recent-starts`.
   Example:
-  two nudges during a pass produce one extra pass,
-  and a third nudge during that extra pass waits for the next
-  trigger.
+  `ls -l` shows the generations,
+  the mark and the starts file,
+  all root-owned,
+  the two files `0644` so the
+  account's `doctor` can read them.
   Pro:
-  no waiting,
-  a bounded number of passes per trigger,
-  and a proof that a mark always has an attempt behind it.
+  per boot,
+  no migration,
+  no configuration,
+  and the numbered claim ignores the other names by its own rule (F22).
   Con:
-  the residual window in L3,
-  and one more claim call on the contended path.
+  names a person may wonder about,
+  which `doctor` answers.
 - B,
-  a queue:
-  a handler that fails the claim waits for the claim and then passes.
+  a subfolder for the generations and the mark beside it.
   Example:
-  ten nudges during a pass produce ten queued passes,
-  run one after another after the first.
+  the same names,
+  with `run/1` inside a folder of its own.
   Pro:
-  every nudge is answered without waiting for a new trigger.
+  the claim's folder holds only its names.
   Con:
-  processes wait,
-  which the repository's
-  concurrency rule forbids without a recorded reason,
-  and ten passes cost ten times the measured pass.
+  an extra level whose reason an earlier revision got wrong,
+  because
+  the claim already ignores other names.
+- C,
+  the mark inside the readiness record and the starts inside the receipts folder.
+  Example:
+  a `pass_due` field in readiness and a file per start under the receipts folder.
+  Pro:
+  two folders instead of one.
+  Con:
+  a published record changes format for a cost device,
+  and counting starts needs
+  a listing.
 - Ranking:
-  A > B,
-  because B reintroduces waiting and multiplies the cost the rule exists to bound.
+  A > B > C,
+  because A needs no subfolder for a reason the code does not require,
+  and C changes a format and
+  adds a listing.
 
-### V5. A cost record that cannot be read never refuses a pass
+### V7. A cost record that cannot be read never refuses a pass
 
 - A,
   adopted:
   an unreadable claim folder,
-  mark or start record is reported and the pass continues.
+  mark or starts record is reported and the pass continues.
   Example:
-  `run/` replaced by a file:
-  the handler prints that the cost device could not be read,
+  `recent-starts` corrupt:
+  the handler prints that the bound was not applied,
   passes,
-  attaches the
-  clone,
-  and files its receipt.
+  attaches,
+  and files its
+  receipt.
   Pro:
   the device cannot become an availability bug,
-  and the route's safety still rests on the per-slot claim.
+  and safety stays with the per-slot claim.
   Con:
-  a
-  corrupt record can let passes run unbounded until it is fixed.
+  a corrupt record
+  lets passes run unbounded until it is fixed.
 - B,
   refuse the pass when a cost record is unreadable.
   Example:
-  the same replacement:
-  the caller is refused,
-  the clone stays unmounted,
-  and `doctor` reports the record.
+  the same corrupt file:
+  the caller is refused and the clone stays unmounted.
   Pro:
   the bound is never silently unenforced.
   Con:
-  a file in `/run` decides whether a worktree is available,
-  which is
-  a bigger failure than the cost the file bounds.
+  a file in `/run` decides whether a worktree is available.
 - Ranking:
   A > B,
-  because the device is cost and the per-slot claim is safety,
-  so the failure of the cost device must
-  not take the safety path's availability with it.
+  because the device is cost and the per-slot claim is safety.
 
-### V6. The three cost records' names and place
+### V8. Where a ZED-started handler's decisions are recorded
 
 - A,
   adopted:
-  `/run/git-worktree-clone-mount-sweeps` holding `run/`,
-  `another-pass-is-due` and `recent-starts`.
+  the handler writes its own lines to journald as well as to standard error,
+  through the crate's journald
+  writer,
+  so a ZED-started pass's filter,
+  held and refusal lines are readable.
   Example:
-  `ls -l` on the folder shows the three names,
-  all root-owned,
-  the two files `0644` so `doctor` can read them.
+  a held event leaves `held: the cost rule allowed 4 starts in 600 seconds` in
+  `journalctl -u zfs-zed.service`,
+  beside ZED's `Finished ... exit=2` line.
   Pro:
-  per boot,
-  cleared with the boot,
-  beside the receipts and readiness folders,
-  no migration,
-  no configuration,
+  the decisions are visible where the trigger is.
+  Con:
+  a journal write per decision,
+  and the fields must not leak
+  beyond the clone and the record names.
+- B,
+  a root-owned decisions record under `/run` that the handler appends to and `doctor` reads.
+  Example:
+  the same held event leaves a line in `/run/git-worktree-clone-mount-decisions`,
+  which `doctor` prints.
+  Pro:
+  the account can read it.
+  Con:
+  a new record family with its own format,
+  bound and `doctor` line.
+- C,
+  stderr only,
+  as today.
+  Example:
+  the same held event leaves nothing;
+  only ZED's `exit=2` line exists.
+  Pro:
+  no code.
+  Con:
+  the pass's own words are unreachable,
+  which is what the review found.
+- Ranking:
+  A > B > C,
+  because A puts the line where the trigger already is,
+  B needs a new format for the same fact,
   and
-  names that say what each holds.
-  Con:
-  three new names in `/run` that a person may read and wonder about,
-  which
-  `doctor` answers.
-- B,
-  the mark inside the readiness record and the starts inside the receipt folder.
-  Example:
-  a `pass_due` field in the readiness record and a file per start under the receipts folder,
-  named by a
-  timestamp.
-  Pro:
-  two folders instead of three.
-  Con:
-  a readiness record that changes format for a cost device,
-  and a folder of
-  start files that must be listed to count,
-  which is the listing the slot store's answer avoids.
-- Ranking:
-  A > B,
-  because B changes a published format and adds a listing,
-  and A adds names only.
+  C leaves an operator with an exit status and no reason.
 
-### V7. The merge device and the rate rule land together in step 22
+### V9. Whether `doctor` reads the service manager
 
 - A,
   adopted:
-  both are built in step 22,
-  with the measured `B` and `P`.
+  `doctor` prints the `systemctl --no-ask-password` commands and reads no manager.
   Example:
-  after step 22,
-  `doctor` prints `2 of 4 starts used in the last 600 seconds`;
-  before it,
-  it prints that the
-  rule is not in force because its measurement is owed.
+  the lost-event block prints `systemctl is-enabled zfs-zed.service` and `systemctl is-active zfs-zed.service`.
   Pro:
-  no provisional limit ships,
-  rule `LQM` and the decision are satisfied,
-  and the record's shape is built with the
-  number it holds.
+  no bus,
+  no authorization,
+  no prompt.
   Con:
-  until step 22,
-  a nudge burst is unthrottled and the merge device's second pass is the only
-  bound.
+  the report cannot say whether ZED is enabled without the project
+  running the command.
 - B,
-  build the merge device earlier with a provisional bound,
+  `doctor` reads the unit properties over the system bus,
+  read-only.
+  Example:
+  the same report says `zfs-zed.service: disabled, inactive`.
+  Pro:
+  one report,
+  no command.
+  Con:
+  a bus call and its failure modes in a report that today needs none.
+- Ranking:
+  A > B,
+  because the plan's step 18 checks ZED and service wiring and a printed command is the smallest way to
+  keep that check without a new authority.
+
+### V10. Whether a lost event is a finding or an error status
+
+- A,
+  adopted:
+  a finding,
+  with the exit status the command already uses for a report.
+  Example:
+  `doctor` prints the lost-event block and exits as it does for a hook it lists.
+  Pro:
+  a state that is expected and recoverable does not read as a tool failure.
+  Con:
+  a script cannot tell it from a
+  report with no findings by status alone.
+- B,
+  the error status 2.
+  Example:
+  the same report exits 2.
+  Pro:
+  a script sees it.
+  Con:
+  the route's own recoverable state becomes an error.
+- Ranking:
+  A > B,
+  because the route expects this state and prints its levers.
+
+### V11. The timeout text points at `doctor` instead of reading the cost records
+
+- A,
+  adopted:
+  the timeout's fixed sentence names the possibility of a held pass and the `doctor` report,
+  and the wait
+  reads no cost record.
+  Example:
+  a held add's report ends with "a pass can be held back by the route's cost rule;
+  `doctor` reports the last
+  starts and whether a pass is due".
+  Pro:
+  no read on the waiting path,
+  whose first read the step 7 measurement timed at 36 to 64 microseconds (F30).
+  Con:
+  the report cannot say the rule is why this wait ended.
+- B,
+  read `recent-starts` on the timeout and name the rule as the cause.
+  Example:
+  the same report says "the cost rule allowed 4 starts in 600 seconds,
+  and this trigger was held".
+  Pro:
+  the actual cause.
+  Con:
+  a root-owned record gains a reader on a path every timeout takes,
+  and the sentence changes
+  when the numbers do.
+- Ranking:
+  A > B,
+  because the held case is rare and `doctor` exists for the explanation.
+
+### V12. Which step builds the device and the rule
+
+- A,
+  adopted:
+  the merge device and the mark in step 19,
+  with the zedlet and the units;
+  `recent-starts` and the number in
+  step 22.
+  Example:
+  after step 19 a held event prints `held`;
+  after step 22 `doctor` prints how many of `B` starts remain.
+  Pro:
+  the coalescing exists as soon as ZED does,
+  and the number still waits for its measurement (rule `LQM`).
+  Con:
+  the
+  plan's step 19 gains code the plan did not assign it.
+- B,
+  both in step 22.
+  Example:
+  from step 19 to step 22 every event runs its own pass.
+  Pro:
+  one step owns the device and its record.
+  Con:
+  the cost the item exists for stands until step 22.
+- C,
+  the device in step 19 with a provisional bound,
   as step 7 shipped a provisional deadline.
   Example:
-  before step 22,
-  `doctor` prints `4 of 4 starts used in the last 600 seconds` from a provisional `B`.
+  from step 19 a provisional `B` holds passes.
   Pro:
-  the bound exists as soon as step 19 enables ZED.
+  a bound exists early.
   Con:
-  the shipped number would rest on no measurement,
-  which the
-  decision's own sentence forbids and the deadline's precedent does not cover,
-  because a wait needs some deadline and a
-  bound needs a measured cost.
+  a shipped limit with no measurement,
+  which the decision forbids.
 - Ranking:
-  A > B,
-  because the deadline had to exist for the wait to compile,
-  and the bound does not.
-
-### V8. The timeout text points at `doctor` instead of reading the cost records
-
-- A,
-  adopted:
-  the timeout's fixed sentence names the possibility of a held pass and the
-  `doctor` report that explains it,
-  and the wait reads no cost record.
-  Example:
-  a held add's report ends with
-  "a pass can be held back by the route's cost rule;
-  `doctor` reports the last starts and whether a pass is due".
-  Pro:
-  the waiting path gains no read,
-  so the latency the step 7 measurement recorded stays what it is,
-  and the sentence cannot go stale against a number that has not shipped.
-  Con:
-  the report cannot say that the bound is why this particular wait ended.
-- B,
-  read `recent-starts` on the timeout and name the bound as the cause.
-  Example:
-  the same report says
-  "the cost rule allowed 4 starts in the last 600 seconds,
-  and this request's trigger was held".
-  Pro:
-  the report names the actual cause of that wait.
-  Con:
-  a root-owned record gains a trusting reader on a path every wait takes,
-  and the sentence changes shape when step 22's numbers change.
-- Ranking:
-  A > B,
-  because the held case is rare and `doctor` exists for the explanation,
-  while every normal wait would pay B's read.
+  A > B > C,
+  because A gets the coalescing when ZED arrives and keeps the number measured,
+  B leaves the cost
+  unbound until step 22,
+  and C ships an unmeasured limit.
 
 ## Questions only the project can answer
 
-### Q1. Which trigger runs after the checkout becomes ready
+### Q-A. Which trigger runs after the checkout becomes ready, and what may a refusal of it do to the mount provider?
 
-- A,
-  recommended:
-  the drop-in `ExecStartPost=` on `zfs-mount.service`,
-  running `boot-reconcile`.
+Context:
+the proposal obliges the checkout provider to trigger reconciliation after post-key-load readiness
+([proposal][proposal],
+lines 546 to 550).
+On this host the provider is `zfs-mount.service`,
+a oneshot that stays active;
+its start on an active unit does nothing (F15);
+the boot unit requires it (F17);
+and `boot-reconcile` refuses with exit
+2 whenever the key,
+the checkout or this boot's probe record is not ready (F19,
+F16).
+
+- A.
+  A direct drop-in `ExecStartPost=-.../mount-git-worktree-clone-datasets boot-reconcile` on `zfs-mount.service`,
+  with the dash prefix.
   Example:
-  a person loads the pool's key and runs `systemctl start zfs-mount.service`;
-  the drop-in runs the handler,
-  readiness turns `ready`,
-  and a waiting add's clone is attached with no further caller.
+  at boot the hook refuses because no probe record exists for this boot;
+  the journal under `zfs-mount.service`
+  shows exit 2 and the provider stays active;
+  `zfs mount -a` also runs the pass only if it exits zero,
+  and the hook lands
+  before `local-fs.target`.
+  At 09:00 a `systemctl restart zfs-mount.service` re-fires it,
+  restarting the boot unit too,
+  whose stop pass unmounts every clone before the hook's pass re-attaches them.
   Pro:
-  uses the unit this host already mounts with,
-  adds one drop-in file,
-  changes no mount path,
-  and fires at boot and
-  on every later run of that unit.
+  one drop-in file,
+  no `systemctl` call from a unit,
+  no dependency on another design.
   Con:
-  a checkout mounted by a person's `zfs mount` fires nothing,
-  a hooked boot runs
-  two passes,
-  and a `.mount` unit cannot carry the hook.
-- B,
-  a `.mount` unit for the checkout,
-  with a companion `reconcile-…-on-checkout-ready.service` bound to it.
+  it refuses at every boot;
+  it is skipped when `zfs mount -a` fails;
+  it adds the pass to the boot's critical path;
+  `start` does nothing and
+  `restart` unmounts every clone first.
+- B.
+  A drop-in `ExecStartPost=-/usr/bin/systemctl --no-block --no-ask-password reload-or-restart
+  reconcile-git-worktree-clone-mounts.service`,
+  with the boot unit gaining `ExecReload=<handler> boot-reconcile`.
+  Example:
+  the same 09:00 lever is `systemctl --no-ask-password reload reconcile-git-worktree-clone-mounts.service`:
+  the pass runs in the
+  unit's namespace and journal,
+  nothing unmounts.
+  At boot the hook only enqueues the unit the boot starts anyway.
+  Pro:
+  the provider is never failed;
+  nothing on the critical path;
+  one owner for ordering,
+  probe,
+  namespace and journal;
+  a supported lever for the project.
+  Con:
+  a `systemctl` call from a unit's start is unprobed (A9);
+  each unit state needs
+  a guest arm;
+  it depends on the sibling's `ExecReload=` choice.
+- C.
+  A `.mount` unit for the checkout with a companion unit bound to it.
   Example:
   the same key load,
-  but the checkout is mounted by its own unit;
-  systemd starts the companion,
-  which runs
-  `boot-reconcile` and attaches the clone.
+  with the checkout mounted by its own unit,
+  whose companion runs `boot-reconcile`.
   Pro:
-  fires on every activation of the checkout mount,
-  whichever root or unit mounts it through systemd,
-  and gives the
-  checkout a unit state `doctor` can read.
+  fires on every activation of the checkout mount and gives the checkout a unit state.
   Con:
-  it changes how the checkout is provided,
-  needs the checkout excluded
-  from `zfs mount -a` so two mounters do not race,
-  and touches the accepted boot-protection decisions.
-- C,
-  no hook;
-  the person's command only.
+  changes how the checkout
+  is provisioned,
+  needs the checkout excluded from `zfs mount -a`,
+  and belongs to the boot-protection decision the plan
+  leaves conditional.
+- D.
+  No hook;
+  the printed levers only.
   Example:
   the same key load,
-  with `doctor` printing the root `boot-reconcile` command and the clone staying unmounted
-  until somebody runs it.
+  with no trigger;
+  the project reads `doctor` and runs the reload.
   Pro:
-  no new unit,
-  no new install step,
-  and the fewest moving parts.
+  nothing new.
   Con:
-  the proposal's obligation for a
-  post-key-load reconciliation is unmet,
-  and the route depends on a person's memory.
+  the proposal's obligation is unmet.
+- Ranking:
+  B > A > C > D,
+  because B meets the obligation with the unit that already owns the order and never fails the
+  provider,
+  A meets it at a boot refusal and a critical-path pass,
+  C meets it by changing the checkout's provisioning,
+  and D does not meet it.
+- The review's own ranking is the same;
+  its option C and D are this question's C and D.
+
+### Q-B. Does "moot" accept that a lost last event with nobody waiting may stay unrecovered until the next trigger, up to the next boot?
+
+- A.
+  Yes:
+  no time bound;
+  `doctor` names the state and prints the levers.
+  Example:
+  an add at 17:30:04 with ZED stopped times out at 17:30:34;
+  the machine stays up nine days;
+  the clone stays
+  unmounted until a boot,
+  a provider start or a lever the project fires.
+  Pro:
+  matches "Periodic reconciliation without a waiter is not part of this route" ([proposal][proposal],
+  lines 537 to 539) and costs
+  nothing.
+  Con:
+  a request the account made can wait for days.
+- B.
+  No:
+  the wrapper adds a trigger it controls.
+  Whenever a managed command runs in a repository that holds a clone with
+  an unanswered request,
+  it writes that clone's nudge,
+  which is not a timer.
+  Example:
+  the next `git status` in the repository at 17:41 writes the nudge and the clone is attached a second later.
+  Pro:
+  "we control the triggers" taken literally,
+  and recovery follows the project's own activity.
+  Con:
+  every Git
+  command pays a device open and a property read,
+  unmeasured,
+  and couples every Git call to the ZFS gate.
+- C.
+  No:
+  a timer.
+  Example:
+  a unit every ten minutes runs the pass,
+  so the clone is attached within ten minutes.
+  Pro:
+  bounded recovery.
+  Con:
+  reverses the recorded decision and needs the coalescing and rate rule to keep its own cost.
 - Ranking:
   A > B > C,
-  because A meets the obligation with the unit this host actually uses and no change to how the
-  checkout mounts,
-  B meets it too but changes the checkout's provisioning and so belongs to a larger design,
-  and C
-  leaves the obligation to a person.
+  because A matches the record and costs nothing,
+  B adds a trigger the project controls without
+  reversing the decision but at an unmeasured price on every Git call,
+  and C reverses a recorded sentence.
+- This question is the review's Q-B,
+  kept in its words.
 
-### Q2. May the cost rule hold back a pass while a caller waits
+### Q-C. May the cost rule hold back a pass while a caller waits?
 
-- A,
-  recommended:
-  yes,
-  the bound applies to every event- and nudge-driven pass,
-  and the caller's deadline reports the
-  possibility.
+- A.
+  Yes,
+  every event- or nudge-driven pass over the bound is held,
+  and the deadline names the possibility.
   Example:
-  with a candidate bound of three passes in ten minutes already spent,
-  four callers add at once;
-  the fourth waits,
-  its clone is attached at the
-  next admitted trigger,
-  and its report says a pass was held back and names `doctor`.
+  the window is spent and four adds start at once;
+  the fourth times out and its clone attaches at the next
+  admitted trigger.
   Pro:
-  the bound is simple and applies to the case it is for,
-  a burst;
-  the caller's request is durable and its mount
-  happens later.
+  simple and applies to the burst it is for;
+  the request is durable.
   Con:
-  a caller can time out because of the bound rather than because of a slow mount.
-- B,
-  no bound until it can be proved never to hold a requested pass.
+  noise can time out a real caller.
+- B.
+  No bound at all.
   Example:
-  the same four callers,
-  all served at once,
-  with four passes running.
+  the same four adds are all served,
+  and a shell loop writing the nudge property runs a pass per write.
   Pro:
-  no caller ever times out because of a limit.
+  no caller is ever held.
   Con:
-  no bound can distinguish a waiting caller's nudge from any
-  other write,
-  so B is in practice "no bound",
-  which is the state the decision asks to end.
-- C,
-  no bound at all;
-  the trigger set is the whole answer.
+  the decision's cap is not shipped.
+- C.
+  Bound only passes whose event names a clone with no unanswered request.
   Example:
-  the same four callers,
-  plus a shell loop writing the property,
-  which runs a pass per write.
+  the window is spent;
+  an add of clone `one` writes its intent,
+  the handler reads `one`,
+  finds it unanswered and
+  runs;
+  a shell loop on clone `two`,
+  with nothing pending,
+  is held after the first passes.
   Pro:
-  the fewest parts.
+  a waiting caller is not timed out by noise,
+  and it fits "bound the work of one sweep" ([proposal][proposal],
+  lines 575 to 578).
   Con:
-  the decision's sentence that a bound must ship after measurement is not carried out,
-  and
-  a loop spends root's time with nothing to stop it.
+  one clone read before the decision,
+  unmeasured;
+  a loop on a clone with a pending request is not bounded,
+  which the
+  threat model accepts;
+  and an event that names no clone needs a rule.
 - Ranking:
-  A > C > B,
-  because A bounds the cost while keeping every request durable,
-  C leaves the measured cost
-  unbounded where the decision asked for a bound,
-  and B cannot be implemented as stated and would be C with more words.
+  C > A > B,
+  because C keeps a real caller moving where A can time it out on noise,
+  and A ships the decision's
+  cap where B drops it.
+- This is the review's Q-C,
+  with its added option C.
 
-### Q3. Who may fire a trigger by hand, and what `doctor` prints
+### Q-D. What may nudges cost root, in which unit?
 
-- A,
-  recommended:
-  `doctor` prints both commands,
-  the root `boot-reconcile` and the account's `zfs set` nudge,
-  and runs
-  neither.
+Context:
+the in-flight branch measures a steady sweep at about 0.3 to 0.4 seconds for 64 children and about 20 seconds for
+4,096 (F34,
+unmerged),
+so a pass's cost varies by orders of magnitude with the clone count.
+
+- A.
+  A budget of pass time per window,
+  in seconds,
+  sized from the measured pass duration.
   Example:
-  the lost-event report above,
-  whose last lines are the two commands;
-  the account copy-pastes the `zfs set`
-  line and its clone is attached by the next pass.
+  with 64 clones a budget of a few seconds per window admits many passes;
+  with 4,096 clones the same budget
+  admits one.
   Pro:
-  the no-waiter case has a lever a person can always use,
-  and the account already holds `userprop`,
-  so printing
-  the line adds no capability.
+  bounds the resource the passes actually spend.
   Con:
-  a printed `zfs set` line invites a loop,
-  which is the cost the bound bounds.
-- B,
-  only the root command is printed.
+  a pass's duration must be known before it runs,
+  or the budget
+  is charged after the fact.
+- B.
+  A count of passes per window.
   Example:
-  the report prints the `boot-reconcile` line and says nothing about a nudge.
+  the same count admits 4,096-clone passes back to back and holds 64-clone passes that cost almost nothing.
   Pro:
-  one lever,
-  and no invitation to write the property by hand.
+  simple to count and to read in `doctor`.
   Con:
-  an account that cannot use `sudo` at that
-  moment has no lever,
-  and the nudge stays an undocumented capability.
-- C,
-  neither is printed;
-  the report names the triggers and the journal.
+  cost and count diverge by orders of magnitude.
+- C.
+  Leave the unit to step 22's measurement.
   Example:
-  the report says the next trigger is a ZED event and gives `journalctl` lines only.
+  `doctor` says the rule is not in force until the measurement exists.
   Pro:
-  `doctor` stays a report.
+  no shape decided here.
   Con:
-  the no-waiter case has no person's lever,
-  and the answer's "we control the
-  triggers" reaches only the units.
+  this design's task is the shape,
+  and C defers it.
 - Ranking:
   A > B > C,
-  because A gives the person the lever the decision's premise assumes while adding no authority,
-  B gives one lever at the price of hiding an existing capability,
-  and C leaves the no-waiter case to time.
+  because A bounds what is spent where B bounds a poor proxy for it,
+  and B still gives step 22 a
+  shape where C gives none.
+- This is the review's Q-D,
+  kept in its words.
 
 ## Dependencies on other designs and on the plan
 
 - D1.
-  The provider hook's installation,
-  the checkout dataset and the propagation it needs are plan step 19's and the
-  sibling design "What re-applies private propagation after a replacement mount".
-  This design assumes the propagation
-  is applied by whatever mechanism that design names before a readiness pass sweeps,
-  and the hook's pass refuses with
-  the checkout field when it is not,
-  as the readiness check does today.
+  The propagation sibling ([sibling propagation][sibprop]).
+  It proposes `ExecReload=<the same handler> boot-reconcile` on the boot unit as its veto choice V4 and names
+  `systemctl reload` as its manual lever (lines 1269 to 1290 and 1955 to 1965),
+  and this design's Q-A option B and T5 use
+  that line;
+  if its V4 is vetoed,
+  Q-A's ranking changes and T5 loses the reload.
+  It also assumes the provider hook runs `boot-reconcile` (its A3 and dependency list,
+  lines 2151 to 2155),
+  which this
+  design's Q-A option B does not do directly:
+  it asks the unit whose `ExecStart` runs it.
+  No record decides which shape
+  the proposal's obligation takes,
+  and the two documents differ there rather than contradicting each other.
+  Its propagation step at the head of both entry points replaces this design's earlier assumption that a readiness pass
+  refuses with the checkout field when the propagation is not set;
+  a pass that sets it does not refuse for that reason.
 - D2.
-  The add route's nudge call is step 10's,
-  and the removal's is step 14's.
-  This design assumes both write one nudge
-  per wait with a fresh nonce,
-  and nothing else.
+  The forced-removal sibling ([sibling forced][sibforced]) assumes "each removal request is one nudge-shaped property
+  write" and that the handler may "coalesce sweeps without merging two nonces" (its D5,
+  lines 1789 to 1790).
+  This design
+  writes the intent and,
+  under V3,
+  one nudge per wait,
+  and its rule can hold a removal's pass as it holds any other.
+  The
+  sibling's assumption is narrower than this design;
+  no record decides whether a destructive step's pass is exempt,
+  and
+  Q-C's option C is the nearest thing to an exemption this design offers.
 - D3.
-  The remedy for a registered but unmounted slot after a timeout is the add route's:
-  whether a re-run add adopts
-  the slot or refuses it is step 10's design,
-  and this design only reports the state `doctor` shows.
+  The cancelled-removal sibling ([sibling cancelled][sibcancelled]) lists "a later sweep nudge on that clone" among its
+  triggers (line 974).
+  This design writes a nudge only inside a wrapper wait or by T5,
+  so that trigger exists only if a
+  later command waits on that clone,
+  and the sibling's sentence should say so.
 - D4.
-  The unmount half of an `unmount` intent is step 9's,
-  and this design's triggers recover a lost `unmount` event
-  the same way they recover a `mount` event;
-  what the unmount then does is that step's.
+  The add route's nudge call is step 10's,
+  and the removal's is step 14's;
+  this design assumes both follow V3 and nothing
+  else.
 - D5.
-  A cancelled or interrupted removal's state,
-  and what its cancel command proves,
-  are the sibling designs of those
-  items.
-  This design reports a standing `unmount` intent as `doctor` sees it and does not interpret it.
+  The remedy for a registered but unmounted slot after a timeout is step 10's,
+  and this design only reports the state
+  `doctor` shows.
 - D6.
-  The slot identity store's per-slot records and their `doctor` findings are already accepted,
-  and this design
-  reuses the claim and the publish pattern without changing either.
+  The unmount half of an `unmount` intent is step 9's,
+  and this design's triggers recover a lost `unmount` event the same
+  way as a `mount` event;
+  what the unmount does is that step's.
 - D7.
-  The plan needs three edits after acceptance:
-  the four shipped sentences that name step 10 for `doctor` (F30),
-  the step 7 and step 22 "Open items" sentences and the open-item entry,
-  and the "Gaps" list,
+  The cost branch `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `d97a683346` is unmerged and
+  unreviewed and changes the figures F28 cites (F34).
+  No argument here needs either set to be final:
+  L12 says so,
+  and F28
+  and F34 are cited as existence,
+  not as a settled cost.
+- D8.
+  The plan edits owed after acceptance:
+  the four shipped sentences naming step 10 for `doctor` (F29);
+  the step 7 and step
+  22 "Open items" sentences and the open-item entry's "steps 7 and 22" line;
+  the "Gaps" list,
   which gains the cost
-  record family of V6.
-  This design makes none of them.
+  record family;
+  step 19's build list,
+  which gains the filter,
+  the device and the mark (V12's option A);
+  and step 22's
+  "no existing constant changes" line,
+  which gains `recent-starts` and the rule.
+- D9.
+  The `SPEC.md` edits owed:
+  a section for the three cost records and their modes and bounds;
+  the timeout sentence of
+  V11;
+  the filter's line in the default invocation;
+  and the handler paragraph's note that a held or filtered run exits
+  2.
+- D10.
+  Siblings that state no dependency on this design and gain none from it:
+  the add-time Git lock (whose own note says
+  the trigger design "gains one action,
+  not one trigger" if that design's Q1 is A),
+  the add binding record (which says the two
+  "share no fact"),
+  the origin cleanup record (which only quotes the answer),
+  the dirty-main restore (which "adds no
+  trigger of its own"),
+  the deferred-destroy checks (no mention),
+  and the removal plan record (whose sweep-trigger
+  sentence is T1's).
 
 ## What this design does not cover
 
-The pass's own checks and its order (step 8's),
+The pass's own checks and order (step 8's),
 the unmount and staging (step 9's),
-the add route's registration and
-fill (step 10's),
+the add route's registration and fill
+(step 10's),
 the dirty-main restore (step 11's),
 the managed lock (step 13's),
 removal (steps 14 to 17),
-the rest
-of `doctor` (step 18's),
-the migration,
-the units' full bodies and the zfs delegation (step 19's),
+the rest of
+`doctor` (step 18's),
+the migration and the units' full bodies (step 19's),
 sanoid (step 20's),
-dependency repair (step 21's),
+dependency repair (step
+21's),
 the numbers (step 22's) and the host-kernel qualification (step 23's).
-It does not design
-a timer,
-a periodic reconciliation,
+It does not design a timer,
+a periodic
+reconciliation,
 a queue of requests,
 or a second checkout.
-It does not design the start probe's
-record,
-and it reads that record's absence as a refusal by the pass,
+It does not design the start probe's record;
+it reads an
+absent one as a refusal,
 which is that design's answer.
 
 ## Sources read
 
 - `doc/decision/cli-git-zfs-worktree-design.md`,
   whole file.
+- `doc/decision/cli-git-zfs-start-probe.md`,
+  whole file,
+  and `doc/planning/cli-git-zfs-start-probe-design.md`,
+  "Who runs
+  it,
+  and where".
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   "ZED reconciliation and mount safety",
   "Boot and shutdown
   unit",
   "Requests,
   results and ordering",
-  "Descriptor mount and unmount",
   "Waiting and refusal",
   "Scoped delegation",
-  "Project decisions" (the lost-last-event entry),
+  "Project decisions" (the
+  lost-last-event entry),
   "Open items the decisions leave",
-  "Acceptance tests the build still
-  owes" (the boot and ZED bullets).
+  "Acceptance tests the build still owes".
 - `doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
   steps 7,
   8,
@@ -2853,27 +3313,32 @@ which is that design's answer.
   18,
   19,
   22,
-  the open-item list and
-  the gaps list.
+  the open-item list and the
+  gaps list.
 - `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-  whole file.
-- `doc/decision/cli-git-zfs-slot-identity-store-format.md`,
-  whole file.
-- `doc/decision/cli-git-zfs-staging-under-cache.md`,
-  "The handle record's place".
+  `doc/decision/cli-git-zfs-slot-identity-store-format.md` and
+  `doc/decision/cli-git-zfs-staging-under-cache.md` ("The handle record's place"),
+  whole sections named.
 - `package/git-policy/cli/SPEC.md`,
   "Management grammar",
   "Doctor",
   "The clone's mount intent,
   receipts and
-  readiness",
-  and the credential paragraph.
+  readiness" and the credential paragraph.
 - `package/git-policy/cli/doc/zfs-mount-receipt-deadline-measurement-2026-11-21.md`,
   whole file.
-- `package/git-policy/cli/src/native/worktree_clone_mount_protocol/`,
+- `package/git-policy/cli/src/native/` files the facts name,
+  under `worktree_clone_mount_protocol/`,
   `worktree_clone_mount_handler/`,
-  `lock/single_owner_claim.rs` and `binary/binary_zfs_sweep_guest_tests.rs`,
-  the files the facts name.
+  `lock/` and `binary/`.
+- Sibling design documents,
+  with `git show <branch>:<path>`:
+  the private propagation,
+  forced removal,
+  cancelled or
+  interrupted removal,
+  add-time lock,
+  add binding record and dirty-main restore documents.
 - OpenZFS at `zfs-2.4.4`:
   `cmd/zed/zed.c`,
   `cmd/zed/zed_event.c`,
@@ -2888,21 +3353,32 @@ which is that design's answer.
 - systemd at `v262`:
   `man/systemd.unit.xml`,
   `man/systemd.service.xml`,
-  `man/systemd.mount.xml`.
-- This host's `/usr/lib/systemd/system/zfs-mount.service`,
-  `/usr/lib/systemd/system/zfs-zed.service`,
+  `man/systemd.mount.xml`,
+  `man/systemd.kill.xml`,
+  `man/systemctl.xml`,
+  `src/core/unit.c`,
+  `src/core/service.c`,
+  `src/core/kill.h`.
+- This host's unit files,
   `/etc/default/zfs`,
   and the read-only probes listed in "Facts".
 
 ## Revisions
 
-- 2026-11-22T17:29:03-05:00,
-  written by an agent:
+- 2026-11-22T17:29:03-05:00:
   the first version,
   unapproved and non-final,
-  carrying this session's two coordinator corrections
-  (the provider section names what the project installs or decides and where each part is recorded,
-  and the acting-manager and signalling boundaries are stated).
+  with the brief's two coordinator
+  corrections folded in.
+- 2026-11-22T17:29:34-05:00:
+  corrected the revision record and the provider section's wording.
+- 2026-11-22T17:30:36-05:00:
+  said which taker clears a rate-refused mark.
+- This revision (the gate-review answer):
+  its commits and their committer times are listed by
+  `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`;
+  the newest of them is the commit
+  that carries this section.
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
 [proposal]: cli-git-zfs-worktree-design-proposal.md
@@ -2911,3 +3387,8 @@ which is that design's answer.
 [step8]: ../decision/cli-git-zfs-step-8-sweep-choices.md
 [store]: ../decision/cli-git-zfs-slot-identity-store-format.md
 [staging]: ../decision/cli-git-zfs-staging-under-cache.md
+[probedesign]: cli-git-zfs-start-probe-design.md
+[probdecision]: ../decision/cli-git-zfs-start-probe.md
+[sibprop]: cli-git-zfs-private-propagation-after-replacement-mount-design.md
+[sibforced]: cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md
+[sibcancelled]: cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md
