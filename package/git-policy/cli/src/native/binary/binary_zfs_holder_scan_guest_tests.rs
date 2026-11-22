@@ -378,6 +378,23 @@ fn start_task(script: &str, pid_file: &str, sbin: &str, unshare_arguments: &[&st
     return None;
 }
 
+/// Wait,
+/// bounded,
+/// for a task's own mount table to mention one folder,
+/// which is how an arm knows the task it started has made its own mount and
+/// that the scan is not racing that mount.
+fn wait_for_the_task_table_to_mention(task: &Task, needle: &str) -> bool {
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        let mentions: bool = std::fs::read_to_string(format!("/proc/{}/mountinfo", task.pid)).is_ok_and(|text| return text.contains(needle));
+        if mentions {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return false;
+}
+
 /// End one task the arm started,
 /// and reap the launcher that waited for it.
 fn end(task: &mut Task) {
@@ -464,6 +481,7 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     let holder_script: String = format!("mount -t zfs {clone} {HOLDER_FOLDER} && exec sleep {HOLDER_SECONDS}");
     let mut holder: Task = start_task(holder_script.as_str(), "/root/holder-scan-holder.pid", sbin.as_str(), &[])
         .unwrap_or_else(|| panic!("the holder's mount namespace could not be made; see the arm's log for the mount's own refusal"));
+    assert!(wait_for_the_task_table_to_mention(&holder, HOLDER_FOLDER), "the holder's own table shows its mount at {HOLDER_FOLDER}");
     let (holder_run, held): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(holder_run.status, Some(0), "the mode answers: {}", holder_run.said);
     let held_scan: HolderScan = held.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", holder_run.said));
@@ -478,6 +496,7 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     let confined: Option<Task> = confined_consumer(clone.as_str(), checkout.as_path(), sbin.as_str());
     match confined {
         Some(mut consumer) => {
+            assert!(wait_for_the_task_table_to_mention(&consumer, CONFINED_FOLDER), "the confined consumer's own table shows its bind at {CONFINED_FOLDER}");
             let (confined_run, after): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
             assert_eq!(confined_run.status, Some(0), "the mode answers: {}", confined_run.said);
             let after_scan: HolderScan = after.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", confined_run.said));
@@ -530,6 +549,7 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     // Arm 6: a task with a divergent process root still names its namespace's mount of the clone.
     let mut rooted: Task = divergent_root(sbin.as_str(), clone.as_str())
         .unwrap_or_else(|| panic!("the divergent-root task's mount namespace could not be made; see the arm's log for the refusal"));
+    assert!(wait_for_the_task_table_to_mention(&rooted, ROOTED_FOLDER), "the divergent-root task's own table shows its mount at {ROOTED_FOLDER}");
     let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
     let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
