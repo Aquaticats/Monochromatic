@@ -49,6 +49,9 @@ pub mod worktree_removal_held_commits;
 /// The option table of `git worktree add`,
 /// and the rules that read a long word,
 /// a bundled short word and a value.
+// Its only user is `worktree_add_plan`, which is `#[cfg(unix)]`, so a non-Unix build would hold this table's
+// `pub(crate)` items unused and the Windows lint denies that warning.
+#[cfg(unix)]
 pub mod worktree_add_option_table;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
