@@ -5715,6 +5715,12 @@ an index extension other than the ones Git reads without a word,
 an index offset table that does not name the entries the reader parsed,
 a ref name Git's own rule for a ref name would refuse,
 a ref listing past the 256 refs the listing reader answers,
+a ref store the configuration or the environment moves away
+(`extensions.refStorage` other than exactly `files`,
+including a `files://` or `reftable://` payload,
+a `reftable` folder in the common directory or a linked worktree's,
+`GIT_REFERENCE_BACKEND` other than exactly `files`,
+an unparseable or over-large configuration),
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,
