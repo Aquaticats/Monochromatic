@@ -41502,7 +41502,14 @@ stated in this entry. What follows from them, as work:
   `~/temp/agent/zfs-step-7-closure-lows-2026-11-21/`) and `pi-clone-rung-skip-pass-lows` (the skip resolving the target as
   `git worktree add` does, p16 timed, the rung-1 control, the doc's record and noise-floor claims, no read when the fence
   names nothing, the symlink limitation; brief under `~/temp/agent/clone-rung-skip-pass-lows-2026-11-21/`). Step 8 waits on
-  the per-slot store's merge. Step 7's
+  the per-slot store's merge. THE SWEEP-UNLISTED ROUND ended at `2b3e13f439` (`main` merged as `39300d28c4`): the sweep
+  touches no store; the control `a_sweep_run_lists_nothing` red with the removal put back (`["opened", "listed"]`), green
+  after; SPEC, the design and plan step 18 say `doctor` removes the known staging forms at step 18; two gates 9635 of 9638,
+  each with the cause-H pair plus one different test that passes alone (cause G's
+  `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`, and
+  `commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`, a 13 ms excess in a stop-ceiling record,
+  recorded nowhere yet). GOING: the per-slot store's integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-zfs-slot-identity-store-per-slot-files-2026-11-21/keep/review.md`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
