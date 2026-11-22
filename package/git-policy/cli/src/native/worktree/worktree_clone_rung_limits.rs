@@ -77,32 +77,70 @@ pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 /// Provenance:
 /// pinned where the measured copy of a clean tree and Git's write of it crossed,
 /// measured on this build in a throwaway ZFS guest:
-/// trees of 10,001 files of 2,600, 8,800, 13,200, 17,600, 22,000, 26,000, 29,000, 32,000 and 44,000 bytes a file,
-/// in position-balanced rounds with an identical-binary control, against `main` and Git's own checkout
-/// (the record is "The clean-source mean-file edge, measured" in
+/// trees of 10,001 files of 2,600,
+/// 8,800,
+/// 13,200,
+/// 17,600,
+/// 22,000,
+/// 26,000,
+/// 29,000,
+/// 32,000 and 44,000 bytes a file,
+/// in position-balanced rounds with an identical-binary control,
+/// against `main` and Git's own checkout
+/// (the record is "The clean-source mean-file edge,
+/// measured" in
 /// `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
 /// Measured on this build in a throwaway ZFS guest:
-/// trees of 10,001 files of 2,600, 3,600, 4,400, 5,200, 6,000, 7,000, 8,000, 8,800, 9,600, 11,000, 13,200, 17,600,
-/// 22,000, 26,000, 29,000, 32,000 and 44,000 bytes a file,
-/// in position-balanced rounds with an identical-binary control, against `main` and Git's own checkout.
-/// Below the pin the round measured losses at 2,599 (1.20 of Git's own checkout, 1.00 to 1.36) and at 5,199 and 7,999
-/// (1.23 and 1.22), with the means between them straddling parity inside the round's own spread,
-/// so Git's own checkout, which cannot be slower than itself, is what the rule takes there.
-/// At the pin, 8,799, the copy measured parity (1.02, 0.55 to 1.19),
+/// trees of 10,001 files of 2,600,
+/// 3,600,
+/// 4,400,
+/// 5,200,
+/// 6,000,
+/// 7,000,
+/// 8,000,
+/// 8,800,
+/// 9,600,
+/// 11,000,
+/// 13,200,
+/// 17,600,
+/// 22,000,
+/// 26,000,
+/// 29,000,
+/// 32,000 and 44,000 bytes a file,
+/// in position-balanced rounds with an identical-binary control,
+/// against `main` and Git's own checkout.
+/// Below the pin the round measured losses at 2,599 (1.20 of Git's own checkout,
+/// 1.00 to 1.36) and at 5,199 and 7,999
+/// (1.23 and 1.22),
+/// with the means between them straddling parity inside the round's own spread,
+/// so Git's own checkout,
+/// which cannot be slower than itself,
+/// is what the rule takes there.
+/// At the pin,
+/// 8,799,
+/// the copy measured parity (1.02,
+/// 0.55 to 1.19),
 /// and every larger mean measured 0.60 or less down to 0.48.
 ///
 /// The waiver record's step 3 build measured the same shape lower:
-/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time, 8.8 KB 1.18 times, 26 KB parity,
+/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time,
+/// 8.8 KB 1.18 times,
+/// 26 KB parity,
 /// and this repository's 32 KB files 0.64 times
 /// (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
-/// "The small-file clean-add cost, waived the same day").
-/// This build's copy is quicker than that one's at the small means, which is why the edge moved down.
+/// "The small-file clean-add cost,
+/// waived the same day").
+/// This build's copy is quicker than that one's at the small means,
+/// which is why the edge moved down.
 ///
 /// The waiver record measured the same edge from below on ZFS:
-/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time, 8.8 KB 1.18 times, 26 KB parity,
+/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time,
+/// 8.8 KB 1.18 times,
+/// 26 KB parity,
 /// and this repository's 32 KB files 0.64 times
 /// (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
-/// "The small-file clean-add cost, waived the same day").
+/// "The small-file clean-add cost,
+/// waived the same day").
 ///
 /// Provisional and open to the project's veto.
 pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 8_799;
@@ -110,19 +148,39 @@ pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 8_799;
 /// The smallest mean tracked file size a clean source on btrfs may have and still be cloned.
 ///
 /// Provenance:
-/// no measured btrfs shape lost to Git's checkout, so the edge sits at the lowest mean measured,
+/// no measured btrfs shape lost to Git's checkout,
+/// so the edge sits at the lowest mean measured,
 /// where parity was the worst reading;
 /// measured on this build in a throwaway btrfs guest:
-/// trees of 10,001 files of 50, 100, 250, 500, 1,000, 1,500, 2,000, 2,600, 8,800, 13,200, 17,600, 22,000, 26,000,
-/// 29,000, 32,000 and 44,000 bytes a file,
-/// in position-balanced rounds with an identical-binary control, against `main` and Git's own checkout
-/// (the record is "The clean-source mean-file edge, measured" in
+/// trees of 10,001 files of 50,
+/// 100,
+/// 250,
+/// 500,
+/// 1,000,
+/// 1,500,
+/// 2,000,
+/// 2,600,
+/// 8,800,
+/// 13,200,
+/// 17,600,
+/// 22,000,
+/// 26,000,
+/// 29,000,
+/// 32,000 and 44,000 bytes a file,
+/// in position-balanced rounds with an identical-binary control,
+/// against `main` and Git's own checkout
+/// (the record is "The clean-source mean-file edge,
+/// measured" in
 /// `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
-/// Measured: 10,001 files of 50 bytes averaged 49 bytes a file and cloned at 0.86 of Git's own checkout
-/// (0.73 to 1.06), and every larger mean measured cloned at parity or better;
+/// Measured:
+/// 10,001 files of 50 bytes averaged 49 bytes a file and cloned at 0.86 of Git's own checkout
+/// (0.73 to 1.06),
+/// and every larger mean measured cloned at parity or better;
 /// no btrfs shape measured lost.
-/// So the edge sits at the lowest mean measured, 49 bytes:
-/// below it no btrfs mean was measured, and the rule takes Git's own checkout there,
+/// So the edge sits at the lowest mean measured,
+/// 49 bytes:
+/// below it no btrfs mean was measured,
+/// and the rule takes Git's own checkout there,
 /// which cannot be slower than itself.
 ///
 /// Provisional and open to the project's veto.
@@ -133,9 +191,12 @@ pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS: u64 = 49;
 /// or the safer of the two measured edges for a filesystem nobody measured.
 /// Why:
 ///   The two measured filesystems cross at different means:
-/// btrfs shares every file cheaply enough that its copy never lost, while ZFS's copy of small files costs more than
+/// btrfs shares every file cheaply enough that its copy never lost,
+/// while ZFS's copy of small files costs more than
 /// Git's write of them.
-/// A filesystem nobody measured (XFS with reflink, overlayfs, another kind) takes the higher measured edge,
+/// A filesystem nobody measured (XFS with reflink,
+/// overlayfs,
+/// another kind) takes the higher measured edge,
 /// which declines at least every shape each of the two measured filesystems declines.
 ///
 /// In TS you'd write (pseudocode):
@@ -335,7 +396,8 @@ pub fn reason_too_many_changed_paths(source: &SnapshotSource, entries: &[StatEnt
 /// where every measurement of that limit was taken,
 /// and a clean source by its mean file size;
 /// the changed-file cut applies to both.
-/// Both limits are asked before the rung's fence, its claim on a stage name and its first copy,
+/// Both limits are asked before the rung's fence,
+/// its claim on a stage name and its first copy,
 /// so a declined add pays none of them.
 ///
 /// In TS you'd write (pseudocode):

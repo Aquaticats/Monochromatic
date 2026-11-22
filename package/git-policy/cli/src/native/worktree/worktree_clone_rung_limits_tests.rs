@@ -40,7 +40,9 @@ fn the_cut_is_the_fence_own_share_of_the_tracked_paths() {
 ///   Both reasons read the index the source check copied and the changes it listed,
 /// and a control that built
 ///  those by hand would not show what an add sees.
-/// The files are sparse: the limit reads the sizes the index records, never the bytes.
+/// The files are sparse:
+/// the limit reads the sizes the index records,
+/// never the bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +62,8 @@ fn source_of(root: &std::path::Path, files: &[(String, u64)]) -> SnapshotSource 
     return source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source");
 }
 
-/// The index entries of a source, as the ladder reads them.
+/// The index entries of a source,
+/// as the ladder reads them.
 fn entries_of(source: &SnapshotSource) -> Vec<StatEntry> {
     return tracked_entries(source).expect("the source's index entries");
 }
@@ -170,10 +173,13 @@ fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_su
 }
 
 /// What:
-///  Each filesystem takes its own measured mean edge, and one nobody measured takes the safer of the two.
+///  Each filesystem takes its own measured mean edge,
+/// and one nobody measured takes the safer of the two.
 /// Why:
-///   The two measured filesystems cross at different means, so a mapping that swapped them would decline the wrong
-/// shapes on both; this control is what pins the mapping.
+///   The two measured filesystems cross at different means,
+/// so a mapping that swapped them would decline the wrong
+/// shapes on both;
+/// this control is what pins the mapping.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -62,7 +62,8 @@ pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
 ///   A clean source is cloned only when its tracked files average at least the rung's mean edge,
 /// and a control's fixture holds a few dozen bytes a file,
 /// so a fixture that must reach the clone rung sits above the edge on purpose
-/// (`worktree_clone_rung_limits::the_safest_mean_tracked_file`), the higher of the two measured edges.
+/// (`worktree_clone_rung_limits::the_safest_mean_tracked_file`),
+/// the higher of the two measured edges.
 /// The anchor is a tenth above the edge per path,
 /// so a path a control adds later cannot pull the mean under it,
 /// and it derives its size from the constant rather than carrying a stale number

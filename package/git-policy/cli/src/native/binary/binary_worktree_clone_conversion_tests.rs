@@ -26,10 +26,12 @@ use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, po
 use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
 use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
 
-/// The most tracked paths a body built on `conversion_fixture` holds, its own four and the anchor included.
+/// The most tracked paths a body built on `conversion_fixture` holds,
+/// its own four and the anchor included.
 ///
 /// Why:
-///  The anchor is one path of the fixture, and a derived body adds its own (`older_target_fixture` adds 42),
+///  The anchor is one path of the fixture,
+/// and a derived body adds its own (`older_target_fixture` adds 42),
 ///  so an anchor sized for the base alone would leave the derived body's mean under the clone rung's edge and the
 ///  control would test Git's checkout instead of the class it names.
 const PATHS_A_CONVERSION_FIXTURE_GROWS_TO: u64 = 64;

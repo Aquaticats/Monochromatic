@@ -2865,7 +2865,8 @@ and Git's own checkout makes the worktree,
 for three provisional limit rules,
 each pinned with the measurement it rests on and all open to the project's veto
 (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
-and its section "The size limit on a clean source, answered 2026-11-22").
+and its section "The size limit on a clean source,
+answered 2026-11-22").
 The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
 Git's own checkout:
 a dirty source of 10,001 files of 2,600 bytes,

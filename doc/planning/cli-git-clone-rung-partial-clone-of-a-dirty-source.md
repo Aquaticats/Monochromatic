@@ -13,7 +13,9 @@ with the limit rules pinned and the round of 2026-11-21 recorded in "The build t
 The round of 2026-11-22 that followed the integration pass
 (`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`)
 replaced the whole-tree limit for a clean source with the mean-file edge of each measured filesystem,
-pinned both edges in throwaway guests, and is recorded in "The clean-source mean-file edge, measured".
+pinned both edges in throwaway guests,
+and is recorded in "The clean-source mean-file edge,
+measured".
 
 The design was proposed and a prototype measured it on `main`'s fenced clone rung,
 and "The decision asked for" records what was asked.
@@ -150,7 +152,8 @@ The clean-source rule replaces that limit for a source with no changes:
 its mean tracked file size is compared with its own filesystem's measured edge,
 49 bytes a file on btrfs and 8,799 on ZFS,
 and a filesystem nobody measured takes the higher of the two.
-The edge and every point behind it are in "The clean-source mean-file edge, measured".
+The edge and every point behind it are in "The clean-source mean-file edge,
+measured".
 
 The changed-file cut is one quarter of the tracked paths,
 which is the fence's own decline share.
@@ -159,211 +162,380 @@ Three rounds measured 6,000 changed paths at 1.00 to 1.05 of Git's own checkout,
 which is parity,
 and 20,000 at 1.68 to 1.74,
 which is the loss the cut declines.
-The rung's own split asks the same cut of the paths Git must write, before it copies anything,
-and a stat-stale path is one of them (finding M1, below).
+The rung's own split asks the same cut of the paths Git must write,
+before it copies anything,
+and a stat-stale path is one of them (finding M1,
+below).
 
 ### The clean-source mean-file rule, as built
 
-`worktree_clone_rung_limits.rs` holds one decline before the rung's fence, its claim on a stage name and its first
-copy: `decline_before_cloning`, called once from the clone branch of `choose_rung`.
-A source with changes is judged by the whole-tree limit, where every measurement of it was taken;
-a clean source is judged by its mean tracked file size, the index's tracked bytes over its tracked paths,
+`worktree_clone_rung_limits.rs` holds one decline before the rung's fence,
+its claim on a stage name and its first
+copy:
+`decline_before_cloning`,
+called once from the clone branch of `choose_rung`.
+A source with changes is judged by the whole-tree limit,
+where every measurement of it was taken;
+a clean source is judged by its mean tracked file size,
+the index's tracked bytes over its tracked paths,
 which is the decision's answer of 2026-11-22 ("The size limit on a clean source").
 The changed-file cut is asked of both.
-The index is parsed once there and the same entries go to the copies and the fence, so the limits and the rung cost
+The index is parsed once there and the same entries go to the copies and the fence,
+so the limits and the rung cost
 one parse rather than three (the integration pass's low L1).
-The two sentences name the input and the numbers, and a decline line says which checkout wrote the worktree instead
+The two sentences name the input and the numbers,
+and a decline line says which checkout wrote the worktree instead
 of saying an add took longer (low L4):
 `the tracked files of <path> average <n> bytes each, below the <edge> a clean tree needs for the clone to be quicker
 than Git's own checkout`,
-and, for a source with changes,
+and,
+for a source with changes,
 `the tracked files of <path> sum to <n> bytes, below the <pin> a tree with changes needs for the clone to be quicker
 than Git's own checkout`.
 
 ### The changed-file cut is asked of the paths Git must write
 
-The ladder's cut counts `git status` entries, and a tracked file whose recorded times are stale but whose bytes are
-unchanged is no status entry, although the split writes it and Git pays a write for it.
-`clone_the_unchanged` now takes the same refusal path, before it copies anything, when `split.writes` exceeds the
+The ladder's cut counts `git status` entries,
+and a tracked file whose recorded times are stale but whose bytes are
+unchanged is no status entry,
+although the split writes it and Git pays a write for it.
+`clone_the_unchanged` now takes the same refusal path,
+before it copies anything,
+when `split.writes` exceeds the
 cut the ladder uses (the integration pass's finding M1):
 the sentence says how many of how many tracked paths Git would write and the cut they exceed.
 The control `a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy` builds 36 stale paths of 40
 and goes red when the guard is removed.
-The shape's re-timing is in "The clean-source mean-file edge, measured".
+The shape's re-timing is in "The clean-source mean-file edge,
+measured".
 
 ### The clean-source mean-file edge, measured
 
-The decision of 2026-11-22 left the edge to this round, and the waiver record's ZFS figures came from step 3's builds
+The decision of 2026-11-22 left the edge to this round,
+and the waiver record's ZFS figures came from step 3's builds
 (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
-"The size limit on a clean source, answered 2026-11-22";
+"The size limit on a clean source,
+answered 2026-11-22";
 `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
-"The small-file clean-add cost, waived the same day").
+"The small-file clean-add cost,
+waived the same day").
 
-The measurement is one throwaway `mvm` guest per filesystem, one guest at a time, on the `libvirt` backend.
-Each guest runs the branch's release executable as `git`, `main` as `git`,
-and Git's own checkout through `main`'s binary with `--no-optional-locks worktree add`, the form the ladder does not
+The measurement is one throwaway `mvm` guest per filesystem,
+one guest at a time,
+on the `libvirt` backend.
+Each guest runs the branch's release executable as `git`,
+`main` as `git`,
+and Git's own checkout through `main`'s binary with `--no-optional-locks worktree add`,
+the form the ladder does not
 read.
-The btrfs guest's `main` is `8484e7f817`, the same baseline the host runs below use;
-the ZFS guest's is `999b4c08d0`, whose changes are a doc comment on the measured path and the step 8 attach code,
+The btrfs guest's `main` is `8484e7f817`,
+the same baseline the host runs below use;
+the ZFS guest's is `999b4c08d0`,
+whose changes are a doc comment on the measured path and the step 8 attach code,
 which no run here enters.
-Each point is a clean repository of 10,001 files of one size plus a 23-byte anchor, created in the guest;
+Each point is a clean repository of 10,001 files of one size plus a 23-byte anchor,
+created in the guest;
 each round runs the four arms in a Williams square,
-with one warm-up round and two blocks of four rounds counted, the second block reversed,
+with one warm-up round and two blocks of four rounds counted,
+the second block reversed,
 and the branch's own binary under another name as the identical-binary control.
 The branch and control arms were required to take the route the pin names.
 A point is quoted at the mean the fixture really had,
-its tracked bytes over its tracked paths, floored, which is the arithmetic the rule uses,
+its tracked bytes over its tracked paths,
+floored,
+which is the arithmetic the rule uses,
 and the clone's figure at a point is the `main` arm's time against Git's own checkout in the same round.
 
-btrfs, the clone against Git's own checkout:
+btrfs,
+the clone against Git's own checkout:
 
-- mean 49 (10,001 files of 50 bytes): 0.86 (0.73 to 1.06).
-- mean 99: 0.88 (0.79 to 1.03).
-- mean 249: 0.99 (0.79 to 1.42).
-- mean 499: 0.97 (0.76 to 1.11).
-- mean 999: 0.95 (0.89 to 1.28).
-- mean 1,499: 1.32 (0.76 to 2.10).
-- mean 1,999: 1.16 (0.25 to 1.63).
-- mean 2,599: 0.66 (0.55 to 0.94).
-- mean 8,799: 0.62 (0.28 to 0.75).
-- mean 13,198: 0.57 (0.34 to 0.75).
-- mean 17,598: 0.51 (0.32 to 0.64).
-- mean 21,997: 0.54 (0.51 to 0.71).
-- mean 25,997: 0.50 (0.43 to 0.62).
-- mean 28,997: 0.53 (0.37 to 0.61).
-- mean 31,996: 0.58 (0.39 to 0.75).
-- mean 43,995: 0.45 (0.35 to 0.54).
+- mean 49 (10,001 files of 50 bytes):
+  0.86 (0.73 to 1.06).
+- mean 99:
+  0.88 (0.79 to 1.03).
+- mean 249:
+  0.99 (0.79 to 1.42).
+- mean 499:
+  0.97 (0.76 to 1.11).
+- mean 999:
+  0.95 (0.89 to 1.28).
+- mean 1,499:
+  1.32 (0.76 to 2.10).
+- mean 1,999:
+  1.16 (0.25 to 1.63).
+- mean 2,599:
+  0.66 (0.55 to 0.94).
+- mean 8,799:
+  0.62 (0.28 to 0.75).
+- mean 13,198:
+  0.57 (0.34 to 0.75).
+- mean 17,598:
+  0.51 (0.32 to 0.64).
+- mean 21,997:
+  0.54 (0.51 to 0.71).
+- mean 25,997:
+  0.50 (0.43 to 0.62).
+- mean 28,997:
+  0.53 (0.37 to 0.61).
+- mean 31,996:
+  0.58 (0.39 to 0.75).
+- mean 43,995:
+  0.45 (0.35 to 0.54).
 
 No btrfs mean measured made the clone slower than Git's checkout beyond the round's own spread:
-the clone's worst median is 1.32 at mean 1,499, where the identical-binary control reads 0.95 (0.75 to 1.23) and the
+the clone's worst median is 1.32 at mean 1,499,
+where the identical-binary control reads 0.95 (0.75 to 1.23) and the
 neighbouring points at 999 and 2,599 read 0.95 and 0.66,
 so it is one stalled arm and not a crossing.
-So the btrfs edge is pinned at 49 bytes a file, the lowest mean measured:
-below it no btrfs mean was measured, and Git's own checkout, which cannot be slower than itself, is what the rule
+So the btrfs edge is pinned at 49 bytes a file,
+the lowest mean measured:
+below it no btrfs mean was measured,
+and Git's own checkout,
+which cannot be slower than itself,
+is what the rule
 takes there.
 
-The same trees under that pin, four counted rounds each with one warm-up and the same arms:
+The same trees under that pin,
+four counted rounds each with one warm-up and the same arms:
 
-- mean 20: branch route "Git's checkout", 1.41 of main (1.25 to 1.48).
-- mean 49: route "clones", 1.02 of main (0.99 to 1.06).
-- mean 99: 1.02 (0.96 to 1.35).
-- mean 48 (20 files): route "Git's checkout", 1.01 of main (0.61 to 1.17).
-- mean 2,594 (500 files): route "clones", 1.04 of main (0.84 to 1.32).
-- mean 2,598 (2,000 files): route "clones", 0.96 (0.94 to 1.06).
-- mean 2,599 (10,001 files): route "clones", 0.92 of main (0.90 to 1.01).
-- mean 8,799: 1.03 (1.00 to 1.18).
-- mean 25,997: 0.97 (0.85 to 1.12).
-- mean 43,995: 1.02 (0.99 to 1.20).
-- mean 42,510 (the mixed tree): 0.91 (0.89 to 1.16).
-- mean 19,000,001 (20 files of 20 MB): 0.92 of main (0.15 to 5.57), route "clones".
+- mean 20:
+  branch route "Git's checkout",
+  1.41 of main (1.25 to 1.48).
+- mean 49:
+  route "clones",
+  1.02 of main (0.99 to 1.06).
+- mean 99:
+  1.02 (0.96 to 1.35).
+- mean 48 (20 files):
+  route "Git's checkout",
+  1.01 of main (0.61 to 1.17).
+- mean 2,594 (500 files):
+  route "clones",
+  1.04 of main (0.84 to 1.32).
+- mean 2,598 (2,000 files):
+  route "clones",
+  0.96 (0.94 to 1.06).
+- mean 2,599 (10,001 files):
+  route "clones",
+  0.92 of main (0.90 to 1.01).
+- mean 8,799:
+  1.03 (1.00 to 1.18).
+- mean 25,997:
+  0.97 (0.85 to 1.12).
+- mean 43,995:
+  1.02 (0.99 to 1.20).
+- mean 42,510 (the mixed tree):
+  0.91 (0.89 to 1.16).
+- mean 19,000,001 (20 files of 20 MB):
+  0.92 of main (0.15 to 5.57),
+  route "clones".
 
 So on btrfs the rule makes no measured clean shape slower than `main` beyond the spread,
 and the shape it declines below the edge is a tree averaging under 49 bytes a file.
 
-ZFS, the clone against Git's own checkout:
+ZFS,
+the clone against Git's own checkout:
 
-- mean 2,599 (10,001 files of 2,600 bytes): 1.20 (1.00 to 1.36).
-- mean 3,599: 1.03 (0.43 to 1.50).
-- mean 4,399: 0.71 (0.34 to 1.65).
-- mean 5,199: 1.23 (0.39 to 1.54).
-- mean 5,999: 0.80 (0.42 to 1.40).
-- mean 6,999: 0.80 (0.42 to 1.44).
-- mean 7,999: 1.22 (0.80 to 1.47).
-- mean 8,799: 1.02 (0.55 to 1.19).
-- mean 9,599: 0.71 (0.52 to 1.27).
-- mean 10,998: 0.60 (0.37 to 1.21).
-- mean 13,198: 0.71 (0.62 to 1.26).
-- mean 17,598: 0.60 (0.42 to 0.83).
-- mean 21,997: 0.64 (0.48 to 0.94).
-- mean 25,997: 0.55 (0.46 to 0.64).
-- mean 28,997: 0.48 (0.38 to 0.89).
-- mean 31,996: 0.50 (0.44 to 0.62).
-- mean 43,995: 0.97 (0.76 to 1.72), one point whose arms the round's spread cannot place.
+- mean 2,599 (10,001 files of 2,600 bytes):
+  1.20 (1.00 to 1.36).
+- mean 3,599:
+  1.03 (0.43 to 1.50).
+- mean 4,399:
+  0.71 (0.34 to 1.65).
+- mean 5,199:
+  1.23 (0.39 to 1.54).
+- mean 5,999:
+  0.80 (0.42 to 1.40).
+- mean 6,999:
+  0.80 (0.42 to 1.44).
+- mean 7,999:
+  1.22 (0.80 to 1.47).
+- mean 8,799:
+  1.02 (0.55 to 1.19).
+- mean 9,599:
+  0.71 (0.52 to 1.27).
+- mean 10,998:
+  0.60 (0.37 to 1.21).
+- mean 13,198:
+  0.71 (0.62 to 1.26).
+- mean 17,598:
+  0.60 (0.42 to 0.83).
+- mean 21,997:
+  0.64 (0.48 to 0.94).
+- mean 25,997:
+  0.55 (0.46 to 0.64).
+- mean 28,997:
+  0.48 (0.38 to 0.89).
+- mean 31,996:
+  0.50 (0.44 to 0.62).
+- mean 43,995:
+  0.97 (0.76 to 1.72),
+  one point whose arms the round's spread cannot place.
 
-The round measured losses below 8,799: 1.20 at 2,599, 1.23 at 5,199 and 1.22 at 7,999,
+The round measured losses below 8,799:
+1.20 at 2,599,
+1.23 at 5,199 and 1.22 at 7,999,
 with the means between them straddling parity inside their own spreads (0.71 to 1.03),
 so no finer edge than the first mean that did not lose is claimed.
-The waiver record's step 3 build measured 1.33 at 2.6 KB, 1.18 at 8.8 KB and parity at 26 KB;
-this build's copy is quicker at the small means, which is why the edge moved down.
+The waiver record's step 3 build measured 1.33 at 2.6 KB,
+1.18 at 8.8 KB and parity at 26 KB;
+this build's copy is quicker at the small means,
+which is why the edge moved down.
 
-The ZFS edge is pinned at 8,799 bytes a file, the first measured mean whose copy did not lose (1.02, 0.55 to 1.19),
+The ZFS edge is pinned at 8,799 bytes a file,
+the first measured mean whose copy did not lose (1.02,
+0.55 to 1.19),
 and the means below it include the round's measured losses,
-so Git's own checkout, which cannot be slower than itself, is what the rule takes there.
+so Git's own checkout,
+which cannot be slower than itself,
+is what the rule takes there.
 
 
 
-The same trees under the ZFS pin, four counted rounds each with one warm-up and the same arms:
+The same trees under the ZFS pin,
+four counted rounds each with one warm-up and the same arms:
 
-- mean 2,599: route "Git's checkout", 0.96 of main (0.78 to 1.73).
-- mean 5,999: route "Git's checkout", 1.15 of main (0.84 to 1.54).
-- mean 7,999: route "Git's checkout", 1.57 of main (0.92 to 2.46), whose control reads 1.05 (0.28 to 2.17).
-- mean 8,799: route "clones", 0.96 of main (0.87 to 1.19), whose control reads 0.96 (0.87 to 1.00).
-- mean 9,599: route "clones", 1.04 of main (1.02 to 2.01).
-- the few small trees and the mixed tree as in "The few small files and the mixed tree, for the owner".
+- mean 2,599:
+  route "Git's checkout",
+  0.96 of main (0.78 to 1.73).
+- mean 5,999:
+  route "Git's checkout",
+  1.15 of main (0.84 to 1.54).
+- mean 7,999:
+  route "Git's checkout",
+  1.57 of main (0.92 to 2.46),
+  whose control reads 1.05 (0.28 to 2.17).
+- mean 8,799:
+  route "clones",
+  0.96 of main (0.87 to 1.19),
+  whose control reads 0.96 (0.87 to 1.00).
+- mean 9,599:
+  route "clones",
+  1.04 of main (1.02 to 2.01).
+- the few small trees and the mixed tree as in "The few small files and the mixed tree,
+  for the owner".
 
 So on ZFS the rule declines the means the round measured a loss at and clones the first mean that did not lose;
 the declined shapes read 0.92 to 1.15 of main in the eight-round runs whose control reads at most 1.02,
-except the 7,999 point, whose four-round reading of 1.57 is wider than its own control's spread and is not claimed.
+except the 7,999 point,
+whose four-round reading of 1.57 is wider than its own control's spread and is not claimed.
 
 ### The few small files and the mixed tree, for the owner
 
-These are measured and not acted on: the rule itself is the decision's, and these numbers say what it costs or saves
+These are measured and not acted on:
+the rule itself is the decision's,
+and these numbers say what it costs or saves
 on shapes smaller than the ones the edge was pinned on.
-btrfs, branch against `main`, the branch's route beside it:
+btrfs,
+branch against `main`,
+the branch's route beside it:
 
-- 20 files of 50 bytes (mean 48): route "Git's checkout", 1.01 of main (0.61 to 1.17);
-  `main` clones the tree at 1.24 of Git's own checkout (1.09 to 1.42), so the decline is a saving there.
-- 500 files of 2,600 bytes (mean 2,594): route "clones", 1.04 of main (0.84 to 1.32);
+- 20 files of 50 bytes (mean 48):
+  route "Git's checkout",
+  1.01 of main (0.61 to 1.17);
+  `main` clones the tree at 1.24 of Git's own checkout (1.09 to 1.42),
+  so the decline is a saving there.
+- 500 files of 2,600 bytes (mean 2,594):
+  route "clones",
+  1.04 of main (0.84 to 1.32);
   `main` clones it at 1.01 of Git (0.80 to 1.64).
-- 2,000 files of 2,600 bytes (mean 2,598): route "clones", 0.96 of main (0.94 to 1.06);
+- 2,000 files of 2,600 bytes (mean 2,598):
+  route "clones",
+  0.96 of main (0.94 to 1.06);
   `main` clones it at 0.72 of Git (0.68 to 1.19).
-- the mixed tree, 20 files of 20 MB beside 10,001 files of 2.6 KB (mean 42,510): route "clones", 0.91 of main
-  (0.89 to 1.16); `main` clones it at 0.39 of Git (0.33 to 0.54).
+- the mixed tree,
+  20 files of 20 MB beside 10,001 files of 2.6 KB (mean 42,510):
+  route "clones",
+  0.91 of main
+  (0.89 to 1.16);
+  `main` clones it at 0.39 of Git (0.33 to 0.54).
 
-ZFS, the same shapes:
+ZFS,
+the same shapes:
 
-- 20 files of 50 bytes (mean 48): route "Git's checkout", 0.93 of main (0.73 to 1.15);
-  `main` clones the tree at 1.19 of Git's own checkout (0.77 to 1.73), so the decline is a saving there.
-- 500 files of 2,600 bytes (mean 2,594): route "Git's checkout", 0.98 of main (0.73 to 1.39);
+- 20 files of 50 bytes (mean 48):
+  route "Git's checkout",
+  0.93 of main (0.73 to 1.15);
+  `main` clones the tree at 1.19 of Git's own checkout (0.77 to 1.73),
+  so the decline is a saving there.
+- 500 files of 2,600 bytes (mean 2,594):
+  route "Git's checkout",
+  0.98 of main (0.73 to 1.39);
   `main` clones it at 1.10 of Git (0.93 to 1.56).
-- 2,000 files of 2,600 bytes (mean 2,598): route "Git's checkout", 1.09 of main (0.75 to 1.30);
+- 2,000 files of 2,600 bytes (mean 2,598):
+  route "Git's checkout",
+  1.09 of main (0.75 to 1.30);
   `main` clones it at 1.02 of Git (0.79 to 1.18).
-- the mixed tree (mean 42,510): route "clones", 0.92 of main (0.60 to 1.07);
+- the mixed tree (mean 42,510):
+  route "clones",
+  0.92 of main (0.60 to 1.07);
   `main` clones it at 0.21 of Git (0.17 to 0.50).
 None of them is slower than `main` beyond the round's spread.
 
-The control for finding H2's shape: a clean tree of 20 files of 20 MB, measured above, is served by the clone rung on
+The control for finding H2's shape:
+a clean tree of 20 files of 20 MB,
+measured above,
+is served by the clone rung on
 both filesystems and reads 1.10 (0.87 to 1.83) of `main` on btrfs and 1.09 (0.66 to 1.28) on ZFS,
 each inside its own control's spread.
 
 ### The dirty shapes re-timed on the host
 
-The host's release binaries of the branch and of `main` at `8484e7f817`, the same Williams square of four arms and
-the identical-binary control, with the main checkout's tracked files (24,650 paths, 763,608,714 bytes) as the
-fixture, and the host's own load as it was found:
+The host's release binaries of the branch and of `main` at `8484e7f817`,
+the same Williams square of four arms and
+the identical-binary control,
+with the main checkout's tracked files (24,650 paths,
+763,608,714 bytes) as the
+fixture,
+and the host's own load as it was found:
 
-- the usual dirty add (three changed paths, three untracked): the branch's partial clone, 0.45 of `main`
-  (0.27 to 1.82) and 0.82 of Git's own checkout (0.62 to 1.69) in eight counted rounds, whose identical-binary
-  control reads 1.38 between its two arms (0.40 to 5.61); then 0.82 of `main` (0.17 to 4.57) in twelve counted
-  rounds, whose control reads 0.62 (0.16 to 4.14).
-  The control's own spread is wider than the ratio, so this round claims neither a gain nor a loss on this shape:
+- the usual dirty add (three changed paths,
+  three untracked):
+  the branch's partial clone,
+  0.45 of `main`
+  (0.27 to 1.82) and 0.82 of Git's own checkout (0.62 to 1.69) in eight counted rounds,
+  whose identical-binary
+  control reads 1.38 between its two arms (0.40 to 5.61);
+  then 0.82 of `main` (0.17 to 4.57) in twelve counted
+  rounds,
+  whose control reads 0.62 (0.16 to 4.14).
+  The control's own spread is wider than the ratio,
+  so this round claims neither a gain nor a loss on this shape:
   the review's 0.71 of `main` (0.42 to 0.86) is the last reading inside a control's spread.
-- 20,000 changed paths of 24,650, which the cut declines: route "Git's checkout", 1.03 of `main` (0.63 to 2.90) and
-  1.22 of Git's own checkout (0.42 to 3.01), the identical-binary control 0.94 (0.42 to 1.06).
-- a dirty tree of 10,001 files of 2,600 bytes, which the whole-tree limit declines: route "Git's checkout", 1.06 of
-  `main` (0.96 to 1.14) and 1.07 of Git's own checkout (0.96 to 1.76), the identical-binary control 1.03
-  (0.66 to 1.12), which is parity.
-- this repository's own clean tree: route "clones" on both, 1.01 of `main` (0.24 to 1.61) and 0.70 of Git's own
-  checkout (0.44 to 0.77) in eight counted rounds, the control 1.15 (0.51 to 1.60); then 1.03 of `main`
-  (0.19 to 2.61) and 0.55 of Git (0.38 to 1.66) in twelve, the control 1.05 (0.21 to 3.72).
+- 20,000 changed paths of 24,650,
+  which the cut declines:
+  route "Git's checkout",
+  1.03 of `main` (0.63 to 2.90) and
+  1.22 of Git's own checkout (0.42 to 3.01),
+  the identical-binary control 0.94 (0.42 to 1.06).
+- a dirty tree of 10,001 files of 2,600 bytes,
+  which the whole-tree limit declines:
+  route "Git's checkout",
+  1.06 of
+  `main` (0.96 to 1.14) and 1.07 of Git's own checkout (0.96 to 1.76),
+  the identical-binary control 1.03
+  (0.66 to 1.12),
+  which is parity.
+- this repository's own clean tree:
+  route "clones" on both,
+  1.01 of `main` (0.24 to 1.61) and 0.70 of Git's own
+  checkout (0.44 to 0.77) in eight counted rounds,
+  the control 1.15 (0.51 to 1.60);
+  then 1.03 of `main`
+  (0.19 to 2.61) and 0.55 of Git (0.38 to 1.66) in twelve,
+  the control 1.05 (0.21 to 3.72).
 
-The stat-stale shape (20,000 of 24,650 tracked files touched, the index not refreshed)
+The stat-stale shape (20,000 of 24,650 tracked files touched,
+the index not refreshed)
 now takes the rung's own refusal before any copy and the add is Git's own checkout:
 measured on the host before and after the fix:
-1.39 times `main` in the integration pass, and 1.09 of `main` (0.29 to 1.77) now,
+1.39 times `main` in the integration pass,
+and 1.09 of `main` (0.29 to 1.77) now,
 with the identical-binary control at 1.03 (0.65 to 1.46),
-the route "Git's checkout after the clone rung ended", and the add's own record naming `partRead` and `partClassify`
-but no copy step, which is the refusal before any copy.
+the route "Git's checkout after the clone rung ended",
+and the add's own record naming `partRead` and `partClassify`
+but no copy step,
+which is the refusal before any copy.
 
 ### The controls this build added
 
@@ -653,28 +825,42 @@ and the waiting index is built from the tree instead of from the source's index.
 
 The 28 binary controls that need a ZFS fixture root ran for the first time on a build of this branch,
 in a throwaway ZFS guest prepared by `package/zfs/request-to-openzfs-kernel-device`'s recipe
-(Ubuntu 24.04, kernel 6.8.0-147-generic, OpenZFS 2.4.4, Rust 1.100.0, `cargo-nextest` 0.9.152),
+(Ubuntu 24.04,
+kernel 6.8.0-147-generic,
+OpenZFS 2.4.4,
+Rust 1.100.0,
+`cargo-nextest` 0.9.152),
 with a pool of the same properties and a 4 GiB image:
-`worktree_clone_conversion::*` (20), `worktree_clone_zfs::*` (7) and `worktree_clone_zfs_measurement::*` (1).
-28 ran: 24 passed and 4 failed.
+`worktree_clone_conversion::*` (20),
+`worktree_clone_zfs::*` (7) and `worktree_clone_zfs_measurement::*` (1).
+28 ran:
+24 passed and 4 failed.
 
 - `worktree_clone_conversion::a_converting_share_one_path_past_a_quarter_declines_the_rung` failed at first:
   its fixture's anchor was one path beside the paths the control computes the fence's share from,
   which moved the share back onto a quarter and served the add.
 - `worktree_clone_conversion::a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy` and
   `..._leaves_no_path_of_the_clones_behind` failed at first:
-  their bodies add 42 paths to `conversion_fixture`, whose anchor was sized for the base body alone,
+  their bodies add 42 paths to `conversion_fixture`,
+  whose anchor was sized for the base body alone,
   so the mean fell to 1,039 bytes a file and the size rule declined before the class they name.
-  Both fixtures were fixed and the whole conversion module reran green, 20 of 20.
+  Both fixtures were fixed and the whole conversion module reran green,
+  20 of 20.
 - `worktree_clone_zfs::a_dataset_without_block_cloning_ends_in_gits_checkout_not_a_byte_copy` fails on `main`
-  at `999b4c08d0` in the same guest, with the same message:
-  the control expects the line "the clone rung ended", while the ladder refuses a clone into a pool whose block
+  at `999b4c08d0` in the same guest,
+  with the same message:
+  the control expects the line "the clone rung ended",
+  while the ladder refuses a clone into a pool whose block
   cloning is off before the rung starts and Git's own checkout writes the worktree.
-  It is not this branch's, and it is worth a fix of its own: the route it asserts and the route the ladder takes are
+  It is not this branch's,
+  and it is worth a fix of its own:
+  the route it asserts and the route the ladder takes are
   two different words for the same refusal.
 - The six `worktree::worktree_ladder_target_tree_skip` controls of finding H1 ran green on the host and in a btrfs
-  guest (7 tests in that module there), together with the partial clone's and the limits' own controls
-  (40 run, 40 passed).
+  guest (7 tests in that module there),
+  together with the partial clone's and the limits' own controls
+  (40 run,
+  40 passed).
 
 ### The two follow-ups ZFS plan step 10 records
 
