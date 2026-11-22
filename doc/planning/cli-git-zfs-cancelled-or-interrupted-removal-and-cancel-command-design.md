@@ -196,7 +196,7 @@ a fresh all-namespace verification and a fresh deferred-destroy check ([plan][pl
 "Step 16",
 lines 1872 to 1875).
 
-### Cancellation, and the two arms
+### Cancellation, and the answer's two halves
 
 The answer's words,
 quoted by the proposal and by the record ([proposal][proposal],
@@ -650,7 +650,8 @@ and the line numbers are those of the tree it names.
   one" ([plan-record][plan-record],
   "Field by field").
   A disagreement between the two is a refusal in this design,
-  not a choice between them.
+  not a choice between them,
+  and where no plan exists the claim's owner is the one that speaks.
 
 ## Limitations
 
@@ -715,7 +716,7 @@ The removal's records are the wrapper's removal claim (named under "The records 
 the staging claim and the staged-folder record,
 and the destruction plan a sibling design defines.
 The plan's grammar and home are that design's,
-and this design reads them under the dependency stated below.
+and this design reads them under "Dependencies on the sibling designs".
 
 The removal writes its durable records in this order,
 which this design fixes because a state has to be readable from the outside:
@@ -1122,9 +1123,11 @@ The design's answer is that the records a removal leaves have four different fat
 The plan design's own list of end states has no cancelled state,
 and this design needs none:
 the intent says `mount`,
-the plan's owner is dead,
+no live removal claim names the clone,
 and the clone is present,
 and those three facts are what `doctor` reads as a cancellation.
+Where a plan exists,
+its dead owner corroborates them.
 That also answers the deferred-destroy design's third option,
 which asked for "a state and a removal rule that sibling does not have":
 the state it wanted is the intent plus the kept plan,
@@ -1235,7 +1238,10 @@ and plan step 18 builds them:
 - for a cancellation,
   whether it is "cancelling" or "cancelled" by the two facts that tell them apart:
   a `mount` request with no answer is cancelling,
-  and a `mount` request answered while the plan's owner is dead and the clone is present is cancelled;
+  and a `mount` request answered,
+  with no live removal claim and the clone present,
+  is cancelled;
+  a plan's dead owner corroborates it where a plan exists;
 - every tuple the report marks destroyed,
   with the time from the plan's `started` field;
 - the next safe step,
@@ -1254,12 +1260,13 @@ A removal that is killed or runs past its deadline leaves the intent standing,
 and the handler keeps acting on it at its next trigger.
 Whether the action can move the clone depends on the wrapper's staging folder:
 
-- With no folder (points 3 and 9),
+- Where no folder stands (point 9,
+  and any request whose folder was never made),
   the handler cannot bind,
   so a clone that is mounted is refused rather than unmounted,
   and a clone that is mounted nowhere is answered as absent (A7).
   Nothing moves.
-- With a folder (points 4 to 8),
+- Where a folder stands (points 3 to 8),
   the handler acts:
   it binds the folder,
   moves the clone onto it,
@@ -1383,7 +1390,7 @@ and each names the state it needs:
   attaches,
   and reports that nothing was destroyed or which tuples were.
 - Wait for a trigger,
-  then run one of the commands above.
+  then run the removal again or the cancel command.
   A completed unmount changes the cancel command's work from moving a mount back to making one,
   and changes nothing else.
 - Nothing returns the worktree where the head is gone.
@@ -1466,7 +1473,9 @@ Each step names its refusal and its exit.
     and the staged-folder record where one stands.
     All of them must name one clone,
     one GUID and one slot,
-    the plan's `owner` and the removal claim's owner must name one process (A10),
+    the plan's `owner`,
+    where a plan exists,
+    and the removal claim's owner must name one process (A10),
     and the intent must read as a local request.
     A disagreement between any two records is a refusal,
     and never a choice between them.
@@ -1533,7 +1542,7 @@ and the plan keeps exactly what the removal wrote.
 With the proof done and the outcomes settled,
 the command first reads the intent it found.
 Where the intent already reads as a `mount` request,
-the plan's owner is dead,
+no live removal claim names the clone,
 and the clone stands at its slot,
 the command writes no second request,
 reports that the removal was already cancelled,
@@ -1749,7 +1758,8 @@ the removal claim decides:
   Its claim has a dead owner and the command takes it.
 - Two command runs do not interleave,
   and the second finds the intent already `mount`,
-  the plan's owner dead and the clone at its slot,
+  no live claim on the clone,
+  and the clone at its slot,
   and reports that and exits `0`.
 - A `mount` intent written while a sweep is holding the root claim is not lost,
   because the sweep re-reads the intent after it releases the claim ([step-8][step-8],
@@ -2635,7 +2645,7 @@ nothing below adopts a sibling's answer as decided.
   this design's unmounted window between a kill and the next command relies on that lock keeping `git worktree prune`
   from deleting the registration (F3).
   If that lock is not written before the removal can run,
-  this design's points 5 to 17 have an unprotected window and the cancel command must report it.
+  this design's points 7 to 17 have an unprotected window and the cancel command must report it.
 - The deferred-destroy checks (A9):
   that design keeps the intent and the plan on every refusal and rewrites neither,
   so points 12 and 15 are its states and this design's command is the way back from them.
