@@ -204,7 +204,9 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 /// so a refused rung costs no extra Git run,
 ///  with the one exception rung 1's size read states
 /// (`worktree_clone_conversion_size_read.rs`:
-///  a read started before the check is paid even when the check refuses),
+///  a read started before the check is ended,
+/// not paid,
+/// when the check refuses),
 ///  and each refusal leaves its reason in the log and,
 /// in words,
 /// with the person once Git has succeeded.
@@ -217,7 +219,8 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 ///  Stop a read this rung will not use,
 ///  and state it in the add's record.
 /// Why:
-///   The check's refusal, the fence's decline and the rung-2 fall-through all leave the read unused;
+///   The check's refusal,
+/// the fence's decline and the rung-2 fall-through all leave the read unused;
 ///  none of them may leave it running beside Git's own checkout.
 ///
 /// In TS you'd write (pseudocode):
@@ -255,7 +258,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     //  the commit `HEAD` names and the object format, which the ref files answer now.
     // The other rungs are untouched:
     //  a clone rung reads beside its copies,
-    //  and an add that ends before the fence settles this read at its own end.
+    //  and an add that ends before the fence settles or ends this read at its own end.
     //
     // In TS you'd write (pseudocode):
     // ```ts

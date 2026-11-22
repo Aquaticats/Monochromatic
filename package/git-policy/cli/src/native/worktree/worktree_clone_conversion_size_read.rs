@@ -81,7 +81,9 @@ const THREAD: &str = "clone-size-read-beside-the-check";
 ///  which wrote packs into a source the check was about to refuse
 ///  (the gate review's High 1 of 2026-11-22).
 /// Git 2.45.0 is the first release that honours the variable
-///  (`environment.c`, `NO_LAZY_FETCH_ENVIRONMENT`, sets `fetch_if_missing = 0`),
+///  (`environment.c`,
+/// `NO_LAZY_FETCH_ENVIRONMENT`,
+/// sets `fetch_if_missing = 0`),
 ///  and it takes `--no-lazy-fetch` as the same switch before any subcommand;
 /// an older Git refuses that option and reads nothing,
 ///  so it cannot fetch here either.
@@ -154,7 +156,8 @@ pub struct SizeReadBesideTheCheck {
 ///  an older Git refuses the option and reads nothing,
 ///  so the fence may retry the serial read only where nothing could be fetched.
 ///  A promisor pack or a `promisor` word in the common config is proof enough to keep the read's failure;
-///  anything it cannot prove is treated as a source that may fetch, which is the safe direction.
+///  anything it cannot prove is treated as a source that may fetch,
+/// which is the safe direction.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,7 +165,7 @@ pub struct SizeReadBesideTheCheck {
 /// ```
 fn may_fetch(common_dir: &Path) -> bool {
     let packs: std::path::PathBuf = common_dir.join("objects").join("pack");
-    if std::fs::read_dir(packs).is_ok_and(|entries| entries.flatten().any(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("promisor")))) {
+    if std::fs::read_dir(packs).is_ok_and(|entries| return entries.flatten().any(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("promisor")))) {
         return true;
     }
     let config: Vec<u8> = std::fs::read(common_dir.join("config")).unwrap_or_default();
@@ -271,8 +274,10 @@ fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_f
 /// The no-fetch switches are there only where a fetch is possible:
 ///  `GIT_NO_LAZY_FETCH` and `--no-lazy-fetch` are Git 2.45.0's,
 ///  and Git before that refuses the option before it reads anything.
-///  A plain source has no promisor remote, so today's read is safe there and an older Git keeps its overlap;
-///  a source that may fetch gets the option, so an older Git reads nothing and the fence falls back to Git's checkout.
+///  A plain source has no promisor remote,
+/// so today's read is safe there and an older Git keeps its overlap;
+///  a source that may fetch gets the option,
+/// so an older Git reads nothing and the fence falls back to Git's checkout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -434,7 +439,8 @@ impl SizeReadBesideTheCheck {
     /// a read longer than the add's own Git run would otherwise make the add slower than on `main`,
     ///  which is the integration pass's High 1 of 2026-11-22.
     /// A read that has answered is stated as the record's work;
-    /// one that has not is stated as started and not joined, and the add ends without it.
+    /// one that has not is stated as started and not joined,
+    /// and the add ends without it.
     /// The read's thread and its child end with this process
     /// (`GitRequest::ends_with_the_starting_thread`),
     ///  so nothing of the add's outlives it.
@@ -475,8 +481,11 @@ impl SizeReadBesideTheCheck {
     ///  (the integration pass's cone shape of 2026-11-22),
     ///  so the child is ended as soon as the add knows it will not use it.
     /// The child id is the one its runner published;
-    ///  a read that has not started a child, or one whose runner already reaped it, has zero here.
-    /// The thread answers into a receiver this value drops, and its send is ignored.
+    ///  a read that has not started a child,
+    /// or one whose runner already reaped it,
+    /// has zero here.
+    /// The thread answers into a receiver this value drops,
+    /// and its send is ignored.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

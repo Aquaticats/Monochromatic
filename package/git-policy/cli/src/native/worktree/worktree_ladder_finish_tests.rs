@@ -908,8 +908,10 @@ fn btrfs_a_target_tree_that_changes_a_fenced_path_is_served_by_gits_checkout_wit
 ///   The read starts before `checkSource` on rung 1's condition alone;
 ///  a blocker found after the check (`snapshot_blocker`) sends the add to rung 2,
 ///  and the integration pass's Medium 2 of 2026-11-22 found the settle waiting there
-///  before the copies, where `main` has no read at all.
-///  The held read makes the wait visible: a wait would last its 30 s hold.
+///  before the copies,
+/// where `main` has no read at all.
+///  The held read makes the wait visible:
+/// a wait would last its 30 s hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

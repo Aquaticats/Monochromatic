@@ -120,9 +120,12 @@ pub struct GitRequest {
     ///  which is the thread that ends with this process.
     /// Why:
     ///  A read the ladder leaves unjoined when the add ends has no owner left to wait for it.
-    ///  Its child must not outlive the command that started it, so the kernel is asked to end it
-    ///  (`PR_SET_PDEATHSIG`), and that is what the early size read sets here.
-    ///  A run of the command's own turn keeps the default, because no such run outlives its caller.
+    ///  Its child must not outlive the command that started it,
+    /// so the kernel is asked to end it
+    ///  (`PR_SET_PDEATHSIG`),
+    /// and that is what the early size read sets here.
+    ///  A run of the command's own turn keeps the default,
+    /// because no such run outlives its caller.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -134,7 +137,8 @@ pub struct GitRequest {
     /// Why:
     ///  The early size read may be abandoned when the check refuses the source,
     ///  and it must not keep competing with Git's checkout for the length of it;
-    ///  the id is the child's own, published by the runner once it starts.
+    ///  the id is the child's own,
+    /// published by the runner once it starts.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
