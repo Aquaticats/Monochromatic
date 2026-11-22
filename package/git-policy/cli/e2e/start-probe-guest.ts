@@ -8,8 +8,12 @@
  OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's handler inside it, prepares the probe dataset the design
  names, runs the arms, and destroys the guest.
 
- Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|m1-key|m1-read-write|m2-controls|m3-kill|m7-scan|m9-busy|timings|timings-boot-first|destroy|all> [--name <guest>]
+ Usage: node e2e/start-probe-guest.ts <create|prepare|red|probe-dataset|green|no-configuration|m1-key|m1-read-write|m2-controls|m3-kill|m7-scan|m9-busy|timings|timings-boot-first|destroy|all> [--name <guest>]
           [--log-dir <dir>] [--keep-guest]
+
+ `no-configuration` is the project's answer of 2026-11-22 for the probe: with no configuration file the record passes,
+its source is the design's own name in the pool the mounted checkout dataset names, and a dataset renamed away leaves
+the `ENOENT` record whose line names the two setup commands.
 
  `red` runs the arm before the probe exists and requires the refusal that says the mode is not one of this build's,
  which is what proves the green run below is a change and not an absence that always passed. `green` requires the
@@ -197,6 +201,52 @@ async function build(chosen: Options): Promise<void> {
 
 //endregion Commands
 
+/**
+ The project's answer of 2026-11-22 for the probe: with no configuration file the probe finds its dataset by its
+ design's own name in the pool the mounted checkout dataset names, and its checkout as the sweep finds one, so a
+ missing file no longer leaves the record blocked. The dataset is then renamed away, and the same run reads the
+ `ENOENT` refusal the design keeps, with the mode's line naming the two commands plan step 19's setup runs.
+ */
+function noConfiguration(chosen: Options): void {
+  const script = probeScript([
+    'check() {',
+    '  if ! grep --quiet --fixed-strings "$1" "$2"; then',
+    '    echo "MISSING $1 in $2"',
+    '    cat "$2"',
+    '    exit 1',
+    '  fi',
+    '}',
+    'cp $CONF /root/no-configuration-config.jsonc',
+    'rm --force $CONF',
+    '$H start-probe > /root/no-configuration-run.log 2>&1 || true',
+    'cat /root/no-configuration-run.log',
+    'cp $REC /root/no-configuration-record.txt',
+    'cat /root/no-configuration-record.txt',
+    `check 'verdict passed' /root/no-configuration-record.txt`,
+    'echo "NO-CONFIGURATION passed-with-no-file"',
+    `check 'source ${PROBE_DATASET}@ready' /root/no-configuration-record.txt`,
+    'echo "NO-CONFIGURATION source-is-the-designs-name"',
+    `zfs rename ${PROBE_DATASET} ${PROBE_DATASET}-absent`,
+    '$H start-probe > /root/no-configuration-absent-run.log 2>&1 || true',
+    'cat /root/no-configuration-absent-run.log',
+    'cp $REC /root/no-configuration-absent-record.txt',
+    'cat /root/no-configuration-absent-record.txt',
+    `check 'verdict blocked' /root/no-configuration-absent-record.txt`,
+    'echo "NO-CONFIGURATION absent-dataset-blocks"',
+    `check 'step attach-exclusive-create not-exercised errno ENOENT reason missing-source' /root/no-configuration-absent-record.txt`,
+    'echo "NO-CONFIGURATION absent-dataset-names-its-cause"',
+    'if grep --quiet --fixed-strings "zfs create" /root/no-configuration-absent-run.log && grep --quiet --fixed-strings "zfs snapshot" /root/no-configuration-absent-run.log; then',
+    '  echo "NO-CONFIGURATION absent-dataset-names-the-setup-commands"',
+    'else',
+    '  echo "MISSING the setup commands in the mode line"; cat /root/no-configuration-absent-run.log; exit 1',
+    'fi',
+    `zfs rename ${PROBE_DATASET}-absent ${PROBE_DATASET}`,
+    'cp /root/no-configuration-config.jsonc $CONF',
+    'echo "NO-CONFIGURATION done"',
+  ]);
+  guest({ chosen, script, log: 'guest-no-configuration.log', timeout: ARM_TIMEOUT_MS, });
+}
+
 //region Steps
 
 /** The step that must fail before the probe exists: the mode word is not one this build takes. */
@@ -239,7 +289,10 @@ function probeDataset(chosen: Options): void {
     `mkdir --parents $(dirname ${CONFIGURATION})`,
     `printf '%s\\n' '{' '  "startProbe": {' '    "dataset": "'${PROBE_DATASET}'",' '    "checkout": "'${CHECKOUT}'"' '  },' '  "account": "'${ACCOUNT}'"' '}' > ${CONFIGURATION}`,
     `chmod 0644 ${CONFIGURATION}`,
-    `mkdir --parents ${CHECKOUT}`,
+    // The checkout the design names is a mounted dataset, so a probe with no configuration file finds it the way the
+    // sweep does (doc/planning/cli-git-zfs-start-probe-design.md, "The source: the probe dataset").
+    `zfs create -o mountpoint=none ${POOL}/git-worktree-checkout`,
+    `zfs create -o mountpoint=${CHECKOUT} ${POOL}/git-worktree-checkout/monochromatic-git-checkout`,
     `chown ${ACCOUNT}:${ACCOUNT} ${CHECKOUT}`,
     `zfs list -H -o name,mountpoint,canmount,encryption ${POOL} ${POOL}/nosnap ${PROBE_DATASET} ${PROBE_ENCRYPTED}`,
   ].join('\n');
@@ -360,6 +413,16 @@ function green(chosen: Options): void {
 
 
 //region Added guest arms
+
+/** The lines the no-configuration arm must find, one per claim it makes. */
+const NO_CONFIGURATION_MARKERS = [
+  'NO-CONFIGURATION passed-with-no-file',
+  'NO-CONFIGURATION source-is-the-designs-name',
+  'NO-CONFIGURATION absent-dataset-blocks',
+  'NO-CONFIGURATION absent-dataset-names-its-cause',
+  'NO-CONFIGURATION absent-dataset-names-the-setup-commands',
+  'NO-CONFIGURATION done',
+] as const;
 
 /** The shell header every added arm shares: the handler, the record, the source and the leak counter. */
 function probeScript(lines: readonly string[]): string {
@@ -701,6 +764,11 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       await build(chosen);
     green(chosen);
   },
+  'no-configuration': async (chosen: Options): Promise<void> => {
+    if (!chosen.noBuild)
+      await build(chosen);
+    noConfiguration(chosen);
+  },
   'm1-key': async (chosen: Options): Promise<void> => {
     if (!chosen.noBuild)
       await build(chosen);
@@ -753,6 +821,7 @@ const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
       await build(chosen);
       probeDataset(chosen);
       green(chosen);
+      noConfiguration(chosen);
       m1Key(chosen);
       m1ReadWrite(chosen);
       m2Controls(chosen);
@@ -787,6 +856,14 @@ if (step === undefined)
   throw new Error(`unknown step '${chosen.step}'; use ${Object.keys(steps).join(', ')}`);
 await step(chosen);
 const greenLog = join(chosen.logDir, 'guest-green.log');
+const noConfigurationLog = join(chosen.logDir, 'guest-no-configuration.log');
+if (chosen.step === 'no-configuration' || chosen.step === 'all') {
+  const pulled = readFileSync(noConfigurationLog, 'utf8');
+  for (const marker of NO_CONFIGURATION_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the no-configuration log lacks ${marker}; the guest ran the arm without proving it`);
+  }
+}
 if (chosen.step === 'green' || chosen.step === 'all') {
   const pulled = readFileSync(greenLog, 'utf8');
   for (const marker of GREEN_MARKERS) {

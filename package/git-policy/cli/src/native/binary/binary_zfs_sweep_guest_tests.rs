@@ -6,7 +6,9 @@
 //!  the pool's key unloaded and loaded,
 //!  the handler's refusals,
 //!  the descriptor unmount a rollback makes,
-//!  and the child bound the listing takes.
+//!  the child bound the listing takes,
+//!  and the four shapes that name no checkout,
+//!  with a second pool holding the design's leaf name.
 //! Why:
 //!  The sweep mounts a real clone as root,
 //!  writes the store under `/var/lib` and files receipts under `/run`,
@@ -36,6 +38,10 @@
 //!  so the run reads the two dataset names through the design's fallback,
 //!  and the checkout's own mount is made private because the design's route
 //!  requires a not-shared immediate parent.
+//!  Four further shapes name no checkout at all, one of them no file, and each
+//!  has to attach the designed clone on its own run
+//!  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+//!  "With no configuration file").
 //!  Item 1 and item 5 are repeated through the handler,
 //!  and the key arm runs both halves:
 //!  the refusal while the key is unloaded,
@@ -254,6 +260,36 @@ fn write_configuration(checkout: &Path, parent: Option<&str>, checkout_dataset: 
 }
 
 /// What:
+///  Write one whole configuration document the sweep reads.
+/// Why:
+///  The four shapes that name no checkout are documents of their own,
+///  and a shape with no file is written by removing it.
+fn write_document(text: &str) {
+    let directory: &Path = Path::new(CONFIGURATION).parent().expect("the configuration has a folder");
+    std::fs::create_dir_all(directory).expect("the configuration folder is made");
+    std::fs::write(CONFIGURATION, text).expect("the configuration is written");
+    std::fs::set_permissions(CONFIGURATION, std::fs::Permissions::from_mode(0o644)).expect("the configuration holds its mode");
+}
+
+/// Remove the handler configuration,
+/// which is the shape the project's answer of 2026-11-22 is about.
+fn remove_configuration() {
+    let _removed: std::io::Result<()> = std::fs::remove_file(CONFIGURATION);
+}
+
+/// The dataset the design gives the checkout,
+/// under the pool this guest made.
+fn checkout_dataset_in(pool: &str) -> String {
+    return format!("{pool}/step8/{CHECKOUT_LEAF}");
+}
+
+/// The container the design places beside it,
+/// under the same pool.
+fn container_in(pool: &str) -> String {
+    return format!("{pool}/step8/{CONTAINER_LEAF}");
+}
+
+/// What:
 ///  Write the start probe's record for this boot as a passed one,
 ///  in the mode's own shape and with the live fingerprint.
 /// Why:
@@ -446,6 +482,70 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     // The clone keeps its request after the arm, so it is taken off before the later arms sweep this container.
     zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, clone.as_str()]);
     let _slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
+
+    // The project's answer of 2026-11-22: a file that names no checkout still lets the sweep find the mounted checkout
+    // dataset, the container beside it and the checkout path from that row. Each of the four shapes attaches the
+    // designed clone on its own run.
+    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request(nonce)).as_str(), clone.as_str()]);
+    let shapes: [(&str, Option<String>); 4] = [
+        ("no-file", None),
+        ("empty-object", Some(String::from("{}"))),
+        (
+            "only-start-probe",
+            Some(format!(
+                r#"{{ "startProbe": {{ "dataset": "{pool}/nosnap/git-worktree-probe", "checkout": "{}" }} }}"#,
+                checkout.display()
+            )),
+        ),
+        (
+            "dataset-names",
+            Some(format!(
+                r#"{{ "cloneMounts": {{ "parent": "{}", "checkoutDataset": "{}" }} }}"#,
+                container_in(pool.as_str()),
+                checkout_dataset_in(pool.as_str())
+            )),
+        ),
+    ];
+    for (shape, document) in shapes {
+        match document {
+            Some(text) => write_document(text.as_str()),
+            None => remove_configuration(),
+        }
+        let shaped: Run = sweep();
+        assert_eq!(shaped.status, Some(0), "the shape {shape} reached the end of a sweep: {}", shaped.said);
+        let found: &str = line_about(shaped.said.as_str(), clone.as_str()).unwrap_or_else(|| panic!("the shape {shape} printed no line about {clone}: {}", shaped.said));
+        assert!(found.starts_with("attached "), "the shape {shape} attaches the designed clone: {found}");
+        assert!(mount_row(slot_folder.as_path()).is_some(), "the shape {shape} left the mount standing: {}", shaped.said);
+        println!("SWEEP no-configuration shape={shape} attached slot={SLOT}");
+        unmount_at(slot_folder.as_path());
+        let _cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
+    }
+    zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, clone.as_str()]);
+
+    // The "several" that no account needs root for: a second pool that holds a dataset of the design's own leaf name.
+    // The sweep refuses, names both instances, and attaches nothing.
+    let second_pool: &str = "git-policy-cli-second";
+    let second_image: &str = "/home/git-policy-cli-second-pool.img";
+    let second_path: &str = "/home/second-checkout";
+    command_ok("truncate", &["--size", "256M", second_image]);
+    let created: (bool, String, String) = zfs(sbin.as_str(), "zpool", &["create", "-f", "-O", "mountpoint=none", second_pool, second_image], None);
+    assert!(created.0, "the second pool is created: {}", created.2);
+    let second_dataset: String = format!("{second_pool}/{CHECKOUT_LEAF}");
+    zfs_ok(sbin.as_str(), &["create", "-o", format!("mountpoint={second_path}").as_str(), second_dataset.as_str()]);
+    remove_configuration();
+    let several: Run = sweep();
+    assert_eq!(several.status, Some(2), "two instances of the leaf name are a refusal: {}", several.said);
+    for named in [checkout_dataset.as_str(), second_dataset.as_str()] {
+        assert!(several.said.contains(named), "the refusal lists {named}: {}", several.said);
+    }
+    assert!(several.said.contains("will not choose between them"), "the refusal says it chose nothing: {}", several.said);
+    assert!(several.said.contains(CHECKOUT_LEAF), "the refusal names the leaf it looked for: {}", several.said);
+    assert!(mount_row(slot_folder.as_path()).is_none(), "a refusal attaches nothing: {}", several.said);
+    assert!(!mounted(clone.as_str()), "a refusal mounts nothing: {}", several.said);
+    println!("SWEEP no-configuration several=two-pools refused slot={SLOT} mounted=false");
+    let removed: (bool, String, String) = zfs(sbin.as_str(), "zpool", &["destroy", "-f", second_pool], None);
+    assert!(removed.0, "the second pool is destroyed: {}", removed.2);
+    let _image_removed: std::io::Result<()> = std::fs::remove_file(second_image);
 
     // Item 5: an encrypted checkout dataset whose key is unloaded refuses as a key question and files a receipt naming
     // it, and the same sweep attaches after the load.

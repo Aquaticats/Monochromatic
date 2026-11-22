@@ -66,6 +66,11 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP rollback unmount=EBUSY',
   'SWEEP rollback unmount=ok',
   'SWEEP bound stopped=true',
+  'SWEEP no-configuration shape=no-file attached slot=one',
+  'SWEEP no-configuration shape=empty-object attached slot=one',
+  'SWEEP no-configuration shape=only-start-probe attached slot=one',
+  'SWEEP no-configuration shape=dataset-names attached slot=one',
+  'SWEEP no-configuration several=two-pools refused slot=one mounted=false',
   'SWEEP done',
 ] as const;
 
