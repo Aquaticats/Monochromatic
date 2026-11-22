@@ -42208,7 +42208,26 @@ stated in this entry. What follows from them, as work:
   Sonnet, told to test the product-or-control judgement (who else could rewrite a PID file in place within one millisecond,
   and whether a live holder's file can then be unlinked) and to read the silent gate's journal; review to
   `~/temp/agent/integration-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`, integration branch
-  `integrate/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate`. Step 7's
+  `integrate/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate`. THE REVIEW OF THE TWO REMOVAL-SIDE
+  RECORD DESIGNS IS BACK
+  (`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`): the destruction plan design is
+  "not fit as it stands", resting on two undecided choices (what the plan's first write holds, where the accepted design's
+  words ask for the whole verified inventory and the document writes none; and a state machine that cannot express a
+  retry); the origin cleanup design is "fit after the listed fixes, on one condition", that it not reach the owner before
+  the three record designs agree. As they stand the three contradict each other: they write the origin cleanup record at
+  three different moments, and the binding design keeps a slot-keyed binding while the origin is blocked where the
+  accepted design says "Settling frees the slot". Its section "Disagreements between the three record designs" lists
+  fourteen points (folder family, key, encoding, flushing, the serializer, who `doctor` runs as, bounds). It also read
+  Git's `worktree lock` at `v2.56.1` as a marker and no mutex. Ownership set across the three (the coordinator's editorial
+  split; every choice no record decides stays listed for the owner's veto): the origin cleanup design owns its record and
+  the moment it is written; the plan design owns the plan and reads the origin record where it wrote it; the binding design
+  owns the binding and states the shared convention. Notes sent to the two running step 10 rounds: the binding design gets
+  the two cross-findings and the fourteen points, the lock design gets the marker finding. GOING:
+  `pi-zfs-removal-destruction-plan-record-design-gate-findings` and `pi-zfs-origin-cleanup-record-design-gate-findings`.
+  The three record designs go to the owner together, after one second gate pass that reads all three. SCRATCH at this
+  pass: `~/temp/agent` measures 11,916 MiB; largest are the forced-removal design's folder 1,292 MiB, the propagation
+  gate review's 1,272 MiB and the cancelled-removal design's 1,244 MiB (source clones, cleared when each round ends).
+  Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
