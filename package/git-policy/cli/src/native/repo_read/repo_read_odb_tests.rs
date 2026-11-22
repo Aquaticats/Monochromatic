@@ -178,7 +178,7 @@ fn what_cannot_be_trusted_is_declined() {
 /// What:
 ///  A replace ref a reftable repository keeps in its tables declines the database.
 /// Why:
-///  The scans above look at `refs/replace` and `packed-refs`,
+///  `what_cannot_be_trusted_is_declined` looks at `refs/replace` and `packed-refs`,
 /// and the reftable backend writes neither:
 ///  the ref is in `reftable/`,
 /// so a replacement there would go unseen and the reader would answer the object Git replaces,
@@ -212,10 +212,12 @@ fn a_reftable_repositorys_replace_ref_declines_the_database() {
     assert!(!git_dir.join("packed-refs").exists(), "no replace ref is packed");
     let format = ObjectFormat::Sha1;
     let name = from_hex(older.trim().as_bytes(), format).expect("name");
-    if let Some(database) = ObjectDatabase::open(git_dir.as_path(), None, format) {
-        assert_eq!(database.read(name.as_slice()).expect("read").bytes, replaced, "the reader answers the replacement Git answers");
-    }
-    assert!(ObjectDatabase::open(git_dir.as_path(), None, format).is_none(), "a replace ref kept in reftable/ is outside what this reader scans");
+    let opened: Option<ObjectDatabase> = ObjectDatabase::open(git_dir.as_path(), None, format);
+    let answered: Option<Vec<u8>> = opened.as_ref().and_then(|database| { return database.read(name.as_slice()).map(|object| { return object.bytes; }); });
+    assert!(
+        opened.is_none(),
+        "a replace ref kept in reftable/ is outside what this reader scans, and it answered {answered:?} instead of declining"
+    );
     remove(root.as_path());
 }
 

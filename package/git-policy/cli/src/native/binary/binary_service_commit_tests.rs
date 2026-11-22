@@ -485,6 +485,8 @@ fn a_scoped_commit_beside_a_stat_dirty_lfs_asset_lands_through_the_service() {
 ///  so the amend built and landed a commit on a parent Git does not name.
 ///  The files-backend arm is the control that the difference is the ref store:
 ///  there the reader declines the database and Git's answer is used.
+///  A linked worktree of the reftable repository is the third arm:
+///  its replace ref reaches it through the common directory the reader declines.
 #[test]
 fn an_amend_of_a_replaced_commit_lands_with_gits_parents() {
     let fixture: Fixture = fixture("service-amend-replaced");
@@ -512,6 +514,10 @@ fn an_amend_of_a_replaced_commit_lands_with_gits_parents() {
         assert_eq!(query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", head.as_str()]), head, "{arm}: Git reads the replacement's parents");
         repos.push(repo);
     }
+    // A linked worktree of the reftable repository reads the same replace ref through its common directory,
+    // and its own Git directory is served before the service scans the fixture for the repositories it serves.
+    let linked: PathBuf = fixture.root.join("reftable-linked");
+    git(&fixture, repos[1].as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("UTF-8"), "-b", "topic"]);
     let name: String = format!("amend-replaced-{}", std::process::id());
     let mut service: Running = start(&fixture, name.as_str());
     for (index, (arm, _format)) in arms.iter().enumerate() {
@@ -528,6 +534,22 @@ fn an_amend_of_a_replaced_commit_lands_with_gits_parents() {
             "{arm}: the amended commit stands on the parents Git reads, which are none"
         );
     }
+    // The control for the linked arm: Git reads the replacement's parents there as well.
+    let linked_before: String = query(&fixture, linked.as_path(), &["rev-parse", "HEAD"]);
+    assert_eq!(
+        query(&fixture, linked.as_path(), &["rev-list", "--parents", "--max-count=1", linked_before.as_str()]),
+        linked_before,
+        "linked: Git reads the replacement's parents in a linked worktree too"
+    );
+    std::fs::write(linked.join("a.txt"), "four\n").expect("a");
+    let served: Output = through_service(&fixture, linked.as_path(), name.as_str(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
+    assert!(served.status.success(), "linked: {}", String::from_utf8_lossy(&served.stderr));
+    let landed: String = query(&fixture, linked.as_path(), &["rev-parse", "HEAD"]);
+    assert_eq!(
+        query(&fixture, linked.as_path(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]),
+        landed,
+        "linked: the amended commit stands on the parents Git reads, which are none"
+    );
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

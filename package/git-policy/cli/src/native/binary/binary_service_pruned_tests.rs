@@ -164,6 +164,7 @@ fn crash_reports(case: &Case) -> Vec<String> {
 ///  A crash report is what an import that died on a missing blob leaves,
 ///  and the person who meets the plain words must not find one either.
 fn assert_plain_failure(case: &Case, seen: &Observed) {
+    assert_eq!(crash_reports(case), Vec::<String>::new(), "the failed import left its crash report behind");
     let all: String = stderr_text(seen);
     // The phase marker a test arms logs its own warning lines; they are not part of what the wrapper tells the person.
     let text: String = all.lines().filter(|line| { return !line.starts_with("[warn] "); }).collect::<Vec<&str>>().join("\n");
@@ -175,7 +176,6 @@ fn assert_plain_failure(case: &Case, seen: &Observed) {
     assert!(text.contains("--prune=now") && text.contains("Nothing in the repository changed"), "{text}");
     assert_eq!(tip_subject(case), "base", "a failed commit changed the branch");
     assert_eq!(std::fs::read_to_string(case.repo.join("a.txt")).expect("a"), "base\nmore\n", "the person's edit is intact");
-    assert_eq!(crash_reports(case), Vec::<String>::new(), "the failed import left its crash report behind");
 }
 
 /// Content removed after it was staged and before the policies read it:

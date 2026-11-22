@@ -153,7 +153,12 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
 /// Git 2.56 reads `extensions.refStorage` as `<format>://<payload>`,
 ///  and the tables of such a store stand outside the common directory,
 /// so a store moved that way leaves no `reftable` folder behind.
-///  The configuration is where Git reads the backend from, so it is read here as well.
+///  The configuration is where Git reads the backend from,
+/// so it is read here as well.
+/// Gotcha:
+///  That read is what an open of a files-backend repository pays for this:
+/// 7.5 microseconds added to a 16.5 microsecond open on the host measured on 2026-11-22,
+/// and the note `doc/object-database-and-a-reftable-ref-store.md` records the paired run.
 fn ref_store_is_reftable(common_dir: &Path) -> bool {
     if common_dir.join("reftable").exists() {
         return true;
