@@ -94,6 +94,17 @@ fn a_trailing_line_is_refused() {
     assert!(matches!(parse_holder_scan(text.as_str()), Err(HolderScanRefusal::TrailingLine { .. })));
 }
 
+/// A count of namespaces is not the number of findings below it,
+/// so a result that read many namespaces and lists fewer findings parses.
+#[test]
+fn a_count_of_namespaces_is_not_the_number_of_lines_below_it() {
+    let mut scan: HolderScan = one_scan();
+    scan.namespaces_scanned = 40;
+    let read: HolderScan = parse_holder_scan(scan.text().as_str()).expect("a namespace count is not a section count");
+    assert_eq!(read.namespaces_scanned, 40);
+    assert_eq!(read.incomplete_reads(), 1);
+}
+
 /// A count larger than the lines it introduces is refused before any line is
 /// read under it.
 #[test]

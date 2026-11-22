@@ -70,8 +70,10 @@ impl<'a> Cursor<'a> {
         return Ok(value);
     }
 
-    /// One canonical decimal count.
-    fn count(&mut self, key: &'static str) -> Result<usize, HolderScanRefusal> {
+    /// One canonical decimal count of the lines that follow it,
+    /// refused before any line is read under it when more are claimed than are
+    /// there.
+    fn section_count(&mut self, key: &'static str) -> Result<usize, HolderScanRefusal> {
         let value: &'a str = self.keyed(key)?;
         let count: usize = decimal_count(key, value)?;
         let remaining: usize = self.lines.len().saturating_sub(self.at);
@@ -79,6 +81,13 @@ impl<'a> Cursor<'a> {
             return Err(HolderScanRefusal::Count { key, shown: String::from(value) });
         }
         return Ok(count);
+    }
+
+    /// One canonical decimal count of something other than the lines below it,
+    /// which is what the namespaces read are.
+    fn bare_count(&mut self, key: &'static str) -> Result<usize, HolderScanRefusal> {
+        let value: &'a str = self.keyed(key)?;
+        return decimal_count(key, value);
     }
 
     /// Nothing may follow the last field.
@@ -144,7 +153,7 @@ fn holder_fields(key: &'static str, value: &str) -> Result<NamespaceHolder, Hold
 /// One section of holder lines,
 /// one line per namespace.
 fn holder_section(cursor: &mut Cursor<'_>, count_key: &'static str, line_key: &'static str) -> Result<Vec<NamespaceHolder>, HolderScanRefusal> {
-    let count: usize = cursor.count(count_key)?;
+    let count: usize = cursor.section_count(count_key)?;
     let mut holders: Vec<NamespaceHolder> = Vec::with_capacity(count);
     for _line in 0..count {
         holders.push(holder_fields(line_key, cursor.keyed(line_key)?)?);
@@ -154,7 +163,7 @@ fn holder_section(cursor: &mut Cursor<'_>, count_key: &'static str, line_key: &'
 
 /// One section of the reader's own mounts.
 fn own_mount_section(cursor: &mut Cursor<'_>) -> Result<Vec<HeldMount>, HolderScanRefusal> {
-    let count: usize = cursor.count(RESULT_KEYS[6])?;
+    let count: usize = cursor.section_count(RESULT_KEYS[6])?;
     let mut mounts: Vec<HeldMount> = Vec::with_capacity(count);
     for _line in 0..count {
         mounts.push(mount_after_the_key(OWN_MOUNT_KEY, cursor.keyed(OWN_MOUNT_KEY)?)?);
@@ -210,7 +219,7 @@ fn incomplete_of(value: &str) -> Result<IncompleteRead, HolderScanRefusal> {
 
 /// One section of the reads the scan could not complete.
 fn incomplete_section(cursor: &mut Cursor<'_>) -> Result<Vec<IncompleteRead>, HolderScanRefusal> {
-    let count: usize = cursor.count(RESULT_KEYS[9])?;
+    let count: usize = cursor.section_count(RESULT_KEYS[9])?;
     let mut reads: Vec<IncompleteRead> = Vec::with_capacity(count);
     for _line in 0..count {
         reads.push(incomplete_of(cursor.keyed(INCOMPLETE_KEY)?)?);
@@ -257,7 +266,7 @@ pub fn parse_holder_scan(text: &str) -> Result<HolderScan, HolderScanRefusal> {
     if own_namespace.len() > MAXIMUM_NAMESPACE_BYTES {
         return Err(HolderScanRefusal::Value { key: RESULT_KEYS[4], shown: String::from(own_namespace) });
     }
-    let namespaces_scanned: usize = cursor.count(RESULT_KEYS[5])?;
+    let namespaces_scanned: usize = cursor.bare_count(RESULT_KEYS[5])?;
     let own_mounts: Vec<HeldMount> = own_mount_section(&mut cursor)?;
     let holders: Vec<NamespaceHolder> = holder_section(&mut cursor, RESULT_KEYS[7], HOLDER_KEY)?;
     let excluded: Vec<NamespaceHolder> = holder_section(&mut cursor, RESULT_KEYS[8], EXCLUDED_KEY)?;
