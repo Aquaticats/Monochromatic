@@ -204,6 +204,26 @@ fn a_managed_attach_without_an_unmount_intent_is_a_holder() {
     assert!(scan.excluded.is_empty());
 }
 
+/// A namespace that holds the clone more often than a report lists is listed
+/// to the bound,
+/// and the rest is one incomplete read rather than a silent omission.
+#[test]
+fn a_namespace_past_the_mount_bound_lists_the_bound_and_says_so() {
+    let root: PathBuf = fixture("holder-scan-mount-bound");
+    let mut table: String = String::new();
+    for mount_id in 0..(super::MAXIMUM_MOUNTS_PER_NAMESPACE + 2) {
+        table.push_str(mount_line(u32::try_from(41 + mount_id).expect("the fixture's mount id fits"), "/", format!("/srv/bind{mount_id}").as_str()).as_str());
+    }
+    task(root.as_path(), "21", "mnt:[9]", Some(table.as_str()));
+    let scan: HolderScan = scan_of(root.as_path(), Some("mnt:[7]"), None);
+    assert_eq!(scan.holder_namespaces(), 1);
+    assert_eq!(scan.holder_mounts(), super::MAXIMUM_MOUNTS_PER_NAMESPACE);
+    let saying: Vec<&IncompleteRead> = scan.incomplete.iter().filter(|read| return matches!(read, IncompleteRead::MountsPastTheBound { .. })).collect();
+    assert_eq!(saying.len(), 1, "{:?}", scan.incomplete);
+    assert_eq!(saying[0].namespace(), Some("mnt:[9]"));
+    assert!(!scan.is_clear());
+}
+
 /// A `/proc` root that cannot be listed is one incomplete read,
 /// and no holder is invented from it.
 #[test]

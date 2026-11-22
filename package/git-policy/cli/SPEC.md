@@ -6517,6 +6517,10 @@ a namespace or a task rather than at a count:
 - a namespace with no live member:
   every task of it ended before its table was read,
   so the namespace may hold the clone and the scan cannot say it does not;
+- one namespace holding more mounts of the clone than a report lists:
+  the report names the first eight and says the namespace holds more,
+  because a line naming every bind a machine ever made would decide the
+  result's size;
 - the scan's two bounds:
   it stopped reading namespaces,
   or stopped listing and reading,
@@ -6524,6 +6528,11 @@ a namespace or a task rather than at a count:
 
 A namespace that answered no table names one cause and not two,
 so one unknown namespace is never counted as two.
+The scan reads at most 1024 namespaces,
+lists at most 1024 findings,
+and lists at most eight mounts of the clone for one namespace;
+each bound that stops it is one of the causes above,
+so a result cut by a bound is never reported as clear.
 
 #### The managed attach it sets aside
 

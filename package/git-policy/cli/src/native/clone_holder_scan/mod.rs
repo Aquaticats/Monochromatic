@@ -100,7 +100,7 @@ pub use standing_unmount::StandingUnmount;
 /// The scan,
 /// its request,
 /// its bounds and its value.
-pub use holder_scan::{HolderScan, HolderScanRequest, MAXIMUM_DETAIL_LINES, MAXIMUM_MOUNT_NAMESPACES, MAXIMUM_REASON_BYTES, scan_holders};
+pub use holder_scan::{HolderScan, HolderScanRequest, MAXIMUM_DETAIL_LINES, MAXIMUM_MOUNTS_PER_NAMESPACE, MAXIMUM_MOUNT_NAMESPACES, MAXIMUM_REASON_BYTES, scan_holders};
 /// Why a text is not a result.
 pub use holder_scan_refusals::HolderScanRefusal;
 /// The result's text,

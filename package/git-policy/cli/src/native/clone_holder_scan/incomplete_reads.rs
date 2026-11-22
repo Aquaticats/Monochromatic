@@ -43,6 +43,8 @@ pub const NO_LIVE_MEMBER_WORD: &str = "no-live-member";
 pub const NAMESPACES_PAST_THE_BOUND_WORD: &str = "namespaces-past-the-bound";
 /// The word the detail bound is written as.
 pub const DETAILS_PAST_THE_BOUND_WORD: &str = "details-past-the-bound";
+/// The word the mounts-of-one-namespace bound is written as.
+pub const MOUNTS_PAST_THE_BOUND_WORD: &str = "mounts-past-the-bound";
 
 /// What:
 ///  One read the scan could not complete,
@@ -109,6 +111,13 @@ pub enum IncompleteRead {
         /// The bound.
         bound: usize,
     },
+    /// One namespace holds more mounts of the dataset than a report lists.
+    MountsPastTheBound {
+        /// The namespace.
+        namespace: String,
+        /// The bound.
+        bound: usize,
+    },
 }
 
 impl IncompleteRead {
@@ -121,6 +130,7 @@ impl IncompleteRead {
             IncompleteRead::NoLiveMember { .. } => NO_LIVE_MEMBER_WORD,
             IncompleteRead::NamespacesPastTheBound { .. } => NAMESPACES_PAST_THE_BOUND_WORD,
             IncompleteRead::DetailsPastTheBound { .. } => DETAILS_PAST_THE_BOUND_WORD,
+            IncompleteRead::MountsPastTheBound { .. } => MOUNTS_PAST_THE_BOUND_WORD,
         };
     }
 
@@ -131,6 +141,7 @@ impl IncompleteRead {
             IncompleteRead::TaskEnded { namespace, .. } => Some(namespace.as_str()),
             IncompleteRead::TableUnreadable { namespace, .. } => Some(namespace.as_str()),
             IncompleteRead::NoLiveMember { namespace, .. } => Some(namespace.as_str()),
+            IncompleteRead::MountsPastTheBound { namespace, .. } => Some(namespace.as_str()),
             IncompleteRead::Listing { .. } | IncompleteRead::NamespacesPastTheBound { .. } | IncompleteRead::DetailsPastTheBound { .. } => None,
         };
     }
@@ -143,6 +154,7 @@ impl IncompleteRead {
             IncompleteRead::TableUnreadable { task, .. } => Some(task.as_path()),
             IncompleteRead::Listing { .. } | IncompleteRead::NoLiveMember { .. } => None,
             IncompleteRead::NamespacesPastTheBound { .. } | IncompleteRead::DetailsPastTheBound { .. } => None,
+            IncompleteRead::MountsPastTheBound { .. } => None,
         };
     }
 
@@ -169,6 +181,9 @@ impl IncompleteRead {
             ),
             IncompleteRead::NamespacesPastTheBound { bound } => format!(
                 "the scan read {bound} mount namespaces and stopped, so every namespace after that one is in none of its lists. Ways forward: this is the scan's own bound; a machine with more namespaces than this needs its own report, and no scan of it can call itself clear.",
+            ),
+            IncompleteRead::MountsPastTheBound { namespace, bound } => format!(
+                "mount namespace {namespace} holds more than {bound} mounts of this dataset, and this report lists the first {bound}. Ways forward: this is the report's own bound; a namespace with more mounts than this needs its own report, and no scan of it can call itself clear."
             ),
             IncompleteRead::DetailsPastTheBound { bound } => format!(
                 "the scan listed {bound} findings and stopped listing and reading, so namespaces after that one are in none of its lists. Ways forward: this is the scan's own bound; a machine with more findings than this needs its own report, and no scan of it can call itself clear.",

@@ -70,6 +70,15 @@ pub const MAXIMUM_MOUNT_NAMESPACES: usize = 1024;
 ///  and it says so as one more incomplete read.
 pub const MAXIMUM_DETAIL_LINES: usize = 1024;
 
+/// How many mounts of one dataset one report lists for one namespace.
+/// Why:
+///  A namespace that holds the clone many times over is listed as far as a
+///  person can act on it,
+///  and the rest is one incomplete read,
+///  because a line naming every bind a machine ever made would decide the
+///  result's size and the reader's bound with it.
+pub const MAXIMUM_MOUNTS_PER_NAMESPACE: usize = 8;
+
 /// The most bytes of a read failure's own text one finding carries.
 /// Why:
 ///  A reason is the kernel's sentence about one path,
@@ -315,11 +324,18 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
         let mut kept: Vec<HeldMount> = Vec::with_capacity(matching.len());
         let mut set_aside: Vec<HeldMount> = Vec::new();
         let mut ran_out: bool = false;
+        let mut listed_here: usize = 0;
+        let mut past_the_namespace_bound: bool = false;
         for facts in matching {
+            if listed_here == MAXIMUM_MOUNTS_PER_NAMESPACE {
+                past_the_namespace_bound = true;
+                break;
+            }
             if !budget.take() {
                 ran_out = true;
                 break;
             }
+            listed_here += 1;
             let held: HeldMount = HeldMount::of(facts);
             let aside: bool = request.standing_unmount.is_some_and(|standing| return standing.sets_aside(&held));
             if aside {
@@ -336,7 +352,10 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
             scan.holders.push(NamespaceHolder { namespace: namespace.clone(), task: task_path.clone(), mounts: kept });
         }
         if !set_aside.is_empty() {
-            scan.excluded.push(NamespaceHolder { namespace, task: task_path, mounts: set_aside });
+            scan.excluded.push(NamespaceHolder { namespace: namespace.clone(), task: task_path, mounts: set_aside });
+        }
+        if past_the_namespace_bound {
+            scan.incomplete.push(IncompleteRead::MountsPastTheBound { namespace, bound: MAXIMUM_MOUNTS_PER_NAMESPACE });
         }
         if ran_out {
             break;

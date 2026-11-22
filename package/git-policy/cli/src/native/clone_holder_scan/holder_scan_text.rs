@@ -121,15 +121,20 @@ const fn line_bytes(key: &str, bound: usize) -> usize {
 /// its key,
 /// the mount id and the two paths.
 const fn own_mount_line_bytes() -> usize {
-    return line_bytes(OWN_MOUNT_KEY, MAXIMUM_DECIMAL_DIGITS + 1 + MAXIMUM_PATH_BYTES + 1 + MAXIMUM_PATH_BYTES);
+    return line_bytes(OWN_MOUNT_KEY, mount_bytes());
+}
+
+/// The most bytes one mount's three fields take.
+const fn mount_bytes() -> usize {
+    return MAXIMUM_DECIMAL_DIGITS + 1 + MAXIMUM_PATH_BYTES + 1 + MAXIMUM_PATH_BYTES;
 }
 
 /// The most bytes one holder or excluded line takes:
 /// its key,
 /// the namespace,
-/// the task and the mount's own three fields.
+/// the task and as many mounts as one namespace's line may carry.
 const fn held_line_bytes() -> usize {
-    return line_bytes(EXCLUDED_KEY, MAXIMUM_NAMESPACE_BYTES + 1 + MAXIMUM_PATH_BYTES + 1 + MAXIMUM_DECIMAL_DIGITS + 1 + MAXIMUM_PATH_BYTES + 1 + MAXIMUM_PATH_BYTES);
+    return line_bytes(EXCLUDED_KEY, MAXIMUM_NAMESPACE_BYTES + 1 + MAXIMUM_PATH_BYTES + crate::clone_holder_scan::holder_scan::MAXIMUM_MOUNTS_PER_NAMESPACE * (1 + mount_bytes()));
 }
 
 /// The most bytes one incomplete read's line takes.
@@ -169,7 +174,7 @@ const fn header_bytes() -> usize {
 ///  and a control proves a result round-trips.
 pub const MAXIMUM_RESULT_BYTES: usize = header_bytes()
     + crate::clone_holder_scan::holder_scan::MAXIMUM_DETAIL_LINES * held_line_bytes()
-    + 2 * incomplete_line_bytes()
+    + (crate::clone_holder_scan::holder_scan::MAXIMUM_DETAIL_LINES + crate::clone_holder_scan::holder_scan::MAXIMUM_MOUNT_NAMESPACES + 2) * incomplete_line_bytes()
     + 2 * own_mount_line_bytes();
 
 /// What:
@@ -288,6 +293,7 @@ fn incomplete_line(read: &IncompleteRead) -> String {
         }
         IncompleteRead::NoLiveMember { tasks_tried, reason, .. } => format!("{INCOMPLETE_KEY} {kind} {namespace} {tasks_tried} {}", printable_reason(reason.as_str())),
         IncompleteRead::NamespacesPastTheBound { bound } | IncompleteRead::DetailsPastTheBound { bound } => format!("{INCOMPLETE_KEY} {kind} {bound}"),
+        IncompleteRead::MountsPastTheBound { bound, .. } => format!("{INCOMPLETE_KEY} {kind} {namespace} {bound}"),
     };
 }
 

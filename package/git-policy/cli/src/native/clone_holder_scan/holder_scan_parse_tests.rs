@@ -50,7 +50,10 @@ fn one_scan() -> HolderScan {
             ],
         }],
         excluded: vec![NamespaceHolder { namespace: String::from("mnt:[7]"), task: PathBuf::from("/proc/11"), mounts: vec![HeldMount { mount_id: 44, root: PathBuf::from("/"), mount_point: PathBuf::from("/staging/one") }] }],
-        incomplete: vec![IncompleteRead::NoLiveMember { namespace: String::from("mnt:[5]"), tasks_tried: 2, reason: String::from("No such file or directory (os error 2)") }],
+        incomplete: vec![
+            IncompleteRead::NoLiveMember { namespace: String::from("mnt:[5]"), tasks_tried: 2, reason: String::from("No such file or directory (os error 2)") },
+            IncompleteRead::MountsPastTheBound { namespace: String::from("mnt:[9]"), bound: 8 },
+        ],
         time: String::from(TIME),
     };
 }
@@ -102,7 +105,7 @@ fn a_count_of_namespaces_is_not_the_number_of_lines_below_it() {
     scan.namespaces_scanned = 40;
     let read: HolderScan = parse_holder_scan(scan.text().as_str()).expect("a namespace count is not a section count");
     assert_eq!(read.namespaces_scanned, 40);
-    assert_eq!(read.incomplete_reads(), 1);
+    assert_eq!(read.incomplete_reads(), 2);
 }
 
 /// A count larger than the lines it introduces is refused before any line is

@@ -30,7 +30,7 @@ use crate::clone_holder_scan::holder_scan_text::{
     is_a_result_time, unescape_path, unescape_text,
 };
 use crate::clone_holder_scan::incomplete_reads::{
-    DETAILS_PAST_THE_BOUND_WORD, IncompleteRead, LISTING_WORD, NAMESPACES_PAST_THE_BOUND_WORD, NO_LIVE_MEMBER_WORD, TABLE_UNREADABLE_WORD, TASK_ENDED_WORD,
+    DETAILS_PAST_THE_BOUND_WORD, IncompleteRead, LISTING_WORD, MOUNTS_PAST_THE_BOUND_WORD, NAMESPACES_PAST_THE_BOUND_WORD, NO_LIVE_MEMBER_WORD, TABLE_UNREADABLE_WORD, TASK_ENDED_WORD,
 };
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -213,6 +213,12 @@ fn incomplete_of(value: &str) -> Result<IncompleteRead, HolderScanRefusal> {
         }
         NAMESPACES_PAST_THE_BOUND_WORD => Ok(IncompleteRead::NamespacesPastTheBound { bound: decimal_count(INCOMPLETE_KEY, rest)? }),
         DETAILS_PAST_THE_BOUND_WORD => Ok(IncompleteRead::DetailsPastTheBound { bound: decimal_count(INCOMPLETE_KEY, rest)? }),
+        MOUNTS_PAST_THE_BOUND_WORD => {
+            let Some((namespace, bound)) = rest.split_once(' ') else {
+                return Err(incomplete_refusal(value));
+            };
+            Ok(IncompleteRead::MountsPastTheBound { namespace: unescape_text(namespace), bound: decimal_count(INCOMPLETE_KEY, bound)? })
+        }
         _ => Err(incomplete_refusal(value)),
     };
 }
