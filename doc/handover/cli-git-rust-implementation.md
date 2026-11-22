@@ -42077,7 +42077,20 @@ stated in this entry. What follows from them, as work:
   `pi-commit-timing-control-stopped-build-failed-in-two-gates` on
   `fix/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` (brief in that folder; its worktree is the
   first a round got from the new wrapper build). The scratch root measured 11,178 MiB after the switch of 17:40:59-05:00; its largest
-  folders were the partial clone round's (2,227 MiB) and the propagation design's gate review (1,272 MiB). Step 7's
+  folders were the partial clone round's (2,227 MiB) and the propagation design's gate review (1,272 MiB). THE FIRST
+  DESIGN'S GATE REVIEW IS BACK: the deferred-destroy checks, "fit after the listed fixes (not fit to put to the owner as it
+  stands)" (`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review.md`). Sound: the mark is
+  read with `ZFS_IOC_OBJSET_STATS` on the origin snapshot's name, from the `defer_destroy` entry of the answer's property
+  list, and the binding crate has that request today. Two highs: the document's keep-or-drop rule supposes the first check
+  runs before the unmount, where the accepted order unmounts first, so a refusal there cannot leave the slot as it was; and
+  its guest probe cannot run as written (`zfs hold` takes snapshots only). Nine mediums, and about twenty-two citations
+  that point at the wrong lines. GOING: the same session resumed as `pi-zfs-deferred-destroy-checks-design-gate-findings`
+  on `continuation-gate-findings.md` in the design's folder (run folder `run-2`): every finding fixed or refuted with
+  evidence, every citation in the document checked by a script and not only the listed ones, silent decisions turned into
+  questions, the siblings' documents read where the designs lean on each other. A second, short gate pass reads the
+  rewritten parts after it. The other six gate reviews get the same round when they return, from
+  `gate-findings-template.md` and `make-a-gate-findings-continuation.ts` under
+  `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
