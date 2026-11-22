@@ -41517,7 +41517,12 @@ stated in this entry. What follows from them, as work:
   does not reproduce (0.93 against a control 1.02); M2 the rotation was not position-balanced; M3 to M7 (small-tree ratios,
   B's bracket, one guard with no failing control, the skip unnamed, options bundled and no changed-path bound: 20,000 paths
   1.44 of `main`). GOING: `pi-clone-rung-partial-clone-recheck-findings` in the proposal worktree (merge `main`, the
-  balanced rerun, every finding; brief `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/prompt-recheck-findings.md`). Step 7's
+  balanced rerun, every finding; brief `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/prompt-recheck-findings.md`).
+  STEP 7'S CLOSURE LOWS ROUND ended at `2dd61371ea` (the claim makes its `/run` folder, red then green; the publish
+  cleanup and the poll sleep held by controls that fail without them, 3,981 reads in 200 ms without the sleep; the readiness
+  sentence and `boot-reconcile` given to plan step 8; gate 9736 of 9738). It printed `PATH` through a filter, against the
+  rule (no secret). GOING: the step 7 reviewer's narrow check. `~/temp/agent` measures 12,907 MiB (fence reader design
+  4,536, partial clone 2,239, the BTF reader validation 970). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
