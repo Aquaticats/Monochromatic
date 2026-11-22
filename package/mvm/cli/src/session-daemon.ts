@@ -15,6 +15,12 @@
 
  A daemon that is already running is used as it is, whatever cgroup it is in.
 
+ The unit runs with `ExitType=cgroup`, so systemd keeps it and its cgroup while
+ any guest process runs after the daemon exits: a guest outlived a daemon that
+ started it on `main`, and this keeps that. When mvm cannot use a unit at all
+ (no `systemd-run`, or a user manager it cannot reach), it lets `virsh` start the
+ daemon the way it did before and warns, naming the cgroup defect that leaves.
+
  @module
  */
 
@@ -24,7 +30,6 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   LIBVIRT_URI,
   SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,
-  SESSION_DAEMON_MEMORY_MAX,
   SESSION_DAEMON_UNIT,
 } from './config.ts';
 import {
@@ -40,9 +45,11 @@ import {
   VIRTQEMUD_COMMAND_ENV,
   VIRSH_COMMAND_ENV,
 } from './libvirt-tools.ts';
+import { sessionDaemonMemoryMax, } from './session-daemon-memory.ts';
 import {
   CommandFailedError,
   CommandTimedOutError,
+  ExecutableNotFoundError,
   renderCommandLine,
 } from './spawn-errors.ts';
 import { spawn, } from './spawn.ts';
@@ -60,17 +67,68 @@ const l = tagged({ tag: 'mvm', },);
 //region Environment
 
 /**
- Environment every `virsh` call and the daemon command get.
-
- `LC_ALL=C` keeps state names and error texts in one language.
- `LIBVIRT_AUTOSTART=0` stops libvirt from starting a daemon on demand, which
- would put the daemon in this command's cgroup; the same setting makes
- {@link daemonAnswers} a question rather than a start.
+ Environment entries that keep libvirt's state names and error texts in one
+ language.
  */
-export const LIBVIRT_ENV = {
+const LIBVIRT_LOCALE_ENV = {
   LC_ALL: 'C',
-  LIBVIRT_AUTOSTART: '0',
 } as const;
+
+/**
+ Why mvm could not put libvirt's session daemon in a unit of its own, and so let
+ `virsh` start it the way it did before.
+
+ - `no-systemd-run`: `systemd-run` is not installed, so there is no systemd user
+   manager to start a unit in.
+ - `user-manager-unreachable`: `systemd-run --user` answered that it cannot
+   connect to the user bus, as it does when `XDG_RUNTIME_DIR` is not the one the
+   user manager uses.
+ */
+export type SessionDaemonFallbackReason = 'no-systemd-run' | 'user-manager-unreachable';
+
+/**
+ The fallback this process took, when it took one; empty until then.
+ */
+const fallback: { reason?: SessionDaemonFallbackReason; } = {};
+
+/**
+ Environment for a `virsh` call that must not let libvirt start a session daemon
+ on demand.
+
+ `LIBVIRT_AUTOSTART=0` is the documented setting for asking without starting
+ (libvirt 12.9, `src/libvirt.c`); after a fallback the variable is left alone, so
+ that `virsh` starts the daemon the way it did before mvm had a unit for it.
+
+ @returns Entries to merge into the child's environment; empty after a fallback
+
+ @example
+ ```ts
+ libvirtAutostartEnv(); // => { LIBVIRT_AUTOSTART: '0' }
+ ```
+ */
+export function libvirtAutostartEnv(): Readonly<Record<string, string>> {
+  return fallback.reason === undefined
+    ? { LIBVIRT_AUTOSTART: '0', }
+    : {};
+}
+
+/**
+ Environment every `virsh` call and the daemon question get: one language for
+ libvirt's texts, and no on-demand daemon start unless mvm has fallen back.
+
+ @returns Entries to merge into the child's environment
+
+ @example
+ ```ts
+ libvirtEnv(); // => { LC_ALL: 'C', LIBVIRT_AUTOSTART: '0' }
+ ```
+ */
+export function libvirtEnv(): Readonly<Record<string, string>> {
+  return {
+    ...LIBVIRT_LOCALE_ENV,
+    ...libvirtAutostartEnv(),
+  };
+}
 
 /**
  Milliseconds mvm waits for a started daemon to answer before it reports the
@@ -137,6 +195,45 @@ const DAEMON_NAME = 'virtqemud';
  Example value shown when {@link VIRTQEMUD_COMMAND_ENV} cannot be read.
  */
 const VIRTQEMUD_EXAMPLE = `["${DAEMON_NAME}"]`;
+
+/**
+ Milliseconds between two start attempts while a unit of the same name is still
+ loaded, as it is while the daemon a previous caller started is exiting.
+
+ Basis: measured here on 2026-11-21, the unit name was refused for as long as the
+ unit ran and became free 54 ms after its main process exited (probed with a
+ stand-in `sleep`, 25 ms between attempts). A quarter of a second therefore finds
+ a freed name promptly without a busy loop.
+ */
+const START_RETRY_INTERVAL_MS = 250;
+
+/**
+ Text mvm warns with when it cannot use a unit of its own: why, what happens
+ instead, and where the cgroup defect it leaves is recorded.
+
+ @param reason - Why the unit could not be used
+
+ @returns Warning text of several lines
+
+ @example
+ ```ts
+ fallbackWarning('no-systemd-run');
+ ```
+ */
+function fallbackWarning(reason: SessionDaemonFallbackReason,): string {
+  /**
+   Why the unit could not be started, in the reader's terms.
+   */
+  const cause = {
+    'no-systemd-run': `mvm found no ${SYSTEMD_RUN} on PATH, so this host has no systemd user manager to start libvirt's session daemon in a unit of its own.`,
+    'user-manager-unreachable': `mvm could not reach systemd's user manager, which ${SYSTEMD_RUN} --user needs, so it could not start libvirt's session daemon in a unit of its own; a caller whose XDG_RUNTIME_DIR is not the user manager's gets this.`,
+  }[reason];
+  return [
+    cause,
+    'For the rest of this process, libvirt\'s session daemon starts on demand inside the cgroup of the mvm command that asks for it, where that command\'s memory cap, time limit or cleanup kills the daemon and every guest of every session when that command ends.',
+    'Why that cgroup matters: doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md',
+  ].join('\n',);
+}
 
 //endregion Environment
 
@@ -214,27 +311,40 @@ export function sessionDaemonCommand({
 }
 
 /**
- Renders the arguments `systemd-run` gets: the unit name with its caps, then the
- daemon command, then the daemon's idle timeout.
+ Renders the arguments `systemd-run` gets: the unit name with its settings, then
+ the daemon command, then the daemon's idle timeout.
 
  @param daemon - Command that runs `virtqemud`, then its leading arguments
+
+ @param memoryMax - Cap on the memory of every guest together, as the machine's
+ half is read at start time
 
  @returns Arguments after the executable name
 
  @example
  ```ts
- startArguments(['virtqemud']); // => ['--user', '--unit=mvm-libvirt-session', ..., 'virtqemud', '--timeout=120']
+ startArguments({ daemon: ['virtqemud'], memoryMax: '31576M' }); // => ['--user', '--unit=mvm-libvirt-session', ..., 'virtqemud', '--timeout=120']
  ```
  */
-function startArguments(daemon: readonly string[],): readonly string[] {
+function startArguments({
+  daemon,
+  memoryMax,
+}: {
+  readonly daemon: readonly string[];
+  readonly memoryMax: string;
+},): readonly string[] {
   return [
     '--user',
     `--unit=${SESSION_DAEMON_UNIT}`,
     // Removes the unit when the daemon exits, so the fixed name is free for the next start.
     '--collect',
-    `--property=MemoryMax=${SESSION_DAEMON_MEMORY_MAX}`,
+    `--property=MemoryMax=${memoryMax}`,
     // `continue`: a guest the kernel kills for the cap must not stop the daemon and every other guest.
     '--property=OOMPolicy=continue',
+    // `cgroup`: the unit stays up while any guest process lives after the daemon exits, as it did before the unit
+    // existed. systemd.service(5) on systemd 262: "If set to cgroup, the service will be considered running as long as
+    // at least one process in the cgroup has not exited".
+    '--property=ExitType=cgroup',
     ...daemon,
     `--timeout=${String(SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,)}`,
   ];
@@ -287,7 +397,7 @@ async function daemonAnswers(virsh: ToolCommand,): Promise<boolean> {
       ],
       command,
       deadlineMs: PROBE_DEADLINE_MS,
-      env: LIBVIRT_ENV,
+      env: libvirtEnv(),
       notFoundRemedy: toolNotFoundRemedy({
         command: virsh,
         tool: VIRSH_NAME,
@@ -365,27 +475,83 @@ function reportsExistingUnit(error: unknown,): boolean {
 }
 
 /**
+ This attempt started the unit.
+ */
+type StartClaimed = { readonly state: 'claimed'; };
+
+/**
+ This attempt was refused because a unit of that name is loaded, as it is while a
+ daemon a previous caller started is still running or exiting.
+ */
+type StartAlreadyLoaded = { readonly state: 'already-loaded'; };
+
+/**
+ mvm has no user manager to start a unit in, so the daemon has to be started the
+ way it was before.
+ */
+type StartFallback = {
+  readonly reason: SessionDaemonFallbackReason;
+  readonly state: 'fallback';
+};
+
+/**
+ What one `systemd-run` attempt did.
+ */
+type StartOutcome = StartAlreadyLoaded | StartClaimed | StartFallback;
+
+/**
+ Checks whether `systemd-run` answered that it cannot reach the user manager, as
+ it does when `XDG_RUNTIME_DIR` is not the one the user manager uses.
+
+ Recorded here on 2026-11-21 from a caller with a private runtime directory:
+ `Failed to connect to user scope bus via local transport: No such file or
+ directory`.
+
+ @param error - Value caught from the `systemd-run` call
+
+ @returns Whether the user manager could not be reached, narrowed to the failed command that said so
+
+ @example
+ ```ts
+ reportsUnreachableUserManager(error); // true for the message above
+ ```
+ */
+function reportsUnreachableUserManager(error: unknown,): error is CommandFailedError {
+  return (error instanceof CommandFailedError)
+    && error.stderr
+      .includes('Failed to connect to',)
+    && error.stderr
+      .includes('bus',);
+}
+
+/**
  Starts the daemon as a transient user unit named {@link SESSION_DAEMON_UNIT},
  or recognises that another process got there first.
 
  @param daemon - Command that runs `virtqemud`, then its leading arguments
 
+ @param memoryMax - Cap on the memory of every guest together
+
  @param virsh - Command mvm runs `virsh` with, used for the failure's advice
+
+ @returns What this attempt did
 
  @throws {@link SessionDaemonStartError} when the unit could not be started for another reason
 
  @example
  ```ts
- await startUnit({ daemon: ['virtqemud'], virsh: { argv: ['virsh'], origin: 'path' } });
+ await startUnit({ daemon: ['virtqemud'], memoryMax: '31576M', virsh: { argv: ['virsh'], origin: 'path' } });
  ```
  */
 async function startUnit({
   daemon,
+  memoryMax,
   virsh,
 }: {
   readonly daemon: readonly string[];
+  readonly memoryMax: string;
   readonly virsh: ToolCommand;
-},): Promise<void> {
+},): Promise<StartOutcome> {
   /**
    Logger scoped to the start so its outcome is attributable.
    */
@@ -396,7 +562,10 @@ async function startUnit({
   /**
    Complete `systemd-run` arguments.
    */
-  const args = startArguments(daemon,);
+  const args = startArguments({
+    daemon,
+    memoryMax,
+  },);
   /**
    The start as a reader can repeat it.
    */
@@ -415,11 +584,31 @@ async function startUnit({
         'Install systemd, whose user manager mvm needs here, or start the daemon by hand once; the error below says how.',
       ].join('\n',),
     },);
+    return { state: 'claimed', };
   }
   catch (error) {
     if (reportsExistingUnit(error,)) {
-      rl.debug(`the unit ${SESSION_DAEMON_UNIT}.service already exists; waiting for its daemon`,);
-      return;
+      rl.debug(`the unit ${SESSION_DAEMON_UNIT}.service is still loaded; waiting for it to go inactive`,);
+      return { state: 'already-loaded', };
+    }
+    if (error instanceof ExecutableNotFoundError) {
+      rl.debug(`${SYSTEMD_RUN} does not exist`,);
+      return {
+        reason: 'no-systemd-run',
+        state: 'fallback',
+      };
+    }
+    if (reportsUnreachableUserManager(error,)) {
+      /**
+       What the user manager answered, on one line.
+       */
+      const answer = error.stderr
+        .trim();
+      rl.debug(`systemd's user manager cannot be reached: ${answer}`,);
+      return {
+        reason: 'user-manager-unreachable',
+        state: 'fallback',
+      };
     }
     throw new SessionDaemonStartError({
       cause: error,
@@ -430,8 +619,14 @@ async function startUnit({
 }
 
 /**
- Waits until the started daemon answers, asking again at
- {@link ANSWER_POLL_INTERVAL_MS} until {@link answerDeadlineMs} runs out.
+ Starts the unit, and starts it again whenever systemd says a unit of that name
+ is still loaded, until its daemon answers or {@link answerDeadlineMs} runs out.
+
+ A unit whose daemon is exiting still holds its name for a moment, and the
+ daemon's socket is already gone, so a single refused start cannot be told apart
+ from a daemon that is merely slow; retrying the start until the deadline covers
+ both, and is what makes a caller that arrives while the previous daemon exits
+ wait instead of failing.
 
  @param daemon - Command that runs `virtqemud`, then its leading arguments
 
@@ -439,12 +634,14 @@ async function startUnit({
 
  @throws {@link SessionDaemonStartError} when the daemon does not answer in time
 
+ @throws {@link SessionDaemonMemoryError} when the machine's total memory cannot be read
+
  @example
  ```ts
- await waitForAnswer({ daemon: ['virtqemud'], virsh: { argv: ['virsh'], origin: 'path' } });
+ await startAndWait({ daemon: ['virtqemud'], virsh: { argv: ['virsh'], origin: 'path' } });
  ```
  */
-async function waitForAnswer({
+async function startAndWait({
   daemon,
   virsh,
 }: {
@@ -452,17 +649,52 @@ async function waitForAnswer({
   readonly virsh: ToolCommand;
 },): Promise<void> {
   /**
-   Logger scoped to the wait so its outcome is attributable.
+   Logger scoped to the start and the wait so its outcome is attributable.
    */
   const rl = tagged({
-    tag: waitForAnswer.name,
+    tag: startAndWait.name,
     l,
   },);
+  /**
+   Cap on the memory of every guest together, read from this machine now.
+   */
+  const memoryMax = await sessionDaemonMemoryMax();
   /**
    Milliseconds after which mvm reports the start as failed.
    */
   const deadline = Date.now() + answerDeadlineMs();
+  /**
+   Progress of the loop, in one `const` container so no root-level `let` widens the scope of the statements after it.
+
+   `claimed`: this call already started the unit, so no further start is needed.
+   `lastStartRefused`: the last attempt was refused because a unit of that name is loaded.
+   `nextStartAt`: when the next start attempt may run; zero so the first one runs at once.
+   */
+  const progress = {
+    claimed: false,
+    lastStartRefused: false,
+    nextStartAt: 0,
+  };
   while (Date.now() < deadline) {
+    if ((!progress.claimed) && (Date.now() >= progress.nextStartAt)) {
+      /**
+       What this attempt did.
+       */
+      // oxlint-disable-next-line no-await-in-loop -- each attempt reports on the one before it
+      const outcome = await startUnit({
+        daemon,
+        memoryMax,
+        virsh,
+      },);
+      if (outcome.state === 'fallback') {
+        fallback.reason = outcome.reason;
+        rl.warn(fallbackWarning(outcome.reason,),);
+        return;
+      }
+      progress.claimed = outcome.state === 'claimed';
+      progress.lastStartRefused = outcome.state === 'already-loaded';
+      progress.nextStartAt = Date.now() + START_RETRY_INTERVAL_MS;
+    }
     // oxlint-disable-next-line no-await-in-loop -- each question depends on the answer to the one before it
     if (await daemonAnswers(virsh,)) {
       rl.debug(`the session daemon in ${SESSION_DAEMON_UNIT}.service answers`,);
@@ -473,9 +705,13 @@ async function waitForAnswer({
   }
   throw new SessionDaemonStartError({
     startCommandLine: renderCommandLine({
-      args: startArguments(daemon,),
+      args: startArguments({
+        daemon,
+        memoryMax,
+      },),
       command: SYSTEMD_RUN,
     },),
+    unitStillLoaded: progress.lastStartRefused,
     virsh,
   },);
 }
@@ -515,11 +751,7 @@ async function checkAndStart(): Promise<void> {
       ?? '',
     virsh,
   },);
-  await startUnit({
-    daemon,
-    virsh,
-  },);
-  await waitForAnswer({
+  await startAndWait({
     daemon,
     virsh,
   },);

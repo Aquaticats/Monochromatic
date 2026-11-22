@@ -171,19 +171,31 @@ export class SessionDaemonStartError extends Error {
   readonly unit: string;
 
   /**
+   Whether the unit name was still loaded at the last attempt, which means a unit
+   of that name was running or shutting down and mvm retried the start until its
+   deadline.
+   */
+  readonly unitStillLoaded: boolean;
+
+  /**
    @param cause - Failed start or last failed check, kept for its text
 
    @param startCommandLine - Rendered start command, named in the message
+
+   @param unitStillLoaded - Whether the last start was refused because the unit
+   name is loaded
 
    @param virsh - Command mvm runs `virsh` with, used for the start advice
    */
   constructor({
     cause,
     startCommandLine,
+    unitStillLoaded = false,
     virsh,
   }: {
     readonly cause?: unknown;
     readonly startCommandLine: string;
+    readonly unitStillLoaded?: boolean;
     readonly virsh: ToolCommand;
   },) {
     super(
@@ -191,15 +203,24 @@ export class SessionDaemonStartError extends Error {
         `mvm starts libvirt's session daemon in the user unit ${SESSION_DAEMON_UNIT}.service, and it is not answering:`,
         `  ${startCommandLine}`,
         ...(cause === undefined ? [] : [caughtValueText(cause,),]),
+        ...(unitStillLoaded
+          ? [
+            `That unit name was still loaded every time mvm tried to start it, up to its deadline, so a unit of that name was running or shutting down.`,
+            'If it is still active after its daemon exited, it holds processes (guests the daemon no longer manages), and stopping it kills them.',
+          ]
+          : []),
         'Read what the unit reported:',
         `  journalctl --user-unit=${SESSION_DAEMON_UNIT}.service`,
         `  systemctl --user status ${SESSION_DAEMON_UNIT}.service`,
+        'If a unit of that name failed earlier and still holds the name, unload it:',
+        `  systemctl --user reset-failed ${SESSION_DAEMON_UNIT}.service`,
         sessionDaemonAdvice(virsh,),
       ].join('\n',),
       { cause, },
     );
     this.name = 'SessionDaemonStartError';
     this.unit = SESSION_DAEMON_UNIT;
+    this.unitStillLoaded = unitStillLoaded;
   }
 }
 

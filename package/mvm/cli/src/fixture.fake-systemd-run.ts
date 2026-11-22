@@ -8,6 +8,10 @@
  the same unit fails the way systemd fails it, so a test can watch two
  processes race for the one unit name.
 
+ A test that needs a start refused while the unit name is still loaded, and a
+ later start accepted, writes the outcomes it wants into the state directory;
+ the stand-in consumes them in order.
+
  @module
  */
 
@@ -20,6 +24,20 @@ export const SESSION_DAEMON_UNIT_MARKER = 'session-daemon-unit.json';
  Name of the file in the fake virsh's state directory that records every stand-in invocation.
  */
 export const SYSTEMD_RUN_CALLS_FILE = 'systemd-run-calls.jsonl';
+
+/**
+ Name of the file in the fake virsh's state directory that scripts the next starts.
+ */
+export const SYSTEMD_RUN_OUTCOMES_FILE = 'systemd-run-outcomes.json';
+
+/**
+ One scripted answer of the stand-in.
+
+ - `accepted`: the start succeeds, even when the marker already exists.
+ - `refused`: systemd's "already loaded" answer, and the marker is left as it is.
+ - `exclusive`: the default; the start succeeds unless the marker already exists.
+ */
+export type SystemdRunOutcome = 'accepted' | 'exclusive' | 'refused';
 
 /**
  Milliseconds the stand-in waits before it claims the unit name, so that two
@@ -40,25 +58,46 @@ const CLAIM_DELAY_MS = 1_000;
  */
 export function systemdRunBody(): string {
   return [
-    'const { appendFileSync, writeFileSync } = require(\'node:fs\');',
+    'const { appendFileSync, readFileSync, writeFileSync } = require(\'node:fs\');',
     'const { join } = require(\'node:path\');',
     'const directory = process.env.MVM_FAKE_VIRSH_DIR;',
     'if (directory === undefined) { throw new Error("MVM_FAKE_VIRSH_DIR is not set; the stand-in systemd-run needs its state directory"); }',
     `const claimDelayMs = ${String(CLAIM_DELAY_MS,)};`,
+    `const outcomesFile = join(directory, ${
+      JSON.stringify(SYSTEMD_RUN_OUTCOMES_FILE,)
+    });`,
+    `const markerFile = join(directory, ${
+      JSON.stringify(SESSION_DAEMON_UNIT_MARKER,)
+    });`,
     'const args = process.argv.slice(2);',
     'const unitArgument = args.find((argument) => argument.startsWith(\'--unit=\'));',
     'const unit = unitArgument === undefined ? \'\' : unitArgument.slice(\'--unit=\'.length);',
-    // A blocking wait, not a busy loop: the stand-in adds no host load while it waits.
-    'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, claimDelayMs);',
-    'let accepted = true;',
+    'let outcome = \'exclusive\';',
     'try {',
-    `  writeFileSync(join(directory, ${
-      JSON.stringify(SESSION_DAEMON_UNIT_MARKER,)
-    }), JSON.stringify({ args, unit }), { flag: 'wx' });`,
+    '  const remaining = JSON.parse(readFileSync(outcomesFile, \'utf8\'));',
+    '  if (Array.isArray(remaining) && remaining.length > 0) {',
+    '    outcome = remaining.shift();',
+    '    writeFileSync(outcomesFile, JSON.stringify(remaining));',
+    '  }',
     '}',
     'catch (error) {',
-    '  if (error.code !== \'EEXIST\') { throw error; }',
-    '  accepted = false;',
+    '  if (error.code !== \'ENOENT\') { throw error; }',
+    '}',
+    // A blocking wait, not a busy loop: the stand-in adds no host load while it waits.
+    'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, claimDelayMs);',
+    'let accepted = false;',
+    'if (outcome === \'accepted\') {',
+    '  writeFileSync(markerFile, JSON.stringify({ args, unit }));',
+    '  accepted = true;',
+    '}',
+    'else if (outcome !== \'refused\') {',
+    '  try {',
+    '    writeFileSync(markerFile, JSON.stringify({ args, unit }), { flag: \'wx\' });',
+    '    accepted = true;',
+    '  }',
+    '  catch (error) {',
+    '    if (error.code !== \'EEXIST\') { throw error; }',
+    '  }',
     '}',
     `appendFileSync(join(directory, ${
       JSON.stringify(SYSTEMD_RUN_CALLS_FILE,)

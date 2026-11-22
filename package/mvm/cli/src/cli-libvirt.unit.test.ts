@@ -41,6 +41,12 @@ const DOMAINS = [
   },
 ];
 
+/**
+ Path of the troubleshooting document the fallback warning must name.
+ */
+const TROUBLESHOOTING_DOC =
+  'doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md';
+
 await describe({
   name: 'mvm with configured or detected libvirt tools',
   children: [
@@ -129,21 +135,18 @@ await describe({
     },),
 
     it({
-      name: 'names systemd-run and how to start the session daemon by hand inside the Flatpak when none answers',
+      name: 'lets the Flatpak\'s virsh start the daemon and warns when there is no systemd-run',
       fn: async () => {
-        await using sandbox = await createSandbox({ sessionDaemon: 'absent', },);
+        await using sandbox = await createSandbox({ sessionDaemon: 'on-demand', },);
         await installFakeFlatpak(sandbox,);
         const result = await runCli({
           args: ['list',],
           sandbox,
         },);
-        expect(result.exitCode,).not.toBe(0,);
-        expect(result.stderr,).toContain('`systemd-run` was not found',);
-        expect(result.stderr,).toContain('mvm-libvirt-session.service',);
-        expect(result.stderr,).toContain('journalctl --user-unit=mvm-libvirt-session.service',);
-        expect(result.stderr,).toContain(
-          'flatpak run --command=virtqemud org.virt_manager.virt-manager --verbose',
-        );
+        // The daemon may start on demand only after mvm gave up on its own unit, so a clean run proves the fallback.
+        expect(result.exitCode,).toBe(0,);
+        expect(result.stderr,).toContain('mvm found no systemd-run on PATH',);
+        expect(result.stderr,).toContain(TROUBLESHOOTING_DOC,);
       },
     },),
 

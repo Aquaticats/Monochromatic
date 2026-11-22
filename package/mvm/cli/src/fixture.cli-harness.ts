@@ -24,6 +24,8 @@ import spawn, { SubprocessError, } from 'nano-spawn';
 
 import {
   SYSTEMD_RUN_CALLS_FILE,
+  SYSTEMD_RUN_OUTCOMES_FILE,
+  type SystemdRunOutcome,
   systemdRunBody,
 } from './fixture.fake-systemd-run.ts';
 
@@ -304,12 +306,30 @@ export async function installFakeFlatpak(sandbox: Sandbox,): Promise<void> {
 
  @param sandbox - Sandbox receiving the executable
 
+ @param outcomes - Answers the stand-in gives its first starts, in order; the
+ default start succeeds unless the unit marker already exists
+
  @example
  ```ts
- await installFakeSystemdRun(sandbox);
+ await installFakeSystemdRun({ outcomes: ['refused', 'accepted'], sandbox });
  ```
  */
-export async function installFakeSystemdRun(sandbox: Sandbox,): Promise<void> {
+export async function installFakeSystemdRun({
+  outcomes = [],
+  sandbox,
+}: {
+  readonly outcomes?: readonly SystemdRunOutcome[];
+  readonly sandbox: Sandbox;
+},): Promise<void> {
+  if (outcomes.length > 0) {
+    await writeFile(
+      join(
+        sandbox.state,
+        SYSTEMD_RUN_OUTCOMES_FILE,
+      ),
+      JSON.stringify(outcomes,),
+    );
+  }
   await writeExecutable({
     body: systemdRunBody(),
     name: 'systemd-run',

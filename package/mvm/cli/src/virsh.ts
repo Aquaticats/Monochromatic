@@ -27,7 +27,7 @@ import {
 } from './libvirt-tools.ts';
 import {
   ensureSessionDaemon,
-  LIBVIRT_ENV,
+  libvirtEnv,
 } from './session-daemon.ts';
 import {
   CommandFailedError,
@@ -109,7 +109,7 @@ async function runVirsh({
       ],
       command,
       deadlineMs,
-      env: LIBVIRT_ENV,
+      env: libvirtEnv(),
       notFoundRemedy: toolNotFoundRemedy({
         command: tool,
         tool: 'virsh',

@@ -76,7 +76,9 @@ type ProcessEntry = {
  - `sessionDaemon`: what answers a connection. `'running'`, the default, answers
    every command. `'absent'` fails while `LIBVIRT_AUTOSTART` is `0` and no
    stand-in `systemd-run` has claimed the unit, and answers once one has.
-   `'never'` fails every command, even after a unit start.
+   `'on-demand'` fails only while `LIBVIRT_AUTOSTART` is `0`, standing for libvirt
+   forking a daemon into the caller when mvm lets it. `'never'` fails every
+   command, even after a unit start.
  - `daemonStopsAfterDomainCall`: when true the daemon is gone again after it
    answers a command that names a domain, as one that exited at its idle
    timeout would be.
@@ -930,6 +932,12 @@ async function daemonAnswer(scenario: Scenario,): Promise<DaemonAnswer> {
    */
   const autostart = process.env
     .LIBVIRT_AUTOSTART;
+
+  // A caller that cannot use a systemd unit lets libvirt start the daemon, so this
+  // scenario answers only when it may; with autostart off, no daemon answers.
+  if (scenario.sessionDaemon === 'on-demand')
+    return autostart === '0' ? 'absent' : 'answers';
+
   if (autostart !== '0')
     return 'would-start-on-demand';
 

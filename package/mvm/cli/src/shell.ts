@@ -13,7 +13,7 @@ import {
 } from './libvirt-tools.ts';
 import {
   ensureSessionDaemon,
-  LIBVIRT_ENV,
+  libvirtAutostartEnv,
 } from './session-daemon.ts';
 import {
   ExecutableNotFoundError,
@@ -82,7 +82,8 @@ export async function shell({ name, }: { readonly name: string; },): Promise<voi
         fullName,
       ],
       {
-        env: LIBVIRT_ENV,
+        // Only the on-demand decision: `virsh console` passes the guest's bytes through, and the caller's locale stays.
+        env: libvirtAutostartEnv(),
         stderr: 'inherit',
         stdin: 'inherit',
         stdout: 'inherit',
