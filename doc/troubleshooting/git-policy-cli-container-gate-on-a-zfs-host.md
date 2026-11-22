@@ -1283,3 +1283,274 @@ the record's `stated` sum,
 the `steps_in_build` sum and its `buildMs`,
 and the `steps` array,
 before anything here is reopened.
+
+## Cause M: a shadow control counted its starts in a file the cut start writes (issue 6343)
+
+This is neither cause G nor cause H.
+Cause G is the label this document gives failures that one busy full run had and no other run repeats,
+with no cause recorded;
+this one has a cause the failure's own sentence decides,
+and the control is fixed.
+Cause H is the standing scratch-directory pair,
+which fails here and on the Btrfs host.
+
+### The symptom the gate reader saw
+
+The whole container gate of 2026-11-22T14:26:57-05:00
+(run `native-XHGDqg` of image `localhost/git-policy-native-test:odb-lows-20261122`)
+failed this control beside the two cause-H tests,
+on a branch that does not touch `src/native/shadow/`,
+and its summary was:
+
+```text
+Summary [ 900.425s] 9778 tests run: 9775 passed (8 slow), 3 failed, 36 skipped
+```
+
+The control's own lines were:
+
+```text
+FAIL [ 1.539s] (6057/9778) monochromatic-git-policy-cli shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing
+  stderr ───
+    thread 'shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing' (138952) panicked at src/native/shadow/shadow_create_tests.rs:546:5:
+    assertion `left == right` failed: GitFailure("git init --bare --template= --object-format=sha1 --ref-format=reftable /work/…/shadow/0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10, a bulk step ran for 0 seconds, the longest the wrapper lets one step run, and was ended")
+      left: "1"
+     right: "2"
+```
+
+The fixture path is elided at `…`;
+every other byte is the journal's
+(`journalctl --user --user-unit=odb-lows-gate-20261122.service`).
+The control passed alone straight afterwards,
+and 1.539 s is the two 500 ms ceilings the control sets plus its fixture.
+A control that passes alone and fails in its suite is a contention or ordering defect until measured otherwise,
+and host load is no cause here.
+
+### What the assertion compared
+
+`left` was the trimmed content of the file `init-starts` in the control's fixture root
+(`shadow_create_tests.rs:546` as it stood then),
+and `right` was `SHADOW_CREATION_ATTEMPTS`
+(`shadow_create.rs:146`),
+which is 2.
+That file had one writer:
+the Git shim the control installs as the real Git,
+which `reftable_with_hanging_init` built.
+It was a `/bin/sh` script that hangs every `init` start,
+and before it hangs it reads one number from the file,
+adds one and writes it back.
+So `"1"` was the number of starts whose program reached that line,
+and `"2"` was the number of attempts the control meant to see.
+No other test could write it:
+the fixture root carries the process id and the test's own name
+(`test_support.rs`,
+`fixture_with_prefix`),
+and the shim was the file's only writer.
+
+### The two attempts, from the failure's own sentence
+
+The sentence in the `GitFailure` is `step_ended_at_its_ceiling_text`
+(`child_watch_step_bounds_and_errors.rs:328-335`):
+it says neither "left running" nor any reason,
+so the watch proved the child and ended it,
+and the step it names is a bulk step.
+`CarriedCeiling::ending` writes that sentence into an error of kind `TimedOut`
+(`step_output_read_whole_through_pipes.rs:720`),
+and `checked_from` returns a `TimedOut` outcome's text with no prefix at all
+(`transaction_git.rs:462`);
+any other kind would have read `could not start`.
+`start_was_cut_or_refused` (`shadow_create.rs:222`) reads `TimedOut` as a cut,
+so at attempt 1 the loop took its `continue` and started again
+(`shadow_create.rs:192`),
+which makes the sentence in the failure attempt 2's.
+`init` is in none of `RERUNNABLE`
+(`SPEC.md`,
+the paragraph beginning with "`RERUNNABLE` names neither"),
+so one `run_git` call starts it once and never again inside that call.
+Two attempts were therefore made,
+and one of them was ended at its ceiling before its program wrote its number.
+
+### Why a start reaches its ceiling before its program writes
+
+The ceiling is the one the control shortens for its thread,
+500 ms
+(`STEP_CEILING_FOR_THIS_THREAD`,
+`transaction_git_step_bounds.rs:54`),
+and its clock begins once the child is spawned:
+`command.spawn_retrying()` at `child_watch_one_shot_run.rs:175`,
+`watch.begin()` at `:205`,
+and then the wait that carries the rest of the ceiling.
+It ends the whole process tree wherever the work has got to.
+The shim's number is its first statement,
+and before it the shell must start,
+parse the script and fork a `cat` for `$(cat …)`.
+A start whose program has not reached that line by the ceiling is ended without writing,
+and the product is right to end it:
+a start that shows nothing for the ceiling is exactly the cut this control asks for.
+
+Every way the count can come out one short,
+with whose defect each one is:
+
+- the control's:
+  the first attempt is ended at its ceiling before its shim writes,
+  so the second attempt writes `1`;
+- the control's:
+  the second attempt is ended at its ceiling before its shim writes,
+  so the file keeps the first attempt's `1`;
+- the control's:
+  the shim's `$(cat …)` is refused a process under the container's process bound,
+  and that start ends before its write,
+  so `n` is empty and `$((n + 1))` writes `1` in place of `2`;
+- a product defect,
+  ruled out here:
+  the loop skips an attempt.
+  The failure's sentence is a cut whose `continue` ran,
+  so both attempts ran;
+- another product defect,
+  ruled out:
+  a cut is taken for something else.
+  The product keeps no count of its own to be taken instead;
+- another test's write,
+  ruled out:
+  the fixture root and the file's single writer are the control's own.
+
+The container promises the control none of this.
+The gate runs four tests at once and sizes the container's processes to them,
+1024 of them (`bin/native-gate-container-limits.ts`),
+whose own comment records the suite peaking at 401 processes,
+and three tests failing on `fork` with `Resource temporarily unavailable` at the 512 bound.
+
+### The reproduction, forced rather than repeated
+
+One planted delay widens the window the code already has and changes nothing else:
+a start that finds the count file already there sleeps instead of writing its own number,
+which is what a start ended before its write does.
+The shim's script,
+with the planted line marked:
+
+```sh
+#!/bin/sh
+for argument in "$@"; do last="$argument"; if [ "$argument" = init ]; then is_init=1; fi; done
+if [ -n "$is_init" ]; then
+  if [ -f '<count>' ]; then exec sleep 600; fi   # planted: a start after the first never writes
+  n=$(cat '<count>' 2>/dev/null || echo 0); n=$((n + 1)); echo $n > '<count>'
+  if [ $n -le <hang> ]; then mkdir -p "$last"; : > "$last/PARTIAL"; exec sleep 600; fi
+fi
+exec /usr/bin/git "$@"
+```
+
+`mise run //package/git-policy/cli:native:test:host -- shadow::shadow_create::tests::a_shadow_whose_init`
+on this host (git 2.56.1) then failed with the journal's own two lines:
+
+```text
+    thread 'shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing' (1035181) panicked at src/native/shadow/shadow_create_tests.rs:546:5:
+    assertion `left == right` failed: GitFailure("git init --bare --template= --object-format=sha1 --ref-format=reftable /home/…/shadow/0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10, a bulk step ran for 0 seconds, the longest the wrapper lets one step run, and was ended")
+      left: "1"
+     right: "2"
+```
+
+The window is two attempts wide in this control,
+because either attempt's write can be lost.
+
+### The fix
+
+The wrapper now counts its own attempts,
+and both controls count that.
+`note_init_attempt` (`shadow_init_attempts.rs:41`) adds one to a thread-local before each
+`run_git` of the loop (`shadow_create.rs:186`),
+and `init_attempts` (`shadow_init_attempts.rs:57`) reads the count.
+The item is `#[cfg(test)]` and per thread,
+as the link-question count of `shadow_pool_member.rs` is,
+so no other test's creation reaches it.
+`a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
+asserts that count against `SHADOW_CREATION_ATTEMPTS`
+(`shadow_create_tests.rs:558`),
+and the sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
+asserts the same count for its two starts (`:529`).
+The shim keeps its file,
+because only the shim can know which of its own starts to hang,
+and `reftable_with_hanging_init` no longer returns it.
+
+What the product guarantees there,
+and what the control now holds:
+`init` is started at most `SHADOW_CREATION_ATTEMPTS` (2) times for one creation,
+a start ended at its ceiling or refused by the system starts again in a fresh directory,
+and the partial directory of the ended start is discarded
+(`SPEC.md`,
+"at most `SHADOW_CREATION_ATTEMPTS` (2) times").
+The count is the wrapper's own,
+so a start the ceiling ends before its program writes cannot shorten it.
+
+Red and green,
+all on this host with the same test binary:
+
+- red before the fix,
+  with the planted delay:
+  `left: "1"`,
+  `right: "2"`,
+  at `:546`,
+  which is the transcript in the symptom;
+- green after the fix,
+  without the plant:
+  `2 tests run: 2 passed`;
+- green after the fix,
+  with the same planted delay:
+  the every-time control passes
+  (`2 tests run: 1 passed, 1 failed`,
+  the one failure the sibling's,
+  named in the section that follows);
+- the new assertion is not vacuous:
+  with the retry's condition made `false`
+  (`if cut && attempt < SHADOW_CREATION_ATTEMPTS`),
+  the fixed control fails on `init_attempts()` alone,
+  `left: 1`,
+  `right: 2`,
+  at `:558`.
+
+The branch's own gate then ran the same binaries,
+in run `native-QTl6Sw` of image
+`localhost/git-policy-native-test:gpc-6343-shadow-attempts-20261122T151023-0500`,
+with the gate's four test threads and their 1024 processes,
+and both controls passed there
+(the sibling at 1.058 s,
+this one at 1.197 s),
+beside the two cause-H failures and nothing else:
+
+```text
+Summary [ 989.694s] 9877 tests run: 9875 passed (8 slow), 2 failed, 36 skipped
+FAIL [   0.792s] (9443/9877) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.348s] (9561/9877) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Its Clippy step finished clean
+(`Finished `dev` profile [unoptimized] target(s) in 3m 31s`),
+and the unit ended `Failed with result 'exit-code'`,
+which is the cause-H pair's status and not this control's.
+
+### What still depends on the started program
+
+The sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
+still asks its shim to hang the first start and pass the second to real Git,
+and the shim decides which it is from the file it writes.
+A first start ended before that write makes the second start hang as well,
+and the control then fails at `made`
+(`shadow_create_tests.rs:528`,
+`the second start made the shadow`,
+with the cut's sentence),
+which the same planted delay showed.
+That is not the count:
+it is the second start having to finish inside the control's shortened 700 ms ceiling at all,
+which this shape of control cannot promise,
+and a failure of it wants a different control rather than a count.
+Its window is one start wide,
+where the every-time control's was two.
+
+### If this name fails again
+
+Read which assertion failed and what it printed.
+`left` and `right` from `init_attempts()` are the wrapper's own attempts:
+a `1` against `2` is `init_with_git` no longer starting a fresh directory when the first was cut,
+which is a defect in the product,
+unless `SHADOW_CREATION_ATTEMPTS` itself moved.
+A panic that names the count file rather than the attempt count cannot happen here any more.
+The sibling's failure at `made` is the window that still depends on the started program,
+and its transcript says which start was cut.

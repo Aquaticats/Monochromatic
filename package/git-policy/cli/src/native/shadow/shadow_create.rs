@@ -145,6 +145,10 @@ pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
 /// a shadow whose `init` is cut twice fails its transaction.
 pub(crate) const SHADOW_CREATION_ATTEMPTS: u32 = 2;
 
+/// One attempt at the shadow repository's `init`,
+/// counted for the controls.
+use crate::shadow_init_attempts::note_init_attempt;
+
 /// What:
 ///  Creates an empty bare repository with `git init`,
 /// for the ref backend whose tables this crate does not write.
@@ -178,6 +182,8 @@ fn init_with_git(
     init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
     let mut attempt: u32 = 1;
     loop {
+        // The attempt is counted here, before the start: a start the ceiling ends before its program writes anything is an attempt the wrapper made.
+        note_init_attempt();
         let outcome = run_git(context, &init);
         // A start ended at its ceiling, or refused a process or a thread, leaves a directory that a second `init` in place does not bring to
         //  the state of an uncut run (the cut experiment: 50 of 104 second runs differed in the reftable tables). It is discarded and the
