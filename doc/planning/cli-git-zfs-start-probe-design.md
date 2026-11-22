@@ -816,6 +816,28 @@ section is needed to keep it out of snapshots: the only recursive section is the
 adds in step 20 follows the configuration's convention of naming every exclusion, so a later recursive ancestor
 cannot silently include it.
 
+Amended 2026-11-22T14:35:20-05:00 by an agent,
+from the project's answer of 2026-11-22
+(`doc/decision/cli-git-zfs-start-probe.md`,
+"Answer of 2026-11-22: the probe needs no configuration file"):
+the configuration pins this name still, and a file that is present wins,
+but a file that is absent, or that holds no `startProbe` object, no longer
+leaves the route blocked.
+The probe then finds its dataset by this section's own name,
+`nosnap/git-worktree-probe` in the pool that holds the checkout,
+which is the checkout dataset's first component,
+and the pool is the only part of the name the short form leaves open.
+Its checkout is the one the sweep finds:
+the one mounted ZFS dataset of this namespace whose last name component is
+`monochromatic-git-checkout`,
+whose mount point is the checkout path,
+refusing when that name matches none or several and listing what it found
+(the [plan][plan], step 8,
+"Where the checkout and the datasets are found").
+An absent dataset or an absent `ready` snapshot stays the `ENOENT` refusal this
+section states, and the mode's own line for it names the `zfs create` and
+`zfs snapshot` commands step 19's setup runs.
+
 What the account can do to it: nothing, once `doctor` has shown that no grant reaches it. Delegation is scoped to
 the checkout dataset and the clone parent (the [proposal][proposal], lines 319 to 327), and that same passage says
 not to put unrelated ZFS descendants there. This dataset is under neither, so the account is expected to hold no
@@ -832,9 +854,13 @@ OpenZFS facts state. `ENOENT` alone does not name the cause: `spa_open` returns 
 (`module/zfs/spa.c:6478` to `:6482`), so the record names the arm and the call rather than the cause. An existing
 dataset whose attach answered `ENOENT` is a failure `doctor` reports as such, after it checks that the configured
 dataset exists; a dataset the configuration names and the pool does not hold is reported as an unexercised attach
-arm and is never created. Until the setup steps run, that is the reading every boot gets: the configuration names a
-dataset the pool does not hold, so the attach arm is unexercised and the managed route stays blocked
+arm and is never created. Until the setup steps run, that is the reading every boot gets: the name the probe
+looked for is one the pool does not hold, whether the file held it or this design's own name supplied it, so the
+attach arm is unexercised and the managed route stays blocked
 ([Q4](#q4-whether-an-unexercised-arm-may-enable-the-route)), with removal of an unmounted clone still available.
+The mode's own line for that record names the two commands step 19's setup runs, `zfs create` with the properties
+above and `zfs snapshot <dataset>@ready`, and says `doctor` prints them, so a boot that meets the absent dataset
+reads which command creates it rather than only which call answered `ENOENT`.
 
 What it changes at start: nothing beyond the attach the arms describe. There is no directory read of
 `.zfs/snapshot`, no account-influenced name and no access-time question. The dataset itself outlives every run by
@@ -857,14 +883,22 @@ design, and the plan's steps 18 to 20 build the commands and configuration that 
     refusal must name the component or field, the way item 2's refusals did ([measurements][measurements], lines
     80 to 92). Separately, and read-only, it opens the checkout root through the wrapper's `open_root`, which is a
     plain `open` with a canonical-path check rather than the `openat2` mask, and records its `ObjectId`: that
-    proves the root itself opens and reads no entry there.
-3.  Source, from the root-owned configuration. The worker reads the dataset name from the configuration
-    `boot-reconcile` reads, accepts it only as a name (each `/`-separated component a valid ZFS component name,
-    within the dataset-name bound, with no `@` and no `#`), and assembles `<dataset>@ready` from the snapshot name
-    the design fixes. A configuration that is absent, unreadable or names nothing the parse accepts records the
+    proves the root itself opens and reads no entry there. The checkout it opens is `startProbe.checkout` when the
+    configuration names it, and otherwise the one mounted checkout dataset
+    [The source](#the-source-the-probe-dataset)'s amendment finds; a checkout that cannot be found leaves this
+    arm not exercised with its own reason word and runs every arm after it, so the attach arm's evidence does not
+    depend on a folder this run could not open.
+3.  Source, from the configuration or from this design's own name. The worker reads the dataset name from the
+    configuration `boot-reconcile` reads when `startProbe.dataset` is there, accepts it only as a name (each
+    `/`-separated component a valid ZFS component name, within the dataset-name bound, with no `@` and no `#`),
+    and assembles `<dataset>@ready` from the snapshot name the design fixes. A file that is absent, or that holds
+    no `startProbe.dataset`, gives the name [The source](#the-source-the-probe-dataset) fixes,
+    `nosnap/git-worktree-probe` in the pool the checkout dataset's first component names, and the checkout is the
+    one [The source](#the-source-the-probe-dataset)'s amendment finds. A configuration that is present and
+    unreadable or unparsable, or a name that cannot be derived because no mounted checkout was found, records the
     attach arm and every arm after it as not exercised, with that reason. The probe reads no property and no
-    directory at start: the configuration is the only place the name comes from, and the user property that
-    names the source is read by `doctor`, through an ioctl the probe does not make.
+    directory at start: the name comes from the configuration or from this design's own name, and the user
+    property that names the source is read by `doctor`, through an ioctl the probe does not make.
 4.  Attach, with the freshness oracle. `fsopen` on the `zfs` filesystem type, `fsconfig` the source name,
     `fsconfig` the `nosuid` and `nodev` options, read-only through the generic `ro` flag, then
     `FSCONFIG_CMD_CREATE_EXCL`, then `fsmount` with `MOUNT_ATTR_NOSUID`, `MOUNT_ATTR_NODEV` and
@@ -1709,7 +1743,9 @@ document cites, so one offset does not serve the whole file.
 - Step 19, "The one-time migration, the immutable entry and the boot and shutdown units", builds the unit that
   carries the probe: `ExecStartPre=-` running the `start-probe` mode, before its `ExecStart` running
   `boot-reconcile`. Its setup text stays the owner's act, printed by `doctor` and never run by the step, and the
-  configuration field step 18 prints is applied by the owner there.
+  configuration field step 18 prints is applied by the owner there. The command it prints creates the probe
+  dataset; the field it prints is the preferred reading rather than the condition of the route, by the answer of
+  2026-11-22 above.
 - Step 20, "Sanoid coverage, the exclusions and the guard's report", owns the `sanoid.conf` text for the probe
   dataset, the section that names it as an exclusion beside the others; no step applies it on this host.
 - Step 22, "The measurements that size waits and retention", keeps sizing the mount-request deadline of step 7 and

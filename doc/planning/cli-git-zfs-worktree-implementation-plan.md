@@ -1237,6 +1237,121 @@ owner and is open to the owner's veto;
 if it is dropped,
 the mode moves with the readiness publish to the step the owner names.
 
+#### Where the checkout and the datasets are found
+
+(Added 2026-11-22T14:35:20-05:00 by an agent,
+from the project's answers of 2026-11-22 in
+`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"With no configuration file",
+and `doc/decision/cli-git-zfs-start-probe.md`,
+"Answer of 2026-11-22: the probe needs no configuration file".)
+This subsection is the design of everything must work by default with no
+configuration file;
+the code that reads a file and the code that finds what it leaves out
+is this step's,
+and step 19's setup writes the file it prefers.
+
+The table the handler reads is its own mount namespace's, `/proc/self/mountinfo`:
+the reading task's `nsproxy->mnt_ns` (`fs/proc_namespace.c:241` to `:256`,
+`mountinfo_open` at `:300` to `:302`, Linux v7.3),
+so a mount made inside another mount namespace is not in it and never counts.
+A row holds three fields this design reads:
+its mount root (`show_mountinfo` prints `mnt->mnt_root`, `fs/proc_namespace.c:144`),
+its mount point (`:151`), and its source,
+which for a ZFS mount is the dataset's name because
+`zpl_show_devname` prints `dmu_objset_name`
+(`module/os/linux/zfs/zpl_super.c:271` to `:278`, `:301` to `:304`, wired at
+`:1058`, OpenZFS `zfs-2.4.4`).
+
+A row is a mounted instance of a dataset name this design looks for when all
+three hold:
+its filesystem type is exactly `zfs`;
+its source's last `/`-separated component is the leaf name looked for; and
+its mount root is `/`, which is what a mount of the dataset's own root shows.
+A bind mount of a subtree shows a deeper root and is not an instance of the
+dataset;
+a bind mount of the dataset's own root is, and so is a second mount of the same
+dataset, because both are rows of the table.
+
+With no `cloneMounts.checkout` and no `cloneMounts.checkoutDataset`, the one
+mounted instance of `monochromatic-git-checkout` is the checkout:
+its source is the checkout dataset and its mount point is the checkout path.
+No instance is a refusal that names the leaf looked for and every row the table
+held whose source carried that leaf;
+more than one instance is a refusal that lists every one of them,
+and the handler never picks one of several.
+"More than one" therefore covers two pools that hold a dataset of that leaf,
+one dataset mounted at two paths,
+and a bind mount of the dataset's own root elsewhere.
+With the checkout dataset known, the container is the sibling
+`monochromatic-git-worktree-clone-datasets` in the same parent dataset,
+and step 19's setup creates it; a checkout dataset with no parent component is
+a refusal naming `cloneMounts.parent`.
+
+The start probe finds its dataset the same way:
+`nosnap/git-worktree-probe` in the pool that holds the checkout,
+which is the checkout dataset's first component,
+with the snapshot `ready`.
+It is not mounted, so no row is looked for and none can be several;
+the probe attaches the snapshot by name and an absent dataset or snapshot stays
+the `ENOENT` refusal it is today.
+
+Precedence is entry by entry, and a file that is present wins over what is
+found:
+`cloneMounts.checkout` names the checkout path,
+`cloneMounts.checkoutDataset` the checkout dataset,
+`cloneMounts.parent` the container,
+`startProbe.dataset` the probe dataset,
+and `startProbe.checkout` the probe's checkout.
+An entry that is there is used as written;
+what the file leaves out is found by the rules above, in an order that needs no
+second table read:
+the checkout path on its own takes its dataset from the mount that holds it,
+and that dataset must carry the design's leaf name;
+the checkout dataset on its own takes its path from the one mount of it;
+and `startProbe.checkout` on its own leaves the sweep's checkout to the sweep.
+The two checkouts are compared after both are known, so the sweep's refusal to
+act on a checkout the probe did not judge stays for a file that names them
+differently,
+and cannot arise when neither is named.
+A file that is present but unreadable or not one JSONC document is still a
+refusal: it won a precedence it cannot fill.
+
+Who can make a name match, and why none of it steers the handler.
+The table is the handler's own namespace, and a mount appears in it only if a
+caller passed `may_mount`, which asks for `CAP_SYS_ADMIN` in the user namespace
+that owns that mount namespace (`fs/namespace.c:2063` to `:2066`; `mount` asks
+it at `:4270` to `:4271`, `fsopen` at `fs/fsopen.c:120` and `:127` to `:128`,
+and `move_mount` at `fs/namespace.c:4754`, Linux v7.3).
+For the host's mount namespace that namespace is the initial user namespace,
+so an account has no route to a row in it, by mount, bind mount or remount.
+ZFS does carry `FS_USERNS_MOUNT` (`module/os/linux/zfs/zpl_super.c:1092`,
+`:1096` to `:1099`),
+so an account may attach a dataset inside a user and mount namespace pair of its
+own, where it holds that capability;
+that mount is in its own namespace, which the handler's table never shows, and
+holding a superblock that way can only make the probe's exclusive create answer
+`EBUSY`, which withholds the route rather than steering it.
+Naming a dataset that way needs the `create` delegation on the exact parent or
+`CAP_SYS_ADMIN` (`module/zfs/zfs_ioctl.c:7577` to `:7581` for `create` and
+`:7582` to `:7586` for `clone`, both registered with `zfs_secpolicy_create_clone`
+at `:1128` to `:1149`, which asks `create` and `mount` on the parent;
+`zfs_secpolicy_write_perms_ds` at `:461` to `:472` takes the capability from
+`secpolicy_zfs`, `module/os/linux/zfs/policy.c:251` to `:263`, which is
+`priv_policy`'s `ns_capable` at `:58` and `:70` to `:74`).
+The design's grants put `create` only on the clone parent and `mount,userprop` on
+its descendants (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Scoped delegation"),
+so the account can create a dataset under the clone parent and never a sibling
+of the checkout;
+a pool name needs `CAP_SYS_ADMIN` too (`zfs_secpolicy_config`,
+`module/zfs/zfs_ioctl.c:1155` to `:1164`, over `secpolicy_sys_config`,
+`module/os/linux/zfs/policy.c:95` to `:102`).
+A clone the account creates under the container and names
+`monochromatic-git-checkout`, once root attaches it because the route does,
+adds a second row and makes the next discovery refuse: a denial, never a
+redirection, because several matches are refused rather than ordered.
+
 #### Design sections
 
 "ZED reconciliation and mount safety";
@@ -1275,8 +1390,9 @@ the sweep's three configuration names
 (`cloneMounts.parent`,
 `cloneMounts.checkout` and `cloneMounts.checkoutDataset`,
 beside the start probe's own object,
-with the design's names as the fallback only when the file holds neither
-dataset name),
+with the design's names filling in entry by entry whatever the file leaves
+out, as [Where the checkout and the datasets are found](#where-the-checkout-and-the-datasets-are-found)
+states it),
 the receipt rule that a refusal files no receipt but an unavailable key's,
 the holder reading the intent again after it releases the claim,
 and the `first-attach` writer and its call,
@@ -2148,8 +2264,10 @@ the checkout dataset and the clone container,
 so no person edits that file by hand
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "The datasets the sweep acts on").
-Step 8's handler reads them and falls back to the design's own names only when
-the file holds neither.
+Step 8's handler reads them and, for each entry the file leaves out, finds what
+that entry would have named;
+the setup's file is the preferred reading, not the condition of the route
+([the plan's step 8](#where-the-checkout-and-the-datasets-are-found)).
 None of this runs on this host.
 Applying the migration,
 the immutable flag,
