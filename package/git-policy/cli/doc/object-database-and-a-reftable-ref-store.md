@@ -178,7 +178,7 @@ and Git answers;
 the safe direction,
 at the price of Git starts.
 
-Four controls live in the default build:
+Five controls live in the default build:
 
 - `repo_read_odb::tests::a_reftable_repositorys_replace_ref_declines_the_database`:
   a reftable repository with a replace ref declines the database.
@@ -186,6 +186,12 @@ Four controls live in the default build:
   the same repository with its tables moved out and `extensions.refstorage` naming them declines,
   while Git still reads the replacement there,
   and a files repository whose configuration names `files` still opens.
+- `service_commit::an_amend_of_a_replaced_commit_lands_with_gits_parents`:
+  an amend of a replaced commit lands with Git's parents,
+  in a files repository,
+  in a reftable one,
+  and in a linked worktree of the reftable one,
+  each with the `rev-list` answer as its control.
 - `commit::a_commit_git_builds_writes_gits_reflog_row_where_the_reader_declines`:
   the reflog row of an editor commit,
   an editor amend and a merge conclusion,
