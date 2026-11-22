@@ -41683,7 +41683,14 @@ stated in this entry. What follows from them, as work:
   to Git's own checkout at parity; six re-plants all red; sample 300 of 300; gate 9768 of 9770. Owed: six
   `worktree_ladder_finish` btrfs controls red in the guest (their small fixtures are now declined by the size limit) and six
   other guest failures undiagnosed. GOING: `pi-clone-rung-partial-clone-btrfs-fixtures` in the build worktree (brief under
-  `~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/`); then the integration pass on Sonnet. Step 7's
+  `~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/`); then the integration pass on Sonnet. THE REFTABLE
+  CHECK found a defect on `main` (issue 6340): in a reftable repository the in-process object reader ignores replace refs,
+  and an amend of a replaced commit landed with one parent where Git reads none (measured); the clean check and the ladder
+  target read the same way (read, not measured); the index reset, LFS plan and push trigger go through `RepoLayout`, which
+  refuses reftable. Fix at `e347a4c8c0` on `fix/git-policy-cli-object-database-reftable-replace-refs`: the reader declines a
+  reftable store (one `stat`, about 0.8 microseconds per open); two default-build controls red then green; gate 9755 of 9757.
+  The worktree's `node_modules` was incomplete (issue 6339) and the round forced a reinstall. GOING: its integration pass on
+  Sonnet (review to `~/temp/agent/integration-pass-object-database-reftable-replace-refs-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
