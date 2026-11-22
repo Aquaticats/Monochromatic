@@ -1377,7 +1377,7 @@ The ceiling is the one the control shortens for its thread,
 `transaction_git_step_bounds.rs:54`),
 and its clock begins once the child is spawned:
 `command.spawn_retrying()` at `child_watch_one_shot_run.rs:175`,
-`watch.begin()` at `:202`,
+`watch.begin()` at `:205`,
 and then the wait that carries the rest of the ceiling.
 It ends the whole process tree wherever the work has got to.
 The shim's number is its first statement,
@@ -1505,6 +1505,26 @@ all on this host with the same test binary:
   `left: 1`,
   `right: 2`,
   at `:558`.
+
+The branch's own gate then ran the same binaries,
+in run `native-QTl6Sw` of image
+`localhost/git-policy-native-test:gpc-6343-shadow-attempts-20261122T151023-0500`,
+with the gate's four test threads and their 1024 processes,
+and both controls passed there
+(the sibling at 1.058 s,
+this one at 1.197 s),
+beside the two cause-H failures and nothing else:
+
+```text
+Summary [ 989.694s] 9877 tests run: 9875 passed (8 slow), 2 failed, 36 skipped
+FAIL [   0.792s] (9443/9877) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.348s] (9561/9877) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Its Clippy step finished clean
+(`Finished `dev` profile [unoptimized] target(s) in 3m 31s`),
+and the unit ended `Failed with result 'exit-code'`,
+which is the cause-H pair's status and not this control's.
 
 ### What still depends on the started program
 
