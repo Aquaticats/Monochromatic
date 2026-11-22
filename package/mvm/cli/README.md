@@ -46,7 +46,8 @@ to follow-up commands (`exec`,
   (see [Host tools](#host-tools))
 - `systemd-run` from systemd,
   with which mvm starts the session daemon in a user unit of its own;
-  on a host without systemd, start the daemon by hand once
+  on a host without systemd,
+  start the daemon by hand once
   (see [Session daemon](#session-daemon))
 - `virtiofsd` is optional:
   without it VMs get no shared directory and files move through the guest agent
@@ -164,11 +165,13 @@ through `systemd-run --user --unit=mvm-libvirt-session --collect`.
 The daemon and every guest it starts then live in that unit's cgroup,
 not in the cgroup of the command that ran mvm.
 Otherwise `virsh` starts the daemon inside that command's cgroup,
-and the command's memory cap, time limit or cleanup kills the daemon and every guest of every session;
+and the command's memory cap,
+time limit or cleanup kills the daemon and every guest of every session;
 see `doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md` in the repository root.
 On 2026-11-21 the project chose this for issue 6338.
 
-One daemon, whoever starts first:
+One daemon,
+whoever starts first:
 the unit name is the single owner.
 A second mvm that starts at the same moment gets systemd's "already loaded" answer
 and waits for the daemon the first one began instead of failing.
@@ -177,18 +180,25 @@ so no call ever lets `virsh` start a daemon in mvm's cgroup;
 when a daemon has exited between two calls,
 mvm starts it again and repeats the call once.
 
-The unit's settings, each with its basis:
+The unit's settings,
+each with its basis:
 
 - `MemoryMax=36G`:
-  four guests at mvm's default memory of 8 GiB each, which is 32 GiB,
-  plus room for the daemon, `virtlogd`, one `virtiofsd` per guest and QEMU's own bookkeeping.
+  four guests at mvm's default memory of 8 GiB each,
+  which is 32 GiB,
+  plus room for the daemon,
+  `virtlogd`,
+  one `virtiofsd` per guest and QEMU's own bookkeeping.
   Measured on 2026-11-21:
   the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
   and one running guest's `virtiofsd` processes held 1.7 MiB and 15.4 MiB.
 - `OOMPolicy=continue`:
-  when the guests' memory exceeds the cap, the kernel kills the guest it picks,
+  when the guests' memory exceeds the cap,
+  the kernel kills the guest it picks,
   and the daemon and the other guests keep running.
-  systemd's default, `OOMPolicy=stop`, would stop the unit and kill every guest,
+  systemd's default,
+  `OOMPolicy=stop`,
+  would stop the unit and kill every guest,
   which is the failure the unit exists to prevent.
 - No `RuntimeMaxSec=`:
   a time limit on the command that started the daemon is one of the ways guests died before.
@@ -198,23 +208,30 @@ The unit's settings, each with its basis:
   and `--collect` then removes the unit.
   A running guest keeps the daemon up.
 
-The cap belongs to the whole unit, not to each guest:
+The cap belongs to the whole unit,
+not to each guest:
 five default guests at once exceed it,
 and the kernel then kills the guest it picks rather than the daemon.
-On a host with less memory than the cap, the cap never trips,
+On a host with less memory than the cap,
+the cap never trips,
 and the machine's own out-of-memory handling applies as it did before.
 The value is the constant `SESSION_DAEMON_MEMORY_MAX` in `package/mvm/cli/src/config.ts`,
 not a run-time setting.
 
-`MVM_VIRTQEMUD_COMMAND` names the command that runs `virtqemud`, as a JSON array,
+`MVM_VIRTQEMUD_COMMAND` names the command that runs `virtqemud`,
+as a JSON array,
 for a command that runs `virsh` under a name that does not say `virsh`.
-Unset, mvm replaces `virsh` with `virtqemud` in each argument of `MVM_VIRSH_COMMAND`,
-which covers a bare `virsh`, a path such as `/usr/bin/virsh`, and the Flatpak's `--command=virsh`.
+Unset,
+mvm replaces `virsh` with `virtqemud` in each argument of `MVM_VIRSH_COMMAND`,
+which covers a bare `virsh`,
+a path such as `/usr/bin/virsh`,
+and the Flatpak's `--command=virsh`.
 
 When the daemon does not come up,
 mvm fails with an error naming the unit it started,
 how to read what the unit reported
-(`journalctl --user-unit=mvm-libvirt-session.service`, `systemctl --user status mvm-libvirt-session.service`),
+(`journalctl --user-unit=mvm-libvirt-session.service`,
+`systemctl --user status mvm-libvirt-session.service`),
 and how to start the daemon by hand to see why.
 mvm does not fall back to letting `virsh` start the daemon:
 that is the cgroup problem again.
