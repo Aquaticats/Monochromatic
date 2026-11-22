@@ -1,0 +1,261 @@
+{
+  "what": "class harness",
+  "seed": 11,
+  "cases": 12,
+  "armTally": {
+    "main": {
+      "EQUAL": 12
+    },
+    "branch-ls-tree": {
+      "EQUAL": 12
+    },
+    "branch-cat-file": {
+      "EQUAL": 12
+    },
+    "branch-object-database": {
+      "EQUAL": 12
+    }
+  },
+  "verdicts": [
+    {
+      "case": "class-no-rule-crlf",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-no-rule-crlf",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-no-rule-crlf",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-no-rule-crlf",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-lf-crlf",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-lf-crlf",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-lf-crlf",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-lf-crlf",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-lf-crlf",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-lf-crlf",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-lf-crlf",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-lf-crlf",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-crlf-lf",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-crlf-lf",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-crlf-lf",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-text-crlf-lf",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-minus-text-binary",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-minus-text-binary",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-minus-text-binary",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-minus-text-binary",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-unknown-text",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-unknown-text",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-unknown-text",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-unknown-text",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-ident",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-ident",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-ident",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-ident",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-true",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-true",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-true",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-true",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-input",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-input",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-input",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-autocrlf-input",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-rule-removed-after",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-rule-removed-after",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-rule-removed-after",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-rule-removed-after",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-rule-removed-after",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-rule-removed-after",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-rule-removed-after",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-auto-rule-removed-after",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-eol-crlf-setting",
+      "arm": "main",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-eol-crlf-setting",
+      "arm": "branch-ls-tree",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-eol-crlf-setting",
+      "arm": "branch-cat-file",
+      "verdict": "EQUAL"
+    },
+    {
+      "case": "class-eol-crlf-setting",
+      "arm": "branch-object-database",
+      "verdict": "EQUAL"
+    }
+  ]
+}

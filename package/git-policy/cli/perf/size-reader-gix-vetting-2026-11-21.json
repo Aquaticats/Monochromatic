@@ -1,0 +1,1037 @@
+{
+  "wrapperLock": "/home/user/Monochromatic/.claude/worktrees/fence-faster-size-reader/package/git-policy/cli/Cargo.lock",
+  "facade090": {
+    "addedCount": 47,
+    "sharedCount": 81,
+    "shared": [
+      "allocator-api2",
+      "autocfg",
+      "bitflags",
+      "byteorder",
+      "cfg-if",
+      "crossbeam-channel",
+      "crossbeam-deque",
+      "crossbeam-epoch",
+      "crossbeam-utils",
+      "defmt",
+      "defmt-macros",
+      "defmt-parser",
+      "equivalent",
+      "errno",
+      "faster-hex",
+      "fastrand",
+      "fnv",
+      "foldhash",
+      "getrandom",
+      "gix-actor",
+      "gix-bitmap",
+      "gix-chunk",
+      "gix-commitgraph",
+      "gix-date",
+      "gix-error",
+      "gix-fs",
+      "gix-hash",
+      "gix-hashtable",
+      "gix-index",
+      "gix-lock",
+      "gix-object",
+      "gix-parallel",
+      "gix-path",
+      "gix-revwalk",
+      "gix-tempfile",
+      "gix-trace",
+      "gix-traverse",
+      "gix-utils",
+      "gix-validate",
+      "hash32",
+      "hashbrown",
+      "heapless",
+      "itoa",
+      "jiff-tzdb",
+      "jiff-tzdb-platform",
+      "libc",
+      "linux-raw-sys",
+      "lock_api",
+      "log",
+      "memchr",
+      "memmap2",
+      "nonempty",
+      "once_cell",
+      "parking_lot",
+      "parking_lot_core",
+      "percent-encoding",
+      "portable-atomic",
+      "portable-atomic-util",
+      "proc-macro2",
+      "prodash",
+      "quote",
+      "r-efi",
+      "redox_syscall",
+      "rustix",
+      "rustversion",
+      "same-file",
+      "scopeguard",
+      "serde",
+      "serde_core",
+      "serde_derive",
+      "sha1dc",
+      "stable_deref_trait",
+      "syn",
+      "tempfile",
+      "thiserror",
+      "thiserror-impl",
+      "tinyvec",
+      "unicode-normalization",
+      "winapi-util",
+      "windows-link",
+      "windows-sys"
+    ],
+    "added": [
+      {
+        "name": "arc-swap",
+        "version": "1.9.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "arrayvec",
+        "version": "0.7.8",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "bstr",
+        "version": "1.14.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "bytes",
+        "version": "1.12.2",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "clru",
+        "version": "0.6.3",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "core_detect",
+        "version": "1.0.0",
+        "licence": "\"MIT/Apache-2.0\""
+      },
+      {
+        "name": "crc32fast",
+        "version": "1.5.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "dunce",
+        "version": "1.0.5",
+        "licence": "\"CC0-1.0 OR MIT-0 OR Apache-2.0\""
+      },
+      {
+        "name": "encoding_rs",
+        "version": "0.8.44",
+        "licence": "\"(Apache-2.0 OR MIT) AND BSD-3-Clause\""
+      },
+      {
+        "name": "filetime",
+        "version": "0.2.30",
+        "licence": "\"MIT/Apache-2.0\""
+      },
+      {
+        "name": "gix",
+        "version": "0.90.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-attributes",
+        "version": "0.37.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-command",
+        "version": "0.12.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-config",
+        "version": "0.62.2",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-config-value",
+        "version": "0.21.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-diff",
+        "version": "0.70.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-discover",
+        "version": "0.57.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-filter",
+        "version": "0.36.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-glob",
+        "version": "0.29.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-macros",
+        "version": "0.2.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-note",
+        "version": "0.3.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-odb",
+        "version": "0.87.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-pack",
+        "version": "0.77.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-packetline",
+        "version": "0.24.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-protocol",
+        "version": "0.68.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-quote",
+        "version": "0.10.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-ref",
+        "version": "0.69.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-refspec",
+        "version": "0.47.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-revision",
+        "version": "0.52.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-sec",
+        "version": "0.16.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-shallow",
+        "version": "0.15.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-transport",
+        "version": "0.62.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-url",
+        "version": "0.40.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-worktree-stream",
+        "version": "0.39.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-zlib",
+        "version": "0.4.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "jiff",
+        "version": "0.2.46",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "jiff-core",
+        "version": "0.1.8",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "jiff-static",
+        "version": "0.2.46",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "multiversion_no_op",
+        "version": "1.0.0",
+        "licence": "\"Apache-2.0 OR MIT\""
+      },
+      {
+        "name": "regex-automata",
+        "version": "0.4.19",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "simdutf8",
+        "version": "0.1.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "smallvec",
+        "version": "1.16.6",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "uluru",
+        "version": "3.1.0",
+        "licence": "\"MPL-2.0\""
+      },
+      {
+        "name": "unicode-bom",
+        "version": "2.0.3",
+        "licence": "\"Apache-2.0\""
+      },
+      {
+        "name": "unicode-ident",
+        "version": "1.0.27",
+        "licence": "\"(MIT OR Apache-2.0) AND Unicode-3.0\""
+      },
+      {
+        "name": "walkdir",
+        "version": "2.5.1",
+        "licence": "\"Unlicense/MIT\""
+      },
+      {
+        "name": "zlib-rs",
+        "version": "0.6.8",
+        "licence": "\"Zlib\""
+      }
+    ],
+    "licenceFamilies": [
+      [
+        "\"MIT OR Apache-2.0\"",
+        32
+      ],
+      [
+        "\"Unlicense OR MIT\"",
+        3
+      ],
+      [
+        "\"MIT\"",
+        2
+      ],
+      [
+        "\"MIT/Apache-2.0\"",
+        2
+      ],
+      [
+        "\"CC0-1.0 OR MIT-0 OR Apache-2.0\"",
+        1
+      ],
+      [
+        "\"(Apache-2.0 OR MIT) AND BSD-3-Clause\"",
+        1
+      ],
+      [
+        "\"Apache-2.0 OR MIT\"",
+        1
+      ],
+      [
+        "\"MPL-2.0\"",
+        1
+      ],
+      [
+        "\"Apache-2.0\"",
+        1
+      ],
+      [
+        "\"(MIT OR Apache-2.0) AND Unicode-3.0\"",
+        1
+      ],
+      [
+        "\"Unlicense/MIT\"",
+        1
+      ],
+      [
+        "\"Zlib\"",
+        1
+      ]
+    ],
+    "unsafeInCrates": {
+      "gix": 4,
+      "gix-actor": 1,
+      "gix-commitgraph": 1,
+      "gix-config-value": 2,
+      "gix-filter": 1,
+      "gix-hash": 3,
+      "gix-index": 1,
+      "gix-odb": 1,
+      "gix-pack": 11,
+      "gix-packetline": 2,
+      "gix-parallel": 3,
+      "gix-path": 9,
+      "gix-ref": 3,
+      "gix-revision": 1,
+      "gix-sec": 5,
+      "gix-tempfile": 2,
+      "gix-trace": 2
+    }
+  },
+  "facade077": {
+    "addedCount": 68,
+    "sharedCount": 56,
+    "shared": [
+      "allocator-api2",
+      "autocfg",
+      "bitflags",
+      "byteorder",
+      "cfg-if",
+      "crossbeam-channel",
+      "crossbeam-utils",
+      "defmt",
+      "defmt-macros",
+      "defmt-parser",
+      "equivalent",
+      "errno",
+      "faster-hex",
+      "fastrand",
+      "fnv",
+      "foldhash",
+      "getrandom",
+      "hash32",
+      "heapless",
+      "itoa",
+      "jiff-tzdb",
+      "jiff-tzdb-platform",
+      "libc",
+      "linux-raw-sys",
+      "lock_api",
+      "log",
+      "memchr",
+      "memmap2",
+      "once_cell",
+      "parking_lot",
+      "parking_lot_core",
+      "percent-encoding",
+      "portable-atomic",
+      "portable-atomic-util",
+      "proc-macro2",
+      "quote",
+      "r-efi",
+      "redox_syscall",
+      "rustix",
+      "rustversion",
+      "same-file",
+      "scopeguard",
+      "serde",
+      "serde_core",
+      "serde_derive",
+      "stable_deref_trait",
+      "syn",
+      "tempfile",
+      "thiserror",
+      "thiserror-impl",
+      "tinyvec",
+      "typenum",
+      "unicode-normalization",
+      "winapi-util",
+      "windows-link",
+      "windows-sys"
+    ],
+    "added": [
+      {
+        "name": "arc-swap",
+        "version": "1.9.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "arrayvec",
+        "version": "0.7.8",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "block-buffer",
+        "version": "0.10.4",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "bstr",
+        "version": "1.14.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "clru",
+        "version": "0.6.3",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "cpufeatures",
+        "version": "0.2.17",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "crc32fast",
+        "version": "1.5.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "crypto-common",
+        "version": "0.1.7",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "digest",
+        "version": "0.10.7",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "dunce",
+        "version": "1.0.5",
+        "licence": "\"CC0-1.0 OR MIT-0 OR Apache-2.0\""
+      },
+      {
+        "name": "filetime",
+        "version": "0.2.30",
+        "licence": "\"MIT/Apache-2.0\""
+      },
+      {
+        "name": "generic-array",
+        "version": "0.14.7",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "gix",
+        "version": "0.77.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-actor",
+        "version": "0.37.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-bitmap",
+        "version": "0.2.16",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-chunk",
+        "version": "0.4.12",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-command",
+        "version": "0.6.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-commitgraph",
+        "version": "0.31.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-config",
+        "version": "0.50.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-config-value",
+        "version": "0.16.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-date",
+        "version": "0.12.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-diff",
+        "version": "0.57.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-discover",
+        "version": "0.45.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-features",
+        "version": "0.45.2",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-fs",
+        "version": "0.18.2",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-glob",
+        "version": "0.23.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-hash",
+        "version": "0.21.2",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-hashtable",
+        "version": "0.11.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-index",
+        "version": "0.45.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-lock",
+        "version": "20.0.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-object",
+        "version": "0.54.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-odb",
+        "version": "0.74.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-pack",
+        "version": "0.64.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-packetline",
+        "version": "0.20.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-path",
+        "version": "0.10.22",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-protocol",
+        "version": "0.55.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-quote",
+        "version": "0.6.2",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-ref",
+        "version": "0.57.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-refspec",
+        "version": "0.35.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-revision",
+        "version": "0.39.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-revwalk",
+        "version": "0.25.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-sec",
+        "version": "0.12.2",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-shallow",
+        "version": "0.7.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-tempfile",
+        "version": "20.0.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-trace",
+        "version": "0.1.21",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-transport",
+        "version": "0.52.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-traverse",
+        "version": "0.51.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-url",
+        "version": "0.34.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-utils",
+        "version": "0.3.6",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-validate",
+        "version": "0.10.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "hashbrown",
+        "version": "0.16.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "jiff",
+        "version": "0.2.46",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "jiff-core",
+        "version": "0.1.8",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "jiff-static",
+        "version": "0.2.46",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "maybe-async",
+        "version": "0.2.11",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "prodash",
+        "version": "30.0.1",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "regex-automata",
+        "version": "0.4.19",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "sha1",
+        "version": "0.10.7",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "sha1-checked",
+        "version": "0.10.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "shell-words",
+        "version": "1.1.1",
+        "licence": "\"MIT/Apache-2.0\""
+      },
+      {
+        "name": "smallvec",
+        "version": "1.16.6",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "uluru",
+        "version": "3.1.0",
+        "licence": "\"MPL-2.0\""
+      },
+      {
+        "name": "unicode-bom",
+        "version": "2.0.3",
+        "licence": "\"Apache-2.0\""
+      },
+      {
+        "name": "unicode-ident",
+        "version": "1.0.27",
+        "licence": "\"(MIT OR Apache-2.0) AND Unicode-3.0\""
+      },
+      {
+        "name": "version_check",
+        "version": "0.9.5",
+        "licence": "\"MIT/Apache-2.0\""
+      },
+      {
+        "name": "walkdir",
+        "version": "2.5.1",
+        "licence": "\"Unlicense/MIT\""
+      },
+      {
+        "name": "winnow",
+        "version": "0.7.15",
+        "licence": "\"MIT\""
+      },
+      {
+        "name": "zlib-rs",
+        "version": "0.5.5",
+        "licence": "\"Zlib\""
+      }
+    ],
+    "licenceFamilies": [
+      [
+        "\"MIT OR Apache-2.0\"",
+        51
+      ],
+      [
+        "\"MIT\"",
+        5
+      ],
+      [
+        "\"MIT/Apache-2.0\"",
+        3
+      ],
+      [
+        "\"Unlicense OR MIT\"",
+        3
+      ],
+      [
+        "\"CC0-1.0 OR MIT-0 OR Apache-2.0\"",
+        1
+      ],
+      [
+        "\"MPL-2.0\"",
+        1
+      ],
+      [
+        "\"Apache-2.0\"",
+        1
+      ],
+      [
+        "\"(MIT OR Apache-2.0) AND Unicode-3.0\"",
+        1
+      ],
+      [
+        "\"Unlicense/MIT\"",
+        1
+      ],
+      [
+        "\"Zlib\"",
+        1
+      ]
+    ],
+    "unsafeInCrates": {
+      "gix": 3,
+      "gix-actor": 1,
+      "gix-commitgraph": 1,
+      "gix-config-value": 2,
+      "gix-date": 2,
+      "gix-features": 3,
+      "gix-hash": 4,
+      "gix-index": 1,
+      "gix-pack": 11,
+      "gix-packetline": 2,
+      "gix-path": 6,
+      "gix-ref": 3,
+      "gix-revision": 1,
+      "gix-sec": 3,
+      "gix-tempfile": 1
+    }
+  },
+  "odb087": {
+    "addedCount": 15,
+    "sharedCount": 64,
+    "shared": [
+      "autocfg",
+      "bitflags",
+      "byteorder",
+      "cfg-if",
+      "defmt",
+      "defmt-macros",
+      "defmt-parser",
+      "errno",
+      "faster-hex",
+      "fastrand",
+      "getrandom",
+      "gix-actor",
+      "gix-chunk",
+      "gix-date",
+      "gix-error",
+      "gix-fs",
+      "gix-hash",
+      "gix-hashtable",
+      "gix-object",
+      "gix-parallel",
+      "gix-path",
+      "gix-trace",
+      "gix-utils",
+      "gix-validate",
+      "hash32",
+      "hashbrown",
+      "heapless",
+      "itoa",
+      "jiff-tzdb",
+      "jiff-tzdb-platform",
+      "libc",
+      "linux-raw-sys",
+      "lock_api",
+      "log",
+      "memchr",
+      "memmap2",
+      "once_cell",
+      "parking_lot",
+      "parking_lot_core",
+      "portable-atomic",
+      "portable-atomic-util",
+      "proc-macro2",
+      "prodash",
+      "quote",
+      "r-efi",
+      "redox_syscall",
+      "rustix",
+      "rustversion",
+      "same-file",
+      "scopeguard",
+      "serde",
+      "serde_core",
+      "serde_derive",
+      "sha1dc",
+      "stable_deref_trait",
+      "syn",
+      "tempfile",
+      "thiserror",
+      "thiserror-impl",
+      "tinyvec",
+      "unicode-normalization",
+      "winapi-util",
+      "windows-link",
+      "windows-sys"
+    ],
+    "added": [
+      {
+        "name": "arc-swap",
+        "version": "1.9.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "bstr",
+        "version": "1.14.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "crc32fast",
+        "version": "1.5.5",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-odb",
+        "version": "0.87.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-pack",
+        "version": "0.77.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-quote",
+        "version": "0.10.1",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "gix-zlib",
+        "version": "0.4.0",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "jiff",
+        "version": "0.2.46",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "jiff-core",
+        "version": "0.1.8",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "jiff-static",
+        "version": "0.2.46",
+        "licence": "\"Unlicense OR MIT\""
+      },
+      {
+        "name": "regex-automata",
+        "version": "0.4.19",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "smallvec",
+        "version": "1.16.6",
+        "licence": "\"MIT OR Apache-2.0\""
+      },
+      {
+        "name": "unicode-ident",
+        "version": "1.0.27",
+        "licence": "\"(MIT OR Apache-2.0) AND Unicode-3.0\""
+      },
+      {
+        "name": "walkdir",
+        "version": "2.5.1",
+        "licence": "\"Unlicense/MIT\""
+      },
+      {
+        "name": "zlib-rs",
+        "version": "0.6.8",
+        "licence": "\"Zlib\""
+      }
+    ],
+    "licenceFamilies": [
+      [
+        "\"MIT OR Apache-2.0\"",
+        9
+      ],
+      [
+        "\"Unlicense OR MIT\"",
+        3
+      ],
+      [
+        "\"(MIT OR Apache-2.0) AND Unicode-3.0\"",
+        1
+      ],
+      [
+        "\"Unlicense/MIT\"",
+        1
+      ],
+      [
+        "\"Zlib\"",
+        1
+      ]
+    ],
+    "unsafeInCrates": {
+      "gix-actor": 1,
+      "gix-hash": 3,
+      "gix-odb": 1,
+      "gix-pack": 11,
+      "gix-parallel": 3,
+      "gix-path": 9,
+      "gix-trace": 2
+    }
+  }
+}

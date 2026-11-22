@@ -1,0 +1,10 @@
+{
+  "repository": "/home/user/temp/agent/fence-faster-size-reader-design-2026-11-21/scratch/fixture/repo",
+  "binary": "/home/user/temp/agent/fence-faster-size-reader-design-2026-11-21/scratch/gix/gix090split/target/release/gix-090-split",
+  "shippedPaths": 24572,
+  "answeredPaths": 24572,
+  "different": 0,
+  "firstDifference": null,
+  "shippedSum": 518458993,
+  "answeredSum": 518458993
+}

@@ -1,0 +1,5 @@
+clone: 0  
+{"cloneExit":0,"indexExit":0,"promisorPacks":1,"countObjects":"in-pack: 2","blob":"e3c0674801dab4e79d2b763c3909bb53b082ef48","absentExit":0}
+  gix 0.77: exit 101: thread 'main' (1125019) panicked at src/main.rs:35:42: | a header: NotFound { oid: Sha1(2c9b30f01f2773b5f18f325dfcb15f6d6b6e0e5f) } | note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+  gix 0.90: exit 101: thread 'main' (1125020) panicked at src/main.rs:35:42: | a header: An object with id 2c9b30f01f2773b5f18f325dfcb15f6d6b6e0e5f could not be found | note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+  gix-odb 0.87: exit 101: thread 'main' (1125021) panicked at src/main.rs:45:62: | a header | note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

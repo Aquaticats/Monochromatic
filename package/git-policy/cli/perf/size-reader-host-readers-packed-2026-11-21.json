@@ -1,0 +1,579 @@
+{
+  "repo": "/home/user/temp/agent/fence-faster-size-reader-design-2026-11-21/scratch/fixture/repo",
+  "rounds": 8,
+  "summary": {
+    "ls-tree": {
+      "medianMs": 36.69,
+      "values": [
+        63.37,
+        35.92,
+        37.45,
+        33.91,
+        33.59,
+        32.56,
+        36.69,
+        37.49
+      ],
+      "inside": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "cat-file": {
+      "medianMs": 42.34,
+      "values": [
+        43.18,
+        37.8,
+        39.87,
+        42.34,
+        42.2,
+        40.48,
+        49.44,
+        48.29
+      ],
+      "inside": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "object-database": {
+      "medianMs": 61.22,
+      "values": [
+        58.91,
+        56.67,
+        60.06,
+        60.37,
+        61.22,
+        63.5,
+        66.54,
+        110.13
+      ],
+      "inside": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "gix090": {
+      "medianMs": 9.74,
+      "values": [
+        9.74,
+        8.93,
+        9.59,
+        9.17,
+        9.86,
+        9.66,
+        10.18,
+        12.46
+      ],
+      "inside": [
+        {
+          "open_ms": 10.074,
+          "index_ms": 6.26,
+          "loop_ms": 9.737,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.272,
+          "index_ms": 5.059,
+          "loop_ms": 8.926,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.274,
+          "index_ms": 4.659,
+          "loop_ms": 9.59,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.298,
+          "index_ms": 5.201,
+          "loop_ms": 9.166,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.336,
+          "index_ms": 5.382,
+          "loop_ms": 9.858,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.296,
+          "index_ms": 5.028,
+          "loop_ms": 9.665,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.397,
+          "index_ms": 5.44,
+          "loop_ms": 10.184,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.269,
+          "index_ms": 5.424,
+          "loop_ms": 12.457,
+          "bytes": 518458993
+        }
+      ]
+    },
+    "gixodb": {
+      "medianMs": 9.42,
+      "values": [
+        9.06,
+        8.77,
+        9.86,
+        9.42,
+        9.38,
+        9.06,
+        10.8,
+        10.02
+      ],
+      "inside": [
+        {
+          "open_ms": 4.558,
+          "index_ms": 1.709,
+          "loop_ms": 9.058,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.08,
+          "index_ms": 1.262,
+          "loop_ms": 8.772,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.078,
+          "index_ms": 1.109,
+          "loop_ms": 9.855,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.085,
+          "index_ms": 1.256,
+          "loop_ms": 9.422,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.095,
+          "index_ms": 1.516,
+          "loop_ms": 9.381,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.095,
+          "index_ms": 1.227,
+          "loop_ms": 9.055,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.083,
+          "index_ms": 1.644,
+          "loop_ms": 10.796,
+          "bytes": 518458993
+        },
+        {
+          "open_ms": 0.124,
+          "index_ms": 1.839,
+          "loop_ms": 10.024,
+          "bytes": 518458993
+        }
+      ]
+    }
+  },
+  "found": [
+    {
+      "round": 1,
+      "position": 1,
+      "reader": "ls-tree",
+      "ms": 63.367,
+      "wallMs": 1140.465056
+    },
+    {
+      "round": 1,
+      "position": 2,
+      "reader": "cat-file",
+      "ms": 43.179,
+      "wallMs": 232.779903
+    },
+    {
+      "round": 1,
+      "position": 3,
+      "reader": "object-database",
+      "ms": 58.912,
+      "wallMs": 249.17713
+    },
+    {
+      "round": 1,
+      "position": 4,
+      "reader": "gix090",
+      "ms": 9.737,
+      "wallMs": 37.054567,
+      "inside": {
+        "open_ms": 10.074,
+        "index_ms": 6.26,
+        "loop_ms": 9.737,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 1,
+      "position": 5,
+      "reader": "gixodb",
+      "ms": 9.058,
+      "wallMs": 19.869912,
+      "inside": {
+        "open_ms": 4.558,
+        "index_ms": 1.709,
+        "loop_ms": 9.058,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 2,
+      "position": 1,
+      "reader": "cat-file",
+      "ms": 37.801,
+      "wallMs": 229.166319
+    },
+    {
+      "round": 2,
+      "position": 2,
+      "reader": "object-database",
+      "ms": 56.673,
+      "wallMs": 239.969551
+    },
+    {
+      "round": 2,
+      "position": 3,
+      "reader": "gix090",
+      "ms": 8.926,
+      "wallMs": 17.505893,
+      "inside": {
+        "open_ms": 0.272,
+        "index_ms": 5.059,
+        "loop_ms": 8.926,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 2,
+      "position": 4,
+      "reader": "gixodb",
+      "ms": 8.772,
+      "wallMs": 13.069053,
+      "inside": {
+        "open_ms": 0.08,
+        "index_ms": 1.262,
+        "loop_ms": 8.772,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 2,
+      "position": 5,
+      "reader": "ls-tree",
+      "ms": 35.923,
+      "wallMs": 232.381105
+    },
+    {
+      "round": 3,
+      "position": 1,
+      "reader": "object-database",
+      "ms": 60.063,
+      "wallMs": 261.391388
+    },
+    {
+      "round": 3,
+      "position": 2,
+      "reader": "gix090",
+      "ms": 9.59,
+      "wallMs": 17.850691,
+      "inside": {
+        "open_ms": 0.274,
+        "index_ms": 4.659,
+        "loop_ms": 9.59,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 3,
+      "position": 3,
+      "reader": "gixodb",
+      "ms": 9.855,
+      "wallMs": 13.830319,
+      "inside": {
+        "open_ms": 0.078,
+        "index_ms": 1.109,
+        "loop_ms": 9.855,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 3,
+      "position": 4,
+      "reader": "ls-tree",
+      "ms": 37.447,
+      "wallMs": 242.019473
+    },
+    {
+      "round": 3,
+      "position": 5,
+      "reader": "cat-file",
+      "ms": 39.868,
+      "wallMs": 252.215158
+    },
+    {
+      "round": 4,
+      "position": 1,
+      "reader": "gix090",
+      "ms": 9.166,
+      "wallMs": 18.02451,
+      "inside": {
+        "open_ms": 0.298,
+        "index_ms": 5.201,
+        "loop_ms": 9.166,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 4,
+      "position": 2,
+      "reader": "gixodb",
+      "ms": 9.422,
+      "wallMs": 13.79408,
+      "inside": {
+        "open_ms": 0.085,
+        "index_ms": 1.256,
+        "loop_ms": 9.422,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 4,
+      "position": 3,
+      "reader": "ls-tree",
+      "ms": 33.906,
+      "wallMs": 242.52203
+    },
+    {
+      "round": 4,
+      "position": 4,
+      "reader": "cat-file",
+      "ms": 42.336,
+      "wallMs": 252.463947
+    },
+    {
+      "round": 4,
+      "position": 5,
+      "reader": "object-database",
+      "ms": 60.367,
+      "wallMs": 265.154262
+    },
+    {
+      "round": 5,
+      "position": 1,
+      "reader": "gixodb",
+      "ms": 9.381,
+      "wallMs": 13.636059,
+      "inside": {
+        "open_ms": 0.095,
+        "index_ms": 1.516,
+        "loop_ms": 9.381,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 5,
+      "position": 2,
+      "reader": "ls-tree",
+      "ms": 33.594,
+      "wallMs": 233.398902
+    },
+    {
+      "round": 5,
+      "position": 3,
+      "reader": "cat-file",
+      "ms": 42.202,
+      "wallMs": 245.522338
+    },
+    {
+      "round": 5,
+      "position": 4,
+      "reader": "object-database",
+      "ms": 61.224,
+      "wallMs": 270.723697
+    },
+    {
+      "round": 5,
+      "position": 5,
+      "reader": "gix090",
+      "ms": 9.858,
+      "wallMs": 19.248595,
+      "inside": {
+        "open_ms": 0.336,
+        "index_ms": 5.382,
+        "loop_ms": 9.858,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 6,
+      "position": 1,
+      "reader": "gixodb",
+      "ms": 9.055,
+      "wallMs": 13.982369,
+      "inside": {
+        "open_ms": 0.095,
+        "index_ms": 1.227,
+        "loop_ms": 9.055,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 6,
+      "position": 2,
+      "reader": "gix090",
+      "ms": 9.665,
+      "wallMs": 19.067996,
+      "inside": {
+        "open_ms": 0.296,
+        "index_ms": 5.028,
+        "loop_ms": 9.665,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 6,
+      "position": 3,
+      "reader": "object-database",
+      "ms": 63.498,
+      "wallMs": 264.278667
+    },
+    {
+      "round": 6,
+      "position": 4,
+      "reader": "cat-file",
+      "ms": 40.481,
+      "wallMs": 246.776543
+    },
+    {
+      "round": 6,
+      "position": 5,
+      "reader": "ls-tree",
+      "ms": 32.556,
+      "wallMs": 249.69774
+    },
+    {
+      "round": 7,
+      "position": 1,
+      "reader": "gix090",
+      "ms": 10.184,
+      "wallMs": 20.680279,
+      "inside": {
+        "open_ms": 0.397,
+        "index_ms": 5.44,
+        "loop_ms": 10.184,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 7,
+      "position": 2,
+      "reader": "object-database",
+      "ms": 66.539,
+      "wallMs": 307.246597
+    },
+    {
+      "round": 7,
+      "position": 3,
+      "reader": "cat-file",
+      "ms": 49.437,
+      "wallMs": 278.480124
+    },
+    {
+      "round": 7,
+      "position": 4,
+      "reader": "ls-tree",
+      "ms": 36.694,
+      "wallMs": 247.967378
+    },
+    {
+      "round": 7,
+      "position": 5,
+      "reader": "gixodb",
+      "ms": 10.796,
+      "wallMs": 16.130849,
+      "inside": {
+        "open_ms": 0.083,
+        "index_ms": 1.644,
+        "loop_ms": 10.796,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 8,
+      "position": 1,
+      "reader": "object-database",
+      "ms": 110.128,
+      "wallMs": 345.895068
+    },
+    {
+      "round": 8,
+      "position": 2,
+      "reader": "cat-file",
+      "ms": 48.288,
+      "wallMs": 291.474537
+    },
+    {
+      "round": 8,
+      "position": 3,
+      "reader": "ls-tree",
+      "ms": 37.488,
+      "wallMs": 239.544315
+    },
+    {
+      "round": 8,
+      "position": 4,
+      "reader": "gixodb",
+      "ms": 10.024,
+      "wallMs": 15.458462,
+      "inside": {
+        "open_ms": 0.124,
+        "index_ms": 1.839,
+        "loop_ms": 10.024,
+        "bytes": 518458993
+      }
+    },
+    {
+      "round": 8,
+      "position": 5,
+      "reader": "gix090",
+      "ms": 12.457,
+      "wallMs": 21.682245,
+      "inside": {
+        "open_ms": 0.269,
+        "index_ms": 5.424,
+        "loop_ms": 12.457,
+        "bytes": 518458993
+      }
+    }
+  ]
+}

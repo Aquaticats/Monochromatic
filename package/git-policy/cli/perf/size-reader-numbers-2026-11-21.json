@@ -1,0 +1,1437 @@
+{
+  "made": "2026-11-22T04:14:18.964Z",
+  "rung1Guest": {
+    "loose": {
+      "layout": "loose",
+      "routes": [
+        "a snapshot"
+      ],
+      "n": {
+        "main": 10,
+        "branch-ls-tree": 10,
+        "branch-ls-tree-again": 10,
+        "branch-cat-file": 10,
+        "branch-object-database": 10
+      },
+      "totalMedianMs": {
+        "main": 868.495,
+        "branch-ls-tree": 882.105,
+        "branch-ls-tree-again": 882.48,
+        "branch-cat-file": 896.532,
+        "branch-object-database": 748.935
+      },
+      "totals": {
+        "main": [
+          881.1,
+          832.2,
+          848.4,
+          866.7,
+          852.2,
+          865.5,
+          868.5,
+          891.6,
+          1007.1,
+          974.1
+        ],
+        "branch-ls-tree": [
+          855.8,
+          859.3,
+          903.6,
+          840.3,
+          860.8,
+          881,
+          888,
+          882.1,
+          938.3,
+          914.2
+        ],
+        "branch-ls-tree-again": [
+          871.3,
+          836,
+          849.8,
+          851.9,
+          869,
+          882.5,
+          926,
+          913.3,
+          938.9,
+          886
+        ],
+        "branch-cat-file": [
+          884.9,
+          862.1,
+          836.5,
+          899,
+          850.7,
+          890.4,
+          917.6,
+          896.5,
+          924.9,
+          920.8
+        ],
+        "branch-object-database": [
+          714.3,
+          707.3,
+          705.9,
+          738.5,
+          758.4,
+          734.9,
+          764.3,
+          784.6,
+          779.7,
+          748.9
+        ]
+      },
+      "readMedianMs": {
+        "main": 340.948,
+        "branch-ls-tree": 348.091,
+        "branch-ls-tree-again": 349.687,
+        "branch-cat-file": 358.42,
+        "branch-object-database": 210.95499999999998
+      },
+      "readRangeMs": {
+        "main": [
+          327.3,
+          400.3
+        ],
+        "branch-ls-tree": [
+          334.9,
+          371.6
+        ],
+        "branch-ls-tree-again": [
+          329.9,
+          373.8
+        ],
+        "branch-cat-file": [
+          334.1,
+          380.3
+        ],
+        "branch-object-database": [
+          199.7,
+          219.9
+        ]
+      },
+      "readShareOfAdd": {
+        "main": 0.3925733596624045,
+        "branch-ls-tree": 0.3946140198729176,
+        "branch-ls-tree-again": 0.39625487263167436,
+        "branch-cat-file": 0.39978494911503437,
+        "branch-object-database": 0.2816733094327278
+      },
+      "identicalPairRange": [
+        0.9404403700994522,
+        1.042817230044358
+      ],
+      "armsToMainPerRound": {
+        "branch-ls-tree": [
+          0.971,
+          1.033,
+          1.065,
+          0.97,
+          1.01,
+          1.018,
+          1.022,
+          0.989,
+          0.932,
+          0.939
+        ],
+        "branch-ls-tree-again": [
+          0.989,
+          1.004,
+          1.002,
+          0.983,
+          1.02,
+          1.02,
+          1.066,
+          1.024,
+          0.932,
+          0.91
+        ],
+        "branch-cat-file": [
+          1.004,
+          1.036,
+          0.986,
+          1.037,
+          0.998,
+          1.029,
+          1.057,
+          1.005,
+          0.918,
+          0.945
+        ],
+        "branch-object-database": [
+          0.811,
+          0.85,
+          0.832,
+          0.852,
+          0.89,
+          0.849,
+          0.88,
+          0.88,
+          0.774,
+          0.769
+        ]
+      }
+    },
+    "packed": {
+      "layout": "packed",
+      "routes": [
+        "a snapshot"
+      ],
+      "n": {
+        "main": 10,
+        "branch-ls-tree": 10,
+        "branch-ls-tree-again": 10,
+        "branch-cat-file": 10,
+        "branch-object-database": 10
+      },
+      "totalMedianMs": {
+        "main": 517.093,
+        "branch-ls-tree": 527.683,
+        "branch-ls-tree-again": 529.715,
+        "branch-cat-file": 541.085,
+        "branch-object-database": 540.4
+      },
+      "totals": {
+        "main": [
+          529.5,
+          537,
+          517.1,
+          565.1,
+          511.5,
+          514.2,
+          511.6,
+          512.5,
+          519.3,
+          515.6
+        ],
+        "branch-ls-tree": [
+          527.7,
+          568.5,
+          530.1,
+          529.4,
+          522.8,
+          524.4,
+          530,
+          525.8,
+          523.1,
+          520.4
+        ],
+        "branch-ls-tree-again": [
+          537.5,
+          555.9,
+          536.7,
+          520.2,
+          522.7,
+          523.3,
+          529.7,
+          520.5,
+          524.1,
+          531.9
+        ],
+        "branch-cat-file": [
+          550.2,
+          566.3,
+          590,
+          530.3,
+          538.1,
+          527.6,
+          534.8,
+          532.3,
+          541.1,
+          556.4
+        ],
+        "branch-object-database": [
+          547.6,
+          569.8,
+          532.4,
+          540.4,
+          534.3,
+          547,
+          537.1,
+          536.4,
+          537.5,
+          552.6
+        ]
+      },
+      "readMedianMs": {
+        "main": 24.011,
+        "branch-ls-tree": 28.233,
+        "branch-ls-tree-again": 27.94,
+        "branch-cat-file": 41.741,
+        "branch-object-database": 41.557
+      },
+      "readRangeMs": {
+        "main": [
+          22.7,
+          25.7
+        ],
+        "branch-ls-tree": [
+          27.5,
+          32.5
+        ],
+        "branch-ls-tree-again": [
+          27.3,
+          29.5
+        ],
+        "branch-cat-file": [
+          38.3,
+          53.7
+        ],
+        "branch-object-database": [
+          40.2,
+          43.1
+        ]
+      },
+      "readShareOfAdd": {
+        "main": 0.046434587201915324,
+        "branch-ls-tree": 0.053503713403691235,
+        "branch-ls-tree-again": 0.05274534419451969,
+        "branch-cat-file": 0.07714314756461553,
+        "branch-object-database": 0.07690044411547003
+      },
+      "identicalPairRange": [
+        0.9778949349742376,
+        1.021941134198502
+      ],
+      "armsToMainPerRound": {
+        "branch-ls-tree": [
+          0.997,
+          1.059,
+          1.025,
+          0.937,
+          1.022,
+          1.02,
+          1.036,
+          1.026,
+          1.007,
+          1.009
+        ],
+        "branch-ls-tree-again": [
+          1.015,
+          1.035,
+          1.038,
+          0.921,
+          1.022,
+          1.018,
+          1.035,
+          1.016,
+          1.009,
+          1.032
+        ],
+        "branch-cat-file": [
+          1.039,
+          1.055,
+          1.141,
+          0.938,
+          1.052,
+          1.026,
+          1.046,
+          1.039,
+          1.042,
+          1.079
+        ],
+        "branch-object-database": [
+          1.034,
+          1.061,
+          1.03,
+          0.956,
+          1.044,
+          1.064,
+          1.05,
+          1.047,
+          1.035,
+          1.072
+        ]
+      }
+    }
+  },
+  "rung1GuestReaders": {
+    "loose": {
+      "layout": "loose",
+      "rounds": 8,
+      "summary": {
+        "ls-tree": {
+          "wallMedianMs": 351.59,
+          "walls": [
+            582.98,
+            352.51,
+            351.59,
+            351.8,
+            338.27,
+            339.7,
+            345.96,
+            346.56
+          ],
+          "wallRangeMs": [
+            338.27,
+            582.98
+          ],
+          "loopMedianMs": null,
+          "loops": [],
+          "openMedianMs": 0,
+          "indexMedianMs": 0
+        },
+        "cat-file": {
+          "wallMedianMs": 347.57,
+          "walls": [
+            395.75,
+            340.79,
+            351.38,
+            342.18,
+            344.73,
+            340.65,
+            347.57,
+            382.56
+          ],
+          "wallRangeMs": [
+            340.65,
+            395.75
+          ],
+          "loopMedianMs": null,
+          "loops": [],
+          "openMedianMs": 0,
+          "indexMedianMs": 0
+        },
+        "gix077": {
+          "wallMedianMs": 221.86,
+          "walls": [
+            234.84,
+            223.52,
+            213.67,
+            229.78,
+            209.87,
+            221.86,
+            219.58,
+            216.25
+          ],
+          "wallRangeMs": [
+            209.87,
+            234.84
+          ],
+          "loopMedianMs": 206.857,
+          "loops": [
+            203.491,
+            206.857,
+            201.957,
+            217.775,
+            198.415,
+            209.371,
+            208.207,
+            204.063
+          ],
+          "openMedianMs": 0.279,
+          "indexMedianMs": 9.967
+        },
+        "gix090": {
+          "wallMedianMs": 397.52,
+          "walls": [
+            403.1,
+            397.52,
+            394.17,
+            420.33,
+            393.46,
+            508.27,
+            389.94,
+            384.3
+          ],
+          "wallRangeMs": [
+            384.3,
+            508.27
+          ],
+          "loopMedianMs": 385.419,
+          "loops": [
+            384.597,
+            378.365,
+            386.347,
+            404.634,
+            385.419,
+            499.967,
+            382.274,
+            376.549
+          ],
+          "openMedianMs": 0.346,
+          "indexMedianMs": 6.198
+        },
+        "gixodb": {
+          "wallMedianMs": 398.35,
+          "walls": [
+            406.56,
+            380.19,
+            435.57,
+            398.35,
+            377.16,
+            399.7,
+            388.78,
+            388.95
+          ],
+          "wallRangeMs": [
+            377.16,
+            435.57
+          ],
+          "loopMedianMs": 394.199,
+          "loops": [
+            400.068,
+            376.712,
+            429.329,
+            394.199,
+            374.099,
+            395.954,
+            385.355,
+            385.845
+          ],
+          "openMedianMs": 0.098,
+          "indexMedianMs": 1.996
+        }
+      }
+    },
+    "packed": {
+      "layout": "packed",
+      "rounds": 8,
+      "summary": {
+        "ls-tree": {
+          "wallMedianMs": 22.97,
+          "walls": [
+            27.57,
+            23.63,
+            22.97,
+            22.98,
+            22.68,
+            22.39,
+            22.56,
+            22.93
+          ],
+          "wallRangeMs": [
+            22.39,
+            27.57
+          ],
+          "loopMedianMs": null,
+          "loops": [],
+          "openMedianMs": 0,
+          "indexMedianMs": 0
+        },
+        "cat-file": {
+          "wallMedianMs": 32.69,
+          "walls": [
+            36.51,
+            32.63,
+            32.2,
+            32.69,
+            33.72,
+            31.86,
+            32.16,
+            32.77
+          ],
+          "wallRangeMs": [
+            31.86,
+            36.51
+          ],
+          "loopMedianMs": null,
+          "loops": [],
+          "openMedianMs": 0,
+          "indexMedianMs": 0
+        },
+        "gix077": {
+          "wallMedianMs": 23.01,
+          "walls": [
+            28.02,
+            23.09,
+            23.01,
+            22.13,
+            22.8,
+            22.27,
+            22.22,
+            23.01
+          ],
+          "wallRangeMs": [
+            22.13,
+            28.02
+          ],
+          "loopMedianMs": 9.902,
+          "loops": [
+            10.937,
+            9.879,
+            10.07,
+            9.838,
+            9.902,
+            9.793,
+            9.789,
+            10.429
+          ],
+          "openMedianMs": 0.251,
+          "indexMedianMs": 9.287
+        },
+        "gix090": {
+          "wallMedianMs": 19.14,
+          "walls": [
+            22.2,
+            18.74,
+            19.24,
+            19.14,
+            19.64,
+            18.83,
+            18.54,
+            18.17
+          ],
+          "wallRangeMs": [
+            18.17,
+            22.2
+          ],
+          "loopMedianMs": 9.75,
+          "loops": [
+            9.936,
+            9.642,
+            9.75,
+            9.69,
+            10.35,
+            9.905,
+            9.522,
+            9.472
+          ],
+          "openMedianMs": 0.296,
+          "indexMedianMs": 5.809
+        },
+        "gixodb": {
+          "wallMedianMs": 13.53,
+          "walls": [
+            14.99,
+            13.53,
+            13.81,
+            13.31,
+            13.51,
+            13.46,
+            13.68,
+            13.17
+          ],
+          "wallRangeMs": [
+            13.17,
+            14.99
+          ],
+          "loopMedianMs": 9.257,
+          "loops": [
+            9.491,
+            9.257,
+            9.384,
+            9.06,
+            9.057,
+            9.152,
+            9.395,
+            9.047
+          ],
+          "openMedianMs": 0.09,
+          "indexMedianMs": 1.736
+        }
+      }
+    }
+  },
+  "rung1GuestCold": {
+    "loose": {
+      "layout": "loose",
+      "readers": [
+        {
+          "reader": "ls-tree",
+          "repetition": 1,
+          "wallMs": 970.95
+        },
+        {
+          "reader": "cat-file",
+          "repetition": 1,
+          "wallMs": 1155.69
+        },
+        {
+          "reader": "gix090",
+          "repetition": 1,
+          "wallMs": 905.57,
+          "loopMs": 887.454
+        },
+        {
+          "reader": "gixodb",
+          "repetition": 1,
+          "wallMs": 840.21,
+          "loopMs": 829.067
+        },
+        {
+          "reader": "ls-tree",
+          "repetition": 2,
+          "wallMs": 935.31
+        },
+        {
+          "reader": "cat-file",
+          "repetition": 2,
+          "wallMs": 1574.35
+        },
+        {
+          "reader": "gix090",
+          "repetition": 2,
+          "wallMs": 978.42,
+          "loopMs": 956.685
+        },
+        {
+          "reader": "gixodb",
+          "repetition": 2,
+          "wallMs": 899.12,
+          "loopMs": 884.455
+        }
+      ],
+      "adds": [
+        {
+          "arm": "branch-ls-tree",
+          "totalMs": 1646.767,
+          "readMs": 969.024
+        },
+        {
+          "arm": "branch-cat-file",
+          "totalMs": 1905.263,
+          "readMs": 1097.381
+        },
+        {
+          "arm": "branch-object-database",
+          "totalMs": 1363.892,
+          "readMs": 664.221
+        },
+        {
+          "arm": "branch-ls-tree",
+          "totalMs": 1532.554,
+          "readMs": 854.157
+        },
+        {
+          "arm": "branch-cat-file",
+          "totalMs": 1748.159,
+          "readMs": 1019.134
+        },
+        {
+          "arm": "branch-object-database",
+          "totalMs": 1308.111,
+          "readMs": 611.1600000000001
+        }
+      ]
+    },
+    "packed": {
+      "layout": "packed",
+      "readers": [
+        {
+          "reader": "ls-tree",
+          "repetition": 1,
+          "wallMs": 491.87
+        },
+        {
+          "reader": "cat-file",
+          "repetition": 1,
+          "wallMs": 288.02
+        },
+        {
+          "reader": "gix090",
+          "repetition": 1,
+          "wallMs": 167.64,
+          "loopMs": 128.03
+        },
+        {
+          "reader": "gixodb",
+          "repetition": 1,
+          "wallMs": 157.63,
+          "loopMs": 136.271
+        },
+        {
+          "reader": "ls-tree",
+          "repetition": 2,
+          "wallMs": 120.87
+        },
+        {
+          "reader": "cat-file",
+          "repetition": 2,
+          "wallMs": 140.67
+        },
+        {
+          "reader": "gix090",
+          "repetition": 2,
+          "wallMs": 119.53,
+          "loopMs": 102.275
+        },
+        {
+          "reader": "gixodb",
+          "repetition": 2,
+          "wallMs": 112.99,
+          "loopMs": 102.916
+        }
+      ],
+      "adds": [
+        {
+          "arm": "branch-ls-tree",
+          "totalMs": 864.24,
+          "readMs": 172.84699999999998
+        },
+        {
+          "arm": "branch-cat-file",
+          "totalMs": 833.686,
+          "readMs": 168.007
+        },
+        {
+          "arm": "branch-object-database",
+          "totalMs": 753.806,
+          "readMs": 107.924
+        },
+        {
+          "arm": "branch-ls-tree",
+          "totalMs": 805.364,
+          "readMs": 146.314
+        },
+        {
+          "arm": "branch-cat-file",
+          "totalMs": 766.727,
+          "readMs": 126.574
+        },
+        {
+          "arm": "branch-object-database",
+          "totalMs": 712.727,
+          "readMs": 93.60600000000001
+        }
+      ]
+    }
+  },
+  "rung2Host": {
+    "loose": {
+      "layout": "loose",
+      "rounds": 10,
+      "routes": [
+        "clones"
+      ],
+      "n": {
+        "main": 10,
+        "branch-ls-tree": 10,
+        "branch-ls-tree-again": 10,
+        "branch-cat-file": 10,
+        "branch-object-database": 10
+      },
+      "wallMedianMs": {
+        "main": 946.627667,
+        "branch-ls-tree": 826.213526,
+        "branch-ls-tree-again": 910.315204,
+        "branch-cat-file": 948.381523,
+        "branch-object-database": 937.591015
+      },
+      "walls": {
+        "main": [
+          932.5,
+          761,
+          1047.7,
+          745.7,
+          794.8,
+          1048.3,
+          824.8,
+          953.2,
+          1092.4,
+          946.6
+        ],
+        "branch-ls-tree": [
+          846.8,
+          692.6,
+          913.4,
+          809.4,
+          783.7,
+          815,
+          772.2,
+          826.2,
+          1158.9,
+          973
+        ],
+        "branch-ls-tree-again": [
+          764.5,
+          737.4,
+          963,
+          763.4,
+          844.4,
+          819.1,
+          910.3,
+          1023.2,
+          1168.5,
+          971.7
+        ],
+        "branch-cat-file": [
+          731,
+          883.2,
+          877.7,
+          1065.1,
+          842.3,
+          4282.9,
+          948.4,
+          784.1,
+          2192.6,
+          1013.8
+        ],
+        "branch-object-database": [
+          796.2,
+          820.1,
+          1091.5,
+          736.6,
+          892.2,
+          1427.7,
+          719.6,
+          937.6,
+          2722.6,
+          1077.3
+        ]
+      },
+      "readMedianMs": {
+        "main": 270.189,
+        "branch-ls-tree": 228.335,
+        "branch-ls-tree-again": 239.02200000000002,
+        "branch-cat-file": 243.20000000000002,
+        "branch-object-database": 209.62300000000002
+      },
+      "readRangeMs": {
+        "main": [
+          220.6,
+          314.8
+        ],
+        "branch-ls-tree": [
+          196.3,
+          351.2
+        ],
+        "branch-ls-tree-again": [
+          203.1,
+          479.9
+        ],
+        "branch-cat-file": [
+          194.1,
+          3245.2
+        ],
+        "branch-object-database": [
+          177.5,
+          2259.4
+        ]
+      },
+      "identicalPairRange": [
+        0.9028998427053186,
+        1.2384284894895319
+      ]
+    },
+    "packed": {
+      "layout": "packed",
+      "rounds": 10,
+      "routes": [
+        "clones"
+      ],
+      "n": {
+        "main": 10,
+        "branch-ls-tree": 10,
+        "branch-ls-tree-again": 10,
+        "branch-cat-file": 10,
+        "branch-object-database": 10
+      },
+      "wallMedianMs": {
+        "main": 794.97279,
+        "branch-ls-tree": 773.020932,
+        "branch-ls-tree-again": 911.621796,
+        "branch-cat-file": 796.594781,
+        "branch-object-database": 818.363845
+      },
+      "walls": {
+        "main": [
+          882.3,
+          887.1,
+          776.6,
+          784.2,
+          694.3,
+          795,
+          714.8,
+          803.9,
+          754.9,
+          901.3
+        ],
+        "branch-ls-tree": [
+          864.8,
+          868.6,
+          793.8,
+          676.3,
+          722.4,
+          794.3,
+          706.1,
+          744.4,
+          773,
+          715.4
+        ],
+        "branch-ls-tree-again": [
+          2648.4,
+          871.4,
+          939.7,
+          703.6,
+          758.1,
+          692.3,
+          766.6,
+          1012.3,
+          911.6,
+          947.9
+        ],
+        "branch-cat-file": [
+          869.7,
+          821.9,
+          2147.6,
+          707.7,
+          754.6,
+          737,
+          673.6,
+          796.6,
+          751.8,
+          802.2
+        ],
+        "branch-object-database": [
+          893.1,
+          818.4,
+          826.1,
+          822.3,
+          726.1,
+          685.4,
+          719.4,
+          790.5,
+          3379,
+          758.8
+        ]
+      },
+      "readMedianMs": {
+        "main": 24.752,
+        "branch-ls-tree": 31.631,
+        "branch-ls-tree-again": 27.928,
+        "branch-cat-file": 38.953,
+        "branch-object-database": 64.974
+      },
+      "readRangeMs": {
+        "main": [
+          20.4,
+          235.8
+        ],
+        "branch-ls-tree": [
+          26.4,
+          287.7
+        ],
+        "branch-ls-tree-again": [
+          26.4,
+          46.2
+        ],
+        "branch-cat-file": [
+          33.1,
+          192.8
+        ],
+        "branch-object-database": [
+          54.2,
+          162.3
+        ]
+      },
+      "identicalPairRange": [
+        0.8716277502131562,
+        3.0622584846699166
+      ]
+    }
+  },
+  "rung2HostReaders": {
+    "loose": {
+      "layout": "loose",
+      "rounds": 8,
+      "summary": {
+        "ls-tree": {
+          "medianMs": 292.46,
+          "values": [
+            10368.87,
+            206.48,
+            210.71,
+            217,
+            246.75,
+            641.4,
+            292.46,
+            636.74
+          ],
+          "rangeMs": [
+            206.48,
+            10368.87
+          ],
+          "inside": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "cat-file": {
+          "medianMs": 208.43,
+          "values": [
+            194.47,
+            202.85,
+            208.43,
+            203.27,
+            206.47,
+            254.49,
+            262.23,
+            4145.93
+          ],
+          "rangeMs": [
+            194.47,
+            4145.93
+          ],
+          "inside": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "object-database": {
+          "medianMs": 175.41,
+          "values": [
+            158.32,
+            162.7,
+            172.94,
+            175.41,
+            166.15,
+            188.7,
+            210.61,
+            11575.84
+          ],
+          "rangeMs": [
+            158.32,
+            11575.84
+          ],
+          "inside": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "gix090": {
+          "medianMs": null,
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "rangeMs": [
+            0,
+            0
+          ],
+          "inside": [
+            {
+              "openMs": 6.679,
+              "indexMs": 12.127,
+              "loopMs": 218.755
+            },
+            {
+              "openMs": 0.239,
+              "indexMs": 4.938,
+              "loopMs": 218.926
+            },
+            {
+              "openMs": 0.286,
+              "indexMs": 5.438,
+              "loopMs": 227.316
+            },
+            {
+              "openMs": 0.258,
+              "indexMs": 4.999,
+              "loopMs": 223.041
+            },
+            {
+              "openMs": 0.277,
+              "indexMs": 5.277,
+              "loopMs": 234.756
+            },
+            {
+              "openMs": 0.267,
+              "indexMs": 5.126,
+              "loopMs": 224.274
+            },
+            {
+              "openMs": 7.617,
+              "indexMs": 8.053,
+              "loopMs": 250.548
+            },
+            {
+              "openMs": 6.956,
+              "indexMs": 11.166,
+              "loopMs": 269.845
+            }
+          ]
+        },
+        "gixodb": {
+          "medianMs": null,
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "rangeMs": [
+            0,
+            0
+          ],
+          "inside": [
+            {
+              "openMs": 3.584,
+              "indexMs": 2.397,
+              "loopMs": 231.579
+            },
+            {
+              "openMs": 0.07,
+              "indexMs": 1.131,
+              "loopMs": 222.143
+            },
+            {
+              "openMs": 0.063,
+              "indexMs": 1.79,
+              "loopMs": 234.462
+            },
+            {
+              "openMs": 0.078,
+              "indexMs": 1.237,
+              "loopMs": 216.533
+            },
+            {
+              "openMs": 0.061,
+              "indexMs": 1.158,
+              "loopMs": 248.383
+            },
+            {
+              "openMs": 0.068,
+              "indexMs": 1.593,
+              "loopMs": 222.019
+            },
+            {
+              "openMs": 2.743,
+              "indexMs": 2.273,
+              "loopMs": 262.487
+            },
+            {
+              "openMs": 5.234,
+              "indexMs": 5.939,
+              "loopMs": 265.519
+            }
+          ]
+        }
+      }
+    },
+    "packed": {
+      "layout": "packed",
+      "rounds": 8,
+      "summary": {
+        "ls-tree": {
+          "medianMs": 36.69,
+          "values": [
+            63.37,
+            35.92,
+            37.45,
+            33.91,
+            33.59,
+            32.56,
+            36.69,
+            37.49
+          ],
+          "rangeMs": [
+            32.56,
+            63.37
+          ],
+          "inside": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "cat-file": {
+          "medianMs": 42.34,
+          "values": [
+            43.18,
+            37.8,
+            39.87,
+            42.34,
+            42.2,
+            40.48,
+            49.44,
+            48.29
+          ],
+          "rangeMs": [
+            37.8,
+            49.44
+          ],
+          "inside": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "object-database": {
+          "medianMs": 61.22,
+          "values": [
+            58.91,
+            56.67,
+            60.06,
+            60.37,
+            61.22,
+            63.5,
+            66.54,
+            110.13
+          ],
+          "rangeMs": [
+            56.67,
+            110.13
+          ],
+          "inside": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "gix090": {
+          "medianMs": 9.74,
+          "values": [
+            9.74,
+            8.93,
+            9.59,
+            9.17,
+            9.86,
+            9.66,
+            10.18,
+            12.46
+          ],
+          "rangeMs": [
+            8.93,
+            12.46
+          ],
+          "inside": [
+            {
+              "openMs": 10.074,
+              "indexMs": 6.26,
+              "loopMs": 9.737
+            },
+            {
+              "openMs": 0.272,
+              "indexMs": 5.059,
+              "loopMs": 8.926
+            },
+            {
+              "openMs": 0.274,
+              "indexMs": 4.659,
+              "loopMs": 9.59
+            },
+            {
+              "openMs": 0.298,
+              "indexMs": 5.201,
+              "loopMs": 9.166
+            },
+            {
+              "openMs": 0.336,
+              "indexMs": 5.382,
+              "loopMs": 9.858
+            },
+            {
+              "openMs": 0.296,
+              "indexMs": 5.028,
+              "loopMs": 9.665
+            },
+            {
+              "openMs": 0.397,
+              "indexMs": 5.44,
+              "loopMs": 10.184
+            },
+            {
+              "openMs": 0.269,
+              "indexMs": 5.424,
+              "loopMs": 12.457
+            }
+          ]
+        },
+        "gixodb": {
+          "medianMs": 9.42,
+          "values": [
+            9.06,
+            8.77,
+            9.86,
+            9.42,
+            9.38,
+            9.06,
+            10.8,
+            10.02
+          ],
+          "rangeMs": [
+            8.77,
+            10.8
+          ],
+          "inside": [
+            {
+              "openMs": 4.558,
+              "indexMs": 1.709,
+              "loopMs": 9.058
+            },
+            {
+              "openMs": 0.08,
+              "indexMs": 1.262,
+              "loopMs": 8.772
+            },
+            {
+              "openMs": 0.078,
+              "indexMs": 1.109,
+              "loopMs": 9.855
+            },
+            {
+              "openMs": 0.085,
+              "indexMs": 1.256,
+              "loopMs": 9.422
+            },
+            {
+              "openMs": 0.095,
+              "indexMs": 1.516,
+              "loopMs": 9.381
+            },
+            {
+              "openMs": 0.095,
+              "indexMs": 1.227,
+              "loopMs": 9.055
+            },
+            {
+              "openMs": 0.083,
+              "indexMs": 1.644,
+              "loopMs": 10.796
+            },
+            {
+              "openMs": 0.124,
+              "indexMs": 1.839,
+              "loopMs": 10.024
+            }
+          ]
+        }
+      }
+    }
+  }
+}
