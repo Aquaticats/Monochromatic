@@ -329,7 +329,15 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     // question, and the same sweep attaches after the load.
     let encrypted: String = format!("{pool}/{ENCRYPTED_PARENT_NAME}");
     let _ignored: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["destroy", "-r", "-f", encrypted.as_str()], None);
-    zfs_ok(sbin.as_str(), &["create", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", &encrypted]);
+    // A dataset created with `keylocation=prompt` asks for its passphrase as it is made, so the passphrase is fed to this
+    // call as well as to the load.
+    let created: (bool, String, String) = zfs(
+        sbin.as_str(),
+        "zfs",
+        &["create", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", encrypted.as_str()],
+        Some(format!("{passphrase}\n{passphrase}\n").as_str()),
+    );
+    assert!(created.0, "the encrypted fixture is created: {}", created.2);
     let loaded: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["load-key", encrypted.as_str()], Some(format!("{passphrase}\n").as_str()));
     assert!(loaded.0, "the encrypted fixture's key loads: {}", loaded.2);
     zfs_ok(sbin.as_str(), &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", encrypted.as_str()]);
