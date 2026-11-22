@@ -230,10 +230,30 @@ impl<Calls: RollbackCalls> CloneAttachStep for RealAttachStep<Calls> {
         };
         let attached_mount_id: u64 = match attach_the_clone(request.clone, &held.target) {
             Ok(attached) => attached.mount_id,
-            Err(refusal) => return AttachStepOutcome::Refused { step: String::from(refusal.call.word()), errno: the_errno_name(refusal.errno), said: refusal.message() },
+            Err(refusal) => return the_outcome_of_a_refused_attach(&refusal),
         };
         return check_place_the_mount(request, &held, attached_mount_id, &self.calls);
     }
+}
+
+/// What:
+///  What one refused attach call answers a sweep.
+/// Why:
+///  A call after the move can have placed a mount that could not be taken down
+///  again,
+///  and that answer must read as a retained mount,
+///  which files a failure receipt,
+///  rather than as a refusal that left nothing behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = theOutcomeOfARefusedAttach(refusal); // refused | retained
+/// ```
+pub fn the_outcome_of_a_refused_attach(refusal: &crate::worktree_clone_mount::AttachRefusal) -> AttachStepOutcome {
+    if refusal.placement == crate::worktree_clone_mount::Placement::PlacedAndRetained {
+        return AttachStepOutcome::Retained { said: refusal.message() };
+    }
+    return AttachStepOutcome::Refused { step: String::from(refusal.call.word()), errno: the_errno_name(refusal.errno), said: refusal.message() };
 }
 
 /// The step and errno one walk refusal is written as.

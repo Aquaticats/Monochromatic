@@ -56,6 +56,9 @@ pub struct MountFacts {
     /// a mount hidden by a later mount at its place keeps
     ///  the id of the mount that was there before.
     pub parent_id: u64,
+    /// The root within the filesystem the mount shows,
+    /// which is `/` for a dataset's own mount and another path for a bind.
+    pub root: PathBuf,
     /// The optional fields between the mount options and the separator,
     /// such as `shared:247` or `master:3`,
     /// which is where the kernel prints a mount's propagation.
@@ -195,6 +198,7 @@ fn parse_line(line: &[u8]) -> Option<MountFacts> {
     return Some(MountFacts {
         mount_id: String::from_utf8_lossy(fields[0]).parse::<u64>().ok()?,
         parent_id: String::from_utf8_lossy(fields[1]).parse::<u64>().ok()?,
+        root: PathBuf::from(OsStr::from_bytes(unmangle_octal(fields[3]).as_slice())),
         optional_fields: fields[6..separator].iter().map(|field| return String::from_utf8_lossy(field).into_owned()).collect(),
         mount_point: PathBuf::from(OsStr::from_bytes(unmangle_octal(fields[4]).as_slice())),
         filesystem_type: String::from_utf8_lossy(fields[separator + 1]).into_owned(),

@@ -62,6 +62,7 @@ use super::sweep_first_attach::FirstAttachRecorder;
 use super::sweep_one_clone_answers::{answer_the_attach, answer_the_standing_mount, answer_unmount, record_the_first_attach, refused_by_the_checks, the_first_attach_outcome, the_first_attach_refusal};
 use crate::diagnostic_log::{debug, warn};
 use crate::start_probe::first_attach_record::FirstAttachClaim;
+use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
 use crate::worktree_clone_mount::{
     HoldCloneSlotRequest, LookAgainAtSlotRequest, MountIdentity, SlotIdentityStore, StoreRefusal, look_again_at_the_slot, mount_facts_of, observe_the_clone_slot_under_root_control,
@@ -134,6 +135,34 @@ pub struct SweepContext<'a> {
 }
 
 /// What:
+///  Whether one mount is this clone's own rather than a bind or another
+///  dataset's mount.
+/// Why:
+///  A bind of the same dataset prints the same source,
+///  and the route's identity rule tells a mount from another mount of the same
+///  dataset by its mount ID and a bind by its parent mount and its source
+///  (`src/native/worktree_clone_mount/attached_mount_identity.rs`).
+///  The table here has no parent mount of the attach to compare,
+///  so the bind is told by the root the mount shows and by the two attributes
+///  the attach itself enforces:
+///  a dataset's own mount shows root `/`,
+///  and a mount this route made carries `nosuid` and `nodev`.
+///  Anything else is left to the attach step,
+/// whose walk refuses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const own = isThisClonesOwnMount(facts, clone); // source, root, type and both flags
+/// ```
+pub(crate) fn is_this_clones_own_mount(facts: &MountFacts, clone: &str) -> bool {
+    return facts.source == clone
+        && facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE
+        && facts.root == Path::new("/")
+        && facts.has_option("nosuid")
+        && facts.has_option("nodev");
+}
+
+/// What:
 ///  What the canonical slot holds before this clone's attach.
 /// Why:
 ///  The ordinary sweep runs over a clone whose own mount still stands at the
@@ -170,10 +199,21 @@ pub struct LiveStandingMounts;
 
 impl StandingMounts for LiveStandingMounts {
     fn standing_mount_of(&self, request: &LookAgainAtSlotRequest<'_>, clone: &str) -> Option<MountIdentity> {
-        let fresh = look_again_at_the_slot(request).ok()?;
-        let facts = mount_facts_of(fresh.mount_id).ok()?;
-        let is_this_clone: bool = facts.source == clone && facts.filesystem_type == ZFS_FILE_SYSTEM_TYPE;
-        if !is_this_clone {
+        let fresh = match look_again_at_the_slot(request) {
+            Ok(fresh) => fresh,
+            Err(refusal) => {
+                debug(TAG, format!("the canonical slot could not be read for `{clone}`: {}", refusal.message()).as_str());
+                return None;
+            }
+        };
+        let facts = match mount_facts_of(fresh.mount_id) {
+            Ok(facts) => facts,
+            Err(refusal) => {
+                debug(TAG, format!("the mount {} the slot is on could not be read: {}", fresh.mount_id, refusal.message()).as_str());
+                return None;
+            }
+        };
+        if !is_this_clones_own_mount(&facts, clone) {
             return None;
         }
         return Some(MountIdentity {
@@ -402,6 +442,9 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
     }
     let outcome: AttachStepOutcome = context.attach.attach(&AttachRequest { checkout: context.checkout, slot: verified.slot.as_str(), clone: name, store: context.store });
     record_the_first_attach(context, first_attach, &the_first_attach_outcome(verified, &outcome));
+    // The answer is filed before the intent is read once more, so a mount this turn made is answered under the nonce it
+    // was made for even when a request arrived meanwhile.
+    let answered: CloneOutcome = answer_the_attach(context, verified, request, outcome);
     claim.release();
     // The holder reads the intent again after it releases the claim, so a request that arrived while this sweep held the
     // slot is acted on in a second turn rather than waiting for a trigger that may not come. One turn may re-read, so a
@@ -410,7 +453,7 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
         debug(TAG, format!("the intent of `{name}` changed while the slot was claimed, so the sweep turns once more").as_str());
         return sweep_one_clone_once(context, name, false);
     }
-    return answer_the_attach(context, verified, request, outcome);
+    return answered;
 }
 
 /// What:

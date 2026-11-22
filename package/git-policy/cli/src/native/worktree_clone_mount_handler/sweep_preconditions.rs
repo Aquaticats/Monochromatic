@@ -114,6 +114,12 @@ pub enum ProbeRefusal {
         /// This boot's identifier.
         boot: String,
     },
+    /// This machine's own kernel release or boot identity could not be read,
+    /// so no record can be judged against it.
+    Running {
+        /// What the read answered.
+        reason: String,
+    },
     /// The record's verdict does not enable a managed attach.
     Blocked {
         /// The path that was read.
@@ -177,6 +183,7 @@ impl ProbeRefusal {
             ProbeRefusal::Blocked { path, verdict, step } => {
                 format!("the start probe's record {path:?} carries the verdict `{verdict}` and names the step `{step}`, so the managed route is blocked for this boot")
             }
+            ProbeRefusal::Running { reason } => format!("this machine's own kernel release or boot identity could not be read ({reason}), so no probe record can be judged current"),
             ProbeRefusal::NotARecord { path, said } => format!("the start probe's record {path:?} is no record this route reads: {said}"),
             ProbeRefusal::Stale { path, line, named, running } => format!(
                 "the start probe's record {path:?} names `{line} {named}` and this machine reports `{line} {running}`, so the record is stale: it judged another kernel, module or boot"
@@ -279,7 +286,7 @@ pub fn read_probe_standing(path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
             _ => ProbeRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
         };
     })?;
-    let running: ProbeFingerprint = ProbeFingerprint::read(&FingerprintPaths::live()).map_err(|refusal| return ProbeRefusal::BootId { reason: refusal.message() })?;
+    let running: ProbeFingerprint = ProbeFingerprint::read(&FingerprintPaths::live()).map_err(|refusal| return ProbeRefusal::Running { reason: refusal.message() })?;
     let standing: ProbeStanding = probe_standing(record.as_str(), boot.as_str(), path)?;
     probe_fingerprint_standing(record.as_str(), &running, path)?;
     return Ok(standing);

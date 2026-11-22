@@ -44,7 +44,7 @@ pub const SHARED_FIELD_PREFIX: &str = "shared:";
 
 /// The filesystem type a dataset is attached as,
 /// which is the type the fallback reads a dataset name from.
-pub const ZFS_FILE_SYSTEM_TYPE: &str = "zfs";
+pub const ZFS_FILE_SYSTEM_TYPE: &str = crate::worktree_clone_mount::attach_the_clone::ZFS_FILE_SYSTEM_TYPE;
 
 /// What:
 ///  The mount the checkout is on.

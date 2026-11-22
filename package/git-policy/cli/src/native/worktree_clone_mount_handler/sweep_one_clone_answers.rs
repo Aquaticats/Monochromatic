@@ -24,12 +24,12 @@
 //! ```
 
 use super::sweep_attach_step::{AttachStepOutcome, VERIFY_STEP};
-use super::sweep_clone_check::{CloneRefusal, VerifiedClone};
+use super::sweep_clone_check::{CloneRefusal, VerifiedClone, slot_of};
 use super::sweep_dataset_facts::CloneObjectFacts;
 use super::sweep_one_clone::{CloneOutcome, RECEIPT_STEP, SweepContext, UNMOUNT_AWAITS_STEP_NINE};
 use crate::diagnostic_log::{debug, warn};
 use crate::start_probe::first_attach_record::{FirstAttachClaim, FirstAttachOutcome, NONE as FIRST_ATTACH_NONE};
-use crate::worktree_clone_mount::{MountIdentity, mount_facts_of};
+use crate::worktree_clone_mount::{LookAgainAtSlotRequest, MountIdentity, mount_facts_of};
 use crate::worktree_clone_mount_protocol::{CloneMountReceipt, IntentReading, MountIntent, ReceiptMountIdentity, ReceiptOutcome, read_intent};
 
 /// Module tag for diagnostics.
@@ -40,7 +40,10 @@ const TAG: &str = "sweepOneCloneAnswers";
 /// because it is the one a waiting command can act on.
 pub(super) fn refused_by_the_checks(context: &SweepContext<'_>, name: &str, facts: &CloneObjectFacts, refusal: &CloneRefusal) -> CloneOutcome {
     warn(TAG, refusal.message().as_str());
+    // A clone whose own mount already stands at its slot keeps the done receipt it filed: the key question that now
+    // refuses its next attach is not the answer to the request that mount answered.
     if matches!(refusal, CloneRefusal::KeyUnavailable { .. })
+        && !the_refused_clones_mount_stands(context, name, facts)
         && let Some(receipt) = the_key_refusals_receipt(context, facts, name, refusal.step())
         && let Err(filed) = context.receipts.publish(&receipt)
     {
@@ -52,6 +55,22 @@ pub(super) fn refused_by_the_checks(context: &SweepContext<'_>, name: &str, fact
         };
     }
     return CloneOutcome::Refused { name: String::from(name), slot: None, step: String::from(refusal.step()), said: refusal.message() };
+}
+
+/// Whether the clone a refusal is about already holds its own mount at its
+/// slot,
+/// which is when a `done` receipt must be kept rather than overwritten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stands = theRefusedClonesMountStands(context, name, facts);
+/// ```
+fn the_refused_clones_mount_stands(context: &SweepContext<'_>, name: &str, facts: &CloneObjectFacts) -> bool {
+    let Ok(slot) = slot_of(facts.name.as_str(), context.parent_dataset) else {
+        return false;
+    };
+    let request: LookAgainAtSlotRequest<'_> = LookAgainAtSlotRequest { checkout: context.checkout, slot: slot.as_str() };
+    return context.standing.standing_mount_of(&request, name).is_some();
 }
 
 /// The receipt an unavailable key files,

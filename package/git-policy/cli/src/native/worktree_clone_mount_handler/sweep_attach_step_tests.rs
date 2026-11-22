@@ -194,3 +194,34 @@ fn outcome_about(outcome: &AttachStepOutcome) -> String {
         AttachStepOutcome::Refused { said, .. } => said.clone(),
     };
 }
+
+/// What:
+///  A refused attach call that placed a mount and could not take it down is
+///  answered as retained,
+///  and one that took it down again is answered as refused.
+/// Why:
+///  Only the retained answer files a failure receipt,
+///  and a mount left standing must never read as "nothing was mounted".
+#[test]
+fn a_placed_mount_that_could_not_be_taken_down_is_retained() {
+    use crate::worktree_clone_mount::{AttachCall, AttachRefusal, Placement};
+
+    let retained: AttachRefusal = AttachRefusal {
+        call: AttachCall::MountNumber,
+        source: String::from("zpcachyos/nosnap/clones/one"),
+        errno: libc::EIO,
+        detail: String::from("no such file or directory"),
+        placement: Placement::PlacedAndRetained,
+    };
+    let outcome: AttachStepOutcome = super::the_outcome_of_a_refused_attach(&retained);
+    assert!(matches!(outcome, AttachStepOutcome::Retained { .. }), "a mount that stands is retained: {outcome:?}");
+    assert!(outcome_about(&outcome).contains("could not be taken down"), "the report says what became of the mount: {}", outcome_about(&outcome));
+
+    let taken_down: AttachRefusal = AttachRefusal { placement: Placement::PlacedThenTakenDown, ..retained.clone() };
+    let refused: AttachStepOutcome = super::the_outcome_of_a_refused_attach(&taken_down);
+    assert!(matches!(refused, AttachStepOutcome::Refused { ref step, .. } if step == "mount-id"), "a mount taken down again is a refusal: {refused:?}");
+
+    let nothing: AttachRefusal = AttachRefusal { call: AttachCall::MountDescriptor, placement: Placement::NothingPlaced, ..retained };
+    let before_the_move: AttachStepOutcome = super::the_outcome_of_a_refused_attach(&nothing);
+    assert!(matches!(before_the_move, AttachStepOutcome::Refused { ref step, .. } if step == "fsmount"), "{before_the_move:?}");
+}
