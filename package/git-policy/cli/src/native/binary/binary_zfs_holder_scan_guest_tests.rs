@@ -319,7 +319,7 @@ fn live_tasks() -> usize {
 /// with its own mount namespace holding the clone.
 fn unshare_holder(sbin: &str, clone: &str, folder: &str) -> Child {
     std::fs::create_dir_all(folder).expect("the holder's folder is made");
-    let script: String = format!("mount -t zfs {clone} {folder} && sleep {HOLDER_SECONDS}");
+    let script: String = format!("mount -t zfs {clone} {folder} && exec sleep {HOLDER_SECONDS}");
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
     return Command::new("unshare")
         .args(["--mount", "--propagation", "private", "sh", "-c", script.as_str()])
@@ -484,20 +484,18 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
 
     // Arm 6: a task with a divergent process root still names its namespace's mount of the clone.
     let mut rooted: Child = divergent_root(sbin.as_str(), clone.as_str());
-    let rooted_waited: bool = wait_for_any_hold(pid_of(&rooted), clone.as_str());
+    let rooted_waited: bool = wait_for_the_table_to_mention(pid_of(&rooted), ROOTED_FOLDER);
+    let rooted_pid: u32 = pid_of(&rooted);
+    let rooted_namespace: String = std::fs::read_link(format!("/proc/{rooted_pid}/ns/mnt")).expect("the rooted task's namespace link reads").to_string_lossy().into_owned();
     let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
     let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
-    assert!(rooted_waited, "the divergent-root task's namespace shows the clone");
-    assert!(rooted_scan.holder_namespaces() >= 1, "a holder read through a divergent root is still a holder: {:?}", rooted_scan.holders);
-    let observed: String = rooted_scan
-        .holders
-        .iter()
-        .flat_map(|found| return found.mounts.iter())
-        .map(|mount| return mount.mount_point.display().to_string())
-        .collect::<Vec<String>>()
-        .join(",");
-    println!("SCAN divergent-root holders={} mount-points={observed}", rooted_scan.holder_namespaces());
+    assert!(rooted_waited, "the divergent-root task's namespace mounts the clone at {ROOTED_FOLDER}");
+    let named: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = rooted_scan.holders.iter().find(|found| return found.namespace() == rooted_namespace);
+    let rooted_holder: &git_policy_cli::clone_holder_scan::NamespaceHolder =
+        named.unwrap_or_else(|| panic!("a holder read through a divergent root is a holder under its own namespace {rooted_namespace}: {:?}", rooted_scan.holders));
+    let observed: String = rooted_holder.mounts.iter().map(|mount| return mount.mount_point.display().to_string()).collect::<Vec<String>>().join(",");
+    println!("SCAN divergent-root holders={} namespace={rooted_namespace} mount-points={observed}", rooted_scan.holder_namespaces());
     stop(&mut rooted);
 
     // Arm 7: a namespace pinned by a handle and no task is invisible,
@@ -555,7 +553,7 @@ fn time_a_scan(clone: &str, rounds: usize) -> Duration {
 fn confined_consumer(clone: &str, checkout: &Path, sbin: &str) -> Option<Child> {
     let slot: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
     let _made: std::io::Result<()> = std::fs::create_dir_all(CONFINED_FOLDER);
-    let script: String = format!("mount --bind {} {CONFINED_FOLDER} && sleep {HOLDER_SECONDS}", slot.display());
+    let script: String = format!("mount --bind {} {CONFINED_FOLDER} && exec sleep {HOLDER_SECONDS}", slot.display());
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
     let mut child: Child = Command::new("unshare")
         .args(["--user", "--map-root-user", "--mount", "sh", "-c", script.as_str()])
@@ -601,6 +599,23 @@ fn wait_for_any_hold(pid: u32, dataset: &str) -> bool {
     return false;
 }
 
+/// Wait,
+/// bounded,
+/// for a task's mount table to mention one folder,
+/// which is how the arm knows the divergent root's own mount is there.
+fn wait_for_the_table_to_mention(pid: u32, needle: &str) -> bool {
+    let table: PathBuf = PathBuf::from(format!("/proc/{pid}/mountinfo"));
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        let mentions: bool = std::fs::read_to_string(table.as_path()).is_ok_and(|text| return text.contains(needle));
+        if mentions {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return false;
+}
+
 /// A task churn:
 /// short-lived processes arriving and leaving while the scan runs.
 fn start_churn() -> Child {
@@ -634,7 +649,7 @@ fn divergent_root(sbin: &str, clone: &str) -> Child {
 /// A task that holds another task's mount namespace open by a handle,
 /// so the namespace outlives its last task.
 fn pin_the_namespace(held_pid: u32) -> Child {
-    let script: String = format!("exec 3</proc/{held_pid}/ns/mnt; sleep {HOLDER_SECONDS}");
+    let script: String = format!("exec 3</proc/{held_pid}/ns/mnt; exec sleep {HOLDER_SECONDS}");
     return Command::new("sh").args(["-c", script.as_str()]).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("the pinning task starts");
 }
 
