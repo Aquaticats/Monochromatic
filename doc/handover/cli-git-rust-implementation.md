@@ -42369,7 +42369,22 @@ stated in this entry. What follows from them, as work:
   statements are re-read at the siblings' tips. Questions as they stand: keep the pending removal or cancel and remount;
   whether to add a refusal before the unmount; what a refusal after the head check keeps; and, only if a guarded finish is
   wanted, whether the wrapper may ever finish over a marked origin. GOING: the diff check against `3e34817184` by the same
-  reviewer, to `review-diff-check.md` beside its reviews. Step 7's
+  reviewer, to `review-diff-check.md` beside its reviews. A ROUND STUCK IN ONE COMMAND, found late by the coordinator: the
+  no-configuration round (`pi-zfs-sweep-and-start-probe-need-no-configuration-file`, started 14:29:17-05:00) had one tool
+  call open for 218 minutes, a script of its own (`scratch/rewrap-added-planning-prose.ts`) spinning with 3 h 30 min of
+  processor time: its loop `while (CLOSING.includes(text[after] ?? ''))` never ends once it passes the end of the text,
+  since every string includes the empty string. It had written nothing; the worktree's three uncommitted files are the
+  round's own. At 2026-11-22T18:47-05:00 the coordinator put a note in the run's inbox (the cause, what to do instead, and
+  to run its own scripts in a capped scope) and ended that one process (pid 1665070) by its number after checking its
+  command line; the round goes on. The other seven rounds were checked with `check-in-on-pi-runs` and are in gates or
+  guest arms no older than half an hour. Why it went unseen for hours: the driver's `watch-overdue-pi-runs` and
+  `check-in-on-pi-runs` look for run folders named `<unit name>-<number>` in one runs folder, and these rounds keep theirs
+  as `<name>-<date>/run-<number>`, so the documented watch had nothing to read and the coordinator ran none. Until the
+  driver notices a silent command itself (the tracked task "Pi driver: notice a run stuck in one silent command"), a
+  watcher fitted to this layout runs as the unit `watch-pi-rounds-for-a-command-that-never-returns` (script of that name
+  in `~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`): it ends, printing one line per process, when a
+  round's tool call is older than 100 minutes or holds more than 45 minutes of processor time while running, or after
+  three hours; whoever reads its end starts it again while rounds are going. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
