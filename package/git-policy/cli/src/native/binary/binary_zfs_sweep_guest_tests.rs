@@ -338,8 +338,8 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
         Some(format!("{passphrase}\n{passphrase}\n").as_str()),
     );
     assert!(created.0, "the encrypted fixture is created: {}", created.2);
-    let loaded: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["load-key", encrypted.as_str()], Some(format!("{passphrase}\n").as_str()));
-    assert!(loaded.0, "the encrypted fixture's key loads: {}", loaded.2);
+    // The create that named this passphrase also loaded the key, so no separate load follows it here; the arm's own
+    // load is the one after the unload below.
     zfs_ok(sbin.as_str(), &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", encrypted.as_str()]);
     zfs_ok(sbin.as_str(), &["snapshot", &format!("{encrypted}@origin")]);
     let encrypted_clone: String = clone_at_the_slot(sbin.as_str(), encrypted.as_str(), Some(mount_request().as_str()));
