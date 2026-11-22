@@ -124,31 +124,32 @@ Lines read here at `fs/btrfs/ioctl.c` v6.8:
 `ioctl_file_clone` in `fs/ioctl.c` v6.8 (line 231) sets the answer to 0 at line 247
 where the cloned length matches the request.
 
-Three controls hold the reading:
+The controls that hold the reading:
 
 ```text
 subvolume::fs_btrfs_ioctl::tests::a_positive_ioctl_answer_is_not_a_failure
 subvolume::fs_btrfs_ioctl::tests::answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails
 subvolume::fs_btrfs_ioctl::tests::btrfs_a_positive_answer_to_the_subvolume_record_is_a_success
+subvolume::fs_btrfs_ioctl::tests::btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record
 ```
 
-The first checks the reader itself on every host,
+`a_positive_ioctl_answer_is_not_a_failure` checks the reader itself on every host,
 btrfs or not:
 1 and 0 are successes,
 `-1` is the failure.
-The second drives the whole reading,
+`answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails`
+drives the whole reading,
 `record_from_answer`,
 with an answer of 1 and an answer of 0 and an answer of -1,
 on any filesystem,
 and requires the record the structure held,
 so a comparison against zero written back where the answer arrives fails it on every host,
 including a host with no btrfs fixture root and a kernel from v7.2 whose every success is 0.
-The third makes the call itself for a created subvolume,
+`btrfs_a_positive_answer_to_the_subvolume_record_is_a_success` makes the call itself for a created subvolume,
 requires the wrapper to answer with the record the kernel wrote,
 and says in one line when the kernel answered zero,
 which happens on v7.2 and later and when the backref search ends at a leaf boundary.
-A fourth,
-`btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record`,
+`btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record`
 reads the fixture root's own record,
 whose answer is the top-level subvolume's 0
 ("What stays unchecked" says where it has run).
