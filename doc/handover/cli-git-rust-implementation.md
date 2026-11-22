@@ -41608,7 +41608,15 @@ stated in this entry. What follows from them, as work:
   0.86 of `main`; the btrfs rung-1 ending control passed in the reviewer's guest; harness 26 of 26; sample 300 of 300; gate
   9741 of 9743; integration branch `integrate/git-policy-cli-clone-rung-skip-pass-lows` at `00059ac588`). GOING:
   `pi-clone-rung-skip-pass-lows-integration-findings` in `.claude/worktrees/clone-rung-skip-pass-lows-findings` (brief under
-  `~/temp/agent/clone-rung-skip-pass-lows-integration-findings-2026-11-21/`); then the reviewer's recheck. Step 7's
+  `~/temp/agent/clone-rung-skip-pass-lows-integration-findings-2026-11-21/`); then the reviewer's recheck. THE PER-SLOT
+  STORE'S RECHECK said fit (every finding closed but L4; M2 and M3 red with their fixes reverted; gate on the merged tree
+  9753 of 9755). MERGED as `c7eb43855c` at 2026-11-21T22:55:39-05:00 after one doc conflict with the labels merge: both
+  added a section lettered J in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`; the store's is now
+  "Cause K" and its R3 wording (a scratch-path citation, "filtered", "three gates on one tip") is fixed; `native:check` on
+  `main` passed after. L4's note is in the decision record. Left for a small round: R1 (the adoption's real removal path
+  `list_and_remove_staging_entries` has no control that fails; re-point the design's control 5 and add a foreign name) and R2
+  (narrow that method to `pub(crate)` returning only what its caller reads). STEP 8 IS UNBLOCKED (step 7 and the store are
+  on `main`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
