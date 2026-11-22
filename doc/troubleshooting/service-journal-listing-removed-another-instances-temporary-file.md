@@ -17,6 +17,15 @@ so it was not made" (about 1 run in 13 at one CPU),
 apart from the
 60-second settle failure that `pdeathsig-fires-when-the-parent-thread-ends.md` explains.
 
+A third recorded failure of the same control is a race in the control itself:
+`settle_service_work` returned at once for the second worktree,
+whose `.git` is a file,
+so the control read the origin before that push landed
+(issue 6336,
+fixed in `ddd3ade4e4`,
+which follows that file to the administrative directory).
+Neither failure above is that fix's.
+
 ## What was measured
 
 The service logged nothing for the refusal.
