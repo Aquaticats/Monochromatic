@@ -81,7 +81,7 @@ pub(crate) fn init_with_git(
     let mut attempt: u32 = 1;
     loop {
         // The attempt is counted here, before the start: a start the ceiling ends before its program writes anything is an attempt the wrapper made.
-        note_init_attempt();
+        note_init_attempt(&mut init, attempt);
         let outcome = run_git(context, &init);
         // A start ended at its ceiling, or refused a process or a thread, leaves a directory that a second `init` in place does not bring to
         //  the state of an uncut run (the cut experiment: 50 of 104 second runs differed in the reftable tables). It is discarded and the

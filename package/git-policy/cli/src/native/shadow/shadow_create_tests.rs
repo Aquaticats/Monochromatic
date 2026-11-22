@@ -483,23 +483,25 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
 /// the repository,
 /// its capture,
 /// and the transaction directory.
-///  The shim keeps the number of `init` starts it has seen in a file of the fixture,
-/// because only it can know which of its own starts to hang;
-/// the controls count the starts themselves with `init_attempts`,
-/// which is the wrapper's own count and survives a start the ceiling ends before the shim writes.
+///  The shim hangs a start by the attempt number the wrapper hands it in
+/// `INIT_ATTEMPT_VARIABLE`,
+/// so no file a start writes decides which of its own starts it hangs:
+/// a start the ceiling ends before it writes anything is still the attempt it was,
+/// and the start made after it is still the second.
+/// The controls count the starts themselves with `init_attempts`,
+/// which is the wrapper's own count of the attempts it made.
 fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, InvocationCapture, PathBuf) {
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("reftable directory");
     git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
     git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
     let capture: InvocationCapture = capture_of(reftable.as_path());
-    let count: PathBuf = root.join("init-starts");
     let shim: PathBuf = root.join("hanging-init-git");
     crate::test_support::executable(
         shim.as_path(),
         format!(
-            "#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; if [ \"$argument\" = init ]; then is_init=1; fi; done\nif [ -n \"$is_init\" ]; then\n  n=$(cat '{count}' 2>/dev/null || echo 0); n=$((n + 1)); echo $n > '{count}'\n  if [ $n -le {hang} ]; then mkdir -p \"$last\"; : > \"$last/PARTIAL\"; exec sleep 600; fi\nfi\nexec /usr/bin/git \"$@\"\n",
-            count = count.display(),
+            "#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; if [ \"$argument\" = init ]; then is_init=1; fi; done\nif [ -n \"$is_init\" ]; then\n  if [ \"${variable}\" -le {hang} ]; then mkdir -p \"$last\"; : > \"$last/PARTIAL\"; exec sleep 600; fi\nfi\nexec /usr/bin/git \"$@\"\n",
+            variable = crate::shadow_init_attempts::INIT_ATTEMPT_VARIABLE,
         )
         .as_bytes(),
     );
