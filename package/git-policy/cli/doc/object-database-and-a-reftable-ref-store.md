@@ -11,6 +11,16 @@ Both rounds' sources and findings are on `main` from merge `96d965f9f8`,
 in `package/git-policy/cli/src/native/repo_read/repo_read_odb.rs`,
 `package/git-policy/cli/src/native/landing/service_object_questions_left_to_git.rs`
 and this note.
+A follow-up round on 2026-11-22,
+from the integration pass of
+`/home/user/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/keep/review.md`,
+gave the memory of commits read the landing that made it,
+drove the declined questions through their callers,
+made a failed or cut input file a failure of the question,
+declined the stores and the replacement base the environment names,
+shared a layout's proof of the ref store,
+and gave the shallow and graft control a history its files change;
+its own section below records each.
 The owner has not approved it,
 and only the owner declares it final.
 
@@ -207,14 +217,20 @@ which Git refuses as an unknown format;
 - `extensions.refStorage` set to `reftable` with no `reftable` folder behind it;
 - a `reftable://` or `files://` payload that puts the store outside the common directory,
   including a reftable folder moved away and a linked worktree of that repository;
-- `GIT_REFERENCE_BACKEND` naming anything but exactly `files`.
+- `GIT_REFERENCE_BACKEND` naming anything but exactly `files`;
+- `GIT_OBJECT_DIRECTORY` or `GIT_ALTERNATE_OBJECT_DIRECTORIES` naming another object store,
+or `GIT_REPLACE_REF_BASE` naming another base of replacement refs,
+in the service's own environment,
+which its Git children inherit.
 
 A person who wonders why one of these repositories now starts Git where it did not before
 finds the rule in this section and in the package's `README.md`,
 "Reading the repository in process",
 where the list of questions left to Git names the same cases.
-The cost is one Git start per declined question,
-never a wrong answer.
+The cost is one Git start per declined question.
+The bytes of a commit a landing already asked Git for are answered from that landing's own memory,
+and the memory ends with the landing (`What remembering a commit saves`),
+so a replacement added after one landing read a commit is read by the next.
 
 The controls in the default build:
 
@@ -265,7 +281,33 @@ The controls in the default build:
 a linked worktree of a reftable repository and a files payload are left to Git,
   each with Git's own answer as the control.
 - `repo_read_layout::tests::a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader`:
-  a shallow file and a graft file keep the layout the files backend has and decline the object reader.
+  a shallow file and a graft file each change the parents Git reads for the commit they cover,
+  the layout the files backend has stays the same,
+  and the object reader declines the repository.
+- `repo_read_layout::tests::a_store_a_layout_proved_still_declines_a_replacement_object`:
+  the proof a `RepoLayout` carries settles the ref store and nothing else,
+  so an open from it still declines a files repository holding a replace ref.
+- `repo_read_odb::tests::an_environment_that_moves_the_replacement_base_declines_the_database`,
+  `an_environment_that_names_another_object_store_declines_the_database` and
+  `an_environment_that_names_alternate_object_directories_declines_the_database`:
+  `GIT_REPLACE_REF_BASE`,
+  `GIT_OBJECT_DIRECTORY` and `GIT_ALTERNATE_OBJECT_DIRECTORIES` each decline the reader,
+  with Git's own answer read from the base or the store the variable names as the positive control,
+  and the body of each in a child process because the environment belongs to one.
+- `service_object_questions_left_to_git::tests::a_question_whose_input_file_cannot_be_made_is_not_an_answer` and
+  `a_question_whose_input_write_is_cut_short_is_not_an_answer_and_leaves_nothing`:
+  a question whose input file cannot be made,
+  or is cut short by a file-size limit in a child process,
+  answers that it failed and leaves no part of the file behind.
+- `service_commit::a_setting_only_the_client_sees_refuses_the_commit_plainly` and
+  `a_setting_only_the_service_sees_lands_as_git_reads_it`:
+  the four variables above,
+  each set for one client command and not the service,
+  refuse the commit plainly and name the variable,
+  and each set for the service and not the client land as Git reads them or fail where Git cannot read the base.
+- The controls that drive each declined question through its caller are listed under
+  "The call sites,
+  driven through their callers".
 
 Each was run failing before its fix was in place:
 
@@ -299,13 +341,36 @@ with all four questions made to answer nothing,
   `["cat-file commit <name>", "cat-file commit <name>"]` where one start was expected;
 - with the environment check removed,
   `an_environment_that_moves_the_ref_store_declines_the_database` failed with
-  `a ref store the environment names outside the files backend is outside what this reader scans`.
+  `a ref store the environment names outside the files backend is outside what this reader scans`;
+- with each of the three variables taken out of the reader's decline,
+  the control that names it failed with
+  `a replacement base the environment names outside refs/replace is outside what this reader scans`,
+  `an object store the environment names is outside what this reader scans` or
+  `alternate object directories the environment names are outside what this reader scans`;
+- with the memory's clearing removed,
+  `a_landing_does_not_answer_with_the_commits_an_earlier_landing_read` failed with two starts expected and one made,
+  and `a_replace_ref_added_between_two_landings_reaches_the_second_landing` landed the amended commit on the base's
+  own parent where Git reads none;
+- with the cleanup of a failed scratch write removed,
+  `a_question_whose_input_write_is_cut_short_is_not_an_answer_and_leaves_nothing` failed on the part of the file
+  left behind,
+  and with the failed question answering `false` instead of nothing the two controls above failed on
+  `a question that could not be asked is not an answer`;
+- with the client's refusal removed,
+  `a_setting_only_the_client_sees_refuses_the_commit_plainly` failed on the exit status the command printed;
+- with `GIT_REPLACE_REF_BASE` taken out of the landing's `HISTORY_VARIABLES`,
+  `a_setting_only_the_service_sees_lands_as_git_reads_it` failed on the parents the amended commit stood on;
+- with the layout's proof skipping the replace refs,
+  `a_store_a_layout_proved_still_declines_a_replacement_object` failed on the open it allowed;
+- with the graft file back to one empty line,
+  `a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader` failed on its positive control,
+  `the file changes the parents Git reads`.
 
 ## The environment that overrides the configuration
 
 `GIT_REFERENCE_BACKEND` is Git's per-command override of the ref storage format.
 Git 2.56.1's `git(1)` says,
-under "Git Commits":
+under "The Git Repository":
 "Specify which reference backend to be used along with its URI.
 See `extensions.refStorage` option in linkgit:git-config[1] for more details.
 Overrides the config variable when used."
@@ -380,11 +445,100 @@ so naming it there would change no answer.
   whose status 1 is an object Git cannot find and whose status 128 is a name it cannot read,
   for the commit object of a request Git built.
 
-A Git that cannot be started answers neither way,
-and the caller keeps its old answer rather than guessing.
+A Git that cannot be started answers false,
+which is the answer the caller kept before this round;
+`objects_missing` is the one that can say the question failed instead,
+because the private file its names travel in can fail to be made or to be written whole,
+and no caller then takes the silence for "not missing".
 A commit written with an `encoding` header is one `parse_commit` refuses,
 as it does on a store the reader opens,
 so its reflog row still falls back to the request's own message on `main` and here alike.
+
+## The call sites, driven through their callers
+
+The recheck found that deleting the call sites of three declined questions left every test green:
+the trees question and the built-commit question of `batch_content_missing`,
+and the client's commit question of `prepared_content_missing`.
+The controls held the four question functions and not their use,
+so each call site now has a control that drives it through its caller,
+in a reftable repository and in a files repository holding a replace ref:
+
+- `service_pruned::tests::a_blob_removed_from_under_an_embedded_tree_is_removed_content_where_the_reader_declines`:
+  an amendment embeds a whole tree and no list of blobs,
+  so a blob the amendment did not change is named only by the trees question;
+  the control removes that blob and both callers answer that it is gone.
+- `service_pruned::tests::a_gone_commit_git_built_is_removed_content_where_the_reader_declines`:
+  a request for a commit Git built names that commit and nothing else,
+  and both callers see its object gone.
+- `service_pruned::tests::a_submodule_entry_below_an_embedded_tree_is_not_removed_content_where_the_reader_declines`:
+  the gitlink fixture the recheck asked for,
+  with the positive control that the same question sees a blob beside the gitlink that is gone.
+- `service_pruned::a_blob_removed_below_an_amended_tree_fails_plainly_where_the_reader_declines` (binary):
+  the same amendment through the built wrapper and service answers the plain content-pruned words,
+  changes nothing and leaves no crash report.
+- `service_pruned::a_commit_git_builds_that_a_prune_removed_fails_plainly_where_the_reader_declines` (binary):
+  an editor commit whose built commit a `git gc --prune=now` removes while the wrapper waits at `service-prepared`,
+  with the same words and the same clean repository.
+
+With the trees call site deleted,
+the two tree controls fail (the blob one and the gitlink one),
+and the binary amendment control fails because the amendment lands over the gone blob.
+With the built-commit call site deleted,
+its two controls fail:
+the service answers the request as refused,
+which is not the plain content-pruned words the
+person met.
+With the client's commit question deleted,
+`a_gone_commit_git_built_is_removed_content_where_the_reader_declines` fails on the client's own answer.
+
+## A setting one process sees and the other does not
+
+The client command and the resident service are separate processes,
+and the request that carries a commit carries no environment:
+the service reads objects and refs from its own environment,
+and its Git children inherit that.
+A variable set for one `git commit` therefore reaches that command's Git and nothing the landing asks.
+For the four variables that move a read this round declines at the reader
+(`GIT_REFERENCE_BACKEND` other than `files`,
+`GIT_REPLACE_REF_BASE`,
+`GIT_OBJECT_DIRECTORY`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`):
+
+- Set for the client alone,
+  the commit lands as if the variable were unset while the command's own Git reads what it names,
+  in every one of the four shapes the controls build
+  (a `files://` payload store holding a branch and a replacement ref,
+  a `refs/probe/` replacement base,
+  an empty object store,
+  and a base commit moved into a named alternate store).
+  The commit now refuses before anything is prepared (below).
+- Set for the service alone,
+  a `refs/probe/` replacement base is read by the service's Git through
+  `history_is_plain`,
+  which lists the variable,
+  and the amend lands on the parents Git reads,
+  which are none;
+  an empty object store or an alternate store holding the base is what the service's Git reads too,
+  so the commit either lands on what Git reads or fails where Git cannot read the base at all.
+- The reader's decline of these variables is the other door:
+  it covers `commit_content` (the reflog row) and `batch_content_missing`,
+  which are not behind `history_is_plain`,
+  and every caller the layout's environment gate already refuses never reaches either door.
+
+The client's refusal is `refuse_a_setting_the_service_cannot_see` in `commit_command.rs`,
+placed beside the refusal of a command line Git itself refuses and before the transaction reads an index.
+It names the variable and says where to set it,
+and it leaves alone a value that changes nothing,
+which is `files`,
+`refs/replace/` and an empty value.
+The controls are
+`service_commit::a_setting_only_the_client_sees_refuses_the_commit_plainly`,
+whose arms take Git's own reading under the setting as the positive control,
+and `service_commit::a_setting_only_the_service_sees_lands_as_git_reads_it`.
+A `files://` payload store given to the service is not one of those arms:
+its store must hold the branch as well,
+and the wrapper's own push then fails to read the commit there,
+which is a separate incident and is not claimed as working.
 
 ## What the refusal costs a files-backend repository
 
@@ -425,6 +579,51 @@ a case-insensitive byte scan for `refstorage` before the parse measured 1.438 of
 inside the noise of the identical pair,
 because the file read and its system calls are the cost and not the parse.
 It was left out.
+
+## The configuration read a layout caller no longer pays
+
+`ObjectDatabase::open` read the repository's configuration on every call,
+to prove the ref store is the files backend.
+A caller that already holds a `RepoLayout` has that proof:
+the layout exists only for a repository whose configuration names exactly `files`,
+whose Git and common directories hold no `reftable` folder,
+and whose environment sets no variable that can move an answer.
+`open_where_the_layout_proved_the_store` takes that proof and keeps the replace ref,
+shallow and graft checks,
+which the layout does not make;
+the index reset,
+the LFS plan,
+the push trigger and the query context use it.
+
+Measured on this host on 2026-11-22,
+one release measurement binary of this branch,
+a files repository of two commits with loose objects,
+50,000 opens an arm and 12 rounds,
+the three arms run once each per round with the order rotated,
+every run in a capped scope (`CPUQuota=300%`),
+with the environment a fixture Git runs in so nothing of this account's configuration reached the reader:
+
+- the open a layout caller makes (the proof shared):
+  median 19,810 ns (17,791 to 21,416);
+- the open that reads the store's proof itself,
+  which is the work `main` does on every open:
+  median 28,446 ns (27,002 to 32,145);
+- a byte-identical copy of the same binary run as the identical-binary control:
+  median 19,822 ns (18,601 to 23,954).
+
+Per round,
+the shared-proof open over the unproved one is 0.664 (0.637 to 0.750),
+the control over the unproved one 0.696 (0.588 to 0.777),
+and the shared-proof open over the control 0.963 (0.834 to 1.134).
+The effect (about a third of the open,
+8.6 microseconds) is wider than the identical pair's spread,
+so it is the finding;
+the absolute counts are this host's under other sessions' load,
+and larger than the 16.5 to 24.0 microseconds the
+second round measured for the same opens.
+The replicate is not a separate `main` binary:
+the unproved open is the same code `main` runs,
+and running it in the same binary removes the code-layout difference the first round had to bound separately.
 
 ## What the refusal costs a reftable repository
 
@@ -468,7 +667,52 @@ On a reftable repository,
 and on a files repository holding a replace ref,
 those were two
 `git cat-file commit` starts for the same commit;
-the landing now keeps the bytes of the first read and the second asks nothing.
+the landing keeps the bytes of the first read and the second asks nothing.
+
+The memory belongs to one landing and ends with it.
+The service's loop enters the landing's state once,
+so `land_batch_timed` empties the memory as each landing begins
+(`landing_state_carried_by_its_task.rs`,
+`forget_the_commits_read_by_an_earlier_landing`).
+That is what makes a replace ref added to a commit after one landing read it visible to the next,
+which is what Git answers for that name by then.
+Without it the memory outlived its landing,
+and an amend of a replaced commit landed on the commit's own parents where Git and `main` read none,
+in a reftable repository and in a files repository holding an unrelated replace ref.
+The control is
+`service_commit::a_replace_ref_added_between_two_landings_reaches_the_second_landing`,
+whose two landings are one service's:
+it lands a commit,
+adds a replacement that stands on no parent,
+and amends,
+and the amended commit must stand on the parents Git reads,
+which are none.
+The unit control is
+`service_object_questions_left_to_git::tests::a_landing_does_not_answer_with_the_commits_an_earlier_landing_read`,
+which enters the one scope the service's loop enters and begins two landings in it.
+
+### What else can change between two questions of one landing
+
+A commit's bytes are its name,
+so a commit made while a landing runs is a new name and nothing the memory holds becomes wrong.
+What can change what Git answers for a name an earlier question of the same landing read is a change made outside the
+landing,
+by another process,
+between its two questions:
+a replace ref written or deleted (`git replace`,
+`git replace -d`),
+a `shallow` or `info/grafts` file written or removed,
+or an object pruned.
+The environment cannot change while the service runs,
+so the stores and bases it names are fixed for every question of a landing.
+Within those milliseconds the memory can hand back the bytes that were true when it read them,
+so a repository another process rewrites while one landing runs is the one case where the second question answers
+with the first's bytes.
+No landing of this wrapper writes a replace ref,
+a shallow file or a graft file,
+so nothing in the service makes that happen by itself,
+and the window is the one Git has between two of its own reads.
+The answer is never older than one landing.
 
 Measured on this host on 2026-11-22,
 with three release binaries in their own worktrees:
@@ -542,21 +786,39 @@ Git resolves them.
   the linked worktree reads (`git rev-parse HEAD`),
   and the layout reader declines it (same control).
 - A shallow row and a graft row:
-  a files repository with `.git/shallow` naming the tip,
-and one with an empty `.git/info/grafts`,
+  a files repository of three commits,
+  with `.git/shallow` naming the second (which cuts the first from it) and `.git/info/grafts` moving the third onto
+  the first,
   keeps the layout the files backend has (the reader's five lines equal Git's),
   and the object reader declines it
   (`repo_read_layout::tests::a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader`).
+  The control compares the parents Git reads for the covered commit before and after each file is written,
+  so neither file is only present:
+  each changes Git's answer.
 
 ## What was not measured
+
+- The per-open timing above ran one binary with three arms rather than three binaries in their own worktrees:
+  the unproved open is the work `main` does on every open,
+  and the identical-binary control bounds the harness.
+- The refused client setting has no control for every value:
+  the four controls use values that move what Git reads,
+  and a value that names the store this repository already uses (`GIT_OBJECT_DIRECTORY` at the repository's own
+  objects directory,
+  an alternate directory that adds nothing) is refused as well,
+  which is the safe direction and is said in the message.
+- The `files://` payload store given to the service alone is not claimed to work:
+  its payload must hold the branch as well as the replacement,
+  and the wrapper's own push then fails to read the commit there.
 
 No guest ran:
 every number is this host's ZFS,
 under whatever load it carried,
 and the arms alternated rather than standing alone.
 The gate's own test binaries were not timed.
-The per-open microbenchmark of the configuration read was not repeated;
-the first round's 7.5 microseconds is used with this round's open counts.
+The per-open timing of the configuration read is the follow-up round's own measurement,
+in its section above;
+the first round's 7.5 microseconds was measured in a different build and is not added to it.
 The reftable cost was timed on one fixture of thirty files;
 a larger tree adds blobs to the standard input of `objects_missing`,
 which is no longer on a command line.
