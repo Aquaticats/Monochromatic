@@ -132,14 +132,18 @@ which is a write.
 the ladder falls to Git's own checkout before any fence runs,
 so on `main` the read never starts.
 With the overlap the read starts anyway and its answer is never taken,
-and the add pays it:
-the read runs beside Git's own checkout,
-and the add's own end joins it,
-bounded,
-so the cost is stated in its record as the work `fenceSizesBesideTheCheck`.
-The same holds for the fence's own cheap refusal (an untracked `.gitattributes`)
-and for a source the decline rule refuses,
-both of which are decided inside `fence_the_attributes` and therefore after the read has started.
+and the add ends the read's Git child where it learns it will not use it (`abandon`).
+The abandon often comes before the read's thread has reached its spawn:
+the same recheck measured `checkSource` at 0.009 to 0.017 ms on a source that refuses at once,
+so the cell takes `ABANDONED_CHILD` and the runner ends the child the moment it publishes it.
+The cost a refused or a declined add pays is therefore the read's start and whatever it ran before the abandon,
+not its whole length beside Git's checkout:
+the re-timed shapes in "The re-time on Git 2.56.1,
+2026-11-22" measure that cost.
+The same holds for the fence's own cheap refusal (an untracked `.gitattributes`),
+for a source the decline rule refuses,
+and for a fence with no path to size or whose read listed another commit,
+all of which end the read at the fence.
 
 **A partial clone is where that cost could have been a write.**
 `git ls-tree -r -l` needs every blob's size,
@@ -167,27 +171,40 @@ each plain `git` run with its own `HOME`
 
 So on such a source the read writes,
 and the sentence "nothing is written and no state is left" was false for the prototype.
-`GIT_NO_LAZY_FETCH=1` on the read is the condition,
-and this branch ships it beside the global `--no-lazy-fetch`.
-Git 2.45.0 is the first release that honours either:
-`environment.c` reads `NO_LAZY_FETCH_ENVIRONMENT` and sets `fetch_if_missing = 0`,
-and `git.c` takes `--no-lazy-fetch` as the same switch before any subcommand.
+`GIT_NO_LAZY_FETCH=1` on every early read is the condition,
+and this branch sets it on every read with no test of the source:
+the recheck made a read fetch where the old test missed a promisor remote
+(a remote whose flags arrive through an included file,
+a worktree config or `GIT_CONFIG_COUNT`,
+and a `--reference` clone whose flags are in an include),
+so a test of the source is not a condition the decision can keep.
+There is no second switch:
+the global `--no-lazy-fetch` is Git 2.45.0's,
+and a Git before that refuses it before reading anything (exit 129),
+which sent a plain source from the snapshot to Git's whole checkout (865.3 ms against 3509.2 on the recheck's tree).
+The variable is honoured from the May 2024 maintenance releases
+(`v2.39.4`,
+`v2.40.2`,
+`v2.41.1`,
+`v2.42.2`,
+`v2.43.4`,
+`v2.44.1`,
+`v2.45.1`,
+the commit `7b70e9efb`,
+the fix for CVE-2024-32465)
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.3`.
 Probed with Git 2.56.1 on this host,
-`git ls-tree -r -l -z HEAD` under either switch exits 0 with the same output size,
+`git ls-tree -r -l -z HEAD` under the variable exits 0 with the same output size,
 prints `BAD` in the size column of a blob the clone does not hold,
 and leaves 40 missing and 2 packs unchanged;
-without a switch the same read fetches (0 missing,
+without the variable the same read fetches (0 missing,
 42 packs).
-Ubuntu 24.04's Git 2.43.0 is older than both:
-its package carries the variable in `promisor-remote.c`,
-so the plain read exits 128 with `could not fetch ... from promisor remote`
-and leaves 40 missing and 2 packs unchanged,
-and it refuses the option as an unknown global (exit 129).
-The shipped read asks for the no-fetch switches only where the source may hold a promisor remote
-(a `.promisor` pack or a `promisor` word in the common config);
-a plain source keeps today's read,
-so an older Git keeps the overlap there,
-and on a promisor source an older Git reads nothing and the fence falls through to Git's own checkout.
+A Git older than those releases ignores the variable and can fetch,
+and its fetch child can outlive the command:
+that is the recorded limit of this read on such a Git,
+which is older than the wrapper's tested minimum
+(`MINIMUM_GIT_VERSION`,
+2.56.0).
 `parse_sizes` skips a size it cannot parse,
 and a missing size only ever sends a path to Git's writing,
 never to a carry.
@@ -201,7 +218,9 @@ the difference from today is only that a read-only Git child may be running:
 no lock is taken and no index is written,
 and both rungs claim their stage name after the fence,
 so a kill in the overlap window leaves the state a kill inside `checkSource` leaves today,
-with `GIT_NO_LAZY_FETCH=1` making sure no fetch chain outlives it.
+with `GIT_NO_LAZY_FETCH=1` making sure no fetch chain outlives it on a Git that honours the variable
+(a Git older than the May 2024 maintenance releases can still fetch,
+as above).
 Rung 2's rule is unchanged:
 the worktree holds no index until Git's write is done,
 and the read adds nothing to that window.
@@ -259,12 +278,16 @@ in every build of this branch:
   takes rung 2 with the read already started,
   and that add's end settles it unused.
   Rung 2's own fence is unchanged and never starts it.
-- The read is one `git ls-tree -r -l -z <commit>` with `GIT_NO_LAZY_FETCH=1` in its environment
+- The read is one `git ls-tree -r -l -z <commit>` with `GIT_NO_LAZY_FETCH=1` in its environment on every source,
   and `GitRequest::beside_another_step` set,
-  so it cannot fetch into the source
+  so it cannot fetch into the source on a Git that honours the variable
   and it neither clears nor writes the process-wide failed-step note
   (`git_step_failure::LAST`,
   finding Low 2).
+  The global `--no-lazy-fetch` is not used:
+  it is Git 2.45.0's,
+  and an older Git refuses it (exit 129),
+  which sent a plain source from the snapshot to Git's whole checkout.
 - The started read is a value the add owns:
   a `Ladder` field,
   passed into the snapshot rung's fence as `&mut Option<SizeReadBesideTheCheck>`.
@@ -272,14 +295,14 @@ in every build of this branch:
   so no command's read or failure can reach another command or another record.
 - The fence's sizes step is `sizes_of_the_paths`:
   it takes the started answer when its commit equals `source.clean.head_commit`,
-  and otherwise reads that commit with the fence's own `git ls-tree`.
-  A read of another commit is dropped unused,
-  and the add's own end still joins it so its cost is stated.
-- The join is `Ladder::finish`'s first call when the fence never took the read,
-  and the fence's own `sizes_of_the_paths` when it did,
+  and otherwise ends the read and reads that commit with the fence's own `git ls-tree`.
+  A fence with no path to size ends the read too,
+  so a read nobody will use is not left running to the process's end.
+- The join is the fence's own `sizes_of_the_paths` when it took the read,
   under one deadline of the plumbing step's ceiling plus the wait the runner gives an ended child
   (`PLUMBING_STEP_CEILING + SHORT_EXTRA_WAIT`,
-  127 s).
+  127 s);
+  an add that ends before the fence states the read in its record and never waits (`Ladder::finish`'s `settle`).
   A read that sends nothing by then,
   or whose thread died,
   refuses the rung with the sentence a failed run of the fence gives
@@ -303,12 +326,25 @@ and a system that refuses the thread loses only the overlap:
 the fence reads where it stands.
 The thread is named `clone-size-read-beside-the-check`.
 
+**The abandon ends the child wherever it comes.**
+`abandon` takes the read's answer if it already came
+and states it as the record's work,
+otherwise it states `started and not joined`;
+then it swaps the published-child cell for `ABANDONED_CHILD` (`-1`).
+A child already published is signalled there;
+a child not yet published is ended by the runner the moment it is published,
+so a check that refuses at once (before the read's thread reached its spawn)
+no longer leaves the child to run its whole length beside Git's checkout.
+The runner clears the cell right after it reaps the child,
+before anything is parsed,
+so an abandon after the child ended signals no reused process id.
+
 Rung 2 is untouched,
 and the two harnesses that proved rung 2's shape still pass against this build:
 
 - the class harness's twenty-six scenarios:
   **26 EQUAL**,
-  25 served by the clone rung,
+  23 served by the clone rung,
   and `m05` ended at the tree difference
   (`keep/harness/class-records-fence-size-read-shape-559a50966db8.json`);
 - the 150-combination sample,
@@ -322,21 +358,24 @@ and the two harnesses that proved rung 2's shape still pass against this build:
 ## The controls
 
 All of them are in the default build,
-in `worktree_clone_conversion_size_read_tests.rs`,
-and every one of them ran red before it ran green,
-with the guard it tests removed or inverted and then restored
+in `worktree_clone_conversion_size_read_tests.rs`.
+Every control this round added or changed was shown red once with the guard it tests removed and then restored
 (`AGENTS.md`,
-rule `GFP`).
-The red runs,
-each against the committed control:
+rule `GFP`);
+the first round's own red runs are in its section,
+and the recheck showed that the fetch control stayed green with both switches removed,
+because it counted after a settle that no longer waited,
+which is why this round joins the read before it counts.
+The red runs of the controls this round changed:
 
 - the fetch control,
   with `GIT_NO_LAZY_FETCH` dropped from the request:
-  `left == right` failed on "the read fetched nothing into the source the check refused";
+  `left == right` failed on "the read fetched nothing into the source the check refused",
+  and the three shapes the recheck made fetch failed on their own assertions;
 - the five stale-read controls,
   with the guard's commit comparison inverted:
-  all five failed on "the fence left the read of the earlier commit unused",
-  because the fence took it;
+  all five failed on "the fence ended the read of the earlier commit where it decided not to use it",
+  because the fence left the read in the add's hand;
 - the deadline control,
   with the deadline replaced by a plain receive:
   the held read answered after 30 s and the fence decided,
@@ -364,11 +403,58 @@ before and after:
 the arm under test starts the read as `choose_rung` does,
 runs the check,
 which refuses ("the source has a sparse checkout"),
-settles the read,
+**joins** the read
+(the old control settled without waiting,
+so a fetch could land after it looked),
 and finds both counts unchanged.
 The positive control is the same read without `GIT_NO_LAZY_FETCH` on a second clone,
 which fetches and moves both counts,
 so the pair is one that can move at all.
+
+**The shapes the recheck made fetch fetch nothing either.**
+Three more controls build the same sparse partial clone and move the promisor remote's flags to a place the old
+test of the source missed,
+with no `.promisor` marker in the pack directory:
+
+- the flags in `remote-flags.cfg`,
+  which the common config includes,
+  and no word `promisor` in the common config;
+- the remote set only through `GIT_CONFIG_COUNT` and its `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` pairs,
+  with the clone's own promisor settings unset;
+- a `--reference` clone of a partial clone (both sparse and filtered),
+  with its flags in an include and its own pack directory empty.
+
+Each starts the read,
+joins it,
+and finds the missing objects and the packs unchanged;
+probed on Git 2.56.1 with the same commands,
+the three shapes fetch without the variable
+(missing to zero,
+packs to three to seven)
+and fetch nothing with it.
+
+**The abandon ends the child wherever it comes.**
+- A read held before its Git run,
+  abandoned,
+  and then released:
+  the child it starts is ended at publication,
+  so the fake Git's 30 s sleep is not run to its end.
+- A read whose fake Git ends at once,
+  joined and held after its wait:
+  the published-child cell is zero,
+  so an abandon there signals no reaped process id.
+- A fence with no path to size,
+  holding a reading fake Git:
+  the fence ends the child where it decides it has no use for it.
+- A read the recheck abandoned before its child existed:
+  the child ends at publication.
+- A refused thread start:
+  no read starts,
+  the fence reads where it stands,
+  and the record has a `git ls-tree` step and no wait.
+- The record a killed read leaves:
+  the child start is a line in the repository's per-process record,
+  and the sweep every command runs removes it once every holder it names is gone.
 
 **A `HEAD` that moves drops the stale answer.**
 Five shapes,
@@ -1081,146 +1167,218 @@ The owner may also read C over A if one order everywhere is worth more than a wa
 clone-rung add;
 nothing measured here says that a changed rung 2 pays for itself.
 
-## The settle that never waits, timed
+## The first fix round's timings,
+on Git 2.43.0
 
-One throwaway `libvirt` guest through `mvm`,
-`fence-size-read-settle-2026-11-22`,
+The settle fix was first timed in one throwaway `libvirt` guest
+(`fence-size-read-settle-2026-11-22`,
 Ubuntu 24.04.5,
 kernel 6.8.0-147,
 four vCPUs,
 7.9 GiB,
-Git 2.43.0,
-a 6 GiB btrfs image with the source a subvolume on it,
-and one Python process inside the guest driving every add.
-The fixture is the same tree as the first round,
-`git archive` of `40783c23ea` (24,634 paths),
+Git 2.43.0 from the package,
+a 6 GiB btrfs image with the source a subvolume on it)
+on the same tree,
 one commit,
 25,034 loose objects,
+with `main` at `e3c9b7e62d`,
+this branch and an identical `branch-again`,
+one uncounted warm-up per arm,
+`sync --file-system` before every add,
+and one Python process in the guest driving everything.
+Its rows are kept in `perf/` under `fence-size-read-settle-never-waits-2026-11-22-*`.
+The recheck then showed that the fail-fast and cone rows were taken while the abandon came before the read's child
+in 80 of 80 cone adds,
+and that every guest measurement of this branch ran on a Git older than the wrapper's tested minimum,
+so those figures are history and the re-time below is what this record states.
+
+## The re-time on Git 2.56.1,
+2026-11-22
+
+One throwaway `libvirt` guest through mvm,
+`never-fetches-guest`,
+Ubuntu 24.04.5,
+kernel 6.8.0-147,
+four vCPUs,
+7.9 GiB,
+and a 6 GiB btrfs loop image whose source is a subvolume.
+**Git 2.56.1 was built from the kernel.org tarball in the guest**
+(`NO_RUST=1`,
+because the guest has no Rust toolchain),
+and it is the Git behind the wrapper in every row and the plain Git of the fixture:
+`/usr/bin` and `/bin` are off the arm's path so the wrapper's `candidate_sequence` cannot promote the guest's 2.43.0.
+The fixture is the repository's tree at `40783c23ea`,
+`filter=lfs` lines removed,
+one commit,
+24,634 tracked paths,
+25,034 loose objects,
 then `git gc` for the packed layouts.
-The arms are `main` (`e3c9b7e62d`),
-this branch,
-and `branch-again` (this branch's identical binary);
-every round rotates the three and reverses every second pass,
+The arms are `main` (`ee0cf2268b`,
+the tip at the time,
+whose crate is the merge's),
+this branch (`f9d8beec3c`;
+only test and doc commits followed),
+and `branch-again` (this branch's identical binary,
+sha256 `f987ef5b...` against `main`'s `49c352af...`).
+Every round rotates the three one place and reverses every second pass,
 one uncounted warm-up runs per arm,
 and `sync --file-system` runs before every add.
 The host carried other sessions' load throughout,
 so absolute times are context and only the ratios are read.
-The driver and every row are under the package's `perf/` folder,
-named `fence-size-read-settle-never-waits-2026-11-22-...`.
 
-The shapes are the review's two losing ones (a cone sparse source,
-a refused source whose Git fails at once) and the build's four
-(a loose and a packed served add,
-a refused add with Git's whole checkout,
-a declined add).
+The reading rule was fixed before any row:
+the branch is **resolved slower** only when every round's branch-to-`main` ratio lies above the largest identical-twin
+ratio,
+**resolved faster** only when every round lies below the smallest,
+otherwise **not resolved**.
+Every branch record states the read (`fenceSizesBesideTheCheck`):
+the served rows state its work and the wait,
+the refused,
+fail-fast and cone rows state `started and not joined`,
+and the declined rows state its work when it answered before the decline.
 
-Medians,
-this branch against `main`,
-with the per-round branch-to-`main` ratios and the identical control's range
-(`branch-again` to `branch`):
-
-- loose served,
-  4 rounds:
-  905.1 against 960.6 ms,
-  ratios 0.54,
-  1.51,
-  0.88,
+- served,
+  loose,
+  8 rounds:
+  `main` 1692.9 ms,
+  branch 1282.8 (twin 1306.5),
+  read work 661.3 ms with a 267.8 ms wait;
+  ratios 2.36,
+  0.68,
+  0.78,
+  0.68,
+  0.72,
+  0.77,
+  0.71,
+  0.75,
+  control 0.41 to 1.10;
+  **not resolved**
+  (the 2.36 round is a host stall;
+  seven of eight are below one).
+- served,
+  packed,
+  8 rounds:
+  831.5 against 752.1 (twin 771.0),
+  read work 69.7 ms with a 0.008 ms wait;
+  ratios 0.90,
+  0.99,
+  0.94,
   0.92,
-  control 0.70 to 1.71;
-- packed served,
-  4 rounds:
-  599.9 against 677.4 ms,
-  ratios 0.97,
-  0.84,
-  0.83,
+  0.88,
   0.90,
-  control 0.96 to 1.11;
+  1.00,
+  0.83,
+  control 0.94 to 1.15;
+  **not resolved** (six of eight lie below the control's low).
 - refused with Git's whole checkout,
   loose,
-  4 rounds:
-  2928.5 against 2988.8 ms,
-  ratios 0.94,
-  0.98,
-  1.06,
-  0.97,
-  control 0.89 to 1.12;
+  6 rounds:
+  4945.9 against 4540.6 (twin 4471.4);
+  ratios 0.89,
+  0.76,
+  0.92,
+  0.78,
+  0.87,
+  0.83,
+  control 0.90 to 1.19;
+  **not resolved**,
+  five of six below the control's low.
 - the same,
   packed,
-  4 rounds:
-  2665.6 against 2623.7 ms,
-  ratios 1.08,
-  0.94,
-  1.19,
+  6 rounds:
+  2951.1 against 3393.3 (twin 3163.8);
+  ratios 1.00,
+  1.28,
+  0.90,
+  1.09,
   1.17,
-  control 0.80 to 1.06;
-- declined packed,
-  4 rounds:
-  7455.0 against 7525.9 ms,
-  ratios 1.04,
-  1.14,
-  0.93,
-  1.02,
-  control 0.94 to 1.11;
+  0.73,
+  control 0.85 to 1.08;
+  **not resolved**,
+  three rounds above and one below the control's range.
+- refused where Git fails at once,
+  loose,
+  40 rounds:
+  31.8 against 32.2 (twin 35.3);
+  ratios 0.25 to 2.54,
+  median 0.99,
+  control 0.59 to 1.85;
+  **not resolved**,
+  one round above and three below.
+- the same,
+  packed,
+  40 rounds:
+  46.7 against 57.2 (twin 52.0);
+  ratios 0.66 to 3.59,
+  median 1.03,
+  control 0.25 to 3.50;
+  **not resolved**,
+  one above and none below.
 - cone sparse refused,
   loose,
-  6 rounds:
-  168.1 against 161.8 ms,
-  ratios 1.05,
-  1.00,
-  0.61,
-  0.94,
-  1.11,
-  2.20,
-  control 0.30 to 1.65 (one round took 763 ms under host load);
+  20 rounds:
+  203.2 against 190.6 (twin 196.8);
+  ratios 0.75 to 1.27,
+  median 0.96,
+  control 0.82 to 1.26;
+  **not resolved**,
+  one above and three below.
 - the same,
   packed,
-  6 rounds:
-  115.4 against 99.9 ms,
-  ratios 0.90,
-  1.28,
-  1.07,
-  1.13,
-  1.27,
-  0.94,
-  control 0.93 to 1.33;
-- refused with Git failing at once,
+  20 rounds:
+  169.3 against 159.2 (twin 171.5);
+  ratios 0.62 to 2.24,
+  median 1.00,
+  control 0.60 to 2.80;
+  **not resolved**,
+  none above and none below.
+- declined,
   loose,
-  6 rounds:
-  16.0 against 13.0 ms,
-  ratios 1.10,
-  1.23,
-  1.21,
-  1.19,
-  1.36,
-  1.06,
-  control 0.80 to 1.14;
-- the same,
-  packed,
-  6 rounds:
-  23.5 against 21.4 ms,
-  ratios 1.45,
-  1.14,
-  1.23,
-  1.12,
-  1.00,
+  5 rounds:
+  8634.6 against 9358.1 (twin 8394.8),
+  read work 111.6 ms;
+  ratios 1.08,
+  1.29,
+  1.04,
+  1.08,
   0.96,
-  control 0.74 to 1.15.
+  control 0.80 to 1.01;
+  **not resolved**,
+  four above the control's range.
+- declined,
+  packed,
+  5 rounds:
+  8651.8 against 8882.5 (twin 8630.0),
+  read work 93.6 ms;
+  ratios 1.05,
+  1.25,
+  0.99,
+  1.01,
+  1.01,
+  control 0.89 to 1.14;
+  **not resolved**,
+  one above and none below.
 
-The served,
-refused and declined shapes no longer show the review's waits:
-the read work is 0 in the refused and declined records (the read is ended at the refusal or the decline),
-and the served adds keep the overlap.
-The cone sparse shape's median ratio is 1.05 loose and 1.13 packed;
-the packed one's every round sits inside the control's range,
-and the loose one's 2.20 round is the host stall that also moved its control.
-The two fail-fast shapes are 12 to 24 ms adds where one abandoned child and a scheduling jitter
-are a few milliseconds:
-their medians are 1.21 loose and 1.14 packed,
-and two rounds (loose 1.36,
-packed 1.45) sit above the control's own range,
-so the strict "every round inside the control's spread or below it" bar is **not** met on those rounds.
-No shape is slower than `main` by more than 15 percent of the add,
-and every served add is faster than `main` where the overlap helps.
+**The cost a refused or declined add still pays.**
+No shape is resolved slower than `main`.
+The refused shape,
+the fail-fast shape and the cone rows record no read work at all:
+the abandon came before the read's child in every verbose probe
+(5 of 5 in each shape,
+loose and packed),
+and the child was ended at publication or never started.
+A declined add pays the read when it answered before the decline:
+111.6 ms (loose) and 93.6 ms (packed) of work in an 8.6 to 9.4 s add,
+which the reduced rounds do not resolve.
+The packed refused shape's median ratio is 1.09 with three rounds above the control's range,
+which six rounds cannot resolve;
+it is stated,
+not claimed as absent.
+
+The verbose probes print the new abandon line in 5 of 5 adds for the fail-fast shape and 5 of 5 for the cone shape:
+"the size read started beside the check is not used before its child exists,
+so the runner ends that child the moment it publishes it".
+No `ls-tree` process was alive after any counted add in any row.
 
 ## What the first round did not do
 
@@ -1234,8 +1392,8 @@ and every served add is faster than `main` where the overlap helps.
   the review measured it against the prototype,
   and this branch's own suite measures it against the shipped shape.
 - It did not measure a declined source in its own runs;
-  the shipped build's guest run does ("The settle that never waits,
-  timed").
+  the shipped build's guest run does ("The re-time on Git 2.56.1,
+  2026-11-22").
 - It did not measure a cold cache,
   and it did not resolve rung 2's wall,
   because the host was loaded by other sessions throughout;
@@ -1243,10 +1401,15 @@ and every served add is faster than `main` where the overlap helps.
 - It did not measure the shipped shape,
   only the prototype's own thread.
 
-The fix round of 2026-11-22 adds the settle that never waits,
+The first fix round of 2026-11-22 added the settle that never waits,
 the child's end at a refusal or a decline,
-the no-fetch switches only on a promisor source,
-and the guest runs below.
+and the no-fetch switches only on a promisor source.
+The second fix round (the integration recheck's findings) sets the no-fetch variable on every early read,
+removes the option and the test of the source,
+ends a read the fence will not use,
+ends a child published after an abandon,
+clears the child's cell when it is reaped,
+and re-times every shape on Git 2.56.1 in the guest below.
 
 ## Where the numbers are
 
@@ -1286,8 +1449,10 @@ named `-2026-11-22-`:
   `-host-matrix-seed11-n150.json`,
   the two rung-2 harnesses' records against the shipped build.
 
-This fix round's rows are there too,
-named `fence-size-read-settle-never-waits-2026-11-22-...`:
+The first fix round's rows are there too,
+named `fence-size-read-settle-never-waits-2026-11-22-...`;
+they are history now.
+The re-time's rows are named `fence-size-read-never-fetches-and-abandon-sticks-2026-11-22-...`:
 
 - `-guest-loose-served-adds.jsonl`,
   `-guest-packed-served-adds.jsonl`,
@@ -1302,7 +1467,25 @@ named `fence-size-read-settle-never-waits-2026-11-22-...`:
 - `-host-lazy-fetch-probe.json`,
   the host's `git ls-tree` under both no-fetch switches and without either.
 
+The re-time's rows are there under
+`fence-size-read-never-fetches-and-abandon-sticks-2026-11-22-`:
+
+- `-guest-served-loose-adds.jsonl`,
+  `-guest-served-packed-adds.jsonl`,
+  `-guest-refused-loose-adds.jsonl`,
+  `-guest-refused-packed-adds.jsonl`,
+  `-guest-refused-failfast-loose-adds.jsonl`,
+  `-guest-refused-failfast-packed-adds.jsonl`,
+  `-guest-cone-sparse-loose-adds.jsonl`,
+  `-guest-cone-sparse-packed-adds.jsonl`,
+  `-guest-declined-loose-adds.jsonl` and
+  `-guest-declined-packed-adds.jsonl`,
+  with `-guest-driver.py` (the guest driver)
+  and `-ratios.py` (the per-round ratios and the verdicts).
+
 The section "The shipped build,
 timed" says which row file is which run,
-and "The settle that never waits,
-timed" says which fix-round row is which shape.
+"The first fix round's timings,
+on Git 2.43.0" says which of that round's rows is which shape,
+and "The re-time on Git 2.56.1,
+2026-11-22" says which re-time row is which shape.
