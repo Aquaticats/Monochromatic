@@ -41634,7 +41634,12 @@ stated in this entry. What follows from them, as work:
   licences, 11 `unsafe` in `gix-pack`, 18.45 s build; reftable replace refs answered wrongly); `gix-odb` alone 15 packages;
   the promisor control can fail; the owner question ranks A (keep `git ls-tree`) > B (`gix` or `gix-odb`) > C (in-process,
   wins loose) > D (`cat-file`), leaving common-case speed against no slow case and facade against `gix-odb`. Records
-  committed under `package/git-policy/cli/perf/size-reader-*`. GOING: the gate reviewer's recheck; then the owner. Step 7's
+  committed under `package/git-policy/cli/perf/size-reader-*`. GOING: the gate reviewer's recheck; then the owner. THE SKIP
+  LOWS' FINDINGS ROUND ended at `1ceff189d3`: `the_one_branch` answers `None` unless a record is exactly the wanted ref (red
+  then green); the `rel` shape now 0.98 of `main` (floor 0.81 to 1.19); a rung-1 btrfs control added but not run (no btrfs
+  root on this host); the reflog forms named; `#[cfg(unix)]` on the option table; gate 9740 of 9742. It also found
+  `native:test:container` stops at `cargo-shadow: command not found` here (that lock row is not installed); it ran
+  `node bin/test-native-container.ts` directly. GOING: the reviewer's recheck with the btrfs control in a guest. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
