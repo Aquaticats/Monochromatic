@@ -198,6 +198,52 @@ fn btrfs_create_snapshot_and_destroy_each_work_once() {
     remove(root.as_path());
 }
 
+/// An ioctl answers `-1` when its request failed and the request's own value every other time,
+/// so a positive answer is a success:
+/// `BTRFS_IOC_GET_SUBVOL_INFO` answers 1,
+/// and a reader that checks its answer against zero calls the filled structure an error with a stale `errno`.
+#[test]
+fn a_positive_ioctl_answer_is_not_a_failure() {
+    assert!(!is_a_failure(&1), "an answer of one is the request's own value, not a failure");
+    assert!(!is_a_failure(&0), "an answer of zero is a success");
+    assert!(is_a_failure(&-1), "the answer of a failed request is -1, and `errno` is read only then");
+}
+
+/// The kernel's answer to `BTRFS_IOC_GET_SUBVOL_INFO`,
+/// made here rather than quoted,
+/// is 1 for a subvolume that has a parent backref
+/// (`fs/btrfs/ioctl.c` v6.8 line 2200 and v7.1 line 2015 leave its root-backref search's return value in place,
+/// and v6.8 line 2238 and v7.1 line 2053 copy the structure out anyway),
+/// and 0 for the top-level subvolume
+/// and for every subvolume on v7.2 and later,
+/// whose reader resets the value at line 2051 before it copies the structure out.
+/// Why:
+///   A reader that takes any nonzero answer as an error cannot read any nested subvolume's record,
+/// so this control requires the wrapper to answer with the record the kernel wrote,
+/// and says in one line when the kernel answered zero,
+/// so that pass is not taken for the positive case this control exists for.
+#[test]
+fn btrfs_a_positive_answer_to_the_subvolume_record_is_a_success() {
+    let Some(root) = btrfs_fixture("fs-ioctl-positive-answer") else { return };
+    let source: PathBuf = root.join("source");
+    subvolume_create_at(source.as_path()).expect("create");
+    let directory: std::fs::File = std::fs::File::open(source.as_path()).expect("open the subvolume root");
+    // SAFETY: `directory` is open for the call; `written` is the 504-byte structure the request number states.
+    let mut written: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
+    let answered: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut written) };
+    assert!(!is_a_failure(&answered), "the call itself failed: {}", std::io::Error::last_os_error());
+    if answered == 0 {
+        eprintln!(
+            "KERNEL ANSWERED ZERO: btrfs_a_positive_answer_to_the_subvolume_record_is_a_success (this kernel resets the value the backref search leaves, as v7.2 does, so the positive answer this control exists for went unexercised)"
+        );
+    }
+    let facts: SubvolumeInfo = subvolume_info(source.as_path()).expect("the record's answer is a success whatever value it carries");
+    assert_eq!(facts.uuid, written.uuid, "the wrapper answers with the record the kernel wrote");
+    assert_eq!(facts.parent_uuid, written.parent_uuid, "the wrapper answers with the parent the kernel wrote");
+    assert_eq!(facts.transid_at_creation, written.otransid, "the wrapper answers with the creating transaction the kernel wrote");
+    remove(root.as_path());
+}
+
 /// The destroy ioctl on a subvolume that holds a nested subvolume is refused,
 /// so removal goes deepest first.
 #[test]

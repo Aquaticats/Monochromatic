@@ -702,11 +702,30 @@ pub struct SubvolumeInfo {
 }
 
 /// What:
+///  Whether an ioctl's answer is a request that failed.
+/// Why:
+///   An ioctl answers `-1` and sets `errno` when the request failed,
+/// and every answer from zero up is the request's own value:
+///  `BTRFS_IOC_GET_SUBVOL_INFO` answers 1 for a subvolume that has a parent backref,
+/// so a check against zero reads a filled
+///  structure as an error and reports whatever `errno` the process last set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAFailure = (answered: number) => answered < 0;
+/// ```
+fn is_a_failure(answered: &libc::c_int) -> bool {
+    return *answered < 0;
+}
+
+/// What:
 ///  Read what the subvolume holding `path` says about itself (`BTRFS_IOC_GET_SUBVOL_INFO`).
 /// Why:
 ///   The request is answered for the subvolume the opened directory belongs to,
 /// so any directory inside it answers,
 /// and the kernel needs no privilege the caller does not already have on that directory.
+/// The kernel answers 1 for a subvolume that has a parent backref and 0 for the top-level subvolume,
+/// so the answer is a value the request defines rather than a status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -719,7 +738,7 @@ pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
     let mut arguments: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
     // SAFETY: `directory` is open for the call; `arguments` is the 504-byte structure the request number states.
     let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut arguments) };
-    if result != 0 {
+    if is_a_failure(&result) {
         return Err(PrimitiveError::last_os_error(operation, path));
     }
     return Ok(SubvolumeInfo {
