@@ -3225,3 +3225,39 @@ What did not run:
   and no timing.
 
 The document is unapproved and non-final.
+
+## Revisions
+
+- `a7823980b9`,
+  committer time `2026-11-22T17:27:06-05:00`:
+  the first draft,
+  written on `docs/planning-cli-git-zfs-removal-destruction-plan-record-design` from `main` at `5dd8883a60`.
+  It fixed the home,
+  the fields,
+  the writer's order and the readers,
+  with the pointer beside the registration,
+  tuples entering the plan at submission,
+  and the origin record written after the settle.
+- `645863a547`,
+  committer time `2026-11-22T18:34:13-05:00`:
+  the revision the gate review asked for.
+  It settles what the first write holds (every verified tuple as `planned`,
+  Choice 3),
+  the tuple lifecycle and its retries (Choice 4),
+  the absence rule's two arms and the head-gone resume path,
+  the finish pass's driver (one `stat` of the folder,
+  no pointer;
+  Choice 9),
+  the reader's two stages and its labelled placeholder ceiling,
+  the per-slot claim instead of the Git lock,
+  and the order's step that now reads the origin record instead of writing it (A7).
+  It replaces the example with an unpromoted clone whose GUIDs and groups are consistent,
+  switches names to verbatim and the header to a `#` version line,
+  adds Choices 3,
+  4,
+  10,
+  11 and 12,
+  replaces the two questions with one,
+  adds "Where this design and the sibling records differ" with the review's fourteen points,
+  and corrects every citation the review named and every one the citation check found wrong.
+  A later commit that only adds or corrects this list is not listed.
