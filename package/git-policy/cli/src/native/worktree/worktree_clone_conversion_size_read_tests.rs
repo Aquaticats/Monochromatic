@@ -467,7 +467,7 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
     if let Some((spent, outcome)) = answer {
         sender.send((spent, outcome)).expect("the receiver is held");
     }
-    let read: SizeReadBesideTheCheck = SizeReadBesideTheCheck { commit: String::from("the commit"), answer: receiver };
+    let read: SizeReadBesideTheCheck = SizeReadBesideTheCheck { commit: String::from("the commit"), answer: receiver, child: std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0)) };
     begin_timing(repo.join(".git"), true);
     read.settle();
     finish_timing(0);
@@ -894,5 +894,70 @@ fn a_source_with_a_promisor_is_not_read_again_by_the_fetching_read() {
     let clone: PathBuf = a_sparse_partial_clone(origin.as_path(), root.as_path(), "partial");
     assert!(may_fetch(clone.join(".git").as_path()), "a partial clone names its promisor pack or remote");
     assert!(!may_fetch(root.join("origin/.git").as_path()), "the plain origin names none");
+    remove(root.as_path());
+}
+
+/// The helper control that abandons a running read while its process lives on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HELPER = 'worktree::worktree_clone_conversion_size_read::tests::the_child_process_that_abandons_its_read';
+/// ```
+const THE_HELPER_THAT_ABANDONS_ITS_READ: &str = "worktree::worktree_clone_conversion_size_read::tests::the_child_process_that_abandons_its_read";
+
+/// What:
+///  The helper: start the read, wait until its fake Git runs, then abandon it and watch the child end.
+/// Why:
+///   The add's process is still alive here, so the child's end proves the abandon's own signal,
+///  not the process exit's parent-death signal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = () => { const read = startBesideTheCheck(...); await marker; read.abandon(); expect(pidGoneWithin(5_000)).toBe(true); };
+/// ```
+#[test]
+fn the_child_process_that_abandons_its_read() {
+    let (Ok(fake), Ok(repo), Ok(marker)) = (std::env::var(THE_FAKE_GIT_OF_THE_CHILD_CONTROL), std::env::var(THE_REPOSITORY_OF_THE_CHILD_CONTROL), std::env::var(THE_MARKER_OF_THE_CHILD_CONTROL)) else {
+        return;
+    };
+    let repo: PathBuf = PathBuf::from(repo);
+    let marker: PathBuf = PathBuf::from(marker);
+    let context: GitContext = GitContext { real_git: PathBuf::from(fake), overlay: crate::test_support::isolated_overlay(), global_prefix: Vec::new(), common_dir: Some(crate::test_support::fixture_root()) };
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&context, &main_identity(repo.as_path())).expect("a read starts");
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !marker.exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let pid: i32 = std::fs::read_to_string(marker.as_path()).expect("the read's fake Git wrote its id").trim().parse().expect("a process id");
+    assert!(alive(pid), "the read's child runs before the abandon");
+    started.abandon();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while alive(pid) && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!alive(pid), "the abandon ended the read's child while the adding process still lives");
+}
+
+/// An abandoned read's child ends at once, while the adding process still lives,
+/// and the add ends without waiting for it.
+#[test]
+fn an_abandoned_read_leaves_no_child_running() {
+    let root: PathBuf = fixture("abandon");
+    let repo: PathBuf = a_clean_source(root.as_path(), "abandon");
+    let fake: PathBuf = root.join("git-that-holds-the-size-read");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_holds(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let began = std::time::Instant::now();
+    let output = std::process::Command::new(std::env::current_exe().expect("this test binary"))
+        .args(["--exact", THE_HELPER_THAT_ABANDONS_ITS_READ, "--nocapture"])
+        .env(THE_FAKE_GIT_OF_THE_CHILD_CONTROL, fake.as_os_str())
+        .env(THE_REPOSITORY_OF_THE_CHILD_CONTROL, repo.as_os_str())
+        .env(THE_MARKER_OF_THE_CHILD_CONTROL, wrote.as_os_str())
+        .output()
+        .expect("the helper runs");
+    let elapsed: Duration = began.elapsed();
+    assert!(output.status.success(), "the abandon ended the child: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(elapsed < Duration::from_secs(20), "the add did not wait for the fake Git's 30 s sleep: {elapsed:?}");
     remove(root.as_path());
 }

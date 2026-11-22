@@ -120,7 +120,7 @@ pub fn output_watched_within(
     stoppable: bool,
     bound: StepBound,
 ) -> std::io::Result<Output> {
-    return output_watched_within_for_a_stop(command, waiting_for, ledger_step, terms, stoppable, bound, false);
+    return output_watched_within_for_a_stop(command, waiting_for, ledger_step, terms, stoppable, bound, false, None);
 }
 
 /// What:
@@ -147,6 +147,7 @@ pub fn output_watched_within_for_a_stop(
     stoppable: bool,
     bound: StepBound,
     a_stop_lets_it_finish: bool,
+    started_child: Option<&std::sync::Arc<std::sync::atomic::AtomicI32>>,
 ) -> std::io::Result<Output> {
     let ceiling: Option<Duration> = match bound {
         StepBound::EndAt(limit) => Some(limit),
@@ -178,6 +179,9 @@ pub fn output_watched_within_for_a_stop(
         release_write_ends(command);
     }
     let child: Child = spawned?;
+    if let Some(cell) = started_child {
+        cell.store(child.id().try_into().unwrap_or(i32::MAX), std::sync::atomic::Ordering::SeqCst);
+    }
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.

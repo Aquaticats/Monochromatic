@@ -928,14 +928,18 @@ fn btrfs_a_rung_two_fall_through_does_not_wait_for_the_read_before_its_copies() 
     let identity = WorktreeIdentity::LinkedWorktree { worktree_root: linked.clone(), git_dir: common.join("worktrees").join("linked"), common_dir: common.clone() };
     let plan: AddPlan = crate::worktree_ladder_test_support::plan_to(root.join("topic"));
     let hold = crate::worktree_clone_conversion_size_read::a_control_holds_the_read();
+    crate::add_timing::begin(repo.join(".git"), true);
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the snapshot is blocked after the check, so the clone rung serves it");
-    assert!(ladder.sizes_beside.is_some(), "the read started before the check is still held by the ladder");
+    assert!(ladder.sizes_beside.is_none(), "the read rung 2 never uses is ended, not left running beside the copies");
     let mut runner = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { panic!("a failed Git run serves nothing here") };
     let began = std::time::Instant::now();
     let _result: LadderResult = ladder.finish(GitStatus { code: Some(1) }, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     let elapsed: std::time::Duration = began.elapsed();
+    crate::add_timing::finish(0);
     drop(hold);
     assert!(elapsed < std::time::Duration::from_secs(2), "the add's end does not wait for the unused read before rung 2: {elapsed:?}");
+    let record: String = std::fs::read_to_string(repo.join(".git").join(crate::add_timing::ADD_TIMING_FILE)).unwrap_or_default();
+    assert!(record.contains("\"fenceSizesBesideTheCheck\":\"started and not joined\""), "the add states the read it did not join: {record}");
     remove(root.as_path());
 }

@@ -213,6 +213,23 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 /// ```ts
 /// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
+/// What:
+///  Stop a read this rung will not use,
+///  and state it in the add's record.
+/// Why:
+///   The check's refusal, the fence's decline and the rung-2 fall-through all leave the read unused;
+///  none of them may leave it running beside Git's own checkout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const abandon = (started) => started?.abandon();
+/// ```
+fn abandon_the_read_beside_the_check(sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) {
+    if let Some(read) = sizes_beside.take() {
+        read.abandon();
+    }
+}
+
 fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity, held: &mut Option<StageClaim>, sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) -> (Rung, Option<SlowRoute>) {
     let refusals_entered: bool = begin_step("refusals");
     let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
@@ -253,6 +270,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     let source: SnapshotSource = match check_source_outcome {
         Ok(found) => found,
         Err(refusal) => {
+            abandon_the_read_beside_the_check(sizes_beside);
             log_git_checkout(plan, refusal.reason.as_str(), &snapshot_refusal, &clone_refusal);
             // The explanation is made only when no cheap one was found, as `or_else` did.
             let slow: Option<SlowRoute> = match cheap {
@@ -270,6 +288,9 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         Some(structural) => Some(structural),
         None => snapshot_blocked.as_deref().map(explain_unsupported),
     };
+    if snapshot_blocked.is_some() {
+        abandon_the_read_beside_the_check(sizes_beside);
+    }
     if snapshot_blocked.is_none() {
         // What:
         //  The snapshot rung's conversion fence is decided here,
@@ -317,6 +338,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
                 };
                 end_step(skip_entered);
                 if let Some(reason) = skip {
+                    abandon_the_read_beside_the_check(sizes_beside);
                     log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
                     return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
                 }
@@ -336,6 +358,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
                 }
             }
             Err(reason) => {
+                abandon_the_read_beside_the_check(sizes_beside);
                 log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
                 return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
             }
@@ -366,6 +389,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         let fence: CloneFence = match fence_outcome {
             Ok(chosen) => chosen,
             Err(reason) => {
+                abandon_the_read_beside_the_check(sizes_beside);
                 log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
                 return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
             }
@@ -402,6 +426,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         });
         end_step(skip_entered);
         if let Some(reason) = skip {
+            abandon_the_read_beside_the_check(sizes_beside);
             log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
             return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
         }
@@ -417,6 +442,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
             Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
         }
     }
+    abandon_the_read_beside_the_check(sizes_beside);
     log_git_checkout(plan, "no rung applies", &snapshot_refusal, &clone_refusal);
     return (Rung::Git(prepare_subvolume_destination(plan)), slow);
 }

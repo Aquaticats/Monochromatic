@@ -142,6 +142,9 @@ pub struct SizeReadBesideTheCheck {
     commit: String,
     /// The one answer the read's thread sends.
     answer: std::sync::mpsc::Receiver<ReadAnswer>,
+    /// The process id of the read's Git child while it runs,
+    /// which an add that abandons the read ends.
+    child: std::sync::Arc<std::sync::atomic::AtomicI32>,
 }
 
 /// What:
@@ -219,15 +222,16 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
         return None;
     };
     let may_fetch: bool = may_fetch(common_dir);
+    let child: std::sync::Arc<std::sync::atomic::AtomicI32> = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
     let (sender, answer): (Sender<ReadAnswer>, std::sync::mpsc::Receiver<ReadAnswer>) = std::sync::mpsc::channel();
-    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>, bool) = (context.clone(), root.to_path_buf(), commit.clone(), sender, may_fetch);
+    let state: (GitContext, PathBuf, String, Sender<ReadAnswer>, bool, std::sync::Arc<std::sync::atomic::AtomicI32>) = (context.clone(), root.to_path_buf(), commit.clone(), sender, may_fetch, child.clone());
     if let Err(error) = spawn_named(THREAD, move || {
         return read_the_sizes_where_nothing_is_fetched(state);
     }) {
         debug(TAG, refused_thread_sentence("read the fence's blob sizes beside the source check", &error).as_str());
         return None;
     }
-    return Some(SizeReadBesideTheCheck { commit, answer });
+    return Some(SizeReadBesideTheCheck { commit, answer, child });
 }
 
 /// What:
@@ -245,9 +249,11 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// ```ts
 /// function readTheSizesWhereNothingIsFetched([context, root, commit, sender]) { const began = performance.now(); sender.send([performance.now() - began, sizesOf(context, root, commit)]); }
 /// ```
-fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_fetch): (GitContext, PathBuf, String, Sender<ReadAnswer>, bool)) {
+fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, may_fetch, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, bool, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
     let began: Instant = Instant::now();
-    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), may_fetch);
+    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), may_fetch, &child);
+    // The child is reaped by its runner here, so an add that abandons this read afterwards must not end a reused process id.
+    child.store(0, std::sync::atomic::Ordering::SeqCst);
     let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> = sender.send((began.elapsed(), sizes));
 }
 
@@ -301,12 +307,12 @@ fn the_early_read_request(root: &Path, commit: &str, may_fetch: bool) -> GitRequ
 /// ```ts
 /// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): Map<string, number>;
 /// ```
-fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, may_fetch: bool) -> Result<BlobSizes, String> {
+fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, may_fetch: bool, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
     #[cfg(test)]
     hold_the_read_where_a_control_asked();
     #[cfg(test)]
     die_where_a_control_asked();
-    let output: GitOutput = run_git(context, &the_early_read_request(root, commit, may_fetch)).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
+    let output: GitOutput = run_git(context, &the_early_read_request(root, commit, may_fetch).publishing_its_child(child.clone())).map_err(|error| return a_git_run_that_did_not_answer(&error))?;
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
@@ -455,6 +461,37 @@ impl SizeReadBesideTheCheck {
                 crate::add_timing::note(WORK, "started and not joined");
                 debug(TAG, "the size read started beside the check ended without answering, so the add states it as started and not joined");
             }
+        }
+    }
+
+    /// What:
+    ///  Stop the read this add is not going to use:
+    ///  state it as started and not joined,
+    ///  and end its Git child here.
+    /// Why:
+    ///   The source check can refuse the source before the fence,
+    ///  and the read then has nothing to answer;
+    ///  leaving it to run beside Git's own checkout makes the refused add slower than `main`
+    ///  (the integration pass's cone shape of 2026-11-22),
+    ///  so the child is ended as soon as the add knows it will not use it.
+    /// The child id is the one its runner published;
+    ///  a read that has not started a child, or one whose runner already reaped it, has zero here.
+    /// The thread answers into a receiver this value drops, and its send is ignored.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// abandon() { note('fenceSizesBesideTheCheck', 'started and not joined'); const pid = this.child.swap(0); if (pid > 0) kill(pid, 'SIGKILL'); }
+    /// ```
+    pub fn abandon(self) {
+        crate::add_timing::note(WORK, "started and not joined");
+        let pid: i32 = self.child.swap(0, std::sync::atomic::Ordering::SeqCst);
+        if pid > 0 {
+            // SAFETY: `pid` is this add's own Git child, published by its runner while it ran;
+            // a signal to a process that ended in between reaches nothing.
+            let _ = unsafe { libc::kill(pid, libc::SIGKILL) };
+            debug(TAG, format!("the size read started beside the check is not used, so its child {pid} is ended and the add does not wait for it").as_str());
+        } else {
+            debug(TAG, "the size read started beside the check is not used and has no child to end, so the add does not wait for it");
         }
     }
 

@@ -129,6 +129,18 @@ pub struct GitRequest {
     /// type GitRequest = { ...; endWithTheStartingThread?: boolean };
     /// ```
     pub end_with_the_starting_thread: bool,
+    /// Where a run's child process id is published while it runs,
+    ///  so a caller that abandons the run can end that child.
+    /// Why:
+    ///  The early size read may be abandoned when the check refuses the source,
+    ///  and it must not keep competing with Git's checkout for the length of it;
+    ///  the id is the child's own, published by the runner once it starts.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type GitRequest = { ...; startedChild?: { pid: number } };
+    /// ```
+    pub started_child: Option<std::sync::Arc<std::sync::atomic::AtomicI32>>,
 }
 
 /// Builder methods for one request.
@@ -184,6 +196,21 @@ impl GitRequest {
     /// ```
     pub fn ends_with_the_starting_thread(mut self) -> Self {
         self.end_with_the_starting_thread = true;
+        return self;
+    }
+
+    /// What:
+    ///  This request publishes its child's process id into `cell` while it runs.
+    /// Why:
+    ///  See the field's own doc;
+    ///  the ladder's early size read is the only such run today.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.publishingItsChild(cell)
+    /// ```
+    pub fn publishing_its_child(mut self, cell: std::sync::Arc<std::sync::atomic::AtomicI32>) -> Self {
+        self.started_child = Some(cell);
         return self;
     }
 
