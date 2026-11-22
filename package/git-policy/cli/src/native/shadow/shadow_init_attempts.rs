@@ -27,6 +27,10 @@ use crate::transaction_git::GitRequest;
 /// for the attempt number a control's stand-in reads.
 #[cfg(test)]
 use std::ffi::OsString;
+/// A span of time,
+/// for the ceiling a control plants a cut at.
+#[cfg(test)]
+use std::time::Duration;
 
 #[cfg(test)]
 thread_local! {
@@ -36,6 +40,9 @@ thread_local! {
     /// so a control that counts the attempts of its own creation
     ///  is not disturbed by another test's creation.
     static INIT_ATTEMPTS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+
+    /// How long a control ends the first `init` start of this thread's next creation at.
+    static CUT_AT: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
 /// What:
@@ -83,9 +90,85 @@ pub(crate) fn note_init_attempt(request: &mut GitRequest, attempt: u32) {
             return name.as_os_str() != INIT_ATTEMPT_VARIABLE;
         });
         request.environment.push((OsString::from(INIT_ATTEMPT_VARIABLE), OsString::from(attempt.to_string())));
+        apply_the_planted_cut(attempt);
     }
     #[cfg(not(test))]
     let _ = (request, attempt);
+}
+
+/// What:
+///  Ends the first `init` start of this thread's next creation at `ceiling`,
+/// and leaves the start made after it to the ceiling production gives it.
+/// Why:
+///   A control holds that a start cut at its ceiling is made again in a fresh directory,
+/// and that the start made again is what makes the shadow.
+///  A shortened ceiling over that start fails the control whenever the program is slower than the ceiling,
+///  which is a fact about the host and never about what the control holds:
+///  a control may depend on what the product guarantees,
+///  never on how fast a program it started reaches a line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cutTheFirstInitAttemptAt(700)
+/// ```
+#[cfg(test)]
+pub(crate) fn cut_the_first_init_attempt_at(ceiling: Duration) {
+    CUT_AT.with(|cell| {
+        cell.set(Some(ceiling));
+    });
+}
+
+/// What:
+///  Forgets a planted cut,
+/// and gives this thread's steps back the ceiling of their class.
+/// Why:
+///   A plant that outlives its control would shorten another test's start on the same thread,
+///  so a control clears it once its creation returned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// clearThePlantedCut()
+/// ```
+#[cfg(test)]
+pub(crate) fn clear_the_planted_cut() {
+    CUT_AT.with(|cell| {
+        cell.set(None);
+    });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
+}
+
+/// What:
+///  Shortens the ceiling of the attempt a control planted its cut in,
+/// and gives the ceiling back before the next attempt.
+/// Why:
+///   The ceiling is read when a step is watched,
+///  so it has to be set before this start and cleared before the start made after it;
+///  the plant covers the first attempt alone,
+///  because that is the attempt the control means to cut.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// applyPlantedCut(attempt) // attempt === 1 ? stepCeiling.set(planted) : stepCeiling.set(undefined)
+/// ```
+#[cfg(test)]
+fn apply_the_planted_cut(attempt: u32) {
+    let Some(ceiling) = CUT_AT.with(std::cell::Cell::get) else {
+        return;
+    };
+    if attempt == 1 {
+        crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+            cell.set(Some(ceiling));
+        });
+        return;
+    }
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| {
+        cell.set(None);
+    });
+    CUT_AT.with(|cell| {
+        cell.set(None);
+    });
 }
 
 /// What:

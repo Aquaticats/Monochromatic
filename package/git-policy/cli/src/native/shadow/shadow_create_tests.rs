@@ -9,7 +9,7 @@ use crate::capture_invocation::{capture_invocation_base, capture_invocation_layo
 use crate::path_bytes::path_bytes_of;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::shadow_git::shadow_request;
-use crate::shadow_init_attempts::{init_attempts, reset_init_attempts};
+use crate::shadow_init_attempts::{clear_the_planted_cut, cut_the_first_init_attempt_at, init_attempts, reset_init_attempts};
 use crate::transaction_git::{GitOutput, run_git_checked};
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
@@ -521,14 +521,19 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
 /// the owner's
 /// "Never cut a branch write (Recommended)":
 /// a step that cannot run twice has no ceiling unless it is restartable like this).
+///  The cut covers the first start alone.
+/// The start made again is real Git,
+/// and it is waited for as long as production waits for a start of `init`:
+/// a control may depend on what the product guarantees,
+/// never on a program it started finishing inside a shortened ceiling.
 #[test]
 fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     let root: PathBuf = fixture("shadow-create-init-cut");
     let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1);
     reset_init_attempts();
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_millis(700))); });
+    cut_the_first_init_attempt_at(std::time::Duration::from_millis(700));
     let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    clear_the_planted_cut();
     let shadow: PathBuf = made.expect("the second start made the shadow");
     assert_eq!(init_attempts(), SHADOW_CREATION_ATTEMPTS, "init was started twice");
     assert!(!shadow.join("PARTIAL").exists(), "nothing of the cut start is left in the shadow");
