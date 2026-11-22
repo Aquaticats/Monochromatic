@@ -41909,7 +41909,17 @@ stated in this entry. What follows from them, as work:
   interface steps 14, 16 and 17 wait on; brief under `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
   No staging code existed on `main` (only the start probe's private unmount and scan), so the unmount round owns the staging
   build. Each puts its guest arms in new files; the unmount round was told to expect a message to merge `main` when the
-  step 8 follow-up or the no-configuration round lands. Step 7's
+  step 8 follow-up or the no-configuration round lands. ISSUE 6343'S FIX IS MERGED as `356a889a32` (2026-11-22, pushed, issue
+  closed): its pass on Sonnet said fit
+  (`~/temp/agent/integration-pass-shadow-control-init-cut-every-time-2026-11-22/keep/review.md`; reproduced on `main` with the
+  plant, the fixed control green under it and red with the retry disabled; gate 9875 of 9877). The pass found the sibling
+  control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` has two timing windows (the file the cut start
+  writes; its real second start under a 700 ms ceiling), filed as issue 6344, and that cause M states as fact what the record
+  cannot separate (corrected by commit comment on `a49ccb8610`). The 6342 round was told by message that `main` gained cause
+  M. GOING: `pi-shadow-sibling-control-two-timing-windows` on
+  `fix/git-policy-cli-shadow-sibling-control-two-timing-windows` (both windows, the lows, cause M's wording, and splitting
+  `shadow_create.rs`, which is over the line limit; brief under
+  `~/temp/agent/shadow-sibling-control-two-timing-windows-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
