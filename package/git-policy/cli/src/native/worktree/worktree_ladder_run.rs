@@ -265,6 +265,33 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         end_step(snapshot_fence_entered);
         match snapshot_fence_outcome {
             Ok(fence) => {
+                // What:
+                //  A target tree that changes a path this fence hands to Git ends the rung here,
+                //  before the stage name is claimed and before the snapshot copies anything.
+                // Why:
+                //  The index the snapshot installs holds no stat data for those paths, and `git read-tree -m -u` verifies
+                //  the entries of the paths it changes, so such a tree difference ends the rung after the snapshot and pays
+                //  Git's whole checkout over it (`doc/planning/cli-git-clone-rung-conversion-fence.md`, "Limitations").
+                //  The fence's own answer is the set, so one name-only read decides it;
+                //  a source with changes is restored to its `HEAD` rather than tree-differenced, so it is not this case.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const skip = source.dirty ? undefined : skipReasonForTheTargetTree(source, context, plan, (changed) => firstWrittenChange(fence, changed));
+                // if (skip) return { rung: git, slow: explainDecline(skip) };
+                // ```
+                let skip_entered: bool = begin_step("targetTreeDifference");
+                let skip: Option<String> = match source.dirty.is_none() {
+                    true => crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, &|changed: &[Vec<u8>]| {
+                        return crate::worktree_clone_conversion_fence::first_written_change(&fence, changed);
+                    }),
+                    false => None,
+                };
+                end_step(skip_entered);
+                if let Some(reason) = skip {
+                    log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+                    return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+                }
                 // A claim the caller recorded before Git names this add's stage already, so the rung reuses it.
                 let claim_stage_entered: bool = begin_step("claimStage");
                 let claim_stage_outcome = match held.take() {
@@ -315,6 +342,34 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
                 return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
             }
         };
+        // What:
+        //  A target tree that changes a path this fence hands to Git ends the rung here,
+        //  before the add's record is claimed and before the first copy.
+        // Why:
+        //  The paths the fence installs without stat data are exactly what `git read-tree -m -u` refuses when the target
+        //  tree changes one of them, and the fallback then pays the copies and Git's whole checkout over them
+        //  (`doc/planning/cli-git-clone-rung-conversion-fence.md`, "Limitations").
+        //  The attributes half already names every path a rule of its own converts, which is what this rung can answer
+        //  before its copies; a path the size proof would still hand to Git is left to the rung's own ending.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const skip = skipReasonForTheTargetTree(source, context, plan, (changed) => firstConvertingChange(fence, changed));
+        // if (skip) return { rung: git, slow: explainDecline(skip) };
+        // ```
+        let skip_entered: bool = begin_step("targetTreeDifference");
+        let skip: Option<String> = crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, &|changed: &[Vec<u8>]| {
+            return match &fence {
+                CloneFence::Beside(read) => read.first_converting_change(changed),
+                #[cfg(feature = "measurement-routes")]
+                CloneFence::BeforeTheClone(decided) => crate::worktree_clone_conversion_fence::first_written_change(decided, changed),
+            };
+        });
+        end_step(skip_entered);
+        if let Some(reason) = skip {
+            log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+            return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+        }
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
         let claim_stage_again_entered: bool = begin_step("claimStage");
         let claim_stage_again_outcome = match held.take() {

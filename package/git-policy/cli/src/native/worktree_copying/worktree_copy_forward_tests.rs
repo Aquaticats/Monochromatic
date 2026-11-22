@@ -331,7 +331,7 @@ fn btrfs_a_ladder_step_that_waits_on_a_filter_ends_at_its_ceiling() {
         identity: main_identity(main.as_path(), common.as_path()),
         creates: true,
         destination: Some(topic.clone()),
-        add_plan: Some(AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
+        add_plan: Some(AddPlan { destination: topic.clone(), insert_at: 4, quiet: true, target: None }),
         remove_plan: None,
         quiet: false,
     };
@@ -495,7 +495,7 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
         identity: main_identity(main.as_path(), main.join(".git").as_path()),
         creates: true,
         destination: Some(topic.clone()),
-        add_plan: Some(crate::worktree_add_plan::AddPlan { destination: topic.clone(), insert_at: 4, quiet: true }),
+        add_plan: Some(crate::worktree_add_plan::AddPlan { destination: topic.clone(), insert_at: 4, quiet: true, target: None }),
         remove_plan: None,
         quiet: false,
     };

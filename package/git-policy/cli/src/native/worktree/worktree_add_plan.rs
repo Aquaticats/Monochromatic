@@ -36,7 +36,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AddPlan = { destination: string; insertAt: number; quiet: boolean };
+/// type AddPlan = { destination: string; insertAt: number; quiet: boolean; target?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddPlan {
@@ -49,6 +49,10 @@ pub struct AddPlan {
     /// Whether the person passed `--quiet`,
     /// which silences the line Git's checkout prints.
     pub quiet: bool,
+    /// The commit-ish the person named,
+    /// as written,
+    /// or nothing when the add names none and Git starts the worktree at the source's `HEAD`.
+    pub target: Option<OsString>,
 }
 
 /// The options of `add` that take no value and keep the checkout of a new worktree the ordinary one.
@@ -236,7 +240,8 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
     }
     let (operands, quiet): (Vec<&OsString>, bool) = add_operands(&arguments[word_index + 1..])?;
     let destination: PathBuf = recorded_destination(start, operands[0])?;
-    return Some(AddPlan { destination, insert_at: word_index + 1, quiet });
+    let target: Option<OsString> = operands.get(1).map(|named| return (*named).clone());
+    return Some(AddPlan { destination, insert_at: word_index + 1, quiet, target });
 }
 
 /// What:

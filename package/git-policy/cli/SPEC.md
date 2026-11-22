@@ -1456,6 +1456,12 @@ before the snapshot rather than after it.
 The fence's two reads run on the add's waiting path in this rung:
 a snapshot copies everything anyway,
 so there is no copy for them to run beside.
+The same comparison decides rung 1 before its stage name is claimed:
+one `git diff-tree --name-only` between the source's frozen commit and the commit the add names,
+and a tree that changes a path the fence hands to Git ends the rung there,
+so the add costs Git's own checkout and that read and no snapshot.
+A source with uncommitted changes is restored to its `HEAD` rather than tree-differenced,
+so it is not that case and keeps its snapshot.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
 The swap this command made itself proves the worktree is its own,
@@ -2776,8 +2782,16 @@ A rung that ends after the fence,
 for any other reason,
 says
 `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
-An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
-because its zeroed entry cannot be verified as up to date;
+A commit the add names is compared with the source's index before the add's record is claimed and before the first
+copy:
+one `git diff-tree --name-only` between the source's frozen commit and that commit,
+and an add whose tree changes a path the attributes alone hand to Git ends the rung there,
+told as a decline whose sentence names the commit and the path.
+That add is Git's own checkout and that one read.
+A path the size proof alone hands to Git is not in that answer,
+because the attributes cannot see the file's size,
+and a tree difference there still ends the rung after its copies,
+because the zeroed entry of such a path cannot be verified as up to date;
 Git's own checkout then writes the worktree against the rung's own index,
 which still holds the source's entries,
 so a path the new tree lacks is removed with the tracked ones and the bytes are equal.

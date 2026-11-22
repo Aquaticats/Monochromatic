@@ -509,6 +509,20 @@ The two orders differ in when steps 2 to 5 run and what the index holds when ste
   from a seed that holds no stat data for the written paths,
   under a name of its own that it keeps until Git has written those paths.
 
+Both orders answer one more question before the add's record is claimed and before anything is copied:
+whether the tree of the commit the add names changes a path the fence hands to Git
+(`src/native/worktree/worktree_ladder_target_tree_skip.rs`).
+One `git diff-tree --name-only` between the source's frozen commit and that commit is the whole read,
+and a rung that would have to end at its tree difference steps aside there instead,
+so it pays no copy and Git's own checkout writes the worktree.
+The set it compares is the one each rung has at that moment:
+the attributes' converting paths for the clone rung,
+  which is what it has before its copies,
+  and the whole fence's written paths for the snapshot rung,
+  which decides both halves before its snapshot.
+A path only the size proof hands to Git is not in the clone rung's answer,
+and that case keeps the ending after the copies.
+
 What it reuses rather than reimplements:
 `SnapshotSource` and its proven `CleanSource` (the index bytes,
 the tree and
@@ -749,14 +763,24 @@ not by what it would have cleaned up.
   the carried paths' entries match their files,
   the written paths' entries do not,
   and the fallback completes the worktree.
+  The paths the fence's own reads name before the copies no longer reach this step:
+  the tree difference is answered before the add's record is claimed
+  (`src/native/worktree/worktree_ladder_target_tree_skip.rs`),
+  and such an add is Git's own checkout.
+  What still reaches it is a path only the size proof hands to Git.
   One case is measured:
   `read-tree -m -u` verifies the entries of the paths it is about to change,
   and a written path whose clean form is not its blob
   (a rule that changed or was removed after the add) makes it refuse where option A′'s fresh stat data let it pass.
-  The harness's `m05` (an add to a commit whose tree lacks a fenced path) shows it:
-  `error: Entry 'extra.txt' not uptodate. Cannot merge.`,
+  The control `a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind`
+  (an add at a commit whose tree lacks a `crlf.txt` that only the size proof hands to Git) shows it:
+  `error: Entry 'crlf.txt' not uptodate. Cannot merge.`,
   the rung ends,
   and every tracked byte is Git's checkout's because the fallback writes them.
+  The harness's `m05`,
+   whose fenced path converts by its attributes,
+  is skipped before the copies instead (the round below),
+  and the class harness's route for it is now `Git's checkout`.
   The fallback is Git's own `reset --hard` run against the index the rung wrote under its own name
   (`GIT_INDEX_FILE` at `index.pending`):
   the file holds the source's entries,
@@ -1601,15 +1625,11 @@ because their `text` action applies before the size is looked at).
 
 ### What this round did not measure
 
-- An add whose new `HEAD` differs in a path Git must write:
-  the timed fixtures check out one commit in both trees,
-  so no measured arm pays the clone-and-checkout the tree difference can force on option B;
-  the class harness's `m05` reaches it at three files and shows the route,
-  not a price,
-  and the reviewer's older-commit fixture (41 paths the target tree lacks) shows the same on both of the guest's
-  rungs.
-  The ending costs the copies and one checkout of the worktree,
-  where option A′ would have finished the rung.
+- An add below this repository's converting share whose target tree changes a path only the size proof hands to Git:
+  the converting class is measured before and after the skip (§ "The differing tree,
+   measured twice"),
+  and this class is priced once,
+   on the same 10,002-file fixture.
 - A clone rung below the decline rule with a share between this repository's 0.065 and the measured 0.199:
   the band is priced by the two endpoints and no run sits inside it.
 - A repository with no conversion rules at all:
@@ -3090,7 +3110,10 @@ asserts the worktree holds no `index` and that `add_is_finished` says unfinished
 asserts the published entry records Git's byte count,
 and asserts the worktree is whole only after the publication.
 The proposal's step order and its kill section say what the code does.
-The harness's `m05` (an add whose new `HEAD` lacks a fenced path) ends the rung at the tree difference and
+The harness's `m05` (an add whose new `HEAD` lacks a fenced path) is skipped before the copies,
+so the rung pays nothing there,
+and the ending it used to take is the size-proof class's:
+`a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind` ends at the tree difference and
 publishes a worktree with no path of the copies left behind,
 which is the tree the older order's published index reached by another route;
 the tracked bytes were equal either way.
@@ -3275,6 +3298,158 @@ destroyed at the end.
   `rust/avoidable-closure` is still unexercised (`cargo-dylint` is not installed),
   on `main` as here.
 
+## The differing tree, measured twice
+
+**Unapproved and non-final.**
+This round builds the up-front skip the project asked for after step 3 merged,
+measures it against `main` on the closure check's fixture,
+and restores the "Limitations" entry the closure check's N4 says the last round removed.
+Only the owner declares work complete.
+
+What it built:
+`src/native/worktree/worktree_ladder_target_tree_skip.rs`,
+one `git diff-tree -r -z --name-only` between the source's frozen commit and the commit the add names,
+asked only when the add names one,
+and the two rungs' own answers to which of the changed paths they hand to Git
+(`first_written_change` for the snapshot rung,
+`AttributeFence::first_converting_change` for the clone rung).
+The answer is taken in `choose_rung`,
+before the add's record is claimed and before real Git runs,
+so a skipped add is Git's own checkout.
+
+The fixture is the closure check's:
+10,002 small files of about 2.6 KB,
+`*.md text eol=crlf` over about 3 percent,
+an older commit without `extra.md`,
+the add at the older commit,
+5 counted rounds after a warm-up,
+every add in a scope of its own,
+arms rotating (this branch,
+`main`,
+this branch's identical binary),
+`sync --file-system` before each round.
+Every arm's worktree was status clean and `diff --recursive` equal to `main`'s.
+The binaries:
+this branch `a6d8c40645…`,
+`main` `0b730b5653…`.
+
+- The class the skip catches,
+  a path the attributes convert
+  (`keep/measure-converting.log`):
+  this branch's wrapper median **483 ms** (465 to 513),
+  its identical binary again **466** (403 to 472),
+  and `main` **567** (563 to 643);
+  per round against `main` this branch is 0.73,
+  0.83,
+  0.86,
+  0.91 and 0.78 (median 0.83),
+  the identical pair 0.73,
+  0.83,
+  0.82,
+  0.71 and 0.76 (median 0.76).
+  Both arms of this binary are under `main` in every round,
+  so the skip is 17 to 24 percent faster than the copy-then-fallback it replaces,
+  and the pair's own 9 percent spread is the noise it is read against.
+  The route is `Git's checkout` in every round where it was
+  `Git's checkout after the clone rung ended` before.
+  The step split,
+  medians of the counted rounds,
+  this branch against `main`:
+  `git diff-tree` 2 ms against none,
+  `gitAdd` 358 against 4
+  (the person's own run writes the whole worktree here,
+   where `main` runs it without a checkout),
+  `cloneEntries` 0 against 304,
+  and `cloneFiles` 0 against 631 of work,
+  and `finishRung` 0 against 130
+  (the fallback checkout).
+  `copyIgnored` is 23 against 9,
+   its own work over the same ignored state.
+- The class the skip does not catch,
+  a path only the size proof hands to Git (an `*.md text eol=lf` rule over a `crlf.md` whose worktree bytes are the
+  CRLF form;
+   `keep/measure-size.log`):
+  this branch **530 ms** (484 to 616),
+  its identical binary **602** (507 to 626),
+  `main` **591** (537 to 653);
+  per round 0.90,
+  0.88,
+  0.88,
+  1.09 and 0.93 (median 0.90) for this branch and 0.97,
+  0.86,
+  1.02,
+  1.07 and 0.96 (median 0.97) for the identical pair.
+  All three arms end at the tree difference and their `finishRung` is 110,
+   111 and 111 ms,
+  so the ending's cost above `main` is inside the pair's disagreement at this size,
+  and what it still pays is the copies and one checkout of the worktree that option A′ would not.
+  It is the "Limitations" entry below.
+- The common case,
+  an add that names no commit at all (`keep/measure-same.log`):
+  this branch **516 ms** (470 to 550),
+  `main` **516** (488 to 537),
+  the identical binary **518** (480 to 555);
+  per round 0.96,
+  1.02,
+  1.06,
+  1.01 and 0.96 (median 1.01) for this branch.
+  The record has no `git diff-tree` step at all:
+  an add that names no commit starts at the source's `HEAD`,
+  so the skip costs no read there.
+- The common case that names the source's own commit,
+  `git worktree add … main` (`keep/measure-same-named.log`):
+  this branch **465 ms** (445 to 557),
+  `main` **493** (429 to 534),
+  the identical binary **478** (440 to 519);
+  per round 0.86,
+  1.08,
+  0.89,
+  0.96 and 1.18 (median 0.96) for this branch and 0.86,
+  1.03,
+  0.98,
+  1.05 and 1.01 (median 1.01) for the pair.
+  The one added read is 2 to 3 ms of `git diff-tree`,
+  and the wall difference is inside the pair's spread:
+  a same-tree add is no slower than before this change.
+
+`main` is the "before this change" arm in every run above:
+its source has everything this branch has except the skip,
+so the converting shape's 0.83 is the improvement and the other three shapes are the check that nothing else moved.
+
+A second run of all four shapes,
+after the gate's suite showed that the new step needed a sentence of its own in the standing notice
+(the binary is then `099565b9283…`,
+and the four runs above timed `a6d8c40645…`,
+where the two binaries differ only by that table entry),
+gives the same picture and shows how wide this host's runs are.
+Converting:
+488 ms (410 to 527),
+a per-round median 0.80,
+the identical pair 483 (472 to 718,
+0.83),
+and `main` 577 (543 to 896).
+Size:
+522 (464 to 543,
+1.00),
+the pair 509 (0.99),
+`main` 520.
+The add that names no commit:
+410 (348 to 461,
+1.14),
+the pair 417 (1.11),
+`main` 346 (329 to 603).
+The add that names the source's commit:
+414 (385 to 460,
+1.04),
+the pair 419 (1.02),
+`main` 392.
+The identical binary's own median for the same-tree shapes is 1.01 in the first run and 1.11 in the second,
+so a same-tree add's wall time is not resolved below about a tenth of the add on this host,
+which is far above the work the change adds there:
+none at all when no commit is named
+(the record has no `targetTreeDifference` step and no `git diff-tree`),
+and one 2 to 3 ms `git diff-tree` when the source's own commit is named.
+
 ## Limitations
 
 Each line is a case where option B,
@@ -3403,6 +3578,35 @@ with the evidence behind it.
   What this round removed from that thread is the attribute read and the decline,
   which now run before anything is copied and before Git's own run.
   No in-process replacement is built or measured.
+- **A clone rung whose target tree changes a path only the size proof hands to Git pays the copies and then Git's
+  checkout.**
+  The up-front skip compares the paths the attributes alone convert,
+  which is all the clone rung has before its copies,
+  so a file whose recorded size is not its blob's leaves the answer to the tree difference,
+  and the rung ends after its copies with Git's own checkout over them,
+  where option A′ would have finished the rung.
+  Measured on this host's ZFS,
+  the 10,002-file fixture this proposal's round describes,
+  5 counted rounds after a warm-up,
+  arms rotating:
+  this branch's wrapper median 530 ms (484 to 616),
+  its identical binary again 602 (507 to 626),
+  `main` 591 (537 to 653);
+  per round against `main` 0.90,
+  0.88,
+  0.88,
+  1.09 and 0.93 for this branch (median 0.90) and 0.97,
+  0.86,
+  1.02,
+  1.07 and 0.96 for the identical pair (median 0.97).
+  Every arm ended at the tree difference and paid its 110 to 111 ms `finishRung`,
+  so the ending costs no more than `main`'s own copy-then-fallback at this size,
+  and the copies and one checkout of the worktree are what it still pays.
+  At this repository's own size the class is not measured.
+  The class the skip does catch,
+  a path the attributes convert,
+  is skipped before the copies and measured at 0.83 of `main`
+  (identical pair 0.76) on the same fixture.
 - **A rung that ends after Git rewrote the waiting index leaves that file behind.**
   The discard removes `index.pending` only when the name still holds the file this run wrote;
   once Git's `read-tree -u` or `checkout-index -u` has rewritten it,
@@ -3455,10 +3659,13 @@ with the evidence behind it.
   a size-only method on it is new code,
   and neither was built or measured.
 - It does not build the "run the tree difference against a copy of the index that still has its stat data" fix
-  for the differing-tree case,
-  which is option B's one known roteness regression against A′
-  (the `m05` case in "Why each step is safe").
-  Rung 1 shares the exposure.
+  for the differing-tree case.
+  The up-front skip is built for every path the fence's reads name before the copies
+  (`src/native/worktree/worktree_ladder_target_tree_skip.rs`),
+  which is the `m05` class on both rungs;
+  a path only the size proof hands to Git still ends the rung at its tree difference after the copies
+  (the "Limitations" entry),
+  and that fix would have served it too.
 - It does not run the clone-capable controls in the gate image,
   whose fixture root is neither btrfs nor ZFS:
   the image runs the unit controls and the binary controls that do not need a snapshot-capable filesystem,

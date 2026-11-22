@@ -405,6 +405,42 @@ pub struct AttributeFence {
     rules: ConversionRules,
 }
 
+impl AttributeFence {
+    /// What:
+    ///  The first of `changed` this fence hands to Git for its own rules,
+    ///  in the source's index order,
+    ///  or nothing when the attributes leave all of them to the clones.
+    /// Why:
+    ///   This is the half of the fence that is decided before the copies,
+    /// so it is what lets the ladder see a target tree its tree difference would refuse before it claims anything:
+    /// a path here whose entry the fence installs without stat data is a path `git read-tree -m -u` refuses.
+    /// A path the source's index does not hold has no entry to refuse,
+    ///  so the search runs over the entries and asks which of them changed,
+    ///  not over the changed paths and their attributes,
+    ///  because a path Git answers nothing for has no attribute entry at all.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const firstConvertingChange = (read, changed) => read.entries.find((entry) => changed.has(entry.path) && !isLink(entry) && checkoutConverts(read.attributes.get(entry.path), read.rules))?.path;
+    /// ```
+    pub fn first_converting_change(&self, changed: &[Vec<u8>]) -> Option<Vec<u8>> {
+        if changed.is_empty() {
+            return None;
+        }
+        let changed_paths: HashSet<&[u8]> = changed.iter().map(|path| return path.as_slice()).collect();
+        for entry in &self.entries {
+            if entry.mode & MODE_TYPE_MASK == MODE_SYMLINK || !changed_paths.contains(entry.path.as_slice()) {
+                continue;
+            }
+            let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+            if checkout_converts(&held, &self.rules) {
+                return Some(entry.path.clone());
+            }
+        }
+        return None;
+    }
+}
+
 /// What:
 ///  Read the attributes of every tracked path and decide the decline,
 /// before anything is copied.
@@ -494,6 +530,32 @@ pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: Att
     }
     debug(TAG, format!("the fence carries {carried} paths and leaves {} to Git", git_writes.len()).as_str());
     return Ok(Fence { git_writes, carried });
+}
+
+/// What:
+///  The first of `changed` the whole fence hands to Git,
+///  in the source's index order,
+///  or nothing when every changed path is one the clones may carry.
+/// Why:
+///   The snapshot rung decides both halves of the fence before its snapshot,
+/// so `git_writes` is the exact set of paths its index installs without stat data,
+///  which is the set `git read-tree -m -u` refuses when the target tree changes one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const firstWrittenChange = (fence, changed) => fence.gitWrites.find((path) => changed.has(path));
+/// ```
+pub fn first_written_change(fence: &Fence, changed: &[Vec<u8>]) -> Option<Vec<u8>> {
+    if changed.is_empty() {
+        return None;
+    }
+    let changed_paths: HashSet<&[u8]> = changed.iter().map(|path| return path.as_slice()).collect();
+    for path in &fence.git_writes {
+        if changed_paths.contains(path.as_slice()) {
+            return Some(path.clone());
+        }
+    }
+    return None;
 }
 
 /// What:
