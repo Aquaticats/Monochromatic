@@ -41591,7 +41591,16 @@ stated in this entry. What follows from them, as work:
   `7c6487c369` and posted the correction on issue 6334. The reviewer confirmed it fit, with four optional narrowings, which
   the coordinator made too. MERGED as `365fdd594e` at 2026-11-21T22:46:22-05:00; closes 6334. Both integration branches, the
   feature branch and their worktrees are removed (no commit beyond `main` on either). The journal kept only hours today, so
-  which unit, if any, was stopped at the incident hour cannot be read now. Step 7's
+  which unit, if any, was stopped at the incident hour cannot be read now. THE SIZE READER'S GATE REVIEW said not ready:
+  the 338 ms came from a fixture with every object loose (built without `git gc`); packed, the read is about 47 ms (6 percent
+  of the add) against about 440 ms loose (39 percent), and 98 percent of this repository's `HEAD` blobs are packed; the
+  proposal measured `gix` 0.77.0 (shares none of the lock's plumbing; wrong replaced-blob size) instead of 0.90.0; vetting
+  facts wrong (`unsafe` in `gix-pack`, MPL-2.0, Zlib and BSD-3-Clause licences, 26 s build); the partial-clone control cannot
+  fail; missing and corrupt objects pass silently to Git; reftable replace refs missed; no owner question. Its proposed
+  question ranks A (keep `git ls-tree`, close step 10's follow-up) > B (`gix` or `gix-odb` after vetting) > C (in-process,
+  wins only on loose btrfs sources) > D (`cat-file`). GOING: `pi-fence-faster-size-reader-gate-findings` in the proposal
+  worktree (brief `~/temp/agent/fence-faster-size-reader-design-2026-11-21/prompt-gate-findings.md`); then the reviewer's
+  recheck; then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
