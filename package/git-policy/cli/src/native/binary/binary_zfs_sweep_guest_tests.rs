@@ -313,7 +313,11 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     assert!(row.contains(&format!(" - zfs {clone} ")), "the mount's source is the clone: {row}");
     let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(STORE)).expect("the store opens");
     let recorded: CloneFolderIdentity = store.slot(SLOT).expect("the sweep recorded the slot's first observation");
-    assert_eq!(recorded, CloneFolderIdentity::capture(&std::fs::File::open(parent.join(SLOT).as_path()).expect("the slot opens")).expect("the slot's identity reads"));
+    // The record is the account's underlay folder, taken before the mount landed on it: reading the same path now
+    // yields the mounted clone's own root, so the two must differ. A record equal to this would mean the sweep recorded
+    // the clone's root rather than the folder it judged.
+    let mounted_root: CloneFolderIdentity = CloneFolderIdentity::capture(&std::fs::File::open(parent.join(SLOT).as_path()).expect("the slot opens")).expect("the slot's identity reads");
+    assert_ne!(recorded, mounted_root, "the record is the underlay the sweep observed before the attach, and the slot now shows the clone's root");
     let guid: String = zfs(sbin.as_str(), "zfs", &["get", "-H", "-o", "value", "guid", clone.as_str()], None).1.trim().to_string();
     let receipt: String = std::fs::read_to_string(format!("/run/git-worktree-clone-mount-results/{guid}")).expect("the sweep filed a receipt under the clone's GUID");
     assert!(receipt.contains("outcome done"), "the receipt says the mount was observed: {receipt}");
