@@ -3,15 +3,18 @@
 Status:
 diagnosis by the coordinator session of 2026-11-21,
 unapproved and non-final.
-No workaround is verified yet.
 On 2026-11-21 the project chose that `mvm` starts the daemon itself in a user unit of its own
 ("A:
 mvm starts it",
 issue 6338),
-and that first workaround is now built.
-It is not verified:
-no real guest has run in the unit yet.
-See "Workarounds" for what is built and what is open.
+and that first workaround is built.
+One real guest has since run inside the unit (see "One real guest in the unit,
+2026-11-21"),
+and a gate review the same day found the branch not fit for three reasons this workaround now answers:
+guests dying whenever the daemon exits,
+a caller that finds the unit name still loaded and waits thirty seconds for nothing,
+and a cap that rested on an assumed guest count.
+See "Workarounds" for what is built and what is still open.
 
 ## Symptom
 
@@ -192,21 +195,38 @@ an agent's own 2-GiB slice:
   the unit's journal held its log lines,
   and stopping the unit left no process.
 
+### One real guest in the unit, 2026-11-21
+
+An integration pass on 2026-11-21 ran `mvm create` through the built CLI with the unit in place,
+from a command scope capped at 24 GiB.
+`virtqemud`,
+`virtlogd`,
+`virtiofsd` and
+`qemu-system-x86` all sat in `app.slice/mvm-libvirt-session.service`,
+not in that command's scope,
+and they stayed there after the scope ended:
+that scope's cap can no longer kill them.
+Unit properties with the guest inside:
+`Type=simple`,
+`KillMode=control-group`,
+`CollectMode=inactive-or-failed`,
+`OOMPolicy=continue`,
+`MemoryMax=38654705664` (the 36 GiB cap this doc had then),
+and `MemoryPeak=993636352`.
+The guest answered its agent and was destroyed through `mvm destroy`.
+Within two minutes a second session's 8 GiB guest joined the same unit and reached a peak of 2725593088 B,
+so one unit with every session's guests was measured,
+not assumed.
+The unit then ended by itself two idle minutes after the last guest was removed,
+but another session's guest had been in it until 2026-11-21T23:01:37-05:00,
+so an idle exit with nobody else's guest in the way is still unobserved.
+
 ### Not run
 
-- One guest created by `mvm` in the unit,
-  with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64`
-  showing the daemon and the guest in it:
-  on 2026-11-21 after the build another session's daemon was running
-  (PID 3017633,
-  started 22:18:15)
-  in `app.slice/integ-skip-lows-guest-create.scope`,
-  together with two guests that each asked for `-m size=8388608k`;
-  stopping or replacing that daemon would have killed them.
-  `mvm` used that daemon as it is,
-  which is the behaviour a running daemon gets,
-  but it is not the behaviour this fix adds.
-
+- An overshoot of the memory cap,
+  `OOMPolicy=continue` sparing the daemon when the kernel picks another process,
+  and `systemd-oomd` acting on the unit:
+  the synthetic-load ban rules these out.
 - A minimal reproduction
   (start `virsh -c qemu:///session list` inside a fresh capped scope while no daemon runs,
   then read the daemon's cgroup)
@@ -217,13 +237,19 @@ an agent's own 2-GiB slice:
   so kills before then are not counted here.
 - Which commands created the two 2-GiB scopes is not known;
   their start lines were outside the retained journal.
+- A daemon that is alive but slow for more than ten seconds is probed as dead
+  (`PROBE_DEADLINE_MS` in `package/mvm/cli/src/session-daemon.ts`),
+  which then reads as "not answering":
+  the measured probe takes 37 ms,
+  so only heavy host pressure would show this.
+  Recorded,
+  not changed.
 
 ## Workarounds
 
-None is verified yet.
-The project chose the first candidate on 2026-11-21,
-and it is built;
-the others are not.
+The project chose the first candidate on 2026-11-21;
+it is built and one real guest has run inside it.
+The other candidates are not built.
 
 ### Built: `mvm` starts the daemon itself
 
@@ -236,44 +262,108 @@ When none answers,
 `mvm` starts `virtqemud --timeout=120` itself,
 as the transient user unit `mvm-libvirt-session.service`,
 with `--collect`,
-`MemoryMax=36G` and `OOMPolicy=continue`:
+a `MemoryMax` of half this machine's total memory,
+`OOMPolicy=continue` and `ExitType=cgroup`:
 
 ```sh
+# half of MemTotal, read from /proc/meminfo when the unit starts; 31576M on this 61.7 GiB machine
 systemd-run --user --unit=mvm-libvirt-session --collect \
-  --property=MemoryMax=36G --property=OOMPolicy=continue \
+  --property=MemoryMax=31576M --property=OOMPolicy=continue \
+  --property=ExitType=cgroup \
   virtqemud --timeout=120
 ```
+
+Each setting,
+with its basis:
+
+- `MemoryMax`:
+  half of `MemTotal` from `/proc/meminfo`,
+  read when the unit starts.
+  The project chose "half of total" on 2026-11-21,
+  so every guest together may use half the machine (rule `LQM`).
+
+- `OOMPolicy=continue`:
+  the kernel kills the guest it picks rather than stopping the unit and every guest.
+  It holds against that per-process kill only;
+  `systemd-oomd` acts on the whole cgroup,
+  which one unit holding every session's guests makes a large candidate.
+
+- `ExitType=cgroup`:
+  `systemd.service(5)` on systemd 262 says a `cgroup` exit type keeps the service
+  "running as long as at least one process in the cgroup has not exited",
+  so the unit and its guests stay up when the daemon exits,
+  as a guest outlived the daemon it had on `main`.
+  `KillMode` stays the default `control-group`,
+  so a stop still kills every process in the unit.
+  Probed on 2026-11-21 with a `sleep` child standing in for a guest,
+  the unit stayed `active` with the child after its main process exited,
+  and a `systemctl --user stop` left the unit `inactive` with the child gone.
+
+- `virtqemud --timeout=120`:
+  libvirt's own idle limit,
+  so the daemon exits two idle minutes after the last guest stops,
+  and `--collect` then removes the unit.
+  A running guest keeps the daemon up.
 
 The unit name is the single owner:
 a second starter gets systemd's "already loaded" answer
 and waits for the daemon the first starter began.
+A start that finds the name still loaded,
+as it is while the previous daemon exits,
+is tried again until a daemon answers or thirty seconds pass;
+measured on 2026-11-21,
+a unit name was refused for as long as the unit ran and became free 54 ms after its main process exited.
+When the name never frees,
+the error says so and names `systemctl --user reset-failed mvm-libvirt-session.service`.
 `mvm` also runs every `virsh` call with `LIBVIRT_AUTOSTART=0`,
 so no call ever lets `virsh` start a daemon in `mvm`'s own cgroup.
 
+Never stop `mvm-libvirt-session.service` while a guest runs:
+the unit is one for every session,
+so a stop kills every session's guests,
+and it needs no stop because the daemon exits by itself and `--collect` removes the unit.
+A cleanup that stops the units it started must leave this one alone.
+
 Where it lives:
 `package/mvm/cli/src/session-daemon.ts` (the start,
-the question and the wait),
-`package/mvm/cli/src/config.ts` (the unit name,
-caps and idle limit,
-each with its basis),
+the question,
+the wait and the retries),
+`package/mvm/cli/src/session-daemon-memory.ts` (half of `MemTotal`),
+`package/mvm/cli/src/config.ts` (the unit name and the idle limit),
 and the "Session daemon" section of `package/mvm/cli/README.md` (for users).
 Measured on 2026-11-21:
 the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
 a started daemon answered 203 ms after `systemd-run` returned,
 and `systemd-run --user` returned in 8 to 29 ms.
 
+When `mvm` has no user manager to start a unit in,
+it falls back to the old on-demand start and warns,
+naming this defect and this document:
+`systemd-run` missing from `PATH`,
+or `systemd-run --user` unable to reach the user bus,
+which a caller whose `XDG_RUNTIME_DIR` is not the user manager's gets
+(recorded 2026-11-21:
+"Failed to connect to user scope bus via local transport:
+No such file or directory").
+A caller with its own runtime directory also cannot see the daemon a unit would start,
+so an isolated run needs no unit.
+
 Tradeoffs:
 `mvm` takes over a choice its README leaves to `virsh`;
 every guest is still charged to one cap,
-now one sized for four default guests of 8 GiB each,
-so a fifth default guest at once gets the largest guest killed rather than the daemon;
-a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs;
+now half the machine,
+so guests that together exceed it get the one the kernel picks killed rather than the daemon;
+a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs,
+and `package/vm-builder/cli` still runs bare `virsh` without `LIBVIRT_AUTOSTART=0`,
+so it forks daemons into its caller's cgroup:
+the same defect in another package,
+left for a change of its own because fixing it means giving that package a start of its own;
 and the Flatpak path is untested,
-where the unit runs `flatpak run --command=virtqemud`.
+where the unit runs `flatpak run --command=virtqemud`,
+because no Flatpak installation was available.
 Still open:
-one real guest created by `mvm`,
-with `ps -o pid=,cgroup= -C virtqemud,qemu-system-x86_64` showing the daemon and the guest in the unit,
-then the guest destroyed and the daemon left to exit at its idle timeout.
+an idle exit with nobody else's guest in the unit,
+and how `systemd-oomd` treats this unit.
 
 ### Not built: socket-activated user units for the daemon
 
@@ -282,10 +372,13 @@ No libvirt user units are installed here (`/usr/lib/systemd/user` holds none),
 so this means writing and enabling units in the owner's user configuration,
 which is the owner's act.
 
-Until the built workaround is verified,
-a command that may be the first to start a guest still gets a cap sized for every guest that may join it,
-and its starter never stops that scope by hand while a daemon is inside;
-it lets the scope end when the daemon exits after two idle minutes.
+Until that happens,
+a command that may be the first to start a guest still needs a cap sized for the guests that may join it,
+and its starter must not stop that scope by hand while a daemon is inside;
+the scope ends when the daemon exits after two idle minutes.
+With this workaround in place,
+the daemon and the guests live in `mvm-libvirt-session.service` instead,
+so that advice now applies only to a host where `mvm` had to fall back.
 
 ## What does not work
 
