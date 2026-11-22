@@ -41440,7 +41440,15 @@ stated in this entry. What follows from them, as work:
   faster size reader waits for the skip's merge (same fence reads). HOUSEKEEPING: the old step 3 worktree
   `zfs-step-3-reflink-rung-recognition` removed (its ignored mise file differed only by a generated line the main
   checkout has) and its branch deleted locally and on `origin`; the wrapper kept that worktree's service journal for its
-  `claim-watch` (59,400 bytes, left as a reproduction; added to issue 6322). Step 7's
+  `claim-watch` (59,400 bytes, left as a reproduction; added to issue 6322). ISSUE 6336'S ROUND ended at `d259938fd8`
+  (seven commits: the forced red slowing the second upload, the settle wait following a linked worktree's `.git` file in
+  test support, the forget seam's order control with about 100 changed lines in `held_push_release_wakes_the_service.rs`,
+  docs; gate 9625 of 9627). Its full report was lost: it answered a "gate ended" notice after the report, and
+  `summary.json` keeps only the last message (issue 6337 filed; `.agents/skills/pi-as-subagent/SKILL.md` now asks briefs for
+  the report as the very last message, mirrored with the installed `file-enforcer` 0.1.3 by its store path because
+  `mise run file-enforcer` cannot find the binary on `PATH`, the linking question already open in the owner file). GOING:
+  its integration pass on Sonnet, judging from the commits (review to
+  `~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
