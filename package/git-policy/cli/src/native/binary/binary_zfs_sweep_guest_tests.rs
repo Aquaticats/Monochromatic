@@ -1,9 +1,12 @@
 //! What:
 //!  Plan step 8's arms in the throwaway guest:
-//!  the built handler's own sweep against a real pool,
-//!  a registered slot and a clone carrying a mount request,
-//!  the same fixture with the pool's key unloaded,
-//!  and the handler's refusals with account-owned slots.
+//!  the built handler's own sweep against the design's layout,
+//!  a clone of the checkout dataset's snapshot carrying a mount request,
+//!  the same sweep again with the clone left attached,
+//!  the pool's key unloaded and loaded,
+//!  the handler's refusals,
+//!  the descriptor unmount a rollback makes,
+//!  and the child bound the listing takes.
 //! Why:
 //!  The sweep mounts a real clone as root,
 //!  writes the store under `/var/lib` and files receipts under `/run`,
@@ -12,7 +15,8 @@
 //!  (`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`,
 //!  on OpenZFS 2.4.4 in an `mvm` Ubuntu guest),
 //!  and they print `SKIP` everywhere else,
-//!  which is why the arm carries no `#[ignore]`: a harness that skips an ignored
+//!  which is why the arm carries no `#[ignore]`:
+//! a harness that skips an ignored
 //!  test would run it nowhere,
 //!  so the gate says what it did not run
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
@@ -21,6 +25,17 @@
 //!  The arm drives the built executable rather than a module,
 //!  because the sweep's order and its receipts are what an operator and a
 //!  waiting caller read.
+//!  The fixture is the design's own layout:
+//!  a checkout dataset mounted at the configured path,
+//!  a sibling container,
+//!  and a clone of the checkout's `git-worktree-clone-origin-` snapshot,
+//!  which is what the add route makes
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//!  "Dataset and path layout").
+//!  The configuration names only the checkout,
+//!  so the run reads the two dataset names through the design's fallback,
+//!  and the checkout's own mount is made private because the design's route
+//!  requires a not-shared immediate parent.
 //!  Item 1 and item 5 are repeated through the handler,
 //!  and the key arm runs both halves:
 //!  the refusal while the key is unloaded,
@@ -30,18 +45,22 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await sweep(slot('one'));            // item 1
-//! await unloadKey(parent); await sweep(slot('one')); // item 5, refused
-//! await loadKey(parent); await sweep(slot('one'));   // item 5, attached
+//! await sweep('one');                  // item 1, the design's origin
+//! await sweep('one');                  // the same clone left attached
+//! await unloadKey(encrypted); await sweep('two'); await loadKey(encrypted); await sweep('two'); // item 5
 //! ```
 
-use git_policy_cli::worktree_clone_mount::{CloneFolderIdentity, SlotIdentityStore, publish_parent_identity_under_root_control};
+use git_policy_cli::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
+use git_policy_cli::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
+use git_policy_cli::worktree_clone_mount::{
+    CloneFolderIdentity, HoldCloneSlotRequest, SlotIdentityStore, attach_the_clone, observe_the_clone_slot_under_root_control, publish_parent_identity_under_root_control, unmount_through_descriptor,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::ZfsDevice;
 use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// The variable the guest driver sets.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_GUEST";
@@ -58,14 +77,24 @@ const CHECKOUT_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_CHECKOUT";
 /// The passphrase the encrypted fixture's key is loaded with.
 const PASSPHRASE_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_PASSPHRASE";
 
-/// The unencrypted parent the first arm sweeps.
-const PLAIN_PARENT_NAME: &str = "clones";
+/// The checkout dataset's leaf name the design gives it.
+const CHECKOUT_LEAF: &str = "monochromatic-git-checkout";
 
-/// The encrypted parent the key arm sweeps.
-const ENCRYPTED_PARENT_NAME: &str = "encrypted";
+/// The container's leaf name the design gives it.
+const CONTAINER_LEAF: &str = "monochromatic-git-worktree-clone-datasets";
 
-/// The slot the clone attaches at.
+/// The first slot,
+/// which the design's clone attaches at.
 const SLOT: &str = "one";
+
+/// The second slot the key arm uses.
+const SLOT_TWO: &str = "two";
+
+/// The prefix the add route gives its origin snapshots.
+const ORIGIN_PREFIX: &str = "git-worktree-clone-origin-";
+
+/// The nonce the first arm's request carries.
+const NONCE: &str = "00112233445566778899aabbccddeeff";
 
 /// The passphrase when the driver names none,
 /// which the guest's throwaway pool accepts and no other machine ever sees.
@@ -76,6 +105,10 @@ const CONFIGURATION: &str = "/etc/monochromatic-git-policy-cli/git-worktree-clon
 
 /// The start probe's record directory inside the guest.
 const PROBE_RECORD_DIRECTORY: &str = "/run/git-worktree-clone-mount-probe";
+
+/// The first attach's record,
+/// beside the probe's.
+const FIRST_ATTACH: &str = "/run/git-worktree-clone-mount-probe/first-attach";
 
 /// The desired-state property.
 const DESIRED_STATE: &str = "org.monochromatic:git-worktree-clone-mount-desired-state";
@@ -131,6 +164,17 @@ fn zfs_ok(sbin: &str, arguments: &[&str]) {
     assert!(ok, "zfs {arguments:?} was refused: {error}");
 }
 
+/// Run one `zfs` command whose failure this arm expects.
+fn zfs_ignored(sbin: &str, arguments: &[&str]) {
+    let (_ok, _out, _error): (bool, String, String) = zfs(sbin, "zfs", arguments, None);
+}
+
+/// Run one program and require it succeeded.
+fn command_ok(program: &str, arguments: &[&str]) {
+    let status: std::process::ExitStatus = Command::new(program).args(arguments).status().unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
+    assert!(status.success(), "{program} {arguments:?} was refused");
+}
+
 /// Whether any mount claims the dataset as its source.
 fn mounted(dataset: &str) -> bool {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the arm reads this process's mount table");
@@ -160,7 +204,7 @@ struct Run {
     /// joined.
     said: String,
     /// How long it took.
-    elapsed: std::time::Duration,
+    elapsed: Duration,
 }
 
 /// Run the built handler's default invocation,
@@ -179,20 +223,31 @@ fn sweep() -> Run {
 /// The line the sweep printed about one dataset,
 /// or nothing when it printed none.
 fn line_about<'a>(said: &'a str, dataset: &str) -> Option<&'a str> {
-    return said.lines().find(|line| return line.contains(dataset) && (line.starts_with("attached ") || line.starts_with("refused ") || line.starts_with("nothing ") || line.starts_with("failed ") || line.starts_with("held ")));
+    return said.lines().find(|line| {
+        return line.contains(dataset) && (line.starts_with("attached ") || line.starts_with("refused ") || line.starts_with("nothing ") || line.starts_with("failed ") || line.starts_with("held "));
+    });
 }
 
 /// Write the handler configuration the sweep reads.
-fn write_configuration(parent: &str, checkout: &Path) {
+/// A name this arm does not give is left out,
+/// which is the file the design's fallback reads.
+fn write_configuration(checkout: &Path, parent: Option<&str>, checkout_dataset: Option<&str>) {
     let directory: &Path = Path::new(CONFIGURATION).parent().expect("the configuration has a folder");
     std::fs::create_dir_all(directory).expect("the configuration folder is made");
+    let mut members: Vec<String> = vec![format!(r#""checkout": "{}""#, checkout.display())];
+    if let Some(container) = parent {
+        members.push(format!(r#""parent": "{container}""#));
+    }
+    if let Some(dataset) = checkout_dataset {
+        members.push(format!(r#""checkoutDataset": "{dataset}""#));
+    }
     let text: String = format!(
         r#"{{
   // written by plan step 8's guest arm
-  "cloneMounts": {{ "parent": "{parent}", "checkout": "{}" }}
+  "cloneMounts": {{ {} }}
 }}
 "#,
-        checkout.display()
+        members.join(", ")
     );
     std::fs::write(CONFIGURATION, text).expect("the configuration is written");
     std::fs::set_permissions(CONFIGURATION, std::fs::Permissions::from_mode(0o644)).expect("the configuration holds its mode");
@@ -200,20 +255,28 @@ fn write_configuration(parent: &str, checkout: &Path) {
 
 /// What:
 ///  Write the start probe's record for this boot as a passed one,
-///  so the sweep's first check passes for the reason a probed boot gives.
+///  in the mode's own shape and with the live fingerprint.
 /// Why:
-///  The arm proves the sweep,
-///  and step 6's arms prove the probe;
-///  a record written here is the fixture the sweep reads,
-///  and its `verdict passed` line is the one the mode itself writes.
-fn write_passing_probe_record(variable: &str) {
-    let boot: String = std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("the boot identifier is readable").trim().to_string();
+///  The sweep compares the record's boot and its four fingerprint lines with
+///  the running machine,
+///  so a hand-written record that named no kernel or module would be stale and
+///  the arm would prove nothing about the sweep.
+fn write_passing_probe_record() {
+    let live: ProbeFingerprint = ProbeFingerprint::read(&FingerprintPaths::live()).expect("the guest's fingerprint reads");
     std::fs::create_dir_all(PROBE_RECORD_DIRECTORY).expect("the probe record's folder is made");
-    let text: String = format!("v1\nkind git-worktree-clone-mount-probe\nboot {boot}\nstate finished\ntime 2026-11-22T00:00:00+00:00\nverdict passed\nverdict-step none\nskip-reason none\n");
+    let text: String = format!(
+        "{RECORD_VERSION}\nkind {RECORD_KIND}\nstate finished\nboot {}\nkernel {}\nmodule {}\nsrcversion {}\nbuild-id {}\nhandler {}\ntime 2026-11-22T00:00:00+00:00\nverdict passed\nverdict-step none\nskip-reason none\n",
+        live.boot_id,
+        live.kernel_release,
+        live.module_version.as_deref().unwrap_or(ABSENT),
+        live.module_srcversion.as_deref().unwrap_or(ABSENT),
+        live.module_build_id.as_deref().unwrap_or(ABSENT),
+        live.handler.as_deref().unwrap_or(ABSENT)
+    );
     let record: PathBuf = Path::new(PROBE_RECORD_DIRECTORY).join("result");
     std::fs::write(record.as_path(), text).expect("the probe record is written");
     std::fs::set_permissions(record.as_path(), std::fs::Permissions::from_mode(0o644)).expect("the probe record holds its mode");
-    let _ = variable;
+    let _cleared: std::io::Result<()> = std::fs::remove_file(FIRST_ATTACH);
 }
 
 /// What:
@@ -235,53 +298,83 @@ fn prepare_the_store(checkout: &Path) {
 }
 
 /// What:
-///  Create one clone parent with the two safety properties and a legacy
-///  mountpoint,
-///  and the snapshot its clones are made from.
+///  A slot folder Git registered,
+///  holding the pointer this checkout's registration gives it.
 /// Why:
-///  The sweep verifies exactly these facts,
-///  so the fixture is the shape the design's container leaves.
-///  A parent an earlier attempt left is destroyed first,
-///  so a re-run in the same guest starts from the same state.
-fn reset_parent(sbin: &str, parent: &str) {
-    let _ignored: (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-r", "-f", parent], None);
-    zfs_ok(sbin, &["create", parent]);
-    zfs_ok(sbin, &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", parent]);
-    zfs_ok(sbin, &["snapshot", &format!("{parent}@origin")]);
+///  The first observation reads the slot's `.git` and refuses a slot that holds
+///  no registration of this checkout,
+///  so an empty folder is not a fixture the sweep mounts.
+fn make_the_slot(checkout: &Path, slot: &str) {
+    let folder: PathBuf = checkout.join(".claude").join("worktrees").join(slot);
+    std::fs::create_dir_all(folder.as_path()).expect("the slot folder is made");
+    std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the slot folder holds its mode");
+    let pointer: String = format!("gitdir: {}\n", checkout.join(".git").join("worktrees").join(slot).display());
+    std::fs::write(folder.join(".git"), pointer).expect("the slot's Git pointer is written");
 }
 
-/// One clone of `parent`'s origin at the slot,
-/// asking for its mount with `intent` when one is given.
-fn clone_at_the_slot(sbin: &str, parent: &str, intent: Option<&str>) -> String {
-    let clone: String = format!("{parent}/{SLOT}");
-    zfs_ok(sbin, &["clone", &format!("{parent}@origin"), &clone]);
+/// What:
+///  The design's layout in this guest:
+///  a checkout dataset mounted at the configured path,
+///  its private propagation,
+///  and a sibling container.
+/// Why:
+///  The origin rule is the checkout dataset's snapshot,
+///  and the fallback finds the container beside the checkout dataset,
+///  so the fixture is the design's layout rather than a folder on the guest's
+///  root.
+fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, String) {
+    let base: String = format!("{pool}/step8");
+    let checkout_dataset: String = format!("{base}/{CHECKOUT_LEAF}");
+    let container: String = format!("{base}/{CONTAINER_LEAF}");
+    zfs_ignored(sbin, &["destroy", "-r", "-f", base.as_str()]);
+    let mountpoint: String = format!("mountpoint={}", checkout.display());
+    zfs_ok(sbin, &["create", "-p", "-o", mountpoint.as_str(), checkout_dataset.as_str()]);
+    // The design requires a not-shared immediate parent, which its boot unit sets; this arm sets it for the checkout
+    // alone, exactly as item 3 of the design's measurements did.
+    command_ok("mount", &["--make-private", checkout.display().to_string().as_str()]);
+    zfs_ok(sbin, &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", container.as_str()]);
+    std::fs::create_dir_all(checkout.join(".claude").join("worktrees").as_path()).expect("the checkout chain is made");
+    return (checkout_dataset, container);
+}
+
+/// What:
+///  One clone of the checkout dataset's fresh snapshot at the slot,
+///  asking for its mount,
+///  which is the shape the design's add route makes.
+/// Why:
+///  The origin must be a snapshot of the checkout dataset under the add route's
+///  prefix,
+///  so the fixture is that snapshot and this is the clone of it.
+fn clone_the_checkouts_snapshot(sbin: &str, checkout_dataset: &str, container: &str, slot: &str, snapshot_suffix: &str, intent: Option<&str>) -> String {
+    let snapshot: String = format!("{checkout_dataset}@{ORIGIN_PREFIX}{snapshot_suffix}");
+    zfs_ok(sbin, &["snapshot", snapshot.as_str()]);
+    let clone: String = format!("{container}/{slot}");
+    zfs_ok(sbin, &["clone", snapshot.as_str(), clone.as_str()]);
     if let Some(value) = intent {
-        let assignment: String = format!("{DESIRED_STATE}={value}");
-        zfs_ok(sbin, &["set", &assignment, &clone]);
+        zfs_ok(sbin, &["set", format!("{DESIRED_STATE}={value}").as_str(), clone.as_str()]);
     }
     return clone;
 }
 
-/// The nonce one arm's request carries,
-/// which a receipt must match.
-const NONCE: &str = "00112233445566778899aabbccddeeff";
-
 /// The mount request one clone carries.
-fn mount_request() -> String {
-    return format!("v1:{NONCE}:mount");
+fn mount_request(nonce: &str) -> String {
+    return format!("v1:{nonce}:mount");
 }
 
 /// What:
-///  Item 1 and item 5 repeated through the built handler,
-///  and the handler's own refusals:
-///  one sweep mounts a real clone at its slot,
-///  records the slot's first observation and files a receipt,
-///  the same clone refuses while the pool's key is unloaded,
-///  the same sweep attaches after the load,
-///  and a malformed,
-///  an inherited and a foreign intent each authorize nothing.
+///  Every arm of plan step 8 in one run of the built handler:
+///  the design's clone attached and its `done` receipt kept across a second
+///  sweep with the mount standing,
+///  the pool's key unloaded and loaded,
+///  the handler's refusals,
+///  the descriptor unmount a rollback makes,
+///  and the child bound the listing takes.
+/// Why:
+///  Each arm changes the guest's datasets,
+///  so one arm owns them for the whole run and the driver's markers say which
+///  arm ran.
 #[test]
-fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
+fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     if !guest() {
         return;
     }
@@ -289,107 +382,208 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     let sbin: String = required(SBIN_VARIABLE);
     let checkout: PathBuf = PathBuf::from(required(CHECKOUT_VARIABLE));
     let passphrase: String = std::env::var(PASSPHRASE_VARIABLE).unwrap_or_else(|_error| return String::from(DEFAULT_PASSPHRASE));
-    let parent: PathBuf = checkout.join(".claude").join("worktrees");
-    std::fs::create_dir_all(parent.join(SLOT)).expect("the slot folder is made");
-    std::fs::set_permissions(parent.join(SLOT), std::fs::Permissions::from_mode(0o755)).expect("the slot folder holds its mode");
-    write_passing_probe_record(GUEST_VARIABLE);
+    let (checkout_dataset, container): (String, String) = make_the_designs_layout(sbin.as_str(), pool.as_str(), checkout.as_path());
+    make_the_slot(checkout.as_path(), SLOT);
+    write_passing_probe_record();
     prepare_the_store(checkout.as_path());
     let _device = ZfsDevice::open().expect("the guest permits the device");
 
-    // Item 1: a clone that asks for its mount is attached by one sweep run.
-    write_configuration(format!("{pool}/{PLAIN_PARENT_NAME}").as_str(), checkout.as_path());
-    let plain_parent: String = format!("{pool}/{PLAIN_PARENT_NAME}");
-    reset_parent(sbin.as_str(), plain_parent.as_str());
-    let clone: String = clone_at_the_slot(sbin.as_str(), plain_parent.as_str(), Some(mount_request().as_str()));
+    // The configuration names only the checkout, so the two dataset names come from the design's fallback.
+    write_configuration(checkout.as_path(), None, None);
+    let nonce: &str = NONCE;
+    let clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), SLOT, nonce, Some(mount_request(nonce).as_str()));
+    let slot_folder: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
+
+    // Item 1 and H1: a clone of the checkout's snapshot, at the design's layout, is attached by one sweep run.
     let first: Run = sweep();
     assert_eq!(first.status, Some(0), "a sweep that reached the end exits successfully: {}", first.said);
     let attached: &str = line_about(first.said.as_str(), clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {clone}: {}", first.said));
-    assert!(attached.starts_with("attached "), "item 1's clone is attached: {attached}");
+    assert!(attached.starts_with("attached "), "item 1's designed clone is attached: {attached}");
     println!("MEASUREMENT sweep-attach-ms={}", first.elapsed.as_millis());
-    println!("SWEEP attached item=1 slot={SLOT} mount-row={}", mount_row(parent.join(SLOT).as_path()).unwrap_or_default());
-    let row: String = mount_row(parent.join(SLOT).as_path()).expect("the slot is a mount point after the attach");
-    assert!(row.contains(",nosuid,") || row.contains("nosuid"), "the mount carries nosuid: {row}");
-    assert!(row.contains(",nodev,") || row.contains("nodev"), "the mount carries nodev: {row}");
+    println!("SWEEP attached item=1 slot={SLOT} origin=checkout-snapshot mount-row={}", mount_row(slot_folder.as_path()).unwrap_or_default());
+    let row: String = mount_row(slot_folder.as_path()).expect("the slot is a mount point after the attach");
+    assert!(row.contains("nosuid"), "the mount carries nosuid: {row}");
+    assert!(row.contains("nodev"), "the mount carries nodev: {row}");
     assert!(row.contains(&format!(" - zfs {clone} ")), "the mount's source is the clone: {row}");
     let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(STORE)).expect("the store opens");
     let recorded: CloneFolderIdentity = store.slot(SLOT).expect("the sweep recorded the slot's first observation");
-    // The record is the account's underlay folder, taken before the mount landed on it: reading the same path now
-    // yields the mounted clone's own root, so the two must differ. A record equal to this would mean the sweep recorded
-    // the clone's root rather than the folder it judged.
-    let mounted_root: CloneFolderIdentity = CloneFolderIdentity::capture(&std::fs::File::open(parent.join(SLOT).as_path()).expect("the slot opens")).expect("the slot's identity reads");
-    assert_ne!(recorded, mounted_root, "the record is the underlay the sweep observed before the attach, and the slot now shows the clone's root");
+    let mounted_root: CloneFolderIdentity = CloneFolderIdentity::capture(&std::fs::File::open(slot_folder.as_path()).expect("the slot opens")).expect("the slot's identity reads");
+    assert_ne!(recorded, mounted_root, "the record is the underlay the sweep observed before the attach");
     let guid: String = zfs(sbin.as_str(), "zfs", &["get", "-H", "-o", "value", "guid", clone.as_str()], None).1.trim().to_string();
-    let receipt: String = std::fs::read_to_string(format!("/run/git-worktree-clone-mount-results/{guid}")).expect("the sweep filed a receipt under the clone's GUID");
+    let receipt_path: String = format!("/run/git-worktree-clone-mount-results/{guid}");
+    let receipt: String = std::fs::read_to_string(receipt_path.as_str()).expect("the sweep filed a receipt under the clone's GUID");
     assert!(receipt.contains("outcome done"), "the receipt says the mount was observed: {receipt}");
-    assert!(receipt.contains(NONCE), "the receipt carries the request's nonce: {receipt}");
-    unmount_at(parent.join(SLOT).as_path());
-    assert!(!mounted(clone.as_str()), "the control's cleanup took the mount down");
+    assert!(receipt.contains(nonce), "the receipt carries the request's nonce: {receipt}");
+    // M5: this boot's first attach records the verified mount and the flags read back.
+    let first_attach: String = std::fs::read_to_string(FIRST_ATTACH).expect("this boot's first attach is recorded");
+    assert!(first_attach.contains("kind operation-outcome"), "{first_attach}");
+    assert!(first_attach.contains("outcome attached"), "the first attach records the mount: {first_attach}");
+    assert!(first_attach.contains(&format!("mount ")), "{first_attach}");
+    assert!(first_attach.contains("flags rw"), "the first attach records the flags read back: {first_attach}");
+    assert!(first_attach.contains(&format!("slot {SLOT}")), "{first_attach}");
+    assert!(first_attach.contains(&format!("clone {clone}")), "{first_attach}");
+    assert!(first_attach.contains(&format!("guid {guid}")), "{first_attach}");
+    println!("SWEEP first-attach outcome=attached slot={SLOT}");
 
-    // Item 5: the same fixture with the pool's key unloaded refuses as a key
-    // question, and the same sweep attaches after the load.
-    let encrypted: String = format!("{pool}/{ENCRYPTED_PARENT_NAME}");
-    let _ignored: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["destroy", "-r", "-f", encrypted.as_str()], None);
-    // A dataset created with `keylocation=prompt` asks for its passphrase as it is made, so the passphrase is fed to this
-    // call as well as to the load.
+    // H2: the second sweep with the mount standing answers attached and keeps the done receipt.
+    let before: String = std::fs::read_to_string(receipt_path.as_str()).expect("the receipt reads");
+    let second: Run = sweep();
+    let again: &str = line_about(second.said.as_str(), clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {clone}: {}", second.said));
+    assert!(again.starts_with("attached "), "a clone that stays attached is still attached: {again}");
+    assert!(mount_row(slot_folder.as_path()).is_some(), "the sweep left the standing mount where it was");
+    let after: String = std::fs::read_to_string(receipt_path.as_str()).expect("the receipt reads");
+    assert!(after.contains("outcome done"), "the done receipt is kept rather than replaced by a refusal: {after}");
+    assert!(after.contains(nonce), "the kept receipt carries the same nonce: {after}");
+    assert!(after.contains("mount-id"), "the kept receipt still names the mount: {after}");
+    assert!(before.contains("outcome done"), "the first receipt was a done one: {before}");
+    println!("SWEEP attached twice=1 slot={SLOT} standing=true");
+    println!("SWEEP twice-swept receipt=done nonce={nonce}");
+    unmount_at(slot_folder.as_path());
+    assert!(!mounted(clone.as_str()), "the control's cleanup took the mount down");
+    // The clone keeps its request after the arm, so it is taken off before the later arms sweep this container.
+    zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, clone.as_str()]);
+    let _slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
+
+    // Item 5: an encrypted checkout dataset whose key is unloaded refuses as a key question and files a receipt naming
+    // it, and the same sweep attaches after the load.
+    let encrypted_base: String = format!("{pool}/step8-encrypted");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", encrypted_base.as_str()]);
+    let encrypted_checkout: String = format!("{encrypted_base}/{CHECKOUT_LEAF}");
     let created: (bool, String, String) = zfs(
         sbin.as_str(),
         "zfs",
-        &["create", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", encrypted.as_str()],
+        &["create", "-p", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", encrypted_checkout.as_str()],
         Some(format!("{passphrase}\n{passphrase}\n").as_str()),
     );
     assert!(created.0, "the encrypted fixture is created: {}", created.2);
-    // The create that named this passphrase also loaded the key, so no separate load follows it here; the arm's own
-    // load is the one after the unload below.
-    zfs_ok(sbin.as_str(), &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", encrypted.as_str()]);
-    zfs_ok(sbin.as_str(), &["snapshot", &format!("{encrypted}@origin")]);
-    let encrypted_clone: String = clone_at_the_slot(sbin.as_str(), encrypted.as_str(), Some(mount_request().as_str()));
-    write_configuration(encrypted.as_str(), checkout.as_path());
-    let _encrypted_slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
-    prepare_the_store(checkout.as_path());
-    zfs_ok(sbin.as_str(), &["unload-key", encrypted.as_str()]);
+    let encrypted_container: String = format!("{encrypted_base}/{CONTAINER_LEAF}");
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", encrypted_container.as_str()]);
+    make_the_slot(checkout.as_path(), SLOT_TWO);
+    let encrypted_nonce: &str = "00112233445566778899aabbccddee01";
+    let encrypted_clone: String = clone_the_checkouts_snapshot(sbin.as_str(), encrypted_checkout.as_str(), encrypted_container.as_str(), SLOT_TWO, encrypted_nonce, Some(mount_request(encrypted_nonce).as_str()));
+    write_configuration(checkout.as_path(), Some(encrypted_container.as_str()), Some(encrypted_checkout.as_str()));
+    zfs_ok(sbin.as_str(), &["unload-key", encrypted_checkout.as_str()]);
     let unloaded: Run = sweep();
     let refused: &str = line_about(unloaded.said.as_str(), encrypted_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {encrypted_clone}: {}", unloaded.said));
     assert!(refused.starts_with("refused ") && refused.contains("step=key-unavailable"), "an unloaded key is refused as itself: {refused}");
     assert!(!mounted(encrypted_clone.as_str()), "an unloaded key mounts nothing: {}", unloaded.said);
-    assert!(mount_row(parent.join(SLOT).as_path()).is_none(), "an unloaded key leaves the slot unmounted");
-    println!("SWEEP refusal item=5 step=key-unavailable");
-    let loaded_again: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["load-key", encrypted.as_str()], Some(format!("{passphrase}\n").as_str()));
+    let encrypted_guid: String = zfs(sbin.as_str(), "zfs", &["get", "-H", "-o", "value", "guid", encrypted_clone.as_str()], None).1.trim().to_string();
+    let key_receipt: String = std::fs::read_to_string(format!("/run/git-worktree-clone-mount-results/{encrypted_guid}")).expect("an unavailable key files a receipt");
+    assert!(key_receipt.contains("outcome refused"), "the key refusal files a refused receipt: {key_receipt}");
+    assert!(key_receipt.contains("step key-unavailable"), "the receipt names the key step: {key_receipt}");
+    println!("SWEEP refusal item=5 step=key-unavailable receipt=refused");
+    let loaded_again: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["load-key", encrypted_checkout.as_str()], Some(format!("{passphrase}\n").as_str()));
     assert!(loaded_again.0, "the key loads again: {}", loaded_again.2);
-    let second: Run = sweep();
-    let attached_again: &str = line_about(second.said.as_str(), encrypted_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {encrypted_clone}: {}", second.said));
+    let second_key: Run = sweep();
+    let attached_again: &str = line_about(second_key.said.as_str(), encrypted_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {encrypted_clone}: {}", second_key.said));
     assert!(attached_again.starts_with("attached "), "item 5's clone is attached after the key load: {attached_again}");
-    println!("SWEEP attached item=5 slot={SLOT} mount-row={}", mount_row(parent.join(SLOT).as_path()).unwrap_or_default());
-    unmount_at(parent.join(SLOT).as_path());
+    println!("SWEEP attached item=5 slot={SLOT_TWO} mount-row={}", mount_row(checkout.join(".claude").join("worktrees").join(SLOT_TWO).as_path()).unwrap_or_default());
+    unmount_at(checkout.join(".claude").join("worktrees").join(SLOT_TWO).as_path());
     assert!(!mounted(encrypted_clone.as_str()));
+    let _second_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT_TWO));
 
-    // The handler's own refusals: a malformed intent, an inherited one and a
-    // clone of another parent's snapshot each authorize nothing.
+    // The handler's own refusals, on clones of the design's checkout snapshot in the plain container: a malformed
+    // intent and an inherited one each authorize nothing.
+    write_configuration(checkout.as_path(), None, None);
+    let refusing_nonce: &str = "00112233445566778899aabbccddee03";
+    let refusing_slot: &str = "six";
+    make_the_slot(checkout.as_path(), refusing_slot);
+    let refusing_clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), refusing_slot, refusing_nonce, None);
     let malformed: String = String::from("v1:nothex:mount");
-    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={malformed}").as_str(), encrypted_clone.as_str()]);
+    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={malformed}").as_str(), refusing_clone.as_str()]);
     let malformed_run: Run = sweep();
-    let refused_malformed: &str = line_about(malformed_run.said.as_str(), encrypted_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {encrypted_clone}: {}", malformed_run.said));
+    let refused_malformed: &str = line_about(malformed_run.said.as_str(), refusing_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {refusing_clone}: {}", malformed_run.said));
     assert!(refused_malformed.starts_with("refused ") && refused_malformed.contains("step=intent"), "a malformed intent is refused before any work: {refused_malformed}");
-    assert!(!mounted(encrypted_clone.as_str()), "a malformed intent mounts nothing");
+    assert!(!mounted(refusing_clone.as_str()), "a malformed intent mounts nothing");
     println!("SWEEP refusal item=2 step=intent");
-    zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, encrypted_clone.as_str()]);
-    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request()).as_str(), encrypted.as_str()]);
+    zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, refusing_clone.as_str()]);
+    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request(refusing_nonce)).as_str(), container.as_str()]);
     let inherited_run: Run = sweep();
-    let nothing: &str = line_about(inherited_run.said.as_str(), encrypted_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {encrypted_clone}: {}", inherited_run.said));
+    let nothing: &str = line_about(inherited_run.said.as_str(), refusing_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {refusing_clone}: {}", inherited_run.said));
     assert!(nothing.starts_with("nothing ") && nothing.contains("inherited"), "an inherited intent authorizes nothing: {nothing}");
-    assert!(!mounted(encrypted_clone.as_str()), "an inherited intent mounts nothing");
     println!("SWEEP nothing inherited=true");
-    zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, encrypted.as_str()]);
-    let foreign: String = format!("{pool}/foreign");
-    reset_parent(sbin.as_str(), foreign.as_str());
-    let foreign_clone: String = format!("{encrypted}/{SLOT}");
-    zfs_ok(sbin.as_str(), &["destroy", &foreign_clone]);
-    zfs_ok(sbin.as_str(), &["clone", &format!("{foreign}@origin"), &foreign_clone]);
-    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request()).as_str(), foreign_clone.as_str()]);
-    let _foreign_slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
-    let foreign_run: Run = sweep();
-    let refused_foreign: &str = line_about(foreign_run.said.as_str(), foreign_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {foreign_clone}: {}", foreign_run.said));
-    assert!(refused_foreign.starts_with("refused ") && refused_foreign.contains("step=clone-origin"), "a clone of another parent is refused: {refused_foreign}");
-    assert!(!mounted(foreign_clone.as_str()), "a clone of another parent mounts nothing");
+    zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, container.as_str()]);
+
+    // A clone of the container's own snapshot is the shape H1 refused every designed clone as; it is not the add
+    // route's origin, so it is refused as one.
+    let nested_slot: &str = "three";
+    make_the_slot(checkout.as_path(), nested_slot);
+    zfs_ok(sbin.as_str(), &["snapshot", &format!("{container}@origin")]);
+    let nested: String = format!("{container}/{nested_slot}");
+    zfs_ok(sbin.as_str(), &["clone", &format!("{container}@origin"), nested.as_str()]);
+    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request(nonce)).as_str(), nested.as_str()]);
+    let nested_run: Run = sweep();
+    let refused_nested: &str = line_about(nested_run.said.as_str(), nested.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {nested}: {}", nested_run.said));
+    assert!(refused_nested.starts_with("refused ") && refused_nested.contains("step=clone-origin"), "a clone of the container's snapshot is refused: {refused_nested}");
+    assert!(!mounted(nested.as_str()), "a clone of the container's snapshot mounts nothing");
     println!("SWEEP refusal item=2 step=clone-origin");
-    println!("SWEEP done pool={pool} slot={SLOT}");
+
+    // A clone of another checkout dataset's snapshot is another lineage.
+    let foreign_checkout: String = format!("{pool}/step8-foreign/{CHECKOUT_LEAF}");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8-foreign").as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", foreign_checkout.as_str()]);
+    let foreign_slot: &str = "four";
+    make_the_slot(checkout.as_path(), foreign_slot);
+    zfs_ok(sbin.as_str(), &["snapshot", &format!("{foreign_checkout}@{ORIGIN_PREFIX}{nonce}")]);
+    let foreign: String = format!("{container}/{foreign_slot}");
+    zfs_ok(sbin.as_str(), &["clone", &format!("{foreign_checkout}@{ORIGIN_PREFIX}{nonce}"), foreign.as_str()]);
+    zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request(nonce)).as_str(), foreign.as_str()]);
+    let foreign_run: Run = sweep();
+    let refused_foreign: &str = line_about(foreign_run.said.as_str(), foreign.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {foreign}: {}", foreign_run.said));
+    assert!(refused_foreign.starts_with("refused ") && refused_foreign.contains("step=clone-origin"), "a clone of another checkout dataset is refused: {refused_foreign}");
+    println!("SWEEP refusal item=2 step=clone-origin-foreign");
+
+    // The descriptor unmount a rollback makes: the mount a held descriptor placed stands at the moved path while a
+    // holder remains, the unmount answers EBUSY and takes nothing down, and the same call succeeds after the holder
+    // leaves.
+    let held_slot: &str = "five";
+    make_the_slot(checkout.as_path(), held_slot);
+    let rollback_clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), held_slot, "00112233445566778899aabbccddee02", None);
+    let store_handle: SlotIdentityStore = SlotIdentityStore::open_under_root_control(Path::new(STORE)).expect("the store opens");
+    let _ = store_handle;
+    let walk_request: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest { checkout: checkout.as_path(), slot: held_slot, store: Path::new(STORE) };
+    let held = observe_the_clone_slot_under_root_control(&walk_request).expect("the fixture slot is held by descriptor");
+    let worktrees_parent: PathBuf = checkout.join(".claude");
+    let moved_parent: PathBuf = checkout.join(".claude-moved-by-probe");
+    std::fs::rename(worktrees_parent.as_path(), moved_parent.as_path()).expect("the walk's parent is renamed under the held descriptors");
+    let attached_mount = attach_the_clone(rollback_clone.as_str(), &held.target).expect("the clone attaches through the held descriptor");
+    let moved_slot: PathBuf = moved_parent.join("worktrees").join(held_slot);
+    let canonical_slot: PathBuf = worktrees_parent.join("worktrees").join(held_slot);
+    assert!(mount_row(moved_slot.as_path()).is_some(), "the mount landed at the moved path the descriptor names");
+    assert!(mount_row(canonical_slot.as_path()).is_none(), "no mount stands at the canonical slot");
+    let mut holder = Command::new("sh").arg("-c").arg(format!("cd {} && sleep 60", moved_slot.display())).spawn().expect("the holder starts");
+    std::thread::sleep(Duration::from_millis(250));
+    let busy = unmount_through_descriptor(&held.target).expect_err("a mount a holder stands in answers EBUSY");
+    assert_eq!(busy.errno, libc::EBUSY, "the unmount answered the kernel's EBUSY: {busy:?}");
+    assert!(mount_row(moved_slot.as_path()).is_some(), "the busy unmount took nothing down");
+    println!("SWEEP rollback unmount=EBUSY mount={} standing=true", attached_mount.mount_id);
+    let _ = holder.kill();
+    let _ = holder.wait();
+    std::thread::sleep(Duration::from_millis(250));
+    unmount_through_descriptor(&held.target).expect("the same call succeeds after the holder left");
+    assert!(mount_row(moved_slot.as_path()).is_none(), "the mount left the kernel");
+    println!("SWEEP rollback unmount=ok mount={} standing=false", attached_mount.mount_id);
+    std::fs::rename(moved_parent.as_path(), worktrees_parent.as_path()).expect("the parent folder is restored");
+
+    // The child bound the listing takes: one sweep over more children than it visits stops at the bound and says so,
+    // and the time it took is the number beside the constant.
+    let bound_parent: String = format!("{pool}/step8-bound/clones");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8-bound").as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "mountpoint=legacy", "canmount=off", bound_parent.as_str()]);
+    let children: usize = git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN + 1;
+    let children_created: (bool, String, String) = zfs(
+        sbin.as_str(),
+        "sh",
+        &["-c", format!("i=0; while [ $i -lt {children} ]; do zfs create {bound_parent}/c$i || exit 1; i=$((i+1)); done").as_str()],
+        None,
+    );
+    assert!(children_created.0, "the bound's children are created: {}", children_created.2);
+    write_configuration(checkout.as_path(), Some(bound_parent.as_str()), Some(checkout_dataset.as_str()));
+    let bounded: Run = sweep();
+    assert_eq!(bounded.status, Some(0), "a listing that stopped is still a run that reached its end: {}", bounded.said);
+    assert!(bounded.said.contains("The listing stopped:"), "the run says the listing stopped: {}", bounded.said);
+    assert!(bounded.said.contains(&format!("more than the {} children", git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN)), "the stop names the bound: {}", bounded.said);
+    println!("MEASUREMENT child-bound-listing-ms={} children={} bound={}", bounded.elapsed.as_millis(), children, git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN);
+    println!("SWEEP bound stopped=true children={children}");
+    println!("SWEEP done pool={pool} layout=design slot={SLOT}");
 }

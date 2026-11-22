@@ -22,8 +22,11 @@
 //! const facts = bootFacts(configuration, reader, recordPath); // { boot, poolName, poolState, checkout, checkoutState }
 //! ```
 
+use super::sweep_checkout_mount::{CheckoutMount, CheckoutMounts};
 use super::sweep_configuration::SweepConfiguration;
 use super::sweep_dataset_reader::DatasetReader;
+use crate::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
+use crate::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
 use crate::start_probe::{RECORD_DIRECTORY, RESULT_NAME};
 use crate::worktree_clone_mount::clone_slot_walk_refusals::WalkRefusalReason;
 use crate::worktree_clone_mount::hold_the_worktrees_parent;
@@ -120,6 +123,25 @@ pub enum ProbeRefusal {
         /// The step the verdict names.
         step: String,
     },
+    /// The record is no `v1` `probe-result` of this build's shape.
+    NotARecord {
+        /// The path that was read.
+        path: PathBuf,
+        /// What about the record is not the expected shape.
+        said: String,
+    },
+    /// One fingerprint line names another value than the running one,
+    /// so the record is stale.
+    Stale {
+        /// The path that was read.
+        path: PathBuf,
+        /// The line that differs.
+        line: &'static str,
+        /// The value the record holds.
+        named: String,
+        /// The value the running kernel or module reports.
+        running: String,
+    },
     /// The pool is not ready.
     PoolNotReady {
         /// The pool's name.
@@ -155,6 +177,10 @@ impl ProbeRefusal {
             ProbeRefusal::Blocked { path, verdict, step } => {
                 format!("the start probe's record {path:?} carries the verdict `{verdict}` and names the step `{step}`, so the managed route is blocked for this boot")
             }
+            ProbeRefusal::NotARecord { path, said } => format!("the start probe's record {path:?} is no record this route reads: {said}"),
+            ProbeRefusal::Stale { path, line, named, running } => format!(
+                "the start probe's record {path:?} names `{line} {named}` and this machine reports `{line} {running}`, so the record is stale: it judged another kernel, module or boot"
+            ),
             ProbeRefusal::PoolNotReady { pool, state } => format!("the pool `{pool}` is `{}` and only a ready pool admits an attach", state.word()),
             ProbeRefusal::CheckoutNotReady { checkout, state, said } => format!("the checkout {} is `{}` and only a ready checkout admits an attach: {said}", checkout.display(), state.word()),
         };
@@ -253,7 +279,58 @@ pub fn read_probe_standing(path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
             _ => ProbeRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
         };
     })?;
-    return probe_standing(record.as_str(), boot.as_str(), path);
+    let running: ProbeFingerprint = ProbeFingerprint::read(&FingerprintPaths::live()).map_err(|refusal| return ProbeRefusal::BootId { reason: refusal.message() })?;
+    let standing: ProbeStanding = probe_standing(record.as_str(), boot.as_str(), path)?;
+    probe_fingerprint_standing(record.as_str(), &running, path)?;
+    return Ok(standing);
+}
+
+/// What:
+///  Whether the record is this build's `v1` `probe-result` and pins the running
+///  kernel,
+///  module and boot.
+/// Why:
+///  The SPEC's own rule is that "a record whose fingerprint differs from the
+///  running kernel,
+///  module or boot is stale"
+///  and that "`passed` enables managed attaches for this boot and module
+///  identity"
+///  (`package/git-policy/cli/SPEC.md`,
+///  "The start probe").
+///  Comparing the boot and the verdict alone would accept a record written
+///  before a module reload within one boot,
+///  so the four fingerprint lines are compared with the live values and the
+///  file's version and kind are required as well.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// probeFingerprintStanding(record, runningFingerprint, path);
+/// ```
+///
+/// # Errors
+/// The file is no `v1` `probe-result`,
+/// or one fingerprint line names another value than the running one.
+pub fn probe_fingerprint_standing(record: &str, running: &ProbeFingerprint, path: &Path) -> Result<(), ProbeRefusal> {
+    let first: Option<&str> = record.lines().next();
+    if first != Some(RECORD_VERSION) {
+        return Err(ProbeRefusal::NotARecord { path: path.to_path_buf(), said: format!("its first line is `{}` rather than `{RECORD_VERSION}`", first.unwrap_or("nothing")) });
+    }
+    let kind: Option<String> = line_of(record, "kind");
+    if kind.as_deref() != Some(RECORD_KIND) {
+        return Err(ProbeRefusal::NotARecord { path: path.to_path_buf(), said: format!("its kind is `{}` rather than `{RECORD_KIND}`", kind.as_deref().unwrap_or("nothing")) });
+    }
+    for (line, running_value) in [
+        ("kernel", running.kernel_release.as_str()),
+        ("module", running.module_version.as_deref().unwrap_or(ABSENT)),
+        ("srcversion", running.module_srcversion.as_deref().unwrap_or(ABSENT)),
+        ("build-id", running.module_build_id.as_deref().unwrap_or(ABSENT)),
+    ] {
+        let named: String = line_of(record, line).ok_or_else(|| return ProbeRefusal::NotARecord { path: path.to_path_buf(), said: format!("it holds no `{line}` line") })?;
+        if named != running_value {
+            return Err(ProbeRefusal::Stale { path: path.to_path_buf(), line, named, running: String::from(running_value) });
+        }
+    }
+    return Ok(());
 }
 
 /// What:
@@ -288,40 +365,61 @@ pub fn pool_name_of(parent: &str) -> &str {
 pub fn pool_state(reader: &dyn DatasetReader, parent: &str) -> ReadyState {
     return match reader.identity(parent) {
         Ok(_identity) => ReadyState::Ready,
-        Err(reason) if reason.contains("does not exist") || reason.contains("no such pool") => ReadyState::NotReady,
-        Err(_reason) => ReadyState::Unknown,
+        // The kernel's own `ENOENT` is the one answer that says the pool or the parent is gone rather than unreadable,
+        // so the state is read from the error number and never from the words the binding happened to print.
+        Err(failure) if failure.errno == Some(libc::ENOENT) => ReadyState::NotReady,
+        Err(_failure) => ReadyState::Unknown,
     };
 }
 
 /// What:
-///  Whether the checkout is there and its `.claude/worktrees` folder walkable.
+///  Whether the checkout is there,
+///  its `.claude/worktrees` folder walkable,
+///  and its own mount not shared.
 /// Why:
 ///  The walk the attach starts with is the only proof that the checkout is
 ///  mounted and its parent folder reachable,
-///  so the state is the walk's own answer rather than a path check.
+///  and the design's measured move refused `EINVAL` while the checkout was
+///  shared and passed once only it was private
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Mounts held by other namespaces"),
+///  so a shared checkout is an unverified immediate parent and admits nothing.
+///  The state is the walk's own answer and the mount's own tag rather than a
+///  path check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const state = checkoutState('/home/user/Monochromatic'); // ready | not-ready | unknown
+/// const state = checkoutState('/home/user/Monochromatic', liveCheckoutMounts); // ready | not-ready | unknown
 /// ```
-pub fn checkout_state(checkout: &Path) -> (ReadyState, String) {
-    return match hold_the_worktrees_parent(checkout) {
-        Ok(_parent) => (ReadyState::Ready, String::new()),
-        Err(refusal) => {
-            let said: String = refusal.message();
-            let state: ReadyState = match refusal.reason {
-                // A checkout that is not there, or that is reached through a link which is not its own canonical path, is
-                // not mounted as the provider promises; every other refusal is a state this run cannot interpret.
-                WalkRefusalReason::Missing | WalkRefusalReason::NotTheCanonicalPath | WalkRefusalReason::Checkout | WalkRefusalReason::NotADirectory => ReadyState::NotReady,
-                WalkRefusalReason::LinkInTheWay
-                | WalkRefusalReason::BoundaryCrossed
-                | WalkRefusalReason::NotAPlainName
-                | WalkRefusalReason::Unreadable
-                | WalkRefusalReason::UnreadableFields => ReadyState::Unknown,
-            };
-            return (state, said);
-        }
+pub fn checkout_state(checkout: &Path, mounts: &dyn CheckoutMounts) -> (ReadyState, String) {
+    if let Err(refusal) = hold_the_worktrees_parent(checkout) {
+        let said: String = refusal.message();
+        let state: ReadyState = match refusal.reason {
+            // A checkout that is not there, or that is reached through a link which is not its own canonical path, is
+            // not mounted as the provider promises; every other refusal is a state this run cannot interpret.
+            WalkRefusalReason::Missing | WalkRefusalReason::NotTheCanonicalPath | WalkRefusalReason::Checkout | WalkRefusalReason::NotADirectory => ReadyState::NotReady,
+            WalkRefusalReason::LinkInTheWay
+            | WalkRefusalReason::BoundaryCrossed
+            | WalkRefusalReason::NotAPlainName
+            | WalkRefusalReason::Unreadable
+            | WalkRefusalReason::UnreadableFields => ReadyState::Unknown,
+        };
+        return (state, said);
+    }
+    let mount: CheckoutMount = match mounts.mount_holding(checkout) {
+        Ok(mount) => mount,
+        Err(refusal) => return (ReadyState::Unknown, refusal.message()),
     };
+    if mount.is_shared() {
+        return (
+            ReadyState::NotReady,
+            format!(
+                "the checkout's own mount is `{}`, so it is shared and a mount made on it is delivered to another namespace; this route requires a not-shared immediate parent",
+                mount.shared.as_deref().unwrap_or("shared")
+            ),
+        );
+    }
+    return (ReadyState::Ready, String::new());
 }
 
 /// What:
@@ -413,10 +511,10 @@ pub struct PreparedBoot {
 /// The probe's record,
 /// the boot identifier,
 /// or nothing at all when every check passed.
-pub fn prepare(configuration: &SweepConfiguration, probe_record: &Path) -> Result<PreparedBoot, ProbeRefusal> {
+pub fn prepare(configuration: &SweepConfiguration, probe_record: &Path, mounts: &dyn CheckoutMounts) -> Result<PreparedBoot, ProbeRefusal> {
     let standing: ProbeStanding = read_probe_standing(probe_record)?;
     let boot: String = boot_identifier()?;
-    let (checkout_state, _said): (ReadyState, String) = checkout_state(configuration.checkout.as_path());
+    let (checkout_state, _said): (ReadyState, String) = checkout_state(configuration.checkout.as_path(), mounts);
     return Ok(PreparedBoot { boot, checkout: configuration.checkout.clone(), checkout_state, standing });
 }
 

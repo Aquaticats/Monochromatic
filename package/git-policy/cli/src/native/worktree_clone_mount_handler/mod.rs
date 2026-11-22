@@ -34,6 +34,10 @@
 //!   the refusals and the usage and version lines.
 //! - `mode_awaiting_its_step.rs`:
 //!   the refusal of a mode whose plan step has not landed.
+//! - `sweep_checkout_mount.rs`:
+//!   the checkout's own mount,
+//!   its dataset and its propagation,
+//!   read from the kernel's table.
 //! - `attaching_sweep_mode.rs`:
 //!   the default invocation's sweep,
 //!   which step 8 builds.
@@ -72,7 +76,11 @@ pub mod mode_awaiting_its_step;
 /// the clone-mount sweep.
 pub mod attaching_sweep_mode;
 
-/// The two names the sweep takes from the handler's configuration.
+/// The checkout's own mount,
+/// its dataset and its propagation.
+pub mod sweep_checkout_mount;
+
+/// The names the sweep takes from the handler's configuration.
 pub mod sweep_configuration;
 
 /// What one dataset the sweep reached says about itself.
@@ -87,8 +95,15 @@ pub mod sweep_attach_step;
 /// The pool reads one sweep makes and the parent's child listing.
 pub mod sweep_dataset_reader;
 
+/// This boot's first attach,
+/// claimed after the key check and written before the receipt.
+pub mod sweep_first_attach;
+
 /// One clone's whole turn of the sweep.
 pub mod sweep_one_clone;
+
+/// What one clone's turn answers and files.
+pub mod sweep_one_clone_answers;
 
 /// One whole sweep run and the lines it reports.
 pub mod sweep_run;

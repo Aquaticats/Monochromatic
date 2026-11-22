@@ -48,6 +48,10 @@ pub const ENCRYPTION_OFF: u64 = 0;
 /// origin.
 pub const SNAPSHOT_SEPARATOR: char = '@';
 
+/// The prefix the design gives the snapshot the add route clones a managed
+/// clone from.
+pub const CLONE_ORIGIN_SNAPSHOT_PREFIX: &str = "git-worktree-clone-origin-";
+
 /// What:
 ///  One verified clone:
 ///  the slot its name gives and the GUID a receipt is filed under.
@@ -130,14 +134,24 @@ pub enum CloneRefusal {
         /// The dataset's name.
         name: String,
     },
-    /// The origin is not a snapshot of the pinned parent.
-    OriginOutsideTheParent {
+    /// The origin is not a snapshot of the checkout dataset the design names.
+    OriginOutsideTheCheckout {
         /// The dataset's name.
         name: String,
         /// The origin the kernel reported.
         origin: String,
-        /// The pinned parent.
-        parent: String,
+        /// The checkout dataset whose snapshot the add route clones.
+        checkout_dataset: String,
+    },
+    /// The origin is a snapshot of the checkout dataset,
+    /// but not one the add route made.
+    OriginIsNotACloneOrigin {
+        /// The dataset's name.
+        name: String,
+        /// The origin the kernel reported.
+        origin: String,
+        /// The prefix the add route gives its snapshots.
+        prefix: &'static str,
     },
     /// The mountpoint property could not be read.
     Property {
@@ -193,7 +207,7 @@ impl CloneRefusal {
             CloneRefusal::NotAChild { .. } | CloneRefusal::SlotName { .. } => "clone-name",
             CloneRefusal::NotAFilesystem { .. } | CloneRefusal::Snapshot { .. } => "clone-type",
             CloneRefusal::NoGuid { .. } | CloneRefusal::Guid { .. } => "clone-guid",
-            CloneRefusal::NoOrigin { .. } | CloneRefusal::OriginOutsideTheParent { .. } => "clone-origin",
+            CloneRefusal::NoOrigin { .. } | CloneRefusal::OriginOutsideTheCheckout { .. } | CloneRefusal::OriginIsNotACloneOrigin { .. } => "clone-origin",
             CloneRefusal::Property { step, .. } => step,
             CloneRefusal::MountpointIsNotLegacy { .. } => "mountpoint",
             CloneRefusal::SetuidIsOn { .. } => "setuid",
@@ -225,10 +239,13 @@ impl CloneRefusal {
                 reason.message()
             ),
             CloneRefusal::NoOrigin { name } => format!(
-                "the dataset `{name}` is not a clone: the kernel reported no origin, so nothing ties it to a snapshot of the pinned parent. Nothing was mounted or recorded on its behalf"
+                "the dataset `{name}` is not a clone: the kernel reported no origin, so nothing ties it to a snapshot of the checkout dataset. Nothing was mounted or recorded on its behalf"
             ),
-            CloneRefusal::OriginOutsideTheParent { name, origin, parent } => format!(
-                "the clone `{name}` was made from `{origin}`, which is not a snapshot of the pinned clone parent `{parent}`, so this sweep does not attach it. Nothing was mounted or recorded on its behalf"
+            CloneRefusal::OriginOutsideTheCheckout { name, origin, checkout_dataset } => format!(
+                "the clone `{name}` was made from `{origin}`, which is not a snapshot of the checkout dataset `{checkout_dataset}`, so this sweep does not attach it. Nothing was mounted or recorded on its behalf"
+            ),
+            CloneRefusal::OriginIsNotACloneOrigin { name, origin, prefix } => format!(
+                "the clone `{name}` was made from `{origin}`, whose snapshot name does not begin with `{prefix}`, and an origin the add route did not make is not one this sweep attaches. Nothing was mounted or recorded on its behalf"
             ),
             CloneRefusal::Property { name, said, .. } => format!(
                 "the dataset `{name}` could not be judged: {said}. A property this route cannot read is not treated as absent, because an absent mountpoint and a legacy one are different instructions. Nothing was mounted or recorded on its behalf"
@@ -262,7 +279,8 @@ impl CloneRefusal {
             | CloneRefusal::NoGuid { name }
             | CloneRefusal::Guid { name, .. }
             | CloneRefusal::NoOrigin { name }
-            | CloneRefusal::OriginOutsideTheParent { name, .. }
+            | CloneRefusal::OriginOutsideTheCheckout { name, .. }
+            | CloneRefusal::OriginIsNotACloneOrigin { name, .. }
             | CloneRefusal::Property { name, .. }
             | CloneRefusal::MountpointIsNotLegacy { name, .. }
             | CloneRefusal::SetuidIsOn { name, .. }
@@ -375,19 +393,28 @@ fn require_number(name: &str, property: &str, value: &PropertyValue, step: &'sta
 ///  the origin,
 ///  the mountpoint and the two safety properties,
 ///  and the key.
+///  The origin is a snapshot of the checkout dataset,
+///  beside the container,
+///  because the add route snapshots the checkout and clones that snapshot
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Dataset and path layout",
+///  "Requests,
+/// results and ordering",
+///  item 3);
+///  a snapshot of the container itself is nothing that route makes.
 ///  The key is last because it is the only one whose answer is about the data rather than about
 ///  the dataset's own shape,
 ///  and a report says it apart from every identity or permission refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const verified = verify(facts, 'pool/clones');
+/// const verified = verify(facts, 'pool/clones', 'pool/checkout');
 /// ```
 ///
 /// # Errors
 /// Every cause `CloneRefusal` names,
 /// in the design's order.
-pub fn verify(facts: &CloneObjectFacts, parent: &str) -> Result<VerifiedClone, CloneRefusal> {
+pub fn verify(facts: &CloneObjectFacts, parent: &str, checkout_dataset: &str) -> Result<VerifiedClone, CloneRefusal> {
     let slot: String = slot_of(facts.name.as_str(), parent)?;
     if facts.object_type != DMU_OBJECT_SET_FILESYSTEM {
         return Err(CloneRefusal::NotAFilesystem { name: facts.name.clone(), found: facts.object_type });
@@ -399,12 +426,16 @@ pub fn verify(facts: &CloneObjectFacts, parent: &str) -> Result<VerifiedClone, C
         return Err(CloneRefusal::NoGuid { name: facts.name.clone() });
     }
     let dataset: DatasetGuid = DatasetGuid::parse(facts.guid.to_string().as_str()).map_err(|reason| return CloneRefusal::Guid { name: facts.name.clone(), reason })?;
-    let origin_prefix: String = format!("{parent}{SNAPSHOT_SEPARATOR}");
+    let origin_prefix: String = format!("{checkout_dataset}{SNAPSHOT_SEPARATOR}");
     if facts.origin.is_empty() {
         return Err(CloneRefusal::NoOrigin { name: facts.name.clone() });
     }
     if !facts.origin.starts_with(origin_prefix.as_str()) {
-        return Err(CloneRefusal::OriginOutsideTheParent { name: facts.name.clone(), origin: facts.origin.clone(), parent: String::from(parent) });
+        return Err(CloneRefusal::OriginOutsideTheCheckout { name: facts.name.clone(), origin: facts.origin.clone(), checkout_dataset: String::from(checkout_dataset) });
+    }
+    let snapshot_name: &str = &facts.origin[origin_prefix.len()..];
+    if !snapshot_name.starts_with(CLONE_ORIGIN_SNAPSHOT_PREFIX) {
+        return Err(CloneRefusal::OriginIsNotACloneOrigin { name: facts.name.clone(), origin: facts.origin.clone(), prefix: CLONE_ORIGIN_SNAPSHOT_PREFIX });
     }
     let mountpoint: String = require_text(facts.name.as_str(), MOUNTPOINT_PROPERTY, &facts.mountpoint, "mountpoint")?;
     if mountpoint != LEGACY_MOUNTPOINT {

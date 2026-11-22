@@ -21,7 +21,7 @@ use super::{SweepPlaces, run_at};
 use crate::start_probe::{RECORD_DIRECTORY, RESULT_NAME};
 use crate::worktree_clone_mount::SLOT_IDENTITY_STORE_PATH;
 use crate::worktree_clone_mount_handler::handler_install_paths::CONFIGURATION_PATH;
-use crate::worktree_clone_mount_handler::sweep_configuration::{CLONE_MOUNTS_KEY, CHECKOUT_KEY, PARENT_KEY};
+use crate::worktree_clone_mount_handler::sweep_configuration::{CHECKOUT_DATASET_KEY, CLONE_MOUNTS_KEY, CHECKOUT_KEY, PARENT_KEY};
 use std::path::PathBuf;
 
 /// One fixture folder of this control's own,
@@ -90,7 +90,7 @@ fn a_missing_configuration_is_refused_before_anything_is_opened() {
 fn a_boot_with_no_probe_record_is_refused_before_the_device() {
     let fixture: Fixture = Fixture::new("no-record");
     let document: String = format!(
-        r#"{{ "{CLONE_MOUNTS_KEY}": {{ "{PARENT_KEY}": "zpcachyos/nosnap/clones", "{CHECKOUT_KEY}": "{}" }} }}"#,
+        r#"{{ "{CLONE_MOUNTS_KEY}": {{ "{PARENT_KEY}": "zpcachyos/nosnap/clones", "{CHECKOUT_KEY}": "{}", "{CHECKOUT_DATASET_KEY}": "zpcachyos/nosnap/checkout" }} }}"#,
         fixture.path.display()
     );
     let configuration: PathBuf = fixture.configuration(document.as_str());

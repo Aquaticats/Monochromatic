@@ -29,7 +29,10 @@
 //! ```
 
 use super::per_slot_root_claim::SlotClaimDirectory;
+use super::sweep_checkout_mount::LiveCheckoutMounts;
 use super::sweep_configuration::{SweepConfiguration, read_configuration};
+use super::sweep_first_attach::LiveFirstAttach;
+use super::sweep_one_clone::LiveStandingMounts;
 use super::sweep_dataset_reader::ZfsDatasetReader;
 use super::sweep_one_clone::SweepContext;
 use super::sweep_preconditions::{BootFacts, PreparedBoot, complete, prepare, probe_record_path};
@@ -115,24 +118,31 @@ pub fn run() -> Result<String, String> {
 /// # Errors
 /// Everything `run` refuses.
 pub fn run_at(places: &SweepPlaces) -> Result<String, String> {
-    let configuration: SweepConfiguration = read_configuration(places.configuration.as_path()).map_err(|refusal| return refusal.message())?;
-    let prepared: PreparedBoot = prepare(&configuration, places.probe_record.as_path()).map_err(|refusal| return refusal.message())?;
+    let mounts: LiveCheckoutMounts = LiveCheckoutMounts;
+    let configuration: SweepConfiguration = read_configuration(places.configuration.as_path(), &mounts).map_err(|refusal| return refusal.message())?;
+    let prepared: PreparedBoot = prepare(&configuration, places.probe_record.as_path(), &mounts).map_err(|refusal| return refusal.message())?;
     let reader: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| return format!("the handler could not open the ZFS device: {error}"))?;
     let facts: BootFacts = complete(prepared, &reader, configuration.parent_dataset.as_str()).map_err(|refusal| return refusal.message())?;
     debug(TAG, format!("this boot is {} and the pool {} is ready", facts.boot, facts.pool_name).as_str());
     let receipts: ReceiptsFolder = ReceiptsFolder::live();
     let claims: SlotClaimDirectory = SlotClaimDirectory::live();
     let clock = || return crate::iso_time::now_iso();
+    let attach: super::sweep_attach_step::RealAttachStep = super::sweep_attach_step::RealAttachStep::default();
+    let first_attach: LiveFirstAttach = LiveFirstAttach::live();
+    let standing: LiveStandingMounts = LiveStandingMounts;
     let context: SweepContext<'_> = SweepContext {
         parent_dataset: configuration.parent_dataset.as_str(),
         checkout: configuration.checkout.as_path(),
+        checkout_dataset: configuration.checkout_dataset.as_str(),
         store: places.store.as_path(),
         claims: &claims,
         receipts: &receipts,
         boot: facts.boot.as_str(),
         time: &clock,
         reader: &reader,
-        attach: &super::sweep_attach_step::RealAttachStep,
+        attach: &attach,
+        first_attach: &first_attach,
+        standing: &standing,
     };
     let run: SweepRun = sweep(&context);
     return Ok(run.report());

@@ -22,17 +22,23 @@
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DeviceError, ListedObject, ZfsDevice};
 
 /// What:
-///  How many children one sweep enumerates before it stops.
+///  How many children one sweep visits before it stops.
 /// Why:
 ///  The listing is the only unbounded loop the sweep takes from the pool,
 ///  and a parent with a runaway number of children would make one ZFS event
 ///  scan for ever.
-///  The bound is a choice of this build and not a measurement:
-///  the design names no limit,
-///  and four thousand children is far more than the number of worktrees a
-///  checkout holds.
-///  A listing longer than it refuses rather than truncating,
-///  so a parent nobody meant to configure is reported instead of half swept.
+///  The design names no limit,
+///  so the project adopted this number with a measurement in the guest and its
+///  veto open
+///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+///  "Adopted with the project's veto open"):
+///  one sweep over one more child than this visits the first this many,
+///  answers each from the checks,
+///  and stops at the next one with a report that says where it stopped,
+///  so a parent nobody meant to configure is reported and the clones past the
+///  bound are left unattached rather than half swept.
+///  The measurement that sizes it is beside the number in this file's own
+///  control and in the guest arm's `MEASUREMENT child-bound-listing-ms=` line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,6 +66,53 @@ pub struct ListedChild {
 }
 
 /// What:
+///  One failed read of the pool,
+///  in the binding's own words and with the kernel's error number where it
+///  kept one.
+/// Why:
+///  A sweep decides a pool is gone from `ENOENT` rather than from a sentence the
+///  binding happens to print,
+///  so the number travels with the words and one rule reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ReadFailure = { said: string; errno?: number };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReadFailure {
+    /// What the read answered.
+    pub said: String,
+    /// The kernel's error number,
+    /// where the read kept one.
+    pub errno: Option<i32>,
+}
+
+impl ReadFailure {
+    /// A failure this route built itself,
+    /// with no kernel answer behind it.
+    pub fn at(said: String) -> Self {
+        return ReadFailure { said, errno: None };
+    }
+
+    /// The failure in words.
+    pub fn message(&self) -> String {
+        return self.said.clone();
+    }
+}
+
+impl From<String> for ReadFailure {
+    fn from(said: String) -> Self {
+        return ReadFailure { said, errno: None };
+    }
+}
+
+impl std::fmt::Display for ReadFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.said.as_str());
+    }
+}
+
+/// What:
 ///  The pool reads one sweep makes.
 /// Why:
 ///  The sweep needs one dataset's identity and one step of the parent's listing,
@@ -72,7 +125,7 @@ pub struct ListedChild {
 /// ```
 pub trait DatasetReader {
     /// One dataset's identity and property reply.
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, String>;
+    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure>;
 
     /// The child of `parent` after `cursor`,
     /// or nothing at the end of the listing.
@@ -109,8 +162,8 @@ impl ZfsDatasetReader {
 }
 
 impl DatasetReader for ZfsDatasetReader {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, String> {
-        return self.device.objset_stats(dataset).map_err(|error| return error.to_string());
+    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+        return self.device.objset_stats(dataset).map_err(|error| return ReadFailure { said: error.to_string(), errno: error.errno() });
     }
 
     fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {

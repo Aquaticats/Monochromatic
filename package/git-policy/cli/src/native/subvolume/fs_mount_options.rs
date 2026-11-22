@@ -56,6 +56,10 @@ pub struct MountFacts {
     /// a mount hidden by a later mount at its place keeps
     ///  the id of the mount that was there before.
     pub parent_id: u64,
+    /// The optional fields between the mount options and the separator,
+    /// such as `shared:247` or `master:3`,
+    /// which is where the kernel prints a mount's propagation.
+    pub optional_fields: Vec<String>,
     /// The mount point as seen from this process's root,
     /// escapes decoded.
     pub mount_point: PathBuf,
@@ -90,6 +94,22 @@ impl MountFacts {
     /// ```
     pub fn has_option(&self, name: &str) -> bool {
         return list_has(self.mount_options.as_slice(), name) || list_has(self.super_options.as_slice(), name);
+    }
+
+    /// What:
+    ///  The optional field that begins with `prefix`,
+    /// such as `shared:` for a shared mount,
+    /// or nothing when the mount carries none.
+    /// Why:
+    ///  The kernel prints one field per propagation tag in the optional fields,
+    /// and a caller asking whether a mount is shared must not read the option lists for it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const shared = mount.optionalFields.find((field) => field.startsWith('shared:'));
+    /// ```
+    pub fn optional_field(&self, prefix: &str) -> Option<&str> {
+        return self.optional_fields.iter().find(|field| return field.starts_with(prefix)).map(|field| return field.as_str());
     }
 }
 
@@ -175,6 +195,7 @@ fn parse_line(line: &[u8]) -> Option<MountFacts> {
     return Some(MountFacts {
         mount_id: String::from_utf8_lossy(fields[0]).parse::<u64>().ok()?,
         parent_id: String::from_utf8_lossy(fields[1]).parse::<u64>().ok()?,
+        optional_fields: fields[6..separator].iter().map(|field| return String::from_utf8_lossy(field).into_owned()).collect(),
         mount_point: PathBuf::from(OsStr::from_bytes(unmangle_octal(fields[4]).as_slice())),
         filesystem_type: String::from_utf8_lossy(fields[separator + 1]).into_owned(),
         source: String::from_utf8_lossy(unmangle_octal(fields[separator + 2]).as_slice()).into_owned(),

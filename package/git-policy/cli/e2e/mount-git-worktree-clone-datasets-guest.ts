@@ -54,13 +54,25 @@ const EXPECTED_MARKERS = [
 
 /** The lines a run must find in the guest's sweep-arm log, one per arm plan step 8 runs. */
 const EXPECTED_SWEEP_MARKERS = [
-  'SWEEP attached item=1 slot=one',
-  'SWEEP refusal item=5 step=key-unavailable',
-  'SWEEP attached item=5 slot=one',
+  'SWEEP attached item=1 slot=one origin=checkout-snapshot',
+  'SWEEP first-attach outcome=attached slot=one',
+  'SWEEP twice-swept receipt=done',
+  'SWEEP refusal item=5 step=key-unavailable receipt=refused',
+  'SWEEP attached item=5 slot=two',
   'SWEEP refusal item=2 step=intent',
   'SWEEP nothing inherited=true',
   'SWEEP refusal item=2 step=clone-origin',
+  'SWEEP refusal item=2 step=clone-origin-foreign',
+  'SWEEP rollback unmount=EBUSY',
+  'SWEEP rollback unmount=ok',
+  'SWEEP bound stopped=true',
   'SWEEP done',
+] as const;
+
+/** The measurements the sweep arm prints beside the numbers they size. */
+const EXPECTED_SWEEP_MEASUREMENTS = [
+  'MEASUREMENT sweep-attach-ms=',
+  'MEASUREMENT child-bound-listing-ms=',
 ] as const;
 
 /** The checkout the sweep arms walk inside the guest, under the guest's own root. */
@@ -342,7 +354,7 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     'set -eu',
     `export PATH=${OPENZFS_PATH}`,
     `rm --recursive --force ${SWEEP_CHECKOUT}`,
-    `mkdir --parents ${SWEEP_CHECKOUT}/.claude/worktrees`,
+    `mkdir --parents ${SWEEP_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export CLI_GIT_ZFS_SWEEP_GUEST=${chosen.name}`,
@@ -357,7 +369,9 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     ...EXPECTED_SWEEP_MARKERS.map(function markerLine(marker) {
       return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/sweep-arm.log`;
     }),
-    'grep --quiet --fixed-strings "MEASUREMENT sweep-attach-ms=" /root/sweep-arm.log',
+    ...EXPECTED_SWEEP_MEASUREMENTS.map(function measurementLine(marker) {
+      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/sweep-arm.log`;
+    }),
     'cp /root/sweep-arm.log /mnt/shared/sweep-arm.log',
   ].join('\n');
   guest({ chosen, script, log: 'guest-sweep.log', timeout: ARM_TIMEOUT_MS * 2, });

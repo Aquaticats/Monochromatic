@@ -12,7 +12,7 @@
 //! expect(childrenOf(reader, PARENT)).toEqual(['pool/clones/one', 'pool/clones/two']);
 //! ```
 
-use super::{ChildrenRefusal, DatasetReader, ListedChild, Listing, MAXIMUM_CHILDREN, each_child};
+use super::{ChildrenRefusal, DatasetReader, ListedChild, Listing, MAXIMUM_CHILDREN, ReadFailure, each_child};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
 
 /// The parent the controls list.
@@ -32,8 +32,8 @@ struct ScriptedReader {
 }
 
 impl DatasetReader for ScriptedReader {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, String> {
-        return Err(format!("this control lists children only, and cannot read `{dataset}`"));
+    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+        return Err(ReadFailure::at(format!("this control lists children only, and cannot read `{dataset}`")));
     }
 
     fn next_child(&self, parent: &str, cursor: u64) -> Result<Option<ListedChild>, String> {

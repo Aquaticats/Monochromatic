@@ -15,6 +15,7 @@
 //! ```
 
 use super::{SweepRun, sweep};
+use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
 use crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace;
 use crate::worktree_clone_mount::CloneFolderIdentity;
 use crate::worktree_clone_mount::publish_parent_identity_under_root_control;
@@ -37,6 +38,9 @@ const INSIDE: &str = "CLI_GIT_ZFS_SWEEP_RUN_ROOT";
 
 /// The pinned clone parent.
 const PARENT: &str = "zpcachyos/nosnap/clones";
+
+/// The checkout dataset a clone's origin is a snapshot of.
+const CHECKOUT_DATASET: &str = "zpcachyos/nosnap/checkout";
 
 /// The child that asks for its mount.
 const MOUNTING: &str = "zpcachyos/nosnap/clones/mounting";
@@ -91,7 +95,7 @@ fn reply(name: &str, intent: Option<&str>) -> NvList {
 /// The statistics of one child,
 /// whose origin is a snapshot of the parent.
 fn stats(guid: u64) -> DmuObjsetStats {
-    let origin: String = format!("{PARENT}@origin");
+    let origin: String = format!("{CHECKOUT_DATASET}@git-worktree-clone-origin-00112233445566");
     let mut bytes: [u8; 256] = [0; 256];
     bytes[..origin.len()].copy_from_slice(origin.as_bytes());
     return DmuObjsetStats {
@@ -120,9 +124,9 @@ struct ScriptedPool {
 }
 
 impl DatasetReader for ScriptedPool {
-    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, String> {
+    fn identity(&self, dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
         let Some((_name, stats, properties)) = self.replies.iter().find(|(name, _, _)| return name == dataset) else {
-            return Err(format!("this scripted pool holds no `{dataset}`"));
+            return Err(ReadFailure::at(format!("this scripted pool holds no `{dataset}`")));
         };
         return Ok(DatasetIdentity { stats: *stats, properties: properties.clone() });
     }
@@ -160,6 +164,30 @@ impl CloneAttachStep for MountingAttach {
     }
 }
 
+/// What one run's first attach answers:
+/// nothing,
+/// because this control proves the run's counts and its lines.
+struct SilentFirstAttach;
+
+impl crate::worktree_clone_mount_handler::sweep_first_attach::FirstAttachRecorder for SilentFirstAttach {
+    fn claim(&self) -> Option<crate::start_probe::first_attach_record::FirstAttachClaim> {
+        return None;
+    }
+
+    fn record(&self, _claim: &crate::start_probe::first_attach_record::FirstAttachClaim, _outcome: &crate::start_probe::first_attach_record::FirstAttachOutcome) {}
+}
+
+/// What the canonical slot holds before an attach:
+/// nothing,
+/// because each slot in this fixture is unmounted.
+struct NoStandingMount;
+
+impl crate::worktree_clone_mount_handler::sweep_one_clone::StandingMounts for NoStandingMount {
+    fn standing_mount_of(&self, _request: &crate::worktree_clone_mount::LookAgainAtSlotRequest<'_>, _clone: &str) -> Option<MountIdentity> {
+        return None;
+    }
+}
+
 /// One fixture:
 /// a checkout with three slots and a root-owned store.
 struct Fixture {
@@ -181,6 +209,8 @@ impl Fixture {
         let parent: PathBuf = checkout.join(".claude").join("worktrees");
         for slot in ["mounting", "quiet", "malformed"] {
             std::fs::create_dir_all(parent.join(slot)).expect("the slot folder is made");
+            let pointer: String = format!("gitdir: {}\n", checkout.join(".git").join("worktrees").join(slot).display());
+            std::fs::write(parent.join(slot).join(".git"), pointer).expect("the slot's Git pointer is written");
         }
         let store: PathBuf = root.join("store");
         std::fs::create_dir(store.as_path()).expect("the store folder is made");
@@ -197,6 +227,7 @@ impl Fixture {
         return SweepContext {
             parent_dataset: PARENT,
             checkout: self.checkout.as_path(),
+            checkout_dataset: CHECKOUT_DATASET,
             store: self.store.as_path(),
             claims,
             receipts,
@@ -204,6 +235,8 @@ impl Fixture {
             time: &|| return String::from(TIME),
             reader: pool,
             attach,
+            first_attach: &SilentFirstAttach,
+            standing: &NoStandingMount,
         };
     }
 }
