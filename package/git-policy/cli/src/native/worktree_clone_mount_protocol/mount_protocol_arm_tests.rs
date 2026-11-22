@@ -30,10 +30,9 @@
 //! ```
 
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{IntentReading, MountOperation, read_intent};
-use crate::worktree_clone_mount_protocol::clone_mount_property_names::{DESIRED_STATE_PROPERTY, SWEEP_NONCE_PROPERTY};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{DESIRED_STATE_PROPERTY, NONCE_HEX_DIGITS, SWEEP_NONCE_PROPERTY};
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptMountIdentity, ReceiptOutcome};
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::RESULTS_DIRECTORY;
 use crate::worktree_clone_mount_protocol::clone_mount_sweep_nonce::{NudgeReading, read_sweep_nonce};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::mount_request_wait::{MountRequest, WaitRefusal, wait_for_answer};
@@ -190,9 +189,9 @@ fn answer_and_measure(sbin: &str, device: &ZfsDevice, clone: &str, nonce: &Reque
         time: crate::foundation::iso_time::now_iso(),
     };
     let folder: ReceiptsFolder = ReceiptsFolder::live();
-    std::fs::create_dir_all(RESULTS_DIRECTORY).expect("the results directory is made for the arm");
-    std::fs::set_permissions(RESULTS_DIRECTORY, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("the results directory takes its mode");
-    folder.publish(&receipt).expect("the product files its receipt");
+    // The product makes its own results directory, so the arm makes none: a product that could not publish on a fresh
+    // boot would fail here rather than pass on a directory the arm created.
+    folder.publish(&receipt).expect("the product makes its directory and files its receipt");
     let filed: Duration = started.elapsed();
     let answer_request: MountRequest = MountRequest { dataset: guid, operation: MountOperation::Mount, nonce: nonce.clone(), boot: receipt.boot.clone() };
     let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().expect("the arm's runtime starts");
@@ -229,7 +228,7 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
     assert!(slot_empty(), "a malformed intent wrote nothing into the slot");
 
     // An oversized value is refused at the bound, not parsed.
-    let oversized: String = format!("v1:{}:unmount!", "0".repeat(32));
+    let oversized: String = format!("v1:{}:unmount!", "0".repeat(NONCE_HEX_DIGITS));
     set_property(sbin.as_str(), clone.as_str(), DESIRED_STATE_PROPERTY, oversized.as_str());
     let oversized_identity: DatasetIdentity = read_properties(&device, clone.as_str());
     let too_long: IntentReading = read_intent(Some(&oversized_identity.properties), clone.as_str());
@@ -239,7 +238,7 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
     // An inherited value is ignored and authorizes nothing.
     let (inherited_removed, _inherited_out, inherited_error): (bool, String, String) = zfs(sbin.as_str(), "zfs", &["inherit", DESIRED_STATE_PROPERTY, clone.as_str()]);
     assert!(inherited_removed, "the clone's local intent could not be removed: {inherited_error}");
-    let inherited: String = format!("v1:{}:mount", "1".repeat(32));
+    let inherited: String = format!("v1:{}:mount", "1".repeat(NONCE_HEX_DIGITS));
     set_property(sbin.as_str(), parent.as_str(), DESIRED_STATE_PROPERTY, inherited.as_str());
     let inherited_identity: DatasetIdentity = read_properties(&device, clone.as_str());
     let inherited_reading: IntentReading = read_intent(Some(&inherited_identity.properties), clone.as_str());
@@ -273,9 +272,7 @@ fn mount_protocol_arm_intent_receipt_and_nudge() {
         time: crate::foundation::iso_time::now_iso(),
     };
     let folder: ReceiptsFolder = ReceiptsFolder::live();
-    std::fs::create_dir_all(RESULTS_DIRECTORY).expect("the results directory is made for the arm");
-    std::fs::set_permissions(RESULTS_DIRECTORY, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("the results directory takes its mode");
-    folder.publish(&stale).expect("the stale receipt is filed");
+    folder.publish(&stale).expect("the product makes its directory and files the stale receipt");
     let stale_request: MountRequest = MountRequest { dataset: guid, operation: MountOperation::Mount, nonce: wanted, boot };
     let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().expect("the arm's runtime starts");
     let refusal: WaitRefusal = runtime

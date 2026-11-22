@@ -15,6 +15,7 @@
 //! ```
 
 use super::{RequestNonce, shown_byte};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 
 /// Every lowercase hexadecimal digit is accepted at its place.
 #[test]
@@ -27,7 +28,7 @@ fn all_lowercase_hexadecimal_digits_are_accepted() {
 /// A value of another length is refused and names the length.
 #[test]
 fn a_value_of_another_length_is_refused() {
-    for length in [0, 1, 31, 33, 64] {
+    for length in [0, 1, NONCE_HEX_DIGITS - 1, NONCE_HEX_DIGITS + 1, NONCE_HEX_DIGITS * 2] {
         let text: String = "0".repeat(length);
         let refusal = RequestNonce::parse(text.as_str()).expect_err("another length is refused");
         assert_eq!(refusal, super::NonceRefusal::Length { found: length });

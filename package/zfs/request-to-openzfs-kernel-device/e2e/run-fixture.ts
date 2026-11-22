@@ -16,7 +16,9 @@
 //        host-built binary would not start there; building in the guest keeps the
 //        test binary matched to the guest's own libc and needs no cross toolchain.
 //
-// Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all|pool|wrapper|arm|zfs-attach-pool|zfs-attach-arm>
+// Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all|pool|wrapper|arm|
+//          zfs-attach-pool|zfs-attach-arm|zfs-gate-arm|zfs-gate-version-arm|zfs-gate-change-arm|
+//          zfs-protocol-pool|zfs-protocol-arm|zfs-protocol-teardown|zfs-protocol-record>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
 // `create` refuses a name `mvm list` already reports, and `all` destroys only a
 // guest its own `create` returned, so no run removes another run's guest.

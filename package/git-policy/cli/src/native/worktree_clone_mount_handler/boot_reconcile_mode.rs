@@ -15,6 +15,11 @@
 //!  and the sweep that reads intent and publishes readiness is plan step 8,
 //!  so this build refuses the mode rather than publish a readiness record for
 //!  a boot it never verified.
+//!  The mode is step 8's,
+//!  not step 6's and not step 19's:
+//!  step 8 owns the gate's use,
+//!  the intent reconciliation and the readiness publish this mode runs,
+//!  and step 19 only installs the unit that calls it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

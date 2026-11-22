@@ -28,6 +28,7 @@
 //! ```
 
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::{MOUNT_WORD, NONCE_HEX_DIGITS, UNMOUNT_WORD};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
@@ -42,18 +43,100 @@ pub const RECEIPT_KIND: &str = "clone-mount-result";
 /// The word an inapplicable field carries.
 pub const ABSENT_WORD: &str = "none";
 
-/// The largest receipt a reader accepts,
-/// which is far more than the 15 lines below need.
-pub const MAXIMUM_RECEIPT_BYTES: usize = 4096;
+/// The receipt's keys in the order the file holds them.
+pub const RECEIPT_KEYS: [&str; 15] = [
+    "v1",
+    "kind",
+    "dataset",
+    "nonce",
+    "operation",
+    "outcome",
+    "mount-id",
+    "device",
+    "inode",
+    "source",
+    "canonical-path",
+    "failed-step",
+    "errno",
+    "boot",
+    "time",
+];
+
+/// The digits a `u64` mount count,
+/// device or inode can take,
+/// which is `u64::MAX`'s own width.
+pub const MAXIMUM_DECIMAL_DIGITS: usize = 20;
+
+/// The bound the kernel's own boot identifier uses,
+/// a canonical UUID's 36 characters.
+pub const MAXIMUM_BOOT_BYTES: usize = 36;
+
+/// The bound one operation word may use.
+pub const MAXIMUM_OPERATION_BYTES: usize = if MOUNT_WORD.len() > UNMOUNT_WORD.len() { MOUNT_WORD.len() } else { UNMOUNT_WORD.len() };
+
+/// The bound one outcome word may use.
+pub const MAXIMUM_OUTCOME_BYTES: usize = 7;
+
+/// The bound one time may use:
+/// the date,
+/// the second,
+/// nine fraction digits and the offset.
+pub const MAXIMUM_TIME_BYTES: usize = 35;
 
 /// The dataset-name bound OpenZFS itself uses.
 pub const MAXIMUM_DATASET_NAME_BYTES: usize = 255;
 
-/// The path bound one canonical slot path may use.
+/// The path bound one canonical slot path may use,
+/// which is the kernel's `PATH_MAX` without its terminator.
 pub const MAXIMUM_PATH_BYTES: usize = 4095;
 
 /// The bound one step or errno word may use.
 pub const MAXIMUM_WORD_BYTES: usize = 64;
+
+/// The most bytes one line of the receipt takes:
+/// its key,
+/// its separator and the longest value that field holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lineBytes = (key, bound) => key.length + 1 + bound;
+/// ```
+const fn line_bytes(key: &str, bound: usize) -> usize {
+    return key.len() + 1 + bound;
+}
+
+/// What:
+///  The largest receipt a reader accepts,
+///  from the bound of every field the writer fills and the line each field is
+///  written on.
+/// Why:
+///   A file bound typed in beside field bounds can fall below them,
+///  and then a receipt the writer can write is one the reader refuses,
+///  silently,
+///  after the handler already reported the result.
+///  Derived this way,
+///  every receipt the writer builds fits,
+///  and `publish` proves the reader reads it back.
+///  It refuses a receipt it cannot read back,
+///  so nothing is filed for a caller to wait out.
+/// The mount fields take `none` on a result that observed no mount,
+/// which their own bounds already cover.
+pub const MAXIMUM_RECEIPT_BYTES: usize = RECEIPT_KEYS[0].len()
+    + line_bytes(RECEIPT_KEYS[1], RECEIPT_KIND.len())
+    + line_bytes(RECEIPT_KEYS[2], MAXIMUM_DECIMAL_DIGITS)
+    + line_bytes(RECEIPT_KEYS[3], NONCE_HEX_DIGITS)
+    + line_bytes(RECEIPT_KEYS[4], MAXIMUM_OPERATION_BYTES)
+    + line_bytes(RECEIPT_KEYS[5], MAXIMUM_OUTCOME_BYTES)
+    + line_bytes(RECEIPT_KEYS[6], MAXIMUM_DECIMAL_DIGITS)
+    + line_bytes(RECEIPT_KEYS[7], MAXIMUM_DECIMAL_DIGITS)
+    + line_bytes(RECEIPT_KEYS[8], MAXIMUM_DECIMAL_DIGITS)
+    + line_bytes(RECEIPT_KEYS[9], MAXIMUM_DATASET_NAME_BYTES)
+    + line_bytes(RECEIPT_KEYS[10], MAXIMUM_PATH_BYTES)
+    + line_bytes(RECEIPT_KEYS[11], MAXIMUM_WORD_BYTES)
+    + line_bytes(RECEIPT_KEYS[12], MAXIMUM_WORD_BYTES)
+    + line_bytes(RECEIPT_KEYS[13], MAXIMUM_BOOT_BYTES)
+    + line_bytes(RECEIPT_KEYS[14], MAXIMUM_TIME_BYTES)
+    + RECEIPT_KEYS.len();
 
 /// What:
 ///  What the handler did about one request.
@@ -162,25 +245,6 @@ pub struct CloneMountReceipt {
     /// as ISO 8601 with offset.
     pub time: String,
 }
-
-/// The receipt's keys in the order the file holds them.
-pub const RECEIPT_KEYS: [&str; 15] = [
-    "v1",
-    "kind",
-    "dataset",
-    "nonce",
-    "operation",
-    "outcome",
-    "mount-id",
-    "device",
-    "inode",
-    "source",
-    "canonical-path",
-    "failed-step",
-    "errno",
-    "boot",
-    "time",
-];
 
 impl CloneMountReceipt {
     /// The file's whole text,

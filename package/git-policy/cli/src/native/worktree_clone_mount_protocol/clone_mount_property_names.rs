@@ -6,7 +6,7 @@
 //!  the byte bound an intent is measured against before it is parsed.
 //! Why:
 //!  The design fixes the durable intent as the clone's local
-//!  `org.mochromatic` property named below,
+//!  `org.monochromatic` property named below,
 //!  accepts exactly `v1:<nonce>:mount` or `v1:<nonce>:unmount`,
 //!  and bounds the byte length before parsing
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
@@ -33,7 +33,8 @@ pub const DESIRED_STATE_PROPERTY: &str = "org.monochromatic:git-worktree-clone-m
 /// It is not a mount instruction.
 pub const SWEEP_NONCE_PROPERTY: &str = "org.monochromatic:git-worktree-clone-mount-sweep-nonce";
 
-/// The version word every intent value and every nudge value begins with.
+/// The version word every intent value begins with;
+/// a nudge carries the nonce alone and no version word.
 pub const VALUE_VERSION: &str = "v1";
 
 /// The word in an intent value that asks for an attach.

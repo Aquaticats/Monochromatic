@@ -27,6 +27,10 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `root_owned_directory.rs`:
+//!   the root-owned `/run` directory a record lives in,
+//!   made when it is absent and proved through its own descriptor,
+//!   which uses nothing in this folder and is used by the two writers below.
 //! - `clone_mount_property_names.rs`:
 //!   the two property names,
 //!   the version and operation words and the intent's byte bound.
@@ -42,6 +46,9 @@
 //! - `clone_mount_sweep_nonce.rs`:
 //!   the nudge value,
 //!   which is never an instruction.
+//! - `dataset_guid.rs`:
+//!   the canonical numeric GUID a receipt's file is named by,
+//!   which `clone_mount_receipt.rs` uses.
 //! - `clone_mount_receipt.rs`:
 //!   the receipt's text and its identity fields.
 //! - `clone_mount_receipt_refusals.rs`:
@@ -75,6 +82,7 @@
 //!   the wrapper's request and nudge payloads and the gated writes.
 //! - `mount_request_wait.rs`:
 //!   the wrapper's wait for a matching receipt,
+//!   what it last saw,
 //!   the provisional mount-request deadline and the timeout report.
 //!
 //! In TS you'd write (pseudocode):
@@ -83,6 +91,9 @@
 //! const receipt = receipts.read(datasetGuid);
 //! const ready = readReadiness(boot, pool, checkout);
 //! ```
+
+/// The root-owned `/run` directory a record lives in.
+pub mod root_owned_directory;
 
 /// The route's fixed property names,
 /// words and bounds.
@@ -184,7 +195,9 @@ pub use clone_mount_receipt_parse::parse_receipt;
 pub use clone_mount_receipts_folder::ReceiptsFolder;
 pub use clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsRefusal};
 /// The readiness record and its four fields.
-pub use clone_mount_readiness::{MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_NAME, ReadinessExpectation, ReadinessRecord, ReadyState, SweepState};
+pub use clone_mount_readiness::{
+    MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_KEYS, READINESS_NAME, ReadinessExpectation, ReadinessRecord, ReadyState, SweepState,
+};
 /// The admission decision and its refusal.
 pub use clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
 /// The readiness record's parse and its refusal.
@@ -196,6 +209,6 @@ pub use clone_mount_intent_write::{CloneIntentWriter, IntentWriteRefusal, intent
 /// The wrapper's wait,
 /// its stale-result rule and its provisional deadline.
 pub use mount_request_wait::{
-    MOUNT_REQUEST_POLL_INTERVAL, MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, ReceiptStanding, StaleReason, WaitRefusal, standing_of,
-    wait_for_answer,
+    LastObservation, MOUNT_REQUEST_POLL_INTERVAL, MountRequest, PROVISIONAL_MOUNT_REQUEST_DEADLINE, ReceiptStanding, StaleReason, WaitRefusal,
+    standing_of, wait_for_answer,
 };

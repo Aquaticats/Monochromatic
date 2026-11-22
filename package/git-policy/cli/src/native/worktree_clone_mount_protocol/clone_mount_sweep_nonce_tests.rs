@@ -84,7 +84,7 @@ fn an_intent_text_in_the_nudge_property_is_refused() {
 /// refused before any digit is read.
 #[test]
 fn every_other_length_is_refused() {
-    for length in [0, 1, NONCE_HEX_DIGITS - 1, NONCE_HEX_DIGITS + 1, 64] {
+    for length in [0, 1, NONCE_HEX_DIGITS - 1, NONCE_HEX_DIGITS + 1, NONCE_HEX_DIGITS * 2] {
         let text: String = "0".repeat(length);
         let refusal = parse_sweep_nonce(text.as_str()).expect_err("only one length is a nudge");
         let NudgeRefusal::Nonce(cause) = refusal else {

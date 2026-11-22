@@ -23,6 +23,9 @@
 
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpectation, ReadinessRecord, ReadyState};
 
+/// The log tag of every decision this module takes.
+const TAG: &str = "cloneMountReadinessAdmission";
+
 /// What:
 ///  Why an attach is not admitted.
 /// Why:
@@ -94,7 +97,7 @@ impl AdmissionRefusal {
             }
         };
         return format!(
-            "the clone mount is not admitted: {reason}. No clone was attached, mounted or unmounted, and no durable intent was changed. Ways forward: wait for the boot unit's `boot-reconcile` to verify the provider and publish this boot's readiness, then let the next trigger (a ZED event, the checkout provider's post-key-load hook, or the caller's own sweep nudge) run the sweep; `journalctl -u reconcile-git-worktree-clone-mounts.service` says which step refused."
+            "the clone mount is not admitted: {reason}. No clone was attached, mounted or unmounted, and no durable intent was changed. Ways forward: wait for the boot unit's `boot-reconcile` to verify the provider and publish this boot's readiness, then let the next trigger (a ZED event, the checkout provider's post-key-load hook, or the caller's own sweep nudge) run the sweep; `journalctl -u reconcile-git-worktree-clone-mounts.service`, whose unit plan step 19 installs, says which step refused; the `doctor` command reports a readiness record once plan step 10 adds it."
         );
     }
 }
@@ -112,6 +115,17 @@ impl AdmissionRefusal {
 /// const admission = admitAttach(record, expectation); // { ready } | { refusal }
 /// ```
 pub fn admit_attach(record: &ReadinessRecord, expectation: &ReadinessExpectation<'_>) -> Result<(), AdmissionRefusal> {
+    let admitted: Result<(), AdmissionRefusal> = compare(record, expectation);
+    match &admitted {
+        Ok(()) => crate::diagnostic_log::debug(TAG, "admitted an attach on this boot's readiness record"),
+        Err(refusal) => crate::diagnostic_log::warn(TAG, refusal.message().as_str()),
+    }
+    return admitted;
+}
+
+/// The comparison itself,
+/// which logs nothing and decides everything.
+fn compare(record: &ReadinessRecord, expectation: &ReadinessExpectation<'_>) -> Result<(), AdmissionRefusal> {
     if record.boot != expectation.boot {
         return Err(AdmissionRefusal::OtherBoot { recorded: record.boot.clone(), expected: String::from(expectation.boot) });
     }

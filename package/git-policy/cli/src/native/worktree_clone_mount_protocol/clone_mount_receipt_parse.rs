@@ -3,7 +3,7 @@
 //!  the byte bound before any line,
 //!  the exact key at each line,
 //!  each value's own rule,
-//!  and the mount fields that belong only to a done result.
+//!  and the mount fields that belong only to a done mount.
 //! Why:
 //!  The caller acts on this answer,
 //!  so nothing is defaulted and no extra line is skipped:
@@ -66,7 +66,7 @@ pub fn parse_receipt(text: &str) -> Result<CloneMountReceipt, ReceiptRefusal> {
     let outcome_word: &str = value_of(&lines, 5, RECEIPT_KEYS[5])?;
     let outcome: ReceiptOutcome =
         ReceiptOutcome::from_word(outcome_word).ok_or_else(|| return ReceiptRefusal::Value { key: RECEIPT_KEYS[5], shown: String::from(outcome_word) })?;
-    let mount: Option<ReceiptMountIdentity> = read_mount(&lines, outcome)?;
+    let mount: Option<ReceiptMountIdentity> = read_mount(&lines, outcome, operation)?;
     let failed_step: Option<String> = read_word(&lines, 11, RECEIPT_KEYS[11])?;
     let errno: Option<String> = read_word(&lines, 12, RECEIPT_KEYS[12])?;
     check_outcome_words(outcome, &failed_step, &errno)?;
@@ -139,19 +139,26 @@ fn read_word(lines: &[&str], index: usize, key: &'static str) -> Result<Option<S
 }
 
 /// What:
-///  The mount identity a done result carries and the absence every other
-///  outcome carries.
+///  The mount identity a done mount carries and the absence every other result
+///  carries.
 /// Why:
 ///   A mount identity on a refused or failed result would invite a caller to
 ///  confirm a mount the handler never reported,
-///  and a done result without one cannot be confirmed.
+///  and a done mount without one cannot be confirmed.
+///  An unmount that verified absence has no mount to identify,
+///  so a done unmount carries `none` there,
+///  and its receipt names the clone's GUID alone:
+///  the design asks for the identity "where applicable"
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Requests,
+/// results and ordering").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mount = readMount(lines, outcome); // identity | null
+/// const mount = readMount(lines, outcome, operation); // identity | null
 /// ```
-fn read_mount(lines: &[&str], outcome: ReceiptOutcome) -> Result<Option<ReceiptMountIdentity>, ReceiptRefusal> {
-    let wanted: bool = outcome == ReceiptOutcome::Done;
+fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation) -> Result<Option<ReceiptMountIdentity>, ReceiptRefusal> {
+    let wanted: bool = outcome == ReceiptOutcome::Done && operation == MountOperation::Mount;
     let present_keys: [&'static str; 5] = [RECEIPT_KEYS[6], RECEIPT_KEYS[7], RECEIPT_KEYS[8], RECEIPT_KEYS[9], RECEIPT_KEYS[10]];
     let words: [&str; 5] = [
         value_of(lines, 6, present_keys[0])?,

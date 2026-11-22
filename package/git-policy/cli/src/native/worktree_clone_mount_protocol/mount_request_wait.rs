@@ -24,12 +24,14 @@
 //! const receipt = waitForAnswer(folder, request, PROVISIONAL_MOUNT_REQUEST_DEADLINE);
 //! ```
 
+use crate::foundation::blocking_job::{BlockingJobError, run_blocking_job};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::CloneMountReceipt;
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder::ReceiptsFolder;
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::ReceiptsRefusal;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+use std::path::PathBuf;
 use std::time::Duration;
 
 /// What:
@@ -148,14 +150,15 @@ impl StaleReason {
 /// What:
 ///  What one receipt on the file is for this request.
 /// Why:
-///   The three answers are separate:
+///   The two answers this decides are separate:
 ///  an answer ends the wait,
-///  a stale receipt is recorded as the last observation,
-///  and an absent one means the handler has not filed yet.
+///  and a stale receipt is recorded as the last observation.
+///  A file that is not there at all is the read's own `None`,
+///  which means the handler has not filed yet and is not a standing here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ReceiptStanding = { kind: 'answer' } | { kind: 'stale' } | { kind: 'absent' };
+/// type ReceiptStanding = { kind: 'answer' } | { kind: 'stale' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReceiptStanding {
@@ -203,32 +206,77 @@ pub fn standing_of(request: &MountRequest, receipt: &CloneMountReceipt) -> Recei
 }
 
 /// What:
-///  Why a wait ended without an answer.
+///  What the wait last saw when its deadline passed,
+///  where it saw anything.
 /// Why:
-///   A timeout and a refused directory are different answers,
-///  and the timeout must retain the request and the last receipt it saw,
-///  so a person can tell "the handler has not filed" from "the handler filed
-///  another request's result".
+///   "The handler filed another request's result" and "the results directory
+///  is not there yet" send a person to different places,
+///  and neither is an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WaitRefusal = { kind: 'timed-out'; last?; request } | { kind: 'receipts'; refusal };
+/// type LastObservation = { kind: 'absent-directory'; path } | { kind: 'stale'; reason };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LastObservation {
+    /// The results directory was not there,
+    /// which on a fresh boot is what a request's first wait finds.
+    AbsentDirectory {
+        /// The directory's path.
+        path: PathBuf,
+    },
+    /// A receipt was on the file and is another request's answer.
+    Stale(StaleReason),
+}
+
+impl LastObservation {
+    /// The observation in words.
+    pub fn word(&self) -> String {
+        return match self {
+            LastObservation::AbsentDirectory { path } => {
+                format!("The results directory {} was not there at the deadline, so the handler had filed nothing yet.", path.display())
+            }
+            LastObservation::Stale(reason) => format!("The last receipt on the file is not this request's answer: {}.", reason.word()),
+        };
+    }
+}
+
+/// What:
+///  Why a wait ended without an answer.
+/// Why:
+///   A timeout and a refused directory are different answers,
+///  and the timeout must retain the request and what it last saw,
+///  so a person can tell "the handler has not filed" from "the handler filed
+///  another request's result".
+///  An absent results directory is not a refusal:
+///  the first request after a boot meets no directory at all,
+///  and a wait that refused at once would never see the handler file its
+///  first answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WaitRefusal = { kind: 'timed-out'; last?; request } | { kind: 'receipts'; refusal } | { kind: 'unread' };
+/// ```
+#[derive(Debug, Eq, PartialEq)]
 pub enum WaitRefusal {
     /// The deadline passed with no matching receipt.
     TimedOut {
         /// The request that was waited for.
         request: Box<MountRequest>,
-        /// The last stale receipt's reason,
-        /// where one was on the file.
-        last: Option<StaleReason>,
+        /// What the wait last saw,
+        /// where it saw anything.
+        last: Option<LastObservation>,
         /// The deadline,
         /// in milliseconds.
         deadline_millis: u128,
     },
     /// The receipts directory or a file could not be used.
     Receipts(ReceiptsRefusal),
+    /// The read of one receipt could not be given to the blocking pool.
+    Unread {
+        /// Why the pool gave no value.
+        refusal: BlockingJobError,
+    },
 }
 
 impl WaitRefusal {
@@ -238,13 +286,16 @@ impl WaitRefusal {
     pub fn message(&self) -> String {
         return match self {
             WaitRefusal::Receipts(refusal) => refusal.message(),
+            WaitRefusal::Unread { refusal } => format!(
+                "no receipt could be read because the read could not be given to the blocking pool ({refusal}), so the mount was not confirmed in the caller's view. Nothing was matched, mounted or unmounted on a receipt. Ways forward: check the process limit (`ulimit -u`) and the control group's `pids.max`, then read the handler's journal with `journalctl -u reconcile-git-worktree-clone-mounts.service`."
+            ),
             WaitRefusal::TimedOut { request, last, deadline_millis } => {
                 let observed: String = match last {
-                    Some(reason) => format!("The last receipt on the file is not this request's answer: {}.", reason.word()),
+                    Some(observation) => observation.word(),
                     None => String::from("No receipt was on the file at the deadline."),
                 };
                 format!(
-                    "no result for this request was filed within {deadline_millis} milliseconds, so the mount was not confirmed in the caller's view. The request is operation `{}` under nonce {} for dataset GUID {} in boot {}. {observed} A deadline is not cancellation: the durable request stays on the clone and a later sweep may still act on it, so inspect before writing another request. Ways forward: run `monochromatic-git-policy-cli doctor` and read the handler's journal with `journalctl -u reconcile-git-worktree-clone-mounts.service`; do not retry a conflicting request until the clone's intent and mount state have been verified.",
+                    "no result for this request was filed within {deadline_millis} milliseconds, so the mount was not confirmed in the caller's view. The request is operation `{}` under nonce {} for dataset GUID {} in boot {}. {observed} A deadline is not cancellation: the durable request stays on the clone and a later sweep may still act on it, so inspect before writing another request. Ways forward: run `monochromatic-git-policy-cli doctor` and read the handler's journal with `journalctl -u reconcile-git-worktree-clone-mounts.service`, whose unit plan step 19 installs; the `doctor` command reports a receipt once plan step 10 adds it; do not retry a conflicting request until the clone's intent and mount state have been verified.",
                     request.operation.word(),
                     request.nonce.as_str(),
                     request.dataset.file_name(),
@@ -255,28 +306,92 @@ impl WaitRefusal {
     }
 }
 
-/// Wait for the receipt that answers `request` until `deadline` passes.
+/// What:
+///  Wait for the receipt that answers `request` until `deadline` passes.
+/// Why:
+///   The read is a storage call,
+///  so a job of the blocking pool carries it and no worker of the runtime is
+///  held by it
+///  (`doc/planning/git-policy-cli-full-tokio.md`,
+///  "Full on tokio.
+/// Multi-thread.").
+///  A results directory that is not there yet keeps the wait looking rather
+///  than ending it,
+///  because a boot's first request meets no directory at all.
 ///
 /// # Errors
 /// The receipts directory or a file could not be used,
+/// the read could not be given to the blocking pool,
 /// or the deadline passed with no matching receipt.
 pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, deadline: Duration) -> Result<CloneMountReceipt, WaitRefusal> {
     let started: tokio::time::Instant = tokio::time::Instant::now();
-    let mut last: Option<StaleReason> = None;
+    let mut last: Option<LastObservation> = None;
     loop {
-        let found: Option<CloneMountReceipt> = folder.read(request.dataset).map_err(WaitRefusal::Receipts)?;
-        if let Some(receipt) = found {
-            match standing_of(request, &receipt) {
+        // The read is raced against what is left of the deadline, so a read the filesystem holds past its time answers the
+        // report rather than the wait: a job of the blocking pool cannot be cancelled, so dropping its handle only stops this
+        // wait from hearing it, which is what a deadline asks for.
+        let read = read_the_receipt(folder, request.dataset);
+        let found: Result<Option<CloneMountReceipt>, ReceiptsRefusal> = match remaining(started.elapsed(), deadline) {
+            None => read.await?,
+            Some(left) => tokio::select! {
+                biased;
+                outcome = read => outcome?,
+                () = tokio::time::sleep(left) => return Err(timeout_report(request, last, deadline)),
+            },
+        };
+        match found {
+            Ok(Some(receipt)) => match standing_of(request, &receipt) {
                 ReceiptStanding::Answer(answer) => return Ok(answer),
-                ReceiptStanding::Stale(reason) => last = Some(reason),
-            }
+                ReceiptStanding::Stale(reason) => {
+                    crate::diagnostic_log::debug(TAG, format!("the receipt for dataset {} is stale: {}", request.dataset.file_name(), reason.word()).as_str());
+                    last = Some(LastObservation::Stale(reason));
+                }
+            },
+            // A directory that appeared and holds no receipt yet is no longer absent, so the report stops saying it was.
+            Ok(None) => last = None,
+            Err(ReceiptsRefusal::DirectoryAbsent { path }) => last = Some(LastObservation::AbsentDirectory { path }),
+            Err(refusal) => return Err(WaitRefusal::Receipts(refusal)),
         }
         let Some(left) = remaining(started.elapsed(), deadline) else {
-            return Err(WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() });
+            return Err(timeout_report(request, last, deadline));
         };
         tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL.min(left)).await;
     }
 }
+
+/// What:
+///  One read of one dataset's receipt,
+///  on the blocking pool.
+/// Why:
+///   The read opens,
+///  checks and reads a file,
+///  and only a job of the blocking pool keeps that off the workers that poll
+///  tasks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const found = await runBlockingJob(() => folder.read(guid));
+/// ```
+async fn read_the_receipt(
+    folder: &ReceiptsFolder,
+    dataset: DatasetGuid,
+) -> Result<Result<Option<CloneMountReceipt>, ReceiptsRefusal>, WaitRefusal> {
+    return run_blocking_job({
+        let holder: ReceiptsFolder = folder.clone();
+        move || return holder.read(dataset)
+    })
+    .await
+    .map_err(|refusal| return WaitRefusal::Unread { refusal });
+}
+
+/// The deadline's report for `request`,
+/// with what the wait last saw.
+fn timeout_report(request: &MountRequest, last: Option<LastObservation>, deadline: Duration) -> WaitRefusal {
+    return WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() };
+}
+
+/// The log tag of every decision this module takes.
+const TAG: &str = "mountRequestWait";
 
 /// What:
 ///  How long one wait may still sleep,

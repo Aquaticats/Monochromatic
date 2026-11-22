@@ -28,18 +28,26 @@
 
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, MAXIMUM_RECEIPT_BYTES};
 use crate::worktree_clone_mount_protocol::clone_mount_receipt_parse::parse_receipt;
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{c_string_of, create_at, open_receipt_at, rename_at, sync_directory};
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{
+    c_string_of, create_at, open_receipt_at, rename_at, sync_directory, unlink_at,
+};
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_refusals::{DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsRefusal};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_mount_protocol::root_owned_directory::{RootDirectoryRefusal, make_and_prove};
 use std::ffi::CString;
 use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The suffix of the sibling a receipt is staged under before its rename.
 /// It is never a receipt and never read as one.
 pub const STAGING_SUFFIX: &str = ".staging";
+
+/// Distinguishes the staging names of two publishes one process makes,
+/// so no publish ever shares another's sibling.
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// What:
 ///  Where receipts live and which account must own them.
@@ -84,39 +92,77 @@ impl ReceiptsFolder {
         return dataset.file_name();
     }
 
-    /// The sibling a receipt is staged under before its rename.
-    /// It carries this process's id,
-    /// so a writer killed before its rename leaves a name no later run reuses
-    /// and no receipt is ever read from.
+    /// What:
+    ///  The sibling one publish of a receipt is staged under before its rename.
+    /// Why:
+    ///   The name carries this process's id and a counter of this process's own
+    ///  attempts,
+    ///  so two publishes in one process never share a staging name (a shared name
+    ///  lets the second publish remove the first one's live sibling and rename a
+    ///  half-written file into the receipt's name),
+    ///  and a writer killed before its rename leaves a name no later attempt
+    ///  reuses and no receipt is ever read from.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const staging = `${guid}.staging.${process.pid}.${nextAttempt()}`;
+    /// ```
     pub fn staging_name(&self, dataset: DatasetGuid) -> String {
-        return format!("{}{STAGING_SUFFIX}.{}", dataset.file_name(), std::process::id());
+        let attempt: u64 = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
+        return format!("{}{STAGING_SUFFIX}.{}.{attempt}", dataset.file_name(), std::process::id());
     }
 
     /// What:
+    /// Make the directory when it is absent,
+    /// give it its designed mode,
+    /// and prove it is the designed root-owned folder.
+    ///
+    /// # Errors
+    /// The directory could not be made or given its mode,
+    /// or it is owned by another account.
+    pub fn prepare(&self) -> Result<(), ReceiptsRefusal> {
+        let directory: std::fs::File = self.prepare_directory()?;
+        drop(directory);
+        return Ok(());
+    }
+
     ///  File one receipt,
     ///  replacing the dataset's own earlier one whole.
     /// Why:
-    ///   The staging sibling is written and synced first,
+    ///   The directory is made when a fresh boot has none,
+    ///  the text is proved readable by the route's own reader before a byte is
+    ///  written,
+    ///  and the staging sibling is written and synced first,
     ///  so the GUID's name always holds one whole receipt,
     ///  and a live clone's next result overwrites its own entry as the design
     ///  says.
+    ///  Every way out after the staging sibling was made removes it,
+    ///  so this process's next publish is never blocked by its own failure,
+    ///  and a sibling an earlier run of this process left is replaced rather
+    ///  than waited on.
     ///
     /// # Errors
     /// The directory is not the designed root-owned `0755` folder,
+    /// the text is not one this route's reader accepts,
     /// or the staging write,
     /// its sync or the rename answered an error.
     pub fn publish(&self, receipt: &CloneMountReceipt) -> Result<(), ReceiptsRefusal> {
-        let directory: std::fs::File = self.open_directory()?;
+        let directory: std::fs::File = self.prepare_directory()?;
         let name: String = self.entry_name(receipt.dataset);
+        let text: String = receipt.text();
+        match parse_receipt(text.as_str()) {
+            Ok(parsed) if parsed == *receipt => {}
+            Ok(_) => return Err(ReceiptsRefusal::NotWhatWasWritten { name }),
+            Err(refusal) => return Err(ReceiptsRefusal::NotAReceipt { name, refusal }),
+        }
         let staging: String = self.staging_name(receipt.dataset);
         let staged: Result<(), ReceiptsRefusal> = (|| {
-            let mut file: std::fs::File = create_at(&directory, staging.as_str(), RECEIPT_MODE).map_err(|error| {
-                return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
-            })?;
+            let mut file: std::fs::File = create_at(&directory, staging.as_str(), RECEIPT_MODE)
+                .map_err(|error| return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() })?;
             file.set_permissions(std::fs::Permissions::from_mode(RECEIPT_MODE)).map_err(|error| {
                 return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
             })?;
-            file.write_all(receipt.text().as_bytes()).map_err(|error| {
+            file.write_all(text.as_bytes()).map_err(|error| {
                 return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
             })?;
             file.sync_all().map_err(|error| {
@@ -127,7 +173,23 @@ impl ReceiptsFolder {
             })?;
             return sync_directory(&directory).map_err(|error| return ReceiptsRefusal::Staging { name: name.clone(), reason: error.to_string() });
         })();
+        if staged.is_err() {
+            // A rename may have completed before a failed directory sync, and then there is no sibling to remove; a
+            // removal's own failure changes nothing about the refusal being reported.
+            let _removed: std::io::Result<()> = unlink_at(&directory, staging.as_str());
+        }
         return staged;
+    }
+
+    /// Make the directory and prove it,
+    /// handing back the descriptor every later call is relative to.
+    fn prepare_directory(&self) -> Result<std::fs::File, ReceiptsRefusal> {
+        let path: &Path = self.directory.as_path();
+        return make_and_prove(path, self.owner, DIRECTORY_MODE).map_err(|refusal| return match refusal {
+            RootDirectoryRefusal::Open { reason } => ReceiptsRefusal::Directory { path: path.to_path_buf(), reason },
+            RootDirectoryRefusal::Owner { found, wanted } => ReceiptsRefusal::DirectoryOwner { path: path.to_path_buf(), found, wanted },
+            RootDirectoryRefusal::Mode { found, wanted: _wanted } => ReceiptsRefusal::DirectoryMode { path: path.to_path_buf(), found },
+        });
     }
 
     /// What:
@@ -197,7 +259,11 @@ impl ReceiptsFolder {
         // SAFETY: `text` is a NUL-terminated string that outlives the call.
         let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
         if descriptor < 0 {
-            return Err(ReceiptsRefusal::Directory { path: path.to_path_buf(), reason: std::io::Error::last_os_error().to_string() });
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::NotFound {
+                return Err(ReceiptsRefusal::DirectoryAbsent { path: path.to_path_buf() });
+            }
+            return Err(ReceiptsRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
         }
         // SAFETY: `open` returned a new descriptor that nothing else owns.
         let directory: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });

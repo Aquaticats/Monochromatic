@@ -16,9 +16,12 @@
 //! const file = ReadinessFile.at(fixture('readiness'), process.getuid()); file.publish(record); file.read();
 //! ```
 
-use super::{READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, ReadinessFile, ReadinessFileRefusal};
+use super::{
+    READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, ReadinessFile, ReadinessFileRefusal, readiness_staging_name,
+};
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessRecord, ReadyState, SweepState};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -40,7 +43,7 @@ fn record() -> ReadinessRecord {
         pool_state: ReadyState::Ready,
         checkout_path: String::from("/home/user/Mono"),
         checkout_state: ReadyState::Ready,
-        sweep_nonce: RequestNonce::parse("0".repeat(32).as_str()).ok(),
+        sweep_nonce: RequestNonce::parse("0".repeat(NONCE_HEX_DIGITS).as_str()).ok(),
         sweep_state: SweepState::Finished,
         time: String::from("2026-11-21T15:00:00Z"),
     };
@@ -124,7 +127,120 @@ fn a_link_or_foreign_file_is_refused() {
 /// Every refusal says nothing was attached on the record.
 #[test]
 fn every_refusal_says_nothing_was_attached() {
-    let file: ReadinessFile = ReadinessFile::at(PathBuf::from("/nonexistent/readiness"), 0);
-    let refusal: ReadinessFileRefusal = file.read().expect_err("a missing directory is refused");
+    let file: ReadinessFile = live_file("readiness-refusal-words");
+    std::fs::set_permissions(file.directory(), std::fs::Permissions::from_mode(0o700)).expect("the directory takes another mode");
+    let refusal: ReadinessFileRefusal = file.read().expect_err("another mode is refused");
     assert!(refusal.message().contains("Nothing was attached"), "{}", refusal.message());
+}
+
+/// What:
+///  A first publish in an empty parent makes the directory at its designed mode
+///  and files the record,
+///  which is what a fresh boot needs.
+/// Why:
+///  Nothing else creates the readiness directory,
+///  so a publish that refused without it could not work after a boot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = ReadinessFile.at(empty.join('never-made'), uid); file.publish(record); expect(file.read()).toEqual(record);
+/// ```
+#[test]
+fn a_first_publish_makes_its_directory() {
+    let parent: PathBuf = fixture("readiness-fresh-boot");
+    let directory: PathBuf = parent.join("never-made");
+    let file: ReadinessFile = ReadinessFile::at(directory.clone(), this_uid());
+    let record: ReadinessRecord = record();
+    file.publish(&record).expect("the first publish makes its directory");
+    let mode: u32 = std::fs::metadata(directory.as_path()).expect("the directory exists").permissions().mode() & 0o777;
+    assert_eq!(mode, READINESS_DIRECTORY_MODE);
+    assert_eq!(file.read().expect("the record is read"), Some(record));
+}
+
+/// What:
+///  A boot that has published no readiness has no directory either,
+///  and its read answers "no record" rather than a refusal.
+/// Why:
+///   The directory is made by the first publish,
+///  so a reader that refused an absent directory would refuse every attach
+///  between the boot and the handler's first publish with the wrong reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(ReadinessFile.at(neverMade, uid).read()).toBeNull();
+/// ```
+#[test]
+fn an_unpublished_boot_has_no_directory_and_no_refusal() {
+    let file: ReadinessFile = ReadinessFile::at(fixture("readiness-no-directory").join("never-made"), this_uid());
+    assert_eq!(file.read().expect("an absent directory is no record yet"), None);
+}
+
+/// What:
+///  Two publishes of one record in one process,
+///  at the same time,
+///  leave one whole record and no staging sibling.
+/// Why:
+///   The record has several writers once the boot unit and the sweeps land,
+///  and a staging name shared by two publishes would let the second remove the
+///  first one's live file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.all([file.publish(a), file.publish(b)]); expect(file.staging()).not.toExist();
+/// ```
+#[test]
+fn two_publishes_at_once_leave_one_whole_record() {
+    let file: ReadinessFile = live_file("readiness-two-writers");
+    assert_ne!(readiness_staging_name(), readiness_staging_name(), "two attempts never share a staging name");
+    let mut first: ReadinessRecord = record();
+    let mut second: ReadinessRecord = record();
+    first.time = String::from("2026-11-21T15:00:01Z");
+    second.checkout_state = ReadyState::NotReady;
+    second.time = String::from("2026-11-21T15:00:02Z");
+    let gate: std::sync::Barrier = std::sync::Barrier::new(2);
+    std::thread::scope(|scope| {
+        for record in [&first, &second] {
+            let writer: ReadinessFile = file.clone();
+            let publishing: ReadinessRecord = record.clone();
+            let barrier: &std::sync::Barrier = &gate;
+            scope.spawn(move || {
+                barrier.wait();
+                writer.publish(&publishing).expect("a writer publishes its record");
+            });
+        }
+    });
+    let found: Option<ReadinessRecord> = file.read().expect("the record is read");
+    assert!(found.as_ref() == Some(&first) || found.as_ref() == Some(&second), "one whole record is the answer: {found:?}");
+    let left: Vec<PathBuf> = std::fs::read_dir(file.directory())
+        .expect("the directory lists")
+        .flatten()
+        .map(|entry| return entry.path())
+        .filter(|path| return path.to_string_lossy().contains(".staging."))
+        .collect();
+    assert!(left.is_empty(), "no staging sibling survives: {left:?}");
+}
+
+/// What:
+///  A readiness record this route's own reader would refuse is never written,
+///  and a leftover staging sibling of this process does not block the retry.
+/// Why:
+///   A record nobody can read would make this boot look unready for reasons the
+///  handler never saw,
+///  and a failed publish must not block the same process's next one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(() => file.publish(hostile)).toThrow(); expect(publishAgain()).toBeUndefined();
+/// ```
+#[test]
+fn a_record_no_reader_accepts_is_not_written_and_a_leftover_does_not_block() {
+    let file: ReadinessFile = live_file("readiness-hostile");
+    let mut hostile: ReadinessRecord = record();
+    hostile.pool_name = String::from("pool name with spaces");
+    let refusal: ReadinessFileRefusal = file.publish(&hostile).expect_err("a pool name with a space is no record");
+    assert!(matches!(refusal, ReadinessFileRefusal::NotAReadiness { .. }), "{refusal:?}");
+    assert!(!file.record().exists(), "nothing was filed");
+    std::fs::write(file.staging(), record().text()).expect("this process's earlier sibling is planted");
+    file.publish(&record()).expect("a sibling of this process's own name blocks nothing");
+    assert!(!file.staging().exists(), "the sibling is renamed over the record");
 }

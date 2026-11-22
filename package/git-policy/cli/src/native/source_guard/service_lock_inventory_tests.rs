@@ -32,7 +32,10 @@ use std::path::{Path, PathBuf};
 /// the work queue,
 /// the discarded store,
 /// the index
-/// lock handling and the support modules they use.
+/// lock handling,
+/// the support modules they use,
+/// and the per-slot root claim of the clone-mount handler,
+/// whose claim must stay lock-free (`per_slot_`).
 const COVERED_PREFIXES: &[&str] = &[
     "service_",
     "claim_time",
@@ -52,6 +55,7 @@ const COVERED_PREFIXES: &[&str] = &[
     "commit_",
     "diagnostic_",
     "slot_identity_",
+    "per_slot_",
 ];
 
 /// The source files that ship nothing:

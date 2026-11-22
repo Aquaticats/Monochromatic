@@ -26,21 +26,43 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
     MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, ReadinessRecord,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_parse::{ReadinessParseRefusal, parse_readiness};
-use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{c_string_of, create_at, open_receipt_at, rename_at, sync_directory};
+use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{
+    c_string_of, create_at, open_receipt_at, rename_at, sync_directory, unlink_at,
+};
+use crate::worktree_clone_mount_protocol::root_owned_directory::{RootDirectoryRefusal, make_and_prove};
 use std::ffi::CString;
 use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The sibling a record is staged under before its rename.
 pub const READINESS_STAGING_NAME: &str = "result.staging";
 
-/// The staging sibling this writer uses,
-/// named for its process so a killed writer leaves a name no later run reuses.
+/// What:
+///  The sibling one publish of the record is staged under before its rename.
+/// Why:
+///   The name carries this process's id and a counter of this process's own
+///  attempts,
+///  so two publishes in one process never share a staging name (a shared name
+///  lets the second publish remove the first one's live sibling and rename a
+///  half-written record into the record's name),
+///  and a writer killed before its rename leaves a name no later attempt
+///  reuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staging = `result.staging.${process.pid}.${nextAttempt()}`;
+/// ```
 pub fn readiness_staging_name() -> String {
-    return format!("{READINESS_STAGING_NAME}.{}", std::process::id());
+    let attempt: u64 = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
+    return format!("{READINESS_STAGING_NAME}.{}.{attempt}", std::process::id());
 }
+
+/// Distinguishes the staging names of two publishes one process makes,
+/// so no publish ever shares another's sibling.
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// What:
 ///  Why the readiness directory or its record could not be used.
@@ -61,6 +83,12 @@ pub enum ReadinessFileRefusal {
         path: PathBuf,
         /// What the call answered.
         reason: String,
+    },
+    /// The directory is not there at all,
+    /// which on a fresh boot is the answer before the handler's first publish.
+    DirectoryAbsent {
+        /// The path.
+        path: PathBuf,
     },
     /// The directory is not owned by the expected account.
     DirectoryOwner {
@@ -104,6 +132,10 @@ pub enum ReadinessFileRefusal {
     },
     /// The record's bytes are not text.
     NotText,
+    /// The writer built a text its own reader does not read back as the same
+    /// record,
+    /// so nothing could ever read it.
+    NotWhatWasWritten,
     /// The text is not a readiness record this route wrote.
     NotAReadiness {
         /// What the parse refused.
@@ -122,6 +154,10 @@ impl ReadinessFileRefusal {
     pub fn message(&self) -> String {
         let reason: String = match self {
             ReadinessFileRefusal::Directory { path, reason } => format!("the readiness directory {} could not be opened ({reason})", path.display()),
+            ReadinessFileRefusal::DirectoryAbsent { path } => format!("the readiness directory {} does not exist yet", path.display()),
+            ReadinessFileRefusal::NotWhatWasWritten => String::from(
+                "the readiness record this route built is not one its own reader reads back, so it was not written; a field of it holds a character or a length the record's grammar refuses",
+            ),
             ReadinessFileRefusal::DirectoryOwner { path, found, wanted } => format!(
                 "the readiness directory {} is owned by user {found}, and this route requires user {wanted}",
                 path.display()
@@ -197,38 +233,86 @@ impl ReadinessFile {
         return self.directory.join(readiness_staging_name());
     }
 
+    /// Make the directory when it is absent,
+    /// give it its designed mode,
+    /// and prove it is the designed root-owned folder.
+    ///
+    /// # Errors
+    /// The directory could not be made or given its mode,
+    /// or it is owned by another account.
+    pub fn prepare(&self) -> Result<(), ReadinessFileRefusal> {
+        let directory: std::fs::File = self.prepare_directory()?;
+        drop(directory);
+        return Ok(());
+    }
+
     /// Publish one whole record,
     /// replacing the earlier one atomically.
+    /// Why:
+    ///   The directory is made when a fresh boot has none,
+    ///  the text is proved readable by the route's own reader before a byte is
+    ///  written,
+    ///  and every way out after the staging sibling was made removes it,
+    ///  so this process's next publish is never blocked by its own failure.
     ///
     /// # Errors
     /// The directory is not the designed root-owned `0755` folder,
+    /// the text is not one this route's reader accepts,
     /// or the staging write,
     /// its sync or the rename answered an error.
     pub fn publish(&self, record: &ReadinessRecord) -> Result<(), ReadinessFileRefusal> {
-        let directory: std::fs::File = self.open_directory()?;
+        let directory: std::fs::File = self.prepare_directory()?;
+        let text: String = record.text();
+        match parse_readiness(text.as_str()) {
+            Ok(parsed) if parsed == *record => {}
+            Ok(_) => return Err(ReadinessFileRefusal::NotWhatWasWritten),
+            Err(refusal) => return Err(ReadinessFileRefusal::NotAReadiness { refusal }),
+        }
+        let staging: String = readiness_staging_name();
         let staged: Result<(), ReadinessFileRefusal> = (|| {
-            let mut file: std::fs::File =
-                create_at(&directory, readiness_staging_name().as_str(), READINESS_MODE).map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
+            let mut file: std::fs::File = create_at(&directory, staging.as_str(), READINESS_MODE)
+                .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.set_permissions(std::fs::Permissions::from_mode(READINESS_MODE))
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
-            file.write_all(record.text().as_bytes())
+            file.write_all(text.as_bytes())
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.sync_all().map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
-            rename_at(&directory, readiness_staging_name().as_str(), READINESS_NAME)
+            rename_at(&directory, staging.as_str(), READINESS_NAME)
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             return sync_directory(&directory).map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() });
         })();
+        if staged.is_err() {
+            // A rename may have completed before a failed directory sync, and then there is no sibling to remove.
+            let _removed: std::io::Result<()> = unlink_at(&directory, staging.as_str());
+        }
         return staged;
+    }
+
+    /// Make the directory and prove it,
+    /// handing back the descriptor every later call is relative to.
+    fn prepare_directory(&self) -> Result<std::fs::File, ReadinessFileRefusal> {
+        let path: &Path = self.directory.as_path();
+        return make_and_prove(path, self.owner, READINESS_DIRECTORY_MODE).map_err(|refusal| return match refusal {
+            RootDirectoryRefusal::Open { reason } => ReadinessFileRefusal::Directory { path: path.to_path_buf(), reason },
+            RootDirectoryRefusal::Owner { found, wanted } => ReadinessFileRefusal::DirectoryOwner { path: path.to_path_buf(), found, wanted },
+            RootDirectoryRefusal::Mode { found, wanted: _wanted } => ReadinessFileRefusal::DirectoryMode { path: path.to_path_buf(), found },
+        });
     }
 
     /// Read this boot's record,
     /// or nothing when none was published.
+    /// A directory that is not there is no record yet,
+    /// which is what a boot that has not run the handler answers.
     ///
     /// # Errors
     /// The directory or the record is not the designed root-owned file,
     /// or the text is not a record this route wrote.
     pub fn read(&self) -> Result<Option<ReadinessRecord>, ReadinessFileRefusal> {
-        let directory: std::fs::File = self.open_directory()?;
+        let directory: std::fs::File = match self.open_directory() {
+            Ok(directory) => directory,
+            Err(ReadinessFileRefusal::DirectoryAbsent { .. }) => return Ok(None),
+            Err(refusal) => return Err(refusal),
+        };
         let Some(file) = open_receipt_at(&directory, READINESS_NAME).map_err(|error| return ReadinessFileRefusal::File { reason: error.to_string() })?
         else {
             return Ok(None);
@@ -272,7 +356,11 @@ impl ReadinessFile {
         // SAFETY: `text` is a NUL-terminated string that outlives the call.
         let descriptor: libc::c_int = unsafe { libc::open(text.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) };
         if descriptor < 0 {
-            return Err(ReadinessFileRefusal::Directory { path: path.to_path_buf(), reason: std::io::Error::last_os_error().to_string() });
+            let error: std::io::Error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::NotFound {
+                return Err(ReadinessFileRefusal::DirectoryAbsent { path: path.to_path_buf() });
+            }
+            return Err(ReadinessFileRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
         }
         // SAFETY: `open` returned a new descriptor that nothing else owns.
         let directory: std::fs::File = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });

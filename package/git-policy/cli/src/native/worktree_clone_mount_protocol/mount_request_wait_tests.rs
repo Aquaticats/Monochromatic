@@ -17,7 +17,10 @@
 //! expect(runtime.blockOn(waitForAnswer(folder, request, 0n)).kind).toBe('timed-out');
 //! ```
 
-use super::{MountRequest, ReceiptStanding, StaleReason, WaitRefusal, standing_of, wait_for_answer};
+use super::{
+    LastObservation, MOUNT_REQUEST_POLL_INTERVAL, PROVISIONAL_MOUNT_REQUEST_DEADLINE, MountRequest, ReceiptStanding, StaleReason, WaitRefusal,
+    standing_of, wait_for_answer,
+};
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::{CloneMountReceipt, ReceiptMountIdentity, ReceiptOutcome};
@@ -118,7 +121,7 @@ fn a_stale_receipt_is_not_an_answer_and_is_reported() {
         panic!("the wait times out: {refusal:?}");
     };
     assert_eq!(waited.as_ref(), &request());
-    assert!(matches!(last, Some(StaleReason::Nonce { .. })), "{last:?}");
+    assert!(matches!(last, Some(LastObservation::Stale(StaleReason::Nonce { .. }))), "{last:?}");
     let message: String = refusal.message();
     assert!(message.contains(NONCE), "{message}");
     assert!(message.contains("not this request's answer"), "{message}");
@@ -145,12 +148,129 @@ fn the_other_fields_are_compared_too() {
     assert!(matches!(standing_of(&request(), &other_dataset), ReceiptStanding::Stale(StaleReason::Dataset { .. })));
 }
 
+/// What:
+///  The deadline the plan's step 7 states and leaves to step 22.
+/// Why:
+///   The value is provisional,
+///  and this constant is the only place the control names it,
+///  so the check reads the plan's number rather than a number of its own.
+const PLAN_PROVISIONAL_DEADLINE: Duration = Duration::from_secs(30);
+
+/// What:
+///  The slowest answer the measurement document keeps,
+///  in microseconds
+///  (`package/git-policy/cli/doc/zfs-mount-receipt-deadline-measurement-2026-11-21.md`).
+/// Why:
+///   The deadline must leave far more room than any measured round,
+///  and the check reads that round rather than asserting a history of its own.
+const SLOWEST_KEPT_ANSWER: Duration = Duration::from_micros(12_149);
+
 /// The provisional deadline is the plan's open value,
-/// and it is longer than the probe's own measured bound,
-/// so it is not a value a fast machine can trip on.
+/// it leaves far more room than the slowest kept round,
+/// and one poll is shorter than the deadline it sleeps inside.
 #[test]
 fn the_deadline_is_provisional_and_generous() {
-    assert_eq!(super::PROVISIONAL_MOUNT_REQUEST_DEADLINE, Duration::from_millis(30_000));
-    assert!(super::PROVISIONAL_MOUNT_REQUEST_DEADLINE > Duration::from_millis(350));
-    assert_eq!(super::MOUNT_REQUEST_POLL_INTERVAL, Duration::from_millis(50));
+    assert_eq!(PROVISIONAL_MOUNT_REQUEST_DEADLINE, PLAN_PROVISIONAL_DEADLINE);
+    assert!(PROVISIONAL_MOUNT_REQUEST_DEADLINE > SLOWEST_KEPT_ANSWER, "the deadline leaves room over the slowest round");
+    assert!(MOUNT_REQUEST_POLL_INTERVAL < PROVISIONAL_MOUNT_REQUEST_DEADLINE, "the wait sleeps whole polls inside its deadline");
+    assert!(PROVISIONAL_MOUNT_REQUEST_DEADLINE.as_micros() % MOUNT_REQUEST_POLL_INTERVAL.as_micros() == 0, "the deadline is a whole number of polls");
+}
+
+/// What:
+///  A wait for a request whose results directory does not exist yet keeps
+///  looking until its deadline and names the absent directory in the report.
+/// Why:
+///   The first request after a boot meets no directory at all,
+///  and ending at once would refuse in no time instead of waiting for the
+///  handler to file its first answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = waitForAnswer(absentFolder, request, 300n); expect(elapsed).toBeAtLeast(300n);
+/// ```
+#[test]
+fn an_absent_results_directory_is_a_last_observation_and_never_the_end() {
+    let absent: ReceiptsFolder = ReceiptsFolder::at(fixture("wait-absent").join("never-made"), this_uid());
+    let deadline: Duration = Duration::from_millis(300);
+    let started: std::time::Instant = std::time::Instant::now();
+    let refusal: WaitRefusal = runtime().block_on(wait_for_answer(&absent, &request(), deadline)).expect_err("no directory files no answer");
+    let elapsed: Duration = started.elapsed();
+    assert!(elapsed >= deadline, "the wait looked until its deadline: {elapsed:?}");
+    let WaitRefusal::TimedOut { last: Some(LastObservation::AbsentDirectory { path }), .. } = &refusal else {
+        panic!("the deadline reports the absent directory: {refusal:?}");
+    };
+    assert_eq!(path, &absent.directory().to_path_buf());
+    let message: String = refusal.message();
+    assert!(message.contains(absent.directory().to_str().expect("the fixture path is text")), "{message}");
+}
+
+/// What:
+///  A results directory that appears and stays empty before the deadline is
+///  reported as no receipt,
+///  never as a directory that was not there.
+/// Why:
+///   The report sends a person to the handler's journal,
+///  and "the directory was not there at the deadline" is wrong once the wait read
+///  it successfully afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await join(waitForAnswer(folder, request, 400n), makeDirectoryAfter(20n)); expect(last?.kind).toBeUndefined();
+/// ```
+#[test]
+fn a_directory_that_appears_empty_is_not_reported_as_absent() {
+    let parent: PathBuf = fixture("wait-directory-appears");
+    let absent: ReceiptsFolder = ReceiptsFolder::at(parent.join("late"), this_uid());
+    let deadline: Duration = Duration::from_millis(400);
+    runtime().block_on(async {
+        let make = {
+            let path: PathBuf = absent.directory().to_path_buf();
+            async move {
+                tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL / 2).await;
+                std::fs::create_dir_all(path.as_path()).expect("the results directory appears");
+                std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the directory takes its mode");
+            }
+        };
+        let request: MountRequest = request();
+        let waited = wait_for_answer(&absent, &request, deadline);
+        let (found, ()) = tokio::join!(waited, make);
+        let refusal: WaitRefusal = found.expect_err("an empty directory files no answer");
+        let WaitRefusal::TimedOut { last, .. } = &refusal else {
+            panic!("the wait times out: {refusal:?}");
+        };
+        assert_eq!(last, &None, "the deadline reports no receipt rather than a directory that is there: {refusal:?}");
+    });
+}
+
+/// What:
+///  An answer filed after the wait started ends it,
+///  which is the second poll and the sleep between the two.
+/// Why:
+///   Every other control hands the wait a receipt that is already on the file or
+///  a zero deadline,
+///  so nothing holds the poll loop:
+///  removing the sleep or the second look would leave them all green.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [found] = await join(waitForAnswer(folder, request, 5s), sleepThenPublish());
+/// ```
+#[test]
+fn an_answer_filed_after_the_wait_started_ends_it() {
+    let folder: ReceiptsFolder = folder("wait-second-poll");
+    let answer: CloneMountReceipt = receipt(NONCE, MountOperation::Mount);
+    runtime().block_on(async {
+        let publish = {
+            let late_folder: ReceiptsFolder = folder.clone();
+            let late_answer: CloneMountReceipt = answer.clone();
+            async move {
+                tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL / 2).await;
+                late_folder.publish(&late_answer).expect("the late answer is filed");
+            }
+        };
+        let request: MountRequest = request();
+        let waited = wait_for_answer(&folder, &request, Duration::from_secs(5));
+        let (found, ()) = tokio::join!(waited, publish);
+        assert_eq!(found.expect("the late answer ends the wait"), answer, "the second poll read the answer");
+    });
 }

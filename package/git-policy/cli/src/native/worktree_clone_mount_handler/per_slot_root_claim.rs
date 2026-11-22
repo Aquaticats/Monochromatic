@@ -1,10 +1,9 @@
 //! What:
 //!  The per-slot claim every root handler takes before it reads a clone's
 //!  desired state and acts on it:
-//!  a root-owned directory of lock files under `/var/lib`,
-//!  one file per slot,
-//!  and an exclusive,
-//!  non-waiting lock that ends when the claim is dropped.
+//!  a root-owned directory under `/run`,
+//!  one numbered claim file per slot,
+//!  and a lock-free claim that never waits.
 //! Why:
 //!  The design lets parallel handlers sweep at once but forbids conflicting
 //!  actions on the same mount,
@@ -12,72 +11,73 @@
 //!  claim
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Requests,
-//! results and ordering";
-//!  "Removal and recovery" says the claim serializes cooperating wrapper
-//!  operations only).
+//! results and ordering").
 //!  A claim that waited would let one sweep's slow step hold every later
 //!  sweep of the same slot behind it with no deadline,
 //!  so a held slot is refused rather than queued,
 //!  and the sweep that refused is free to try the slot on its next trigger.
-//!  The design names no path for the claim:
-//!  it sits beside step 4's slot identity store under root control,
-//!  which is the narrowest place the records already keep such state.
+//!  The claim is the repository's own lock-free claim
+//!  (`lock/single_owner_claim.rs`,
+//!  `take_claim`):
+//!  a record made whole in a private file and published under the next
+//!  generation number with one exclusive `link`,
+//!  so the kernel lets exactly one claimant create it,
+//!  the owner is named by process birth rather than by a reused process id,
+//!  and a killed claimant leaves nothing to clean by hand.
+//!  The directory is proved through its own descriptor before the claim is
+//!  taken,
+//!  and the claim's own calls then resolve that path again:
+//!  a descriptor-relative `take_claim` would close that window,
+//!  and the step that first calls this claim owns that extension.
+//!  Rule `NLK` asks for a lock only where one cannot be avoided,
+//!  and this claim does not need one:
+//!  the takeover is the single exclusive creation that a lock would otherwise
+//!  stand in for,
+//!  and two claimants cannot both win it.
 //!
-//!  Why this lock and not a lock-free claim (rule `NLK`):
-//!  the claimed unit is one slot,
-//!  the smallest unit a lock may cover,
-//!  and never the repository,
-//!  a parent or the store.
-//!  The kernel drops this `flock` when the descriptor closes,
-//!  including when the process is killed,
-//!  so a handler that dies cannot strand a slot and no later sweep must
-//!  decide whether an owner record names a live process.
-//!  A lock-free claim would need an owner record,
-//!  a proven-dead test and an atomic takeover,
-//!  and the window between proving the old owner dead and acting on the
-//!  mount is the window this claim exists to close.
-//!  The store beside it is a different object:
-//!  identity data the project made a folder of `O_EXCL` files on
-//!  2026-11-21
-//!  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`),
-//!  while this is an operation's hold on one mount.
+//!  The claims live under `/run` beside the results and the readiness record,
+//!  because a claim means nothing across a boot and every take writes and
+//!  syncs a record:
+//!  a durable folder would pay that sync per sweep and would keep one file for
+//!  every slot ever seen.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const claims = SlotClaimDirectory.live(); const claim = claims.claim('one');
 //! ```
 
+use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
 use crate::worktree_clone_mount::slot_name_refusal;
-use std::ffi::CString;
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::ffi::{CString, OsStr};
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// The directory the per-slot claims live in.
-pub const SLOT_CLAIM_DIRECTORY: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-claims";
+pub const SLOT_CLAIM_DIRECTORY: &str = "/run/git-worktree-clone-mount-slot-claims";
 
 /// The directory's mode:
-/// readable by everyone so `doctor` can list it,
+/// readable by everyone so a person can list it,
 /// writable by root only.
 pub const SLOT_CLAIM_DIRECTORY_MODE: u32 = 0o755;
 
-/// One claim file's mode,
+/// The mode every claim generation file is made at,
 /// which only root reads or writes.
 pub const SLOT_CLAIM_FILE_MODE: u32 = 0o600;
 
-/// The suffix of one slot's claim file.
-pub const SLOT_CLAIM_SUFFIX: &str = ".claim";
+/// The log tag of every decision this module takes.
+const TAG: &str = "perSlotRootClaim";
 
 /// What:
 ///  Why a claim could not be taken.
 /// Why:
 ///   A handler that cannot prove it holds the slot must not act,
-///  and a person needs to tell a held slot from a wrong directory and from a
-///  name that is no slot.
+///  and a person needs to tell a held slot from a wrong directory,
+///  from a name that is no slot and from a claim record that cannot be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ClaimRefusal = { kind: 'directory' | 'owner' | 'mode' | 'slot-name' | 'held' | 'file'; ... };
+/// type ClaimRefusal = { kind: 'directory' | 'owner' | 'mode' | 'slot-name' | 'held' | 'records'; ... };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClaimRefusal {
@@ -117,12 +117,13 @@ pub enum ClaimRefusal {
         /// The slot.
         slot: String,
     },
-    /// The claim file could not be opened,
-    /// examined or locked.
-    File {
+    /// A claim record could not be listed,
+    /// read or written,
+    /// or one of them is not a claim this route wrote.
+    Records {
         /// The slot.
         slot: String,
-        /// What the call answered.
+        /// What the record's own reading answered.
         reason: String,
     },
 }
@@ -142,13 +143,11 @@ impl ClaimRefusal {
                 path.display()
             ),
             ClaimRefusal::SlotName { slot, reason } => format!("`{slot}` is no slot name: {reason}"),
-            ClaimRefusal::Held { slot } => format!(
-                "another handler holds the claim for slot `{slot}` right now"
-            ),
-            ClaimRefusal::File { slot, reason } => format!("the claim file for slot `{slot}` could not be opened or locked ({reason})"),
+            ClaimRefusal::Held { slot } => format!("another handler holds the claim for slot `{slot}` right now"),
+            ClaimRefusal::Records { slot, reason } => format!("the claim records for slot `{slot}` could not be read or written ({reason})"),
         };
         return format!(
-            "{reason}. Nothing was opened on the clone's behalf, no mount was attached or taken down and no durable intent was changed. Ways forward: a held slot is retried by the slot's next trigger (a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge); a wrong owner or mode needs an administrator, and `doctor` reports both."
+            "{reason}. Nothing was opened on the clone's behalf, no mount was attached or taken down and no durable intent was changed. Ways forward: a held slot is retried by the slot's next trigger (a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge); a wrong owner, a wrong mode or an unreadable claim record needs an administrator, and the `doctor` command reports a claim once plan step 10 adds it."
         );
     }
 }
@@ -158,7 +157,7 @@ impl ClaimRefusal {
 /// Why:
 ///   The live place requires root,
 ///  and a control hands in a fixture directory it owns,
-///  so the lock is exercised without `/var/lib`.
+///  so the claim is exercised without `/run`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,9 +188,10 @@ impl SlotClaimDirectory {
         return self.directory.as_path();
     }
 
-    /// One slot's claim file.
-    pub fn claim_file(&self, slot: &str) -> PathBuf {
-        return self.directory.join(format!("{slot}{SLOT_CLAIM_SUFFIX}"));
+    /// One slot's claim file at one generation,
+    /// which is the name the shared claim publishes.
+    pub fn claim_generation_file(&self, slot: &str, generation: u64) -> PathBuf {
+        return self.directory.join(format!("{slot}.{generation}"));
     }
 
     /// Make the directory when it is absent,
@@ -223,47 +223,38 @@ impl SlotClaimDirectory {
         return Ok(());
     }
 
-    /// Take one slot's claim without waiting.
+    /// Take one slot's claim without waiting,
+    /// or refuse because a live handler holds it.
     ///
     /// # Errors
     /// The name is no slot name,
     /// the directory is not the designed root-owned folder,
     /// another handler holds the slot,
-    /// or the claim file could not be opened or locked.
+    /// or a claim record could not be read or written.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const claim = claims.claim('one'); // { held } or { busy, owner }
+    /// ```
     pub fn claim(&self, slot: &str) -> Result<HeldSlotClaim, ClaimRefusal> {
         if let Some(reason) = slot_name_refusal(slot) {
             return Err(ClaimRefusal::SlotName { slot: String::from(slot), reason });
         }
-        let directory: std::fs::File = self.open_directory()?;
-        let name: String = format!("{slot}{SLOT_CLAIM_SUFFIX}");
-        let file: std::fs::File = open_claim_at(&directory, name.as_str()).map_err(|error| return ClaimRefusal::File { slot: String::from(slot), reason: error.to_string() })?;
-        let facts: std::fs::Metadata = file
-            .metadata()
-            .map_err(|error| return ClaimRefusal::File { slot: String::from(slot), reason: error.to_string() })?;
-        if !facts.is_file() {
-            return Err(ClaimRefusal::File { slot: String::from(slot), reason: String::from("the claim name is not a regular file") });
-        }
-        if facts.uid() != self.owner {
-            return Err(ClaimRefusal::File {
-                slot: String::from(slot),
-                reason: format!("the claim file is owned by user {} and this route requires user {}", facts.uid(), self.owner),
-            });
-        }
-        let permission_bits: u32 = facts.mode() & 0o7777;
-        if permission_bits != SLOT_CLAIM_FILE_MODE {
-            return Err(ClaimRefusal::File {
-                slot: String::from(slot),
-                reason: format!("the claim file has mode {permission_bits:04o} and this route requires {SLOT_CLAIM_FILE_MODE:04o}"),
-            });
-        }
-        // The kernel releases this lock when the descriptor closes, a kill included, so the slot has no stale owner to
-        // prove dead; `NLK`'s smallest unit is this one slot, and a lock-free claim would reopen the proven-dead window
-        // the lock exists to close.
-        let locked: Result<(), rustix::io::Errno> = rustix::fs::flock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive);
-        return match locked {
-            Ok(()) => Ok(HeldSlotClaim { file, slot: String::from(slot) }),
-            Err(error) if error == rustix::io::Errno::WOULDBLOCK => Err(ClaimRefusal::Held { slot: String::from(slot) }),
-            Err(error) => Err(ClaimRefusal::File { slot: String::from(slot), reason: error.to_string() }),
+        // The shared claim makes path-based calls and checks no owner or mode of its directory, so the designed folder is
+        // proved through its own descriptor first, and the claim is then taken inside a folder only root can replace.
+        // Its own calls still resolve that path again, so the window between this proof and the claim is open; closing it
+        // needs a descriptor-relative take_claim (the shared module's openat, linkat and unlinkat) and belongs to the step
+        // that first calls this claim.
+        self.open_directory()?;
+        let outcome: ClaimOutcome = take_claim(self.directory.as_path(), OsStr::new(slot)).map_err(|error| {
+            return ClaimRefusal::Records { slot: String::from(slot), reason: error.to_string() };
+        })?;
+        return match outcome {
+            ClaimOutcome::Held(claim) => Ok(HeldSlotClaim { claim, slot: String::from(slot) }),
+            ClaimOutcome::Busy(owner) => {
+                crate::diagnostic_log::debug(TAG, format!("refused slot `{slot}`: process {} holds it in {}", owner.pid, owner.path.display()).as_str());
+                Err(ClaimRefusal::Held { slot: String::from(slot) })
+            }
         };
     }
 
@@ -305,7 +296,7 @@ impl SlotClaimDirectory {
 /// What:
 ///  One handler's proved hold on one slot.
 /// Why:
-///   The lock lives exactly as long as this value,
+///   The claim lives exactly as long as this value,
 ///  so a caller cannot take the claim and then act after dropping it by
 ///  accident,
 ///  and the slot's name travels with the hold for a report.
@@ -316,9 +307,9 @@ impl SlotClaimDirectory {
 /// ```
 #[derive(Debug)]
 pub struct HeldSlotClaim {
-    /// The claim file,
-    /// whose descriptor holds the lock.
-    file: std::fs::File,
+    /// The shared claim's own hold,
+    /// which names this process and publishes the next generation.
+    claim: OwnerClaim,
     /// The slot the claim names.
     slot: String,
 }
@@ -330,34 +321,11 @@ impl HeldSlotClaim {
     }
 
     /// Give the claim up now rather than when the value is dropped.
-    pub fn release(self) {
-        drop(self.file);
+    pub fn release(mut self) {
+        if let Err(error) = self.claim.release() {
+            crate::diagnostic_log::warn(TAG, format!("slot `{}` keeps a claim that names this process: {error}", self.slot).as_str());
+        }
     }
-}
-
-/// Open one claim file in the directory,
-/// creating it at the designed mode and following no link.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const file = openat(directory, name, O_CREAT | O_RDWR | O_NOFOLLOW, 0600);
-/// ```
-fn open_claim_at(directory: &std::fs::File, name: &str) -> std::io::Result<std::fs::File> {
-    let text: CString = CString::new(name).map_err(|_nul| return std::io::Error::from_raw_os_error(libc::EINVAL))?;
-    // SAFETY: `text` is a NUL-terminated string that outlives the call, and `directory` is an open descriptor.
-    let descriptor: libc::c_int = unsafe {
-        libc::openat(
-            directory.as_raw_fd(),
-            text.as_ptr(),
-            libc::O_CREAT | libc::O_RDWR | libc::O_NOFOLLOW | libc::O_CLOEXEC,
-            SLOT_CLAIM_FILE_MODE as libc::mode_t,
-        )
-    };
-    if descriptor < 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-    // SAFETY: `openat` returned a new descriptor that nothing else owns.
-    return Ok(std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) }));
 }
 
 /// Controls stay out of the release executable.

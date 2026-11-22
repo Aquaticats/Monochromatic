@@ -16,11 +16,12 @@
 //! ```
 
 use super::{
-    MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_KIND, READINESS_NAME, ReadinessRecord, ReadyState, SweepState,
+    MAXIMUM_READINESS_BYTES, READINESS_DIRECTORY, READINESS_KEYS, READINESS_KIND, READINESS_NAME, ReadinessRecord, ReadyState, SweepState,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::ReadinessExpectation;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
-use crate::worktree_clone_mount_protocol::clone_mount_readiness_parse::{READINESS_KEYS, ReadinessParseRefusal, parse_readiness};
+use crate::worktree_clone_mount_protocol::clone_mount_readiness_parse::{ReadinessParseRefusal, parse_readiness};
+use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 
 /// The boot every control belongs to.
@@ -43,7 +44,7 @@ fn ready() -> ReadinessRecord {
         pool_state: ReadyState::Ready,
         checkout_path: String::from(CHECKOUT),
         checkout_state: ReadyState::Ready,
-        sweep_nonce: RequestNonce::parse("0".repeat(32).as_str()).ok(),
+        sweep_nonce: RequestNonce::parse("0".repeat(NONCE_HEX_DIGITS).as_str()).ok(),
         sweep_state: SweepState::Finished,
         time: String::from(TIME),
     };
@@ -160,7 +161,7 @@ fn each_value_has_its_rule() {
     assert!(matches!(parse_readiness(state.as_str()), Err(ReadinessParseRefusal::State { key: "checkout", .. })));
     let sweep: String = ready().text().replace("sweep finished", "sweep maybe");
     assert!(matches!(parse_readiness(sweep.as_str()), Err(ReadinessParseRefusal::SweepState { .. })));
-    let nonce: String = ready().text().replace(&"0".repeat(32), "nothex");
+    let nonce: String = ready().text().replace(&"0".repeat(NONCE_HEX_DIGITS), "nothex");
     assert!(matches!(parse_readiness(nonce.as_str()), Err(ReadinessParseRefusal::Nonce(_))));
     let boot: String = ready().text().replace(BOOT, "another-boot");
     assert!(matches!(parse_readiness(boot.as_str()), Err(ReadinessParseRefusal::Boot { .. })));

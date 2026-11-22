@@ -72,10 +72,15 @@ so only the clone's own property change starts a round.
 Four runs of
 `worktree_clone_mount_protocol::mount_protocol_arm_tests::mount_protocol_arm_intent_receipt_and_nudge`
 on the guest above passed on 2026-11-21,
-each printing one round;
-the kept logs are `keep/guest/step7-suite.log` and
+each printing one round.
+Three rounds are kept:
 `keep/rounds/round-2.log`,
-`round-3.log` and `round-4.log`.
+`round-3.log` and `round-4.log`,
+and `keep/guest/step7-suite.log` is the same run as `round-4.log`,
+pulled again with the whole suite around it.
+A fourth passing run's suite log was overwritten inside the guest before it was
+pulled,
+so its one round is not kept.
 
 - Round 2:
   event to the test zedlet 10,581 microseconds,
@@ -100,8 +105,11 @@ and the run was discarded rather than recorded.
 The three kept rounds put the test zedlet's arrival 10,218 to 10,581
 microseconds after the property change was issued,
 the product receipt 11,171 to 12,113 microseconds after it,
-and the product wait's answer up to 36 to 64 microseconds after the receipt,
-which is one poll at most.
+and the product wait's answer 36 to 64 microseconds after the receipt.
+The wait's answer is not one poll later:
+the receipt was already on the file when the wait started,
+so those microseconds are the wait's own start and its first read of a receipt
+that was there.
 No round sizes the deadline,
 and the provisional value stands on the plan's assignment of it to step 22.
 
@@ -121,8 +129,8 @@ It passed in the four runs,
 and one earlier run failed only at the event step
 because the zedlet logged `ZEVENT_HISTORY_CMD`,
 which the kernel leaves empty for a `zfs set`;
-its suite log is `keep/guest/step7-suite.log` from before the correction and the
-failure is recorded here.
+that run's suite log was overwritten before it was pulled,
+so the failure is recorded here and its log is not among the kept ones.
 
 ## Limits
 
@@ -134,8 +142,10 @@ failure is recorded here.
   so the round does not measure an attach or the handler's own process start.
 - ZED's delivery is one observed line,
   and the round does not measure a dropped event or a replayed queue.
-- The wrappers' wait polled at 50 milliseconds,
-  so the answer time includes up to one poll interval.
+- The wait polls at 50 milliseconds between reads,
+  and a round whose receipt is already on the file when the wait starts,
+  as every kept round is,
+  pays one read rather than a poll.
 - Per-round host load was not measured;
   the rounds ran in one guest with no other arm in flight,
   because the recipe runs the suite one test thread at a time.
