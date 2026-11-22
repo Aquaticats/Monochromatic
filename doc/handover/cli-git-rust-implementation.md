@@ -42149,7 +42149,41 @@ stated in this entry. What follows from them, as work:
   origin. It names two disagreements with siblings: the forced-removal design supposes a refusal rewrites the intent to
   `mount`, and the origin cleanup design says an administrator can remove the mark, which the source contradicts. GOING:
   the second, short gate pass, by the same Sonnet reviewer resumed with its context, to
-  `~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`. Step 7's
+  `~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`. THE REVIEW OF THE TWO
+  DESIGNS THAT BLOCK STEP 10 IS BACK
+  (`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review.md`): the lock design
+  and the binding record design are each "fit after the listed fixes", and "Step 10: it cannot be built from the two as
+  they stand without asking. They disagree on what the claim carries, where lock ownership is proved, the order of their
+  writes, and what a failed add leaves." Sound: the lock's `--lock --reason` write route against Git `v2.56.1`, and the
+  record's home, grammar and Git measurements. Highs: the lock design proves a killed add's lock from a claim field the
+  binding design's claim does not carry; the binding design's rule that a record refuses when its claim generation is gone
+  can never hold, because `take_claim` deletes older generations; and its identity fields embed a device number that on
+  ZFS belongs to one mount and can change at boot. Thirteen mediums. Ownership set for the two fix rounds so that they do
+  not write past each other (the coordinator's editorial split, no product decision): the binding record design owns what
+  the per-add claim and the record carry and the one order of the add's writes; the lock design owns the lock and proves
+  its ownership from the record's `nonce=`; what a failed add leaves follows the accepted design ("keep the claim"). THE
+  REVIEW OF THE TWO STEP 17 DESIGNS IS BACK
+  (`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review.md`): the forced-removal
+  design is "not fit to put to the owner as it stands" and becomes fit after its highs and four mediums; the cancelled
+  removal and cancel command design is "fit after the listed fixes". Highs: the handler is told a session id and no
+  ancestors, so the harness that started the command would be ended (measured on this machine: under Claude Code's Bash
+  tool the harness sits in another session than the command's shell); a forced request stays valid after its wrapper is
+  gone; the proof reads about a process before it pins it; the act (ending every task in a holder namespace) is chosen on
+  a kernel premise the source contradicts, with the narrower act never offered; and the case the repository measured (the
+  host's unmount succeeds and holders remain in other namespaces) has no arm. The forced-removal run's probe script also
+  held a second `systemctl kill` line, on `dbus.service` with signal 0, which only argument parsing stopped. Ownership set
+  for these two as well: the cancelled-removal design owns what any removal leaves and restores when it does not finish,
+  forced or not; the forced-removal design owns who is ended, by whom and who is spared, and rewrites its probe scripts so
+  that no line can ask the system manager to act. GOING, each the design's own session resumed by
+  `run-a-gate-findings-round.ts` in the launcher folder: `pi-zfs-add-time-git-lock-design-gate-findings`,
+  `pi-zfs-add-binding-record-design-gate-findings`,
+  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-gate-findings` and
+  `pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-gate-findings`. THE LOST-EVENT DESIGN'S FIX ROUND
+  ENDED `idle` (81 turns) at `80a874b773` (report in its folder's `keep/report-gate-findings.md`): every finding fixed; the
+  hook now asks the boot unit to reconcile, the nudge waits a delay owed to a measurement, and no count or number ships.
+  Its questions for the owner as they stand: which trigger runs when the checkout becomes ready, whether "moot" accepts an
+  unbounded wait with nobody waiting, whether the cost rule may hold a pass while a caller waits, and what nudges may cost
+  root. GOING: its second, short gate pass by the same reviewer, to `review-second-pass.md` beside the first. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
