@@ -206,6 +206,18 @@ fn ref_store_is_reftable(common_dir: &Path) -> bool {
     if environment_names_another_read() {
         return true;
     }
+    return ref_store_is_reftable_in_the_repository(common_dir);
+}
+
+/// What:
+///  Whether the repository's own files keep its references in the reftable backend's tables,
+///  asking nothing of the environment.
+/// Why:
+///  A proof of *this worktree's own* files reads the repository's own store, as `main`'s reader did,
+///  and a command's environment moves what Git reads and not what this repository keeps:
+///  `ObjectDatabase::open_of_the_repository_alone` asks this,
+///  and `ObjectDatabase::open` asks the environment first and then this.
+fn ref_store_is_reftable_in_the_repository(common_dir: &Path) -> bool {
     if common_dir.join("reftable").exists() {
         return true;
     }
@@ -355,6 +367,27 @@ impl ObjectDatabase {
     }
 
     /// What:
+    ///  The database of *this worktree's own* files,
+    ///  asked by a proof that compares the index with the worktree and never asks what a command reads.
+    /// Why:
+    ///  A content proof reads the repository's own store, as `main`'s reader did, whatever store a command's
+    ///  environment names:
+    ///  the files it judges are this worktree's own, and a store the environment moves is read by Git's own answers,
+    ///  not by this one.
+    ///  Every other decline stays, so a store the repository itself moved away still refuses.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// openObjectDatabaseOfTheRepositoryAlone({ commonDir, objectsDir, format }): ObjectDatabase | undefined;
+    /// ```
+    pub fn open_of_the_repository_alone(common_dir: &Path, objects_dir: Option<&Path>, format: ObjectFormat) -> Option<ObjectDatabase> {
+        if ref_store_is_reftable_in_the_repository(common_dir) {
+            return None;
+        }
+        return open_the_objects(common_dir, objects_dir, format);
+    }
+
+    /// What:
     ///  The same database for a repository whose layout the caller has already read,
     ///  so its ref store is not read a second time.
     /// Why:
@@ -374,6 +407,13 @@ impl ObjectDatabase {
     /// openObjectDatabaseFromProof({ commonDir: layout.commonDir, objectsDir, format: layout.objectFormat }): ObjectDatabase | undefined;
     /// ```
     pub fn open_where_the_layout_proved_the_store(layout: &crate::repo_read_layout::RepoLayout, objects_dir: Option<&Path>) -> Option<ObjectDatabase> {
+        // The layout proved the ref store when it was read, and a store moved under a command that holds the layout (a
+        //  `git refs migrate` inside a forwarded `merge`, say) leaves that proof stale. The folder is asked again, which is
+        //  the cheap half of what the proof skipped; the environment and the configuration are not, since the layout refused
+        //  them by default-deny when it was read.
+        if layout.git_dir.join("reftable").exists() || layout.common_dir.join("reftable").exists() {
+            return None;
+        }
         return open_the_objects(layout.common_dir.as_path(), objects_dir, layout.object_format);
     }
 

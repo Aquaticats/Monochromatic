@@ -570,3 +570,37 @@ fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
     assert_eq!(layout.git_dir, std::fs::canonicalize(admin.as_path()).expect("the Git directory"));
     remove(root.as_path());
 }
+
+/// What:
+///  A layout's proof taken before a ref store migration declines after it.
+/// Why:
+///  `open_where_the_layout_proved_the_store` trusts the layout's proof of the ref store,
+///  and `git refs migrate --ref-format=reftable` inside a command that holds the layout (a forwarded `merge`, say)
+///  leaves that proof stale:
+///  the proved open must decline as the unproved one does,
+///  or it reads the object's own bytes where Git reads a replacement that now lives in the tables.
+#[test]
+fn a_proof_read_before_a_ref_store_migration_declines_after_it() {
+    let root: PathBuf = fixture("repo-read-proof-before-a-migration");
+    let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), "repo");
+    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "a plain files layout");
+    let common: PathBuf = repo.join(".git");
+    assert!(
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_some(),
+        "the proof opens the files repository it was read from"
+    );
+    // What a forwarded command does while it holds the layout: a replacement ref, then the store moved to the tables.
+    git(repo.as_path(), &["replace", commits[0].as_str(), commits[2].as_str()]);
+    git(repo.as_path(), &["refs", "migrate", "--ref-format=reftable"]);
+    assert!(
+        git_output(repo.as_path(), &["cat-file", "commit", commits[0].as_str()]).stdout
+            != git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", commits[0].as_str()]).stdout,
+        "the positive control: Git reads the replacement from the tables"
+    );
+    assert!(ObjectDatabase::open(common.as_path(), None, layout.object_format).is_none(), "the unproved open declines the migrated store");
+    assert!(
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_none(),
+        "the proved open asks the reftable folder again, and declines the migrated store"
+    );
+    remove(root.as_path());
+}

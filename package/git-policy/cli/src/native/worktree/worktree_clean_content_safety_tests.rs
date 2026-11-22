@@ -411,3 +411,66 @@ fn the_process_environment_names_an_attribute_source() {
     assert!(ConversionEnvironment::from_variables(with("").as_slice()).alternate_attribute_source.is_some());
     assert!(ConversionEnvironment::from_variables(&[]).alternate_attribute_source.is_none());
 }
+
+/// The four variables a command's environment can hold that the reader declines,
+/// by name.
+/// Why:
+///  The value each is given in the child names what this fixture already has (its own store, an empty directory beside
+///  it, a replacement base with nothing under it),
+///  so Git's own starts in the proof still run and the reader's decline is the only thing the variable moves.
+const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE", "GIT_REFERENCE_BACKEND"];
+
+/// The marker that tells the child of the control below which variable it holds.
+const THE_VARIABLE_CHILD: &str = "CLI_GIT_CONTENT_PROOF_VARIABLE_CHILD";
+
+/// What the variable `name` is given for a proof in the worktree `worktree`,
+/// whose common directory is `common` and whose fixture root is `root`.
+fn the_value_that_moves_nothing(name: &str, worktree: &Path, common: &Path, root: &Path) -> std::ffi::OsString {
+    return match name {
+        "GIT_OBJECT_DIRECTORY" => common.join("objects").into_os_string(),
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES" => {
+            let empty: PathBuf = root.join("an-empty-directory");
+            std::fs::create_dir_all(empty.as_path()).expect("an empty directory");
+            empty.into_os_string()
+        }
+        "GIT_REPLACE_REF_BASE" => std::ffi::OsString::from("refs/probe/"),
+        _ => std::ffi::OsString::from("reftable"),
+    };
+    let _ = worktree;
+}
+
+/// What:
+///  A proof of this worktree's own files answers under each variable a command's environment can hold,
+///  as it does on `main`.
+/// Why:
+///  A `git worktree remove` of a tree that holds a foreign volume proves the state by content when the stat proof
+///  cannot vouch for it, and refusing there where `main` proceeds is a regression.
+///  The proof reads the repository's own store, so a store or a base a command names does not move it.
+///  The variable belongs to one process and names paths this fixture makes, so each arm runs in a child that sets it
+///  after the repository exists.
+#[test]
+fn a_content_proof_answers_under_each_variable_a_command_names() {
+    let held: Option<std::ffi::OsString> = std::env::var_os(THE_VARIABLE_CHILD);
+    if let Some(variable) = held {
+        let (_parent, root, worktree): (PathBuf, PathBuf, PathBuf) = settled("clean-by-content-variable", &|root: &Path| {
+            std::fs::write(root.join("a.txt"), "one\n").expect("a");
+        });
+        let found = inspect(worktree.as_path()).expect("registered");
+        let value: std::ffi::OsString = the_value_that_moves_nothing(variable.to_string_lossy().as_ref(), worktree.as_path(), found.common.as_path(), root.as_path());
+        // SAFETY: this is the child the parent started for one arm, it runs one test (`--test-threads=1`), and every read of
+        //  the variable this control makes happens after this line.
+        unsafe { std::env::set_var(variable.as_os_str(), value.as_os_str()) };
+        let checked = crate::worktree_clean::check_clean_by_content(&crate::test_support::git_context(), worktree.as_path(), found.admin.as_path(), found.common.as_path());
+        assert!(checked.is_ok(), "{variable:?}: a proof of this worktree's own files answers under the variable it holds: {checked:?}");
+        return;
+    }
+    for variable in THE_VARIABLES_A_COMMAND_NAMES {
+        let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
+            "worktree::worktree_clean_content::safety_tests::a_content_proof_answers_under_each_variable_a_command_names",
+            &[(std::ffi::OsString::from(THE_VARIABLE_CHILD), std::ffi::OsString::from(variable))],
+        );
+        let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+        assert!(output.status.success(), "{variable}: a proof of this worktree's own files answers as it does on main:\n{said}");
+        assert!(said.contains("1 passed"), "{variable}: the child ran no test:\n{said}");
+    }
+}

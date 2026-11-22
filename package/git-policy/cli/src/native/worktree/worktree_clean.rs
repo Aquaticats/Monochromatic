@@ -366,17 +366,20 @@ impl State {
 
 /// What:
 ///  Read the index and the tree of `HEAD` of a worktree,
-/// in process.
+/// in process,
+///  from the repository's own store when `of_the_repository_alone` asks it.
 /// Why:
 ///   The judgement of cleanliness and the snapshot of a worktree that is not clean start from the same reading;
 /// every shape
 ///  the readers do not know is a refusal of kind `Unreadable`.
+///  A proof by content judges this worktree's own files, so it reads the repository's own store, as `main`'s reader did,
+///  and a store or a base a command's environment names does not move that reading.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readState(gitDir: string, commonDir: string): State; // throws a CleanRefusal
+/// function readState(gitDir: string, commonDir: string, ofTheRepositoryAlone: boolean): State; // throws a CleanRefusal
 /// ```
-fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> {
+fn read_state(git_dir: &Path, common_dir: &Path, of_the_repository_alone: bool) -> Result<State, CleanRefusal> {
     let hash_length: usize = or_unreadable(repository_hash_length(common_dir), "the repository configuration is unreadable")?;
     let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     // One open file gives both the bytes and the time, so the time belongs to the bytes that were proven.
@@ -388,7 +391,11 @@ fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> 
     let entries: Vec<IndexEntry> = or_unreadable(parse_index(bytes.as_slice(), format), "the index has a layout the reader does not know")?;
     let stats = or_unreadable(stored_stats(bytes.as_slice(), hash_length), "the index entries have no plain layout")?;
     let commit: String = or_unreadable(head_commit(git_dir, common_dir, format), "HEAD is not a plain ref to a commit")?;
-    let database: ObjectDatabase = or_unreadable(ObjectDatabase::open(common_dir, None, format), "the object database has a layout the reader does not know")?;
+    let opened: Option<ObjectDatabase> = match of_the_repository_alone {
+        true => ObjectDatabase::open_of_the_repository_alone(common_dir, None, format),
+        false => ObjectDatabase::open(common_dir, None, format),
+    };
+    let database: ObjectDatabase = or_unreadable(opened, "the object database has a layout the reader does not know")?;
     let commit_name: Vec<u8> = or_unreadable(crate::repo_read_object::from_hex(commit.as_bytes(), format), "HEAD names no object")?;
     let commit_object = or_unreadable(database.read(commit_name.as_slice()), "the commit of HEAD is unreadable")?;
     let commit_fields = or_unreadable(parse_commit(commit_object.bytes.as_slice(), format), "the commit of HEAD has a layout the reader does not know")?;
@@ -405,7 +412,9 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
     }
     let read_index_and_tree_entered: bool = begin_step("readIndexAndTree");
-    let read_index_and_tree_outcome = read_state(git_dir, common_dir);
+    // The proof by content (`environment` given) reads the repository's own store, as `main`'s reader did; the stat proof
+    //  leaves the environment's stores to Git, whose own answer its caller takes when this refuses.
+    let read_index_and_tree_outcome = read_state(git_dir, common_dir, environment.is_some());
     end_step(read_index_and_tree_entered);
     let state: State = read_index_and_tree_outcome?;
     let index_against_tree_entered: bool = begin_step("indexAgainstTree");
@@ -656,7 +665,7 @@ pub fn dirty_source(git_dir: &Path, common_dir: &Path, why: CleanRefusal) -> Res
     if !why.kind.restorable() {
         return Err(why);
     }
-    let state: State = read_state(git_dir, common_dir)?;
+    let state: State = read_state(git_dir, common_dir, false)?;
     if let Some(refusal) = entry_a_reset_cannot_undo(&state) {
         return Err(refusal);
     }
