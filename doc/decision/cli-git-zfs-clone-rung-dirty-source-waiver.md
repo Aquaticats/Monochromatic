@@ -111,6 +111,13 @@ this waiver ends with it;
 if it is rejected,
 the waiver is put back to the project.
 
+Amended 2026-11-21T22:04:07-05:00:
+the project accepted the proposal with two provisional limits that send an add to Git's own checkout
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
+The baseline "no slower than `main`'s" names is Git's own checkout,
+the way `main` made a ZFS add when this record was written.
+The waiver ends when that build lands.
+
 ## The miss behind it
 
 The clean-source requirement came from the btrfs clone rung.
