@@ -1589,6 +1589,16 @@ The same report names the folder's staging names and every foreign entry:
 git monochromatic-git-policy-cli doctor: origin cleanup: the folder <path> holds 1 staging name from a command that was killed while it wrote a record, and 1 entry whose name is not a record of this program; step 18's doctor removes the staging names and leaves the foreign entry alone.
 ```
 
+### The finished record
+
+A finished record has no file,
+so `doctor` prints nothing for it and there is nothing for a person to do.
+The folder stays with no entry for it,
+the pool holds no snapshot under its name,
+and the line a command printed when it destroyed the snapshot is the only trace of the cleanup (Q3 weighs whether that is enough).
+A person who wants to know what a repository cleaned up can read the terminal history or the journal,
+and nothing in this design keeps a tombstone ("V6 The state vocabulary").
+
 ### The unaccounted origin snapshot line
 
 A third kind of line comes from the pool and not from a record:
