@@ -5896,6 +5896,72 @@ and the caller records it as the parent record.
 The mode's dispatch is the plan's step 5;
 this section owns the decision table and the store write it leads to.
 
+#### The sweep's checks
+
+One sweep run enumerates the pinned clone parent's immediate children itself and
+verifies each one before it attaches anything.
+The code is
+`package/git-policy/cli/src/native/worktree_clone_mount_handler/`,
+`attaching_sweep_mode.rs` for the mode and `sweep_*.rs` for its parts,
+and the parent's child listing is the only loop it takes from the pool,
+bounded at `MAXIMUM_CHILDREN` so a misconfigured parent is refused rather than
+listed for ever.
+
+One child is a clone this route attaches when all of these hold,
+checked in this order,
+and each refusal names the dataset and the way forward:
+
+- its name is one plain component below the parent,
+  and that component is a slot name:
+  lowercase ASCII letters,
+  digits and interior hyphens,
+  within `SLOT_NAME_MAXIMUM_BYTES` and the kernel's dataset-name bound;
+- the kernel calls it a filesystem (`DMU_OST_ZFS`) and not a snapshot;
+- its GUID is not zero and is canonical,
+  because a receipt is filed under that number alone;
+- its origin is a snapshot of the pinned parent,
+  so a clone of another lineage is not this sweep's;
+- `mountpoint` is `legacy`,
+  so neither `zfs mount -a` nor the systemd mount generator mounts it first;
+- `setuid` and `devices` are off,
+  the two inherited safety properties the container sets;
+- and the key its data is encrypted under is loaded:
+  an encrypted clone whose `keystatus` is unavailable is refused as a key
+  question rather than as a changed identity or a permission failure,
+  and that refusal names its `encryptionroot`.
+
+A property the reply does not carry is refused as unreadable rather than treated
+as absent,
+because an absent `mountpoint` and a legacy one are different instructions.
+The key check runs before the claim and the walk,
+which is what keeps an unloaded key from surfacing as the `EACCES` a detached
+mount setup answered in item 5 of the design's VM measurements.
+
+The slot's first observation is published before the attach,
+and only where the store holds no record for that slot:
+the walk to the slot compares the parent and skips the slot's own record,
+the publication compares `.parent` against the walked parent and links the
+record in one step that replaces nothing,
+and a sweep that loses that race carries on with the record that won.
+Every later walk compares the slot against the record and refuses a folder that
+moved.
+The attach then runs the walk again,
+`fsmount` with `nosuid,nodev`,
+`move_mount` onto the held slot descriptor,
+both post-attach proofs and,
+where a proof refuses,
+the verified descriptor rollback of "The rollback of a misplaced attach".
+
+The claim's directory is proved through a descriptor and the shared claim's own
+calls then resolve that path again.
+The window between the two is root's to use and nobody else's:
+`/run` is a root-owned tmpfs and the claim folder is root-owned `0755`,
+the name has already passed the slot rule so it cannot steer the path,
+and closing the window needs a descriptor-relative `take_claim` in
+`lock/single_owner_claim.rs`,
+which two shipped commands share.
+The sweep therefore takes the claim as it is built.
+
 #### What the guest still owes
 
 The guest arms ran on 2026-11-20 in a throwaway `mvm` guest through
@@ -6144,6 +6210,89 @@ The slot identity store beside it is a different object:
 the project made it a folder of `O_EXCL` files with no lock on 2026-11-21
 (`doc/decision/cli-git-zfs-slot-identity-store-format.md`),
 while this is an operation's hold on one mount.
+
+#### The sweep, and the boot it reconciles
+
+The sweep that reads the intent and files a receipt is the plan's step 8,
+and the handler runs it in two modes:
+
+- no argument,
+  which is what the installed ZED event starts,
+  reads the handler configuration,
+  this boot's start probe record,
+  the pool and the checkout,
+  then runs one sweep;
+- `boot-reconcile`,
+  which step 19's unit starts,
+  reads the same checks,
+  publishes this boot's readiness as `running`,
+  runs the same sweep,
+  and publishes it again as `finished`,
+  or `failed` when the listing stopped or a clone failed.
+
+Both read the start probe's record first,
+because every process that makes a raw request does,
+and a record that is absent,
+names another boot,
+or carries any verdict but `passed` refuses the run with nothing enumerated,
+attached,
+unmounted or recorded.
+That is the design's fail-closed answer for an arm that could not run.
+
+The two names the mode takes from the configuration are this build's choice,
+because the design names the file and not its keys:
+they sit in one `cloneMounts` object beside the start probe's,
+as `cloneMounts.parent` for the pinned clone parent dataset and
+`cloneMounts.checkout` for the checkout the walk starts from.
+A parent that is no dataset name,
+a checkout that is not absolute,
+a missing key and a document that does not parse are each refused by name,
+and nothing is enumerated or attached.
+
+The pool's name is the parent's first `/`-separated component.
+The pool is `ready` when one identity read of the pinned parent answers,
+`not-ready` when the answer names a dataset that is not there,
+and `unknown` otherwise;
+the checkout is `ready` when the no-crossing walk reaches its
+`.claude/worktrees` folder,
+`not-ready` when the folder is missing or the path is not canonical,
+and `unknown` for every other walk refusal.
+`unknown` admits nothing.
+One safety is this build's own and not the readiness record's:
+the pool and the checkout are checked live before every sweep,
+so a ZED event in a boot whose record is `running` still attaches on the
+strength of the live facts rather than the cache.
+
+One clone's turn takes its claim,
+records its first observation,
+attaches and files its receipt as "The sweep's checks" describes.
+A clone that finds no local intent,
+or a value inherited from an ancestor,
+is left alone and files no receipt.
+A malformed local intent is refused before any filesystem operation on its
+behalf and files no receipt either,
+because a receipt must carry the request's nonce and a malformed value has
+none;
+the sweep's line names the dataset and the property,
+and the durable value stays for an operator to repair.
+A local `unmount` intent is answered with a `refused` receipt whose
+`failed-step` is `unmount-awaits-step-9`,
+since the unmount is step 9's:
+a caller reads that answer instead of waiting out its deadline,
+and the intent stays on the clone unchanged.
+A clone whose checks refused files no receipt for the same reason:
+no verified GUID or nonce reached the receipt's grammar.
+
+A run reports one summary line and one line per clone it reached,
+beginning `attached`,
+`nothing`,
+`refused`,
+`failed` or `held`,
+so an operator or a guest arm reads each answer rather than a total.
+A child that refused does not stop the run,
+because one malformed clone must not leave every later clone unmounted;
+a listing that stopped does end it,
+and the clones it already attached keep their mounts.
 
 #### The wrapper's side and its deadline
 

@@ -1734,6 +1734,20 @@ One archive carries two executables,
 The wrapper is the file a caller runs as `git`;
 the handler is never linked as `git`,
 and a machine that never mounts a ZFS worktree clone leaves it unused.
+
+The handler runs four kinds of work:
+no argument at all is the clone-mount sweep the installed ZED event starts,
+`boot-reconcile` is the boot unit's own checks and that same sweep and this
+boot's readiness,
+`start-probe` is the root probe's arms and its record,
+and `shutdown-unmount` is the shutdown unit's verified unmount,
+which is not built yet and names plan step 9 when it is run.
+`adopt-worktree-parent` is the administrator's decision to record a replacement
+`.claude/worktrees` folder.
+The sweep and `boot-reconcile` are described in `SPEC.md` under the section
+on the sweep and the boot it reconciles,
+and the guest arms that run them against a real pool are in
+the sweep arms section of `e2e/README.md`.
 Only the wrapper is linked,
  and not as the installed file's own name:
 link it as `git` in a directory that comes before the real Git on `PATH`:

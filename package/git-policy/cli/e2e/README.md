@@ -869,3 +869,45 @@ when `store-fsync.log` carries both `PROBE` lines,
 and when neither log holds a `SKIPPED` line,
 so an arm that returned without running fails the run.
 `--keep-guest` keeps a failed run's guest to inspect.
+
+## The ZFS sweep arms
+
+The same driver runs plan step 8's arms in the same guest,
+under `src/native/binary/binary_zfs_sweep_guest_tests.rs` and the `sweep-arm.log` it pulls back
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 8,
+"Acceptance tests" and "VM measurements").
+The arms build the shipped handler inside the guest and drive it,
+not a module,
+because the sweep's order and its receipts are what an operator reads.
+
+The guest gets what a boot has and a person's machine must not:
+a passing start-probe record for the guest's own boot identifier in the probe record's directory,
+a root-owned handler configuration naming the guest's clone parent and checkout,
+and the store folder the setup run would have published.
+The pool is the guest's own file-backed pool,
+with an encrypted fixture in the shape item 5 measured:
+
+- item 1 repeated through the handler:
+  a registered slot,
+  a clone carrying a mount request,
+  one sweep run that records the slot's first observation,
+  attaches the clone,
+  and files a receipt;
+  the arm reads the mount at the slot from `mountinfo` with `nosuid,nodev`,
+  the store's record,
+  and the receipt's nonce and mount identity;
+- item 5 repeated through the handler:
+  the same fixture with the pool's key unloaded,
+  where the sweep refuses with the key refusal and attaches nothing,
+  then the key load after which the same sweep attaches,
+  and the log carries both arms so a run that skipped the unloaded half fails;
+- the handler's own refusals with account-owned slots:
+  a malformed intent,
+  an inherited intent,
+  and a clone of another parent's snapshot are each refused with nothing
+  attached,
+  which is item 2's shape through the product's own code.
+
+The arms print `MEASUREMENT sweep-…` lines beside their assertions,
+and the driver fails a run whose pulled log lacks one.
