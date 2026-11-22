@@ -292,19 +292,102 @@ Six failures are this limit's:
 `worktree_ladder_finish`'s controls say "the source is eligible" and see `Person` where they expect
 `WithoutCheckout(2)`,
 because the size limit now declines their small fixtures.
-They need the sparse fixture the `worktree_ladder_run` controls got,
-and that is owed.
+They needed the sparse fixture the `worktree_ladder_run` controls got,
+which the rerun below gave them.
 The other six are outside this rung,
 two `fs_btrfs_ioctl` snapshot and destroy controls,
 and one each in removal,
 trash,
 stage claim and landed removal,
-and they were not diagnosed;
+and that round did not diagnose them;
 their words name a snapshot whose record proves no object and a boundary set the sweep did not expect,
 which is what a loop-mounted btrfs may explain and which no control here settles.
 
 The work is **unapproved and non-final**.
 Only the owner declares it complete.
+
+### The rerun of 2026-11-22, both arms in one guest
+
+One throwaway `mvm` guest of the fixtures round's own ran every control that needs a btrfs fixture,
+on this branch and on `main` in the same guest.
+It is Ubuntu 24.04.5 on kernel 6.8.0-147-generic,
+with Git 2.43.0,
+Rust 1.100.0,
+`cargo-nextest` 0.9.152,
+8 GiB of memory,
+four CPUs,
+and a 12 GiB btrfs filesystem on a loop file as `CLI_GIT_TEST_ROOT`,
+with no acknowledgement set,
+so every btrfs control ran.
+The filterset is the 37 test modules that call `btrfs_fixture`,
+which is 580 tests here and 577 on `main`,
+and they ran one at a time so a heavy control's fixture never competed for the loop file.
+
+- This branch at `e283ebf298`:
+  580 run,
+  562 passed,
+  17 failed,
+  1 timed out,
+  7,934 filtered out.
+- `main` at `e5c856071b`:
+  577 run,
+  559 passed,
+  17 failed,
+  1 timed out,
+  7,926 filtered out.
+- The two failure sets are the same 18 names,
+  no test fails on one arm only,
+  and each pair prints the same message
+  (`~/temp/agent/clone-rung-partial-clone-btrfs-fixtures-2026-11-22/keep/suite-comparison.txt`).
+
+So none of the 18 is this rung's,
+and the six controls this build owed pass in it:
+`btrfs_a_refused_clone_rung_leaves_a_file_it_did_not_create`,
+`btrfs_a_failing_checkout_after_a_refused_clone_rung_leaves_the_worktree_and_its_registration`,
+`btrfs_each_rung_hands_the_adds_record_over_before_it_prints_and_marks_nothing`,
+`btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everything`,
+`btrfs_a_fallback_never_resets_a_replacement_at_the_destination` and
+`btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds`,
+each taking 3 to 6 seconds,
+which is a rung reached rather than a control that stopped at Git's own checkout.
+
+The 18 that fail on both arms,
+by what their messages show:
+
+- Eight are one misread ioctl,
+  diagnosed here with a direct call in the same guest
+  (`doc/troubleshooting/btrfs-get-subvol-info-returns-one-on-success.md`):
+  `BTRFS_IOC_GET_SUBVOL_INFO` answers 1 for every subvolume that has a root backref,
+  and `subvolume_info` treats any nonzero result as an error,
+  so the message names a `PrimitiveError` with a stale errno,
+  or says a subvolume names no origin.
+  They are `fs_btrfs_ioctl`'s snapshot control,
+  the four `worktree_copy_stage_snapshot_origin` controls,
+  and the stage-claim controls
+  `a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left`,
+  `a_snapshot_holding_a_newer_entry_is_kept` and
+  `btrfs_the_snapshot_created_before_its_record_is_removed`.
+  `main` carries the same check at the same line,
+  so neither arm can pass these in a btrfs guest.
+- Seven assert the branch a caller without `CAP_SYS_ADMIN` meets,
+  and the guest runs every control as root:
+  a destroy by id succeeds where the control expects `EPERM`,
+  a worktree holding a nested subvolume is removed around it where the control expects a refusal,
+  and five controls need a permission a root caller has anyway
+  (a store this account may rewrite,
+  a trash that cannot be emptied,
+  a handler that cannot remove it,
+  a subtree the sweep cannot examine,
+  and a pointer that cannot be examined).
+  An earlier guest recorded the store control and four stage-claim controls as failing,
+  and attributed them to its root and btrfs environment;
+  three of those four are the misread ioctl above,
+  and the fourth is the pointer a root caller can examine.
+- One hands a landed worktree's pool to the resident service instead of removing it,
+  and this guest settles nothing about why.
+- Two are the guest's own limits:
+  one control hits the guest's descriptor limit while removing its fixture,
+  and one waits past nextest's 300-second timeout.
 
 ## What the rung does today
 
@@ -2067,6 +2150,17 @@ The bracket is 26 MB to 763 MB of the quantity the rule sums (index stat sizes),
 on trees of 10,001 and 24,620 files,
 and file count and mean size were never varied apart in one disk's worth of measurement.
 
+### This repository's own tree sits about 1.3 MB above the pinned size limit
+
+Its tracked files summed to 763,289,228 bytes when the limit was pinned
+(the build's measurement over 24,621 paths),
+and they read 763,409,836 bytes over 24,626 paths on 2026-11-22,
+so the tree clears the 762,000,000-byte limit by about 1.3 MB and its own dirty adds clone on that margin alone.
+That margin is where the measured bracket's top fell,
+not a value the fence chose.
+If the tree shrinks below the limit its own dirty adds take Git's own checkout and print the reason,
+until a measurement below this tree's size moves the limit.
+
 ### The size rules are environment variables of the prototype
 
 A shipped rule is a design decision with a recorded threshold,
@@ -2190,11 +2284,18 @@ The entry point this round added belongs in a sibling when the rung is written f
 - The ladder's full routing control,
   with an `AddPlan` and both rungs on a clone-capable source,
   beyond `a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned`.
-- The six `worktree_ladder_finish` btrfs controls,
-  which a guest run of 2026-11-21 saw fail on "the source is eligible":
-  each needs a fixture above the size limit,
-  as the `worktree_ladder_run` controls got,
-  and no round has rerun them since.
+- The `subvolume_info` misread of what `BTRFS_IOC_GET_SUBVOL_INFO` answers,
+  which keeps eight controls red in any btrfs guest
+  and is `main`'s source as much as this branch's
+  (`doc/troubleshooting/btrfs-get-subvol-info-returns-one-on-success.md`).
+- The root-only btrfs controls' guest story:
+  seven controls assert the branch a caller without `CAP_SYS_ADMIN` meets,
+  and the guest that runs the btrfs controls runs them as root,
+  so either that guest gets an ordinary account or each control states both branches.
+- What handed a landed worktree's pool to the resident service in that guest,
+  and the two guest limits a control met there,
+  a descriptor cap and a 300-second timeout,
+  which no round has diagnosed.
 
 ## The decision asked for
 
