@@ -129,7 +129,7 @@ pub fn run_at(places: &SweepPlaces) -> Result<String, String> {
     let clock = || return crate::iso_time::now_iso();
     let attach: super::sweep_attach_step::RealAttachStep = super::sweep_attach_step::RealAttachStep::default();
     let first_attach: LiveFirstAttach = LiveFirstAttach::live();
-    let standing: LiveStandingMounts = LiveStandingMounts;
+    let standing: LiveStandingMounts = LiveStandingMounts::read();
     let context: SweepContext<'_> = SweepContext {
         parent_dataset: configuration.parent_dataset.as_str(),
         checkout: configuration.checkout.as_path(),

@@ -184,18 +184,64 @@ pub trait StandingMounts {
 
 /// What:
 ///  The release reader:
-///  the canonical slot's mount from the kernel's own table,
-///  named as this clone's only when its source is the clone's dataset.
+///  the mount table one sweep read at its start,
+///  and the canonical slot's mount named as this clone's own only when its
+///  source is the clone's dataset.
 /// Why:
 ///  A slot holding another clone's mount or a bind answers nothing here,
 ///  and the attach step's own walk refuses it as before.
+///  Reading the whole table for every standing child made a steady sweep cost
+///  grow faster than the child count,
+///  because each child scanned the same table again;
+///  one table for the run makes that work independent of how many children
+///  stand.
+///  The slot is still walked again under its claim,
+///  and a mount id the run's table does not hold is read fresh,
+///  so a mount another sweep made during the run is judged on the live table
+///  rather than on the snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const standing = new LiveStandingMounts().standingMountOf(request, clone);
+/// const standing = LiveStandingMounts.read().standingMountOf(request, clone);
 /// ```
-#[derive(Clone, Copy, Debug)]
-pub struct LiveStandingMounts;
+#[derive(Clone, Debug, Default)]
+pub struct LiveStandingMounts {
+    /// The kernel's mount table as this sweep read it,
+    /// by mount id.
+    table: std::collections::HashMap<u64, MountFacts>,
+}
+
+impl LiveStandingMounts {
+    /// Read the sweep's one copy of the kernel's mount table.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const standing = LiveStandingMounts.read();
+    /// ```
+    pub fn read() -> Self {
+        let path: &Path = Path::new(crate::fs_mount_options::MOUNTINFO_PATH);
+        return match crate::plain_file::read_plain_file(path, crate::plain_file::MOUNT_TABLE_LIMIT) {
+            Ok(bytes) => Self {
+                table: crate::fs_mount_options::parse_mount_table(bytes.as_slice()).into_iter().map(|facts| return (facts.mount_id, facts)).collect(),
+            },
+            Err(error) => {
+                // A table the run cannot read leaves the snapshot empty, and each standing answer falls back to the
+                // child's own read, which is the answer the route gave before the snapshot existed.
+                debug(TAG, format!("the mount table {path:?} could not be read for this sweep: {error}").as_str());
+                Self::default()
+            }
+        };
+    }
+
+    /// One mount's facts from this sweep's table,
+    /// or the live table when the run did not see the mount.
+    fn facts_of(&self, mount_id: u64) -> Result<MountFacts, String> {
+        if let Some(facts) = self.table.get(&mount_id) {
+            return Ok(facts.clone());
+        }
+        return mount_facts_of(mount_id).map_err(|refusal| return refusal.message());
+    }
+}
 
 impl StandingMounts for LiveStandingMounts {
     fn standing_mount_of(&self, request: &LookAgainAtSlotRequest<'_>, clone: &str) -> Option<MountIdentity> {
@@ -206,10 +252,10 @@ impl StandingMounts for LiveStandingMounts {
                 return None;
             }
         };
-        let facts = match mount_facts_of(fresh.mount_id) {
+        let facts = match self.facts_of(fresh.mount_id) {
             Ok(facts) => facts,
-            Err(refusal) => {
-                debug(TAG, format!("the mount {} the slot is on could not be read: {}", fresh.mount_id, refusal.message()).as_str());
+            Err(said) => {
+                debug(TAG, format!("the mount {} the slot is on could not be read: {said}", fresh.mount_id).as_str());
                 return None;
             }
         };

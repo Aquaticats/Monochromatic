@@ -35,7 +35,7 @@ use crate::worktree_clone_mount_handler::sweep_first_attach::FirstAttachRecorder
 use crate::worktree_clone_mount_protocol::{CloneMountReceipt, DESIRED_STATE_PROPERTY, DatasetGuid, MOUNT_WORD, ReceiptOutcome, ReceiptsFolder, clone_mount_receipt::ReceiptMountIdentity};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
 use std::cell::{Cell, RefCell};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// The variable the inner half of each control sets.
@@ -718,6 +718,40 @@ fn a_standing_mount_of_this_clone_is_attached_and_keeps_its_done_receipt() {
     assert_eq!(kept.outcome, ReceiptOutcome::Done, "the done receipt is kept");
     assert_eq!(kept.nonce.as_str(), MOUNT_NONCE);
     assert_eq!(kept.mount.as_ref().map(|mount| return mount.mount_id), Some(41));
+}
+
+/// What:
+///  A steady sweep of a standing clone whose `done` receipt is already the one
+///  this request would file writes nothing.
+/// Why:
+///  The receipt's only changing field is its time,
+///  and rewriting the same answer stages a file,
+///  syncs it,
+///  syncs its folder and renames it for every standing child,
+///  which made a steady sweep cost grow faster than the child count.
+#[test]
+fn a_standing_mount_whose_done_receipt_is_unchanged_writes_nothing() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_standing_mount_whose_done_receipt_is_unchanged_writes_nothing") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("standing-no-write");
+    let reader: ScriptedReader = reader_with(Some(request_nonce().as_str()), CLONE);
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let first: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
+    assert!(matches!(first, CloneOutcome::Attached { mount_id: 41, .. }), "{first:?}");
+    let guid: DatasetGuid = DatasetGuid::parse(GUID.to_string().as_str()).expect("the GUID is canonical");
+    let receipt_path: PathBuf = receipts.directory().join(receipts.entry_name(guid));
+    let inode_before: u64 = std::fs::metadata(receipt_path.as_path()).expect("the receipt stands").ino();
+    let text_before: String = std::fs::read_to_string(receipt_path.as_path()).expect("the receipt reads");
+
+    fixture.standing.mount.replace(Some(mounted()));
+    let second: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
+    assert!(matches!(second, CloneOutcome::Attached { mount_id: 41, .. }), "{second:?}");
+    let inode_after: u64 = std::fs::metadata(receipt_path.as_path()).expect("the receipt still stands").ino();
+    assert_eq!(inode_after, inode_before, "an unchanged done receipt is not staged and renamed again");
+    assert_eq!(std::fs::read_to_string(receipt_path.as_path()).expect("the receipt still reads"), text_before, "the receipt's bytes are the ones already filed");
 }
 
 /// What:

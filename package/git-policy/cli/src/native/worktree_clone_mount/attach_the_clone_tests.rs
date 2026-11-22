@@ -109,7 +109,7 @@ fn a_mount_number_read_that_fails_after_the_move_takes_the_placed_mount_down() {
         "tmpfs",
         "monochromatic-attach-take-down-control",
         &target,
-        &|_held: &std::fs::File| -> std::io::Result<u64> { Err(std::io::Error::from_raw_os_error(libc::EIO)) },
+        &|_held: &std::fs::File| -> std::io::Result<u64> { return Err(std::io::Error::from_raw_os_error(libc::EIO)); },
     )
     .expect_err("the control fails the mount-number read on purpose");
     assert_eq!(refusal.call, AttachCall::MountNumber, "the refusal names the read that failed: {refusal:?}");

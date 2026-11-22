@@ -37,19 +37,33 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  and stops at the next one with a report that says where it stopped,
 ///  so a parent nobody meant to configure is reported and the clones past the
 ///  bound are left unattached rather than half swept.
-///  The measurement,
-///  from one run of the step 8 guest arm on OpenZFS 2.4.4 in a
-///  disposable guest
-///  (2026-11-22,
-///  `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`):
-///  the arm created 4097 children,
-///  one more than the bound,
-///  and one sweep run visited the first 4096,
-///  answered each from the checks,
-///  and stopped at the next one in 14183 milliseconds;
-///  one handler run over a single clone in the same guest took 99 milliseconds.
-///  The number stays the project's to change,
-///  and these are the measurements it was adopted with.
+///  The measurements beside the number are the mounted shape a parent of
+///  clones holds,
+///  measured 2026-11-22 in the throwaway guest
+///  `zfs-step-8-recheck-cost-guest`
+///  (Ubuntu 24.04,
+///  kernel 6.8.0-147-generic,
+///  OpenZFS 2.4.4,
+///  four vCPUs and 8 GB),
+///  with every clone attached and one one-child control in the same round:
+///  cold is the sweep that attaches them all,
+///  steady is a later sweep over the standing mounts.
+///  64 children took 1254 milliseconds cold and 303 to 402 steady
+///  beside a control of 340 cold and 137 to 222 steady;
+///  1,024 took 42181 cold and 2646 to 2783 steady
+///  beside 397 cold and 131 to 363 steady;
+///  2,048 took 71004 cold and 5763 to 6363 steady
+///  beside 3297 cold and 157 to 391 steady;
+///  and 4,096 took 174754 cold and 20092 to 22288 steady
+///  beside 413 cold and 219 to 385 steady.
+///  The bound stays the project's to change,
+///  and these are the measurements it is carried with now.
+///  The earlier figure this replaces counted 4,097 children the origin check
+///  refuses,
+///  which is not the shape of a parent of mounted clones;
+///  its 14,183 milliseconds and the 99-millisecond one-child run are kept in
+///  the step 8 review's evidence,
+///  not here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
