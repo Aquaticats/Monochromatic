@@ -1500,6 +1500,20 @@ merge,
 then faster reader (Recommended)".
 So step 3 with the fence merges once its review passes,
 carrying that cost until a reader of the sizes from the object database replaces the `git ls-tree` run.
+Amended 2026-11-21T23:35:36-05:00:
+the 338 ms came from a guest fixture whose objects were all loose (built without `git gc`);
+on a packed source the read is 24 ms of a 517 ms add,
+and 98.1 percent of this repository's `HEAD` blobs are packed
+(`doc/planning/cli-git-fence-faster-size-reader.md`,
+measured on one tree in one guest).
+Asked again with both layouts measured,
+the project answered "A:
+keep git ls-tree (Recommended)",
+so the faster reader is not built and this follow-up is closed;
+it also answered "A:
+measure it (Recommended)" for running the size read beside the source check,
+which a later round measures before anything merges
+(`doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`).
 On 2026-11-21 the project answered a second cost the fence's closure check measured:
 an add at a commit whose tree differs from the source in a path the fence hands to Git
 (a converting path or any LFS path)

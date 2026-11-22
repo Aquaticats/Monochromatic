@@ -940,11 +940,17 @@ Read-only commands,
      so a process killed in between leaves no index in the worktree at all,
      which the next command reports as an add that is possibly incomplete and follows with the commands that finish it,
      and it removes the index's waiting name and the lock a killed Git left beside it.
-     An add that names a commit is compared with the source's index before the add's record is claimed and before the
-     first copy,
-     by one `git diff-tree --name-only`,
-     and an add whose tree changes a path the attributes convert is skipped there,
-     so it is Git's own checkout and that one read.
+     An add is compared with the source's index before the add's record is claimed and before the first copy:
+     the tree read is the one `git worktree add` checks out,
+     the local branch a commit-ish names when the add neither creates a branch nor detaches,
+     and the branch its destination is named after when it names no commit at all,
+     which one `git for-each-ref` answers,
+     so the read is one `git diff-tree --name-only` of that branch or commit,
+     and an add whose tree changes a path the attributes convert,
+     or a tracked link the copies make again,
+     is skipped there,
+     so it is Git's own checkout and those reads;
+     an add whose rung hands Git no path at all pays no read.
      A path only the size proof hands to Git is not in that answer and can still end the rung at the tree difference,
      and Git's own checkout then completes the worktree against that waiting index,
      so the worktree equals Git's and nothing the clones copied stays behind.

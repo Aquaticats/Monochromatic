@@ -32,6 +32,10 @@ type FakeVirshFixture = AsyncDisposable & {
 
 const FAKE_VIRSH_SOURCE = `#!/usr/bin/env node
 const { readFileSync, writeFileSync } = require('node:fs');
+// mvm asks whether a session daemon answers (a listing) before its first call; that question is not counted here.
+if (process.argv.includes('list')) {
+  process.exit(0);
+}
 const counterPath = process.env.MVM_FAKE_VIRSH_COUNTER;
 const mode = process.env.MVM_FAKE_VIRSH_MODE;
 if ((counterPath === undefined) || (mode === undefined)) {

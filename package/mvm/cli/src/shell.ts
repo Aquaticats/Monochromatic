@@ -11,6 +11,8 @@ import {
   toolNotFoundRemedy,
   VIRSH_COMMAND_ENV,
 } from './libvirt-tools.ts';
+import { libvirtAutostartEnv, } from './session-daemon-fallback.ts';
+import { ensureSessionDaemon, } from './session-daemon.ts';
 import {
   ExecutableNotFoundError,
   isMissingExecutable,
@@ -65,6 +67,8 @@ export async function shell({ name, }: { readonly name: string; },): Promise<voi
 
   rl.info(`connecting to VM ${name} via console (press Ctrl+] to disconnect, not exit)`,);
 
+  await ensureSessionDaemon();
+
   try {
     await nanoSpawn(
       command,
@@ -76,6 +80,8 @@ export async function shell({ name, }: { readonly name: string; },): Promise<voi
         fullName,
       ],
       {
+        // Only the on-demand decision: `virsh console` passes the guest's bytes through, and the caller's locale stays.
+        env: libvirtAutostartEnv(),
         stderr: 'inherit',
         stdin: 'inherit',
         stdout: 'inherit',
