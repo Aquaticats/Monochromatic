@@ -33,6 +33,7 @@ use crate::service_durable::Pending;
 use crate::service_index_prestage::Slot;
 use crate::service_index_refused_lock::Refused;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -85,6 +86,11 @@ pub struct LandingState {
     /// Every sync this landing made or handed to the background so far,
     /// in the order it asked for them (`service_durable.rs`).
     pub(crate) syncs: RefCell<Vec<crate::service_durable_syncs::SyncFigure>>,
+    /// The bytes of each commit this landing already asked Git for,
+    /// by commit name,
+    /// so one commit read for its objects and again for its reflog row costs one Git start
+    /// (`service_object_questions_left_to_git.rs`).
+    commits_read: RefCell<HashMap<String, Vec<u8>>>,
 }
 
 impl LandingState {
@@ -110,6 +116,7 @@ impl LandingState {
             index_hardened: Cell::new(true),
             queued_syncs: RefCell::new(Vec::new()),
             syncs: RefCell::new(Vec::new()),
+            commits_read: RefCell::new(HashMap::new()),
         };
     }
 }
@@ -238,6 +245,48 @@ pub fn with_the_landing_state<Output, Use: FnOnce(&LandingState) -> Output>(use_
             use_it(&state_of_no_landing())
         }
     };
+}
+
+/// What:
+///  The bytes of `name` this landing has already asked Git for,
+///  or `None` when it has not asked.
+/// Why:
+///  A landing reads one commit for the objects a batch lands and again for the reflog row of a one-commit batch;
+///  both questions want the same bytes,
+///  and Git's answer for a commit does not change between them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// landing.commitsRead.get(name)
+/// ```
+pub(crate) fn commit_bytes_already_read(name: &str) -> Option<Vec<u8>> {
+    return on_the_landing_state(name, the_commit_bytes_already_read);
+}
+
+/// The read `commit_bytes_already_read` makes.
+fn the_commit_bytes_already_read(state: &LandingState, name: &str) -> Option<Vec<u8>> {
+    return state.commits_read.borrow().get(name).cloned();
+}
+
+/// What:
+///  Keeps the bytes of `name` for the rest of this landing.
+/// Why:
+///  A caller keeps only the bytes of a read Git made:
+///  a start that failed answers nothing,
+///  and a later question may start Git where that one could not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// landing.commitsRead.set(name, bytes)
+/// ```
+pub(crate) fn remember_commit_bytes(name: &str, bytes: &[u8]) {
+    on_the_landing_state((name, bytes), keep_the_commit_bytes);
+}
+
+/// The write `remember_commit_bytes` makes.
+fn keep_the_commit_bytes(state: &LandingState, read: (&str, &[u8])) {
+    let (name, bytes) = read;
+    state.commits_read.borrow_mut().insert(name.to_owned(), bytes.to_vec());
 }
 
 /// Whether the caller runs inside a landing's scope.

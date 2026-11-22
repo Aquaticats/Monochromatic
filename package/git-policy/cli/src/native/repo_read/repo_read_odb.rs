@@ -27,6 +27,7 @@ use crate::repo_read_config_text::{last_entry, parse_config_text};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
 use crate::repo_read_pack::{BaseByName, Pack};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
@@ -142,6 +143,28 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
     return Some(());
 }
 
+/// The variable Git reads as the ref storage format of one command:
+/// it overrides `extensions.refStorage` for every start
+/// (`git(1)`,
+/// and `setup.c` reads it before applying the format).
+const REFERENCE_BACKEND_ENVIRONMENT: &str = "GIT_REFERENCE_BACKEND";
+
+/// What:
+///  Whether the environment names a ref store this reader does not scan.
+/// Why:
+///  `GIT_REFERENCE_BACKEND` overrides the repository's configuration for every Git start
+/// (`git(1)`,
+/// entry `GIT_REFERENCE_BACKEND`;
+/// Git 2.54 and later),
+///  and any value but exactly `files` puts the store where this reader does not look:
+///  a files payload is another directory,
+///  and the reftable backend keeps its replace refs in tables.
+///  A variable that names the default files backend changes nothing,
+///  so it leaves the repository open.
+fn environment_names_another_ref_store() -> bool {
+    return std::env::var_os(REFERENCE_BACKEND_ENVIRONMENT).is_some_and(|value| { return value.as_os_str() != OsStr::new("files"); });
+}
+
 /// What:
 ///  Whether the repository keeps its references in the reftable backend's tables:
 /// a replace ref is then in `reftable/`,
@@ -160,6 +183,9 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
 /// 7.5 microseconds added to a 16.5 microsecond open on the host measured on 2026-11-22,
 /// and the note `doc/object-database-and-a-reftable-ref-store.md` records the paired run.
 fn ref_store_is_reftable(common_dir: &Path) -> bool {
+    if environment_names_another_ref_store() {
+        return true;
+    }
     if common_dir.join("reftable").exists() {
         return true;
     }

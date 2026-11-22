@@ -7,7 +7,8 @@
 
 use super::*;
 use crate::repo_read_object::{ObjectKind, from_hex};
-use crate::test_support::{fixture, git, git_output, remove};
+use crate::test_support::{FIXTURE_GIT_BOUND, REAL_GIT, fixture, git, git_output, real_git_within, remove};
+use std::ffi::OsString;
 
 /// A repository with a large file edited many times (so a repack makes deltas),
 /// a subtree,
@@ -293,6 +294,64 @@ fn a_ref_store_the_configuration_moves_away_declines_the_database() {
     remove(root.as_path());
 }
 
+/// What:
+///  A files store the configuration moves out of the common directory declines the database,
+///  while Git still reads the replacement there.
+/// Why:
+///  Git 2.56 reads `extensions.refStorage` as `<format>://<payload>`,
+/// and a files payload puts the refs and their replace refs in another directory,
+///  so a refusal that looked only under the common directory would answer the object Git replaces.
+/// The files backend named without a payload is the store this reader scans,
+///  which the sibling control above covers.
+#[test]
+fn a_files_store_the_configuration_moves_away_declines_the_database() {
+    let root: PathBuf = fixture("repo-read-odb-files-payload");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let older: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD~1"]).stdout).expect("UTF-8");
+    let older: String = String::from(older.trim());
+    let head: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
+    let head: String = String::from(head.trim());
+    let git_dir: PathBuf = repo.join(".git");
+    // Every ref of the store moves into the payload directory the configuration names.
+    let store: PathBuf = root.join("store");
+    std::fs::create_dir(&store).expect("store");
+    std::fs::rename(git_dir.join("refs"), store.join("refs")).expect("move the refs");
+    // The files payload is the whole reference directory, HEAD included; the Git directory keeps the stubs its own
+    //  initializer writes, so Git still recognizes it as a Git directory.
+    std::fs::rename(git_dir.join("HEAD"), store.join("HEAD")).expect("move HEAD");
+    std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/.invalid\n").expect("HEAD stub");
+    std::fs::create_dir_all(git_dir.join("refs")).expect("refs stub");
+    std::fs::write(git_dir.join("refs/heads"), "repository uses alternate refs storage").expect("heads mark");
+    let named: String = format!("files://{}", store.display());
+    git(repo.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
+    git(repo.as_path(), &["config", "--local", "extensions.refstorage", named.as_str()]);
+    // Positive control: Git resolves the history from the moved store, before a replacement could shorten it.
+    let read_back = git_output(repo.as_path(), &["rev-parse", "HEAD~1"]);
+    assert!(read_back.status.success(), "Git reads the history from the store the configuration names: {}", String::from_utf8_lossy(read_back.stderr.as_slice()));
+    assert_eq!(read_back.stdout, format!("{older}\n").into_bytes(), "Git names the older commit from the moved store");
+    // The replacement is written into the same store, and Git reads it there.
+    git(repo.as_path(), &["replace", older.as_str(), head.as_str()]);
+    let replaced: Vec<u8> = git_output(repo.as_path(), &["cat-file", "commit", older.as_str()]).stdout;
+    let unreplaced: Vec<u8> = git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", older.as_str()]).stdout;
+    assert_eq!(replaced, git_output(repo.as_path(), &["cat-file", "commit", head.as_str()]).stdout, "Git reads the replacement from the moved store");
+    assert_ne!(replaced, unreplaced, "the moved store holds the replace ref Git reads");
+    let opened: Option<ObjectDatabase> = ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1);
+    let answered: Option<Vec<u8>> = opened.as_ref().and_then(|database| { return database.read(from_hex(older.as_bytes(), ObjectFormat::Sha1).expect("name").as_slice()).map(|object| { return object.bytes; }); });
+    assert!(
+        opened.is_none(),
+        "a files store the configuration names outside the common directory is outside what this reader scans, and it answered {answered:?} instead of declining"
+    );
+    remove(root.as_path());
+}
+
 /// Reading every version of a file kept as one long delta chain decodes each stored entry about once:
 /// a base that one read
 /// decoded is not decoded again for the next version.
@@ -400,4 +459,88 @@ fn contains_asks_the_packs_before_the_loose_paths() {
     assert!(loose_looks() > before, "the loose file was looked at after the packs");
     assert!(!loose.contains(from_hex("1".repeat(40).as_bytes(), format).expect("name").as_slice()), "an object nowhere is not found");
     remove(root.as_path());
+}
+
+/// The variable Git reads as the ref storage format of one command,
+/// which the reader also reads.
+const REFERENCE_BACKEND_ENVIRONMENT: &str = "GIT_REFERENCE_BACKEND";
+
+/// The marker that tells the child of the environment control which body it runs.
+const REFERENCE_BACKEND_CHILD: &str = "CLI_GIT_READER_REFERENCE_BACKEND_CHILD";
+
+/// The store the environment names in that control,
+/// relative to the common directory as Git resolves a payload.
+const NAMED_STORE: &str = "files://refstore";
+
+/// A files repository with two commits,
+/// and the commit names of the older and the newer.
+fn two_commits_for_the_environment_control(root: &Path) -> (PathBuf, String, String) {
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let older: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD~1"]).stdout).expect("UTF-8");
+    let head: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
+    return (repo, String::from(older.trim()), String::from(head.trim()));
+}
+
+/// The environment a fixture Git runs with,
+/// and the reference backend when one is named.
+fn environment_of(repo: &Path, backend: Option<&str>) -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+    let mut environment: Vec<(std::ffi::OsString, std::ffi::OsString)> = vec![
+        (std::ffi::OsString::from("PATH"), std::ffi::OsString::from("/usr/bin:/bin")),
+        (std::ffi::OsString::from("GIT_CONFIG_NOSYSTEM"), std::ffi::OsString::from("1")),
+        (std::ffi::OsString::from("GIT_CONFIG_GLOBAL"), std::ffi::OsString::from("/nonexistent-global-config")),
+        (std::ffi::OsString::from("HOME"), repo.join("no-home").into_os_string()),
+    ];
+    if let Some(value) = backend {
+        environment.push((std::ffi::OsString::from(REFERENCE_BACKEND_ENVIRONMENT), std::ffi::OsString::from(value)));
+    }
+    return environment;
+}
+
+/// An environment that names another ref store declines the database,
+/// because Git reads that store's replace refs and this reader scans only the files under the common directory.
+/// Why:
+///  `GIT_REFERENCE_BACKEND` overrides `extensions.refStorage` on every command (Git 2.54 and later),
+/// and a value other than exactly `files` puts the ref store somewhere this reader does not look.
+#[test]
+fn an_environment_that_moves_the_ref_store_declines_the_database() {
+    if std::env::var_os(REFERENCE_BACKEND_CHILD).is_some() {
+        let root: PathBuf = fixture("object-questions-reference-backend");
+        let (repo, older, head) = two_commits_for_the_environment_control(root.as_path());
+        let git_dir: PathBuf = repo.join(".git");
+        // Git resolves a relative payload against the common directory, so the store stands beside `config`.
+        let store: PathBuf = git_dir.join("refstore");
+        std::fs::create_dir_all(store.join("refs/replace")).expect("store");
+        std::fs::write(store.join("refs/replace").join(older.as_str()), format!("{head}\n")).expect("the replacement");
+        // Positive control: Git reads the replacement from the store the environment names.
+        let environment: Vec<(OsString, OsString)> = environment_of(repo.as_path(), Some(NAMED_STORE));
+        let words: [OsString; 3] = [OsString::from("cat-file"), OsString::from("commit"), OsString::from(older.as_str())];
+        let answer = real_git_within(Path::new(REAL_GIT), Some(repo.as_path()), environment.as_slice(), &words, None, FIXTURE_GIT_BOUND);
+        assert!(answer.output.status.success(), "Git reads the named store: {}", String::from_utf8_lossy(answer.output.stderr.as_slice()));
+        assert_eq!(answer.output.stdout, git_output(repo.as_path(), &["cat-file", "commit", head.as_str()]).stdout, "the environment's answer is the replacement");
+        assert!(
+            ObjectDatabase::open(git_dir.as_path(), None, ObjectFormat::Sha1).is_none(),
+            "a ref store the environment names outside the files backend is outside what this reader scans"
+        );
+        remove(root.as_path());
+        return;
+    }
+    // The variable belongs to one process, so the body runs in a child and the parent asserts its report.
+    let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
+        "repo_read::repo_read_odb::tests::an_environment_that_moves_the_ref_store_declines_the_database",
+        &[
+            (OsString::from(REFERENCE_BACKEND_CHILD), OsString::from("1")),
+            (OsString::from(REFERENCE_BACKEND_ENVIRONMENT), OsString::from(NAMED_STORE)),
+        ],
+    );
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    assert!(output.status.success(), "the environment's store was not declined:\n{said}");
+    assert!(said.contains("1 passed"), "the child ran no test:\n{said}");
 }
