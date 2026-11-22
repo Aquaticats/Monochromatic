@@ -23,7 +23,7 @@ the proposal's sections named in "What this design read",
 the plan's step 17 and its open-item list,
 `package/git-policy/cli/SPEC.md` around the mount protocol,
 the receipts and the never-prompt rule,
-the code paths named in F19,
+the code paths named under "What this design read",
 the step 9 holder-scan branch as work in flight,
 upstream Linux at `v7.3`,
 OpenZFS at `zfs-2.4.4`,
@@ -36,10 +36,10 @@ no guest,
 no virtual machine,
 no container,
 no ZFS command that changes anything,
-no `sudo`,
-no act through the system service manager,
-and no ZFS mount on the host.
-One command broke that last rule and is recorded under L5.
+and no `sudo`.
+One command asked the system service manager to act,
+against the rule that nothing does,
+and is recorded under L5.
 
 The design is [the decision record][decision],
 the whole design is [the proposal][proposal],
