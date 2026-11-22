@@ -315,7 +315,12 @@ which `mise run toolchain:install` makes.
       each commit,
       each disagreement,
       and anything it could not do,
-      because it cannot ask you.
+      because it cannot ask you;
+    - that the report is its very last message,
+      repeated whole if it sends anything after it:
+      `summary.json`'s `lastAssistantText` keeps only the last message,
+      and on 2026-11-21 a run that answered a "your gate ended" notice after its report
+      left only that one-paragraph answer there (issue 6337).
 
 4.  Start it as its own capped unit,
     in the background.

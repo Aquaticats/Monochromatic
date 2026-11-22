@@ -6,6 +6,9 @@
 //! and "Commits should never fail":
 //! a commit whose changed paths would not fit is built by Git instead,
 //! which is the route it took before a changed path carried its bytes.
+//! The measurement counts this command's program search list and transport flag as well,
+//! because the line the service is sent carries them (`service_client::submit_traced`),
+//! so a request near the ceiling is measured as it travels rather than as it was built.
 //! A name that is not text carries its bytes beside the readable spelling,
 //! so the most changes at the path length that ceiling was measured for no longer fit one line.
 //! The decision is split from `service_commit.rs`,

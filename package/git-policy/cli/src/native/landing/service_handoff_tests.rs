@@ -47,7 +47,7 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     let mut expected: Vec<String> = HANDED_OVER
         .iter()
         .map(|kind| {
-            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.text().expect("a branch name that is text").to_string(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 }.id();
+            return WorkItem { kind: *kind, repository: PathBuf::new(), git_dir: PathBuf::new(), branch_ref: handoff.reference.text().expect("a branch name that is text").to_string(), oid: String::from(OID), parent: String::from(PARENT), created: String::new(), tries: 0 , transport: false}.id();
         })
         .collect();
     expected.sort();
@@ -168,9 +168,12 @@ fn the_wake_message_carries_the_key_to_the_service() {
     let lines: Vec<String> = received.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     assert_eq!(lines.len(), 2);
     match crate::service_protocol::decode_client(lines[0].trim_end()) {
-        Ok(crate::service_protocol::ClientMessage::Work { review_key, git_dir }) => {
+        Ok(crate::service_protocol::ClientMessage::Work { review_key, git_dir, push_programs }) => {
             assert_eq!(review_key, Some(key));
             assert_eq!(git_dir, config.git_dir);
+            // The records this wake is about are the commit's upkeep and review; a push of a landed commit comes from the
+            //  landing, which holds the request's programs itself.
+            assert!(push_programs.is_empty(), "no push record was announced by this wake");
         }
         other => panic!("not a work message: {other:?}"),
     }
@@ -196,9 +199,13 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING);
     std::fs::create_dir_all(pending.as_path()).expect("a state directory");
     std::fs::write(pending.join(item.id_before_the_branch()), item.encode()).expect("a record an earlier release left");
-    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    let woken: Woken = Woken::default();
+    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline", &woken);
     assert!(!pending.join(item.id()).exists(), "no record waits under this release's name");
     assert!(!pending.join(item.id_before_the_branch()).exists(), "the record an earlier release named is forgotten too");
+    assert_eq!(woken.1.borrow().len(), 1, "the service is told the records can no longer run");
+    let told: Vec<String> = woken.1.borrow()[0].1.clone();
+    assert!(told.contains(&item.id()) && told.contains(&item.id_before_the_branch()), "under both names the records were removed by: {told:?}");
     assert_eq!(crate::work_item::hold(work.as_path(), &item, ""), Ok(()), "a later hold asks nothing of a blocked id");
     assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked verdict stands, so the push is not held again");
     // The verdict keeps the branch and the gate's words, because the next push of that branch reads them to know where it must stop
@@ -345,11 +352,14 @@ fn a_queued_push_the_remote_already_holds_is_settled_and_not_said() {
     // The person's push made the commit: the record goes where a push that was made is kept, and nothing is said about it.
     let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING).join(item.id());
     let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
+    let settling: Woken = Woken::default();
     assert_eq!(
-        queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(true), &Woken::default()),
+        queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(true), &settling),
         Vec::<String>::new(),
         "a commit the branch's remote holds is not queued"
     );
+    assert_eq!(settling.1.borrow().len(), 1, "the service is told the settled record can no longer run");
+    assert_eq!(settling.1.borrow()[0].1, vec![item.id()], "by the id the service holds its values against");
     assert!(!pending.exists(), "the record left `pending`");
     assert!(done.exists(), "and is known to the queue as a push that was made");
     assert_eq!(
@@ -391,9 +401,12 @@ fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
     assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false), &the_service_is_not_woken()).len(), 1);
     assert!(held.exists(), "a proof that says no settles nothing");
     // A later push of the branch carried the commit: the record is settled where a finished push goes, and nothing is said.
-    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true), &the_service_is_not_woken()), Vec::<String>::new(), "a commit the remote holds is not held");
+    let settling: Woken = Woken::default();
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true), &settling), Vec::<String>::new(), "a commit the remote holds is not held");
     assert!(!held.exists(), "the record left the held state");
     assert!(done.exists(), "and is known to the queue as a push that was made");
+    assert_eq!(settling.1.borrow().len(), 1, "the service is told the settled record can no longer run");
+    assert_eq!(settling.1.borrow()[0].1, vec![item.id()], "by the id the service holds its values against");
     // Settled once, so a second command says nothing either.
     assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true), &the_service_is_not_woken()), Vec::<String>::new());
     remove(root.as_path());
@@ -441,12 +454,18 @@ fn held_with_verdict(handoff: &ServiceHandoff, commit: &str, holding: &Holding) 
 /// Why:
 ///   A released record that nobody is woken for waits for the next commit,
 /// which is the wait this settlement exists to end.
+/// The woken directories and the forgotten records,
+/// as the seam recorded them.
 #[derive(Default)]
-struct Woken(std::cell::RefCell<Vec<std::path::PathBuf>>);
+struct Woken(std::cell::RefCell<Vec<std::path::PathBuf>>, std::cell::RefCell<Vec<(std::path::PathBuf, Vec<String>)>>);
 
 impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
     fn wake(&self, git_dir: &std::path::Path) {
         self.0.borrow_mut().push(git_dir.to_path_buf());
+    }
+
+    fn forget_programs(&self, git_dir: &std::path::Path, records: &[String]) {
+        self.1.borrow_mut().push((git_dir.to_path_buf(), records.to_vec()));
     }
 }
 
@@ -501,6 +520,8 @@ fn a_held_push_whose_command_left_a_refusal_is_settled_into_that_verdict() {
     assert!(!held.exists(), "the record left the held state");
     assert!(!state_directory(work.as_path(), PENDING).join(item.id()).exists(), "and never becomes runnable");
     assert!(woken.0.borrow().is_empty(), "nothing is pushed, so nothing is woken");
+    assert_eq!(woken.1.borrow().len(), 1, "the service is told the record whose commit stays local can no longer run");
+    assert_eq!(woken.1.borrow()[0].1, vec![item.id()], "by the id the service holds its values against");
     let verdicts: Vec<crate::work_item_holding::BlockedVerdict> = crate::work_item_holding::blocked_verdicts(work.as_path());
     assert_eq!(
         verdicts,
@@ -682,7 +703,7 @@ fn a_refusal_is_flushed_before_its_record_is_given_up() {
     crate::private_storage::take_file_syncs();
     crate::private_storage::take_directory_syncs();
 
-    let _reported = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    let _reported = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline", &Woken::default());
 
     let files: Vec<std::path::PathBuf> = crate::private_storage::take_file_syncs();
     let directories: Vec<std::path::PathBuf> = crate::private_storage::take_directory_syncs();
@@ -720,8 +741,10 @@ fn a_gate_whose_verdict_cannot_be_written_keeps_the_held_record_and_the_refusal(
     let blocked: std::path::PathBuf = state_directory(work.as_path(), "blocked");
     std::fs::create_dir_all(blocked.as_path()).expect("the blocked directory");
     std::fs::set_permissions(blocked.as_path(), std::fs::Permissions::from_mode(0o500)).expect("a directory no name can be made in");
-    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline");
+    let woken: Woken = Woken::default();
+    let _unkept: Option<String> = forget_the_push(&handoff, OID, "final-newline: the file does not end with a newline", &woken);
     assert!(held.exists(), "the held record stays: it is the only statement of the refusal");
+    assert!(woken.1.borrow().is_empty(), "a record that stays can still run, so its values are not given up");
     assert_eq!(
         crate::work_item_holding::blocked_verdicts(work.as_path()),
         vec![crate::work_item_holding::BlockedVerdict {

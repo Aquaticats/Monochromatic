@@ -154,4 +154,22 @@ and the build adds the removal of known staging names to `doctor` or the sweep,
 so that the adoption is not their only remover
 (the review's low finding R1).
 
+## Who removes a killed writer's staging file
+
+The build put that removal in the sweep,
+which then listed the store folder once per run,
+against the answer "no listing per sweep".
+Asked on 2026-11-21 whether `doctor` should remove the known staging forms at plan step 18
+(the sweep staying unlisted,
+the adoption the only remover until then)
+or the sweep should keep removing them,
+the project answered "A:
+doctor at step 18 (Recommended)".
+So the sweep lists nothing;
+the adoption removes the known staging forms as it already does;
+and plan step 18's `doctor` reports and removes them.
+A hidden staging file a killed writer leaves can therefore stand until the next adoption or until step 18 lands,
+which no reader is affected by,
+since no reader reads a staging name.
+
 [design]: ../planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md

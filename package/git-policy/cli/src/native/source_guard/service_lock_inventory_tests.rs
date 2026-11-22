@@ -32,7 +32,10 @@ use std::path::{Path, PathBuf};
 /// the work queue,
 /// the discarded store,
 /// the index
-/// lock handling and the support modules they use.
+/// lock handling,
+/// the support modules they use,
+/// and the per-slot root claim of the clone-mount handler,
+/// whose claim must stay lock-free (`per_slot_`).
 const COVERED_PREFIXES: &[&str] = &[
     "service_",
     "claim_time",
@@ -52,6 +55,7 @@ const COVERED_PREFIXES: &[&str] = &[
     "commit_",
     "diagnostic_",
     "slot_identity_",
+    "per_slot_",
 ];
 
 /// The source files that ship nothing:
@@ -105,6 +109,10 @@ const INVENTORY: &[&str] = &[
     //  the draw's own thread records one and every connection's answer takes one,
     //  so two threads reach the list, and under it the list is changed and nothing else.
     "service/service_shadow_draw.rs",
+    // The programs and transport settings each queued push record still has, in memory only:
+    //  a landing records them for the record its commit became and the round that runs that record takes them, so two
+    //  threads reach the list, and under it one entry is looked up, replaced or removed while nothing of it touches a disk.
+    "service/service_push_programs_held_in_memory.rs",
     // The lines waiting for the service's own log stream, and how many found no room:
     //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
     //  and under it one line is pushed or popped while the write runs outside it.

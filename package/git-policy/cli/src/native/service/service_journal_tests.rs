@@ -27,6 +27,7 @@ fn intent(seq: u64) -> Intent {
         index: PathBuf::from("/work/repo/.git/index"),
         git_dir: PathBuf::from("/work/repo/.git"),
         cleanup: None,
+        transports: Vec::new(),
     };
 }
 
@@ -98,6 +99,25 @@ fn an_intent_of_a_repository_that_is_not_text_round_trips() {
     sent.git_dir = sent.repository.join(".git");
     sent.cleanup = Some(Cleanup { git_dir: sent.common_dir.clone(), scratch: sent.common_dir.join(OsStr::from_bytes(b"monochromatic-git-policy-cli-service-\xffx")), reftable: false });
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent));
+}
+
+/// What:
+///  An intent keeps whether each commit's command chose a transport,
+///  one item per commit,
+///  and an intent written before that field existed reads as commits that chose none.
+/// Why:
+///   The settings themselves live only in the service's memory,
+/// so this flag is what a restarted service re-holds the push with:
+///  without it a push would speak a transport nobody chose,
+/// and without one item per commit a request that chose none would shift the later commits' items onto other commits.
+#[test]
+fn an_intent_keeps_a_transport_flag_for_each_of_its_commits() {
+    let mut sent: Intent = intent(13);
+    sent.transports = vec![true, false];
+    assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent), "a flag for each commit survives the record");
+    let older: String = intent_text(&intent(14)).lines().filter(|line| { return !line.starts_with("transports="); }).collect::<Vec<&str>>().join("\n") + "\n";
+    let read: Intent = parse_intent(older.as_str()).expect("an intent of an earlier release still reads");
+    assert!(read.transports.is_empty(), "a record written before the field existed names no transport: {:?}", read.transports);
 }
 
 /// What:

@@ -126,10 +126,13 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
             parent: handoff.parent.clone(),
             created: now_iso(),
             tries: 0,
+            transport: false,
         });
     }
     enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices).map_err(not_handed_over);
+    // The records this wake is about are the commit's upkeep and review, never a push of its own: the push record of a landed
+    //  commit comes from the landing, which holds the request's programs in the service's memory itself.
+    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, &[], notices).map_err(not_handed_over);
 }
 
 /// What:
@@ -195,7 +198,7 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 /// ```
 /// The words a command says when the verdict could not be kept,
 /// or nothing when it was.
-pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) -> Option<String> {
+pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str, wake: &dyn WakeTheService) -> Option<String> {
     // A branch whose name is not text held no record (`hand_over_with_key`), so there is none to take back and no verdict to keep.
     let reference: &str = handoff.reference.text()?;
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
@@ -222,6 +225,13 @@ pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str, reason: &str) -> 
         }
     }
     if durable {
+        // What: The service is told that these records can no longer run, so it gives up the programs and transport settings it
+        //  holds against them.
+        // Why:  They live in the service's memory alone, and the service learns nothing else from a record this command removed:
+        //  one of the values can hold a password (`service_push_programs_held_in_memory`). A record kept because its verdict could
+        //  not be written keeps its values too, so this runs only when the record went.
+        let gone: [String; 2] = [item.id(), item.id_before_the_branch()];
+        wake.forget_programs(handoff.git_dir.as_path(), gone.as_slice());
         return None;
     }
     return Some(format!(
@@ -262,66 +272,15 @@ fn push_item(handoff: &ServiceHandoff, landed: &str, reference: &str) -> WorkIte
         parent: handoff.parent.clone(),
         created: now_iso(),
         tries: 0,
+        // The record a landing held already says whether the request's command chose a transport; this one is written only when
+        //  nothing was held, and then this command is what asked for the push, so its own environment answers.
+        transport: crate::service_push_programs_held_in_memory::of_this_process().transport,
     };
 }
 
-/// What:
-///  Writes the push record for a branch tip that a command other than a commit moved,
-/// before anything asks whether a service can be reached.
-/// Why:
-///   A merge,
-/// a cherry-pick,
-/// a revert,
-/// an applied patch or a pull's merge adds commits that the next commit would otherwise
-///  be the first to push.
-/// Only the push is left:
-/// the review and the upkeep belong to a commit.
-///   The record is a directory of this worktree's own Git directory,
-/// so writing it needs no service,
-/// no socket and no session bus,
-/// and a context with no route to the service still leaves the push on disk for the next wake.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writePushRecord({ repository, gitDir, reference, tip, parent })
-/// ```
-pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &crate::ref_name::RefName, tip: &str, parent: &str) -> Result<(), ClientFailure> {
-    // A push record names its branch in text, and a spelling with replacement characters would push another branch, so a branch
-    //  whose name is not text has none; `hand_over_push` tells the person that instead.
-    let Some(name) = reference.text() else { return Ok(()) };
-    let item: WorkItem = WorkItem {
-        kind: WorkKind::Push,
-        repository: repository.to_path_buf(),
-        git_dir: git_dir.to_path_buf(),
-        branch_ref: name.to_string(),
-        oid: tip.to_string(),
-        parent: parent.to_string(),
-        created: now_iso(),
-        tries: 0,
-    };
-    enqueue(work_directory(git_dir).as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
-    return Ok(());
-}
-
-/// What:
-///  `write_push_record` for a handoff,
-/// and then the wake of the service.
-/// Why:
-///   The caller that already knows how to reach the service leaves both in one call;
-/// a caller that may find no route writes the record with `write_push_record` and wakes only when it has one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await handOverPush(handoff, tip)
-/// ```
-pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    if !handoff.reference.is_text() {
-        let _said = writeln!(notices, "{}", unqueued_branch_note(handoff.reference.as_os_str(), tip));
-        return Ok(());
-    }
-    write_push_record(handoff.repository.as_path(), handoff.git_dir.as_path(), &handoff.reference, tip, handoff.parent.as_str())?;
-    return wake(&handoff.config, handoff.git_dir.as_path(), None, notices).map_err(not_handed_over);
-}
+/// The push record a command that moved a branch leaves,
+/// and the hand-off that carries its values before a round can claim it.
+pub use crate::push_record_of_a_moved_branch::{hand_over_push, write_push_record};
 
 /// Handoff controls stay out of the release executable.
 #[cfg(test)]
@@ -473,6 +432,8 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
     // One wake for every record this command released, sent once at the end: a released push runs the next time the service looks,
     //  and a command that says the push is queued wakes it rather than waiting for the next commit.
     let mut released: bool = false;
+    // The push records this command settled or removed here, by the id the service holds their values against.
+    let mut forgotten: Vec<String> = Vec::new();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Some(commit) = crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) else { continue };
@@ -485,6 +446,7 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
             // Git holds the commit in the branch's remote, so the push this record would make has been made by another push of the
             //  branch. Nothing waits on it: it is settled where a finished push goes.
             settle_held(work_dir.as_path(), name.as_str());
+            forgotten.push(name.clone());
             continue;
         }
         let holding: Holding = text.as_deref().map_or_else(Holding::undecided, holding_in);
@@ -511,6 +473,7 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
                     if let Some(found) = item.as_ref() {
                         if crate::work_item::block(work_dir.as_path(), found, holding.reason.as_str()) {
                             crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+                            forgotten.push(name.clone());
                             continue;
                         }
                         // The verdict could not be written, so this record is the only statement that the commit stays local: it is
@@ -528,6 +491,8 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
     if released {
         wake.wake(git_dir);
     }
+    // The service learns nothing else about a record this command settled: the values it was given are given up now.
+    wake.forget_programs(git_dir, forgotten.as_slice());
     return lines;
 }
 
@@ -650,6 +615,8 @@ pub const PUSH_QUEUED_AFTER: std::time::Duration = std::time::Duration::from_sec
 pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &dyn RemoteRecord, wake: &dyn WakeTheService) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
     let mut waiting: Vec<(std::time::SystemTime, String, String)> = Vec::new();
+    // The pending push records this command settles here, by the id the service holds their values against.
+    let mut forgotten: Vec<String> = Vec::new();
     for (name, queued) in crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING) {
         if !name.starts_with(format!("{}-", WorkKind::Push.name()).as_str()) {
             continue;
@@ -669,10 +636,13 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &
         };
         if !reference.is_empty() && record.on_the_remote(reference.as_str(), commit.as_str()) == OnTheRemote::There {
             settle_where_a_push_that_was_made_is_kept(work_dir.as_path(), crate::work_item::PENDING, name.as_str());
+            forgotten.push(name.clone());
             continue;
         }
         waiting.push((queued, commit, reference));
     }
+    // A record this command settled keeps no value: nothing runs it any more, and the service learns nothing else about it.
+    wake.forget_programs(git_dir, forgotten.as_slice());
     let Some((queued, oldest_commit, oldest_reference)) = waiting.first() else { return Vec::new() };
     let waited: std::time::Duration = now.duration_since(*queued).unwrap_or(std::time::Duration::ZERO);
     let mut lines: Vec<String> = vec![queued_push_line(oldest_reference.as_str(), oldest_commit.as_str(), waited)];

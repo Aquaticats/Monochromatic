@@ -93,6 +93,7 @@ fn a_repository_with_a_built_commit(name: &str) -> (PathBuf, String, String, Com
         shadow: None,
         captured: 0,
         holder: String::new(),
+        programs: None,
     };
     return (root, base, built, request);
 }

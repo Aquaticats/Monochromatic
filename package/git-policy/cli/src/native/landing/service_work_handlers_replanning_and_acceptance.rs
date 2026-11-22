@@ -21,7 +21,7 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::record_push_skip;
 use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
-use crate::push_retry_cause_line::cause_line;
+use crate::push_retry_cause_line::cause_or_silence;
 use crate::push_retry_failure::{PROTECTED_BRANCH_TRIES, protected_branch_refusal};
 use crate::service_instance::GitDirUnreachable;
 use crate::unreachable_git_dir_proven_gone::Gone;
@@ -100,9 +100,11 @@ pub enum Verdict {
     /// and the record is written where every other record of a push is written,
     ///  by the step that settles it,
     /// so that a storage that refused the words leaves the item not done and says why
-    /// (`service_work_settling_a_verdict.rs`), and so that both the round and the retry plan
+    /// (`service_work_settling_a_verdict.rs`),
+    /// and so that both the round and the retry plan
     ///  record what a landed push said.
-    ///  The commit is the one the push sent, never the newest record the round claimed:
+    ///  The commit is the one the push sent,
+    /// never the newest record the round claimed:
     /// the record is named for it,
     ///  and a commit that landed after the claim is what the push sends.
     Delivered {
@@ -365,7 +367,8 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 ///   The relinked worktree's own Git directory is where the person works,
 ///   so the words go there when this repository can prove that the worktree at that path is the record's
 ///   (`notice_target_of_a_worktree`).
-///   A directory that cannot be proved, or that refuses the words,
+///   A directory that cannot be proved,
+/// or that refuses the words,
 ///   must not hold the record in `recovering` for ever:
 ///   the recovery settles nothing until the person is told,
 ///   so the words go to the directory the record was drained from,
@@ -499,20 +502,29 @@ impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
 
     /// What:
     ///  Take a relink's kept reason back,
-    ///  now that its record is in `failed` and no later pass will tell again.
+    ///  now that its record is in `failed` and no later pass will tell again,
+    ///  and give up the programs and transport settings a push given up on held.
     /// Why:
     ///   The reason has to outlive the words:
     ///   a pass killed between them and the move to `failed` is told again by the next one,
     ///   and a reason forgotten at the first telling would make that second notice claim no tool ever answered.
-    ///   Nothing reads a record in `failed`, so keeping it longer would leave a file nothing removes.
+    ///   Nothing reads a record in `failed`,
+    /// so keeping it longer would leave a file nothing removes;
+    /// and the programs of a push live only in this service's memory and are keyed by that record
+    ///  (`service_push_programs_held_in_memory`),
+    /// so a push the recovery gave up on keeps none of them either,
+    ///  and one of them can hold a password.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// settled(item) { if (item.kind === 'relink') forget(item.gitDir, item.id()); }
+    /// settled(item) { if (item.kind === 'relink') forget(item.gitDir, item.id()); if (item.kind === 'push') forgetPrograms(item.gitDir, item.id()); }
     /// ```
     fn settled(&self, given_up: &WorkItem) {
         if given_up.kind == WorkKind::Relink {
             crate::package_repair_relink_failure::forget(given_up.git_dir.as_path(), given_up.id().as_str());
+        }
+        if given_up.kind == WorkKind::Push {
+            crate::service_push_programs_held_in_memory::forget(given_up.git_dir.as_path(), given_up.id().as_str());
         }
     }
 }
@@ -587,7 +599,8 @@ impl Replanning {
     /// and the next start reads the file again.
     /// The removal is a job of the process's blocking pool,
     /// awaited here no longer than the journal's own state step:
-    /// this runs inside the drain, which is a task of the runtime,
+    /// this runs inside the drain,
+    /// which is a task of the runtime,
     /// and a task that read or removed a file itself would hold the worker the runtime needs
     /// (`blocking_jobs_within_the_budget.rs`).
     ///
@@ -636,10 +649,13 @@ impl Replanning {
     /// where a directory keeps one at all,
     /// as a job of the process's blocking pool.
     /// Why:
-    ///   The removal lists the journal, reads each file of the branch to prove it is the branch's,
+    ///   The removal lists the journal,
+    /// reads each file of the branch to prove it is the branch's,
     /// and unlinks it,
-    /// and any of those can wait in the kernel on a disk, a lock or a mount that stopped answering.
-    /// The caller is a task of the runtime, which may not make that wait itself.
+    /// and any of those can wait in the kernel on a disk,
+    /// a lock or a mount that stopped answering.
+    /// The caller is a task of the runtime,
+    /// which may not make that wait itself.
     async fn take_the_plan_file(&mut self, git_dir: &Path, branch_ref: &str) {
         let Some(plans) = self.plans.clone() else { return };
         let (repository, branch): (PathBuf, String) = (git_dir.to_path_buf(), String::from(branch_ref));
@@ -783,7 +799,7 @@ pub(crate) async fn planned_retry(git_dir: &Path, replanning: &mut Replanning, f
             item.repository,
             attempt + 1,
             pause.as_secs(),
-            cause_line(text).unwrap_or_default()
+            cause_or_silence(text)
         )
         .as_str(),
         &fields,
@@ -835,6 +851,10 @@ pub(crate) async fn end_the_plans_of_a_gone_repository_awaiting(git_dir: &Path, 
     if !named.is_empty() {
         crate::service_warn!("{} ({unreachable})", crate::unreachable_git_dir_proven_gone::gone_line(git_dir, gone, named.as_slice()));
     }
+    // What: Every value held against a push record of that repository is given up with its plans.
+    // Why:  A repository the filesystem proves gone has no push that can run, and a value of a record nothing will run keeps a
+    //  command line that can hold a password (`service_push_programs_held_in_memory`).
+    crate::service_push_programs_held_in_memory::forget_every(git_dir);
     return Drained { wait: None, changes: replanning.changes };
 }
 

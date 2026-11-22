@@ -28,6 +28,30 @@ use crate::work_item::{Claimed, DONE, FAILED};
 use std::path::Path;
 
 /// What:
+///  Gives up the programs and transport settings each record of this push held,
+///  because none of those records can run that push again.
+/// Why:
+///   The values live only in this service's memory (`service_push_programs_held_in_memory`),
+/// and one of them can hold a password:
+/// a push that was made,
+/// that failed for good,
+/// or that had nothing to push keeps none of them.
+/// A record the service will try again keeps them,
+/// and so does one a plan carries,
+/// because that plan queues the same record again,
+/// which is why only the verdicts that end a push call this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forgetTheProgramsOf = (members) => members.forEach((member) => forget(member.item.gitDir, member.item.id()));
+/// ```
+fn forget_the_programs_of(members: &[Claimed]) {
+    for member in members {
+        crate::service_push_programs_held_in_memory::forget(member.item.git_dir.as_path(), member.item.id().as_str());
+    }
+}
+
+/// What:
 ///  What one push's verdict does to its records and to the retry plan.
 /// Why:
 ///   The verdicts differ only in what they leave for the person and in what the plan keeps,
@@ -38,7 +62,8 @@ use std::path::Path;
 ///  two pushes again,
 /// and nothing is lost.
 ///  A record the storage refused never leaves its items settled as if it existed:
-/// a push that landed keeps the words nowhere else, so its item is failed and the words are said in the journal,
+/// a push that landed keeps the words nowhere else,
+/// so its item is failed and the words are said in the journal,
 /// while a refusal or a skip the person was not told about leaves the claims to their lease,
 /// and the next try asks
 ///  the server again and records it then.
@@ -67,7 +92,13 @@ pub(super) async fn settle_after_the_push(
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
                 replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
             }
-            return settle_all_awaiting(held, work_dir, settling, DONE).await;
+            // The values go only once the records are settled: a settling step that could not run leaves the claims to their lease and
+            //  the push runs again, and then it needs exactly these values.
+            let back: Option<HeldClaims> = settle_all_awaiting(held, work_dir, settling, DONE).await;
+            if back.is_some() {
+                forget_the_programs_of(members);
+            }
+            return back;
         }
         Verdict::Delivered { commit, said } => {
             // The push landed, so an earlier failure of its branch is no longer true and no retry plan is left for it. What it
@@ -84,7 +115,12 @@ pub(super) async fn settle_after_the_push(
                 clear_push_failures_before_awaiting(git_dir, latest.item.branch_ref.as_str(), pushing_since).await;
                 replanning.forget(git_dir, latest.item.branch_ref.as_str()).await;
             }
-            return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
+            // The values go only once the records are settled, for the reason the landed push above gives.
+            let back: Option<HeldClaims> = settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
+            if back.is_some() {
+                forget_the_programs_of(members);
+            }
+            return back;
         }
         Verdict::Retry(text) => {
             // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
@@ -110,6 +146,13 @@ pub(super) async fn settle_after_the_push(
             if !recorded && !carried {
                 return Some(held);
             }
+            // What: The values are given up for every record of this push except the one a kept plan carries.
+            // Why:  A plan queues this same record id again, so its next try needs exactly these values, and one that dropped them
+            //  would search the manager's list instead: `git-lfs` it cannot find, and a transport nobody chose. A plan carries only
+            //  the newest record of the branch, and a push no plan carries is over, so every other record keeps nothing
+            //  (`service_push_programs_held_in_memory`).
+            let over: &[Claimed] = if carried { &members[..members.len().saturating_sub(1)] } else { members };
+            forget_the_programs_of(over);
             return settle_all_awaiting(held, work_dir, settling, FAILED).await;
         }
         Verdict::Failed(text) => {
@@ -127,6 +170,8 @@ pub(super) async fn settle_after_the_push(
             if !recorded {
                 return Some(held);
             }
+            // The push is given up on, so its records can no longer run and none of them keeps a value that can hold a password.
+            forget_the_programs_of(members);
             // A failure the service gives up on is no longer waiting for a new try, and its plan's file goes only once
             //  the refusal is recorded: a service killed between the two then leaves the plan, so a later one tries the
             //  push again instead of the person waiting for a try nothing schedules.
@@ -147,6 +192,9 @@ pub(super) async fn settle_after_the_push(
             if !recorded {
                 return Some(held);
             }
+            // The values go after the record is written, as they do for a failure the service gives up on: a skip that could not be
+            //  recorded leaves the claims to their lease, and the push those records run again needs these values.
+            forget_the_programs_of(members);
             return settle_all_awaiting(held, work_dir, settling, DONE).await;
         }
     }

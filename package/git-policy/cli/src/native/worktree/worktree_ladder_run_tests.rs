@@ -254,3 +254,51 @@ fn a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned() {
     result.claim.expect("the record").settle().expect("settled");
     remove(root.as_path());
 }
+
+/// What:
+///  An add at a commit whose tree lacks a path the attributes convert is skipped before the add's record is claimed,
+///  so no copy is paid for a worktree that Git's own checkout writes.
+/// Why:
+///   The index this rung installs holds no stat data for a path the fence hands to Git,
+/// and the tree difference refuses such an entry,
+///  so the rung would end after its copies and pay Git's whole checkout over them,
+///  as the "Limitations" section of
+///  `doc/planning/cli-git-clone-rung-conversion-fence.md` says.
+/// The attributes are read before the claim,
+///  so the fence's own answer and one name-only read settle it here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ladder = beginLadder(planAt('other'), context, identity);
+/// expect(ladder.rung).toBe('git'); expect(ladder.slow.line()).toContain('extra.txt'); expect(claims()).toBe(0);
+/// ```
+#[test]
+fn a_target_tree_that_changes_a_fenced_path_is_skipped_before_anything_is_claimed_or_copied() {
+    let root: PathBuf = crate::test_support::fixture("run-target-tree-skip");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    crate::worktree_ladder_test_support::tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    crate::worktree_ladder_test_support::tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
+    crate::worktree_ladder_test_support::commit_all(repo.as_path(), "conversion");
+    crate::test_support::git(repo.as_path(), &["update-ref", "refs/heads/other", "HEAD"]);
+    crate::worktree_ladder_test_support::tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
+    crate::worktree_ladder_test_support::commit_all(repo.as_path(), "second");
+    let plan = crate::worktree_ladder_test_support::plan_to_at(root.join("topic"), Some("other"));
+    let identity = main_identity(repo.as_path());
+    // A destination whose filesystem cannot clone refuses the clone rung before the fence runs, so this control names its
+    // own skip there, as the decline control beside it does.
+    if let Some(reason) = crate::worktree_snapshot_source::clone_refusal(&identity, &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_target_tree_that_changes_a_fenced_path_is_skipped_before_anything_is_claimed_or_copied ({reason})");
+        remove(root.as_path());
+        return;
+    }
+    let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
+    assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "the rung steps aside before the copies");
+    let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
+    assert_eq!(route.word(), "declines", "{route:?}");
+    assert!(route.line().contains("differs from the source's index at extra.txt"), "{}", route.line());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing was claimed, so nothing can have been copied into or out of a stage");
+    let prepared: usize = if plan.destination.exists() { std::fs::read_dir(plan.destination.as_path()).expect("the destination").count() } else { 0 };
+    assert_eq!(prepared, 0, "the rung copied nothing into the destination");
+    remove(root.as_path());
+}

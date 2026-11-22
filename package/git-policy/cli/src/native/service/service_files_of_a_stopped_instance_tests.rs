@@ -243,6 +243,7 @@ fn a_landed_batch(commit: &str, request: &str) -> Intent {
         cleanup: None,
         index: PathBuf::from("/nowhere/repository/.git/index"),
         git_dir: PathBuf::from("/nowhere/repository/.git"),
+        transports: Vec::new(),
     };
 }
 
