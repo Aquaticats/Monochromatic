@@ -1464,18 +1464,25 @@ That read runs `git ls-tree -r -l -z` of that commit,
 and a source that may hold a promisor remote gets `GIT_NO_LAZY_FETCH=1` and the global
 `--no-lazy-fetch`,
 so a partial clone fetches nothing into a source the check may refuse.
-Git 2.45.0 is the first release that honours either switch: it sets `fetch_if_missing = 0`
+Git 2.45.0 is the first release that honours either switch:
+it sets `fetch_if_missing = 0`
 (`environment.c`,
 `NO_LAZY_FETCH_ENVIRONMENT`),
 so an unavailable size prints `BAD` in the size column and the run exits 0 with its output.
-A plain source has no promisor remote and no fetch is possible, so its read carries neither switch,
+A plain source has no promisor remote and no fetch is possible,
+so its read carries neither switch,
 and an older Git keeps the overlap there.
-A source that may hold a promisor remote gets both switches, and a Git before 2.45.0 refuses the option
-before it reads anything (exit 129), so the read fails instead of fetching and the fence falls through
-to Git's own checkout; the add does not fail.
-Ubuntu 24.04's Git 2.43.0 is one such Git: its plain `git ls-tree` under the variable alone exits 128
+A source that may hold a promisor remote gets both switches,
+and a Git before 2.45.0 refuses the option
+before it reads anything (exit 129),
+so the read fails instead of fetching and the fence falls through
+to Git's own checkout;
+the add does not fail.
+Ubuntu 24.04's Git 2.43.0 is one such Git:
+its plain `git ls-tree` under the variable alone exits 128
 with `could not fetch ... from promisor remote` and leaves the clone unchanged (40 missing and 2 packs),
-which is the fact its package carries, and it does not know the option.
+which is the fact its package carries,
+and it does not know the option.
 The read also leaves the process-wide failed-step note alone
 (`GitRequest::beside_another_step`),
 because the add's own steps may fail while it runs.
@@ -1496,24 +1503,34 @@ A snapshot copies everything anyway,
 so this rung has no copy to run the read beside;
 rung 2 keeps the read beside its copies.
 An add that ends before the fence's join states the read in its record:
-when the read has already answered, its time is the record's `fenceSizesBesideTheCheck` work,
-and when it has not, the record says `started and not joined`,
+when the read has already answered,
+its time is the record's `fenceSizesBesideTheCheck` work,
+and when it has not,
+the record says `started and not joined`,
 and the add ends without it.
-An add that will not use the read, because the source check refused or the fence declined, ends its Git child
+An add that will not use the read,
+because the source check refused or the fence declined,
+ends its Git child
 there (`SIGKILL` to the id the read's runner published) and the thread ends with the process,
 so a refused or declined add neither waits for it nor pays its work beside Git's own checkout.
 A read still running when the process ends carries `PR_SET_PDEATHSIG`,
-so its child ends with the thread that started it, however the process ends.
+so its child ends with the thread that started it,
+however the process ends.
 Which of an add's other reads it already paid depends on where it ends:
 a source check that refuses costs Git's own checkout and the read it started and ended,
 an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
 Measured in one btrfs guest of 2026-11-22
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-"The settle that never waits, timed"),
-four or six rounds, position-balanced, with an identical-binary control:
-a served loose add 905.1 ms against `main`'s 960.6, and a packed one 599.9 against 677.4;
-a refused loose add 2928.5 against 2988.8, and a packed one 2665.6 against 2623.7;
+"The settle that never waits,
+timed"),
+four or six rounds,
+position-balanced,
+with an identical-binary control:
+a served loose add 905.1 ms against `main`'s 960.6,
+and a packed one 599.9 against 677.4;
+a refused loose add 2928.5 against 2988.8,
+and a packed one 2665.6 against 2623.7;
 a declined packed add 7455.0 against 7525.9;
 a cone sparse refused add 168.1 against 161.8 loose and 115.4 against 99.9 packed;
 a refused add whose Git fails at once 16.0 against 13.0 loose and 23.5 against 21.4 packed.
