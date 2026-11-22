@@ -59,7 +59,7 @@ pub(crate) fn objects_of_batch(
         //  commit has the branch tip first (a merge conclusion has the merged commits after it).
         // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
         //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
-        let read: Option<BuiltCommit> = if settings.plain_history { read_commit(first.common_dir.as_path(), built) } else { None };
+        let read: Option<BuiltCommit> = if settings.plain_history { read_commit(git, repository, first.common_dir.as_path(), built) } else { None };
         let (named_itself, parents): (bool, Vec<String>) = the_parents_of(git, repository, built, read.as_ref())?;
         let acceptable: bool = if first.amend {
             parents == amended_parents
@@ -268,7 +268,7 @@ fn the_commit_this_attempt_built_stands_on(
 ) -> Result<bool, FailureCode> {
     let Some(built) = commit else { return Ok(false) };
     let read: Option<BuiltCommit> = match settings.plain_history {
-        true => read_commit(first.common_dir.as_path(), built),
+        true => read_commit(git, repository, first.common_dir.as_path(), built),
         false => None,
     };
     let (named_itself, parents): (bool, Vec<String>) = the_parents_of(git, repository, built, read.as_ref())?;
