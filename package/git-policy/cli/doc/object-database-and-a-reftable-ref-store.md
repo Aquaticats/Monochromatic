@@ -148,8 +148,18 @@ Every shipped caller was read for what it does with that `None`:
   the two readers answer `None` and the work is left to Git,
   and the push trigger declines the automatic push,
   with its own recorded reason.
-  That last one is the one caller that treats a decline as a decision rather than asking Git;
-  it is unchanged from `main` and no reftable repository reaches it.
+  That last one is the one caller that treats a decline as a decision rather than asking Git.
+  Its reason,
+  `object-database-unopened`,
+  is one of the words `SPEC.md` lists for a decision the wrapper could not make,
+  level `warn`,
+  beside a walk that runs out of budget (`walk-undecided-growth`):
+  the trigger says it could not decide and does not push,
+  exactly as it does when the in-process walk gives up,
+  and it is unchanged from `main`.
+  Asking Git there would make the wrapper hand over a push it does not hand over today,
+  on a files repository holding a replace ref,
+  which is a change to when automatic pushes happen rather than a caller answering wrongly.
 
 ## The refusal and its controls
 
@@ -160,8 +170,13 @@ and otherwise reads the repository's own `config` and declines
 `ref_store_is_reftable`).
 Git reads an extension from that file alone and honors no include of it
 (`read_repository_format` in `setup.c`),
-and the extension counts only in a version 1 repository format,
-which Git enforces by refusing the repository otherwise.
+and it refuses a repository that carries one under any version but 1
+(`fatal: repo version is 0, but v1-only extension found`),
+so a key that names another store is declined whatever the version states.
+The version's own spelling (`1`,
+`01`,
+`+1`) therefore cannot decide whether a store is declined,
+which reading it the way Git reads an integer would have to get right.
 A configuration that cannot be parsed declines the database rather than being guessed at.
 
 Nothing reads the tables,
@@ -232,19 +247,27 @@ Each was run failing before its fix was in place:
   the replacement a replace ref names included,
   and whose parents and message a reflog row repeats.
 - `objects_missing`:
-  `git rev-list --objects --no-object-names <names>`,
-  which walks each name and exits nonzero on the first object it cannot read,
+  `git rev-list --objects --no-object-names --missing=print <names>`,
+  which prints `?<name>` for each object it cannot read and exits zero,
   for the blobs a request names and the trees it embeds.
+  Absence is read from that line and never from how Git ended:
+  a Git a signal ended prints no such line,
+  and an object it fails for another reason is not called gone
+  (a corrupt subtree makes Git exit 128 with no `?` line,
+  measured on Git 2.56.1).
   A commit name is never passed here:
   walking a commit also walks its history,
   which no question asks.
 - `object_missing`:
   `git cat-file -e <name>`,
-  presence alone,
+  whose status 1 is an object Git cannot find and whose status 128 is a name it cannot read,
   for the commit object of a request Git built.
 
 A Git that cannot be started answers neither way,
 and the caller keeps its old answer rather than guessing.
+A commit written with an `encoding` header is one `parse_commit` refuses,
+as it does on a store the reader opens,
+so its reflog row still falls back to the request's own message on `main` and here alike.
 
 ## What the refusal costs a files-backend repository
 

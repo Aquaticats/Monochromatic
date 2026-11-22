@@ -266,6 +266,17 @@ fn a_ref_store_the_configuration_moves_away_declines_the_database() {
         ObjectDatabase::open(git_dir.as_path(), None, format).is_none(),
         "a ref store the configuration names outside the common directory is outside what this reader scans"
     );
+    // Git reads the version as an integer, so `01` is the same repository format and the store is still Git's.
+    git(repo.as_path(), &["config", "--local", "core.repositoryformatversion", "01"]);
+    assert_eq!(
+        git_output(repo.as_path(), &["rev-parse", "--show-ref-format"]).stdout,
+        b"reftable\n",
+        "the control: Git reads the moved store as the reftable backend under this spelling of the version"
+    );
+    assert!(
+        ObjectDatabase::open(git_dir.as_path(), None, format).is_none(),
+        "a version Git spells `01` names the same store, so the reader declines it too"
+    );
     // The files backend, named the same way, is the store this reader does scan.
     let files = root.join("files");
     std::fs::create_dir(&files).expect("dir");

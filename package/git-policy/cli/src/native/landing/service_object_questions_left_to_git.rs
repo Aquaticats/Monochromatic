@@ -46,50 +46,50 @@ pub(crate) fn commit_bytes(git: &GitContext, repository: &Path, name: &str) -> O
 ///  or anything below the trees among them,
 ///  is gone from the object store Git reads.
 /// Why:
-///  `rev-list --objects` walks each name it is given and exits nonzero on the first object it cannot read,
-///  which is the walk the reader makes in process.
+///  `rev-list --objects --missing=print` prints `?<name>` for each object it cannot read and exits zero,
+///  so absence is read from a line and never from how Git ended:
+/// a Git a signal ended prints no such line,
+///  and an object it fails for another reason is not called gone.
 ///  A commit name is not one of these:
 ///  walking a commit also walks its history,
 ///  which no question here asks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = (git, repo, names) => git(['rev-list', '--objects', '--no-object-names', ...names]).code !== 0;
+/// const gone = (git, repo, names) => git(['rev-list', '--objects', '--no-object-names', '--missing=print', ...names]).stdout.some((line) => line.startsWith('?'));
 /// ```
 pub(crate) fn objects_missing(git: &GitContext, repository: &Path, names: &[&str]) -> bool {
     if names.is_empty() {
         return false;
     }
-    let mut arguments: Vec<&str> = vec!["rev-list", "--objects", "--no-object-names"];
+    let mut arguments: Vec<&str> = vec!["rev-list", "--objects", "--no-object-names", "--missing=print"];
     arguments.extend_from_slice(names);
-    return match run(git, repository, arguments.as_slice()) {
-        Some(output) => !output.succeeded(),
-        None => false,
-    };
+    let Some(output): Option<GitOutput> = run(git, repository, arguments.as_slice()) else { return false };
+    return output.stdout.split(|byte| *byte == b'\n').any(|line| line.starts_with(b"?"));
 }
 
 /// What:
 ///  Whether the one object `name` is gone from the object store Git reads.
 /// Why:
-///  `cat-file -e` answers presence alone,
+///  `cat-file -e` answers 1 for an object it cannot find and 128 for a name it cannot read at all,
+///  and a signal leaves no code:
+/// only the 1 is absence,
 ///  so a commit is asked this way and its history is never walked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = (git, repo, name) => git(['cat-file', '-e', name]).code !== 0;
+/// const gone = (git, repo, name) => git(['cat-file', '-e', name]).code === 1;
 /// ```
 pub(crate) fn object_missing(git: &GitContext, repository: &Path, name: &str) -> bool {
-    return match run(git, repository, &["cat-file", "-e", name]) {
-        Some(output) => !output.succeeded(),
-        None => false,
-    };
+    return matches!(run(git, repository, &["cat-file", "-e", name]), Some(output) if output.code == Some(1));
 }
 
 /// What:
-///  Whether any of the commits these requests were built with is gone.
+///  Whether any of the commits in `commits` is gone.
 /// Why:
 ///  Presence alone is what the reader answered for a commit,
-///  so the fallback asks presence alone.
+///  so the fallback asks presence alone,
+///  one start each.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
