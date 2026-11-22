@@ -93,14 +93,12 @@ fn remove_loose_object(repo: &Path, name: &str) {
 
 /// A tree of the fixture's object store with one blob below a subtree.
 fn a_tree_with_one_blob(repo: &Path) -> (String, String) {
-    let blob: String = String::from_utf8(git_with_input(repo, &["hash-object", "-w", "--stdin"], "gone\n")).expect("UTF-8");
-    let blob: String = String::from(blob.trim());
+    let blob: String = String::from_utf8(git_with_input(repo, &["hash-object", "-w", "--stdin"], "gone\n")).expect("UTF-8").trim().to_owned();
     let subtree_line: String = format!("100644 blob {blob}\tsub.txt\n");
-    let subtree: String = String::from_utf8(git_with_input(repo, &["mktree"], subtree_line.as_str())).expect("UTF-8");
-    let subtree: String = String::from(subtree.trim());
+    let subtree: String = String::from_utf8(git_with_input(repo, &["mktree"], subtree_line.as_str())).expect("UTF-8").trim().to_owned();
     let root_line: String = format!("040000 tree {subtree}\tsub\n");
-    let root: String = String::from_utf8(git_with_input(repo, &["mktree"], root_line.as_str())).expect("UTF-8");
-    return (String::from(root.trim()), blob);
+    let root: String = String::from_utf8(git_with_input(repo, &["mktree"], root_line.as_str())).expect("UTF-8").trim().to_owned();
+    return (root, blob);
 }
 
 /// `commit_bytes` prints the commit Git reads in a declined repository,
@@ -154,8 +152,8 @@ fn a_request_too_large_for_one_command_line_reaches_git() {
     let common_dir: PathBuf = repo.join(".git");
     let context = crate::test_support::git_context();
     // SAFETY: `sysconf` only reads the process's argument limit and touches no memory of ours.
-    let limit: i64 = unsafe { libc::sysconf(libc::_SC_ARG_MAX) };
-    let limit: usize = usize::try_from(limit).expect("the host answers a positive argument limit");
+    let host_limit: i64 = unsafe { libc::sysconf(libc::_SC_ARG_MAX) };
+    let limit: usize = usize::try_from(host_limit).expect("the host answers a positive argument limit");
     let name: usize = 40;
     let count: usize = limit / (name + 1) + 1;
     let names: Vec<String> = (1..=count).map(|index| { return format!("{index:0name$}", name = name); }).collect();

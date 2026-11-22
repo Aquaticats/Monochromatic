@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::repo_read_object::{ObjectKind, from_hex};
-use crate::test_support::{FIXTURE_GIT_BOUND, REAL_GIT, fixture, git, git_output, real_git_within, remove};
+use crate::test_support::{FIXTURE_GIT_BOUND, REAL_GIT, fixture, git, git_output, git_text, real_git_within, remove};
 use std::ffi::OsString;
 
 /// A repository with a large file edited many times (so a repack makes deltas),
@@ -315,10 +315,8 @@ fn a_files_store_the_configuration_moves_away_declines_the_database() {
     std::fs::write(repo.join("a.txt"), "two\n").expect("a");
     git(repo.as_path(), &["add", "--", "a.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
-    let older: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD~1"]).stdout).expect("UTF-8");
-    let older: String = String::from(older.trim());
-    let head: String = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
-    let head: String = String::from(head.trim());
+    let older: String = git_text(repo.as_path(), &["rev-parse", "HEAD~1"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let git_dir: PathBuf = repo.join(".git");
     // Every ref of the store moves into the payload directory the configuration names.
     let store: PathBuf = root.join("store");
