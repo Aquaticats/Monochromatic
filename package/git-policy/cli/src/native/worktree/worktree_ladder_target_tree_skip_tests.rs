@@ -77,7 +77,8 @@ fn chosen(plan: &AddPlan, repo: &Path) -> (Ladder, serde_json::Value) {
 /// Why:
 ///   Every control here is about the clone rung's own answer,
 /// and its refusal is the filesystem's:
-/// the gate image's fixture root is a tmpfs, whose files cannot share blocks,
+/// the gate image's fixture root is a tmpfs,
+/// whose files cannot share blocks,
 ///  so each control names its own skip there rather than failing on a rung that could not run.
 ///
 /// In TS you'd write (pseudocode):

@@ -194,7 +194,7 @@ fn branch_tree(source: &SnapshotSource, shown: OsString, branch: OsString, commi
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const localBranch = (context, source, name) => git(context, source.root, ['for-each-ref', '--format=%(objectname)', '--end-of-options', `refs/heads/${name}`]);
+/// const localBranch = (context, source, name) => git(context, source.root, ['for-each-ref', '--format=%(objectname) %(refname)', '--end-of-options', `refs/heads/${name}`]).split('\n');
 /// ```
 fn the_local_branch(context: &GitContext, source: &SnapshotSource, name: &OsStr) -> Result<Option<(OsString, String)>, String> {
     if name.as_encoded_bytes().starts_with(b"-") || NAMES_NEVER_A_BRANCH.iter().any(|rejected| return name == OsStr::new(rejected)) {
