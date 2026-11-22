@@ -436,6 +436,58 @@ fn a_staged_path_among_the_clones_is_refused() {
     assert!(a_staged_path_among_the_clones(&[], entries.as_slice(), &[0, 1]).is_none(), "a listing with nothing in it refuses nothing");
 }
 
+/// What:
+///  A path the source staged after the source check is refused,
+/// although the index snapshot the split reads still proves it.
+/// Why:
+///   The split judges the index the source check copied,
+/// and the source's index can move before the copies,
+/// as another session's `git add` moves this machine's main checkout;
+/// the live listing of the paths staged against the source's `HEAD` is the only step that sees it.
+/// The file itself is untouched,
+/// so only that listing can refuse it,
+/// and this control goes red when the listing's answer is computed and ignored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const source = checkSource(repo); stageAnotherBlob(repo, 'staged-later.txt');
+/// expect(() => cloneTheUnchanged({ source, ... })).toThrow(/staged in the source and would have been cloned/);
+/// ```
+#[test]
+fn a_path_staged_after_the_source_check_is_refused() {
+    let Some(root) = clone_capable_fixture("clone-partial-staged-after-the-check") else { return };
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    tracked(repo.as_path(), "kept.txt", KEPT);
+    tracked(repo.as_path(), "staged-later.txt", COMMITTED_STAGED);
+    commit_all(repo.as_path(), "the commit the source check reads");
+    std::fs::write(repo.join("kept.txt"), PERSONAL_EDIT).expect("the person's change");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
+    settle_the_index(repo.as_path());
+    let destination: PathBuf = std::fs::canonicalize(root.join("topic")).expect("destination");
+    let admin: PathBuf = repo.join(".git/worktrees/topic");
+    let context: crate::transaction_git::GitContext = git_context();
+    let source: SnapshotSource = source_or_dirty(&context, &main_identity(repo.as_path())).expect("a source with changes");
+    assert!(source.dirty.is_some(), "the fixture's source has uncommitted changes");
+    // Another blob goes into the index while the worktree file keeps the commit's bytes and its own times, so the
+    // snapshot's entry still proves the file and only Git's live listing knows the path is staged.
+    let bytes: PathBuf = root.join("staged-after-the-check");
+    std::fs::write(bytes.as_path(), b"what the person stages after the check\n").expect("the staged bytes");
+    let blob: String = git_text(repo.as_path(), &["hash-object", "-w", bytes.to_str().expect("a UTF-8 path")]);
+    let cacheinfo: String = format!("100644,{blob},staged-later.txt");
+    git_text(repo.as_path(), &["update-index", "--add", "--cacheinfo", cacheinfo.as_str()]);
+    let held_fence: AttributeFence = crate::worktree_clone_conversion_fence::fence_the_attributes(&source, &context).expect("the attributes");
+    let destination_file: std::fs::File = open_root(destination.as_path()).expect("the destination");
+    let admin_file: std::fs::File = open_root(admin.as_path()).expect("the administrative directory");
+    let cloned = clone_the_unchanged(PartialClone { context: &context, source: &source, destination: &destination_file, admin: &admin_file, admin_path: admin.as_path(), fence: held_fence, rules: no_rule() });
+    let refusal: String = match cloned {
+        Err(reason) => reason,
+        Ok(_) => panic!("a path staged after the source check is refused rather than cloned"),
+    };
+    assert!(refusal.contains("staged-later.txt"), "{refusal}");
+    assert!(refusal.contains("is staged in the source and would have been cloned"), "{refusal}");
+    crate::test_support::remove(root.as_path());
+}
+
 /// A source with changes whose new `HEAD` holds a later commit is cloned from the source's own tree,
 /// brought to the new commit by the ladder's `read-tree -m -u`,
 /// and proven against the new `HEAD`.
