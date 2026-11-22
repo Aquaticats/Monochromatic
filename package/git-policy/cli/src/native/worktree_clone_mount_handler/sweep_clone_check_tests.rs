@@ -211,7 +211,8 @@ fn an_unloaded_key_is_reported_apart_from_the_identity_checks() {
 }
 
 /// An encrypted clone whose key is loaded passes,
-/// and so does a clone whose data is not encrypted.
+/// and so does a clone whose data is not encrypted,
+/// whether its reply says `off` or carries no encryption property at all.
 #[test]
 fn a_loaded_key_and_an_unencrypted_clone_both_pass() {
     assert_eq!(verify(&encrypted_clone(2), PARENT).expect("a loaded key passes").slot, "one");
@@ -219,6 +220,16 @@ fn a_loaded_key_and_an_unencrypted_clone_both_pass() {
     unencrypted.encryption = PropertyValue::Number(0);
     unencrypted.key_status = PropertyValue::Absent;
     assert_eq!(verify(&unencrypted, PARENT).expect("an unencrypted clone needs no key").slot, "one");
+    // The guest's own plain clone answered with no `encryption` property at all, which is the same instruction as
+    // `off`.
+    let mut silent: CloneObjectFacts = managed_clone();
+    silent.encryption = PropertyValue::Absent;
+    silent.key_status = PropertyValue::Absent;
+    silent.encryption_root = PropertyValue::Absent;
+    assert_eq!(verify(&silent, PARENT).expect("a reply with no encryption property is an unencrypted clone").slot, "one");
+    let mut unreadable: CloneObjectFacts = managed_clone();
+    unreadable.encryption = PropertyValue::Unreadable { why: String::from("the pair has no `value` this route reads") };
+    assert!(matches!(verify(&unreadable, PARENT), Err(CloneRefusal::Property { .. })), "a value this route cannot read is still refused");
 }
 
 /// Every refusal names a step a receipt can carry and the dataset it is about.

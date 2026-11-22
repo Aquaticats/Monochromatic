@@ -418,7 +418,13 @@ pub fn verify(facts: &CloneObjectFacts, parent: &str) -> Result<VerifiedClone, C
     if devices != INDEX_OFF {
         return Err(CloneRefusal::DevicesIsOn { name: facts.name.clone(), found: devices.to_string() });
     }
-    let encryption: u64 = require_number(facts.name.as_str(), ENCRYPTION_PROPERTY, &facts.encryption, "encryption")?;
+    // An unencrypted dataset's reply carries no `encryption` property at all, which is the same instruction as `off`:
+    // a reply that holds no such property says the data is not encrypted, and only a value this route cannot read is
+    // refused. `zfs get encryption <plain dataset>` prints `off` for the same reply.
+    let encryption: u64 = match &facts.encryption {
+        PropertyValue::Absent => ENCRYPTION_OFF,
+        other => require_number(facts.name.as_str(), ENCRYPTION_PROPERTY, other, "encryption")?,
+    };
     if encryption != ENCRYPTION_OFF {
         let key_status: u64 = require_number(facts.name.as_str(), KEY_STATUS_PROPERTY, &facts.key_status, "key-unavailable")?;
         if key_status == KEY_STATUS_UNAVAILABLE {
