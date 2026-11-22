@@ -124,6 +124,17 @@ pub const MAX_CHANGES: usize = 4096;
 /// A display and input cap.
 pub const MAX_ID_BYTES: usize = 128;
 
+/// What:
+///  The most push records one message may name as records that can no longer run.
+/// Why:
+///   A message names the records one command settled or removed,
+/// which is the commits of one command at most,
+/// and the reader bounds every list it accepts:
+/// the ceiling is the longest list this release's own command can produce,
+/// a landing's own changes (`MAX_CHANGES`),
+/// so no record of a real command is refused.
+pub const MAX_FORGOTTEN_RECORDS: usize = MAX_CHANGES;
+
 /// Modes a change may give a file.
 pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 
@@ -256,7 +267,8 @@ pub struct CommitRequest {
     pub scratch: PathBuf,
     /// The finished shadow the service drew ahead of this commit and handed it,
     /// which Git built the commit in;
-    /// nothing when the shadow is the commit's own, inside its scratch tree.
+    /// nothing when the shadow is the commit's own,
+    /// inside its scratch tree.
     /// The service removes it with the scratch tree once this request's landing is over,
     /// because nothing but that landing says when the commit is done with it.
     pub shadow: Option<PathBuf>,
@@ -278,6 +290,23 @@ pub struct CommitRequest {
     ///  forget that record,
     /// so a record whose command is gone can be told from one that is still deciding.
     pub holder: String,
+    /// What:
+    ///  The programs that command finds its programs through,
+    ///  and whether it chose the transport the push speaks through.
+    /// Why:
+    ///   The service runs the push with the environment the user manager started it with,
+    /// which the person committing can neither see nor change,
+    /// and `GIT_SSH_COMMAND` and `GIT_PROXY_COMMAND` can hold a password,
+    /// so the values travel in this request and live only in the service's memory
+    /// (`service_push_programs_held_in_memory`).
+    /// Nothing of them reaches the journal,
+    /// the intent or a work record:
+    /// the intent names the worktree,
+    /// the branch and the commits,
+    /// and the record of a push keeps the flag alone.
+    /// Nothing means the request of a release that did not carry them,
+    /// and the push it queues searches the service's own list.
+    pub programs: Option<crate::service_push_programs_held_in_memory::PushPrograms>,
 }
 
 /// A commit the service landed and when its bytes were captured,
@@ -407,9 +436,40 @@ pub enum ClientMessage {
         /// message and in the service's memory,
         /// never in a work item or on disk.
         review_key: Option<ReviewKey>,
+        /// What:
+        ///  The programs and transport settings of this command,
+        ///  for the push records it has just written,
+        ///  each named by its record's id.
+        /// Why:
+        ///   A push record is a file and outlives this command,
+        /// so the values that cannot be written travel beside it,
+        /// in this message and in the service's memory alone
+        /// (`service_push_programs_held_in_memory`).
+        /// Empty for a wake about other work.
+        push_programs: Vec<(String, crate::service_push_programs_held_in_memory::PushPrograms)>,
     },
-    /// A finished shadow drawn ahead of a commit, for the commit whose scratch tree is named:
-    /// the answer is where it is, or that the service holds none.
+    /// What:
+    ///  The push records this command settled or removed can no longer run,
+    ///  so the service gives up the programs and transport settings it holds against them.
+    /// Why:
+    ///   The values live only in the service's memory (`service_push_programs_held_in_memory`),
+    /// and a record a command of another process removed leaves nothing else to forget them by:
+    /// the post-commit gate blocks a backup here in the committing wrapper,
+    /// and one of the values can hold a password.
+    ///  A service of an earlier release holds no values at all,
+    /// so nothing is lost where it refuses the message
+    ///  as one it does not know.
+    ForgetPrograms {
+        /// The worktree's own Git directory,
+        /// which names the instance that serves it.
+        git_dir: PathBuf,
+        /// The ids of the push records that can no longer run.
+        records: Vec<String>,
+    },
+    /// A finished shadow drawn ahead of a commit,
+    /// for the commit whose scratch tree is named:
+    /// the answer is where it is,
+    /// or that the service holds none.
     /// Nothing is queued and nothing lands,
     /// so the answer never waits behind another commit's landing.
     Shadow {

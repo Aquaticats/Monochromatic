@@ -129,6 +129,7 @@ fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -296,7 +297,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
 #[test]
 fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     let repo: Repo = repo("work-refused");
-    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), transport: false, ..item(&repo, WorkKind::Push, OID, BRANCH) };
     let bad_reference: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/a b");
     for refused in [&elsewhere, &bad_reference] {
         assert!(!is_acceptable(refused, repo.common.as_path()), "{refused:?}");
@@ -463,7 +464,7 @@ fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
 #[test]
 fn a_push_given_up_by_recovery_leaves_a_notice() {
     let repo: Repo = repo("work-given-up");
-    let abandoned: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let abandoned: WorkItem = WorkItem { tries: MAX_TRIES - 1, transport: false, ..item(&repo, WorkKind::Push, OID, BRANCH) };
     enqueue_all(&repo, std::slice::from_ref(&abandoned));
     let started: ClaimTime = ClaimTime::read();
     assert!(claim_next_of(work_directory(repo.common.as_path()).as_path(), &started, &SERVICE_KINDS).expect("claim").is_some());
@@ -948,6 +949,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work_directory(common.as_path()).as_path(), &review).expect("enqueue");
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
@@ -1069,20 +1071,54 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
 }
 
 /// What:
-///  Every push the service runs carries the mark that makes a missing-program refusal name the service's own
-///  `PATH`,
-///  never the shell's.
+///  A push the service runs searches the programs of the command that asked for it,
+///  and says so,
+///  while a push whose values this service no longer holds says its list is the service's own.
 /// Why:
-///   Nothing of the committing shell travels with the service's push,
-/// so the refusal must say which list was searched;
-///  a mark left out would tell the person to change a list the push never read.
+///   The values are the memory of the service that received them and nothing on the disk,
+/// so the marker it lays over the push's environment is the only account a refusal has of which list was searched
+///  (`service_push_programs_held_in_memory`).
 #[test]
-fn the_service_marks_its_push_environment_with_the_list_it_searched() {
+fn the_service_push_searches_the_list_the_command_that_asked_gave() {
     let repo: Repo = repo("service-push-program-search");
     let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
-    let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
-    let search: crate::lfs_program_search::ProgramSearch = crate::lfs_program_search::ProgramSearch::of(started.environment.as_slice());
-    assert_eq!(search.source, crate::lfs_program_search::ProgramSearchSource::ServiceEnvironment, "the service's push is marked");
+    let item: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+
+    // Nothing was held for this record: the service's own list is the one searched, and the marker says so.
+    let without: PushGit = handlers.push_git(&item);
+    assert_eq!(
+        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_SERVICE),
+        Some(OsString::from("1")),
+        "a push whose values are gone says the list it searched is the service's own"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(without.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_REQUEST),
+        None,
+        "and the manager's `PATH` is the one it kept"
+    );
+
+    // The command that asked for this record gave its list: that list is searched, and the marker names it.
+    let shell_path: OsString = OsString::from("/opt/git-lfs/bin:/usr/bin");
+    let shell: Vec<(OsString, OsString)> = vec![(OsString::from("PATH"), shell_path.clone()), (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /fake/key"))];
+    let programs: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(shell.as_slice());
+    crate::service_push_programs_held_in_memory::remember(item.git_dir.as_path(), item.id().as_str(), programs.clone());
+    let with: PushGit = handlers.push_git(&item);
+    assert_eq!(
+        crate::child_environment::environment_value(with.environment.as_slice(), "PATH"),
+        Some(shell_path),
+        "the push searches the list of the command that asked for it, not the manager's"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(with.environment.as_slice(), "GIT_SSH_COMMAND"),
+        Some(OsString::from("ssh -i /fake/key")),
+        "and reaches the remote the way that command does"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(with.environment.as_slice(), crate::service_push_programs_held_in_memory::FROM_THE_REQUEST),
+        Some(OsString::from("1")),
+        "and the marker says the list came with the request"
+    );
+    crate::service_push_programs_held_in_memory::forget(item.git_dir.as_path(), item.id().as_str());
     remove(repo.root.as_path());
 }
 
@@ -1132,6 +1168,167 @@ fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
     let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
     assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the retry the notice promised is on disk before the notice was written");
     remove(repo.root.as_path());
+}
+
+/// What:
+///  A retryable push no plan will try again keeps none of its programs,
+///  and one a plan carries keeps them for that plan's next record.
+/// Why:
+///   A value can hold a password and lives only in this service's memory (`service_push_programs_held_in_memory`),
+/// so a record that can no longer run must keep none of them;
+/// while a plan that carries the push queues the same record id again,
+/// so its next try needs exactly these values.
+#[test]
+fn a_retryable_push_keeps_its_programs_only_while_a_plan_carries_it() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    // A drain that keeps no plan reports the retryable push as failed, and nothing runs its records again.
+    let unplanned: Repo = repo("work-retry-programs-unplanned");
+    let unplanned_item: WorkItem = item(&unplanned, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&unplanned, std::slice::from_ref(&unplanned_item));
+    crate::service_push_programs_held_in_memory::remember(unplanned_item.git_dir.as_path(), unplanned_item.id().as_str(), programs("/opt/git-lfs/bin:/usr/bin"));
+    let _drained: Drained = drain_planned(
+        unplanned.common.as_path(),
+        &retrying,
+        &ClaimTime::read(),
+        &Retrying { first: None, due: Vec::new(), plans: None },
+    );
+    assert_eq!(names(&unplanned, FAILED), vec![unplanned_item.id()], "the record failed for good");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(unplanned_item.git_dir.as_path(), unplanned_item.id().as_str()),
+        None,
+        "a record that can no longer run keeps no value of the command that asked for it"
+    );
+    // A plan carries the push, so the record it queues next is this record's own id and needs these values.
+    let planned: Repo = repo("work-retry-programs-planned");
+    let planned_item: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&planned_item));
+    let kept: crate::service_push_programs_held_in_memory::PushPrograms = programs("/opt/git-lfs/bin:/usr/bin");
+    crate::service_push_programs_held_in_memory::remember(planned_item.git_dir.as_path(), planned_item.id().as_str(), kept.clone());
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let _planned_drain: Drained = drain_planned(
+        planned.common.as_path(),
+        &retrying,
+        &ClaimTime::read(),
+        &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans) },
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(planned_item.git_dir.as_path(), planned_item.id().as_str()),
+        Some(kept),
+        "the plan queues this push again, so its next try keeps the list the command that asked for it gave"
+    );
+    crate::service_push_programs_held_in_memory::forget(planned_item.git_dir.as_path(), planned_item.id().as_str());
+    remove(unplanned.root.as_path());
+    remove(planned.root.as_path());
+}
+
+/// What:
+///  A push of a later commit of the branch,
+///  which lands,
+///  cancels the plan that carried an earlier commit's push,
+///  and the values of that earlier record go with the plan.
+/// Why:
+///   The plan is the one thing that keeps a retryable push's values (`service_push_programs_held_in_memory`):
+/// a person who keeps committing while the network is down ends the earlier push's plan this way,
+/// and the record that plan carried can never run again.
+/// The loop drops a branch's plan with `PushRetries::forget`,
+/// which is where those values go;
+/// `service_push_retry_tests.rs` controls every other way a try ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(a); retries.apply(a.changes); await drain(b); retries.apply(b.changes); expect(held(a)).toBeUndefined();
+/// ```
+#[test]
+fn a_later_push_that_lands_gives_up_the_values_of_the_plan_it_cancels() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let planned: Repo = repo("work-retry-plan-cancelled-values");
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    // The first push cannot finish: a plan carries it, so the values of the command that asked for it wait for that plan's next try.
+    let first: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&first));
+    crate::service_push_programs_held_in_memory::remember(first.git_dir.as_path(), first.id().as_str(), programs("/first/bin:/usr/bin"));
+    let unable: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(drain_planned(planned.common.as_path(), &unable, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    assert!(retries.next_wait(planned.common.as_path(), Instant::now()).is_some(), "the plan carries the first push");
+    assert!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()).is_some(),
+        "the positive control: the plan's next try needs the values of the command that asked for it"
+    );
+    // The person commits again while the network is down, and that push lands: it carries the first commit too, so the plan ends.
+    let later: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&later));
+    crate::service_push_programs_held_in_memory::remember(later.git_dir.as_path(), later.id().as_str(), programs("/later/bin:/usr/bin"));
+    let landed: Recorder = Recorder::answering(Verdict::Done);
+    retries.apply(drain_planned(planned.common.as_path(), &landed, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    assert_eq!(retries.next_wait(planned.common.as_path(), Instant::now()), None, "the push that landed cancels the plan of its branch");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()),
+        None,
+        "the plan that carried the first push is gone, so its record can never run again and keeps no value of the command that asked for it"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(later.git_dir.as_path(), later.id().as_str()),
+        None,
+        "and the push that landed keeps no value either"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
+}
+
+/// What:
+///  A later commit whose push also fails to pass replaces the plan of its branch,
+///  and the values of the record the replaced plan carried go with it.
+/// Why:
+///   A plan holds one record of a branch,
+///   the newest,
+/// so planning a newer record drops the plan of the older one;
+/// that record was settled and its plan was the only thing that would run it again,
+/// so a value that can hold a password may not stay in the service's memory,
+/// and this is the ending a person who keeps committing while the network is down meets most.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await drain(a); retries.apply(changes); await drain(b); retries.apply(changes); expect(planOf(branch).item).toBe(b); expect(held(a)).toBeUndefined();
+/// ```
+#[test]
+fn a_plan_replaced_by_a_later_pushs_plan_gives_up_the_values_of_the_record_it_carried() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let planned: Repo = repo("work-retry-plan-replaced-values");
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    let first: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&first));
+    crate::service_push_programs_held_in_memory::remember(first.git_dir.as_path(), first.id().as_str(), programs("/first/bin:/usr/bin"));
+    let unable: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(drain_planned(planned.common.as_path(), &unable, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    assert!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()).is_some(),
+        "the positive control: the plan carries the first push, so its next try needs these values"
+    );
+    // A later commit of the branch cannot pass either, and its own plan replaces the first one's.
+    let later: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, std::slice::from_ref(&later));
+    crate::service_push_programs_held_in_memory::remember(later.git_dir.as_path(), later.id().as_str(), programs("/later/bin:/usr/bin"));
+    let unable_again: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    retries.apply(drain_planned(planned.common.as_path(), &unable_again, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) }).changes);
+    let planned_now: Vec<Due> = retries.take_due(planned.common.as_path(), Instant::now() + FIRST_PAUSE);
+    assert_eq!(planned_now.len(), 1, "one plan is left for the branch: {planned_now:?}");
+    assert_eq!(planned_now[0].item.id(), later.id(), "and it is the later push's");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(first.git_dir.as_path(), first.id().as_str()),
+        None,
+        "the replaced plan was the only thing that would run the first record again, so it keeps no value of the command that asked for it"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
 }
 
 /// What:
@@ -1500,6 +1697,7 @@ fn a_repository_to_review(parent: &Path, name: &str) -> (PathBuf, PathBuf, WorkI
         parent: String::new(),
         created: String::from("2026-01-01T00:00:00.000Z"),
         tries: 0,
+        transport: false,
     };
     return (root, git_dir, item);
 }
@@ -1539,7 +1737,7 @@ fn the_awaited_review_of_the_handlers_answers_what_the_synchronous_one_answers()
     // The positive control of the two faces: the review of a repository with no shadow log answers Done and reads nothing,
     //  whichever face asks it.
     let plain: PathBuf = repository_at(root.as_path(), "plain");
-    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), ..task_item.clone() };
+    let plain_item: WorkItem = WorkItem { kind: WorkKind::Review, repository: plain.clone(), git_dir: plain.join(".git"), transport: false, ..task_item.clone() };
     let plain_handlers: GitHandlers = GitHandlers::new(git_context()).with_review_endpoint("http://127.0.0.1:9");
     assert_eq!(crate::merge_second_pass::tests::await_it(plain_handlers.review_awaiting(&plain_item)), Verdict::Done, "no shadow log means no review");
     assert_eq!(plain_handlers.review(&plain_item), Verdict::Done, "the synchronous face answers the same");
@@ -2353,5 +2551,181 @@ fn a_round_whose_claim_step_got_no_place_asks_to_be_looked_at_again() {
         "a round that could not claim this directory's records asks to be looked at again"
     );
     assert_eq!(names(&repo, PENDING).len(), 1, "nothing was claimed, so the push still waits");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A retry plan carries the newest record of a branch and nothing else,
+///  so the older records claimed with it keep no value when they settle.
+/// Why:
+///   The plan queues one record id,
+/// and the values of a record nobody will run again are a credential kept for nothing
+///  (`service_push_programs_held_in_memory`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const older = await drainTwoPushes(); expect(held(older)).toBeUndefined(); expect(held(newest)).toBeDefined();
+/// ```
+#[test]
+fn a_plan_that_carries_the_newest_push_gives_up_the_older_records_values() {
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let retrying: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let planned: Repo = repo("work-retry-programs-two-members");
+    let older: WorkItem = item(&planned, WorkKind::Push, OID, BRANCH);
+    let newest: WorkItem = item(&planned, WorkKind::Push, THIRD_OID, BRANCH);
+    enqueue_all(&planned, &[older.clone(), newest.clone()]);
+    crate::service_push_programs_held_in_memory::remember(older.git_dir.as_path(), older.id().as_str(), programs("/older/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(newest.git_dir.as_path(), newest.id().as_str(), programs("/newest/bin:/usr/bin"));
+    let plans: PathBuf = planned.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let _drained: Drained = drain_planned(planned.common.as_path(), &retrying, &ClaimTime::read(), &Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans) });
+    assert_eq!(names(&planned, FAILED).len(), 2, "both records settled failed together");
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(older.git_dir.as_path(), older.id().as_str()),
+        None,
+        "the older record is settled failed and no plan carries it, so it keeps no value"
+    );
+    assert!(
+        crate::service_push_programs_held_in_memory::held(newest.git_dir.as_path(), newest.id().as_str()).is_some(),
+        "the plan queues the newest record again, so its next try keeps the values the command that asked for it gave"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(planned.common.as_path());
+    remove(planned.root.as_path());
+}
+
+/// What:
+///  A repository the filesystem proves gone gives up the programs and transport settings of its push records,
+///  with the plans that tried them.
+/// Why:
+///   A service that finds its repository deleted has nothing left to deliver,
+/// and a value of a record nothing
+///  will run keeps a command line that can hold a password (`service_push_programs_held_in_memory`).
+/// The worktree beside it keeps its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await endThePlansOfGoneRepository(dir, proof); expect(held(dir)).toBeUndefined(); expect(held(kept)).toBeDefined();
+/// ```
+#[test]
+fn a_repository_proved_gone_gives_up_the_values_of_its_push_records() {
+    let gone: Repo = repo("work-programs-of-a-gone-repository");
+    let kept: Repo = repo("work-programs-of-a-repository-that-is-there");
+    let gone_item: WorkItem = item(&gone, WorkKind::Push, OID, BRANCH);
+    let kept_item: WorkItem = item(&kept, WorkKind::Push, OID, BRANCH);
+    let programs = |path: &str| -> crate::service_push_programs_held_in_memory::PushPrograms {
+        return crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from(path))]);
+    };
+    let kept_programs: crate::service_push_programs_held_in_memory::PushPrograms = programs("/kept/bin:/usr/bin");
+    crate::service_push_programs_held_in_memory::remember(gone_item.git_dir.as_path(), gone_item.id().as_str(), programs("/gone/bin:/usr/bin"));
+    crate::service_push_programs_held_in_memory::remember(kept_item.git_dir.as_path(), kept_item.id().as_str(), kept_programs.clone());
+    let unreachable: crate::service_instance::GitDirUnreachable = crate::service_instance::GitDirUnreachable {
+        path: gone.common.clone(),
+        reason: String::from("No such file or directory (os error 2)"),
+    };
+    let proof: crate::unreachable_git_dir_proven_gone::Gone = crate::unreachable_git_dir_proven_gone::Gone {
+        nearest: gone.root.clone(),
+        because: crate::unreachable_git_dir_proven_gone::GoneBecause::OrdinaryDirectory,
+    };
+    let retrying: Retrying = Retrying { first: None, due: Vec::new(), plans: None };
+    let _drained: Drained = await_it(crate::service_work_handlers_replanning_and_acceptance::end_the_plans_of_a_gone_repository_awaiting(
+        gone.common.as_path(),
+        &retrying,
+        &unreachable,
+        &proof,
+    ));
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(gone_item.git_dir.as_path(), gone_item.id().as_str()),
+        None,
+        "a repository proved gone has no push that can run, so it keeps no value"
+    );
+    assert_eq!(
+        crate::service_push_programs_held_in_memory::held(kept_item.git_dir.as_path(), kept_item.id().as_str()),
+        Some(kept_programs),
+        "the repository beside it keeps its own values"
+    );
+    crate::service_push_programs_held_in_memory::forget_every(kept.common.as_path());
+    remove(gone.root.as_path());
+    remove(kept.root.as_path());
+}
+
+/// What:
+///  The five names the service's own environment holds are removed from a push that carries a list of its own,
+///  and the command's values stand in their place,
+///  so a value the manager fixed never speaks for the command that asked.
+/// Why:
+///   Replacing only the names that travelled would let the manager's `GIT_SSH_COMMAND`,
+/// `GIT_SSH`,
+/// `GIT_PROXY_COMMAND` or `GIT_EXEC_PATH` decide how a push whose command
+///  set none of them reaches its remote,
+/// and its `PATH` decide which `git-lfs` the push runs,
+/// which is the defect the carried list exists for
+///  (`service_push_programs_held_in_memory`).
+/// The names are the ones the service held,
+/// and the push is the one the command asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [inherited, overlay] = pushEnvironmentOf(serviceHeld, someShellList); expect(everyCarriedName(inherited, overlay)).toBeUndefined();
+/// ```
+#[test]
+fn the_five_names_the_service_held_are_removed_from_a_push_that_carries_a_list() {
+    let service_held: Vec<(OsString, OsString)> = vec![
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
+        (OsString::from("GIT_SSH"), OsString::from("/nowhere/service-fake-ssh")),
+        (OsString::from("GIT_PROXY_COMMAND"), OsString::from("nc /nowhere/service-fake")),
+        (OsString::from("GIT_EXEC_PATH"), OsString::from("/nowhere/service-fake-exec")),
+    ];
+    let shell: crate::service_push_programs_held_in_memory::PushPrograms =
+        crate::service_push_programs_held_in_memory::of(&[(OsString::from("PATH"), OsString::from("/shell/bin:/usr/bin"))]);
+    let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
+        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
+    for name in ["GIT_SSH_COMMAND", "GIT_SSH", "GIT_PROXY_COMMAND", "GIT_EXEC_PATH"] {
+        assert_eq!(
+            crate::child_environment::environment_value(environment.as_slice(), name),
+            None,
+            "{name} the service held is not the shell's, so the push has none"
+        );
+    }
+    assert_eq!(
+        crate::child_environment::environment_value(environment.as_slice(), "PATH"),
+        Some(OsString::from("/shell/bin:/usr/bin")),
+        "the push searches the folders the command that asked for it searched"
+    );
+}
+
+/// What:
+///  The line a planned push retry writes never ends with an empty cause:
+///  a push whose own output holds no reason is named as one that said nothing.
+/// Why:
+///   The cause is the only field of that line that says what went wrong,
+/// and a push that printed nothing left it empty:
+/// the journal of a gate on `2026-11-21` said `cause:` and no more for the push of `refs/heads/other` of
+/// `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`,
+/// so a killed push could not be told from a refused one.
+///   The push's own words are still the cause whenever it has any,
+/// which is the second arm below and the control of the first.
+#[test]
+fn the_line_a_planned_retry_writes_never_leaves_its_cause_empty() {
+    let repo: Repo = repo("work-retry-cause-never-empty");
+    let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        // A handler that answered with no words at all leaves the text every line here is built from empty.
+        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, ""));
+    });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    let line: &String = said.iter().find(|line| { return line.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {said:?}"));
+    assert!(line.contains("cause: the push said nothing about why it failed"), "a push that said nothing is named as one: {line}");
+    assert!(!line.trim_end().ends_with("cause:"), "the cause is never left empty: {line}");
+    // The control: a push whose output names its failure keeps those words as the cause.
+    let mut second_replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: None };
+    let second_entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| {
+        let _said: PlannedRetry = await_it(planned_retry(repo.common.as_path(), &mut second_replanning, FIRST_PAUSE, &newest, 2, "the network is down"));
+    });
+    let second_said: Vec<String> = second_entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    let second_line: &String = second_said.iter().find(|candidate| { return candidate.contains("push will be tried again"); }).unwrap_or_else(|| panic!("the retry is said: {second_said:?}"));
+    assert!(second_line.contains("cause: the network is down"), "the program's own line is the cause: {second_line}");
     remove(repo.root.as_path());
 }

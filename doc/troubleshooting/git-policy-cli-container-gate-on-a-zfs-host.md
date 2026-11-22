@@ -273,6 +273,17 @@ LFS branch's build, passed on `main`'s) and
 flood control decides a process's ending from a short look; both are the shape that a loaded host
 moves. They are not causes of the gate's failure on this host, and none of them names a mount fact.
 
+One more control has this shape.
+`worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`
+failed in the gate of 2026-11-21T13:25:00-05:00,
+whose other new failures were of one binary control file,
+and that control's fixture holds no LFS key,
+and passed in the gate of 2026-11-21T13:55:00-05:00
+and in four filtered runs of that image.
+Its own words say the removal's record was moved by another look of the same service while the worktree
+stayed,
+so the cause is not recorded here either.
+
 ## Cause H: the two standing failures
 
 `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`

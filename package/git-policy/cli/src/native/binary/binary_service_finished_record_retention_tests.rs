@@ -89,6 +89,7 @@ fn write_finished(journal: &Path, repository: &Path, seq: u64, older: Duration) 
         ids: vec![format!("request-{seq}")],
         commits: vec![format!("{:040x}", seq)],
         holders: vec![String::new()],
+        transports: Vec::new(),
         paths: Vec::new(),
         derived: false,
         index: repository.join(".git/index"),
@@ -164,6 +165,7 @@ fn empty_request(repository_root: &Path, id: &str, base: &str) -> CommitRequest 
         shadow: None,
         captured: 0,
         holder: String::new(),
+        programs: None,
     };
 }
 

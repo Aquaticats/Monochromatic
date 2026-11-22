@@ -178,6 +178,7 @@ fn record(world: &World, kind: WorkKind, at: usize, branch: &str, oid: &str) -> 
         parent: String::new(),
         created: String::from("2026-11-11T08:50:59.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 
@@ -520,6 +521,7 @@ fn side_by_side_measure_the_push_behind_a_queue_that_is_already_running() {
         parent: String::new(),
         created: String::from("2026-11-11T10:29:00.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work.as_path(), &push).expect("the push is written");
     wake.send((git_dir.clone(), None)).expect("the push's wake");
@@ -540,7 +542,7 @@ fn side_by_side_measure_the_push_behind_a_queue_that_is_already_running() {
     let committed = crate::test_support::git_output(staged.repo.as_path(), &["commit", "--quiet", "--no-verify", "--message=after the queue"]);
     assert!(committed.status.success(), "git commit after the queue failed: {:?} {}", committed.status.code(), String::from_utf8_lossy(&committed.stderr));
     let later: String = git_text(staged.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
-    let alone: WorkItem = WorkItem { oid: later, ..push };
+    let alone: WorkItem = WorkItem { oid: later, transport: false, ..push };
     let alone_asked: Instant = Instant::now();
     enqueue(work.as_path(), &alone).expect("the second push is written");
     wake.send((git_dir, None)).expect("the second push's wake");
@@ -650,6 +652,7 @@ fn plant_a_big_trash_item(staged: &Stage, worktree: &Path, name: &str, files: us
         parent: manifest.encode(),
         created: String::from("2026-11-11T08:50:59.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work, &item).expect("the trash is written");
 }
@@ -675,6 +678,7 @@ fn plant_a_trash_item(staged: &Stage, worktree: &Path, name: &str, entries: usiz
         parent: manifest.encode(),
         created: String::from("2026-11-11T08:50:59.000Z"),
         tries: 0,
+        transport: false,
     };
     enqueue(work, &item).expect("the trash is written");
 }
@@ -792,6 +796,7 @@ fn stand_in_record(staged: &Stage, kind: WorkKind, branch: &str) -> WorkItem {
         parent: String::new(),
         created: String::from("2026-11-11T10:29:00.000Z"),
         tries: 0,
+        transport: false,
     };
 }
 

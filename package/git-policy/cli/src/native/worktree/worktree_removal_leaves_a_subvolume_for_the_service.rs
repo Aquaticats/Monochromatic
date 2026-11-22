@@ -98,6 +98,7 @@ pub fn removal_item(common_dir: &Path, parent_path: &Path, id: u64) -> WorkItem 
         parent: deleting.display().to_string(),
         created: now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 

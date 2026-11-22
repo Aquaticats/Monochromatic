@@ -52,6 +52,9 @@ pub mod service_protocol_encode_messages_to_lines;
 
 /// Reads protocol lines as messages,
 /// checking every field.
+/// The reader of the message that names the push records which can no longer run.
+pub mod service_protocol_forgetting_programs;
+
 pub mod service_protocol_decode_lines_to_messages;
 
 /// The longest the wrapper waits for each thing it waits for,
@@ -167,6 +170,17 @@ pub mod service_main;
 
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
+
+/// The client's one-way message that work items were written for a repository.
+pub mod service_client_wake;
+
+/// The programs and transport settings one request or wake carries,
+/// read from the socket.
+pub mod service_protocol_programs_of_a_request;
+
+/// The program search list and the transport settings of the command that asked for a push,
+/// held only in the memory of the service that runs it.
+pub mod service_push_programs_held_in_memory;
 
 /// The words a waiting command is told about its own wait.
 pub mod service_client_waiting_words;

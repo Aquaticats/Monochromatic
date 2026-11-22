@@ -398,6 +398,7 @@ pub fn item_of(common_dir: &Path, destination: &Path, entry: &RelinkEntry) -> Re
         parent: encode(&recorded)?,
         created,
         tries: 0,
+        transport: false,
     });
 }
 
@@ -521,7 +522,7 @@ fn not_written(reason: String) -> NotTaken {
 fn wake_the_service(address: Bind, host: Option<&crate::service_provision::ProvisionHost>, common_dir: &Path, start_wait: std::time::Duration) -> Result<(), String> {
     let config: ClientConfig = ClientConfig { start_wait, start_ceiling: start_wait, ..managed_client_config(address, host) };
     let mut silent: std::io::Sink = std::io::sink();
-    return wake(&config, common_dir, None, &mut silent).map_err(render_failure);
+    return wake(&config, common_dir, None, &[], &mut silent).map_err(render_failure);
 }
 
 /// What:

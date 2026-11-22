@@ -41349,9 +41349,10 @@ stated in this entry. What follows from them, as work:
   N2; harness 26 of 26, sample 300 of 300, gate 9480 of 9482. GOING: the fence reviewer's closure check of `87b4af4062`.
   INCIDENT: step 7's first round reports stopping three gate containers it matched by creation time; the fence round lists
   one of them (`gallant_moore`) as its own, and two fence gates were ended by an unexplained SIGTERM in that hour.
-  `podman events` shows only `died` and `remove` for all four named containers (no `stop` or `kill`; `gallant_moore` and
-  `hardcore_pasteur` created together at 16:16:56, died 16:28:46 and 16:19:19), so whether one round ended another's gate
-  is not established; the log cannot say whose container it was. THE PER-SLOT DESIGN'S RECHECK said ready (0 high, 0
+  `podman events` shows only `died` and `remove` for all four named containers (`gallant_moore` and `hardcore_pasteur`
+  created together at 16:16:56, died 16:28:46 and 16:19:19). Corrected by issue 6334's integration pass: an outside
+  `podman stop` on a container whose client still runs also leaves only `died` and `remove`, so the log neither shows nor
+  rules out a stop; whether one round ended another's gate is not established (corrective comment posted on 6334). THE PER-SLOT DESIGN'S RECHECK said ready (0 high, 0
   medium, 8 lows R1 to R8 for the build). THE OWNER ACCEPTED it, recorded 2026-11-21T17:23:49-05:00: "A: accept with its
   proposals (Recommended)", "A: O_EXCL staging, then link (Recommended)", "A: no listing per sweep (Recommended)"
   (recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`, "The design accepted", with the losses accepted
@@ -41375,7 +41376,104 @@ stated in this entry. What follows from them, as work:
   `.config/mise/conf.d/10-bin.local.toml` differs from the main checkout's. GOING: the up-front skip as
   `pi-clone-rung-skips-a-differing-fenced-tree` (brief under `~/temp/agent/clone-rung-skips-a-differing-fenced-tree-2026-11-21/`).
   NEXT: the faster size reader (the btrfs snapshot cost; same reads, so after the skip), the partial clone (task 415), and
-  the `worktree_remove_hand_over.rs` split (both blocking branches have now merged or are about to). Step 7's
+  the `worktree_remove_hand_over.rs` split (both blocking branches have now merged or are about to). STEP 7'S FINISHING
+  ROUND ended at `2c6286cd19`: the guest arm passed in its own guest (malformed, oversized and inherited intent refused
+  with nothing mounted, the stale receipt kept as the last observation, the nudge delivered with only `mount,userprop` and
+  refused on the parent); three kept rounds from the property change to the zedlet 10.2 to 10.6 ms, to the product
+  receipt 11.2 to 12.1 ms (the deadline stays provisional at 30 s); the nudge and readiness reds shown; the claim keeps
+  its per-slot `flock` with the reason written beside it and in the SPEC; the linker abort not reproduced (now exit 0 on
+  the branch and on `main`), read as a host condition; gate 9559 of 9561. It stated its first round stopped three
+  containers on a creation-time match. GOING: step 7's integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`), sorting its six open
+  questions into settled, later-step or owner's. ISSUE 6334'S ROUND ended at `a683375396`: every gate container carries
+  `--name gpc-gate-<run id>-<suite|clippy>` and `--label dev.monochromatic.git-policy.gate-run=<run id>` (the run id from
+  the evidence folder's random name), printed before the suite and recorded in `manifest.json` even on a refusal;
+  README guidance; a "Cause J" troubleshooting section; unit tests; gate 9476 of 9478. Its probe measured that a gate
+  container outlives a stopped `systemd-run` unit, so the briefs' "end your own gate by stopping the unit" leaves the
+  container running until its suite ends (`--rm` then removes it); the README now says to `podman stop` the printed names
+  too. Its Cause J states as fact that another session's SIGTERM ended a gate, which the `podman events` evidence does not
+  establish. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-git-policy-cli-gate-containers-carry-a-run-label-2026-11-21/keep/review.md`). THE
+  PARTIAL CLONE (task 415) resumed: `pi-clone-rung-partial-clone-on-the-fenced-rung` in its own worktree
+  `.claude/worktrees/clone-rung-partial-clone-of-a-dirty-source` (merge `main`, the prototype on the fenced rung,
+  re-measured against `main` and Git's checkout, whether the waiver's end condition is met; brief under
+  `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/`); then a Sonnet re-check, then the owner.
+  ISSUE 6334'S INTEGRATION PASS said not fit on documentation only (Cause J, the README and a TSDoc state an unestablished
+  cause as fact; "how to tell" misstates what `podman events` can show; the stop guidance needs
+  `podman stop --ignore --filter label=...`; IDs reach `manifest.json` only at scope exit); the code is fit (gate 9573 of
+  9575; the label filter exact). GOING: `pi-git-policy-cli-gate-containers-label-findings-fixed` in
+  `.claude/worktrees/git-policy-cli-gate-containers-label-findings`. STEP 7'S INTEGRATION PASS said not fit
+  (`~/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`): no regression (gate
+  9658 of 9660 on the merged tree, the guest arm passed, three acceptance reds shown); blocking, the per-slot claim's
+  `flock` where the repository's lock-free `lock/single_owner_claim.rs` (`take_claim`, used by two production commands)
+  fits, so rule `NLK` and that precedent settle it: build the claim on `take_claim` (adopted by the coordinator, not put
+  to the owner); mediums: the two `/run` folders never created, the wait ending at once on an absent results folder, a
+  failed publish's staging file blocking the next, no done unmount in the receipt grammar, a path bound contradicting the
+  file bound. Its six questions: readiness identity and the sweep state settled by the records; the claim settled with
+  `take_claim`; receipt outcomes partly settled, step 9 owns the rest; the wait's synchronous read settled by the tokio
+  rulings; readiness writers' ordering steps 8 and 19's. GOING: `pi-zfs-step-7-integration-findings-fixed` in
+  `.claude/worktrees/zfs-step-7-integration-findings` (brief under
+  `~/temp/agent/zfs-step-7-integration-findings-fixed-2026-11-21/`). THE PUSH PROGRAMS' THIRD CLOSURE CHECK said fit
+  (integration branch at `daca2d60dc`): the empty-cause fix and the handler control closed; the `lfs_hang` failure is a
+  race in the control that `main` has too (it never waits for the second worktree's push because that worktree's `.git` is
+  a file; slowing the upload fails both arms, a bounded wait passes both), filed as issue 6336; the SIGKILL comes from the
+  fixture's teardown after the early failure (retry line within 2 ms of a service exit in all five failure logs), not
+  memory (suite peak 38 to 49 percent of 2 GiB, `oom_kill 0` in four gates); issue 6335 corrected and closed for 6336.
+  Low left: the forget seam's manager-first order has no control. Its last merge of `main` (108 commits, 7 shared files)
+  was not gated, so the coordinator runs one gate on `daca2d60dc` before merging (log under
+  `~/temp/agent/coordinator-gate-of-the-push-programs-integration-tip-2026-11-21/`). That gate passed 9624 of 9626 (the
+  cause-H pair; its output is in the unit's user journal, `coord-gate-push-programs-integration-tip`). MERGED as
+  `541090e482` at 2026-11-21T18:48:34-05:00: the memory-held push programs are on `main`. The two old LFS branches it
+  replaced (`fix/git-policy-cli-lfs-push-uploads-every-object-the-remote-lacks`,
+  `fix/git-policy-cli-lfs-push-programs-are-held-in-memory-and-never-written`) deleted locally and on `origin`. The note
+  `doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md` corrected on `main` (the signal from the
+  fixture's teardown after the control's own race, issue 6336; the memory reading not supported). Low left: the forget
+  seam's manager-first order has no control. GOING: `pi-git-policy-cli-lfs-hang-control-race` (issue 6336 red first,
+  plus the forget seam's control; brief under `~/temp/agent/git-policy-cli-lfs-hang-control-race-2026-11-21/`). THE
+  UP-FRONT SKIP ROUND ended at `48401e559d`: `skip_reason_for_the_target_tree` in `choose_rung` runs one `git diff-tree`
+  between the source's `HEAD` and the named commit and declines the rung before any claim or copy when a changed path is one
+  the fence hands to Git; the control red on `main` (copies happened) then green; the converting-path add 0.83 of `main`
+  (pair 0.76), the size-proof path (not caught; the ending after copies kept) 0.90 (pair 0.97), same-tree adds unchanged
+  (no read when no commit is named, one 2 to 3 ms read when one is); harness 26 of 26, sample 300 of 300, guest 20 of 20 ZFS
+  and btrfs controls green; gate 9576 of 9578; the Limitations entry restored. GOING: its integration pass on Sonnet
+  (review to `~/temp/agent/integration-pass-clone-rung-skips-a-differing-fenced-tree-2026-11-21/keep/review.md`). The
+  faster size reader waits for the skip's merge (same fence reads). HOUSEKEEPING: the old step 3 worktree
+  `zfs-step-3-reflink-rung-recognition` removed (its ignored mise file differed only by a generated line the main
+  checkout has) and its branch deleted locally and on `origin`; the wrapper kept that worktree's service journal for its
+  `claim-watch` (59,400 bytes, left as a reproduction; added to issue 6322). ISSUE 6336'S ROUND ended at `d259938fd8`
+  (seven commits: the forced red slowing the second upload, the settle wait following a linked worktree's `.git` file in
+  test support, the forget seam's order control with about 100 changed lines in `held_push_release_wakes_the_service.rs`,
+  docs; gate 9625 of 9627). Its full report was lost: it answered a "gate ended" notice after the report, and
+  `summary.json` keeps only the last message (issue 6337 filed; `.agents/skills/pi-as-subagent/SKILL.md` now asks briefs for
+  the report as the very last message, mirrored with the installed `file-enforcer` 0.1.3 by its store path because
+  `mise run file-enforcer` cannot find the binary on `PATH`, the linking question already open in the owner file). GOING:
+  its integration pass on Sonnet, judging from the commits (review to
+  `~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`). THE PER-SLOT STORE
+  BUILD ended at `c498fa1db3` (15 commits): every design section built; the lock, `STORE_LOCK_WAIT`, the whole-store check
+  and `WouldNotFit`/`DuplicateKey` deleted; ten controls red under named plants then green; guest arms 22 to 24 green on a
+  ZFS pool the guest driver now makes at the store's path (the killed writer leaves one staging entry and no record; the
+  publication `fsync` reaches the device 60 of 60); the lock-hold document renamed as the write cost; gate 9488 of 9490.
+  Control 20 (doctor's report) owed to step 18; the boot arm owed to step 8. It put the staging removal in the sweep,
+  against the answer "no listing per sweep". THE OWNER ANSWERED on 2026-11-21: "A: doctor at step 18 (Recommended)"
+  (recorded in the decision record, "Who removes a killed writer's staging file"). GOING:
+  `pi-zfs-slot-identity-store-sweep-unlisted` in the build worktree (the sweep's removal out, a control that a sweep lists
+  nothing, SPEC, design and plan step 18; brief under `~/temp/agent/zfs-slot-identity-store-sweep-unlisted-2026-11-21/`);
+  then its integration pass on Sonnet. THE PARTIAL CLONE ROUND ended at `e8169161d6` (`main` merged as `ec4dd92ae2`; the
+  prototype's dirty path takes the fence's beside shape, writes the union of the split's and the fence's paths through Git
+  under the waiting index): dirty adds of this tree 0.64 of `main` (3 changed, range 0.23 to 2.84), 0.74 (300), 0.86
+  (6,000); the dirty small-file tree 1.44, which option B hands to Git's checkout at 0.91; ranking B > A > D > C; the
+  waiver's dirty half met by A on this tree's shapes, its small-file half not endable by this proposal (a clean source
+  never takes the partial clone and that cost is now `main`'s own fenced rung); harness 27 of 27, sample 300 of 300; four
+  red proofs not re-planted. GOING: its gate re-check on Sonnet (to
+  `~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`), rerunning three shapes
+  against the wide spreads; then the owner. STEP 7'S FINDINGS ROUND ended at `55bc803319` (`main` merged as `e6c03d2a20`):
+  the per-slot claim on `take_claim` (held slot refused; dead owner taken over; killed claimant blocks nothing; the
+  lock-inventory guard gained `per_slot_`, red with the old file); claims moved to `/run/git-worktree-clone-mount-slot-claims`
+  (adopted by the coordinator as the narrow reading the review proposed, open to the owner's veto); the window between the
+  folder proof and `take_claim`'s path-based calls documented and left to step 8; the two `/run` folders made, the wait
+  kept past an absent folder, per-attempt staging names, a done unmount in the grammar, derived bounds with a read-back
+  refusal; lows mostly fixed; guest arm green on the final tree (event to receipt 16.9 ms); gate 9678 of 9680. GOING: the
+  step 7 reviewer's closure check. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
