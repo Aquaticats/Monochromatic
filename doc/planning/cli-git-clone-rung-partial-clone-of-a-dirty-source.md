@@ -3,124 +3,72 @@
 ## Status
 
 Proposal,
-written 2026-11-20T07:35:00-05:00.
+rewritten on 2026-11-21 on measurements taken with the conversion fence in place.
 **Unapproved and not final**:
 only the owner declares work complete.
 Nothing here is in `main`;
 the design is proposed,
-a prototype measures it,
+a prototype measures it on `main`'s fenced clone rung,
 and the last section asks for a decision.
-The question it answers is the one the owner answered "Yes,
+
+The owner answered "Yes,
 design and measure it (Recommended)" on 2026-11-20,
 recorded in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
 which also names when the waiver it granted ends.
 
-**A gate review found it not ready.**
-This round answers its findings.
-Claude Sonnet's gate review of 2026-11-20
-(`~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/keep/review.md`)
-found the design sound where it could attack it and the central claim wrong where a text conversion applies (its
-finding H1),
-the proof blind to the bytes of a cloned path (M1),
-a source it did not say the rung still refuses (M2),
-measurement statements its own data does not support (M3,
-M4),
-a shape nobody measured where the rung loses (M5),
-a ranking step its numbers contradict (M6),
-and incomplete design text (M7).
-Its M1 to M7 and L1 to L5 are answered here,
-each in "The gate review's findings,
-answered".
-H1 stays an open limit:
-it reaches the accepted clone rung too,
-so its remedy is a project decision being prepared separately,
-and this round builds no fence for it.
+Three things changed since the version this branch carried on 2026-11-20,
+and this document is written on them rather than patched around them:
+
+- The conversion fence is in `main`.
+  Its proposal is `doc/planning/cli-git-clone-rung-conversion-fence.md`,
+  the project chose its option B on 2026-11-20T23:27:33-05:00,
+  and `c423010a4e` merged it with ZFS plan step 3 on 2026-11-21.
+  So a clone no longer carries a path whose checkout would convert it:
+  the fence hands that path to Git.
+  The gate review's finding `H1` is answered by that,
+  and this proposal builds no fence of its own.
+- The prototype is on that rung,
+  not beside it.
+  `ec4dd92ae2` merges `main` into this branch and resolves the prototype onto the fenced steps,
+  and every number below is measured with both changes compiled together.
+- A dirty source has a different opponent than it had.
+  On `main` as it is,
+  a clean add takes the fenced clone rung on ZFS,
+  and a dirty add still takes Git's own checkout.
+  The two are compared separately below,
+  and which one the waiver's sentence means is said in "Which comparison the waiver means".
 
 `NQH` holds for every figure here:
 no quiet host was waited for,
 the control shares the measured binary,
-and the arm orders are stated so the control is not always the arm after the prototype.
-
-The work behind this proposal:
-
-- Prototype on `docs/planning-cli-git-clone-rung-partial-clone-of-a-dirty-source`,
-  marked as a prototype for measurement in every commit,
-  not for merging as it is.
-- Measurements on this host,
-  under the load there is:
-  the author's rounds against step 3's branch (`73908f4fd7`) and `main` (`392042de70`),
-  and this round's against `main` at `2df9b1689b` (the same add path as `392042de70`),
-  each built the same way,
-  with a same-binary control beside every figure,
-  and the gate review's independent rerun beside them.
-- The untouched-files rule,
-  the refusal list,
-  the index and the proof are controlled by 26 tests,
-  four of which were shown red against a planted defect each.
-
-What was not done is in "What this leaves owed".
+and every round's arms are adjacent in time.
 
 ## What the rung does today
 
-Rung 2 clones the tracked files of a source checkout and installs the source's index.
-Because the index is installed as it is,
-the rung first proves the whole source clean,
-and a source with any uncommitted change ends in Git's own checkout,
-having paid the proof.
+Rung 2 clones the tracked files of a source and installs an index.
+On `main` as it is,
+that rung has four parts:
+
+- the source must pass the clean proof,
+  so a source with any uncommitted change ends in Git's own checkout having paid it;
+- the conversion fence reads the tracked paths' attributes (`git check-attr`),
+  decides its decline before anything is copied,
+  and decides each path beside the copies with one `git ls-tree -r -l` and Git's own conversion rules:
+  a path whose checkout could write other bytes than its blob's is written by Git;
+- the index is written under a name of its own,
+  `index.pending`,
+  with no stat data for a path Git still has to write;
+- Git writes those paths through that name with one `git checkout-index --force -u -z --stdin`,
+  and only then does the file take the worktree's name `index`.
 
 `package/git-policy/cli/SPEC.md`,
-under "Rung 2 needs a clean source",
-says:
-
-> Rung 2 needs a clean source on btrfs,
-> XFS,
-> overlayfs or ZFS,
-> with the source and the destination in one clone domain.
-
-and,
-later in the same section:
-
-> The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept;
-> links recreated),
-> a second comparison of the source with its own index,
-> the installation of the index,
-> and the same tree difference.
-
-The accepted design says the same.
-`doc/planning/cli-git-btrfs-worktree.md`,
-step 2's rung list:
-
-> - Rung 2,
-> reflink:
-> needs a filesystem with `FICLONE` (btrfs,
-> XFS with reflink,
-> overlayfs over either) and a clean
-> source worktree on the same filesystem.
-> The measurement says it saves disk,
-> not time,
-> so it is optional.
-
-and,
-in its checks:
-
-> - The source must be clean,
-> checked without spawning Git where possible:
-> no `index.lock`,
-> `MERGE_HEAD`,
-> `CHERRY_PICK_HEAD`,
-> `REVERT_HEAD`,
-> `BISECT_LOG`,
-> `rebase-merge`,
-> `rebase-apply` or
-> `sequencer` in its administrative directory;
-> its index equals the tree of its `HEAD` (in-process `parse_index` and
-> `flatten_tree`);
-> every entry's size,
-> modification time and inode equal a fresh `lstat`;
-> and no untracked file that is
->   not ignored.
-
-What replaces each of those is in "Where the design text changes".
+"Rung 2 needs a clean source",
+states the fence and the waiting name at length;
+`doc/planning/cli-git-clone-rung-conversion-fence.md` records why each step is safe when the other side fails or is
+killed.
+The parts this proposal changes are the first and the third:
+a dirty source no longer ends in Git's checkout,
+and the waiting index is built from the tree instead of from the source's index.
 
 ## What a partial clone does
 
@@ -130,31 +78,21 @@ written into an empty directory.
 A tracked path whose file still equals the entry that names it is cloned;
 every other path is written by Git.
 The rung therefore keeps its job,
-which is making the files by cloning them,
+which is making the files,
 and changes only which files it takes.
 
-What a clone holds is the source's own bytes for that path,
-and those are the bytes Git's checkout writes **only where the source file is the conversion of its blob** under the
-rules the new worktree applies:
-a `text` or `eol` attribute,
-or `core.autocrlf`,
-makes Git's checkout write other bytes than the blob's,
-and neither the index's stat data nor Git's own `status` can tell,
-because the clean filter maps both forms to one blob.
-This is the gate review's finding `H1`.
-Rung 2 has had the limit since it existed:
-a clean source whose LF files sit under an `eol=crlf` rule is cloned whole and differs from Git's checkout (`s04b`),
-and the dirty path reaches the same state (`s04`);
-`core.autocrlf=true` is the third form (`s04c`).
-The remedy changes the accepted clone rung too,
-so it waits on the project's decision,
-and this proposal builds no fence for it:
-a fence on the presence of `text`,
-`eol` or `autocrlf` would refuse this repository,
-whose `.gitattributes` begins
-`* text=auto eol=lf`,
-and a per-path fence needs the bytes,
-which defeats cloning.
+Two decisions decide one path,
+and a clone carries it only when both say so:
+
+- the split asks whether the file is still the one its index entry recorded,
+  which is the question the whole rung's clean proof asks of every path before it clones any;
+- the fence asks whether Git's checkout would write other bytes there,
+  which is the question the clean path already answers for a whole clean source.
+
+A path the split carries and the fence refuses is copied and then overwritten by Git's write,
+which is what the clean rung does with such a path today;
+the write is the fence's own one run,
+so a partial clone adds no second answer and no second conversion path.
 
 ### The paths a clone takes
 
@@ -177,15 +115,27 @@ A tree path is cloned when all of these hold:
   which is Git's racy rule.
 
 Those are Git's own fast-path conditions,
-taken in process.
-The clone then keeps the source's mode and times,
-and a link's target is recreated.
+taken in process,
+and they are the whole rung's own (`worktree_clone_partial_split.rs`,
+`the_file_is_the_entry`).
+The fence then decides the same path as it decides one of a clean source:
+a `filter`,
+an `ident`,
+a `working-tree-encoding`,
+a `text` value Git does not name,
+or a rule whose checkout writes carriage returns sends it to Git,
+and so does a recorded size that differs from the blob's.
+A cloned path's file equals its entry exactly,
+so the size the fence compares is the file's own,
+not a stale record:
+the split's proof is what makes the fence's size argument exact on a dirty source.
 
 ### The paths Git writes
 
 Git writes,
 with one command (below),
-every tree path the clone does not take:
+every tree path the clone does not take,
+and every path the fence hands it:
 
 - a path the index records with another object name or mode than the tree names,
   which is a change staged in the source;
@@ -196,14 +146,15 @@ every tree path the clone does not take:
 - a path reached through a link where a directory was,
   which the clone cannot open without following the link,
   so Git writes the tree's bytes there;
-  `a_path_below_a_link_is_written` controls it and the review's `s07` equals Git's checkout.
 - a path whose file differs from its entry by size,
   inode,
   owner or either time,
   including a file only touched;
 - a path whose type or executable bit changed;
 - a path whose entry is racy,
-  or records a zero nanosecond count a Git without nanosecond support wrote.
+  or records a zero nanosecond count a Git without nanosecond support wrote;
+- a path the fence converts,
+  by the rules listed above.
 
 Writing a path that was merely touched costs one write and never a wrong byte;
 cloning one that really changed would put the person's bytes in a worktree that must hold the commit's.
@@ -240,8 +191,7 @@ and Git's own checkout makes the worktree:
   the snapshot's `restorable_here` refuses it,
   because a linked worktree's index lies outside the directory a snapshot carries,
   and the clone rung shares that refusal today
-  (`worktree_snapshot_source.rs:586` and `643` to `645`);
-  the review's `s11` shows the add paying the proof and ending in Git's own checkout with `uncommitted-changes`.
+  (`worktree_snapshot_source.rs:694`).
   A partial clone reads `git_dir/index`,
   which a linked source has,
   so lifting this needs a check of its own and is owed,
@@ -253,126 +203,76 @@ and Git's own checkout makes the worktree:
   in the index or in the tree;
 - a tree entry that is neither a file nor a link;
 - a `.gitattributes` file that is changed or untracked in the source,
-  because its rules decide how Git converts the bytes of other paths,
-  and the source's converted bytes and the new worktree's rules would have to agree;
-- nothing for a path reached through a link:
-  the split writes such a path instead of refusing the rung,
-  which the review's `s07` shows equals Git's checkout;
+  which the fence refuses before any copy;
+- the fence's decline:
+  more than a quarter of the tracked paths and more than a thousand of them converting,
+  which ends the rung before anything is copied.
 
 A source a reset could not undo,
 and a source whose conversion settings differ between the two worktrees,
 are refused by checks the rung already had,
-and the partial clone inherits them unchanged.
+and a partial clone inherits them unchanged.
 
 ### Untracked files
 
-Today's proof refuses a source with an untracked file that no ignore rule covers.
-The reason is in the module that owns the check,
-`package/git-policy/cli/src/native/worktree/worktree_clean.rs`:
-
-> A snapshot or a clone carries the bytes of the source's files,
-> so any change the source has not committed would reach the new worktree.
-
-`git log -S` on that sentence and on the removal path shows it entered with `95ce7f01be`
-(2026-11-02T03:40:16-05:00),
-whose message says:
-
-> A cleanliness check built on the in-process index reader (no operation in progress,
-> index equal to HEAD,
-> stat fields
-> equal to lstat,
-> no unignored untracked file) decides,
-> and every refusal falls to Git with a log line.
-
-The message names the subvolume destination and the removal,
-not the callers;
-it is the module doc that names them and gives the two reasons:
-
-> A snapshot or a clone carries the bytes of the source's files,
-> so any change the source has not committed would reach the new worktree,
-> and a removal by the subvolume ioctl cannot be undone.
-
-So the rule exists for two callers:
-the snapshot rung,
-which copies the whole directory and would carry untracked files into the new worktree,
-and the removal path,
-which must never destroy a file nobody committed.
-It is not a clone rung's own reason at all:
-the clone rung took the refusal over when it arrived in `faede9969b`
+Today's clean proof refuses a source with an untracked file that no ignore rule covers,
+and a dirty source reaches the clone rung without that refusal because the clean proof is not the one a dirty source
+takes.
+The rule's reason is not a clone's:
+`worktree_clean.rs`'s module doc says a snapshot or a clone carries the bytes of the source's files,
+and it names the removal path too,
+which cannot undo what a subvolume ioctl removed.
+The clone rung took the refusal over when it arrived in `faede9969b`
 (2026-11-02T04:08:28-05:00),
-whose message says
-
-> The refusals of the two rungs share one set of checks,
-> so the clean check starts one Git run for both.
-
-That sharing,
-not a reason of the clone's own,
-is why a clone of a dirty source still pays the untracked scan today.
+whose message says the two rungs' refusals share one set of checks so the clean check starts one Git run for both.
 A partial clone carries no untracked file:
 its paths come from the tree,
 and the new worktree's ignored state arrives through the ladder's own ignored-state copy,
 as it does after Git's checkout.
 **A partial clone does not need the untracked rule.**
-The rule stays for the snapshot rung and the removal path,
-and the clone rung asks its own question instead of inheriting it.
-This proposal does not split the check yet,
-so the prototype still pays the scan and the trash question;
-what the split would save is measured under "What the proof costs".
+What it still pays is the scan,
+because the ladder reads it for every add,
+and what that costs is in "The step split".
 
 ### The other states the question names
 
 - `.gitattributes` changed or untracked in the source:
-  refused,
-  as above,
-  because the source's bytes may be a conversion of the blob under rules the new worktree does not have.
-  Unchanged `.gitattributes` files are covered by the checks the rung already makes:
-  the two trees' attribute blobs must be equal,
-  and the conversion settings of the two worktrees must agree in order and value.
+  refused by the fence before any copy,
+  as it is for a clean source.
 - A filter or text conversion:
-  the cloned bytes are the source's worktree bytes,
-  which are Git's checkout bytes only under the condition stated in "What a partial clone does";
-  the written paths are converted by Git itself inside `git checkout-index`,
-  which runs the same filters Git's checkout runs.
-  A filter other than the standard Git LFS definition is refused by the existing check,
-  as in the whole-rung clone.
-  A text or end-of-line conversion is not refused:
-  where the source file is not the conversion of its blob under the new worktree's rules,
-  the clone holds bytes Git's checkout would not write
-  (`H1`,
-  the review's `s04`,
-  `s04b` and `s04c`).
+  the fence answers,
+  and the paths it takes are written by Git inside the one `git checkout-index`,
+  which runs the checkout's filters exactly as Git's own checkout does.
+  A cloned path is one whose checkout writes its blob,
+  so no conversion class is left to the clone.
+- `core.autocrlf` and `core.eol`:
+  read by the fence from the source's configuration,
+  and the two worktrees' conversion settings are compared before the copies.
 - An ignored,
   untracked `.gitattributes`:
-  invisible to the refusal,
-  because the untracked listing uses `ls-files --others --exclude-standard`,
+  invisible to the fence's untracked listing,
+  because it uses `ls-files --others --exclude-standard`,
   which hides it,
-  while Git still reads its rules;
-  a source whose files were made under it differs from a checkout without it,
-  the same class as `H1`.
-  This is inherited from the source check (the review's `L3`) and this round did not run it.
+  while Git still reads its rules.
+  This is inherited from the clean rung and is the fence's own limit
+  (`doc/planning/cli-git-clone-rung-conversion-fence.md`,
+  "Limitations"),
+  not a partial clone's.
 - A file cloned within the wrapper's pool transaction timeout of being written waits for the pool
   (`README.md`,
   the ladder's item 2).
-  The dirty arm writes only the files it does not clone,
-  so the timing could not show it;
-  a source that was just pulled can,
-  and the whole-rung clone has the same limit (the review's `L4`).
+  The whole-rung clone has the same limit;
+  the partial clone writes only the files it does not clone,
+  so a source that was just pulled can show it here too.
 - A submodule:
   the whole rung is refused.
-  A clone makes files and links;
-  a gitlink is neither,
-  and the rung cannot prove what Git would put at that path.
 - A symbolic link:
   cloned as a link with its target,
-  at the source's times.
-  Its index entry keeps the fields the source's own index recorded,
-  never the new link's,
-  so a name another process replaced between the clone and the index write is not certified;
-  Git compares a link by target and by the length the entry records.
+  at the source's times,
+  and its index entry keeps the fields the source's own index recorded.
+  A link the fence takes is written by Git like any other path.
 - A skip-worktree entry:
   the whole rung is refused.
-  Git was told the file is outside the checkout,
-  so neither the clones nor the writer can say what the worktree should hold there.
 
 ### The new worktree's index
 
@@ -383,7 +283,7 @@ and a staged addition names a path no tree has.
 So the rung builds one from the **source's** `HEAD` tree
 (`worktree_clone_partial.rs`,
 `source.clean.head_tree`),
-in `package/git-policy/cli/src/native/worktree/worktree_clone_partial_index.rs`:
+in `worktree_clone_partial_index.rs`:
 
 - one entry per tree path,
   in path order,
@@ -392,96 +292,88 @@ in `package/git-policy/cli/src/native/worktree/worktree_clone_partial_index.rs`:
   taken from their descriptors after their last change;
 - a link's entry keeps the fields the source's index recorded;
 - zero stat fields for the paths Git writes,
-  which is what makes Git check those files by content before it trusts them;
+  which is what makes Git check those files by content before it trusts them,
+  and what keeps the waiting index from vouching for a file Git has not written;
 - the file written as version 2 with the repository's own checksum,
   SHA-1 or SHA-256.
 
-It is published by the rung's existing install step,
-`subvolume_index_install_into_new_worktree.rs`:
-`index.lock` created exclusively,
-the absence of an index checked under it,
-the finished bytes written into the lock,
-and the open file linked under the name `index` without replacing anything.
+It is written under the fence's own waiting name by
+`worktree_clone_index::install_the_index_beside_the_write`,
+so the order the clean rung already has is kept:
+`index.pending` holds the index,
+Git's tree difference and write are pointed at it with `GIT_INDEX_FILE`,
+and `PendingIndex::publish` gives it the worktree's name only after that write.
+A kill between the copies and the publication leaves no index at all,
+which is the unfinished shape the recovery already names.
 
-A new `HEAD` that differs from the source's is brought in after the clones and before the proof by the ladder's
+A new `HEAD` that differs from the source's is brought in after the clones and before the write by the ladder's
 `git read-tree -m -u <the source's HEAD> <the new HEAD>`
 (`worktree_ladder_target.rs`,
-`apply_difference`),
-which is what makes the worktree Git's checkout of the new commit;
-the review's `s10` and the control `a_new_head_that_differs_is_brought_in_after_the_clones` show the result is right.
+`apply_difference_with_index`),
+against the waiting index.
 
 ### Which Git command writes the changed files
 
-One command:
+The fence's own command,
+once:
 
 ```sh
-printf 'a.txt\0bin/tool.sh\0' | git checkout-index --stdin -z --index
+printf 'a.txt\0bin/tool.sh\0' | git checkout-index --force -u -z --stdin
 ```
 
-run in the destination with `GIT_DIR` and `GIT_WORK_TREE` naming the new worktree,
-and the paths NUL-terminated on standard input,
-in the order the tree lists them.
-It is Git's own scripted checkout:
-it writes each entry's object through the checkout's conversion filters,
-and `--index` records the new stat fields so the first `git status` of the worktree is cheap.
-Naming the paths on standard input is what keeps a source with many changed paths out of the argument list.
+run in the destination with `GIT_INDEX_FILE` naming the waiting index and `GIT_WORK_TREE` naming the new worktree,
+with the paths NUL-terminated on standard input.
+The rung sends the union of the split's paths and the fence's,
+in path order,
+and drops the ones the index no longer holds after the tree difference
+(`checkout_index_through_the_index_at`),
+because `git checkout-index` fails the whole run on a path its index lacks.
+`--force` is what makes Git write a path the source's own bytes still sit at,
+which is exactly a path the fence took from a clone;
+`-u` records the stat data of what it wrote in the waiting index,
+so the worktree's first `git status` compares rather than rehashes.
+Naming the paths on standard input keeps a source with many changed paths out of the argument list.
 A run that fails ends the rung,
-and Git's own checkout then writes the same bytes.
+and the ladder's fallback completes the worktree with Git's own checkout against the waiting index.
 
-### How the result is proven
+### What proves the result
 
-The rung proves the worktree after the tree difference,
-with two read-only Git runs in the new worktree:
+The rung no longer runs a `git status` proof of its own.
+The prototype carried one,
+and this round dropped it when the prototype moved onto the fenced rung:
+the shipped rung's guarantee is the index it writes and the fence's write,
+the proof cost 44 ms of every add,
+and the earlier review had already shown it cannot see the bytes of a path the clones made,
+because the index records those clones' own stat data.
 
-- `git --no-optional-locks status --porcelain=v1 -z --untracked-files=all --no-renames` prints nothing,
-  so no worktree file differs from its entry by Git's own judgement and nothing is untracked;
-- `git --no-optional-locks diff-index --cached --quiet <new HEAD>` answers zero,
-  so the index equals the new `HEAD`'s tree exactly.
+What stands in its place is what the whole rung already relies on:
 
-`--no-optional-locks` keeps the proof from writing an index it judges.
-A failed proof ends the rung and the fallback checkout makes the worktree,
-so nothing unproven is ever published as the add's result.
+- the split's per-path proof,
+  which is Git's own fast-path comparison taken in process;
+- a second,
+  differently built answer for the class where a mistake is worst:
+  the rung asks Git in the source for the paths staged against the source's `HEAD`
+  (`git diff-index --cached --name-only -z <the source's HEAD>`),
+  and refuses when one of them is among the clones
+  (`staged_paths`,
+  `a_staged_path_among_the_clones`),
+  which the unit control `a_staged_path_among_the_clones_is_refused` covers;
+- the index built from the tree,
+  not from the source's index,
+  so a staged path cannot reach the new worktree through the index either;
+- the tree difference,
+  Git's own write,
+  and the publication order the fence already had.
 
-The proof proves completeness,
-the entry kinds,
-executable bits,
-link targets,
-the absence of extra or untracked files,
-and that the index equals the new `HEAD`'s tree.
-It does **not** prove the content of a path the clones made:
-the new index records the stat fields of the file each clone made,
-so Git's status trusts it,
-and a clone carrying the person's bytes passes it.
-Two answers guard that class:
-the split's comparison of each entry's object name with the tree's,
-and a second,
-differently built one,
-`git --no-optional-locks diff-index --cached --name-only -z <the source's HEAD>` run in the source,
-whose staged paths must not be in the clone set;
-the rung refuses when one is
-(`worktree_clone_partial.rs`,
-`staged_paths` and `a_staged_path_among_the_clones`).
-The staged-path red below shows the second answer firing alone,
-after the split's comparison was planted away.
-What neither guards is a file whose stat fields an edit kept;
-that is Git's own trust,
-and the clone engine compares each held descriptor before and after it clones.
-
-`git diff-files --quiet` is deliberately **not** the worktree check:
-it reports a stat difference without comparing content,
-and a link's entry keeps the source's fields on purpose,
-so it reports every cloned link as modified.
-The prototype found exactly that,
-and the controls assert the `git status` answer instead.
-
-Modes and link targets are the clone's own business and are asserted by the controls:
-a cloned executable keeps 0755,
-and a cloned link keeps its target.
+The end-to-end evidence is in "Correctness",
+where every worktree of every measured round and of the seeded sample is compared byte for byte with Git's own
+checkout.
 
 ## The prototype
 
 Branch `docs/planning-cli-git-clone-rung-partial-clone-of-a-dirty-source`,
-commits marked `PROTOTYPE FOR MEASUREMENT AND NOT FOR MERGING`.
+commits marked `PROTOTYPE FOR MEASUREMENT, NOT FOR MERGING`,
+and `ec4dd92ae2` is the merge that put it on the fenced rung.
 
 - `worktree_clone_partial_split.rs`:
   which tree paths a clone takes and which Git writes,
@@ -492,583 +384,394 @@ commits marked `PROTOTYPE FOR MEASUREMENT AND NOT FOR MERGING`.
   the index built from the tree.
 - `worktree_clone_partial.rs`:
   the step,
-  the write command and the proof,
-  the second listing of the source's staged paths (`staged_paths` and `a_staged_path_among_the_clones`),
-  and two size rules that exist only to be measured,
+  the fence's answer beside the copies,
+  the union of the written paths,
+  the index under the waiting name,
+  and the second listing of the source's staged paths,
+  plus two size rules that exist only to be measured,
   `CLI_GIT_PROTOTYPE_CLONE_MIN_BYTES` and `CLI_GIT_PROTOTYPE_DECLINE_BELOW_TOTAL_BYTES`.
-- `worktree_ladder_finish_clone_rung.rs`:
-  the clone rung's steps after real Git,
-  moved out of `worktree_ladder_finish.rs` to stay under the file-size limit.
 - `worktree_clone.rs`:
-  the clone engine answers the stat fields it made and installs an index only when the caller asks.
+  an entry point that clones a chosen entry set beside the fence
+  (`clone_these_bytes_beside`),
+  and the one-turn path takes entries rather than re-reading the source's index
+  (`worktree_clone_entries::clone_with_entries`).
+- `worktree_ladder_finish_clones.rs`:
+  a dirty source takes the partial clone in the fence's beside shape;
+  a clean source takes the whole rung's steps unchanged.
 - `worktree_ladder_run.rs`:
   a source with changes is no longer a refusal of the clone rung,
   and the prototype's whole-tree rule,
   when set,
   declines the rung before any proof is paid.
 
-26 tests pass on this host,
-run as `cargo test --locked --offline --lib worktree_clone_partial` with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`
-(`cargo nextest` is not installed here,
-so the gate image is the authority on the nextest run),
-the btrfs-gated controls printing `BTRFS CONTROL NOT RUN` as everywhere on ZFS,
-and the reflink-needing ones really ran.
-Four of them were shown red,
-each against one planted defect,
-with the logs kept:
+The controls are 27 tests in three sidecar files
+(`worktree_clone_partial_tests.rs`,
+`worktree_clone_partial_split_tests.rs`,
+`worktree_clone_partial_index_tests.rs`),
+run as `cargo test --locked --offline --lib -- worktree_clone_partial` with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`
+(`cargo nextest` is not installed on this host;
+the gate image's nextest run is the authority).
+All 27 pass on this host,
+and the reflink-needing ones really ran,
+because this host's fixture root is on ZFS and can clone:
+nine tests in `worktree_clone_partial` alone,
+including `the_unchanged_paths_are_cloned_and_the_changed_ones_written`,
+`the_index_records_the_files_the_clones_made`,
+`a_path_a_conversion_rule_reaches_is_written_by_git`,
+`a_new_head_that_differs_is_brought_in_after_the_clones` and
+`the_flow_runs_where_no_file_can_be_cloned`.
 
-- the stat verdict accepting every present file:
-  the end-to-end control fails with
-  `the source changed while it was cloned (edited.txt differs from its index entry by size, times or inode)`.
-- the object-name comparison dropped:
-  the second answer refuses the staged path that the split would have cloned,
-  `staged.txt is staged in the source and would have been cloned`
-  (`keep/red-second-answer-staged.log`).
-  The same defect,
-  before that answer existed,
-  cloned the staged path (the earlier round's red),
-  which is the review's
-  `M1`.
-- the source's index installed instead of one built from the tree:
-  the proof fails with
-  `the new worktree is not what Git's checkout makes: staged.txt differs`.
-
-Two controls answer the review's `L2`:
-`a_new_head_that_differs_is_brought_in_after_the_clones`
-(a later `HEAD`,
-cloned from the source's tree,
-the ladder's `read-tree` applied,
-proven against the new commit)
-and `a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned`
-(the ladder's routing for a dirty source,
-skipping with its own line where the fixture cannot reflink).
+The earlier round's four red proofs
+(the stat verdict accepting every file,
+the object-name comparison dropped,
+the source's index installed,
+and the count of written paths)
+were taken against the pre-fence code;
+this round did not re-plant them,
+and the guards they proved are the split's own,
+which this round did not change.
 
 ## The measurements
 
 ### Method
 
 - Host:
-  this machine on 2026-11-20,
-  `nproc` 8 and 32 processors in `/proc/cpuinfo`,
+  this machine on 2026-11-21 and 2026-11-22,
+  `nproc` 12 and 32 processors in `/proc/cpuinfo`,
   under other sessions' load:
-  the load average was 20 and 22 at the runs' starts and never below 9.
-  No quiet host was waited for (`NQH`).
+  the one-minute load average was 6 to 15 across the shapes,
+  and the runs never waited for it to fall (`NQH`).
 - Scope:
-  one `systemd-run --user --scope` per run:
+  one `systemd-run --user --scope` per batch:
   CPUQuota 600%,
   MemoryMax 20G,
   TasksMax 512,
   IOWeight 1,
-  so this session gets the least IO weight beside the others.
-  A 6-CPU quota makes the process's parallelism 6,
-  and the engine leaves an eighth of the CPUs free (`parallel_budget.rs`),
-  so a clone step's record says "24,387 entries in 5 slices,
-  up to 5 workers",
-  and so did the author's;
-  the engine's own ceiling is 8.
-  The adds are the real work,
-  not synthetic load.
-- Filesystems:
+  so this session has the least IO weight beside the others.
+  A 6-CPU quota makes the clone engine's slices 5 to 8 on this tree,
+  as the add's own record says.
+- Filesystem:
   every fixture repository and every destination under the home dataset,
   on ZFS,
   source and destination in one dataset,
-  so rung 2 applies to the prototype and to step 3.
-- Fixtures:
-  one throwaway repository of this repository's tracked files at `33a8d065ff`:
-  24,390 files,
-  724 MiB of file bytes (780 MB as an archive),
-  with the `filter=lfs` lines of `.gitattributes` stripped as earlier rounds did,
-  committed by plumbing.
-  The synthetic trees of 10,001 files of about 2.6 KB,
-  8.8 KB and 26 KB in ten flat directories
-  are the author's,
-  not rebuilt this round.
-  A hard reset and a clean before each run (with the wrapper's `--no-enforce-worktree`),
-  then the run's state:
-  usual (three tracked files rewritten and three files nobody tracks),
-  clean,
-  many:N (N tracked files rewritten and the three untracked),
-  or decline.
+  so rung 2 applies to every clone arm.
+  `zfs_bclone_enabled 1`,
+  `zfs_bclone_wait_dirty 1`,
+  `zfs_txg_timeout 5`.
+- This repository's tree:
+  a throwaway repository of this repository's tracked files at `ec4dd92ae2`:
+  24,561 files,
+  735,213,873 tracked bytes,
+  with the `filter=lfs` lines of `.gitattributes` stripped,
+  as the earlier rounds stripped them,
+  and with the images kept as their own blobs.
+  The fixture is built once and copied per shape with `cp -a --reflink=always`.
+- The synthetic trees:
+  10,001 files of 2,600,
+  8,800 and 26,000 bytes in ten flat directories,
+  the shapes the waiver names,
+  with one file's bytes committed each.
+- Source state held fixed over all rounds of a shape:
+  usual is three tracked files rewritten and three files nobody tracks,
+  many:N is N tracked text files each with a line appended plus the three untracked,
+  clean is neither,
+  and `small:<size>:dirty` is three tracked files rewritten plus the three untracked.
   `sync --file-system`,
-  1.7 s and `update-index --really-refresh` follow,
+  1.7 s and `update-index --really-refresh` follow the state,
   and a run whose source does not show exactly the state's paths stops before any round.
 - Builds:
   release,
   each from a `git archive` copy of its commit with
   `cargo build --locked --offline --release --bin monochromatic-git-policy-cli`:
-  the prototype at `33a8d065ff`
-  (sha256 `82723396c2d09cae0c098877196224e0baee5620b33faa89f4cc28dc6510e233`),
-  `main` at `2df9b1689b`
-  (sha256 `5404afd4be6a9082a2844cdad773cf8b36fafe7f1693d65b104fda7e18cbb194`),
-  and the harness asserts both digests before a round runs.
-  `main`'s add path is the same code the author measured at `392042de70`:
-  no file under `worktree/` or `subvolume/` differs between them,
-  and the 32 changed files under `src` are the clone-mount handler and its tests,
-  `lib.rs` and `source_guard`.
-  The author's timed binary was built at 07:19:16 from the working tree,
-  before the commits that hold its size rules (07:35:31) and its notice sentences (07:50:32),
-  so it cannot be tied to a commit;
-  this round's can.
+  the prototype at `ec4dd92ae2`
+  (sha256 `96329e6b89109cea9d452d73f6943c1a533019b4ee4ccf20efad3d839f30b105`),
+  `main` at `ad35d82537`
+  (sha256 `ff2dff2b95c34fcd3ccd7c0e950a19be048296ada5df12dbbfabe4d9af6d49ea`).
 - Arms:
   the prototype,
   the same binary under another name (the control),
-  and `main`,
-  each reached as plain `git` through a PATH of its own,
+  `main`,
+  and Git's own checkout.
+  Each is reached as plain `git` through a PATH of its own,
   with its own `HOME` and `XDG_RUNTIME_DIR`.
-  The order follows six permutations of the three,
-  so the control ran first in half of the pairs:
-  `prototype, control, main`;
-  `control, prototype, main`;
-  `main, control, prototype`;
-  `prototype, main, control`;
-  `control, main, prototype`;
-  `main, prototype, control`.
-  `sync --file-system` and 300 ms separate the arms of a round.
-  Every figure is a ratio to `main` in the same round,
-  as `TVC` asks.
-  Rounds:
-  six counted and one warm-up for the usual state,
-  twice;
-  four counted and one warm-up for each many-path state and the declined arm.
-- Fixture setup ran through the prototype's own wrapper,
-  which knows its bulk-add escape hatch,
-  and its commits are made from plumbing:
-  the wrapper's commit path waits on the account's own commit service,
-  which a throwaway repository must not reach.
+  Git's own checkout is `main`'s own binary under a form the ladder does not read,
+  `git --no-optional-locks worktree add`,
+  which the wrapper forwards as the person wrote it and which its record names `route: plain`.
+  On the small shapes a fifth arm runs the prototype with the whole-tree rule set to 400,000,000 tracked bytes,
+  which is option B,
+  and its record names `route: Git's checkout`.
+- Rounds:
+  the order rotates one place per round and reverses on even rounds,
+  so each arm takes each position,
+  and the identical pair is adjacent in half the rounds and separated in the other half;
+  300 ms and `sync --file-system` after the state separate the arms of a round,
+  and nothing else runs beside them.
+  Counted rounds:
+  eight for the usual state,
+  six for the clean state,
+  six at 300 and six at 3,000 changed paths,
+  six for the 2.6 KB tree dirty,
+  and four for each clean small tree,
+  after one warm-up round each.
 - Verified,
-  every round,
-  for every worktree the arms made:
+  outside the timed window,
+  for every worktree every arm made:
   `git status --porcelain` empty,
-  and `diff --recursive --no-dereference --exclude=.git` against `main`'s worktree of the same round empty.
+  and `diff --recursive --no-dereference --exclude=.git` against Git's own checkout's worktree of the same round
+  empty.
   Every arm of every round passed both.
-- Every prototype and control round took the clone route (a partial clone on a dirty source),
-  and every `main` round took Git's checkout,
+- Every prototype round took "a partial clone" on the dirty shapes,
+  every whole-rung round took "clones",
+  every `main` round on a dirty source took "Git's checkout",
+  and every Git's-checkout round took "plain",
   so the arms are what they say.
 - Records:
-  each run's round record and log are in
-  `~/temp/agent/clone-rung-partial-clone-proposal-gate-review-findings-fixed-2026-11-20/scratch/keep/`,
-  the one run where a harness bug left the decline rule unset is kept there too and marked invalid,
-  and the fixture repository and the worktrees are removed once their numbers are taken.
+  each shape's round record and log are in
+  `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-2026-11-21/scratch/keep/`,
+  and the two earlier batches kept there are marked invalid:
+  one ran before the fixture's LFS attributes were handled,
+  the other synced the whole filesystem before every arm and its spread was the sync's.
 
-### The author's kept rounds, recomputed
+### This repository's tree, three changed paths
 
-From the author's kept JSON (`measure-partial-clone-2026-11-20T12-26-41-617Z.json`),
-medians over five rounds,
-in ms,
-and the ratio to `main` per round:
+The usual dirty state,
+ratio to `main` in the same round,
+median with the range over the counted rounds,
+and `main`'s wall time in brackets:
 
-- dirty:
-  prototype 915 ms,
-  **0.74** (0.67 to 0.80);
-  its identical control 1021 ms,
-  0.82 (0.77 to 0.92);
-  step 3 1412 ms,
-  1.14 (1.07 to 1.16);
-  `main` 1256 ms (1139 to 1319).
-- clean:
-  prototype 856 ms,
-  0.62 (0.55 to 0.78);
-  its identical control 1058 ms,
-  0.85 (0.59 to 0.88);
-  step 3 997 ms,
-  0.81 (0.51 to 0.84);
-  `main` 1304 ms (1185 to 1596).
+- `main` 1,533 ms (1,421 to 4,149);
+- prototype 1,012 ms,
+  **0.64** (0.23 to 2.84);
+- its identical control 1,077 ms,
+  0.67 (0.41 to 0.84);
+- Git's own checkout 1,454 ms (1,253 to 2,176),
+  and the prototype is 0.75 of it (0.45 to 2.02).
+- The identical pair differs by 1.04 in the median and 0.22 to 1.79 round by round.
 
-The control is not the narrow spread the earlier text claimed.
-It followed the prototype in 8 of the 10 rounds,
-and in all 8 it was the slower,
-by 11 to 44 per cent:
-control over prototype 1.15,
-1.15,
-1.26 and 1.11 dirty,
-and 1.22,
-1.37,
-1.44 and 1.22 clean;
-in the 2 rounds it ran first it was 1.02 and 0.75.
-That is a systematic sign,
-so the author's prototype arm is the favorable member of an identical pair,
-and the pair's control is the fairer figure for that run:
-0.82 dirty,
-0.85 clean.
-The review's rerun (0.84 to 0.86 pooled over 20 identical-binary values,
-4 of them above 1.0)
-and this round's (below) agree with the control,
-not with 0.74.
+The range's top is one stall:
+the prototype took 4,163 ms in round 6 while its control took 920,
+and its 2,213 ms round is not one,
+because the control took 3,424 in the same round.
+The identical pair agrees at 1.04 in the median with a round-to-round range of 0.22 to 1.79,
+so one round resolves nothing and the median of eight is what these ratios rest on,
+to one significant figure.
 
-### The dirty source, this repository's tree, this round
+Against Git's own checkout the same add is 0.75,
+and `main` is 1.14 of Git's own checkout (0.71 to 3.19),
+which is its clean proof paid and then the checkout.
 
-Two runs of six counted rounds each after the gate review,
-under load averages 20 and 22,
-in ms and as the ratio to `main` in the same round:
+### This repository's tree, clean
 
-- run A:
-  `main` 2946 ms (1184 to 3970);
-  prototype 1305 ms,
-  **0.63** (0.28 to 0.90);
-  control 1204 ms,
-  0.54 (0.29 to 1.05);
-  control over prototype per round 1.66,
-  1.36,
-  0.60,
-  0.98,
-  0.58,
-  0.89 (median 0.93).
-- run B:
-  `main` 3427 ms (1728 to 4716);
-  prototype 1389 ms,
-  **0.54** (0.30 to 0.66);
-  control 1786 ms,
-  0.54 (0.31 to 0.72);
-  control over prototype 1.04,
-  1.61,
-  0.59,
-  1.67,
-  0.87,
-  0.94 (median 0.99).
-- pooled over the twelve counted rounds:
-  prototype 0.63 (0.28 to 0.90);
-  control 0.54 (0.29 to 1.05);
-  the 24 identical-binary values range 0.28 to 1.05,
-  median 0.61,
-  one above 1.0.
+- `main` 861 ms (753 to 997),
+  which is the fenced clone rung;
+- prototype 824 ms,
+  0.95 (0.83 to 4.89);
+- its identical control 814 ms,
+  0.97 (0.76 to 1.10).
+- Git's own checkout 1,317 ms (1,177 to 1,993),
+  so the fenced whole rung is 0.66 of Git's own checkout here
+  (0.38 to 0.79).
 
-On this host both identical arms sit far below `main`:
-`main`'s 724 MiB checkout took 1.2 to 4.7 s,
-where the review's rounds took about 1.0 s and the author's 1256 ms,
-while the clones share blocks and the write step writes three files,
-and the harness's `IOWeight=1` gives this session the least IO weight.
-So the ratio to `main` is not comparable across sessions;
-the identical pair is.
-The pair itself differs by up to 67 per cent within a round,
-which is wider than any gain claimed here,
-so this round confirms the direction and cannot pin the size.
-That is also the answer to the review's `M4`:
-it measured 0.84 to 0.86 on a host under load 6 to 11,
-this round measures 0.54 to 0.63 under load 9 to 22,
-the author measured 0.74 with a control of 0.82,
-and no run reproduces 0.74 without its control beside it.
-The gain exists;
-its size is the host's,
-from about 0.85 on a quieter host to about 0.6 here.
+The prototype and `main` run the same code on a clean source,
+because the partial clone is the dirty source's path and nothing else,
+so this line is a control and not a result:
+the two agree inside the pair's spread,
+and no clean add changes when this proposal lands.
 
-### The clean source, the author's rounds
-
-Unchanged code,
-not rerun this round;
-from the same recomputation:
-
-- `main` 1304 ms (1185 to 1596);
-  step 3 0.81 (0.51 to 0.84);
-  prototype 0.62 (0.55 to 0.78),
-  and its identical control 0.85 (0.59 to 0.88).
-
-The three clone arms are the same code and the same work,
-so the pair's control is again the fairer member,
-and the clean gain to quote is the pair's 0.85,
-not 0.62.
-
-### What the proof costs, and what it could cost
-
-Step split of the dirty prototype arm,
-medians over the twelve counted rounds of the two runs above,
-in ms
-(the author's five-round figures are the second number,
-for the quieter host):
-
-- `git ls-files`,
-  the untracked scan:
-  108.8 (82.3),
-  in four calls
-- `git check-ignore`,
-  the trash question,
-  which only the snapshot rung uses:
-  58.5 (35.0)
-- `git status`,
-  the changed-path listing and the proof's own status summed under one name:
-  145.9 (113.9),
-  in two calls
-- the in-process stat walk inside the clean check,
-  `checkSource`:
-  39.3 (35.1)
-- reading the index and the tree for the rung,
-  `partRead`:
-  31.3 (26.9)
-- the split's own walk of every tracked file,
-  `partClassify`:
-  88.9 (79.7)
-- building and installing the index,
-  `partIndex`:
-  53.4 (55.2)
-- `git diff-index`,
-  the proof's index side and the second staged-path listing together:
-  30.8 (24.7),
-  in two calls;
-  the listing is a few milliseconds of that,
-  and its own step,
-  `partStaged`,
-  measures 0.02 ms
-
-The proof and setup together are about 557 ms here,
-40 per cent of the 1389 ms add
-(453 ms of 915 ms on the author's host).
-The clones themselves are `cloneEntries` 590.2 ms;
-the rest of the command is `gitAdd` 4.8,
-`copyIgnored` 37.9,
-`git checkout-index` 15.5,
-`finishRung` 24.0 and Git's own worktree bookkeeping.
-For comparison,
-`main` spends nothing on a proof and its checkout is `gitAdd` 2850.9 ms here,
-against 1087 ms in the author's rounds:
-that difference is the host's load,
-and it is why the ratios above are not comparable across sessions.
-
-The proof can be made cheaper,
-and the parts are measured even though the combination is not:
-
-- One `git status --porcelain=v2 -z --untracked-files=all --ignored=no --no-optional-locks` answers the untracked
-  scan,
-  the changed-path listing,
-  and the per-path verdict a length-based proof takes from its own walk.
-  The runs it would replace cost 108.8,
-  145.9,
-  31.3 and 88.9 ms here (82.3,
-  113.9,
-  26.9 and 79.7 on the author's
-  host),
-  and the one run measured 90 to 114 ms in the author's rounds,
-  so the saving is around 150 to 190 ms on the author's host and more here,
-  a fifth of the add or better.
-  What it gives up is the strict nanosecond proof:
-  Git's status settles a racy entry by content and then reports nothing,
-  which is a stronger answer,
-  not a weaker one.
-- `git check-ignore` is asked for the snapshot rung's trash place.
-  A clone rung makes no trash,
-  so the clone rung need not pay its 58.5 ms here (35.0 there).
-  Splitting the source check is a change of its own and is not in the prototype.
-- The in-process walk inside the clean check,
-  39.3 ms,
-  is paid before anything knows whether the rung will be taken;
-  a rung that asks its own question once would not pay it twice.
-
-### The size rules
-
-The evidence from step 3's integration pass is that a clean add of many small files is slower than `main`'s on ZFS.
-It is finding `H1` in
-`~/temp/agent/integration-pass-zfs-step-3-with-the-dirty-source-waiver-2026-11-20/keep/review.md`:
-10,001 files of about 2.6 KB took a median 1.33 times `main`,
-8.8 KB 1.18,
-26 KB parity,
-and this repository's tree 0.64.
-A partial clone inherits that shape unless something stops it,
-and two rules were built into the prototype and measured against it.
-
-All figures below are the dirty source,
-three rounds per fixture,
-medians of the ratio to `main` in the same round,
-with the range in brackets,
-and they are the author's kept rounds recomputed
-(`measure-size-cutoff-2026-11-20T12-06-17-568Z.json` and `...T12-20-24-304Z.json`),
-not new rounds.
-Only this tree's run had an identical-binary arm;
-the small fixtures' runs had none,
-so their figures carry no control of their own,
-which is one reason the threshold below stays unpinned.
-
-The per-file rule clones only the unchanged files at or above a size,
-and lets Git write the smaller ones too:
-
-- this repository's tree,
-  cutoff 4 KB:
-  **1.05** (0.96 to 1.10);
-  cutoff 32 KB:
-  **1.90** (1.43 to 2.11);
-  no cutoff at all,
-  so every settled path is cloned:
-  **0.77** (0.71 to 0.83);
-  the same-binary control:
-  0.76 (0.73 to 0.78).
-- writing every unchanged path through the rung's write step,
-  which is what a cutoff above every file means:
-  2.6 KB **2.80**,
-  8.8 KB **3.59**,
-  26 KB **4.30**,
-  this tree **2.83**.
-
-The per-file rule loses at every size measured with this write step,
-because the rung's write step costs several times what cloning the same file costs,
-and several times what Git's own checkout of the whole tree costs:
-10,001 small files written by `git checkout-index` cost 534 ms on a 190 ms `main` add,
-and the same 10,001 files cloned cost 211 ms.
-So moving an unchanged path from the clones to the write step is a loss even at 2.6 KB,
-and the size at which cloning wins is above every size measured here.
-That is the opposite of what the clean-source evidence suggested,
-and it is a property of this rung's write step rather than of the clone.
-The answer to the review's `M6` here is therefore narrow,
-and it is the important half:
-`this write step loses`,
-not `no per-file rule can win`;
-a write step as cheap as Git's checkout was not built,
-and with it the rule could win.
-
-The whole-tree rule declines the rung when the tracked bytes are too few for clones to win.
-Declined before the proof,
-from the index the rung would read anyway:
-
-- 2.6 KB,
-  26 MB:
-  **0.89** (0.72 to 1.01)
-- 8.8 KB,
-  88 MB:
-  **1.00** (0.93 to 1.52)
-- 26 KB,
-  260 MB:
-  **1.03** (0.70 to 1.20)
-- this repository's tree,
-  780 MB:
-  **0.96** (0.94 to 1.03),
-  declined on purpose,
-  so it is `main` plus one read of the index
-
-and cloning everything on the same fixtures:
-
-- 2.6 KB:
-  **1.14** (1.09 to 1.33)
-- 8.8 KB:
-  **1.57** (1.12 to 1.64)
-- 26 KB:
-  **1.03** (1.02 to 1.57)
-- this repository's tree:
-  **0.77** (0.71 to 0.83)
-
-So the crossover sits between a tree of 260 MB,
-where cloning is a loss,
-and this repository's 780 MB,
-where it is a gain of about a quarter.
-A threshold of about 400 MB of tracked bytes,
-a mean of about 30 KB over 10,001 to 24,000 files,
-is where these points put it;
-pinning it needs the same measurement at sizes between them,
-which this round did not take.
-
-The unit may not be bytes.
-All four fixtures hold 10,001 or 24,389 files,
-so file count and mean size were never varied apart:
-a tree of 100,000 small files and 400 MB would clone under a bytes rule,
-and small files are the shape that loses.
-The whole-tree rule's scope and placement are therefore part of what B asks the owner to decide:
-it belongs at the clone rung's choice,
-judged only after the snapshot rung has been declined,
-and on the filesystem it was measured on,
-ZFS here.
-The prototype evaluates it in `choose_rung` before the snapshot is considered
-(`worktree_ladder_run.rs`),
-so on a btrfs host with a subvolume source it would also turn off the snapshot rung,
-and it applies to clean sources as well,
-while every figure above is ZFS.
-That placement is a measurement artifact,
-not the design.
-
-A rule placed after the proof would spend the proof before declining.
-The measured cost of a dirty add that pays the proof and then takes Git's checkout is step 3's,
-1.14 of `main` on this tree (1.07 to 1.16),
-and the same shape on the small trees;
-this round did not measure that placement,
-and the earlier reconstruction (1.38,
-1.30,
-1.23 and 1.33)
-could not be reproduced from the kept JSON and is withdrawn.
-The declined-before-proof arm this round did take is in "The declined arm".
-
-### A source with many changed paths
-
-Same fixture and arms as the usual state,
-with 300 and then 3,000 tracked files rewritten (a line appended to each) and the three untracked ones,
-four counted rounds and one warm-up each,
-under load averages 9 to 14.
-This is the review's `M5`,
-and its script's `many:<count>` state.
+### This repository's tree, many changed paths
 
 - 300 changed paths:
-  prototype 885 ms,
-  **0.80** (0.74 to 0.89);
-  its identical control 1047 ms,
-  0.94 (0.81 to 1.06);
-  `main` 1124 ms (1051 to 1195);
-  the pair 0.95,
-  1.32,
-  1.29 and 1.08 (median 1.19).
-- 3,000 changed paths:
-  prototype 1254 ms,
-  **0.92** (0.49 to 1.12);
-  control 1203 ms,
-  0.76 (0.50 to 1.02);
-  `main` 1804 ms (1184 to 2901);
-  the pair 0.65,
-  1.01,
-  0.91 and 1.02 (median 0.96).
-- the write step's own step,
+  `main` 1,450 ms (1,326 to 1,664);
+  prototype 1,035 ms,
+  **0.74** (0.64 to 1.28);
+  control 1,134 ms,
+  0.79 (0.67 to 1.01);
+  Git's own checkout 1,265 ms (1,227 to 1,475);
+  the pair 1.07.
+- 6,000 changed paths,
+  the shape the gate review found the earlier design losing:
+  `main` 1,411 ms (1,367 to 2,069);
+  prototype 1,208 ms,
+  **0.86** (0.57 to 1.01);
+  control 1,341 ms,
+  0.90 (0.65 to 1.04);
+  Git's own checkout 1,231 ms (1,120 to 1,485);
+  the pair 1.12.
+- The write step's own cost,
   `git checkout-index`:
-  15.5 ms at three paths,
-  31.8 ms at 300 and 218.1 ms at 3,000,
-  about 55 and 68 microseconds a path,
-  agreeing with the review's 60;
-  the changed-path listing,
-  in the `git status` step,
-  is 124.7 ms at 300 and 317.7 ms at 3,000.
+  13.5 ms at three paths,
+  32.8 ms at 300 and 379.9 ms at 6,000,
+  which is 109 microseconds a path at 300 and 63 at 6,000.
 
-The bound is what `M5` asks for,
-and it is a shape,
-not a size:
-at 300 changed paths the add is a gain in both members of the pair (0.80 and 0.94);
-at 3,000 it straddles `main` (0.92 and 0.76,
-one counted round above it at 1.12);
-the review measured 1.13 with a control of 1.01 at 1,500 and 1.54 with 1.44 at 6,000.
-So the gain is gone somewhere above a few hundred changed paths,
-and by 6,000 the rung is plainly a loss;
-the crossing itself is not pinned,
-between 3,000 and 6,000 here and lower on the review's host.
-Above it the rung does **not** meet the waiver's "no slower than `main`'s".
-Two ways keep the option honest,
-and the choice is the owner's:
-decline the rung above a measured count of changed paths,
-which costs the proof already paid (step 3's 1.14,
-the cost the waiver records) and keeps the add at or below that;
-or state the bound and accept the loss for a bulk rewrite (a codemod or a reformat in the main checkout).
-Step 3 would pay the same enlarged changed-path listing at that shape,
-so this does not reorder B against D;
-that comparison is untested.
+The earlier round measured this shape at 1.54 of `main` with a control of 1.44,
+and this round measures 0.86 with a control of 0.90,
+in every counted round at or below 1.01 of `main`.
+The difference is not the write step's price per path,
+which is the same order in both rounds,
+but two things the fenced rung changed:
+the write is one `git checkout-index` through the waiting index instead of a proof and a write around it,
+and the 44 ms `git status` proof of the worktree is gone.
 
-### The declined arm
+### The small-file trees the waiver names
 
-Same fixture and state as the usual one,
-with the prototype's whole-tree rule set above the tree's bytes for both clone arms,
-four counted rounds and one warm-up,
-load average 9.
+Clean,
+10,001 files,
+one directory level of ten parts,
+ratio to `main` in the same round:
 
-- prototype 1205 ms,
-  **1.00** (0.95 to 1.13);
-  its identical control 1227 ms,
-  1.01 (0.86 to 1.06);
-  `main` 1228 ms (1151 to 1259);
-  the pair 1.04,
-  1.03,
-  1.06 and 0.77 (median 1.03).
-- Both clone arms took Git's checkout (the route says so),
-  and their ledger is `main`'s:
-  `gitAdd` 1084.7 ms against `main`'s 1060.2,
-  `copyIgnored` 35.6 against 49.7,
-  `git ls-files` 52.8 against 51.8.
-- The rule's own work,
-  one read of the index and a sum,
-  is not a named step;
-  the whole declined arm is at parity with `main` inside the pair's spread,
-  so the rule's cost cannot be separated from noise at this tree's size.
-  The earlier text's "about 25 ms,
-  measured as the 0.96 of the declined arm" was wrong twice:
-  0.96 is below 1,
-  so that arm measured no cost,
-  and 25 ms was never a measurement.
+- 2.6 KB,
+  26,000,000 tracked bytes:
+  `main` 210 ms,
+  prototype 243 ms,
+  **1.17** (0.81 to 1.38),
+  its control 196 ms,
+  0.98 (0.87 to 1.03),
+  Git's own checkout 179 ms,
+  and the declined arm 140 ms,
+  0.65 (0.59 to 0.96).
+- 8.8 KB,
+  88,000,000 bytes:
+  `main` 201 ms,
+  prototype 209 ms,
+  **1.01** (0.89 to 1.28),
+  control 211 ms,
+  1.03 (0.98 to 1.13),
+  Git's own checkout 193 ms,
+  declined 173 ms,
+  0.86 (0.79 to 0.88).
+- 26 KB,
+  260,000,000 bytes:
+  `main` 224 ms,
+  prototype 254 ms,
+  **1.10** (0.97 to 1.17),
+  control 234 ms,
+  1.02 (0.88 to 1.15),
+  Git's own checkout 208 ms,
+  declined 198 ms,
+  0.81 (0.70 to 1.01).
+
+Two things are read from this:
+
+- `main` is already the clone rung here,
+  so the prototype and `main` are the same code and their ratios are the pair's spread,
+  not a gain or a loss:
+  the widened small-file cost is inside `main` now,
+  and no part of this proposal touches it.
+- Where the whole-tree rule declines,
+  the add is Git's own checkout and pays none of the rung:
+  0.65 to 0.86 of `main`,
+  below `main` because the decline happens before the source check that `main` still pays.
+
+The 2.6 KB tree with three changed paths is where the choice bites:
+
+- `main` 246 ms (170 to 313),
+  which is Git's own checkout;
+- prototype 316 ms,
+  **1.44** (0.83 to 1.69);
+- its identical control 318 ms,
+  1.45 (0.83 to 1.69);
+- Git's own checkout 198 ms;
+- the declined arm 222 ms,
+  0.91 (0.67 to 1.37);
+- the pair 1.02.
+
+So a dirty source of many small files is where cloning loses,
+by about 40 per cent of `main`'s add,
+and where option B declines it the add is 0.91 of `main`.
+
+### The step split
+
+Medians of the dirty prototype add's own record,
+this repository's tree,
+in ms,
+with `main`'s beside it where it has the step:
+
+- the ladder's own checks and reads:
+  `checkSource` 37.4 (main 38.3),
+  `git ls-files` 94.2 (116.8),
+  `git check-ignore` 50.1 (49.6),
+  `git status` 43.6 (46.3);
+- the fence:
+  `git check-attr` 37.8,
+  `git ls-tree` 239.8,
+  `conversionFence` 22.9 and `conversionBesideTheClone` 29.7,
+  whose wait overlaps the copies;
+- the partial clone's own work:
+  `partRead` 29.5,
+  `partClassify` 85.2,
+  `partStaged` 0.02,
+  `partIndex` 7.1;
+- the copies:
+  `cloneEntries` 144.0;
+- the write:
+  `writeConversions` 7.3 and `git checkout-index` 13.5;
+- the rest:
+  `copyIgnored` 37.0,
+  `finishRung` 13.7,
+  `gitAdd` 3.6.
+- `main`,
+  the same shape:
+  `gitAdd` 1,212.7.
+
+The fence's `git ls-tree` is the largest single item in a partial clone's add,
+about a quarter of it,
+and it is the fence's cost,
+not the partial clone's:
+`main` pays it on every clean add,
+and the faster size reader the project accepted as a follow-up
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 10's notes)
+would remove most of it.
+The split's own work is 115 ms,
+the copies 144 ms with the fence's reads beside them,
+and the write 21 ms.
+
+### Correctness
+
+- The 27 class tests pass,
+  and all of them really ran their reflink paths here.
+- A seeded differential sample,
+  seed 11,
+  150 combinations,
+  two checks per combination,
+  300 of 300:
+  each combination is a fresh repository of twelve tracked paths with a link,
+  an executable,
+  an empty file and a file whose name is not ASCII,
+  with or without a `*.txt text eol=crlf` rule,
+  and two to four states drawn from nineteen
+  (unchanged,
+  edited with another size,
+  edited with the same size,
+  edited with its times restored,
+  touched only,
+  mode changed unstaged and staged,
+  staged content,
+  staged deletion,
+  unstaged deletion,
+  staged addition,
+  intent-to-add,
+  skip-worktree,
+  assume-unchanged,
+  link retargeted,
+  directory replaced by a link,
+  racy entry,
+  untracked,
+  ignored untracked).
+  Each is added twice,
+  once through the prototype and once as Git's own checkout,
+  and the two worktrees are compared with `diff --recursive --no-dereference` and by `git ls-files --stage`,
+  while the prototype's worktree must also be clean by `git status` and its index must equal its `HEAD`'s tree.
+- Of the 150,
+  74 took the partial clone and 76 ended in Git's checkout,
+  which is the refusal list above firing
+  (skip-worktree,
+  assume-unchanged and intent-to-add are three states of the sample,
+  and any combination holding one ends the rung):
+  every one of the 76 is Git's own checkout and so equal to its reference by construction,
+  and the 74 are the rung's own result.
+- The earlier round's four red proofs stand for the split's guards,
+  and this round did not re-plant them.
 
 ## Where the design text changes
 
@@ -1084,7 +787,7 @@ from:
 
 to:
 
-> Rung 2 needs a source whose tracked files it can prove and whose clone domain holds the destination,
+> Rung 2 needs a source whose tracked paths it can prove and whose clone domain holds the destination,
 > on btrfs,
 > XFS,
 > overlayfs or ZFS,
@@ -1092,36 +795,29 @@ to:
 > A source whose every tracked file equals its index and whose index equals the tree of `HEAD` is cloned whole,
 > and a source with uncommitted changes clones every tracked path the proof still settles while Git writes the rest;
 > see "Rung 2 on a source with changes".
-> A clone holds the source file's bytes,
-> and those are the bytes Git's checkout writes only where the source file is the conversion of its blob under the
-> new worktree's rules:
-> neither the index's stat data nor Git's `status` can tell,
-> so a source whose text or end-of-line conversion differs from its blob is cloned with bytes Git's checkout would
-> not write.
-> Rung 2 has had that limit since it existed.
 
 and,
-after the paragraph that ends "The ignored-state copy then runs as for Git's checkout.",
-a new subsection (the sentence "and the same tree difference" the review found named here is mid-paragraph):
+after the paragraph that ends "a `git -C <path> status` for any other",
 
 > Rung 2 on a source with changes.
 > A path is cloned when its index entry is plain,
 > at stage 0 with no extended flags and no assume-unchanged bit,
 > names the tree's mode and object,
 > is a file or a link,
-> and its file equals the entry by type,
+> its file equals the entry by type,
 > size,
 > inode,
 > owner and both times to the nanosecond,
-> with a modification time older than the index file.
-> Every other tree path is written by one `git checkout-index --stdin -z --index` in the new worktree,
-> which runs the checkout's conversion filters,
-> and a path reached through a link is written the same way.
-> The new worktree's index is built from the tree of the source's `HEAD`,
-> with the stat fields of the files the clones made,
-> the fields the source's index recorded for a link,
-> and none for the paths Git writes;
-> the ladder's `git read-tree -m -u` brings a different new `HEAD` in after the clones.
+> and its modification time is older than the index file,
+> and the conversion fence above carries it.
+> Every other tree path is written through the one `git checkout-index` above,
+> whose paths are the union of the changes' paths and the fence's.
+> The index the new worktree takes is built from the tree of the source's `HEAD`,
+> with the stat data of the files the clones made,
+> a link's entry keeping the source's fields,
+> and no stat data for the paths Git writes;
+> the ladder's `git read-tree -m -u` brings a different new `HEAD` in against that index,
+> and the file takes the worktree's name only after Git's write.
 > The rung is refused,
 > and Git's checkout makes the worktree,
 > for an operation in progress,
@@ -1133,75 +829,15 @@ a new subsection (the sentence "and the same tree difference" the review found n
 > a submodule,
 > a tree entry that is neither a file nor a link,
 > a changed or untracked `.gitattributes`,
-> and a source that is a linked worktree with uncommitted changes.
+> a source that is a linked worktree with uncommitted changes,
+> and the fence's own decline and refusals.
 > An untracked file of the source is no refusal:
 > the new worktree takes only the tree's paths.
-> The worktree is proven after the tree difference with `git --no-optional-locks status --porcelain` printing nothing,
-> and `git --no-optional-locks diff-index --cached --quiet <new HEAD>` answering zero,
-> which proves completeness,
-> types,
-> modes,
-> link targets and the index's tree,
-> and not the bytes of a path a clone made:
-> the index records that clone's own stat fields,
-> so a staged path among the clones is caught by the rung's second listing of the source's staged paths instead.
+> After Git's write the worktree holds what Git's checkout holds:
+> a path the clones carried is one whose file its entry proves and whose checkout writes its blob,
+> and the paths a change or the fence reaches are Git's own bytes.
 
-`doc/planning/cli-git-btrfs-worktree.md`,
-step 2's rung list,
-from:
-
-> - Rung 2,
-> reflink:
-> needs a filesystem with `FICLONE` (btrfs,
-> XFS with reflink,
-> overlayfs over either) and a clean
-> source worktree on the same filesystem.
-> The measurement says it saves disk,
-> not time,
-> so it is optional.
-
-to:
-
-> - Rung 2,
-> reflink:
-> needs a filesystem with `FICLONE` (btrfs,
-> XFS with reflink,
-> overlayfs over either) and a source
-> worktree on the same filesystem whose tracked files the rung can prove;
-> a source with uncommitted changes clones
-> the paths the proof still settles and lets Git write the rest.
-> The measurement says it saves disk,
-> and time where the proof settles most files,
-> so it
->   is optional,
-> and a source whose text or end-of-line conversion differs from its blob is
-> cloned with bytes Git's checkout would not write (rung 2's own limit since it existed).
-
-and,
-in its checks,
-the clean-source bullet,
-from:
-
-> - The source must be clean,
-> checked without spawning Git where possible:
-> ...
-> and no untracked file that is not
->   ignored.
-
-to:
-
-> - The source must be provable,
-> checked without spawning Git where possible:
-> ...
-> and,
-> for rung 1 only,
-> no untracked
-> file that is not ignored,
-> because a snapshot carries the whole directory and a partial clone takes none of it.
-
-Four other places state the clean-source rule and change with these.
-
-`package/git-policy/cli/SPEC.md:1250` to `1253`,
+`package/git-policy/cli/SPEC.md:1282`,
 among the snapshot's refusals,
 from:
 
@@ -1210,12 +846,9 @@ from:
 
 to:
 
-> and,
->  for rung 1 only,
-> an untracked file that no ignore rule covers,
-> which a partial clone takes none of.
+> and the clone rung only where its proof cannot settle the source.
 
-`package/git-policy/cli/README.md:819`,
+`package/git-policy/cli/README.md`,
 the ladder's item 2,
 from:
 
@@ -1226,21 +859,21 @@ to:
 
 > 2. Clones (`FICLONE`) of every tracked file the source's proof settles,
 >    with the index the rung builds from the source's `HEAD`,
->    while Git writes the paths a change reaches,
+>    while Git writes the paths a change or the conversion fence reaches,
 
-`package/git-policy/cli/src/native/worktree/worktree_snapshot_source.rs:349` to `354`,
+`package/git-policy/cli/src/native/worktree/worktree_snapshot_source.rs`,
 the doc comment of `source_or_dirty`,
 from its sentence:
 
 > the clone rung and the other
->  callers of the clean answer never see it.
+> callers of the clean answer never see it.
 
 to:
 
 > the clone rung takes the same source and clones the paths its proof settles while Git writes the rest,
 > and the callers of the clean answer see clean sources only.
 
-`doc/planning/cli-git-zfs-worktree-implementation-plan.md:605` to `617`,
+`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 the dirty cost,
 from:
 
@@ -1266,385 +899,349 @@ that record says how.
 ## Options for the owner, with their measured cost
 
 Every figure is a ratio to `main` in the same round.
-"This round" is the two usual runs and the many-path,
-declined-arm and size runs above,
-on this host under load 9 to 22;
-"the author's" and "the review's" name the earlier rounds.
-Where a pair is quoted,
-the first figure is the prototype and the second its identical control.
+"This round" is the runs above;
+"the earlier round" is the author's and the gate review's,
+taken before the fence was in `main`.
 
 - **A.
   Partial clone for every source with changes,
   no size rule.**
   Dirty path on this tree:
-  this round 0.63 (0.28 to 0.90) with its control 0.54 (0.29 to 1.05);
-  the review's 0.84 to 0.86 pooled over 20 identical-binary values,
-  4 of them above 1.0;
-  the author's 0.74 with a control of 0.82.
-  At 300 changed paths this round:
-  0.80 (0.74 to 0.89) with a control of 0.94 (0.81 to 1.06);
-  at 3,000:
-  0.92 (0.49 to 1.12) with a control of 0.76 (0.50 to 1.02),
-  one counted round above `main`.
-  Clean path unchanged:
-  0.62 with a control of 0.85 (the author's,
-  not rerun).
-  It removes the waived cost on this tree's usual shape and turns it into a gain,
-  and a dirty source no longer ends in Git's checkout.
-  It keeps the small-file loss:
-  the author's cloning arm cost 1.14,
-  1.57 and 1.03 at 2.6,
-  8.8 and 26 KB dirty,
-  and the integration pass measured 1.33 and 1.18 clean on the first two.
-  It ends the waiver's dirty half on this tree's usual shape in the median,
-  not in every round;
-  it does not end the widened small-file half;
-  and above a few hundred changed paths it does not meet "no slower than `main`".
+  0.64 (0.23 to 2.84) with its control 0.67 (0.41 to 0.84);
+  at 300 changed paths 0.74 (0.64 to 1.28) with a control 0.79;
+  at 6,000,
+  0.86 (0.57 to 1.01) with a control 0.90.
+  Against Git's own checkout:
+  0.75,
+  0.80 and 1.00 on those three shapes.
+  Clean path unchanged,
+  because the partial clone is the dirty source's path:
+  0.95 with a control 0.97,
+  and `main` is 0.66 of Git's own checkout there.
+  Its losses:
+  a dirty tree of many small files at 1.44 with a control 1.45,
+  and the fence's own costs on top of it.
+  It ends the waiver's dirty half on the three shapes measured,
+  in the median and,
+  at 6,000,
+  in every counted round;
+  it does not touch the widened small-file half,
+  which is now `main`'s own cost;
+  and a dirty source of many small files is slower than `main`.
 - **B.
   Partial clone with the whole-tree size rule,
   declined before the proof.**
   On this tree it clones,
-  so A's dirty figures are its;
-  on the author's small trees it declined at 0.89,
-  1.00 and 1.03 (26 MB,
-  88 MB and 260 MB),
-  and that run had no identical-binary arm.
-  Declined on this tree this round:
-  1.00 (0.95 to 1.13) with a control of 1.01 (0.86 to 1.06),
-  both arms taking Git's checkout;
-  the rule's index read is not a named step and its cost is inside the pair's spread
-  (`0.96` as "25 ms" was the earlier text's error,
-  corrected in "The declined arm").
+  so A's numbers are its.
+  On the 2.6 KB dirty tree it declines and takes Git's checkout:
+  0.91 (0.67 to 1.37) of `main`,
+  where A is 1.44.
+  On the clean small trees it declines at 0.65,
+  0.86 and 0.81 of `main`.
   It needs a threshold,
-  these points put it near 400 MB of tracked bytes,
-  the crossover is bracketed by 260 MB and 780 MB rather than pinned,
+  these points put the crossing between 260 MB and 780 MB of tracked bytes,
   and the unit may not be bytes:
-  all four fixtures hold 10,001 or 24,389 files.
+  every fixture here holds 10,001 or 24,561 files.
   Its scope and placement are part of the decision:
   at the clone rung's choice,
   after the snapshot rung is declined,
-  on ZFS as measured;
-  the prototype's earlier placement would also turn off the snapshot rung on btrfs.
-  And above a few thousand changed paths it is slower than `main` like A;
-  the bound is in "A source with many changed paths".
-  It is the only option measured at or below `main` on the clean small trees (it declines there),
-  and it ends both halves of the waiver only where the threshold is right and the changed-path count is small.
+  on the filesystems rung 2 serves.
+  The prototype evaluates it in `choose_rung` before the snapshot is considered,
+  so on a btrfs host with a subvolume source it would also turn off the snapshot rung,
+  and it applies to clean sources as well,
+  while every figure above is ZFS.
+  That placement is a measurement artifact,
+  not the design.
 - **C.
   Partial clone with the per-file size rule.**
-  Dirty path 1.05 (0.96 to 1.10) at a 4 KB cutoff and 1.90 (1.43 to 2.11) at 32 KB on this tree,
-  against the same run's clone-everything arm at 0.77 (0.71 to 0.83) with its control 0.76 (0.73 to 0.78);
-  writing every unchanged path,
-  which a cutoff above every file means,
-  cost 2.80,
-  3.59 and 4.30 on the small fixtures and 2.83 here.
-  Its clean path would pay the same write step;
-  that was not measured,
-  and on the small trees the write-all figures are what it would cost.
-  It does not reach `main` anywhere measured,
-  and its only measured edge over D is inside the identical pair's spread.
-  It was measured only with a write step the proposal itself calls the wrong tool,
-  so its finding is "this write step loses",
-  not "no per-file rule can win".
-  It ends neither half of the waiver.
+  Not rebuilt this round.
+  The earlier round measured it at 1.05 (0.96 to 1.10) with a 4 KB cutoff and 1.90 (1.43 to 2.11) at 32 KB on this
+  tree,
+  against the same run's clone-everything arm at 0.77 with a control 0.76,
+  and writing every unchanged path cost 2.80,
+  3.59 and 4.30 on the small trees.
+  This round gives the reason to keep that verdict:
+  the write step costs 63 microseconds a path at 6,000 paths,
+  against a clone of the same file,
+  so moving an unchanged path from the clones to the write step loses at every size measured.
+  Its finding is "this write step loses",
+  not "no per-file rule can win":
+  a write step as cheap as Git's checkout was not built.
 - **D.
   No partial clone:
-  keep step 3 as it is under the waiver.**
-  Dirty path 1.14 (1.07 to 1.16) on this tree,
-  the waiver's measured cost;
-  clean path 0.81 here and 1.33 and 1.18 on the 2.6 KB and 8.8 KB trees by the integration pass.
+  keep step 3 under the waiver.**
+  A dirty add is `main`'s,
+  which is Git's own checkout plus the clean proof:
+  1.00 by definition and 1.14 of Git's own checkout (0.71 to 3.19) on this tree,
+  1.20 (0.92 to 1.65) at 6,000 changed paths and 1.27 (0.88 to 1.54) on the 2.6 KB dirty tree.
   It costs nothing new,
   leaves the waiver in place,
-  and leaves `H1`'s reach and the widened small-file cost as they are.
+  and leaves the dirty source's 0.36 of `main` that A removes.
+  It ends nothing.
 
 Ranking:
 **B > A > D > C.**
 
 - B over A:
-  on the small trees B declines to `main`'s own checkout (0.89 to 1.03 plus one index read)
-  where A clones them at 1.14 to 1.57 dirty and 1.33 and 1.18 clean by the integration pass;
-  on this tree both clone,
-  so B's gain is A's.
+  B keeps A's gain where cloning wins and gives the dirty small tree back to Git's checkout at 0.91 of `main`,
+  where A pays 1.44;
+  on this repository's tree the two clone and their numbers are the same.
   B pays a threshold whose unit is not yet pinned;
   A needs no rule but leaves that loss.
 - A over D:
-  A removes the dirty cost on this tree
-  (0.63 this round with a control of 0.54,
-  0.84 to 0.86 on the review's host,
-  0.74 with a control of 0.82 by the author)
-  where D keeps 1.14 and `H1`'s reach.
-  A's small-tree loss is why B is ahead of it,
-  not why D is.
+  A removes 0.36 of `main` on this tree's usual shape,
+  0.26 at 300 changed paths and 0.14 at 6,000,
+  and stays at or below `main` on every counted round of those shapes,
+  where D keeps `main`'s dirty add.
 - D over C:
-  C's dirty edge over D on this tree,
-  1.05 against 1.14,
-  is inside the identical pair's spread
-  (the author's control 0.76 to prototype 0.83,
-  the pair's range 0.71 to 1.10),
-  while C's clean path pays the per-file write step for every file below its cutoff,
-  which on the small trees is 2.80 to 4.30 against D's 1.33 and 1.18.
+  C was measured only with a write step this round shows costs 63 microseconds a path,
+  and its clean path would pay the same write step for every file below its cutoff,
+  which on the small trees is 2.80 to 4.30 against D's parity.
   C therefore loses more than it gains,
   and it ends no waiver.
 
-Which waiver each ends:
+## Which comparison the waiver means
 
-- The record `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md` ends when a dirty add is no slower than
-  `main`'s,
-  and its widened part covers the clean add of a tree of small files.
-- A ends the dirty half on this tree's usual shape (medians;
-  one round of the review's 20,
-  4 of 20 in fact,
-  was above
-  `main`),
-  and neither the widened part nor the many-changed-paths shape.
-- B ends both parts on the measured shapes,
-  under a threshold and a changed-path bound it still needs;
-  declined,
-  its add is `main`'s plus one index read.
-- C ends neither.
-- D ends nothing.
+The waiver record's sentence is "If it is accepted and lands with a dirty add no slower than `main`'s,
+this waiver ends with it".
+It was written when `main` did not take the clone rung on ZFS,
+so "`main`'s" meant Git's own checkout plus the wrapper's checks.
+On `main` as it is,
+a dirty add is still Git's own checkout,
+because a dirty source fails the clean proof,
+so the two readings differ only by the checks `main` pays before the checkout:
+`main` is 1.14 of Git's own checkout on this tree (0.71 to 3.19),
+1.20 at 6,000 changed paths (0.92 to 1.65),
+and 1.27 on the 2.6 KB dirty tree (0.88 to 1.54).
+The waiver's sentence is therefore read as `main`'s own add,
+and Git's own checkout is reported beside it so a reader can take the stricter one.
+
+- The dirty half:
+  A ends it on this tree's usual shape (0.64 of `main`,
+  0.75 of Git's own checkout),
+  at 300 changed paths (0.74,
+  0.80) and at 6,000 (0.86,
+  1.00).
+  B ends it on those shapes and on the dirty small tree where it declines (0.91).
+- The widened small-file half:
+  neither A nor B changes a clean add at all,
+  because a clean source never takes the partial clone.
+  `main` now takes the fenced clone rung for a clean source,
+  so the widened cost is `main`'s own:
+  it is 1.17,
+  1.04 and 1.08 of Git's own checkout on the three small trees,
+  and this proposal cannot end it.
+  A record that ends that half has to be about the clean rung's own price,
+  which is the fence's size read and the clone's per-file cost.
 
 ## The gate review's findings, answered
 
 The review is `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/keep/review.md`,
 with its logs and scripts beside it.
-Each finding is fixed here,
+Each finding is fixed,
 recorded as a limit,
-or dismissed with the reason.
+or superseded by a change `main` has since taken.
 
 - **H1,
-  the equality claim where a text or end-of-line conversion applies:
-  recorded as an open limit,
-  and no fence built.**
-  "What a partial clone does" states the condition under which a clone equals Git's checkout,
-  that rung 2 has had the limit since it existed (`s04b`),
-  the dirty forms (`s04`,
-  `s04c`),
-  and that the remedy waits on the project's decision.
-  The conversion bullet under "The other states the question names",
-  "How the result is proven" and the new `SPEC.md`
-  text carry the same condition.
-  A fence on the presence of `text`,
-  `eol` or `autocrlf` would refuse this repository,
-  and a per-path fence needs the bytes.
+  a clone keeps the source's bytes where a checkout conversion would write others:
+  answered by the fence,
+  not by this proposal.**
+  The project chose the fence's option B on 2026-11-20,
+  `c423010a4e` merged it into `main` on 2026-11-21,
+  and the fence now hands every path whose checkout would convert it to Git.
+  A partial clone reaches the fence through the same beside-the-copies shape,
+  so a path it clones is one both proofs carry,
+  and the unit control `a_path_a_conversion_rule_reaches_is_written_by_git` shows the case end to end:
+  a `*.txt text eol=crlf` rule over LF files,
+  the path written by Git,
+  the served bytes `\r\n`.
+  What remains of the class is the fence's own limits,
+  an ignored untracked `.gitattributes` among them,
+  and they are recorded in the fence's proposal and in "Limitations" here.
 - **M1,
-  the proof cannot see wrong bytes in a cloned path,
-  and one comparison guards the staged case:
-  fixed in the text and the prototype.**
-  "How the result is proven" now says what the proof proves and what it does not,
-  and the rung asks Git in the source for the staged paths and refuses one among the clones
-  (`staged_paths`,
-  `a_staged_path_among_the_clones`).
-  The red shows that answer firing alone after the split's comparison was planted away.
-  The remaining classes (a stat-trusted edit,
-  a racy entry) are as the review describes them:
-  Git's own trust and the engine's descriptors,
-  not the proof.
+  the proof cannot see wrong bytes in a cloned path:
+  fixed by dropping the proof and by the second answer.**
+  The rung no longer claims a `git status` proof it does not have;
+  what it has is the split's per-path proof,
+  the second staged-path listing,
+  the index built from the tree,
+  and the fence's write.
+  The staged class has its own control and its own second computation.
 - **M2,
   a dirty linked worktree is still refused:
   fixed in the text,
   the lift owed.**
-  "States that still refuse the whole rung" and the new `SPEC.md` text name it,
-  with `restorable_here` and the review's `s11` as the evidence;
-  letting the clone rung take one needs a flag of its own and a measurement of its add.
+  "States that still refuse the whole rung" names it with `restorable_here`,
+  and the new `SPEC.md` text names it too.
+  Letting the clone rung take one needs a check of its own and a measurement of its add.
 - **M3,
   measurement statements the data does not support:
-  fixed,
-  five corrections.**
-  First,
-  the control spread:
-  the author's control followed the prototype in 8 of 10 rounds and was slower in all 8,
-  by 11 to 44 per cent,
-  so the pair's control is the fairer figure.
-  Second,
-  the host:
-  `nproc` 8 and 32 processors in `/proc/cpuinfo` are now said,
-  and the 6-CPU quota's 5 workers is what the records say,
-  not an inference.
-  Third,
-  the "declined after the proof" figures 1.38,
-  1.30,
-  1.23 and 1.33 could not be reproduced from the kept JSON
-  and are withdrawn;
-  the placement's cost is argued from step 3's measured 1.14 instead.
-  Fourth,
-  "about 25 ms,
-  measured as the 0.96 of the declined arm" is corrected:
-  0.96 is below 1,
-  so that arm measured no cost,
-  and the declined arm's parity is what the new round shows.
-  Fifth,
-  the author's binary was built from the working tree before its size-rule and notice commits,
-  so it cannot be tied to a commit;
-  this round's binaries are named by commit and sha256,
-  and the harness asserts both digests before a round.
+  superseded.**
+  This round's numbers are its own,
+  every figure has its identical-binary control beside it,
+  the host and the quota are stated,
+  and the binaries are named by commit and sha256.
+  The author's 0.74 and the review's 0.84 to 0.86 are kept only as the earlier round's,
+  and the comparison they belong to is named.
 - **M4,
   the gain's size is not reproduced:
-  fixed by restating it with its control.**
-  This round measures 0.63 with its control 0.54 on a host under load 20 to 22,
-  the review measures 0.84 to 0.86 under 6 to 11,
-  and the author's 0.74 comes with a control of 0.82.
-  "Never slower" is gone from A and B:
-  the identical pair itself spans 0.58 to 1.67 in a round.
+  answered by measuring the fenced rung.**
+  This round measures 0.64 with a control of 0.67 on this tree,
+  and the pair's median spread is 1.04:
+  the gain is real,
+  about a third,
+  and its size is the host's.
+  "Never slower" is not claimed;
+  every ratio here carries its range.
 - **M5,
-  no measurement of many changed paths:
-  fixed by measuring 300 and 3,000 and stating the bound.**
-  At 300 the pair is 0.80 and 0.94;
-  at 3,000 it is 0.92 and 0.76 with one round above `main` at 1.12;
-  the review's 6,000 is 1.54 with 1.44.
-  "A source with many changed paths" states the bound,
-  the two ways to hold it,
-  and that above it the waiver's
-  "no slower than `main`'s" is not met.
+  a source with many changed paths:
+  measured to 6,000,
+  and the loss the review found is gone.**
+  At 300 paths the add is 0.74 of `main` with a control of 0.79,
+  and at 6,000 it is 0.86 with a control of 0.90,
+  at or below `main` in every counted round.
+  The review's 1.54 came from a rung that wrote the paths through a slower shape and then proved the worktree;
+  the fenced rung writes them through the waiting index and proves nothing after.
+  The write step is 63 microseconds a path at 6,000,
+  and no round measured a whole-tree rewrite.
 - **M6,
   the ranking and the options:
-  fixed.**
-  The ranking is B > A > D > C,
-  with D over C because C's dirty edge over D is inside the identical pair's spread while C's clean path pays the
-  per-file write step (2.80 to 4.30 on the small trees against D's 1.33 and 1.18).
-  B's scope and placement are written:
-  the clone rung's choice,
-  after the snapshot,
-  on ZFS as measured;
-  the threshold's unit may not be bytes,
-  and all four fixtures held one file count;
-  the declined arm's cost is at parity,
-  not 25 ms.
-  Each option now says which half of the waiver it ends,
-  or that it ends neither.
+  redone on this round's figures.**
+  The ranking is B > A > D > C with the reasons given,
+  every option says which half of the waiver it ends,
+  B's scope and placement are written,
+  and the threshold's unit may not be bytes.
 - **M7,
   incomplete and inaccurate design text:
-  fixed.**
+  rewritten.**
   The index is built from the source's `HEAD` tree,
-  with `read-tree -m -u` bringing a different `HEAD` in;
   a path below a link is written,
-  not refused (`s07` equals Git's checkout);
-  the new subsection is anchored to the end of the paragraph it follows,
-  not to a sentence in its middle.
-  The stale "saves disk,
-  not time" is gone from the new text.
-  The four other places are listed with their new text:
-  `SPEC.md:1250` to `1253`,
-  `README.md:819`,
-  `worktree_snapshot_source.rs:349` to `354`,
-  and `cli-git-zfs-worktree-implementation-plan.md:605` to `617`.
-- **L1:
-  fixed.**
-  `95ce7f01be`'s message is quoted as what it says (the subvolume destination and the removal),
-  the module doc is what names the callers,
-  and `faede9969b`'s message is quoted for the sharing that made the clone rung inherit the untracked refusal.
-- **L2:
-  fixed with two controls.**
-  `a_new_head_that_differs_is_brought_in_after_the_clones` and
-  `a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned`;
-  both passed on this host,
-  the second after its own skip check ran the reflink probe.
-- **L3:
-  recorded as an inherited limit.**
-  An ignored,
-  untracked `.gitattributes` is invisible to the untracked listing the source check uses,
-  and it is the same class as `H1`;
-  this round did not run it,
-  and the new `SPEC.md` text does not claim it is covered.
-- **L4:
-  recorded as an inherited limit.**
-  A file cloned within the pool's transaction timeout waits for the pool;
-  the dirty arm writes only the files it does not clone,
-  so the measurement could not show it,
-  and a source that was just pulled can.
-- **L5:
-  partly fixed,
-  partly owed.**
-  The commit message is not amended (it is named in "What this leaves owed" with the corrective comment owed under
-  `GCA`).
-  The fixture's stripped `filter=lfs` lines are now stated as a limit,
-  with `git-lfs` 3.8.1 on this host and the round owed;
-  the small trees' ten flat directories are named where they are described.
+  the new `SPEC.md` subsection follows the fence's paragraph,
+  the stale "saves disk,
+  not time" is gone,
+  and the places listed are the ones `main` now has.
 
-The review withdrew its draft finding about the racy rule's name;
-nothing here answers it.
+The review's lows:
+
+- **L1:
+  fixed** by citing `faede9969b` and the module doc separately.
+- **L2:
+  fixed with two controls**,
+  which pass on this host.
+- **L3:
+  an inherited fence limit**,
+  not measured this round.
+- **L4:
+  an inherited limit** for the pool wait,
+  not measured this round.
+- **L5:
+  partly closed.**
+  The fixture keeps this repository's own `.gitattributes` except for the `filter=lfs` lines,
+  as the earlier rounds did,
+  so an LFS-attributed tree's round is still owed;
+  this round did establish why the fixture cannot keep those lines without an LFS object store:
+  with the standard LFS filter configured,
+  a repository whose blobs are the images themselves reads every image as modified,
+  and without the filter configured,
+  the fence refuses the source it cannot prove
+  ("the lfs filter is not the standard Git LFS definition").
+
+## Limitations
+
+- **The fence's `git ls-tree` is a quarter of a dirty add on this tree.**
+  It is 219 to 250 ms of the 1,012 ms usual add,
+  and 71 to 84 ms of a 200 to 250 ms small-tree add.
+  It is the fence's cost,
+  `main` pays it on every clean add,
+  and the faster size reader the project accepted would remove most of it.
+- **A dirty source of many small files is slower than `main`.**
+  1.44 (0.83 to 1.69) with a control of 1.45 on 10,001 files of 2.6 KB,
+  and the whole-tree rule takes it to 0.91.
+  No design here makes cloning a small file cheaper than Git's write of it.
+- **A linked worktree with uncommitted changes is still refused**,
+  so a session working in `.claude/worktrees/<name>` gets Git's checkout,
+  not the partial clone.
+- **A whole-tree rewrite was not measured.**
+  The write step costs 63 microseconds a path at 6,000,
+  so a source whose every path changed would write 24,561 paths through Git and pay about 1.5 s for it,
+  on top of the clones and the fence;
+  no round exercised it.
+- **The threshold is not pinned,
+  and its unit may not be bytes.**
+  The crossing lies between 260 MB and 780 MB of tracked bytes on trees of 10,001 and 24,561 files,
+  and file count and mean size were never varied apart in the same disk's worth of measurement.
+- **The size rules are environment variables of the prototype.**
+  A shipped rule is a design decision with a recorded threshold,
+  not a variable.
+- **An ignored untracked `.gitattributes` is still invisible to the fence's listing**,
+  an inherited limit,
+  not measured this round.
+- **A file cloned within the pool's transaction timeout waits for the pool**,
+  an inherited limit,
+  not measured this round.
+- **An LFS-attributed source was not measured.**
+  This round established the two shapes that fixture takes and why neither is a measurement;
+  the round is owed.
+- **The check the source passes no longer reads the diff to content.**
+  The split's proof is Git's stat trust taken in process,
+  so an edit that keeps size and times is caught by the change time,
+  the inode or the owner,
+  and an engine that cannot see one of those would clone the edit.
+  This is Git's own trust,
+  not a weaker one.
+- **`worktree_clone.rs` is over the package's line limit**,
+  and the entry point this round added belongs in a sibling when the rung is written for a merge.
 
 ## What this leaves owed
 
-- The gate's whole suite in the gate image ran at `dba1276a06`,
-  the tip before this round's prototype commit:
-  9,291 tests,
-  9,287 passed,
-  4 failed and 28 skipped,
-  and the four failures are none of this rung's:
-  two `repair::package_repair_prewarm_job` controls whose fixture cannot resolve `serde` offline in that image,
-  and two commit-service controls that find a `cli-git-lock-holders` entry a control does not expect.
-  The code this round added after that tip (the second answer and two controls) passed the module's tests on this host;
-  the gate is what a merge runs again,
-  so these figures name what the earlier round saw,
-  not a green gate.
-- The standing notice's control over the steps an add enters failed on the first gate run,
-  because the partial clone's five steps had no sentence;
-  the sentences are written,
-  the sixth step (`partStaged`) has its own,
-  and the control passes.
-- This round did not rerun the clean arm,
-  build step 3,
-  or rebuild the author's three small-file fixtures;
-  their figures are the author's kept rounds,
-  recomputed,
-  with the control notes given beside them,
-  and its own rounds ran under load 9 to 22,
-  which is why the ratios to `main` differ from the review's.
-- A round on a tree where the source is a linked worktree,
-  once the refusal is lifted,
-  and a measured changed-path
-  bound if the owner wants one rather than a stated bound.
-- `worktree_clone.rs` was already over the package's 300-code-line limit before this change,
-  and the four functions this prototype added to it belong in a sibling when the rung is written for a merge.
-- A ladder ceiling for `git checkout-index`:
-  the prototype runs it through the captured runner,
+- The gate image's whole suite at this branch's tip,
+  which is what a merge runs again.
+  On this host 913 of the 930 `worktree::` tests pass;
+  the 17 that fail are this host's and not this rung's:
+  eight create a name that is not UTF-8 and this ZFS dataset refuses it with `EILSEQ`,
+  and nine are the parallelism controls that pass alone and fail in a batch under load.
+- A `git checkout-index` ceiling for the ladder:
+  the run goes through the captured runner,
   which bounds it,
-  but `ladder_step_ceilings.rs` does not classify it,
-  so a merge must give it `LADDER_CHECKOUT_CEILING` or a class of its own.
+  but `ladder_step_ceilings.rs` does not classify it.
+- A round on a tree whose `.gitattributes` keeps its `filter=lfs` lines and whose blobs are LFS pointers.
+- A round on a source that is a linked worktree,
+  once the refusal is lifted.
+- A measured threshold for the whole-tree rule,
+  and the same measurement on XFS,
+  overlayfs and btrfs.
 - The split of the source check,
-  so the clone rung stops paying the untracked scan and the trash question:
-  measured above at about 117 ms together,
-  and not built.
-- The one-`git status` classification:
-  its parts are measured,
-  the combination is not.
+  so the clone rung stops paying the untracked scan and the trash question,
+  measured at about 145 ms of a dirty add here.
+- The one-`git status` classification of the source's changes,
+  whose parts are measured and whose combination is not.
 - A cheaper write step,
   if the per-file rule is ever wanted again.
-- A pin on the threshold between 260 MB and 780 MB,
-  and the same measurement on XFS,
-  overlayfs and btrfs,
-  which this host cannot take.
-- The size rules are environment variables of the prototype.
-  A shipped rule is a design decision with a recorded threshold,
-  not a variable.
-- `H1`:
-  a clone keeps the source's bytes where a text or end-of-line conversion would make Git's checkout write others,
-  and neither stat data nor `git status` can tell.
-  The remedy reaches the accepted clone rung,
-  so it is a project decision being prepared separately,
-  and this proposal only records the limit.
-- A dirty linked worktree is still refused (`restorable_here`);
-  letting the clone rung take one needs a check of its own and a measurement of its add.
-- A round on a tree whose `.gitattributes` keeps its `filter=lfs` lines.
-  This host has `git-lfs` 3.8.1,
-  but every fixture here strips those lines as the earlier rounds did,
-  so no round exercised an LFS-attributed tree (the review's `L5`).
-- The ignored,
-  untracked `.gitattributes` above (the review's `L3`),
-  and the pool wait for a file cloned within its transaction timeout (the review's `L4`):
-  both are inherited limits stated,
-  not measured.
-- A bound on the number of unchanged paths a clone may write,
-  or a decline above it:
-  the measured break-even is in "A source with many changed paths".
+- The four red proofs re-planted against the fenced rung,
+  which this round did not do.
 - The ladder's full routing control,
   with an `AddPlan` and both rungs on a clone-capable source,
-  beyond `a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned`
-  and the timing harness.
-- The commit `dba1276a06` repeats the subject of `4f0175786c` and does not say it amends;
-  it is not amended,
-  and a corrective comment on it is owed under `GCA`.
-- The Rust controls ran on this host as `cargo test --locked --offline --lib` with
-  `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`,
-  because `cargo nextest` is not installed here;
-  the gate image's nextest run is the authority and a merge runs it again.
+  beyond `a_dirty_source_gets_the_clone_rung_where_files_can_be_cloned`.
+
+## The decision asked for
+
+The owner is asked to choose among A,
+B,
+C and D as ranked,
+and the ranking's own reasons say what each buys:
+
+- A lands the partial clone as it is measured,
+  and accepts the dirty small-file loss;
+- B lands it with the whole-tree rule,
+  and needs the threshold,
+  its unit and its placement decided;
+- C is the per-file rule,
+  which this round's numbers put last;
+- D keeps step 3 as it is under the waiver.
+
+Whichever is chosen,
+what lands is the prototype's design on the fenced rung,
+with the `SPEC.md`,
+`README.md`,
+plan and source-comment changes quoted above,
+and with the gate image's suite green.
