@@ -2788,16 +2788,17 @@ nothing here claims their behaviour.
 - `3e34817184`,
   committed `2026-11-22T18:11:19-05:00`:
   the metadata-only commit that recorded the two above.
-- The commit that answers the second pass,
-  subject beginning "docs(planning):
-  fix what the second gate pass found",
+- `8228a9efdb`,
+  committed `2026-11-22T18:39:07-05:00`:
+  the version that answers the second pass,
   with the changes the second part of "What this revision rewrote" lists.
-  Its committer time is what `git log --format=%cI` prints for it.
 - The metadata-only commit after it,
   subject beginning "docs(planning):
   record the second pass's revisions",
-  whose only change is the two times above,
+  whose only change is this bullet and the time above,
   read from `git log --format=%cI` before it is made.
+  Its own committer time can only be read from `git log --format=%cI` for it,
+  because a document cannot name the time of the commit that writes it.
 
 [vm-12]: cli-git-zfs-measurements-owed-before-acceptance.md
 [vm-17]: cli-git-zfs-measurements-owed-before-acceptance.md
