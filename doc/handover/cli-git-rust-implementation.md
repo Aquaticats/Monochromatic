@@ -41885,7 +41885,21 @@ stated in this entry. What follows from them, as work:
   is left for issue 6342's round); gate 9875 of 9877. The sibling control
   `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory` keeps one such exposure, documented and unchanged. GOING:
   its integration pass on Sonnet (review to `~/temp/agent/integration-pass-shadow-control-init-cut-every-time-2026-11-22/`).
-  The partial clone round's folder reached 6.0 GiB of a 12 GiB `~/temp/agent`; it was told by message to stay under 10 GiB. Step 7's
+  The partial clone round's folder reached 6.0 GiB of a 12 GiB `~/temp/agent`; it was told by message to stay under 10 GiB.
+  THE BTRFS FOLLOW-UP IS MERGED as `473dccebbc` (2026-11-22, pushed): its pass on Sonnet said fit
+  (`~/temp/agent/integration-pass-btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/keep/review.md`; 24 of 24 btrfs
+  controls in a guest; the top-level control ran on a real top-level root; 2 of 1,500 subvolumes answered 0, so the
+  leaf-boundary 0 is observed; gate 9877 of 9879). Its lows wait for a btrfs-guest round with the seven root-only controls
+  and the `worktree_landed_removal` hand-over: `SPEC.md` names only the source read; the document's unchecked list is stale;
+  two test doc comments and the stated limit overclaim; the top-level control's wrapper assertion has never been red. Host
+  facts read at 2026-11-22T15:50-05:00, for whoever reads a guest timing: swap is zram (61.7 G, 36 G used) at
+  `vm.swappiness` 150; three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G); the ZFS cache was at
+  2.1 G of 60.7 G; memory pressure about 4 percent; 30 processors at a load of 17 to 25. Three notes went to running rounds
+  on a second check's advice: the no-configuration round runs, in its guest, whether an account with the design's delegation
+  can make a dataset of the checkout's leaf name that a boot then mounts as root (this decides its merge; the staging record
+  says the account is trusted on this machine, so the answer goes to the owner as a fact); the object reader round adds a
+  control with a variable set on the client only, through the real service; the step 8 follow-up was told a `tmpfs` inside
+  the repository's namespace helper is not a host mount. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
