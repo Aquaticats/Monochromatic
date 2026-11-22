@@ -39,10 +39,15 @@ use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The suffix of the sibling a receipt is staged under before its rename.
 /// It is never a receipt and never read as one.
 pub const STAGING_SUFFIX: &str = ".staging";
+
+/// Distinguishes the staging names of two publishes one process makes,
+/// so no publish ever shares another's sibling.
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// What:
 ///  Where receipts live and which account must own them.
@@ -87,12 +92,24 @@ impl ReceiptsFolder {
         return dataset.file_name();
     }
 
-    /// The sibling a receipt is staged under before its rename.
-    /// It carries this process's id,
-    /// so a writer killed before its rename leaves a name no later run reuses
-    /// and no receipt is ever read from.
+    /// What:
+    ///  The sibling one publish of a receipt is staged under before its rename.
+    /// Why:
+    ///   The name carries this process's id and a counter of this process's own
+    ///  attempts,
+    ///  so two publishes in one process never share a staging name (a shared name
+    ///  lets the second publish remove the first one's live sibling and rename a
+    ///  half-written file into the receipt's name),
+    ///  and a writer killed before its rename leaves a name no later attempt
+    ///  reuses and no receipt is ever read from.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const staging = `${guid}.staging.${process.pid}.${nextAttempt()}`;
+    /// ```
     pub fn staging_name(&self, dataset: DatasetGuid) -> String {
-        return format!("{}{STAGING_SUFFIX}.{}", dataset.file_name(), std::process::id());
+        let attempt: u64 = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
+        return format!("{}{STAGING_SUFFIX}.{}.{attempt}", dataset.file_name(), std::process::id());
     }
 
     /// What:
@@ -140,7 +157,8 @@ impl ReceiptsFolder {
         }
         let staging: String = self.staging_name(receipt.dataset);
         let staged: Result<(), ReceiptsRefusal> = (|| {
-            let mut file: std::fs::File = self.create_staging(&directory, staging.as_str())?;
+            let mut file: std::fs::File = create_at(&directory, staging.as_str(), RECEIPT_MODE)
+                .map_err(|error| return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() })?;
             file.set_permissions(std::fs::Permissions::from_mode(RECEIPT_MODE)).map_err(|error| {
                 return ReceiptsRefusal::Staging { name: staging.clone(), reason: error.to_string() };
             })?;
@@ -161,35 +179,6 @@ impl ReceiptsFolder {
             let _removed: std::io::Result<()> = unlink_at(&directory, staging.as_str());
         }
         return staged;
-    }
-
-    /// What:
-    ///  Create this writer's staging sibling,
-    ///  replacing one an earlier run of this process left.
-    /// Why:
-    ///   The sibling's name carries this process's id,
-    ///  so a name already there can only be this process's own earlier failure
-    ///  (or a reused id):
-    ///  nobody else writes this route's staging names,
-    ///  and treating it as another writer's file would block the very retry
-    ///  the sibling's own removal exists to allow.
-    ///
-    /// # Errors
-    /// The sibling could not be made even after the leftover was removed.
-    fn create_staging(&self, directory: &std::fs::File, staging: &str) -> Result<std::fs::File, ReceiptsRefusal> {
-        return match create_at(directory, staging, RECEIPT_MODE) {
-            Ok(file) => Ok(file),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let removed: std::io::Result<()> = unlink_at(directory, staging);
-                if let Err(removal) = removed {
-                    return Err(ReceiptsRefusal::Staging { name: String::from(staging), reason: removal.to_string() });
-                }
-                create_at(directory, staging, RECEIPT_MODE).map_err(|again| {
-                    return ReceiptsRefusal::Staging { name: String::from(staging), reason: again.to_string() };
-                })
-            }
-            Err(error) => Err(ReceiptsRefusal::Staging { name: String::from(staging), reason: error.to_string() }),
-        };
     }
 
     /// Make the directory and prove it,

@@ -24,6 +24,11 @@
 //!  so the kernel lets exactly one claimant create it,
 //!  the owner is named by process birth rather than by a reused process id,
 //!  and a killed claimant leaves nothing to clean by hand.
+//!  The directory is proved through its own descriptor before the claim is
+//!  taken,
+//!  and the claim's own calls then resolve that path again:
+//!  a descriptor-relative `take_claim` would close that window,
+//!  and the step that first calls this claim owns that extension.
 //!  Rule `NLK` asks for a lock only where one cannot be avoided,
 //!  and this claim does not need one:
 //!  the takeover is the single exclusive creation that a lock would otherwise
@@ -235,8 +240,11 @@ impl SlotClaimDirectory {
         if let Some(reason) = slot_name_refusal(slot) {
             return Err(ClaimRefusal::SlotName { slot: String::from(slot), reason });
         }
-        // The shared claim makes path-based calls and checks no owner or mode of its directory, so the designed folder
-        // is proved through its own descriptor first, and nothing below a replaced path is claimed in.
+        // The shared claim makes path-based calls and checks no owner or mode of its directory, so the designed folder is
+        // proved through its own descriptor first, and the claim is then taken inside a folder only root can replace.
+        // Its own calls still resolve that path again, so the window between this proof and the claim is open; closing it
+        // needs a descriptor-relative take_claim (the shared module's openat, linkat and unlinkat) and belongs to the step
+        // that first calls this claim.
         self.open_directory()?;
         let outcome: ClaimOutcome = take_claim(self.directory.as_path(), OsStr::new(slot)).map_err(|error| {
             return ClaimRefusal::Records { slot: String::from(slot), reason: error.to_string() };

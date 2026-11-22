@@ -16,7 +16,9 @@
 //! const file = ReadinessFile.at(fixture('readiness'), process.getuid()); file.publish(record); file.read();
 //! ```
 
-use super::{READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, ReadinessFile, ReadinessFileRefusal};
+use super::{
+    READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, ReadinessFile, ReadinessFileRefusal, readiness_staging_name,
+};
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessRecord, ReadyState, SweepState};
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
@@ -171,6 +173,50 @@ fn a_first_publish_makes_its_directory() {
 fn an_unpublished_boot_has_no_directory_and_no_refusal() {
     let file: ReadinessFile = ReadinessFile::at(fixture("readiness-no-directory").join("never-made"), this_uid());
     assert_eq!(file.read().expect("an absent directory is no record yet"), None);
+}
+
+/// What:
+///  Two publishes of one record in one process, at the same time,
+///  leave one whole record and no staging sibling.
+/// Why:
+///   The record has several writers once the boot unit and the sweeps land,
+///  and a staging name shared by two publishes would let the second remove the
+///  first one's live file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.all([file.publish(a), file.publish(b)]); expect(file.staging()).not.toExist();
+/// ```
+#[test]
+fn two_publishes_at_once_leave_one_whole_record() {
+    let file: ReadinessFile = live_file("readiness-two-writers");
+    assert_ne!(readiness_staging_name(), readiness_staging_name(), "two attempts never share a staging name");
+    let mut first: ReadinessRecord = record();
+    let mut second: ReadinessRecord = record();
+    first.time = String::from("2026-11-21T15:00:01Z");
+    second.checkout_state = ReadyState::NotReady;
+    second.time = String::from("2026-11-21T15:00:02Z");
+    let gate: std::sync::Barrier = std::sync::Barrier::new(2);
+    std::thread::scope(|scope| {
+        for record in [&first, &second] {
+            let writer: ReadinessFile = file.clone();
+            let publishing: ReadinessRecord = record.clone();
+            let barrier: &std::sync::Barrier = &gate;
+            scope.spawn(move || {
+                barrier.wait();
+                writer.publish(&publishing).expect("a writer publishes its record");
+            });
+        }
+    });
+    let found: Option<ReadinessRecord> = file.read().expect("the record is read");
+    assert!(found.as_ref() == Some(&first) || found.as_ref() == Some(&second), "one whole record is the answer: {found:?}");
+    let left: Vec<PathBuf> = std::fs::read_dir(file.directory())
+        .expect("the directory lists")
+        .flatten()
+        .map(|entry| return entry.path())
+        .filter(|path| return path.to_string_lossy().contains(".staging."))
+        .collect();
+    assert!(left.is_empty(), "no staging sibling survives: {left:?}");
 }
 
 /// What:

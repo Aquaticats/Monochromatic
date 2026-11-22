@@ -35,15 +35,34 @@ use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The sibling a record is staged under before its rename.
 pub const READINESS_STAGING_NAME: &str = "result.staging";
 
-/// The staging sibling this writer uses,
-/// named for its process so a killed writer leaves a name no later run reuses.
+/// What:
+///  The sibling one publish of the record is staged under before its rename.
+/// Why:
+///   The name carries this process's id and a counter of this process's own
+///  attempts,
+///  so two publishes in one process never share a staging name (a shared name
+///  lets the second publish remove the first one's live sibling and rename a
+///  half-written record into the record's name),
+///  and a writer killed before its rename leaves a name no later attempt
+///  reuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staging = `result.staging.${process.pid}.${nextAttempt()}`;
+/// ```
 pub fn readiness_staging_name() -> String {
-    return format!("{READINESS_STAGING_NAME}.{}", std::process::id());
+    let attempt: u64 = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
+    return format!("{READINESS_STAGING_NAME}.{}.{attempt}", std::process::id());
 }
+
+/// Distinguishes the staging names of two publishes one process makes,
+/// so no publish ever shares another's sibling.
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// What:
 ///  Why the readiness directory or its record could not be used.
@@ -251,7 +270,8 @@ impl ReadinessFile {
         }
         let staging: String = readiness_staging_name();
         let staged: Result<(), ReadinessFileRefusal> = (|| {
-            let mut file: std::fs::File = self.create_staging(&directory, staging.as_str())?;
+            let mut file: std::fs::File = create_at(&directory, staging.as_str(), READINESS_MODE)
+                .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.set_permissions(std::fs::Permissions::from_mode(READINESS_MODE))
                 .map_err(|error| return ReadinessFileRefusal::Staging { reason: error.to_string() })?;
             file.write_all(text.as_bytes())
@@ -266,32 +286,6 @@ impl ReadinessFile {
             let _removed: std::io::Result<()> = unlink_at(&directory, staging.as_str());
         }
         return staged;
-    }
-
-    /// What:
-    ///  Create this writer's staging sibling,
-    ///  replacing one an earlier run of this process left.
-    /// Why:
-    ///   The sibling's name carries this process's id,
-    ///  so a name already there can only be this process's own earlier failure
-    ///  (or a reused id),
-    ///  and treating it as another writer's file would block the very retry
-    ///  the sibling's own removal exists to allow.
-    ///
-    /// # Errors
-    /// The sibling could not be made even after the leftover was removed.
-    fn create_staging(&self, directory: &std::fs::File, staging: &str) -> Result<std::fs::File, ReadinessFileRefusal> {
-        return match create_at(directory, staging, READINESS_MODE) {
-            Ok(file) => Ok(file),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let removed: std::io::Result<()> = unlink_at(directory, staging);
-                if let Err(removal) = removed {
-                    return Err(ReadinessFileRefusal::Staging { reason: removal.to_string() });
-                }
-                create_at(directory, staging, READINESS_MODE).map_err(|again| return ReadinessFileRefusal::Staging { reason: again.to_string() })
-            }
-            Err(error) => Err(ReadinessFileRefusal::Staging { reason: error.to_string() }),
-        };
     }
 
     /// Make the directory and prove it,

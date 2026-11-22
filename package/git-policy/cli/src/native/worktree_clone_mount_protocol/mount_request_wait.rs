@@ -327,13 +327,18 @@ pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, de
     let started: tokio::time::Instant = tokio::time::Instant::now();
     let mut last: Option<LastObservation> = None;
     loop {
-        let found: Result<Option<CloneMountReceipt>, ReceiptsRefusal> = run_blocking_job({
-            let holder: ReceiptsFolder = folder.clone();
-            let dataset: DatasetGuid = request.dataset;
-            move || return holder.read(dataset)
-        })
-        .await
-        .map_err(|refusal| return WaitRefusal::Unread { refusal })?;
+        // The read is raced against what is left of the deadline, so a read the filesystem holds past its time answers the
+        // report rather than the wait: a job of the blocking pool cannot be cancelled, so dropping its handle only stops this
+        // wait from hearing it, which is what a deadline asks for.
+        let read = read_the_receipt(folder, request.dataset);
+        let found: Result<Option<CloneMountReceipt>, ReceiptsRefusal> = match remaining(started.elapsed(), deadline) {
+            None => read.await?,
+            Some(left) => tokio::select! {
+                biased;
+                outcome = read => outcome?,
+                () = tokio::time::sleep(left) => return Err(timeout_report(request, last, deadline)),
+            },
+        };
         match found {
             Ok(Some(receipt)) => match standing_of(request, &receipt) {
                 ReceiptStanding::Answer(answer) => return Ok(answer),
@@ -342,15 +347,45 @@ pub async fn wait_for_answer(folder: &ReceiptsFolder, request: &MountRequest, de
                     last = Some(LastObservation::Stale(reason));
                 }
             },
-            Ok(None) => {}
+            // A directory that appeared and holds no receipt yet is no longer absent, so the report stops saying it was.
+            Ok(None) => last = None,
             Err(ReceiptsRefusal::DirectoryAbsent { path }) => last = Some(LastObservation::AbsentDirectory { path }),
             Err(refusal) => return Err(WaitRefusal::Receipts(refusal)),
         }
         let Some(left) = remaining(started.elapsed(), deadline) else {
-            return Err(WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() });
+            return Err(timeout_report(request, last, deadline));
         };
         tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL.min(left)).await;
     }
+}
+
+/// What:
+///  One read of one dataset's receipt, on the blocking pool.
+/// Why:
+///   The read opens,
+///  checks and reads a file,
+///  and only a job of the blocking pool keeps that off the workers that poll
+///  tasks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const found = await runBlockingJob(() => folder.read(guid));
+/// ```
+async fn read_the_receipt(
+    folder: &ReceiptsFolder,
+    dataset: DatasetGuid,
+) -> Result<Result<Option<CloneMountReceipt>, ReceiptsRefusal>, WaitRefusal> {
+    return run_blocking_job({
+        let holder: ReceiptsFolder = folder.clone();
+        move || return holder.read(dataset)
+    })
+    .await
+    .map_err(|refusal| return WaitRefusal::Unread { refusal });
+}
+
+/// The deadline's report for `request`, with what the wait last saw.
+fn timeout_report(request: &MountRequest, last: Option<LastObservation>, deadline: Duration) -> WaitRefusal {
+    return WaitRefusal::TimedOut { request: Box::new(request.clone()), last, deadline_millis: deadline.as_millis() };
 }
 
 /// The log tag of every decision this module takes.

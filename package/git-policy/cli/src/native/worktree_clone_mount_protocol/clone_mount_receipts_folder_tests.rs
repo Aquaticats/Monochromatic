@@ -356,23 +356,73 @@ fn a_failed_publish_leaves_no_staging_sibling() {
 /// What:
 ///  A staging sibling this process left in an earlier run blocks nothing.
 /// Why:
-///   The sibling's name carries this process's id,
-///  so a name already there is this process's own earlier failure,
-///  and waiting on it would end a retry the removal exists to allow.
+///   Every attempt has a name of its own,
+///  so a leftover from this process's earlier failure is neither reused nor in
+///  the way,
+///  and the control keeps the plant so the property is held rather than assumed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writeFile(folder.stagingName(guid), 'v1\n'); folder.publish(receipt); expect(read(guid)).toEqual(receipt);
+/// writeFile(folder.stagingName(oldAttempt), 'v1\n'); folder.publish(receipt); expect(read(guid)).toEqual(receipt);
 /// ```
 #[test]
 fn a_staging_sibling_of_this_process_blocks_nothing() {
     let folder: ReceiptsFolder = live_folder("receipts-own-sibling");
     let receipt: CloneMountReceipt = receipt();
     let sibling: PathBuf = folder.directory().join(folder.staging_name(receipt.dataset));
+    let next: String = folder.staging_name(receipt.dataset);
+    assert_ne!(next, folder.staging_name(receipt.dataset), "two attempts never share a staging name");
     std::fs::write(sibling.as_path(), "v1\n").expect("this process's earlier sibling is planted");
-    folder.publish(&receipt).expect("a sibling of this process's own name blocks nothing");
-    assert!(!sibling.exists(), "the sibling is renamed over the receipt");
+    folder.publish(&receipt).expect("a sibling of an earlier attempt blocks nothing");
+    assert!(sibling.exists(), "the planted leftover is left where it was, and no receipt reads from it");
     assert_eq!(folder.read(receipt.dataset).expect("the receipt is read"), Some(receipt));
+}
+
+/// What:
+///  Two publishes of one dataset in one process, at the same time,
+///  leave one whole receipt and no staging sibling,
+///  so neither can remove the other's live sibling or rename a half-written
+///  file into the receipt's name.
+/// Why:
+///   Parallel sweeps reach one process,
+///  and a staging name shared by both would let the second publish unlink the
+///  first one's file while it is being written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.all([folder.publish(a), folder.publish(b)]); expect(parse(read(guid))).toBeOneOf([a, b]);
+/// ```
+#[test]
+fn two_publishes_at_once_leave_one_whole_receipt() {
+    let folder: ReceiptsFolder = live_folder("receipts-two-writers");
+    let mut first: CloneMountReceipt = receipt();
+    let mut second: CloneMountReceipt = receipt();
+    second.outcome = ReceiptOutcome::Refused;
+    second.mount = None;
+    second.failed_step = Some(String::from("read-intent"));
+    first.time = String::from("2026-11-21T15:00:01Z");
+    second.time = String::from("2026-11-21T15:00:02Z");
+    let gate: std::sync::Barrier = std::sync::Barrier::new(2);
+    std::thread::scope(|scope| {
+        for receipt in [&first, &second] {
+            let writer: ReceiptsFolder = folder.clone();
+            let filing: CloneMountReceipt = receipt.clone();
+            let barrier: &std::sync::Barrier = &gate;
+            scope.spawn(move || {
+                barrier.wait();
+                writer.publish(&filing).expect("a writer files its receipt");
+            });
+        }
+    });
+    let found: Option<CloneMountReceipt> = folder.read(first.dataset).expect("the receipt is read");
+    assert!(found.as_ref() == Some(&first) || found.as_ref() == Some(&second), "one whole receipt is the answer: {found:?}");
+    let siblings: Vec<PathBuf> = std::fs::read_dir(folder.directory())
+        .expect("the directory lists")
+        .flatten()
+        .map(|entry| return entry.path())
+        .filter(|path| return path.to_string_lossy().contains(".staging."))
+        .collect();
+    assert!(siblings.is_empty(), "no staging sibling survives: {siblings:?}");
 }
 
 /// Every refusal carries the way forward and says nothing acted on the file.

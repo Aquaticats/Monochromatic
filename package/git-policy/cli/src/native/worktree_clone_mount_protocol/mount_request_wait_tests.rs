@@ -205,6 +205,44 @@ fn an_absent_results_directory_is_a_last_observation_and_never_the_end() {
 }
 
 /// What:
+///  A results directory that appears and stays empty before the deadline is
+///  reported as no receipt,
+///  never as a directory that was not there.
+/// Why:
+///   The report sends a person to the handler's journal,
+///  and "the directory was not there at the deadline" is wrong once the wait read
+///  it successfully afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await join(waitForAnswer(folder, request, 400n), makeDirectoryAfter(20n)); expect(last?.kind).toBeUndefined();
+/// ```
+#[test]
+fn a_directory_that_appears_empty_is_not_reported_as_absent() {
+    let parent: PathBuf = fixture("wait-directory-appears");
+    let absent: ReceiptsFolder = ReceiptsFolder::at(parent.join("late"), this_uid());
+    let deadline: Duration = Duration::from_millis(400);
+    runtime().block_on(async {
+        let make = {
+            let path: PathBuf = absent.directory().to_path_buf();
+            async move {
+                tokio::time::sleep(MOUNT_REQUEST_POLL_INTERVAL / 2).await;
+                std::fs::create_dir_all(path.as_path()).expect("the results directory appears");
+                std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the directory takes its mode");
+            }
+        };
+        let request: MountRequest = request();
+        let waited = wait_for_answer(&absent, &request, deadline);
+        let (found, ()) = tokio::join!(waited, make);
+        let refusal: WaitRefusal = found.expect_err("an empty directory files no answer");
+        let WaitRefusal::TimedOut { last, .. } = &refusal else {
+            panic!("the wait times out: {refusal:?}");
+        };
+        assert_eq!(last, &None, "the deadline reports no receipt rather than a directory that is there: {refusal:?}");
+    });
+}
+
+/// What:
 ///  An answer filed after the wait started ends it,
 ///  which is the second poll and the sleep between the two.
 /// Why:
