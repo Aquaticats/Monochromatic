@@ -500,11 +500,13 @@ async function startAndWait({
   /**
    Progress of the loop, in one `const` container so no root-level `let` widens the scope of the statements after it.
 
+   `attempted`: this call already ran one start attempt, so the next needs a full retry interval left.
    `claimed`: this call already started the unit, so no further start is needed.
    `lastStartRefused`: the last attempt was refused because a unit of that name is loaded.
    `nextStartAt`: when the next start attempt may run; zero so the first one runs at once.
    */
   const progress = {
+    attempted: false,
     claimed: false,
     lastStartRefused: false,
     nextStartAt: 0,
@@ -517,7 +519,12 @@ async function startAndWait({
       1,
       deadline - Date.now(),
     );
-    if ((!progress.claimed) && (Date.now() >= progress.nextStartAt)) {
+    // The first attempt always runs, so a caller with a very short deadline still tries once; a later one needs a
+    // whole retry interval left, so no attempt is handed a budget too small to start anything and report its timeout
+    // instead of the deadline mvm advertises.
+    if ((!progress.claimed)
+      && (Date.now() >= progress.nextStartAt)
+      && ((!progress.attempted) || (remainingMs >= START_RETRY_INTERVAL_MS))) {
       /**
        What this attempt did.
        */
@@ -535,6 +542,7 @@ async function startAndWait({
         takeFallback(outcome.reason,);
         return;
       }
+      progress.attempted = true;
       progress.claimed = outcome.state === 'claimed';
       progress.lastStartRefused = outcome.state === 'already-loaded';
       progress.nextStartAt = Date.now() + START_RETRY_INTERVAL_MS;
