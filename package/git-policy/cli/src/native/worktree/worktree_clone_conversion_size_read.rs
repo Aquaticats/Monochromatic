@@ -329,9 +329,9 @@ pub fn fence_the_clone_with_the_read_beside_the_check(source: &SnapshotSource, c
 fn sizes_of_the_paths(source: &SnapshotSource, context: &GitContext, started: &mut Option<SizeReadBesideTheCheck>) -> Result<BlobSizes, String> {
     let commit: &str = source.clean.head_commit.as_str();
     match started.as_ref() {
-        Some(read) if lists(read, commit) => {
-            let read: SizeReadBesideTheCheck = started.take().expect("the read that lists the proved commit is the one just matched");
-            return read.join();
+        Some(proved) if lists(proved, commit) => {
+            let taken: SizeReadBesideTheCheck = started.take().expect("the read that lists the proved commit is the one just matched");
+            return taken.join();
         }
         Some(read) => debug(TAG, format!("the read started beside the check listed {} and the fence needs {commit}, so it is not used and the fence reads for itself", read.commit).as_str()),
         None => {}
