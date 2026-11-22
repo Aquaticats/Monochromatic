@@ -176,16 +176,17 @@ fn ref_store_is_reftable(common_dir: &Path) -> bool {
 ///  Whether the repository's configuration names a reference store this reader cannot scan:
 /// `extensions.refStorage` with any value but exactly `files`.
 /// Why:
-///  Git honors an extension only in a version 1 repository format and refuses a repository that
-///  carries one in another,
-///  so a key outside that version never changes which store Git reads.
+///  Git honors the extension in a version 1 repository format and refuses a repository that carries one in any
+///  other
+///  (`fatal: repo version is 0, but v1-only extension found`),
+/// so a key that names another store is declined whatever version the configuration states.
+/// Reading the version the way Git reads it is then not needed,
+///  and its spellings (`1`,
+///  `01`,
+///  `+1`) cannot decide whether a store is declined.
 /// A file that cannot be parsed is left to Git rather than guessed at.
 fn config_names_another_ref_store(text: &[u8]) -> bool {
     let Some(entries) = parse_config_text(text) else { return true };
-    let version_one: bool = matches!(last_entry(entries.as_slice(), "core.repositoryformatversion"), Some(entry) if entry.value.as_deref() == Some(b"1"));
-    if !version_one {
-        return false;
-    }
     return match last_entry(entries.as_slice(), "extensions.refstorage") {
         Some(entry) => entry.value.as_deref() != Some(b"files"),
         None => false,
