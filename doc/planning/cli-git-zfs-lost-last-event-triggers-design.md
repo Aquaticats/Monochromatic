@@ -3334,10 +3334,11 @@ A head-count budget stays reachable there as V13's second option.
   the pool and checkout checks,
   the sweep.
   Four of its sentences still assume this design's earlier direct hook:
-  its A3 (lines 806 to 811) and its dependencies bullet (lines 2795 to 2812) assume a drop-in that runs
-  `boot-reconcile` and a failing `ExecStartPost=` that fails `zfs-mount.service`;
-  its printed-root-command bullet and its L11 (lines 916 to 921) assume this design prints the handler's
-  `boot-reconcile`.
+  its A3 (lines 805 to 815) and its provider-hook bullet in "Dependencies on sibling designs"
+  (lines 2790 to 2815) assume a drop-in that runs `boot-reconcile` and a failing `ExecStartPost=` that fails
+  `zfs-mount.service`;
+  its printed-root-command bullet (lines 2815 to 2822) and its L11 (lines 916 to 921) assume this design prints
+  the handler's `boot-reconcile`.
   This design's hook is the one line in "The hook,
   in one form a sibling can cite",
   and its lever is `reload-or-restart`,
