@@ -509,7 +509,7 @@ which this round did not change.
   Counted rounds:
   eight for the usual state,
   six for the clean state,
-  six at 300 and six at 3,000 changed paths,
+  six at 300 and six at 6,000 changed paths,
   six for the 2.6 KB tree dirty,
   and four for each clean small tree,
   after one warm-up round each.
