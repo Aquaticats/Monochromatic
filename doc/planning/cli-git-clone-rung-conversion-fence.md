@@ -3492,7 +3492,8 @@ What changed:
 the read now asks for the tree `git worktree add` really checks out,
 so a local branch of the commit-ish's name is read in place of a tag of the same name,
 an add that names no commit-ish is read at the branch its destination is named after,
-and an answer that names more than the one ref asked for decides nothing;
+and an answer that names another ref than the one asked for is no branch of that name,
+so the name is read as written;
 a rung that hands Git no path pays no `git diff-tree` at all;
 and a target tree that changes a tracked link ends the clone rung before its copies,
 because a clone makes the link again and no index entry can vouch for it.
@@ -3501,6 +3502,26 @@ a commit-ish Git resolves through the reflog and the read cannot,
 and the helper that builds its plan names the same commit-ish the words given Git name.
 The read of a name that is a branch costs one `git for-each-ref` (1 to 2 ms),
 and no `git diff-tree` when that branch is the source's `HEAD`.
+The read is asked for every add that has neither `-b` nor `--detach`,
+so an add whose commit-ish is no branch pays that one `git for-each-ref` too,
+and so does an add whose destination's name is no branch,
+where `main` paid none:
+the integration pass timed the unnamed new-branch add at **427 ms** against `main`'s **419**
+(1.04,
+1.03,
+1.00,
+0.82 and 0.98 per round,
+median 1.00;
+the identical binary 0.96,
+0.99,
+0.94,
+1.00 and 1.03,
+median 0.99),
+its record holding one 1 ms `git for-each-ref` in 5 of 5 rounds
+(`keep/timing-unnamed-new-branch.log`),
+so the add is `main`'s time inside the floor of 0.94 to 1.03 and the read's cost is the step.
+A named add without `-b` pays the same read before its `git diff-tree`;
+an add that names `-b` or `--detach` pays none.
 
 The probe the pass left unmeasured (its p16):
 a tag at the older commit and a branch of the same name at `HEAD`,
@@ -3543,6 +3564,15 @@ whose package sources equal `5d130df425`'s.
 The named same-tree shape was measured again in the same way
 (`keep/measure-same-named.log`),
 and its numbers are in the bullet above.
+
+The follow-up integration pass found one shape the paragraph above used to leave to the rung:
+a tag `rel` beside a branch `rel/one` answered `refs/heads/rel/one`,
+which decided nothing,
+so the add copied and then fell back where `main` skipped before any copy.
+The read now takes the record whose ref is exactly the wanted one,
+and answers no branch when none is,
+so that shape is skipped on both rungs,
+with a control for each (the snapshot rung's needs a btrfs fixture root).
 
 ## Limitations
 
@@ -3701,13 +3731,24 @@ with the evidence behind it.
   a path the attributes convert,
   is skipped before the copies and measured at 0.83 of `main`
   (the identical binary again against `main` 0.76) on the same fixture.
-- **A commit-ish the skip's read cannot resolve leaves the rung running.**
+- **A bare `-` commit-ish is not resolved by the skip's read,
+  and an `@{-N}` whose branch name is also a tag is read in rev-parse order.**
   `git worktree add <path> -` is Git's own `@{-1}` (`Documentation/git-worktree.adoc`,
   "COMMANDS"),
-  and an `@{...}` form is resolved by Git through this worktree's reflog,
-  which the one name-only read does not take;
-  a name that exists only as a remote-tracking branch is resolved by Git's tracking DWIM into a new branch.
-  Such an add pays the copies and the tree difference exactly as `main` does.
+  and the one name-only read resolves no bare `-`:
+  its `-^{commit}` is not a revision,
+  so such an add pays the copies and the tree difference exactly as `main` does.
+  The named forms `@{-1}`,
+  `main@{1}` and `@{u}` are resolved by the read,
+  as the probes q09,
+  q12 and q13 show,
+  and only a bare `-` is not (q11).
+  Where the previous branch's name is also a tag,
+  the read takes the tag and Git checks the branch out (q10 and q10b),
+  so the two trees differ in both directions;
+  `main` reads the same tag,
+  so this is not a regression.
+  A name that exists only as a remote-tracking branch is resolved by Git's tracking DWIM into a new branch.
   The btrfs ending control reaches the snapshot rung's ending through `-` for that reason.
 - **An add whose `worktree.guessRemote` names a remote-tracking branch is not read.**
   With no commit-ish and no branch named after the destination,
