@@ -6478,10 +6478,22 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
     so a gate killed without unwinding still leaves them.
     Several sessions gate this machine at once,
     so stop your own gate and nothing else.
-    `systemctl --user stop gpc-gate-<label>-<stamp>.service` ends a gate `native:gate` started,
-    and the containers keep running after it,
-    as a probe on 2026-11-21 measured,
-    so stop them too.
+    `systemctl --user stop gpc-gate-<label>-<stamp>.service` ends a gate `native:gate` started.
+    In every shape probed on 2026-11-21,
+    stopping the unit sent SIGTERM to the `podman run` client,
+    which passed it to its container
+    (`sleep` and `sh` workloads,
+    one of them through the gate's own `runGateContainer`;
+    the gate's suite container itself was not tried).
+    A container whose workload the signal killed was left exited and unremoved,
+    and `podman ps` still printed it as `Up`;
+    one whose workload exited on the signal was left nowhere.
+    So after a unit stop,
+    `podman ps --all --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists what is left,
+    and `podman rm --filter label=dev.monochromatic.git-policy.gate-run=<run id>` clears it.
+    A container still running,
+    such as one a gate started by hand left behind,
+    is stopped by label.
     Naming a container fails when it already ended:
     `podman stop gpc-gate-<run id>-<suite|clippy>` exits 125 with "no such container",
     and Clippy's container has usually ended by the time the suite's does.
@@ -6600,11 +6612,12 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   and prints `<unit>.service=<log path>`.
   It answers as soon as systemd has queued the unit,
   so nothing waits an hour for a run.
-  Stopping that unit ends the gate and leaves its containers running,
-  so stop them by this run's label,
-  `podman stop --ignore --filter label=dev.monochromatic.git-policy.gate-run=<run id>`,
-  as the `native:test:container` bullet of "Development" describes;
-  never stop a container whose label is not this run's.
+  Stopping that unit ends the gate,
+  and its `podman run` clients pass the SIGTERM on to their containers;
+  what may be left,
+  and how to list and clear it by this run's label,
+  is in the `native:test:container` bullet of "Development";
+  never stop or remove a container whose label is not this run's.
   The label is what the gate covers,
   in lowercase letters,
   digits and hyphens:

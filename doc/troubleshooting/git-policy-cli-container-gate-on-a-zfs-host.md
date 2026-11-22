@@ -1067,9 +1067,19 @@ so the events neither show nor exclude one.
 Which session owned `gallant_moore`,
 and whether one round's stop ended another round's gate,
 is not established.
-Neither the gate's deadline (it removes with `podman rm --force --time 0`,
-and a probe container received no SIGTERM from that) nor a unit stop
-(a probe container kept running after its unit was stopped) is known to send this signal.
+The gate's deadline is not known to send this signal:
+it stops the client with `SIGKILL` (`bin/process-group-stop.ts`),
+removes with `podman rm --force --time 0`,
+and a probe container received no SIGTERM from that.
+A unit stop does send it:
+stopping a probe's unit sent SIGTERM through the `podman run` client to its container in every shape probed on
+2026-11-21,
+so a stopped gate unit is a candidate,
+and whether any gate unit of that day was stopped is not established.
+An earlier reading here said a probe container kept running after its unit was stopped;
+that probe read `podman ps`,
+which can print `Up` for a container that has already ended,
+while `podman inspect` showed it stopped with exit 143 at the moment of the unit stop.
 
 A gate container of that day carried no `--name` and no `--label`,
 and the gate printed no container ID,
@@ -1128,7 +1138,9 @@ each record also says whose container it was:
   `podman events --since <the time the gate started> --stream=false --filter container=gpc-gate-<run id>-suite --format '{{.Time}} {{.Status}} {{.Name}} {{.ID}}'`.
   This host's podman writes its events to journald,
   and this reads a container's events after the container is gone,
-  so the question can be answered after the fact.
+  so the question can be answered after the fact,
+  for as long as the journal keeps them:
+  on 2026-11-21 the user journal's oldest entry was hours old.
   Its `died` and `remove` lines carry the moment,
   the name and the ID:
   a probe on 2026-11-21 that stopped a container of its own read
@@ -1141,11 +1153,21 @@ each record also says whose container it was:
   labels and all,
   after the fact:
   `journalctl --user --since '<the minute the gate stopped>' --grep 'gpc-gate-<run id>-suite'`.
-  A `container kill` or `container remove` line printed by a podman process that is not this gate's
+  While this gate's client still runs,
+  a `container kill` or `container remove` line printed by a podman process that is not that
   client is another podman command that ended it,
   the way the section "A gate that ends with status 137 and no memory kill" read one.
+  After a unit stop the client is gone,
+  so the container's own `died` and `remove`,
+  and a later `podman rm` or `podman inspect`,
+  are logged under other podman processes,
+  and that is no outside stop.
   A `podman stop` from outside the client logs nothing of its own:
   the client logs `died` and `remove`.
+- the gate unit's own `Stopping` and `Stopped` lines in the user journal,
+  in the same second as the client's `container died`,
+  which name a unit stop
+  (not who asked for it).
 
 The label's run id is the one the gate printed before it built anything,
 and `manifest.json` records the same name,
