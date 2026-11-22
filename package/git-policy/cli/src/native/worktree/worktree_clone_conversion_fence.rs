@@ -327,7 +327,7 @@ fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Re
 /// ```ts
 /// function blobSizes(context, root, commit): Map<string, number>;
 /// ```
-fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap<Vec<u8>, u64>, String> {
+pub(crate) fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap<Vec<u8>, u64>, String> {
     let output: GitOutput = run_in(context, root, &words(&["ls-tree", "-r", "-l", "-z", commit]), None, Vec::new())?;
     if output.code != Some(0) {
         return Err(format!("the sizes of the committed blobs cannot be read: {}", run_reason("`git ls-tree`", &output)));
@@ -486,6 +486,29 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
 }
 
 /// What:
+///  The blob sizes the decision needs:
+/// the map a measurement build's read started beside the source check already answered,
+/// or one `git ls-tree` of the commit.
+/// Why:
+///   The proof is the same map either way;
+/// only where the read ran differs,
+///  and the read is used only when it listed the commit the source's index was proven equal to
+/// (`worktree_clone_conversion_size_read_beside_the_check.rs`,
+/// a measurement build alone).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sizesOfThePaths = (context, root, commit) => takeStarted(commit)?.join() ?? blobSizes(context, root, commit);
+/// ```
+fn sizes_of_the_paths(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap<Vec<u8>, u64>, String> {
+    #[cfg(feature = "measurement-routes")]
+    if let Some(started) = crate::worktree_clone_conversion_size_read_beside_the_check::take_started(commit) {
+        return started.join();
+    }
+    return blob_sizes(context, root, commit);
+}
+
+/// What:
 ///  Decide every tracked path the attributes left:
 /// what the clones may carry and what Git must write.
 /// Why:
@@ -507,7 +530,7 @@ pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: Att
         let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
         return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &rules);
     }) {
-        Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?)
+        Some(sizes_of_the_paths(context, source.root.as_path(), source.clean.head_commit.as_str())?)
     } else {
         None
     };

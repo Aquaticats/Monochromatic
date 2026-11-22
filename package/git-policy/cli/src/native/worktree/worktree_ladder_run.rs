@@ -220,6 +220,20 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         log_git_checkout(plan, "neither a snapshot nor clones apply", &snapshot_refusal, &clone_refusal);
         return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
+    // What:
+    //  A measurement build starts the fence's size read here,
+    //  before the source check the ladder runs next.
+    // Why:
+    //  Rung 1 decides the whole fence on the add's waiting path after that check and after `git check-attr`,
+    //  and the read needs only the worktree root and the commit `HEAD` names, both of which the ref files answer now;
+    //  a read the fence's own commit does not match is dropped unused.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // startTheSizeReadBesideTheCheck(context, identity); // measurement builds only
+    // ```
+    #[cfg(feature = "measurement-routes")]
+    crate::worktree_clone_conversion_size_read_beside_the_check::start_beside_the_check(context, identity);
     let check_source_entered: bool = begin_step("checkSource");
     let check_source_outcome = source_or_dirty(context, identity);
     end_step(check_source_entered);

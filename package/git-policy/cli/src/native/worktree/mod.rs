@@ -326,6 +326,12 @@ pub mod worktree_clone_conversion_fence;
 #[cfg(all(target_os = "linux", feature = "measurement-routes"))]
 pub mod worktree_clone_conversion_fence_measurement_routes;
 
+/// The fence's size read started beside the source check (measurement only):
+/// what overlaps the two steps,
+/// and the answer a check that refuses drops unused.
+#[cfg(all(target_os = "linux", feature = "measurement-routes"))]
+pub mod worktree_clone_conversion_size_read_beside_the_check;
+
 /// The same fence beside the clone:
 /// its reads on a thread of their own while the tracked files are copied,
 /// and the seed the index is installed from once both have answered.
