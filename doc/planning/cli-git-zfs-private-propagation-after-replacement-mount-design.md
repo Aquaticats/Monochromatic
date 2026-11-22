@@ -2965,6 +2965,9 @@ with its committer time from `git log --format=%cI`:
   the expanded veto and question lists,
   the sibling reconciliation,
   and this section.
+- `9a5ca2e6cf`,
+  2026-11-22T18:18:06-05:00:
+  this list gained its own commit's hash and time.
 
 ## Links
 
