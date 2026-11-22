@@ -177,7 +177,7 @@ The publication is two `fsync` calls and three name operations,
 and its cost is the two `fsync` calls:
 each one reaches the pool's device and commits a ZIL block,
 which is what the host's control above shows for the append's two calls,
-and the guest's run shows the same for a record's publication on the dataset the store lives on.
+and the guest's run shows the same for a record's publication on a dataset of the pool the store lives on.
 
 Nothing ships a limit that cites these numbers:
 the store takes no lock,
@@ -209,7 +209,7 @@ python3 -I package/git-policy/cli/doc/slot-identity-store-write-cost/probe-reach
 ```
 
 ```sh
-# The same arm on the store's own dataset, which only the guest can write:
+# The same arm on a dataset of the guest's own store pool, which only the guest can write:
 mise run //package/git-policy/cli:e2e:mount-git-worktree-clone-datasets -- all
 # whose log directory holds store-fsync.log
 ```
