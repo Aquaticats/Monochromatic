@@ -4,6 +4,7 @@
 //!  `boot-reconcile`,
 //!  `start-probe`,
 //!  `shutdown-unmount`,
+//!  `holder-scan` with the dataset and the checkout it reads,
 //!  `adopt-worktree-parent` with the replacement's device and inode,
 //!  and the two words that print what this build is.
 //! Why:
@@ -28,6 +29,7 @@
 //! const mode = parse(process.argv.slice(2)); // { kind: 'attaching-sweep' } | { kind: 'boot-reconcile' } | ...
 //! ```
 
+use crate::start_probe::probe_source_name::check_dataset_name;
 use crate::worktree_clone_mount_handler::handler_install_paths::{SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
@@ -35,7 +37,7 @@ use std::path::PathBuf;
 
 /// The mode words this build accepts,
 /// in the order the help lists them.
-pub const MODE_WORDS: [&str; 4] = ["boot-reconcile", "start-probe", "shutdown-unmount", "adopt-worktree-parent"];
+pub const MODE_WORDS: [&str; 5] = ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent"];
 
 /// The word that prints the help.
 pub const HELP_WORD: &str = "--help";
@@ -51,6 +53,9 @@ pub const DEVICE_OPTION: &str = "--device";
 
 /// The option that carries the replacement's inode number.
 pub const INODE_OPTION: &str = "--inode";
+
+/// The option that names the dataset a holder scan reads.
+pub const DATASET_OPTION: &str = "--dataset";
 
 /// What:
 ///  The administrator's identification of the replacement folder an adoption judges.
@@ -71,6 +76,28 @@ pub struct AdoptRequest {
     pub device: u64,
     /// The inode the administrator read for the intended replacement.
     pub inode: u64,
+}
+
+/// What:
+///  The dataset and the checkout one `holder-scan` invocation names.
+/// Why:
+///   The scan is about one dataset's mounts,
+///  and the slot its managed attach stands at hangs below the checkout,
+///  so both are named and neither is guessed;
+///  a mode that guessed either would set aside another folder's mount as this
+///  clone's managed attach or refuse a right one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HolderScan = { dataset: 'zpcachyos/…/clones/one', checkout: '/home/user/Monochromatic' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HolderScanInvocation {
+    /// The dataset whose holders the scan reports.
+    pub dataset: String,
+    /// The checkout the slot hangs below,
+    /// as an absolute path.
+    pub checkout: PathBuf,
 }
 
 /// What:
@@ -99,6 +126,9 @@ pub enum HandlerMode {
     /// `shutdown-unmount`:
     /// the shutdown unit's verified unmount.
     ShutdownUnmount,
+    /// `holder-scan`:
+    /// the all-namespace holder scan of one dataset.
+    HolderScan(HolderScanInvocation),
     /// `adopt-worktree-parent`:
     /// the administrator's decision to record a replacement parent folder.
     AdoptWorktreeParent(AdoptRequest),
@@ -142,10 +172,18 @@ pub enum ArgumentRefusal {
         /// The option.
         option: &'static str,
     },
-    /// The adoption's words lack an option it needs.
+    /// The adoption's words lack an option it needs,
+    /// or a holder scan's do.
     MissingOption {
         /// The option.
         option: &'static str,
+    },
+    /// The dataset a holder scan names is no dataset name this route reads.
+    DatasetName {
+        /// The name as typed.
+        name: String,
+        /// Why it is no dataset name.
+        reason: String,
     },
     /// An option's value is not the decimal count it must be.
     OptionNotACount {
@@ -181,7 +219,10 @@ impl ArgumentRefusal {
                 "`{option}` was given more than once, and two values would compete. Nothing was done. Ways forward: give `{option}` once, then run the command again."
             ),
             ArgumentRefusal::MissingOption { option } => format!(
-                "adopt-worktree-parent needs `{option}`, and it was not given. Nothing was done. Ways forward: pass `--checkout <path> --device <count> --inode <count>`, all three, and run the command again; --help repeats the form."
+                "this invocation needs `{option}`, and it was not given. Nothing was done. Ways forward: run `mount-git-worktree-clone-datasets --help` for the options the mode takes and give every one of them; `adopt-worktree-parent` takes `--checkout <path> --device <count> --inode <count>`, and `holder-scan` takes `--dataset <name> --checkout <path>`."
+            ),
+            ArgumentRefusal::DatasetName { name, reason } => format!(
+                "`{name}` is not a dataset name this route reads: {reason}. Nothing was done. Ways forward: give `--dataset` the clone's full dataset name, as `zfs list -H -o name` prints it, with no snapshot part."
             ),
             ArgumentRefusal::OptionNotACount { option, text } => format!(
                 "`{option} {text}` is not a decimal count. Nothing was done. Ways forward: give the number `stat --format=%d` (device) or `stat --format=%i` (inode) prints for the intended replacement, as decimal digits without a sign or a prefix."
@@ -214,6 +255,8 @@ pub fn usage() -> String {
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
         String::from("  start-probe          run the start probe's arms and write this boot's result"),
         String::from("  shutdown-unmount     unmount the verified clone mounts at shutdown; the boot unit's ExecStopPost"),
+        String::from("  holder-scan --dataset <name> --checkout <path>"),
+        String::from("                       report which mount namespaces hold that clone, and every read the scan could not complete"),
         String::from("  adopt-worktree-parent --checkout <path> --device <count> --inode <count>"),
         String::from("                       record an administrator-identified replacement .claude/worktrees folder"),
         String::from("  --help               print this text"),
@@ -294,6 +337,7 @@ pub fn parse(arguments: &[OsString]) -> Result<HandlerMode, ArgumentRefusal> {
             1 => Ok(HandlerMode::ShutdownUnmount),
             _ => Err(ArgumentRefusal::UnexpectedArgument { word: words[1].to_string() }),
         },
+        "holder-scan" => parse_holder_scan(&words[1..]).map(HandlerMode::HolderScan),
         "adopt-worktree-parent" => parse_adoption(&words[1..]).map(HandlerMode::AdoptWorktreeParent),
         other => Err(ArgumentRefusal::UnknownMode { word: other.to_string() }),
     };
@@ -380,6 +424,56 @@ fn parse_adoption(words: &[&str]) -> Result<AdoptRequest, ArgumentRefusal> {
         return Err(ArgumentRefusal::MissingOption { option: INODE_OPTION });
     };
     return Ok(AdoptRequest { checkout, device, inode });
+}
+
+/// What:
+///  Read a holder scan's two options,
+///  each given once and in any order.
+/// Why:
+///   The dataset names the clone and the checkout places the slot its managed
+///  attach stands at,
+///  so a repeated option would leave which one was meant to be read,
+///  and a name the kernel would refuse is refused here rather than read as no
+///  clone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const invocation = parseHolderScan(['--dataset', 'zpcachyos/…/clones/one', '--checkout', '/repo']);
+/// ```
+fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRefusal> {
+    let mut dataset: Option<String> = None;
+    let mut checkout: Option<PathBuf> = None;
+    let mut index: usize = 0;
+    while index < words.len() {
+        let (name, is_dataset): (&'static str, bool) = match words[index] {
+            DATASET_OPTION => (DATASET_OPTION, true),
+            CHECKOUT_OPTION => (CHECKOUT_OPTION, false),
+            other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
+        };
+        let Some(value) = words.get(index + 1).copied() else {
+            return Err(ArgumentRefusal::MissingValue { option: name });
+        };
+        if is_dataset {
+            if dataset.is_some() {
+                return Err(ArgumentRefusal::RepeatedOption { option: name });
+            }
+            check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName { name: String::from(value), reason: refusal.message() })?;
+            dataset = Some(String::from(value));
+        } else {
+            if checkout.is_some() {
+                return Err(ArgumentRefusal::RepeatedOption { option: name });
+            }
+            checkout = Some(PathBuf::from(value));
+        }
+        index += 2;
+    }
+    let Some(dataset) = dataset else {
+        return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
+    };
+    let Some(checkout) = checkout else {
+        return Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION });
+    };
+    return Ok(HolderScanInvocation { dataset, checkout });
 }
 
 /// What:

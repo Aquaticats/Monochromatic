@@ -17,7 +17,7 @@
 //! ```
 
 use super::{
-    ArgumentRefusal, CHECKOUT_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, INODE_OPTION, MODE_WORDS, VERSION_WORD, parse, usage,
+    ArgumentRefusal, CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, HolderScanInvocation, INODE_OPTION, MODE_WORDS, VERSION_WORD, parse, usage,
     version_line,
 };
 use crate::worktree_clone_mount_handler::handler_install_paths::{PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
@@ -56,7 +56,33 @@ fn every_mode_word_reads_as_its_mode() {
     assert_eq!(parse(&arguments(&["shutdown-unmount"])), Ok(HandlerMode::ShutdownUnmount));
     assert_eq!(parse(&arguments(&[HELP_WORD])), Ok(HandlerMode::Help));
     assert_eq!(parse(&arguments(&[VERSION_WORD])), Ok(HandlerMode::Version));
-    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "adopt-worktree-parent"]);
+    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent"]);
+}
+
+/// The holder scan reads its dataset and its checkout in either order,
+/// and refuses a missing,
+/// repeated or unreadable one.
+#[test]
+fn the_holder_scan_reads_its_two_options_in_any_order() {
+    let wanted = HandlerMode::HolderScan(HolderScanInvocation { dataset: String::from("zpcachyos/nosnap/clones/one"), checkout: PathBuf::from("/home/user/Monochromatic") });
+    assert_eq!(
+        parse(&arguments(&["holder-scan", DATASET_OPTION, "zpcachyos/nosnap/clones/one", CHECKOUT_OPTION, "/home/user/Monochromatic"])),
+        Ok(wanted.clone())
+    );
+    assert_eq!(
+        parse(&arguments(&["holder-scan", CHECKOUT_OPTION, "/home/user/Monochromatic", DATASET_OPTION, "zpcachyos/nosnap/clones/one"])),
+        Ok(wanted)
+    );
+    assert_eq!(parse(&arguments(&["holder-scan", DATASET_OPTION, "zpcachyos/nosnap/clones/one"])), Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION }));
+    assert_eq!(parse(&arguments(&["holder-scan", CHECKOUT_OPTION, "/a"])), Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION }));
+    assert_eq!(
+        parse(&arguments(&["holder-scan", DATASET_OPTION, "a", DATASET_OPTION, "b", CHECKOUT_OPTION, "/a"])),
+        Err(ArgumentRefusal::RepeatedOption { option: DATASET_OPTION })
+    );
+    let refusal: ArgumentRefusal = parse(&arguments(&["holder-scan", DATASET_OPTION, "pool/one@snapshot", CHECKOUT_OPTION, "/a"])).expect_err("a snapshot is no dataset name");
+    assert!(matches!(refusal, ArgumentRefusal::DatasetName { .. }), "{refusal:?}");
+    assert!(refusal.message().contains("@"), "{}", refusal.message());
+    assert_eq!(parse(&arguments(&["holder-scan", "--force", "/a"])), Err(ArgumentRefusal::UnexpectedArgument { word: String::from("--force") }));
 }
 
 /// The adoption's three options read as one request,

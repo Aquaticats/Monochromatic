@@ -47,6 +47,9 @@
 //! - `shutdown_unmount_mode.rs`:
 //!   the shutdown unit's verified unmount,
 //!   which step 9 builds.
+//! - `holder_scan_mode.rs`:
+//!   the all-namespace holder scan of one clone,
+//!   which step 9 builds.
 //! - `adopt_worktree_parent_mode.rs`:
 //!   the administrator's adoption,
 //!   decided by step 4's table and recorded here.
@@ -117,6 +120,10 @@ pub mod boot_reconcile_mode;
 /// The shutdown unit's verified unmount.
 pub mod shutdown_unmount_mode;
 
+/// The all-namespace holder scan of one clone,
+/// and the line that counts what it found.
+pub mod holder_scan_mode;
+
 /// The administrator's adoption of a replacement parent folder.
 pub mod adopt_worktree_parent_mode;
 
@@ -130,7 +137,7 @@ pub mod handler_mode_dispatch;
 pub use handler_install_paths::{CONFIGURATION_PATH, PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
 /// The mode grammar,
 /// its refusal and the request an adoption takes.
-pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode};
+pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode, HolderScanInvocation};
 /// The refusal of a mode whose step has not landed.
 pub use mode_awaiting_its_step::AwaitingItsStep;
 /// The administrator's adoption and why it recorded nothing.
