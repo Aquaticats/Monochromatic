@@ -11708,8 +11708,23 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
 - the name still refers to the very file that was judged,
   and its device,
   inode and change time are the ones read before the removal;
-- the PID file is still the very one that was judged when its own name goes,
-  so a Git that took the freed name between the two unlinks keeps its own PID file.
+- the PID file is still the very one that was judged when its own name goes:
+  a file a program put at that name is another file,
+  which its device,
+  inode and change time show.
+  Git's own PID file cannot stand at that name while the judged one does,
+  because it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is refused
+  (`lockfile.c`,
+  `create_lock_pid_file`,
+  Git 2.56.1),
+  so a Git that takes the freed name between the two unlinks has no PID file of its own to lose,
+  and a program that wants its own file there removes the judged one first,
+  which the inode shows.
+  A write over the judged file itself keeps its inode,
+  and its change time is compared in whole milliseconds,
+  so a write within that millisecond of the plant is not told apart from it;
+  no control plants one (issue 6342,
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
 
 No time decides anything,
 so a correction of the clock moves no verdict.

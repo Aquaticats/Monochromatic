@@ -262,8 +262,12 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     std::fs::remove_file(lock).ok()?;
     // A control reaches here to act as a Git that takes the freed name at this instant.
     crate::service_fault::reach(UNLINKED_THE_LOCK);
-    // The PID file goes with the lock it belongs to, and only when it is still the very file that was judged: a Git that took
-    //  the freed name and wrote its own PID file keeps that file, because its device, inode or change time differ.
+    // The PID file goes with the lock it belongs to, and only when it is still the very file that was judged: a file a
+    //  program put at that name is another file, which its device, inode and change time show. Git's own PID file cannot
+    //  appear there while the judged one stands, because it creates `<name>~pid.lock` with `O_EXCL` and writes none when
+    //  that is refused (`lockfile.c`, `create_lock_pid_file`, Git 2.56.1). A write over the judged file itself keeps its
+    //  inode and needs only its change time, which this comparison reads in whole milliseconds, so a control never plants
+    //  one (issue 6342, `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
     if let Some(judged_pid_file) = pid_file_judged
         && matches!(read_lock_metadata(pid_file.as_path()), Ok(Some(still)) if still.device == judged_pid_file.device && still.inode == judged_pid_file.inode && still.ctime_ms == judged_pid_file.ctime_ms)
     {

@@ -3,7 +3,8 @@
 //!  every way a number,
 //! a record and a lock file can disagree,
 //!  and the removal's own last step,
-//!  where a Git takes the freed name and must keep its own PID file.
+//!  where a holder puts its own PID file at the freed name and must keep it,
+//!  and where a Git that takes that name writes none.
 //! Why:
 //!  The proof is about the writer of the PID file,
 //! and the ways it can be wrong are finite:
@@ -620,32 +621,50 @@ fn a_lock_only_a_reader_holds_open_is_cleared_because_a_reader_cannot_write_into
 }
 
 /// What:
-///  A Git that takes the freed name between the lock's unlink and its PID file's
-///  keeps its own PID file.
+///  A holder that puts its own PID file at the freed name between the lock's unlink and the judged PID file's
+///  keeps that file.
 /// Why:
-///   The removal unlinks the PID file only when it is still the very file that was judged;
-///  a new holder's file has a different inode and change time,
-///  and a live command must not lose the file that explains its lock.
+///   The removal unlinks the PID file only when it is still the very file that was judged,
+///  and a file a holder put at that name is another file:
+///  the inode the name has after its predecessor went is a new one,
+///  so a live command does not lose the file that explains its lock,
+///  whatever its change time says.
+///  Git's own PID file cannot stand at that name while the judged one does,
+///  because `create_lock_pid_file` creates `<name>~pid.lock` with `O_EXCL` and writes nothing when that is refused
+///  (`lockfile.c`,
+///  Git 2.56.1),
+///  so a program that insists on its own file there must remove the judged one first,
+///  which is what this control makes.
+///  Writing over the judged file instead leaves its inode and makes its change time the only fact that differs,
+///  and that time is read in whole milliseconds:
+///  this control did that until issue 6342,
+///  and failed once in a whole gate when the two writes shared one millisecond.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// hooks.set(UNLINKED_THE_LOCK, () => takeTheName()); expect(newPidFileExists()).toBe(true);
+/// hooks.set(UNLINKED_THE_LOCK, () => { writeTheNewLock(); rmSync(pidFile); writeFileSync(pidFile, `pid ${newPid}\n`); });
+/// expect(readPid(pidFile)).toBe(newPid);
 /// ```
 #[test]
-fn the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone() {
+fn a_pid_file_a_holder_put_at_the_freed_name_is_left_alone() {
     let common_dir: PathBuf = a_git_directory("taken-name");
     let (pid, identity) = dead_holder();
     plant(common_dir.as_path(), "index.lock", pid, &[identity]);
     let lock: PathBuf = common_dir.join("index.lock");
     let pid_file: PathBuf = pid_file_beside(lock.as_path());
+    let judged_inode: u64 = inode_of(pid_file.as_path());
     let (new_holder_pid, _new_holder_identity, _holder) = live_holder();
     let taken: PathBuf = common_dir.clone();
     crate::service_fault::hooks::set(
         UNLINKED_THE_LOCK,
         std::rc::Rc::new(move || {
-            // The Git that won the freed name: its lock first, then its PID file, as Git writes them.
-            std::fs::write(taken.join("index.lock").as_path(), b"the new holder's index\n").expect("the new lock");
-            std::fs::write(pid_file_beside(taken.join("index.lock").as_path()).as_path(), format!("pid {new_holder_pid}\n").as_bytes()).expect("the new PID file");
+            // The holder that won the freed name: its lock first, and then its own PID file, which can be its own only once
+            //  the judged file has gone.
+            let new_lock: PathBuf = taken.join("index.lock");
+            let new_pid_file: PathBuf = pid_file_beside(new_lock.as_path());
+            std::fs::write(new_lock.as_path(), b"the new holder's index\n").expect("the new lock");
+            std::fs::remove_file(new_pid_file.as_path()).expect("the judged PID file goes before the new holder writes its own");
+            std::fs::write(new_pid_file.as_path(), format!("pid {new_holder_pid}\n").as_bytes()).expect("the new PID file");
         }),
     );
     let ended: Ended = looked(common_dir.as_path(), "index.lock");
@@ -653,8 +672,70 @@ fn the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone() {
     assert!(matches!(ended, Ended::Cleared(_)), "the abandoned lock itself is cleared");
     assert!(lock.exists(), "the new holder's lock stands");
     assert!(pid_file.exists(), "the new holder keeps its own PID file");
+    assert_ne!(inode_of(pid_file.as_path()), judged_inode, "the new holder's PID file is another file, or this control tests a write in place");
     assert_eq!(crate::stopped_git_locks::pid_named_by(pid_file.as_path()), i32::try_from(new_holder_pid).ok(), "the PID file is the new holder's");
     remove(common_dir.as_path());
+}
+
+/// What:
+///  A Git that takes the freed name while the abandoned holder's PID file still stands
+///  writes no PID file of its own,
+///  and the removal takes the abandoned one with its lock and leaves the new lock alone.
+/// Why:
+///   This is the state the two unlinks meet in a repository:
+///  `create_lock_pid_file` creates `<name>~pid.lock` with `O_EXCL` and writes nothing when the name is taken
+///  (`lockfile.c`,
+///  Git 2.56.1),
+///  so the file that stands at that name is the very one the removal judged,
+///  the live holder has no file there that a removal could take,
+///  and what it owns is its lock,
+///  which stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hooks.set(UNLINKED_THE_LOCK, () => { writeTheNewLock(); try { writeFileSync(pidFile, text, { flag: 'wx' }); } catch {} });
+/// expect(exists(lock)).toBe(true); expect(exists(pidFile)).toBe(false);
+/// ```
+#[test]
+fn a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock() {
+    let common_dir: PathBuf = a_git_directory("taken-name-exclusive");
+    let (pid, identity) = dead_holder();
+    plant(common_dir.as_path(), "index.lock", pid, &[identity]);
+    let lock: PathBuf = common_dir.join("index.lock");
+    let pid_file: PathBuf = pid_file_beside(lock.as_path());
+    let taken: PathBuf = common_dir.clone();
+    crate::service_fault::hooks::set(
+        UNLINKED_THE_LOCK,
+        std::rc::Rc::new(move || {
+            let new_lock: PathBuf = taken.join("index.lock");
+            let new_pid_file: PathBuf = pid_file_beside(new_lock.as_path());
+            std::fs::write(new_lock.as_path(), b"the new holder's index\n").expect("the new lock");
+            let refused: std::io::Result<std::fs::File> = std::fs::OpenOptions::new().write(true).create_new(true).open(new_pid_file.as_path());
+            assert!(refused.is_err(), "Git's exclusive create of its PID file is refused while the judged file stands");
+        }),
+    );
+    let ended: Ended = looked(common_dir.as_path(), "index.lock");
+    crate::service_fault::hooks::clear();
+    let Ended::Cleared(clearance) = ended else { panic!("the abandoned lock itself is cleared: {ended:?}"); };
+    assert_eq!(clearance.pid, pid);
+    assert!(lock.exists(), "the new holder's lock stands");
+    assert!(!pid_file.exists(), "the abandoned holder's PID file goes with its lock, and the new holder has none to lose");
+    remove(common_dir.as_path());
+}
+
+/// What:
+///  The inode number of the file at `path`.
+/// Why:
+///   A control that says a holder's file is its own has to show it is another file than the one judged,
+///  and the inode is what the removal compares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// statSync(path).ino
+/// ```
+fn inode_of(path: &Path) -> u64 {
+    use std::os::unix::fs::MetadataExt as _;
+    return std::fs::symlink_metadata(path).expect("the file's metadata").ino();
 }
 
 /// Wait for the child to hold `lock` open,
