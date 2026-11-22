@@ -42112,8 +42112,9 @@ stated in this entry. What follows from them, as work:
   command's environment alone. One medium: a guard reported red was a failed build (an array length left unchanged), and
   the control fails only with two guards removed together. Lows: the shared layout proof is stale after
   `git refs migrate`; under the four variables the by-content clean check refuses where `main` leaves the removal to Git;
-  stale words. Picked without asking, open to the owner's veto, as the reviewer ranked first: the refusal comes out of this
-  branch, so nothing is worse than `main`, and the one row it was right about (a no-parent replacement under
+  stale words. The owner answered "B: take it out (Recommended)" in the question tool on 2026-11-22, after the fix round
+  had been told the same as a pick open to veto (not taken: "A+C: narrow it, in this branch" and "D: keep it, fix the
+  wording"): the refusal comes out of this branch, so nothing is worse than `main`, and the one row it was right about (a no-parent replacement under
   `GIT_REPLACE_REF_BASE` held by the command alone, then an amend: one parent where Git reads none, as on `main`) is filed
   as issue 6347, which wants a design because it reopens the record that a request carries no environment; the stale proof
   is closed by one more stat. Issue 6347 is non-ZFS work and waits under the owner's hold. GOING:
