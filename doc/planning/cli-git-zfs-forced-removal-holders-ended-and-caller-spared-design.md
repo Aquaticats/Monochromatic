@@ -998,7 +998,8 @@ V6):
     Within a namespace,
     every task is signalled,
     not the representative alone,
-    because F17 releases the namespace only when its last task is gone.
+    because F17 frees a namespace only when its last reference goes,
+    and a task's exit drops one such reference.
 3.  After each pass,
     the handler re-enumerates `/proc` for tasks whose namespace link still equals a holder identity,
     and signals any that appeared,
@@ -1064,7 +1065,8 @@ The refusal happens when a holder task's session equals the caller's session.
 The handler decides it,
 because only root can read every namespace and every task (F8),
 and it decides it on the pre-move scan,
-before anything moves.
+before anything moves,
+and files the receipt's failed step as `caller-session-holds`.
 The wrapper prints exactly this,
 with the variables filled and every path quoted as a shell word:
 
@@ -1510,7 +1512,7 @@ and the third adds a record with no reader or pruner.
 
 ## Tests a build must have
 
-Each test names the race it forces and how it forces it without timing luck.
+Each test names the race or interleaving it forces and how it forces it without timing luck.
 
 1.  The proof refuses a reused number.
     In a private pid namespace with `CAP_CHECKPOINT_RESTORE`,
@@ -1520,7 +1522,8 @@ Each test names the race it forces and how it forces it without timing luck.
 2.  A signal reaches the pinned process only.
     Pin one child,
     end it,
-    and assert the pidfd signal fails after the exit while a second child holding the same number is untouched.
+    spawn a second with `set_tid` equal to its number,
+    and assert a signal through the first child's descriptor fails while the second is untouched.
 3.  The caller's session refuses.
     Start a holder in the wrapper's session,
     wait for its readiness on a pipe,
@@ -1792,7 +1795,7 @@ never as passed.
 
 ## Revisions
 
-- 2026-11-22T17:29:53-05:00:
+- 2026-11-22T17:39:09-05:00:
   first text,
   non-final and unapproved.
 
