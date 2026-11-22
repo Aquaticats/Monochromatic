@@ -50,7 +50,7 @@ from clones in this round's scratch folder,
 and it cites file and line at those tags.
 
 What it ran:
-two read-only ZFS probes on this host,
+read-only ZFS probes on this host,
 a Git probe in a throwaway repository under this round's scratch folder,
 and the repository's Markdown linter on this document.
 "What this round ran" states each probe,
@@ -715,6 +715,10 @@ in this worktree:
 
 What it showed:
 the rule set enforces a line break after every prose clause,
+and a control file in this round's scratch folder,
+written with a pipe table and with clauses left unbroken,
+made the same run report both rules,
+so the empty result on this document is a result and not a silence.
 so this document is written one clause per line.
 The final run reports nothing,
 and this document's commit messages record when.
