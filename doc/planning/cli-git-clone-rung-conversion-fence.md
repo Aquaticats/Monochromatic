@@ -3770,11 +3770,11 @@ with the evidence behind it.
   so such an add pays the copies and the tree difference exactly as `main` does.
   The named forms `@{-1}`,
   `main@{1}` and `@{u}` are resolved by the read,
-  as the probes q09,
+  as the integration pass's probes q09,
   q12 and q13 show,
-  and only a bare `-` is not (q11).
+  and only a bare `-` is not (its probe q11).
   Where the previous branch's name is also a tag,
-  the read takes the tag and Git checks the branch out (q10 and q10b),
+  the read takes the tag and Git checks the branch out (its probes q10 and q10b),
   so the two trees differ in both directions;
   `main` reads the same tag,
   so this is not a regression.
