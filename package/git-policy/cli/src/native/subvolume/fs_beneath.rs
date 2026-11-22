@@ -233,6 +233,27 @@ pub fn handle_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File>
     return open_beneath(parent, name, libc::O_PATH | libc::O_DIRECTORY, 0);
 }
 
+/// What:
+///  Open the directory `name` of `parent` for reading,
+///  refusing a link,
+///  a magic link and a `..` escape,
+///  but crossing the one mount at that name.
+/// Why:
+///  The staging folder lives under the account's `~/.cache`,
+///  which is its own dataset mount,
+///  so the deliberate hop from the home into it must cross exactly that mount
+///  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+///  "The staging target and who creates it").
+///  Every hop below the held cache descriptor refuses a crossing again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cache = openDirectoryCrossingOneMount(home, '.cache'); // crosses the user-cache mount only
+/// ```
+pub fn open_directory_crossing_one_mount(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    return open_beneath_by(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS | RESOLVE_NO_MAGICLINKS);
+}
+
 /// The device number of an open file.
 pub fn device_of(file: &File) -> std::io::Result<u64> {
     use std::os::unix::fs::MetadataExt;
