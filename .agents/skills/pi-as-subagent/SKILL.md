@@ -295,6 +295,15 @@ which `mise run toolchain:install` makes.
 2.  Make a new run folder under `${HOME}/temp/agent`,
     one per run.
     The driver writes everything there.
+    Give the run's own scratch a folder of its own,
+    and tell the run that the run folder and the prompt file belong to the driver
+    and that it deletes only inside its scratch folder,
+    with every `rm` path written literally:
+    on 2026-11-22 a run cleaned up with `find $S -maxdepth 1 -mindepth 1 ! -name keep -exec rm -rf {} +`
+    on the folder that held its scratch, its run folder and its prompt,
+    which deleted the live run folder,
+    so the driver exited 1 with no `summary.json`
+    and the run's report was never written.
     Choose where Pi works:
     its own worktree (`git worktree add -b <branch> .claude/worktrees/<name> main`),
     or the main checkout for a small change with nothing else in those packages.

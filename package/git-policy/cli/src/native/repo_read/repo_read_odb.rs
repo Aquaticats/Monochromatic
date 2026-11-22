@@ -9,7 +9,8 @@
 //! too large,
 //! replaced by a `refs/replace` ref,
 //! in a shallow or grafted
-//!  history) returns `None`,
+//!  history,
+//! kept in a ref store this reader does not scan) returns `None`,
 //! and the caller asks Git,
 //! which words the failure or fetches a promised object itself.
 //!
@@ -21,6 +22,8 @@
 #![cfg(unix)]
 
 use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::repo_read_config_scan::read_following;
+use crate::repo_read_config_text::{last_entry, parse_config_text};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
 use crate::repo_read_pack::{BaseByName, Pack};
@@ -139,11 +142,66 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
     return Some(());
 }
 
+/// What:
+///  Whether the repository keeps its references in the reftable backend's tables:
+/// a replace ref is then in `reftable/`,
+/// not in `refs/replace`
+///  or `packed-refs`,
+/// so a replacement there would go unseen and the reader would answer the object Git replaces.
+/// Why:
+///  The folder is not the only place the backend is named:
+/// Git 2.56 reads `extensions.refStorage` as `<format>://<payload>`,
+///  and the tables of such a store stand outside the common directory,
+/// so a store moved that way leaves no `reftable` folder behind.
+///  The configuration is where Git reads the backend from,
+/// so it is read here as well.
+/// Gotcha:
+///  That read is what an open of a files-backend repository pays for this:
+/// 7.5 microseconds added to a 16.5 microsecond open on the host measured on 2026-11-22,
+/// and the note `doc/object-database-and-a-reftable-ref-store.md` records the paired run.
+fn ref_store_is_reftable(common_dir: &Path) -> bool {
+    if common_dir.join("reftable").exists() {
+        return true;
+    }
+    // Git reads an extension from the repository's own file alone and honors no include of it
+    //  (`read_repository_format` in `setup.c`), so this read follows none either.
+    return match read_following(common_dir.join("config").as_path()) {
+        Some(Some(text)) => config_names_another_ref_store(text.as_slice()),
+        Some(None) => false,
+        None => true,
+    };
+}
+
+/// What:
+///  Whether the repository's configuration names a reference store this reader cannot scan:
+/// `extensions.refStorage` with any value but exactly `files`.
+/// Why:
+///  Git honors the extension in a version 1 repository format and refuses a repository that carries one in any
+///  other
+///  (`fatal: repo version is 0, but v1-only extension found`),
+/// so a key that names another store is declined whatever version the configuration states.
+/// Reading the version the way Git reads it is then not needed,
+///  and its spellings (`1`,
+///  `01`,
+///  `+1`) cannot decide whether a store is declined.
+/// A file that cannot be parsed is left to Git rather than guessed at.
+fn config_names_another_ref_store(text: &[u8]) -> bool {
+    let Some(entries) = parse_config_text(text) else { return true };
+    return match last_entry(entries.as_slice(), "extensions.refstorage") {
+        Some(entry) => entry.value.as_deref() != Some(b"files"),
+        None => false,
+    };
+}
+
 /// Whether the repository changes what an object name means:
 /// replace refs,
 /// a shallow file,
-/// grafts.
+/// grafts,
+///  a ref store whose replacements this reader cannot see.
 fn objects_are_replaced(common_dir: &Path) -> bool {
+    if ref_store_is_reftable(common_dir) {
+        return true;
+    }
     let replace_dir: PathBuf = common_dir.join("refs/replace");
     if let Ok(mut entries) = std::fs::read_dir(&replace_dir)
         && entries.next().is_some()

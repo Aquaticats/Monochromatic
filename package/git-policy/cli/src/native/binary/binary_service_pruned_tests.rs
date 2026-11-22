@@ -23,10 +23,9 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, Observed, fixture, git, observe, repository, start_fixture_service};
+use super::support::{Fixture, FixtureService, Observed, fixture, git, observe, start_fixture_service};
 use git_policy_cli::service_messages::{ClientFailure, render};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -48,11 +47,32 @@ struct Case {
 }
 
 fn case(name: &str) -> Case {
+    return case_in(name, &[], false);
+}
+
+/// What:
+///  `case` in the ref store `format` names,
+/// with a replace ref where `replace` asks for one.
+/// Why:
+///  A reftable store and a files store holding a replace ref are the two stores the landing's in-process
+///  object reader declines,
+///  so the arms that show the declined reader's cost live where each of them stands.
+fn case_in(name: &str, format: &[&str], replace: bool) -> Case {
     let fixture: Fixture = fixture(name);
-    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let repo: PathBuf = fixture.root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
+    init.extend_from_slice(format);
+    git(&fixture, &repo, init.as_slice());
+    git(&fixture, &repo, &["commit", "--quiet", "--allow-empty", "--message=initial"]);
     std::fs::write(repo.join("a.txt"), "base\n").expect("a");
     git(&fixture, &repo, &["add", "a.txt"]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    if replace {
+        let older: String = git_text(&fixture, &repo, &["rev-parse", "HEAD~1"]).trim().to_string();
+        let head: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+        git(&fixture, &repo, &["replace", older.as_str(), head.as_str()]);
+    }
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
     let blob: String = git_text(&fixture, &repo, &["hash-object", "a.txt"]).trim().to_string();
@@ -125,9 +145,26 @@ fn tip_subject(case: &Case) -> String {
     return git_text(&case.fixture, &case.repo, &["log", "-1", "--format=%s"]).trim().to_string();
 }
 
+/// The crash reports a failed import leaves in the Git directory,
+/// which a failure that says what happened never leaves.
+fn crash_reports(case: &Case) -> Vec<String> {
+    return std::fs::read_dir(case.repo.join(".git"))
+        .expect("git dir")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name.contains("crash"); })
+        .collect();
+}
+
 /// What a person must be able to read when the content stays gone:
-/// no machine event and no internal failure.
+/// no machine event,
+/// no internal failure,
+/// and no crash report left behind.
+/// Why:
+///  A crash report is what an import that died on a missing blob leaves,
+///  and the person who meets the plain words must not find one either.
 fn assert_plain_failure(case: &Case, seen: &Observed) {
+    assert_eq!(crash_reports(case), Vec::<String>::new(), "the failed import left its crash report behind");
     let all: String = stderr_text(seen);
     // The phase marker a test arms logs its own warning lines; they are not part of what the wrapper tells the person.
     let text: String = all.lines().filter(|line| { return !line.starts_with("[warn] "); }).collect::<Vec<&str>>().join("\n");
@@ -164,6 +201,41 @@ fn content_removed_while_staged_fails_plainly_without_reading_the_worktree_again
 #[test]
 fn content_removed_before_landing_fails_plainly_without_reading_the_worktree_again() {
     let case: Case = case("pruned-landing");
+    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; });
+    let (seen, removed) = commit_paused(&case, "service-prepared", answer);
+    assert_eq!(removed, vec![true], "the commit was not prepared again");
+    assert_plain_failure(&case, &seen);
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  Content removed before a reftable repository's commit landed fails plainly,
+///  and no crash report is left.
+/// Why:
+///  A reftable reflog makes the landing's in-process object reader decline the database,
+///  and taking that decline as "nothing is gone" ran `fast-import` over the missing blob:
+///  the person met the service's general words and the repository kept `fast_import_crash_<pid>`.
+/// Git answers the question the reader declined.
+#[test]
+fn content_removed_before_landing_fails_plainly_in_a_reftable_repository() {
+    let case: Case = case_in("pruned-landing-reftable", &["--ref-format=reftable"], false);
+    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; });
+    let (seen, removed) = commit_paused(&case, "service-prepared", answer);
+    assert_eq!(removed, vec![true], "the commit was not prepared again");
+    assert_plain_failure(&case, &seen);
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  The same plain failure and the same clean repository beside a replace ref,
+///  the other store the reader declines.
+/// Why:
+///  A files repository that holds a replace ref declined the database on `main` too,
+///  and its landing gave the general failure and left the crash report there as well;
+///  the control keeps that arm honest now that every caller asks Git.
+#[test]
+fn content_removed_before_landing_fails_plainly_beside_a_replace_ref() {
+    let case: Case = case_in("pruned-landing-replace-ref", &[], true);
     let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; });
     let (seen, removed) = commit_paused(&case, "service-prepared", answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");

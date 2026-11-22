@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::service_protocol::{ALLOWED_MODES, Change};
-use crate::test_support::{fixture, git_output, remove};
+use crate::test_support::{fixture, git_context, git_output, remove};
 use std::path::{Path, PathBuf};
 
 const NAME: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -61,9 +61,9 @@ fn a_named_object_is_missing_once_its_loose_file_is_gone() {
     let name: String = String::from_utf8_lossy(&written.stdout).trim().to_string();
     let common: PathBuf = root.join(".git");
     let objects: PathBuf = common.join("objects");
-    assert!(!prepared_content_missing(common.as_path(), objects.as_path(), "sha1", &request(name.as_str())));
+    assert!(!prepared_content_missing(&git_context(), root.as_path(), common.as_path(), objects.as_path(), "sha1", &request(name.as_str())));
     std::fs::remove_file(objects.join(&name[..2]).join(&name[2..])).expect("the object is loose");
-    assert!(prepared_content_missing(common.as_path(), objects.as_path(), "sha1", &request(name.as_str())));
+    assert!(prepared_content_missing(&git_context(), root.as_path(), common.as_path(), objects.as_path(), "sha1", &request(name.as_str())));
     remove(root.as_path());
 }
 
@@ -117,10 +117,10 @@ fn remove_loose(root: &Path, name: &str) {
 fn a_blob_removed_from_under_an_embedded_tree_is_removed_content() {
     let fixed = tree_fixture("pruned-tree-blob");
     let common: PathBuf = fixed.root.join(".git");
-    assert!(!batch_content_missing(common.as_path(), &[&fixed.request]));
+    assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]));
     remove_loose(fixed.root.as_path(), fixed.blob.as_str());
-    assert!(batch_content_missing(common.as_path(), &[&fixed.request]));
-    assert!(prepared_content_missing(common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request));
+    assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]));
+    assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request));
     remove(fixed.root.as_path());
 }
 
@@ -130,8 +130,8 @@ fn a_subtree_removed_from_under_an_embedded_tree_is_removed_content() {
     let fixed = tree_fixture("pruned-tree-subtree");
     let common: PathBuf = fixed.root.join(".git");
     remove_loose(fixed.root.as_path(), fixed.subtree.as_str());
-    assert!(batch_content_missing(common.as_path(), &[&fixed.request]));
-    assert!(prepared_content_missing(common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request));
+    assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]));
+    assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request));
     remove(fixed.root.as_path());
 }
 
@@ -210,8 +210,8 @@ fn a_loss_below_the_second_root_of_a_batch_is_found() {
     first.tree = Some(fixed.first.clone());
     let mut second: CommitRequest = first.clone();
     second.tree = Some(fixed.second.clone());
-    assert!(!batch_content_missing(common.as_path(), &[&first]));
-    assert!(batch_content_missing(common.as_path(), &[&first, &second]));
+    assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&first]));
+    assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&first, &second]));
     assert_eq!(walk_of(&fixed, &[fixed.first.as_str(), fixed.second.as_str()], usize::MAX).end, ClosureEnd::Missing);
     remove(fixed.root.as_path());
 }
@@ -247,7 +247,7 @@ fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content() {
     let written = git_output(fixed.root.as_path(), &["write-tree"]);
     let mut request: CommitRequest = fixed.request.clone();
     request.tree = Some(String::from_utf8_lossy(&written.stdout).trim().to_string());
-    assert!(!batch_content_missing(common.as_path(), &[&request]));
-    assert!(!prepared_content_missing(common.as_path(), common.join("objects").as_path(), "sha1", &request));
+    assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&request]));
+    assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &request));
     remove(fixed.root.as_path());
 }
