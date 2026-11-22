@@ -2213,10 +2213,10 @@ and any test suite.
 
 ## Revisions
 
-- 2026-11-22T17:52:00-05:00:
+- 2026-11-22T17:30:26-05:00:
   the first draft,
   written on `docs/planning-cli-git-zfs-add-binding-record-design` from `main` at `5dd8883a60`.
-- 2026-11-22T18:31:00-05:00:
+- 2026-11-22T17:33:47-05:00:
   folded in the coordinator's note on the probes:
   both runs are named with their versions,
   the wrapper's added steps for `worktree add`,
@@ -2224,3 +2224,5 @@ and any test suite.
   a run of real Git `2.56.1` in the gate image was added for every arm,
   the wrapper build's date is recorded,
   and the lines were normalized to the repository's Markdown style.
+  Each time above is its commit's committer timestamp from `git log --format=%cI`;
+  a later commit that corrects only a time is not listed.
