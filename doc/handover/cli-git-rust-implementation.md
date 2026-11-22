@@ -41649,7 +41649,13 @@ stated in this entry. What follows from them, as work:
   commits); its records stay there. GOING: `pi-fence-size-read-beside-source-check` (brief under
   `~/temp/agent/fence-size-read-beside-source-check-2026-11-21/`) and `pi-object-database-reftable-replace-refs` (whether
   `main` answers reftable replace refs wrongly; brief under
-  `~/temp/agent/object-database-reftable-replace-refs-2026-11-21/`). Step 7's
+  `~/temp/agent/object-database-reftable-replace-refs-2026-11-21/`). THE MVM FINDINGS ROUND ended at `17aef95941`: H1 lint
+  fixed; cap half of `MemTotal` (`31576M` here) per the owner's answer; `ExitType=cgroup` keeps the unit and guests after a
+  daemon exit (probed with `sleep` children, default arm goes dead); a loaded name is retried every 250 ms in the deadline;
+  no `systemd-run` or an unreachable user bus falls back to `virsh`'s own start with a warning, other failures refuse; README
+  says never stop the unit; `package/vm-builder/cli` left with a reason (it runs in the caller's cgroup, so autostart off
+  would leave it no daemon). Not probed: a daemon crash, a cap overshoot, `systemd-oomd`. GOING: the integration reviewer's
+  recheck. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
