@@ -2950,8 +2950,8 @@ with its committer time from `git log --format=%cI`:
 - `fecdc987b1`,
   2026-11-22T17:30:29-05:00:
   the record may carry an errno from any kernel call.
-- The commit of this revision,
-  whose time `git log --format=%cI` gives:
+- `8609098715`,
+  2026-11-22T18:17:49-05:00:
   the gate review's findings,
   the corrected
   citations throughout,
