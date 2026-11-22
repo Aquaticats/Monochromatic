@@ -634,14 +634,15 @@ fn start_churn() -> Child {
 /// so its mount table's paths are rendered from another root.
 fn divergent_root(sbin: &str, clone: &str) -> Child {
     std::fs::create_dir_all(ROOTED_FOLDER).expect("the divergent root's folder is made");
-    let script: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && mount --bind / {ROOTED_FOLDER}/rootfs && exec chroot {ROOTED_FOLDER}/rootfs /bin/sleep {HOLDER_SECONDS}");
+    // The clone's own root is empty, so the bind target inside it is made after the mount and before the bind.
+    let script: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && mkdir --parents {ROOTED_FOLDER}/rootfs && mount --bind / {ROOTED_FOLDER}/rootfs && exec chroot {ROOTED_FOLDER}/rootfs /bin/sleep {HOLDER_SECONDS}");
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
     return Command::new("unshare")
         .args(["--mount", "--propagation", "private", "sh", "-c", script.as_str()])
         .env("PATH", path)
         .env("LD_LIBRARY_PATH", format!("{}/lib", sbin.trim_end_matches("/sbin")))
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .spawn()
         .expect("the divergent-root task's unshare starts");
 }
