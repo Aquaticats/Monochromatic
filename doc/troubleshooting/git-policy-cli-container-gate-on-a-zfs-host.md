@@ -1344,6 +1344,17 @@ so the fixed 12 ms allowance did not decide this failure either.
 That fixed number still did not hold what it meant to hold once a record has more figures than it counted,
 so the two controls now derive the allowance from the figures they sum.
 
+Every other way this could be false was checked and excluded:
+the build's own figure by `otherMs` 0 and 101 + 111 + 2086 = 2298 of 2299,
+a record of several builds by `attempts` 1,
+a step list cut short by `stepsDropped` 0,
+and the window's own edges,
+which are cut to whole milliseconds and can move only a step within 1 ms of one of them,
+by the two preparation steps beginning 92 ms and 59 ms before the true start.
+A step that began in the build's last `routeMs` was not counted at all,
+so the same off-by-a-route could also hide a defect at the window's end;
+the window now ends where the build does.
+
 Why the control passes alone:
 the band is as wide as `routeMs`,
 which a quiet host reads as 3 to 6 ms here.
