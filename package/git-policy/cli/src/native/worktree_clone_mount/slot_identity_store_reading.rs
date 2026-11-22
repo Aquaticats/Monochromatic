@@ -1,0 +1,300 @@
+//! What:
+//!  Reading one record file below a held store folder,
+//!  listing the folder's slot names,
+//!  and removing the staging names a killed writer left.
+//! Why:
+//!  One read is one file:
+//!  an `openat` on the held folder,
+//!  a check of that descriptor's owner and mode,
+//!  a bounded read,
+//!  a UTF-8 check and the two lines' parse.
+//!  Nothing here lists the folder for a single read,
+//!  so a reader pays nothing for the number of slots,
+//!  and the listing exists only for the adoption and `doctor`,
+//!  which need the whole set.
+//!  A staging name is never read as a record,
+//!  and only the two forms this layout's writers make are removed.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const identity = readRecord(folder, 'add-cache-layer'); // undefined when the record is absent
+//! const names = listedSlotNames(folder); const removed = removeKnownStagingEntries(folder);
+//! ```
+
+use crate::entries_of_one_open_folder::{entry_names, open_entry_for_reading, read_entry_bytes};
+use crate::publishing_entries_in_one_open_folder::{remove_entry, sync_folder};
+use super::slot_identity_store_control::check_under_root_control;
+use super::slot_identity_store_records::{PARENT_RECORD_NAME, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_a_dot_name, is_known_staging_name, parse_one_record};
+use super::slot_name::slot_name_refusal;
+use super::slot_identity_store_refusals::{StoreRefusal, unreadable, write_refusal};
+use crate::diagnostic_log::debug;
+use crate::private_storage::ReadRefusal;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+
+/// Module tag for diagnostics.
+const TAG: &str = "slotIdentityStore";
+
+#[cfg(test)]
+thread_local! {
+    /// A control may catch any listing of the store folder,
+    /// which is where a run that must list nothing stands.
+    pub(crate) static WHEN_THE_STORE_IS_LISTED: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The largest one record file may hold,
+/// derived from the two kernel limits rather than chosen.
+///
+/// Why:
+///  The widest identity token is two ACLs of `MAXIMUM_ACL_BYTES` at two hexadecimal characters a byte,
+///  plus the device,
+///  inode,
+///  owner and mode fields and five colons;
+///  the widest record line is `slot `,
+///  a name of at most `SLOT_NAME_MAXIMUM_BYTES` bytes,
+///  a space,
+///  that token and its newline;
+///  and the widest file is that line and the header with its newline.
+///  A folder whose ACL the kernel would not hold never reaches a record,
+///  because the capture refuses it (`read_acl`),
+///  so no record a writer of this repository makes is refused by this bound.
+///  What the bound is for is a runaway or replaced file,
+/// which must be named rather than read into memory.
+pub const RECORD_MAXIMUM_BYTES: u64 = header_line_bytes() + slot_line_prefix_bytes() + SLOT_NAME_MAXIMUM_BYTES + 1 + widest_identity_token_bytes() + 1;
+
+/// The header line and its newline.
+const fn header_line_bytes() -> u64 {
+    return super::slot_identity_store_records::STORE_HEADER.len() as u64 + 1;
+}
+
+/// `slot ` and the space after the name.
+const fn slot_line_prefix_bytes() -> u64 {
+    return "slot ".len() as u64;
+}
+
+/// The widest identity token the capture can produce.
+const fn widest_identity_token_bytes() -> u64 {
+    let hexadecimal_digits_per_byte: u64 = 2;
+    let acls_per_record: u64 = 2;
+    let five_colons: u64 = 5;
+    let device_digits: u64 = 20;
+    let inode_digits: u64 = 20;
+    let owner_digits: u64 = 10;
+    let mode_digits: u64 = 4;
+    return acls_per_record * (super::clone_folder_identity_acl::MAXIMUM_ACL_BYTES as u64) * hexadecimal_digits_per_byte + five_colons + device_digits + inode_digits + owner_digits + mode_digits;
+}
+
+/// Fire the listing hook,
+/// which a control sets to catch any listing of the store folder.
+#[cfg(test)]
+fn fire_the_listing_hook() {
+    WHEN_THE_STORE_IS_LISTED.with(|hook| { if let Some(listed) = hook.borrow().as_ref() { listed(); } });
+}
+
+/// The path a refusal names for the record filed under `name`.
+pub(super) fn record_path(folder_path: &Path, name: &str) -> PathBuf {
+    return folder_path.join(name);
+}
+
+/// What:
+///  The record `name` holds below `folder`,
+///  or nothing when no record is filed under that name.
+/// Why:
+///  Every reader of one record goes through this call,
+///  so a partial file,
+///  a file filed under another name and a file this account could rewrite are refused in one place.
+///  The control terms apply to the record's own descriptor when the caller holds the folder under root control,
+///  so a swap between the name and the read cannot change which object was judged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = readRecord(folder, name, { underRootControl: true }); // undefined when absent
+/// ```
+///
+/// # Errors
+/// A record larger than `RECORD_MAXIMUM_BYTES`,
+/// a link,
+/// a folder or another non-regular file at the name,
+/// text that is not UTF-8,
+/// a line this repository did not write,
+/// a key the file's name does not belong to,
+/// or a record this account could rewrite.
+pub(super) fn read_record(folder: &std::fs::File, folder_path: &Path, name: &str, under_root_control: bool) -> Result<Option<StoredIdentity>, StoreRefusal> {
+    let path: PathBuf = record_path(folder_path, name);
+    let mut file: std::fs::File = match open_entry_for_reading(folder, OsStr::new(name)) {
+        Ok(opened) => opened,
+        Err(ReadRefusal::Missing) => return Ok(None),
+        Err(refusal) => return Err(unreadable(path.as_path(), refusal, RECORD_MAXIMUM_BYTES)),
+    };
+    if under_root_control {
+        check_under_root_control(path.as_path(), "the record file", &file)?;
+    }
+    let held: u64 = file.metadata().map_err(|error| return StoreRefusal::Unreadable { path: path.clone(), reason: error.to_string() })?.len();
+    if held > RECORD_MAXIMUM_BYTES {
+        return Err(StoreRefusal::RecordTooLarge { path, bytes: held, bound: RECORD_MAXIMUM_BYTES });
+    }
+    let bytes: Vec<u8> = read_entry_bytes(&mut file, RECORD_MAXIMUM_BYTES).map_err(|refusal| return unreadable(path.as_path(), refusal, RECORD_MAXIMUM_BYTES))?;
+    let text: String = String::from_utf8(bytes).map_err(|_error| return StoreRefusal::Unreadable { path: path.clone(), reason: String::from("the file is not UTF-8 text") })?;
+    return parse_one_record(path.as_path(), text.as_str(), name).map(|record| return Some(record));
+}
+
+/// What:
+///  Every slot name the folder lists,
+///  in one order two listings can be compared in.
+/// Why:
+///  The adoption needs the whole set and refuses a name that is neither `.parent`,
+///  nor a slot name,
+///  nor a staging entry;
+///  a foreign name could be a slot whose record a later read would miss.
+///  Staging entries and `.parent` are not slots and are left out,
+///  and an unknown dot name is left out too,
+///  because `doctor` is what reports it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = listedSlotNames(folder); // sorted, foreign names refused
+/// ```
+///
+/// # Errors
+/// A folder that could not be listed,
+/// a name that is not UTF-8,
+/// or an entry that is none of the three kinds this layout names.
+pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+    #[cfg(test)]
+    fire_the_listing_hook();
+    let entries: Vec<OsString> = one_listing(folder, folder_path)?;
+    return slot_names_of(folder_path, entries.as_slice());
+}
+
+/// What:
+///  Every slot name the folder lists and every known staging name it holds,
+///  from one listing that both checks the set and removes what a killed writer left.
+/// Why:
+///  The adoption needs both answers of the same instant:
+///  the design's step 2 lists the folder once,
+///  keeps every name that is a slot record,
+///  refuses a foreign name,
+///  and removes the two staging forms before it stages its own record;
+///  a second listing only for the removal would be a third pass of a folder it then lists a second time
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "The adoption,
+///  and the listing it needs").
+///  The removal follows the listing's own checks,
+///  so a listing that refuses a foreign name removes nothing and leaves the staging names to the next adoption.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { names, removed } = listAndRemoveKnownStagingEntries(folder);
+/// ```
+///
+/// # Errors
+/// Everything the listing refuses,
+/// and a removal the system refused.
+pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<(Vec<String>, Vec<String>), StoreRefusal> {
+    #[cfg(test)]
+    fire_the_listing_hook();
+    let entries: Vec<OsString> = one_listing(folder, folder_path)?;
+    let names: Vec<String> = slot_names_of(folder_path, entries.as_slice())?;
+    let removed: Vec<String> = remove_staging_entries_of(folder, folder_path, entries.as_slice())?;
+    return Ok((names, removed));
+}
+
+/// One listing of the folder,
+/// which every caller above reads.
+///
+/// # Errors
+/// The system's own answer for a folder that could not be listed.
+fn one_listing(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<OsString>, StoreRefusal> {
+    return entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() });
+}
+
+/// The slot names one listing holds,
+/// which is every entry that is not `.parent`,
+/// a dot name or a foreign name.
+///
+/// # Errors
+/// A name that is not UTF-8,
+/// or an entry that is none of the three kinds this layout names.
+fn slot_names_of(folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>, StoreRefusal> {
+    let mut names: Vec<String> = Vec::new();
+    for entry in entries {
+        let Some(name) = entry.to_str() else {
+            return Err(StoreRefusal::ForeignEntry { path: folder_path.join(entry.as_os_str()), entry: entry.to_string_lossy().into_owned() });
+        };
+        if name == PARENT_RECORD_NAME || is_a_dot_name(name) {
+            continue;
+        }
+        if slot_name_refusal(name).is_some() {
+            return Err(StoreRefusal::ForeignEntry { path: folder_path.join(name), entry: name.to_string() });
+        }
+        names.push(name.to_string());
+    }
+    names.sort();
+    names.dedup();
+    return Ok(names);
+}
+
+/// What:
+///  Remove every staging name of the two forms this layout's writers make,
+///  and answer their names.
+/// Why:
+///  A writer killed between its bytes and its link leaves one,
+///  and a writer killed between the link and the removal of its own staging name leaves one naming a published record too;
+///  the adoption removes them as it lists the folder,
+///  and plan step 18's `doctor` is to do the same,
+///  while a dot entry matching neither form is left in place for an administrator,
+///  because a third form means a writer this layout has not accounted for.
+///  No sweep run calls this,
+///  because a sweep lists no name at all
+///  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+///  "Who removes a killed writer's staging file").
+///  The caller's own precondition is what makes the removal safe:
+///  an adoption runs with managed operations quiesced,
+///  so no live writer owns a staging name it removes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removed = removeKnownStagingEntries(folder); // ['..parent.3f.partial', '.a1b2...']
+/// ```
+///
+/// # Errors
+/// A folder that could not be listed,
+/// and a removal the system refused.
+pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+    #[cfg(test)]
+    fire_the_listing_hook();
+    let entries: Vec<OsString> = one_listing(folder, folder_path)?;
+    return remove_staging_entries_of(folder, folder_path, entries.as_slice());
+}
+
+/// The removal itself,
+/// over the names one listing produced.
+///
+/// # Errors
+/// A removal the system refused.
+fn remove_staging_entries_of(folder: &std::fs::File, folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>, StoreRefusal> {
+    let mut removed: Vec<String> = Vec::new();
+    for entry in entries {
+        let Some(name) = entry.to_str() else {
+            continue;
+        };
+        if !is_known_staging_name(name) {
+            continue;
+        }
+        match remove_entry(folder, entry.as_os_str()) {
+            Ok(()) => removed.push(name.to_string()),
+            // A name that went between the listing and the removal is the end state this call asks for.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(write_refusal(folder_path.join(name).as_path(), error)),
+        }
+    }
+    if removed.is_empty() {
+        return Ok(removed);
+    }
+    sync_folder(folder).map_err(|error| return write_refusal(folder_path, error))?;
+    removed.sort();
+    // A root-run removal of files says which names it took and how many, so a person reading the log knows
+    // what a killed writer left behind.
+    debug(TAG, format!("removed {} staging name(s) a killed writer left: {}", removed.len(), removed.join(", ")).as_str());
+    return Ok(removed);
+}

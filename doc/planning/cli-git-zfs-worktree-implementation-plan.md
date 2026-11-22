@@ -1922,7 +1922,8 @@ Steps 9 and 16.
 
 #### What it builds
 
-The read-only extension of `doctor_filesystem.rs`:
+The extension of `doctor_filesystem.rs`,
+read-only except for the staging names it removes:
 the `/dev/zfs`,
 ABI,
 pool,
@@ -1933,6 +1934,12 @@ boot protection,
 propagation and caller-visibility checks,
 and the nested mounts' path reachability;
 the recorded parent and slot identities with the failing field or component;
+the store folder's listing and every record in it:
+the entry count,
+a record filed under a name its key does not match,
+a foreign entry,
+the two known staging forms with their count and age,
+and any dot entry that matches neither form;
 the effective delegation including ancestor grants,
 and the absence of the lineage-changing grants;
 the handler installation,
@@ -1951,6 +1958,13 @@ the holders of a clone by namespace ID and representative PID,
 read from step 9's all-namespace scan result;
 the blocked-removal state and the kept cancel command;
 the backup coverage.
+It removes the two known staging forms a killed writer left in the store,
+which is where the project put that removal while the store's sweep stays unlisted
+([decision record](../decision/cli-git-zfs-slot-identity-store-format.md),
+section "Who removes a killed writer's staging file"):
+until this step the administrator's adoption is their only remover,
+and a leftover affects no reader,
+because no reader reads a staging name.
 It prints the concrete root-once and setup commands without running them,
 and reports the deferred-origin check as not yet designed until step 15 lands.
 
@@ -1959,7 +1973,10 @@ and reports the deferred-origin check as not yet designed until step 15 lands.
 "What doctor checks and prints";
 the `doctor` sentences of "Add and Git registration";
 "Requests,
-results and ordering" for the readiness fields.
+results and ordering" for the readiness fields;
+the `doctor` paragraph of "The other readers" and choice 9 of the slot identity store's format
+([design](cli-git-zfs-slot-identity-store-per-slot-files-design.md)),
+which answer who reports and removes a killed writer's staging file and that no sweep run lists the store.
 
 #### SPEC.md passages
 
@@ -1975,6 +1992,10 @@ shutdown and setup":
 "Check that `doctor` reports partial reads and prints the tested root-once commands for the decided setup,
 without mutating it",
 and that it reports an unreadable or unproven check as unknown.
+A store arm that plants both known staging forms and one dot entry matching neither:
+the two known forms are gone,
+each dot entry it does not remove is reported,
+and `.parent` and every slot record's bytes are unchanged.
 The doctor clauses of the removal bullets:
 it names the holders,
 and it reports the deferred-origin check as not yet designed.

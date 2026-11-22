@@ -37,15 +37,29 @@
 //!   why the store could not be read,
 //!   added to or rewritten,
 //!   and each cause's sentence.
+//! - `slot_identity_store_control.rs`:
+//!   whose the folder and its records must be,
+//!   and the refusal naming an account that could write them.
 //! - `slot_name.rs`:
-//!   the one rule a slot name is held to.
+//!   the one rule a slot name is held to,
+//!   shared by the store,
+//!   the walk and the per-slot claim.
 //! - `slot_identity_store_records.rs`:
-//!   one store line,
+//!   one record file's grammar,
 //!   its kinds and its parsing.
+//! - `slot_identity_store_reading.rs`:
+//!   one record read through the held folder,
+//!   the folder's listing,
+//!   and the staging names a killed writer left.
 //! - `slot_identity_store.rs`:
-//!   the store's path,
-//!   its reader,
-//!   the one append a slot gets and the parent write an adoption makes.
+//!   the store folder's path,
+//!   the folder held open,
+//!   and the lookups and the listing a reader makes through it.
+//! - `slot_identity_store_publication.rs`:
+//!   the three writes:
+//!   a slot's first record,
+//!   the parent's first record,
+//!   and the adoption's replacement.
 //! - `attached_mount_identity.rs`:
 //!   the attach's flags and the mount facts recorded for one folder.
 //! - `clone_slot_walk_refusals.rs`:
@@ -90,17 +104,38 @@ pub mod clone_folder_identity;
 /// added to or rewritten.
 pub mod slot_identity_store_refusals;
 
-/// One line of the slot identity store.
-mod slot_identity_store_records;
+/// Whose the store folder and its records must be,
+/// and the permission bits that say another account could write them.
+mod slot_identity_store_control;
 
 /// What makes a name no plain slot name,
 /// shared by the store,
 /// the walk and the per-slot claim.
 mod slot_name;
 
-/// The store of recorded folder identities,
-/// its path and its two writes.
+/// One record file's grammar:
+/// its header,
+/// its kinds and its own encoding.
+mod slot_identity_store_records;
+
+/// One record read,
+/// the folder's listing,
+/// and the staging names a killed writer left.
+mod slot_identity_store_reading;
+
+/// The store folder of recorded folder identities,
+/// held open by one descriptor.
 pub mod slot_identity_store;
+
+/// The hook a control sets to catch any listing of the store folder.
+#[cfg(test)]
+pub(crate) use slot_identity_store_reading::WHEN_THE_STORE_IS_LISTED;
+
+/// The three writes the store takes:
+/// a slot's first record,
+/// the parent's first record,
+/// and the adoption's replacement.
+pub mod slot_identity_store_publication;
 
 /// The attach's flags and the mount facts one folder's descriptor reports.
 pub mod attached_mount_identity;
@@ -145,12 +180,20 @@ mod attach_arm_tests;
 pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 /// The bound one ACL read accepts.
 pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
-/// The store's path,
-/// its reader and the two writes the route makes.
-pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, append_slot_identity_under_root_control, record_parent_identity_under_root_control};
+/// The store folder's path,
+/// its open and its lookups and listing.
+pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore};
+/// Whose the store folder and its records must be,
+/// and the modes they are made with.
+pub use slot_identity_store_control::{RECORD_MODE, STORE_FOLDER_MODE, STORE_OWNER, store_control_refusal};
+/// The per-file bound,
+/// derived from the kernel's own limits.
+pub use slot_identity_store_reading::RECORD_MAXIMUM_BYTES;
+/// The store's three writes.
+pub use slot_identity_store_publication::{publish_parent_identity_under_root_control, publish_slot_identity_under_root_control, replace_parent_identity_under_root_control};
 /// The store's header line,
 /// its record type and the key its parent record carries.
-pub use slot_identity_store_records::{PARENT_KEY, STORE_HEADER, StoredIdentity};
+pub use slot_identity_store_records::{PARENT_KEY, PARENT_RECORD_NAME, STORE_HEADER, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_known_staging_name};
 pub(crate) use slot_name::slot_name_refusal;
 /// Why the store refused.
 pub use slot_identity_store_refusals::StoreRefusal;
