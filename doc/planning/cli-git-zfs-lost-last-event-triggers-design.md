@@ -2898,10 +2898,13 @@ which is that design's answer.
 
 ## Revisions
 
-- 2026-11-22T17:52:31-05:00,
+- 2026-11-22T17:29:03-05:00,
   written by an agent:
   the first version,
-  unapproved and non-final.
+  unapproved and non-final,
+  carrying this session's two coordinator corrections
+  (the provider section names what the project installs or decides and where each part is recorded,
+  and the acting-manager and signalling boundaries are stated).
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
 [proposal]: cli-git-zfs-worktree-design-proposal.md
