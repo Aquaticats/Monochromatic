@@ -59,10 +59,12 @@ pub struct AdoptionFacts {
     pub slots: Vec<SlotState>,
     /// The slot names the store folder's first listing produced,
     /// and every state in `slots` must cover.
-    /// A caller cannot hand in a list of its own:
-    /// the names come from the folder's own listing,
-    /// never from the caller's account of it,
-    /// and the mode compares the folder's second listing against them before it publishes.
+    /// The mode produces this list itself:
+    /// its own call lists the folder,
+    /// so a caller hands in no account of the folder's names,
+    /// and the mode compares the folder's second listing against these names before it publishes.
+    /// The type is a plain list rather than a type only the store builds,
+    /// so what holds the promise is the mode's one call and not the field's type.
     pub store: Vec<String>,
     /// A fresh canonical lookup of the parent folder,
     /// or its refusal.

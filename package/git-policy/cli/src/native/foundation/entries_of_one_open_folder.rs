@@ -20,18 +20,9 @@
 use crate::private_storage::ReadRefusal;
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-
-/// The largest number of entries one listing returns.
-/// Why:
-///  A listing is a folder a root-only writer fills with one entry per clone,
-///  and an account's clone count is what sizes it;
-///  a runaway folder must be named rather than walked into memory,
-///  which is the same rule the record bound states (`RECORD_MAXIMUM_BYTES`).
-///  A folder of exactly this many entries lists,
-///  and one more refuses.
-pub const LISTING_MAXIMUM_ENTRIES: usize = 65536;
 
 /// What:
 ///  Open the folder at `path` and hold it,
@@ -132,6 +123,17 @@ pub fn read_entry_bytes(file: &mut std::fs::File, limit: u64) -> Result<Vec<u8>,
 ///  so both need the folder's own listing rather than a path's.
 ///  `Dir::read_from` reads a duplicate of the held descriptor,
 ///  so the held folder is not rewound under the caller.
+///  A name is kept as the bytes the kernel listed,
+///  so a name that is not UTF-8 reaches the caller as itself and is refused there,
+///  rather than being decoded into a name the folder does not hold.
+///  The listing has no entry cap:
+///  the accepted design says the store folder has no total bound
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "A record file's bound, and what replaces the whole-store bound"),
+///  and what sizes a listing is the account's clone count, not a foreign writer:
+///  the folder is root-owned `0755`, so no other account adds an entry,
+///  and root adds one per clone it makes on the account's behalf.
+///  `doctor` reports the entry count beside the records, which is what makes a grown store visible.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,22 +141,18 @@ pub fn read_entry_bytes(file: &mut std::fs::File, limit: u64) -> Result<Vec<u8>,
 /// ```
 ///
 /// # Errors
-/// The system's own answer for a folder that cannot be listed,
-/// and the listing's own bound when the folder holds more entries than one run reads.
+/// The system's own answer for a folder that cannot be listed.
 pub fn entry_names(folder: &std::fs::File) -> std::io::Result<Vec<OsString>> {
     let mut directory: rustix::fs::Dir = rustix::fs::Dir::read_from(folder)?;
     let mut names: Vec<OsString> = Vec::new();
     while let Some(read) = directory.read() {
         let entry: rustix::fs::DirEntry = read?;
-        let name: OsString = OsString::from(entry.file_name().to_string_lossy().as_ref());
+        let name: OsString = OsString::from(OsStr::from_bytes(entry.file_name().to_bytes()));
         // The kernel's own listing starts with the folder and its parent, which name no entry of it.
         if name == OsStr::new(".") || name == OsStr::new("..") {
             continue;
         }
         names.push(name);
-        if names.len() > LISTING_MAXIMUM_ENTRIES {
-            return Err(std::io::Error::other(format!("the folder holds more than {LISTING_MAXIMUM_ENTRIES} entries, which is more than one listing reads")));
-        }
     }
     return Ok(names);
 }

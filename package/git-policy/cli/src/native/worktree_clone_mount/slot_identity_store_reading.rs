@@ -27,9 +27,13 @@ use super::slot_identity_store_control::check_under_root_control;
 use super::slot_identity_store_records::{PARENT_RECORD_NAME, SLOT_NAME_MAXIMUM_BYTES, StoredIdentity, is_a_dot_name, is_known_staging_name, parse_one_record};
 use super::slot_name::slot_name_refusal;
 use super::slot_identity_store_refusals::{StoreRefusal, unreadable, write_refusal};
+use crate::diagnostic_log::debug;
 use crate::private_storage::ReadRefusal;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+
+/// Module tag for diagnostics.
+const TAG: &str = "slotIdentityStore";
 
 #[cfg(test)]
 thread_local! {
@@ -158,7 +162,57 @@ pub(super) fn read_record(folder: &std::fs::File, folder_path: &Path, name: &str
 pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
-    let entries: Vec<OsString> = entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() })?;
+    let entries: Vec<OsString> = one_listing(folder, folder_path)?;
+    return slot_names_of(folder_path, entries.as_slice());
+}
+
+/// What:
+///  Every slot name the folder lists and every known staging name it holds,
+///  from one listing that both checks the set and removes what a killed writer left.
+/// Why:
+///  The adoption needs both answers of the same instant:
+///  the design's step 2 lists the folder once,
+///  keeps every name that is a slot record,
+///  refuses a foreign name,
+///  and removes the two staging forms before it stages its own record;
+///  a second listing only for the removal would be a third pass of a folder it then lists a second time
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "The adoption, and the listing it needs").
+///  The removal follows the listing's own checks,
+///  so a listing that refuses a foreign name removes nothing and leaves the staging names to the next adoption.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { names, removed } = listAndRemoveKnownStagingEntries(folder);
+/// ```
+///
+/// # Errors
+/// Everything the listing refuses, and a removal the system refused.
+pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<(Vec<String>, Vec<String>), StoreRefusal> {
+    #[cfg(test)]
+    fire_the_listing_hook();
+    let entries: Vec<OsString> = one_listing(folder, folder_path)?;
+    let names: Vec<String> = slot_names_of(folder_path, entries.as_slice())?;
+    let removed: Vec<String> = remove_staging_entries_of(folder, folder_path, entries.as_slice())?;
+    return Ok((names, removed));
+}
+
+/// One listing of the folder,
+/// which every caller above reads.
+///
+/// # Errors
+/// The system's own answer for a folder that could not be listed.
+fn one_listing(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<OsString>, StoreRefusal> {
+    return entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() });
+}
+
+/// The slot names one listing holds,
+/// which is every entry that is not `.parent`, a dot name or a foreign name.
+///
+/// # Errors
+/// A name that is not UTF-8,
+/// or an entry that is none of the three kinds this layout names.
+fn slot_names_of(folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>, StoreRefusal> {
     let mut names: Vec<String> = Vec::new();
     for entry in entries {
         let Some(name) = entry.to_str() else {
@@ -183,7 +237,7 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 /// Why:
 ///  A writer killed between its bytes and its link leaves one,
 ///  and a writer killed between the link and the removal of its own staging name leaves one naming a published record too;
-///  the adoption lists the folder and removes them,
+///  the adoption removes them as it lists the folder,
 ///  and plan step 18's `doctor` is to do the same,
 ///  while a dot entry matching neither form is left in place for an administrator,
 ///  because a third form means a writer this layout has not accounted for.
@@ -206,7 +260,16 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
-    let entries: Vec<OsString> = entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() })?;
+    let entries: Vec<OsString> = one_listing(folder, folder_path)?;
+    return remove_staging_entries_of(folder, folder_path, entries.as_slice());
+}
+
+/// The removal itself,
+/// over the names one listing produced.
+///
+/// # Errors
+/// A removal the system refused.
+fn remove_staging_entries_of(folder: &std::fs::File, folder_path: &Path, entries: &[OsString]) -> Result<Vec<String>, StoreRefusal> {
     let mut removed: Vec<String> = Vec::new();
     for entry in entries {
         let Some(name) = entry.to_str() else {
@@ -227,5 +290,8 @@ pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: 
     }
     sync_folder(folder).map_err(|error| return write_refusal(folder_path, error))?;
     removed.sort();
+    // A root-run removal of files says which names it took and how many, so a person reading the log knows
+    // what a killed writer left behind.
+    debug(TAG, format!("removed {} staging name(s) a killed writer left: {}", removed.len(), removed.join(", ")).as_str());
     return Ok(removed);
 }

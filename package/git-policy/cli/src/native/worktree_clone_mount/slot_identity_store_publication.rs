@@ -15,7 +15,8 @@
 //!  which answers `EEXIST` just the same,
 //!  and a folder that refuses both calls refuses the write instead of publishing by a rename that replaces.
 //!  A publication compares `.parent` against the walked parent before it creates anything,
-//!  so no record is taken for a folder reached through a parent no check compared.
+//!  so no record is taken for a folder reached through a parent no check compared,
+//!  and the setup run's second publication compares the record it finds before it makes any name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -179,8 +180,30 @@ pub fn publish_parent_identity_under_root_control(store: &Path, identity: &Clone
 }
 
 /// The parent's first publication,
-/// which is the slot publication's no-replace step with `.parent` as the name.
+/// which compares the live folder with the record the folder holds before it makes any name,
+/// and publishes only where `.parent` is absent.
+/// Why:
+///  The setup run's boot unit runs on every boot,
+///  so a second run is the normal case;
+///  the design says the compare runs before the name is made
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "Two writers with two intents"),
+///  so the normal case pays no durable write, no failed link, no unlink and no folder `fsync`,
+///  and a kill in that window leaves no staging name.
+///  The `EEXIST` arm is kept for two first runs that both found `.parent` absent,
+///  where the loser compares what the winner left.
 fn publish_parent_into(store: &SlotIdentityStore, identity: &CloneFolderIdentity, walked: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
+    match store.parent() {
+        Ok(recorded) => {
+            let compared: Result<(), StoreRefusal> = compare_the_parent_identity_with(store, walked, &recorded);
+            if compared.is_ok() {
+                debug(TAG, "a second setup run found the identity the parent record holds");
+            }
+            return compared;
+        }
+        Err(StoreRefusal::NoParentRecord { .. }) => {}
+        Err(other) => return Err(other),
+    }
     let bytes: String = record_bytes(&StoredIdentity::Parent(identity.clone()), store.path())?;
     let staging: OsString = staging_name();
     let created: std::fs::File = create_staging_entry(store, staging.as_os_str(), bytes.as_bytes(), PARENT_RECORD_NAME)?;
@@ -190,7 +213,7 @@ fn publish_parent_into(store: &SlotIdentityStore, identity: &CloneFolderIdentity
             debug(TAG, "published the identity of the worktrees parent folder");
             Ok(())
         }
-        // Another run published `.parent` first, and that is the normal case of a boot unit whose run repeats.
+        // Another run published `.parent` between this run's compare and its link, and its own answer is the record's.
         Err(StoreRefusal::SlotAlreadyRecorded { .. }) => compare_the_parent_record_with(store, walked),
         Err(other) => Err(other),
     };
@@ -200,11 +223,17 @@ fn publish_parent_into(store: &SlotIdentityStore, identity: &CloneFolderIdentity
 /// which is a second setup run's success and any difference's refusal.
 fn compare_the_parent_record_with(store: &SlotIdentityStore, walked: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
     let recorded: CloneFolderIdentity = store.parent()?;
+    return compare_the_parent_identity_with(store, walked, &recorded);
+}
+
+/// The compare itself,
+/// over the record the folder holds.
+fn compare_the_parent_identity_with(store: &SlotIdentityStore, walked: &CloneFolderIdentity, recorded: &CloneFolderIdentity) -> Result<(), StoreRefusal> {
     let fields: Vec<CloneFolderField> = recorded.differences(walked);
     if fields.is_empty() {
         return Ok(());
     }
-    return Err(StoreRefusal::ParentAlreadyRecorded { path: store.path().to_path_buf(), recorded: Box::new(recorded), live: Box::new(walked.clone()), fields });
+    return Err(StoreRefusal::ParentAlreadyRecorded { path: store.path().to_path_buf(), recorded: Box::new(recorded.clone()), live: Box::new(walked.clone()), fields });
 }
 
 /// What:
@@ -269,7 +298,14 @@ fn replace_parent_into(store: &SlotIdentityStore, identity: &CloneFolderIdentity
     let _created: std::fs::File = create_staging_entry(store, staging.as_os_str(), bytes.as_bytes(), PARENT_RECORD_NAME)?;
     #[cfg(test)]
     BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME.with(|hook| { if let Some(between) = hook.borrow().as_ref() { between(); } });
-    let renamed: std::io::Result<()> = rename_entry_replacing(store.folder(), staging.as_os_str(), OsStr::new(PARENT_RECORD_NAME));
+    #[cfg(test)]
+    let forced_rename: Option<i32> = THE_REPLACING_RENAME_IS_ANSWERED_WITH.with(|answer| return answer.get());
+    #[cfg(not(test))]
+    let forced_rename: Option<i32> = None;
+    let renamed: std::io::Result<()> = match a_forced_answer(forced_rename) {
+        Some(answer) => Err(answer),
+        None => rename_entry_replacing(store.folder(), staging.as_os_str(), OsStr::new(PARENT_RECORD_NAME)),
+    };
     if let Err(error) = renamed {
         remove_own_staging_entry(store, staging.as_os_str());
         return Err(write_refusal(store.path(), error));
@@ -286,7 +322,13 @@ fn record_bytes(record: &StoredIdentity, store: &Path) -> Result<String, StoreRe
     let text: String = format!("{}\n{}\n", super::slot_identity_store_records::STORE_HEADER, record.encode());
     let bytes: u64 = text.len() as u64;
     if bytes > RECORD_MAXIMUM_BYTES {
-        return Err(StoreRefusal::RecordTooLarge { path: store.join(record.key()), bytes, bound: RECORD_MAXIMUM_BYTES });
+        // The record's key is `-` for the parent folder, which is no file's name; the refusal names the file the
+        // layout files that record under instead.
+        let file_name: &str = match record {
+            StoredIdentity::Parent(_identity) => PARENT_RECORD_NAME,
+            StoredIdentity::Slot { name, .. } => name.as_str(),
+        };
+        return Err(StoreRefusal::RecordTooLarge { path: store.join(file_name), bytes, bound: RECORD_MAXIMUM_BYTES });
     }
     return Ok(text);
 }
@@ -364,7 +406,7 @@ fn link_or_rename(store: &SlotIdentityStore, staging: &OsStr, name: &OsStr, stag
             remove_own_staging_entry(store, staging);
             Err(StoreRefusal::Write {
                 path: store.path().to_path_buf(),
-                reason: format!("the folder refused the link that gives the record its name ({error}), and nothing was published; the folder holds the staging name until it is removed"),
+                reason: format!("the folder refused the link that gives the record its name ({error}), and nothing was published"),
             })
         }
     };
@@ -472,4 +514,7 @@ thread_local! {
     pub(crate) static THE_LINK_IS_ANSWERED_WITH: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
     /// A control may answer the rename that never replaces with such a refusal too.
     pub(crate) static THE_RENAME_IS_ANSWERED_WITH: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
+    /// A control may answer the adoption's replacing rename with a refusal,
+    /// which is the arm that leaves the old record and removes the staging name.
+    pub(crate) static THE_REPLACING_RENAME_IS_ANSWERED_WITH: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
 }

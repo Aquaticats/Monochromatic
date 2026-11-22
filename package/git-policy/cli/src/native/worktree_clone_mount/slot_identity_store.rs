@@ -219,11 +219,32 @@ impl SlotIdentityStore {
     }
 
     /// What:
+    ///  Every slot name the folder lists,
+    ///  and every known staging name it removed on the way,
+    ///  from one listing of the folder.
+    /// Why:
+    ///  The adoption needs both answers of the same instant:
+    ///  its first listing keeps every name that is a slot record and refuses a foreign name,
+    ///  and the same pass removes the known staging names before the adoption stages its own record,
+    ///  so a killed writer's litter costs the folder one visit and not two.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const { names, removed } = store.listAndRemoveStagingEntries();
+    /// ```
+    ///
+    /// # Errors
+    /// Everything the listing or a removal refuses.
+    pub fn list_and_remove_staging_entries(&self) -> Result<(Vec<String>, Vec<String>), StoreRefusal> {
+        return super::slot_identity_store_reading::listed_slot_names_removing_staging_entries(&self.folder, self.path.as_path());
+    }
+
+    /// What:
     ///  Remove the staging names a killed writer left,
     ///  and answer their names.
     /// Why:
     ///  A kill between a staging file's bytes and its link leaves an entry no reader reads and no writer owns;
-    ///  the adoption removes them before it stages its own record,
+    ///  the adoption removes them as it lists the folder,
     ///  and plan step 18's `doctor` is to report and remove them
     ///  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
     ///  "Who removes a killed writer's staging file").

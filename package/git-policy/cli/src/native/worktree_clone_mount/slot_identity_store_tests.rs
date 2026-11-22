@@ -8,12 +8,15 @@
 //! and the folder and every record answer the root-control terms.
 
 use crate::worktree_clone_mount::slot_identity_store_publication::{
-    BETWEEN_THE_BYTES_AND_THE_LINK, BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME, THE_LINK_IS_ANSWERED_WITH, THE_RENAME_IS_ANSWERED_WITH, publish_parent_identity, publish_slot_identity,
-    replace_parent_identity,
+    BETWEEN_THE_BYTES_AND_THE_LINK, BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME, THE_LINK_IS_ANSWERED_WITH, THE_REPLACING_RENAME_IS_ANSWERED_WITH, THE_RENAME_IS_ANSWERED_WITH, publish_parent_identity,
+    publish_slot_identity, replace_parent_identity,
 };
 use crate::worktree_clone_mount::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
+use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_child_under_file_size_limit};
 use crate::test_support::{fixture, remove};
+use std::ffi::OsString;
+use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -77,6 +80,7 @@ fn clear_hooks() {
     BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME.with(|hook| { *hook.borrow_mut() = None });
     THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(None) });
     THE_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(None) });
+    THE_REPLACING_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(None) });
 }
 
 /// What:
@@ -257,6 +261,52 @@ fn the_publication_falls_back_where_the_folder_refuses_a_link() {
 }
 
 /// What:
+///  The rename fallback's loser arm keeps the record that won:
+///  a second recorder publishes in the window before the first recorder's link,
+///  the link is answered as a folder without hard links answers it,
+///  so the first recorder falls back to the rename that never replaces,
+///  and that rename loses on the winner's own name.
+/// Why:
+///  The fallback exists for a folder that makes no hard links,
+///  and its `EEXIST` must answer what the link's `EEXIST` answers:
+///  the loser removes its own staging name,
+///  reads the record that won and carries it,
+///  and never gives its own identity the winner's name,
+///  which would be the refresh this layout forbids.
+#[test]
+fn the_rename_fallback_s_loser_keeps_the_record_that_won() {
+    let root: PathBuf = fixture("store-rename-fallback-loser");
+    let (folder, parent) = store(root.as_path(), 500, &[]);
+    let winner: CloneFolderIdentity = identity(502);
+    let raced_by: CloneFolderIdentity = winner.clone();
+    let outcome: std::sync::Arc<std::sync::Mutex<Vec<Result<(), StoreRefusal>>>> = std::sync::Arc::default();
+    let held: std::sync::Arc<std::sync::Mutex<Vec<Result<(), StoreRefusal>>>> = std::sync::Arc::clone(&outcome);
+    let raced: PathBuf = folder.clone();
+    let raced_parent: CloneFolderIdentity = parent.clone();
+    // No hard link is made anywhere in this control: the folder answers every link as one without hard links does.
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EPERM)) });
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            let wrote: Result<(), StoreRefusal> = publish_slot_identity(raced.as_path(), "one", &raced_by, &raced_parent);
+            held.lock().expect("the control's own list").push(wrote);
+        }));
+    });
+    let loser: Result<(), StoreRefusal> = publish_slot_identity(folder.as_path(), "one", &identity(501), &parent);
+    clear_hooks();
+    let winner_wrote = outcome.lock().expect("the control's own list").clone();
+    assert_eq!(winner_wrote.len(), 1, "the second recorder ran once, inside the window");
+    assert_eq!(winner_wrote[0], Ok(()), "the second recorder's rename published the record first");
+    let refused: StoreRefusal = loser.expect_err("the first recorder's rename lost on the name that won");
+    assert!(matches!(refused, StoreRefusal::SlotAlreadyRecorded { ref slot, .. } if slot == "one"), "{refused:?}");
+    assert!(matches!(refused, StoreRefusal::SlotAlreadyRecorded { identity: ref carried, .. } if carried == &winner), "the loser carries the record that won");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME), String::from("one")], "one record and neither recorder's staging name");
+    assert_eq!(bytes(folder.as_path(), "one"), format!("{STORE_HEADER}\n{}\n", slot_record("one", 502).encode()).into_bytes(), "the record keeps the winner's bytes and not the loser's");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot("one").expect("the slot reads"), winner, "the record holds the winner's identity after the fallback's loss");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A folder that refuses both the link and the rename that never replaces refuses the write,
 ///  names the folder and both calls,
 ///  and leaves no record and no staging entry.
@@ -308,6 +358,69 @@ fn a_parent_record_is_replaced_by_one_rename_and_a_reader_sees_one_whole_record(
     let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
     assert_eq!(read.parent().expect("the new record"), identity(371));
     assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "one rename leaves the record and no staging name");
+    remove(root.as_path());
+}
+
+/// Child of the control below:
+/// publish one slot record whose bytes the process's file-size limit cuts short.
+#[cfg(unix)]
+#[test]
+#[ignore = "started as a child process, under a file-size limit, by the control of the staging file's fill"]
+fn child_publishes_a_record_past_the_file_size_limit() {
+    let directory: PathBuf = PathBuf::from(std::env::var_os(LIMITED_DIRECTORY_VARIABLE).expect("directory"));
+    let folder: PathBuf = directory.join("git-worktree-clone-slot-identities");
+    let parent: CloneFolderIdentity = identity(520);
+    // The name is long enough that this record is wider than the limit the parent's record fits under.
+    let name: String = "s".repeat(200);
+    let refused: StoreRefusal = publish_slot_identity(folder.as_path(), name.as_str(), &identity(521), &parent).expect_err("the fill is cut short");
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+}
+
+/// What:
+///  A staging file whose fill fails part way is removed again,
+///  so a cut-short write leaves neither the record nor a staging name.
+/// Why:
+///  A failed publication must leave no name a reader could read and no name a remover must find;
+///  a full disk or a size limit is the privilege-free way to make the fill fail,
+///  and a half-written staging name left behind would be litter only an adoption or `doctor` removes.
+#[cfg(unix)]
+#[test]
+fn a_publication_whose_fill_fails_leaves_no_staging_name() {
+    let root: PathBuf = fixture("store-fill-cut-short");
+    let folder: PathBuf = store_folder(root.as_path());
+    let parent: CloneFolderIdentity = identity(520);
+    write_record(folder.as_path(), PARENT_RECORD_NAME, &StoredIdentity::Parent(parent.clone()));
+    let status: std::process::ExitStatus = run_child_under_file_size_limit(
+        "worktree_clone_mount::slot_identity_store::tests::child_publishes_a_record_past_the_file_size_limit",
+        250,
+        root.as_path(),
+    );
+    assert!(status.success(), "the child's publication must fail and say so: {status:?}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the failed fill left no record and no staging name");
+    remove(root.as_path());
+}
+
+/// What:
+///  A replacing rename the folder refuses leaves the old parent record whole beside no staging name,
+///  and refuses with the write's own cause.
+/// Why:
+///  The adoption's replacement is one rename;
+///  a refused rename must leave the record a reader compares against exactly as it was,
+///  and the staging name it made must not stand as litter a later reader could meet.
+#[test]
+fn a_failed_replacement_rename_leaves_the_old_parent_record_and_no_staging_name() {
+    let root: PathBuf = fixture("store-parent-rename-refused");
+    let (folder, parent) = store(root.as_path(), 510, &[]);
+    let record_before: Vec<u8> = bytes(folder.as_path(), PARENT_RECORD_NAME);
+    THE_REPLACING_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EIO)) });
+    let refused: StoreRefusal = replace_parent_identity(folder.as_path(), &identity(511)).expect_err("the replacing rename failed");
+    clear_hooks();
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+    assert!(refused.message().contains(folder.to_string_lossy().as_ref()), "the folder is named: {}", refused.message());
+    assert_eq!(bytes(folder.as_path(), PARENT_RECORD_NAME), record_before, "the old record is what it was");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the failed rename left no staging name");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.parent().expect("the record is the one from before"), parent, "the store still records the old parent");
     remove(root.as_path());
 }
 
@@ -506,6 +619,42 @@ fn a_foreign_entry_refuses_the_listing_and_every_staging_form_does_not() {
 }
 
 /// What:
+///  A name in the store folder that is not UTF-8 refuses the listing as a foreign entry,
+///  naming the folder it stands in,
+///  and is never listed as a slot name.
+/// Why:
+///  The kernel lists bytes and not characters,
+///  so a name decoded into a string the folder does not hold would list as a slot name
+///  carrying a replacement character,
+///  which is neither whitespace nor a control character and so passes the name rule;
+///  the adoption would then refuse `NoSlotRecord` for a name no writer can publish,
+///  and would send the administrator to the sweep instead of to the entry that stands there.
+///  A filesystem that refuses such a name at creation (this host's own ZFS does,
+///  `EILSEQ`, which the design's probe met) prints `SKIPPED` and leaves the control to the gate's
+///  tmpfs fixture root, which allows the name.
+#[test]
+fn a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry() {
+    let root: PathBuf = fixture("store-non-utf8-entry");
+    let (folder, _parent) = store(root.as_path(), 490, &[("one", 491)]);
+    let invalid: OsString = OsString::from_vec(vec![b'a', 0xff, b'b']);
+    if let Err(error) = std::fs::write(folder.join(invalid.as_os_str()), b"staged") {
+        if error.raw_os_error() == Some(libc::EILSEQ) {
+            eprintln!("SKIPPED: this filesystem refuses a name that is not UTF-8 ({error}), so the listing's refusal cannot be shown here; the gate's tmpfs fixture root runs this control");
+            remove(root.as_path());
+            return;
+        }
+        panic!("the fixture entry is written: {error}");
+    }
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    let refused: StoreRefusal = read.slot_names().expect_err("a name that is not UTF-8 is no slot name");
+    assert!(matches!(refused, StoreRefusal::ForeignEntry { ref path, .. } if path.starts_with(folder.as_path())), "{refused:?}");
+    let message: String = refused.message();
+    assert!(message.contains(folder.to_string_lossy().as_ref()), "the folder the entry stands in is named: {message}");
+    assert!(message.contains("neither `.parent`"), "the refusal is the listing's own foreign-entry sentence: {message}");
+    remove(root.as_path());
+}
+
+/// What:
 ///  An absent store folder and an absent record each refuse with their own cause,
 ///  and a link at a record's name is never read through.
 /// Why:
@@ -555,6 +704,42 @@ fn a_second_setup_run_compares_the_live_parent_with_the_parent_record() {
     let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
     assert_eq!(read.parent().expect("the record is the first run's"), live, "a refused second run replaces nothing");
     assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "no staging entry is left");
+    remove(root.as_path());
+}
+
+/// What:
+///  A second setup run that finds the record holding the live folder's identity makes no staging name,
+///  links nothing and removes nothing:
+///  the publication's own steps are never reached,
+///  the record's bytes are what they were and the folder holds no other entry.
+/// Why:
+///  The setup run's boot unit runs on every boot,
+///  so a second run is the normal case;
+///  the design says the compare runs before the name is made
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "Two writers with two intents"),
+///  so the boot unit pays no durable write, no failed link, no unlink and no folder `fsync`
+///  to learn that the record is there,
+///  and a kill during that window leaves no staging litter.
+#[test]
+fn a_second_setup_run_that_finds_the_same_parent_makes_no_name() {
+    let root: PathBuf = fixture("store-second-setup-writes-nothing");
+    let folder: PathBuf = store_folder(root.as_path());
+    let live: CloneFolderIdentity = identity(465);
+    publish_parent_identity(folder.as_path(), &live, &live).expect("the first setup run publishes the parent record");
+    let record_before: Vec<u8> = bytes(folder.as_path(), PARENT_RECORD_NAME);
+    let reached: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::default();
+    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::clone(&reached);
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }));
+    });
+    publish_parent_identity(folder.as_path(), &live, &live).expect("a second run finds the same folder and succeeds");
+    clear_hooks();
+    assert_eq!(reached.load(std::sync::atomic::Ordering::SeqCst), 0, "the compare answered before any staging name was made, and this run reached the publication itself");
+    assert_eq!(bytes(folder.as_path(), PARENT_RECORD_NAME), record_before, "the second run rewrote nothing");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the second run left no staging entry");
     remove(root.as_path());
 }
 

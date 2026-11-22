@@ -5668,9 +5668,12 @@ because no reader reads a staging name
 
 The parent folder's record has two writers.
 The setup run publishes `.parent` only where it is absent,
-and a second setup run compares the live parent with the record it finds:
+and a second setup run compares the live parent with the record it finds before it makes any name:
 an equal folder is success,
 and only a difference refuses `ParentAlreadyRecorded`.
+Two first runs that both find `.parent` absent still publish once,
+and the loser of that link compares what the winner left,
+so the boot unit's normal case pays no staging file, no failed link and no unlink.
 The administrator's adoption is the one writer that replaces the record,
 publishing the new file by one rename over `.parent` while `.parent` is never removed,
 so a reader racing that rename reads either whole record and never a third state.
@@ -5683,6 +5686,8 @@ The setup run's split from the adoption's write is what the plan's step 19 will 
 a boot unit that runs on every boot must not report an error for a record that is already right.
 The adoption lists the store folder twice and refuses where the set of slot names changed,
 so a slot published between the two listings reaches the decision rather than passing unverified.
+The first of those two listings is also the removal of a killed writer's staging names,
+so the litter costs the folder one visit and not a pass of its own.
 The store's folder is given to the module by its caller,
 so a control injects a fixture folder and nothing writes under `/var/lib` in a test.
 
