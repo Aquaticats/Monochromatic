@@ -3276,6 +3276,13 @@ with its committer time from `git log --format=%cI`:
 - `6ce5636f51`,
   2026-11-22T18:49:43-05:00:
   this list gained the commit that recorded this round.
+- `ba096f5efd`,
+  2026-11-22T18:49:51-05:00:
+  the list gained the commit that recorded itself.
+- `12e3760710`,
+  2026-11-22T18:50:13-05:00:
+  the propagation set's real combinations,
+  and the boot unit's inactive state.
 
 ## Links
 
