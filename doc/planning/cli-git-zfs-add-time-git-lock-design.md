@@ -3085,18 +3085,17 @@ with each committer time from `git log --format=%cI`:
   2026-11-22T17:35:46-05:00:
   the add's moments renamed D0 to D7,
   apart from the measurements.
-- This revision,
-  on top of those,
-  answers the gate review:
-  the proof derives from the binding's nonce,
-  no lock record is kept,
+- `71de819090`,
+  2026-11-22T18:30:09-05:00:
+  the answer to the gate review:
+  the proof derives from the binding's nonce and no lock record is kept,
   the moments,
   the failure path and the states are rewritten,
   the split names step 16,
   the questions are the review's merged ones,
   and every citation was rechecked.
-  Its own commit and time are the ones that carry this list,
-  and the round's report names them.
+- The commit that carries this list is the one after `71de819090` on this branch,
+  and `git log` reports its hash and time.
 
 ## Links
 
