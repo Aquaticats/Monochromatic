@@ -72,6 +72,23 @@ fn chosen(plan: &AddPlan, repo: &Path) -> (Ladder, serde_json::Value) {
 }
 
 /// What:
+///  Why the clone rung cannot run for this fixture,
+///  or nothing when it can.
+/// Why:
+///   Every control here is about the clone rung's own answer,
+/// and its refusal is the filesystem's:
+/// the gate image's fixture root is a tmpfs, whose files cannot share blocks,
+///  so each control names its own skip there rather than failing on a rung that could not run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unavailable = (repo, plan) => cloneRefusal(identityOf(repo), plan);
+/// ```
+fn the_clone_rung_cannot_run(repo: &Path, plan: &AddPlan) -> Option<String> {
+    return crate::worktree_snapshot_source::clone_refusal(&main_identity(repo), plan);
+}
+
+/// What:
 ///  An add that names no commit-ish,
 ///  whose destination names an existing local branch at another tree,
 ///  is served by Git's checkout before anything is claimed or copied.
@@ -96,6 +113,11 @@ fn a_destination_that_names_an_existing_branch_is_skipped_before_any_copy() {
     let repo: PathBuf = converting_fixture(root.as_path());
     git(repo.as_path(), &["update-ref", "refs/heads/topic", "refs/heads/other"]);
     let plan: AddPlan = plan_naming_no_commit(root.join("topic"));
+    if let Some(reason) = the_clone_rung_cannot_run(repo.as_path(), &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_destination_that_names_an_existing_branch_is_skipped_before_any_copy ({reason})");
+        remove(root.as_path());
+        return;
+    }
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree: {record}");
     assert!(matches!(ladder.rung, Rung::Git(_)), "the rung steps aside before the first copy: {record}");
@@ -137,6 +159,11 @@ fn a_branch_of_a_tags_name_is_the_tree_the_add_starts_at() {
     commit_all(repo.as_path(), "second");
     git(repo.as_path(), &["update-ref", "refs/heads/same-name", "HEAD"]);
     let plan: AddPlan = plan_naming_a_commit(root.join("topic"), "same-name");
+    if let Some(reason) = the_clone_rung_cannot_run(repo.as_path(), &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_branch_of_a_tags_name_is_the_tree_the_add_starts_at ({reason})");
+        remove(root.as_path());
+        return;
+    }
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "the source is eligible: {record}");
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the clone rung serves a tree Git's checkout writes no differently: {record}");
@@ -170,6 +197,11 @@ fn a_target_tree_no_rule_of_the_fence_can_serve_costs_no_read() {
     tracked(repo.as_path(), "extra.txt", b"line one\n");
     commit_all(repo.as_path(), "second");
     let plan: AddPlan = plan_to_at(root.join("topic"), Some("other"));
+    if let Some(reason) = the_clone_rung_cannot_run(repo.as_path(), &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_target_tree_no_rule_of_the_fence_can_serve_costs_no_read ({reason})");
+        remove(root.as_path());
+        return;
+    }
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the clone rung serves the add: {record}");
     assert!(!ladder.slow.as_ref().is_some_and(|route: &SlowRoute| return route.word() == "declines"), "no sentence says the tree differs: {record}");
@@ -212,6 +244,11 @@ fn a_target_tree_that_changes_a_link_is_skipped_before_any_copy() {
     age(repo.join("link").as_path());
     commit_all(repo.as_path(), "the link points at b.txt");
     let plan: AddPlan = plan_to_at(root.join("topic"), Some("other"));
+    if let Some(reason) = the_clone_rung_cannot_run(repo.as_path(), &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_target_tree_that_changes_a_link_is_skipped_before_any_copy ({reason})");
+        remove(root.as_path());
+        return;
+    }
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the link: {record}");
     assert!(matches!(ladder.rung, Rung::Git(_)), "the rung steps aside before the copies: {record}");
@@ -244,6 +281,11 @@ fn a_commit_ish_the_read_cannot_resolve_leaves_the_rung_running() {
     let root: PathBuf = fixture("target-tree-unresolvable-commit");
     let repo: PathBuf = converting_fixture(root.as_path());
     let plan: AddPlan = plan_to_at(root.join("topic"), Some("-"));
+    if let Some(reason) = the_clone_rung_cannot_run(repo.as_path(), &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_commit_ish_the_read_cannot_resolve_leaves_the_rung_running ({reason})");
+        remove(root.as_path());
+        return;
+    }
     let (ladder, record) = chosen(&plan, repo.as_path());
     assert!(matches!(ladder.rung, Rung::Clone(..)), "the clone rung runs where the read could not answer: {record}");
     assert!(!ladder.slow.as_ref().is_some_and(|route: &SlowRoute| return route.word() == "declines"), "and no sentence says the tree differs: {record}");
