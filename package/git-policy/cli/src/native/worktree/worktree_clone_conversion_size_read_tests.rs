@@ -994,14 +994,23 @@ fn an_abandon_before_the_child_is_published_leaves_no_child_running() {
     started.abandon();
     drop(hold);
     // The read may start its child after the abandon; that child must be ended the moment it is published.
-    let child: Option<i32> = a_process_id_in(wrote.as_path());
+    // The marker is waited for, bounded, because the read's thread starts the fake after this thread released it:
+    //  a check that looked once could miss a child that the old code then left for its whole 30 s sleep.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut child: Option<i32> = None;
+    while child.is_none() && std::time::Instant::now() < deadline {
+        child = a_process_id_in(wrote.as_path());
+        if child.is_none() {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
     if let Some(child) = child {
-        assert!(alive(child), "the marker names a process that was alive when it was read");
         assert!(gone_within(child, Duration::from_secs(5)), "the child the abandon came before is ended at publication, not left for its 30 s sleep");
     }
-    // Whether the child was seen before or after its death, nothing of the fake may still run.
-    if let Some(child) = a_process_id_in(wrote.as_path()) {
-        assert!(gone_within(child, Duration::from_secs(1)), "nothing of the abandoned read is alive afterwards");
+    // Nothing of the fake may still run, whether its marker was seen or the kill landed before it wrote one.
+    let still = a_process_id_in(wrote.as_path());
+    if let Some(still) = still {
+        assert!(gone_within(still, Duration::from_secs(1)), "nothing of the abandoned read is alive afterwards");
     }
     remove(root.as_path());
 }
