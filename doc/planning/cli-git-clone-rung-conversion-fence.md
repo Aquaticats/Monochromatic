@@ -3343,13 +3343,22 @@ this branch `a6d8c40645…`,
   0.83,
   0.86,
   0.91 and 0.78 (median 0.83),
-  the identical pair 0.73,
+  and the identical binary again against `main` is 0.73,
   0.83,
   0.82,
   0.71 and 0.76 (median 0.76).
   Both arms of this binary are under `main` in every round,
-  so the skip is 17 to 24 percent faster than the copy-then-fallback it replaces,
-  and the pair's own 9 percent spread is the noise it is read against.
+  so the skip is 17 to 24 percent faster than the copy-then-fallback it replaces.
+  The noise those ratios are read against is the identical binary's own ratio to this branch,
+  per round,
+  which the integration pass measured on this fixture at 1.04,
+  0.91,
+  1.00,
+  1.07 and 1.11 (median 1.04,
+  its `keep/review.md`,
+  2026-11-21):
+  the 0.73 to 0.83 lies outside it,
+  while the spread of either arm's ratio to `main` is a spread of the round.
   The route is `Git's checkout` in every round where it was
   `Git's checkout after the clone rung ended` before.
   The step split,
@@ -3393,9 +3402,12 @@ this branch `a6d8c40645…`,
   1.02,
   1.06,
   1.01 and 0.96 (median 1.01) for this branch.
-  The record has no `git diff-tree` step at all:
-  an add that names no commit starts at the source's `HEAD`,
-  so the skip costs no read there.
+  The record has no `git diff-tree` step:
+  this add creates its branch from the source's `HEAD`,
+  so no tree can differ there and no read is paid,
+  and the `targetTreeDifference` step is still entered,
+  at 0 ms,
+  because the question is asked of every add.
 - The common case that names the source's own commit,
   `git worktree add … main` (`keep/measure-same-named.log`):
   this branch **465 ms** (445 to 557),
@@ -3411,6 +3423,25 @@ this branch `a6d8c40645…`,
   The one added read is 2 to 3 ms of `git diff-tree`,
   and the wall difference is inside the pair's spread:
   a same-tree add is no slower than before this change.
+  Measured again on 2026-11-21 with this round's binary,
+  5 counted rounds after a warm-up and the same three arms:
+  this branch 442 ms (409 to 517),
+  `main` 419 (404 to 775),
+  the identical binary 459 (405 to 471);
+  per round against `main` 1.24,
+  0.61,
+  1.00,
+  0.98 and 1.05 (median 1.00),
+  the identical binary 1.13,
+  0.59,
+  0.92,
+  0.97 and 1.17 (median 0.97),
+  and the identical binary's own ratio to this branch 0.91,
+  0.98,
+  0.92,
+  1.00 and 1.11 (median 0.98).
+  Both arms' records still hold one 2 ms `git diff-tree` in 5 of 5 rounds,
+  because this add creates the branch with `-b` and so resolves the commit-ish as before.
 
 `main` is the "before this change" arm in every run above:
 its source has everything this branch has except the skip,
@@ -3446,9 +3477,72 @@ the pair 419 (1.02),
 The identical binary's own median for the same-tree shapes is 1.01 in the first run and 1.11 in the second,
 so a same-tree add's wall time is not resolved below about a tenth of the add on this host,
 which is far above the work the change adds there:
-none at all when no commit is named
-(the record has no `targetTreeDifference` step and no `git diff-tree`),
-and one 2 to 3 ms `git diff-tree` when the source's own commit is named.
+none at all when the add creates its branch from `HEAD`
+(the record enters `targetTreeDifference` at 0 ms and names no `git diff-tree`),
+and one 2 to 3 ms `git diff-tree` when a commit is named and no branch of that name is what Git checks out.
+
+### The pass's lows, and what this round reads
+
+**Unapproved and non-final.**
+The integration pass of 2026-11-21 found the skip fit to merge and left six lows;
+this round fixes them and measures the one probe whose route differed from `main`'s.
+Only the owner declares work complete.
+
+What changed:
+the read now asks for the tree `git worktree add` really checks out,
+so a local branch of the commit-ish's name is read in place of a tag of the same name,
+an add that names no commit-ish is read at the branch its destination is named after,
+and an answer that names more than the one ref asked for decides nothing;
+a rung that hands Git no path pays no `git diff-tree` at all;
+and a target tree that changes a tracked link ends the clone rung before its copies,
+because a clone makes the link again and no index entry can vouch for it.
+The rung-1 ending control reaches its ending on purpose through `-`,
+a commit-ish Git resolves through the reflog and the read cannot,
+and the helper that builds its plan names the same commit-ish the words given Git name.
+The read of a name that is a branch costs one `git for-each-ref` (1 to 2 ms),
+and no `git diff-tree` when that branch is the source's `HEAD`.
+
+The probe the pass left unmeasured (its p16):
+a tag at the older commit and a branch of the same name at `HEAD`,
+the add naming that name with no `-b`,
+so Git checks the branch out;
+the fixture is the same 10,002 files,
+5 counted rounds after a warm-up,
+arms rotating,
+every add in a capped scope of its own (`keep/measure-tag-and-branch.log`).
+`main` reads the tag,
+skips the clone rung and pays Git's whole checkout over the copies
+(route `Git's checkout`,
+`gitAdd` 327 ms against this branch's 2),
+while this branch reads the branch,
+answers no difference,
+and lets the clone rung serve the add:
+this branch **415 ms** (411 to 561),
+`main` **454** (441 to 611),
+the identical binary again **423** (403 to 546);
+per round against `main` 0.91,
+0.93,
+0.84,
+1.02 and 0.92 (median 0.92),
+the identical binary 0.93,
+0.91,
+0.99,
+0.90 and 0.89 (median 0.91),
+and the identical binary's own ratio to this branch 1.02,
+0.98,
+1.18,
+0.89 and 0.97 (median 0.98).
+Both arms of this binary are under `main` in four of five rounds and equal in the fifth,
+so the corrected read is no cost here:
+it removes a copy-then-checkout that `main` paid.
+Its record holds one 1 ms `git for-each-ref` and no `git diff-tree`,
+because the branch it names is the source's `HEAD`.
+The binaries are this branch `5c83c1ad4a34…` and `main` `f8fc1f8cf466…`,
+the second built at `9b07ba55bd`,
+whose package sources equal `5d130df425`'s.
+The named same-tree shape was measured again in the same way
+(`keep/measure-same-named.log`),
+and its numbers are in the bullet above.
 
 ## Limitations
 
@@ -3598,7 +3692,7 @@ with the evidence behind it.
   1.09 and 0.93 for this branch (median 0.90) and 0.97,
   0.86,
   1.02,
-  1.07 and 0.96 for the identical pair (median 0.97).
+  1.07 and 0.96 for the identical binary again against `main` (median 0.97).
   Every arm ended at the tree difference and paid its 110 to 111 ms `finishRung`,
   so the ending costs no more than `main`'s own copy-then-fallback at this size,
   and the copies and one checkout of the worktree are what it still pays.
@@ -3606,7 +3700,24 @@ with the evidence behind it.
   The class the skip does catch,
   a path the attributes convert,
   is skipped before the copies and measured at 0.83 of `main`
-  (identical pair 0.76) on the same fixture.
+  (the identical binary again against `main` 0.76) on the same fixture.
+- **A commit-ish the skip's read cannot resolve leaves the rung running.**
+  `git worktree add <path> -` is Git's own `@{-1}` (`Documentation/git-worktree.adoc`,
+  "COMMANDS"),
+  and an `@{...}` form is resolved by Git through this worktree's reflog,
+  which the one name-only read does not take;
+  a name that exists only as a remote-tracking branch is resolved by Git's tracking DWIM into a new branch.
+  Such an add pays the copies and the tree difference exactly as `main` does.
+  The btrfs ending control reaches the snapshot rung's ending through `-` for that reason.
+- **An add whose `worktree.guessRemote` names a remote-tracking branch is not read.**
+  With no commit-ish and no branch named after the destination,
+  Git bases the new branch on a matching remote-tracking branch when that configuration says so
+  (`Documentation/git-worktree.adoc`,
+  "OPTIONS").
+  `--guess-remote` itself is not a form the ladder serves,
+  and the configuration is not read,
+  so the skip answers nothing and the add keeps `main`'s copy-then-checkout.
+  Not measured.
 - **A rung that ends after Git rewrote the waiting index leaves that file behind.**
   The discard removes `index.pending` only when the name still holds the file this run wrote;
   once Git's `read-tree -u` or `checkout-index -u` has rewritten it,
