@@ -22,6 +22,8 @@
 #![cfg(unix)]
 
 use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::repo_read_config_scan::read_following;
+use crate::repo_read_config_text::{last_entry, parse_config_text};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
 use crate::repo_read_pack::{BaseByName, Pack};
@@ -140,13 +142,49 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
     return Some(());
 }
 
-/// Whether the repository keeps its references in the reftable backend's tables:
+/// What:
+///  Whether the repository keeps its references in the reftable backend's tables:
 /// a replace ref is then in `reftable/`,
 /// not in `refs/replace`
 ///  or `packed-refs`,
 /// so a replacement there would go unseen and the reader would answer the object Git replaces.
+/// Why:
+///  The folder is not the only place the backend is named:
+/// Git 2.56 reads `extensions.refStorage` as `<format>://<payload>`,
+///  and the tables of such a store stand outside the common directory,
+/// so a store moved that way leaves no `reftable` folder behind.
+///  The configuration is where Git reads the backend from, so it is read here as well.
 fn ref_store_is_reftable(common_dir: &Path) -> bool {
-    return common_dir.join("reftable").exists();
+    if common_dir.join("reftable").exists() {
+        return true;
+    }
+    // Git reads an extension from the repository's own file alone and honors no include of it
+    //  (`read_repository_format` in `setup.c`), so this read follows none either.
+    return match read_following(common_dir.join("config").as_path()) {
+        Some(Some(text)) => config_names_another_ref_store(text.as_slice()),
+        Some(None) => false,
+        None => true,
+    };
+}
+
+/// What:
+///  Whether the repository's configuration names a reference store this reader cannot scan:
+/// `extensions.refStorage` with any value but exactly `files`.
+/// Why:
+///  Git honors an extension only in a version 1 repository format and refuses a repository that
+///  carries one in another,
+///  so a key outside that version never changes which store Git reads.
+/// A file that cannot be parsed is left to Git rather than guessed at.
+fn config_names_another_ref_store(text: &[u8]) -> bool {
+    let Some(entries) = parse_config_text(text) else { return true };
+    let version_one: bool = matches!(last_entry(entries.as_slice(), "core.repositoryformatversion"), Some(entry) if entry.value.as_deref() == Some(b"1"));
+    if !version_one {
+        return false;
+    }
+    return match last_entry(entries.as_slice(), "extensions.refstorage") {
+        Some(entry) => entry.value.as_deref() != Some(b"files"),
+        None => false,
+    };
 }
 
 /// Whether the repository changes what an object name means:
