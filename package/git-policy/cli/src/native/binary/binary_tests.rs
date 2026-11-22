@@ -1025,3 +1025,6 @@ mod mount_git_worktree_clone_datasets;
 /// and each mismatch is refused without recording anything.
 #[path = "binary_zfs_adoption_guest_tests.rs"]
 mod zfs_adoption_guest;
+
+#[path = "binary_zfs_sweep_guest_tests.rs"]
+mod zfs_sweep_guest;
