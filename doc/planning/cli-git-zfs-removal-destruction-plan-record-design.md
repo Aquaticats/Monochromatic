@@ -3260,4 +3260,9 @@ The document is unapproved and non-final.
   replaces the two questions with one,
   adds "Where this design and the sibling records differ" with the review's fourteen points,
   and corrects every citation the review named and every one the citation check found wrong.
+- `0e1107a1f3`,
+  committer time `2026-11-22T18:35:17-05:00`:
+  two cross-references corrected,
+  the plan's chunked alternative from Choice 3 to Choice 11,
+  and the copied-identities choice named where the plan refers to the binding.
   A later commit that only adds or corrects this list is not listed.
