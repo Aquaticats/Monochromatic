@@ -8,6 +8,7 @@ use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::shadow_git::shadow_request;
+use crate::shadow_init_attempts::{init_attempts, reset_init_attempts};
 use crate::transaction_git::run_git_checked;
 use crate::transaction_journal::RefFormat;
 
@@ -479,10 +480,12 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
 /// Returns the context,
 /// the repository,
 /// its capture,
-/// the
-///  file that counts the starts of `init`,
 /// and the transaction directory.
-fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, InvocationCapture, PathBuf, PathBuf) {
+///  The shim keeps the number of `init` starts it has seen in a file of the fixture,
+/// because only it can know which of its own starts to hang;
+/// the controls count the starts themselves with `init_attempts`,
+/// which is the wrapper's own count and survives a start the ceiling ends before the shim writes.
+fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, InvocationCapture, PathBuf) {
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("reftable directory");
     git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
@@ -502,7 +505,7 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
     context.common_dir = Some(reftable.join(".git"));
     let transaction: PathBuf = root.join("transaction-hanging-init");
     std::fs::create_dir_all(&transaction).expect("transaction directory");
-    return (context, reftable, capture, count, transaction);
+    return (context, reftable, capture, transaction);
 }
 
 /// A shadow whose `init` was ended at its ceiling is thrown away and made again in a fresh directory,
@@ -517,12 +520,13 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
 #[test]
 fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     let root: PathBuf = fixture("shadow-create-init-cut");
-    let (context, reftable, capture, count, transaction) = reftable_with_hanging_init(root.as_path(), 1);
+    let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1);
+    reset_init_attempts();
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_millis(700))); });
     let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
     let shadow: PathBuf = made.expect("the second start made the shadow");
-    assert_eq!(std::fs::read_to_string(&count).expect("count").trim(), "2", "init was started twice");
+    assert_eq!(init_attempts(), SHADOW_CREATION_ATTEMPTS, "init was started twice");
     assert!(!shadow.join("PARTIAL").exists(), "nothing of the cut start is left in the shadow");
     assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), git_text(reftable.as_path(), &["rev-parse", "HEAD"]));
     remove(root.as_path());
@@ -532,10 +536,18 @@ fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
 /// a shadow whose `init` is cut every time fails the transaction with a message
 /// that names the step,
 /// and leaves no partial directory.
+///  The number of starts is the wrapper's own count of the attempts it made
+/// (`init_attempts`),
+/// never a count a file of the started program holds:
+/// a start the ceiling ends before that program writes leaves no such count,
+/// and the wrapper started it all the same
+///  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+///  cause M).
 #[test]
 fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing() {
     let root: PathBuf = fixture("shadow-create-init-cut-always");
-    let (context, reftable, capture, count, transaction) = reftable_with_hanging_init(root.as_path(), 1000);
+    let (context, reftable, capture, transaction) = reftable_with_hanging_init(root.as_path(), 1000);
+    reset_init_attempts();
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_millis(500))); });
     let began: std::time::Instant = std::time::Instant::now();
     let made = create_shadow_repository(&context, reftable.as_path(), &capture, TRANSACTION, transaction.as_path());
@@ -543,7 +555,7 @@ fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_not
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
     let failure: GitFailure = made.expect_err("every start was cut");
     assert!(failure.0.contains("init"), "{failure:?}");
-    assert_eq!(std::fs::read_to_string(&count).expect("count").trim(), SHADOW_CREATION_ATTEMPTS.to_string(), "{failure:?}");
+    assert_eq!(init_attempts(), SHADOW_CREATION_ATTEMPTS, "{failure:?}");
     assert!(waited < std::time::Duration::from_secs(60), "{waited:?}");
     let shadow: PathBuf = crate::shadow_git::shadow_repository_path(reftable.join(".git").as_path(), TRANSACTION);
     assert!(!shadow.exists(), "the partial directory is discarded");

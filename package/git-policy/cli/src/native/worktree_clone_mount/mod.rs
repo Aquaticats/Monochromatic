@@ -62,6 +62,9 @@
 //!   and the adoption's replacement.
 //! - `attached_mount_identity.rs`:
 //!   the attach's flags and the mount facts recorded for one folder.
+//! - `attach_the_clone.rs`:
+//!   the attach's own calls and its refusal,
+//!   and the descriptor-bound unmount a rollback makes.
 //! - `clone_slot_walk_refusals.rs`:
 //!   why a walk or an identity compare refused,
 //!   naming the component or field.
@@ -70,6 +73,10 @@
 //!   the `.claude/worktrees` folder and one slot,
 //!   the walk that holds the parent folder for an adoption,
 //!   and the second walk that reads the canonical slot.
+//! - `clone_slot_git_pointer.rs`:
+//!   the first observation's bounded,
+//!   regular,
+//!   no-follow read of the slot's Git pointer.
 //! - `attach_post_check.rs`:
 //!   whether the mount the attach made is the mount the canonical slot shows.
 //! - `misplaced_attach_rollback.rs`:
@@ -140,12 +147,20 @@ pub mod slot_identity_store_publication;
 /// The attach's flags and the mount facts one folder's descriptor reports.
 pub mod attached_mount_identity;
 
+/// The attach's calls,
+/// its refusal and the descriptor-bound unmount.
+pub mod attach_the_clone;
+
 /// Why the walk or an identity compare refused.
 pub mod clone_slot_walk_refusals;
 
 /// The walk from the checkout to one slot,
 /// and the walk that reads the canonical slot again.
 pub mod clone_slot_walk;
+
+/// The slot's Git pointer,
+/// read as one bounded regular file and resolved nowhere.
+pub mod clone_slot_git_pointer;
 
 /// The check that the attach landed on the slot it holds.
 pub mod attach_post_check;
@@ -199,14 +214,22 @@ pub(crate) use slot_name::slot_name_refusal;
 pub use slot_identity_store_refusals::StoreRefusal;
 /// The mount facts and the enforced flags.
 pub use attached_mount_identity::{ATTACH_MOUNT_FLAGS, MountIdentity, MountIdentityRefusal, mount_facts_of, mount_identity_of};
+/// The attach's calls,
+/// the mount it made and the descriptor-bound unmount.
+pub use attach_the_clone::{AttachCall, AttachRefusal, AttachedMount, Placement, attach_the_clone, unmount_through_descriptor};
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
 /// The walks and what they hold.
-pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, hold_the_worktrees_parent, look_again_at_the_slot, mount_id_at_the_held_target};
+pub use clone_slot_walk::{
+    FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, SlotRecord, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control,
+    hold_the_worktrees_parent, look_again_at_the_slot, mount_id_at_the_held_target, observe_the_clone_slot, observe_the_clone_slot_under_root_control,
+};
 /// The post-attach check.
 pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
+/// The slot's Git pointer and the registration it must name.
+pub use clone_slot_git_pointer::{GitPointerRefusal, read_the_slot_git_pointer, the_registration_of};
 /// The rollback plan and its report.
-pub use misplaced_attach_rollback::{RollbackOutcome, RollbackPlan, RollbackRefusal, plan_rollback};
+pub use misplaced_attach_rollback::{RollbackOutcome, RollbackPlan, RollbackRefusal, plan_rollback, plan_rollback_of};
 /// The shapes an adoption compares against.
 pub use parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
 /// The adoption decision.

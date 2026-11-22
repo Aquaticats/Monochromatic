@@ -198,6 +198,182 @@ fn btrfs_create_snapshot_and_destroy_each_work_once() {
     remove(root.as_path());
 }
 
+/// An ioctl answers `-1` when its request failed and the request's own value every other time,
+/// so a positive answer is a success:
+/// `BTRFS_IOC_GET_SUBVOL_INFO` answers 1,
+/// and a reader that checks its answer against zero calls the filled structure an error with a stale `errno`.
+/// This control holds the reader alone;
+/// `answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails` holds the place
+/// `subvolume_info` hands its answer to,
+/// so a comparison written back at the call site fails wherever the suite runs.
+#[test]
+fn a_positive_ioctl_answer_is_not_a_failure() {
+    assert!(!is_a_failure(&1), "an answer of one is the request's own value, not a failure");
+    assert!(!is_a_failure(&0), "an answer of zero is a success");
+    assert!(is_a_failure(&-1), "the answer of a failed request is -1, and `errno` is read only then");
+}
+
+/// What:
+///  The record a stated answer fills:
+/// an identity,
+/// a parent,
+/// a generation
+///  and the transaction that created it.
+/// Why:
+///   The control compares what the reader returns with the structure the request wrote,
+/// so one named value builds both sides,
+/// and a change to a field then changes one edit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const STATED_RECORD = { uuid: [3, ...], parentUuid: [5, ...], generation: 11, transidAtCreation: 13 };
+/// ```
+const STATED_RECORD: SubvolumeInfo = SubvolumeInfo {
+    uuid: [3u8; 16],
+    parent_uuid: [5u8; 16],
+    generation: 11,
+    transid_at_creation: 13,
+};
+
+/// What:
+///  A request that fills `arguments` with `STATED_RECORD` and then answers the value it is given.
+/// Why:
+///   The reader's decision and its record building live in one function,
+/// so a control reaches both on a filesystem whose kernel answers the request with `ENOTTY`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filled = (answered: number) => (arguments: SubvolumeInfoArgs) => { Object.assign(arguments, STATED_RECORD); return answered; };
+/// ```
+fn filled(answered: libc::c_int) -> impl FnOnce(&mut SubvolumeInfoArgs) -> libc::c_int {
+    return move |arguments: &mut SubvolumeInfoArgs| -> libc::c_int {
+        arguments.uuid = STATED_RECORD.uuid;
+        arguments.parent_uuid = STATED_RECORD.parent_uuid;
+        arguments.generation = STATED_RECORD.generation;
+        arguments.otransid = STATED_RECORD.transid_at_creation;
+        return answered;
+    };
+}
+
+/// What:
+///  The whole reading of `BTRFS_IOC_GET_SUBVOL_INFO`'s answer,
+/// driven on every host with answers this host's kernel is never asked for:
+/// 1 and 0 return the record the request filled,
+///  and -1 is the failure.
+/// Why:
+///   `subvolume_info` hands its answer to `record_from_answer`,
+/// so a comparison against zero written back at that call site fails this control wherever it runs,
+/// including a host with no btrfs fixture root
+/// and a kernel from v7.2 whose every success is 0.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(recordFromAnswer(operation, path, filled(1))).toEqual(STATED_RECORD);
+/// expect(recordFromAnswer(operation, path, filled(0))).toEqual(STATED_RECORD);
+/// expect(() => recordFromAnswer(operation, path, filled(-1))).toThrow();
+/// ```
+#[test]
+fn answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails() {
+    let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
+    let path: PathBuf = PathBuf::from("/the/subvolume/the/answer/is/stated/for");
+    let on_one: SubvolumeInfo = record_from_answer(operation, path.as_path(), filled(1)).expect("an answer of one is the request's own value, not a failure");
+    assert_eq!(on_one, STATED_RECORD, "the record is the structure the request filled");
+    let on_zero: SubvolumeInfo = record_from_answer(operation, path.as_path(), filled(0)).expect("an answer of zero is a success");
+    assert_eq!(on_zero, STATED_RECORD, "an answer of zero fills the record the same way");
+    let failure: PrimitiveError = record_from_answer(operation, path.as_path(), filled(-1)).expect_err("the answer of a failed request is -1");
+    assert_eq!(failure.operation, operation, "the failure names the request");
+    assert_eq!(failure.path, path, "the failure names the path the request was about");
+}
+
+/// The kernel's answer to `BTRFS_IOC_GET_SUBVOL_INFO`,
+/// made here rather than quoted,
+/// is 1 for a subvolume that has a parent backref whose search ends inside a leaf,
+/// and 0 for one whose search ends at a leaf boundary
+/// (`fs/btrfs/ioctl.c` v6.8 line 2200 and v7.1 line 2015 leave its root-backref search's return value in place,
+/// v6.8 line 2205 overwrites it with `btrfs_next_leaf`'s 0 when the search runs past the last item of a leaf,
+/// and v6.8 line 2238 and v7.1 line 2053 copy the structure out anyway),
+/// and 0 for the top-level subvolume
+/// and for every subvolume on v7.2 and later,
+/// whose reader resets the value at line 2051 before it copies the structure out.
+/// Why:
+///   A reader that takes any nonzero answer as an error cannot read the record of a subvolume whose answer is 1,
+/// so this control requires the wrapper to answer with the record the kernel wrote,
+/// and says in one line when the kernel answered zero,
+/// so that pass is not taken for the positive case this control exists for.
+#[test]
+fn btrfs_a_positive_answer_to_the_subvolume_record_is_a_success() {
+    let Some(root) = btrfs_fixture("fs-ioctl-positive-answer") else { return };
+    let source: PathBuf = root.join("source");
+    subvolume_create_at(source.as_path()).expect("create");
+    let directory: std::fs::File = std::fs::File::open(source.as_path()).expect("open the subvolume root");
+    // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
+    let mut written: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
+    // SAFETY: `directory` is open for the call; `written` is the 504-byte structure the request number states.
+    let answered: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut written) };
+    assert!(!is_a_failure(&answered), "the call itself failed: {}", std::io::Error::last_os_error());
+    if answered == 0 {
+        eprintln!(
+            "KERNEL ANSWERED ZERO: btrfs_a_positive_answer_to_the_subvolume_record_is_a_success (the kernel answered 0, so the positive answer this control exists for went unexercised: the backref search ended at a leaf boundary, or this kernel is v7.2 or later and resets the value before it copies the structure out)"
+        );
+    }
+    let facts: SubvolumeInfo = subvolume_info(source.as_path()).expect("the record's answer is a success whatever value it carries");
+    assert_eq!(facts.uuid, written.uuid, "the wrapper answers with the record the kernel wrote");
+    assert_eq!(facts.parent_uuid, written.parent_uuid, "the wrapper answers with the parent the kernel wrote");
+    assert_eq!(facts.transid_at_creation, written.otransid, "the wrapper answers with the creating transaction the kernel wrote");
+    remove(root.as_path());
+}
+
+/// `BTRFS_FS_TREE_OBJECTID`:
+/// the id of the filesystem's top-level subvolume,
+/// the one the request runs no backref search for.
+const BTRFS_FS_TREE_OBJECTID: u64 = 5;
+
+/// What:
+///  The answer a filesystem's top-level subvolume gives,
+/// 0,
+/// read by this crate's own reader:
+/// the fixture root is a plain directory of that subvolume,
+///  whose id the kernel reports in the same structure,
+/// so no backref search runs for it
+/// and the structure is copied out with an answer of 0.
+/// Why:
+///   The other btrfs controls read subvolumes they created,
+/// whose answer is 1 on a kernel up to v7.1 where the search ends inside a leaf,
+/// so the top-level subvolume's 0 reaches this crate's controls only here;
+///  a fixture root inside another subvolume says so in one line instead of passing quietly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const written = await askTheRequest(root);
+/// if (written.treeid !== BTRFS_FS_TREE_OBJECTID) return reportTopLevelNotReached(written.treeid);
+/// expect(answered).toBe(0);
+/// expect(subvolumeInfo(root)).toEqual(written);
+/// ```
+#[test]
+fn btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record() {
+    let Some(root) = btrfs_fixture("fs-ioctl-top-level-answer") else { return };
+    let directory: std::fs::File = std::fs::File::open(root.as_path()).expect("open the fixture root");
+    // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
+    let mut written: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
+    // SAFETY: `directory` is open for the call; `written` is the 504-byte structure the request number states.
+    let answered: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut written) };
+    assert!(!is_a_failure(&answered), "the call itself failed: {}", std::io::Error::last_os_error());
+    if written.treeid != BTRFS_FS_TREE_OBJECTID {
+        eprintln!(
+            "TOP-LEVEL FIXTURE NOT REACHED: btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record (the fixture root {} belongs to subvolume {}, not the filesystem's top-level subvolume {}; point CLI_GIT_TEST_ROOT at the top-level subvolume to exercise its answer)",
+            root.display(),
+            written.treeid,
+            BTRFS_FS_TREE_OBJECTID
+        );
+        remove(root.as_path());
+        return;
+    }
+    assert_eq!(answered, 0, "the top-level subvolume runs no backref search, so its answer is 0");
+    let facts: SubvolumeInfo = subvolume_info(root.as_path()).expect("the top-level subvolume's answer of zero is a record, not an error");
+    assert_eq!(facts.uuid, written.uuid, "the wrapper answers with the record the kernel wrote");
+    remove(root.as_path());
+}
+
 /// The destroy ioctl on a subvolume that holds a nested subvolume is refused,
 /// so removal goes deepest first.
 #[test]

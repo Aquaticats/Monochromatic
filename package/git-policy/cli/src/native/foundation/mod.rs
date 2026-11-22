@@ -42,6 +42,9 @@ pub mod common_directory_of_a_git_directory;
 /// Compact JSON records read and written with the incumbent's `JSON` semantics.
 pub mod json_record;
 
+/// One text value inside one object of a JSONC document.
+pub mod jsonc_member_text;
+
 /// Random identifiers in the layout of the incumbent's `randomUUID`.
 pub mod random_id;
 
