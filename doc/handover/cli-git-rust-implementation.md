@@ -42057,7 +42057,27 @@ stated in this entry. What follows from them, as work:
   `pi-worktree-removal-held-commit-control-failed-in-two-gates` on
   `fix/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` (brief under
   `~/temp/agent/worktree-removal-held-commit-control-failed-in-two-gates-2026-11-22/`; its worktree was added by the old
-  build). Step 7's
+  build). STEP 9'S UNMOUNT ROUND ENDED `idle` (247 turns) at `2120f75dff` with its code built and its step unshown (report
+  `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/report-from-summary.md`): the handler's unmount
+  through staging, the staged-folder record, the reattach, the wrapper's folder and its `rmdir`-only cleanup, and the two
+  entry points later steps wait on, with 65 unit controls green. Not done, in the report's own words: "The guest was not
+  started or run", so every arm ran on a tmpfs stand-in and VM items 3, 4 and 15 and M1 to M9 stay owed; no control drives
+  `EBUSY`; three guards have no red run; the new folder has no `uses/` entry. It also files a receipt for every unmount
+  refusal and adds an outcome `reattached` with the outcome's bound raised from 7 to 10 bytes, where the project's step 8
+  answer is that a refusal files no receipt except for an unavailable key and the accepted staging record names one
+  unmount outcome that files one. Its gate ran 9942 of 9945: the cause-H pair, and
+  `commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`, cause K's control, for the second time.
+  GOING: the same session resumed as `pi-zfs-step-9-unmount-staging-and-reattach-guest-arms` on the brief
+  `continuation-1.md` in that folder (run folder `run-2`): the guest arms on the design's dataset layout, the two
+  busy-unmount controls, the three red runs, the `uses/` links, receipts only where the accepted records name one with the
+  rest listed as a question for the owner, and a gate at the end. Its integration pass on Sonnet follows that, not this.
+  ISSUE 6346 FILED for cause K's control (the second failure's record: stretches 34 ms and steps 2071 ms against a build of
+  2086 ms plus 12 ms allowed, the stopped `git commit` step stated as 2023 ms from an offset of 250 ms; whole text in
+  `~/temp/agent/commit-timing-control-stopped-build-failed-in-two-gates-2026-11-22/keep/`). GOING:
+  `pi-commit-timing-control-stopped-build-failed-in-two-gates` on
+  `fix/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` (brief in that folder; its worktree is the
+  first a round got from the new wrapper build). The scratch root measured 11,178 MiB after the switch of 17:40:59-05:00; its largest
+  folders were the partial clone round's (2,227 MiB) and the propagation design's gate review (1,272 MiB). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
