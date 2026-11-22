@@ -423,6 +423,10 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
     let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
     tracked(repo.as_path(), "kept.txt", b"the commit's bytes\n");
     tracked(repo.as_path(), "edited.txt", b"the commit's bytes\n");
+    // Enough tracked paths that the changed-file cut does not take this one change, so the size is the reason.
+    for index in 0..crate::worktree_clone_conversion_fence::DECLINE_SHARE_DIVISOR {
+        tracked(repo.as_path(), format!("plain-{index}.txt").as_str(), b"the commit's bytes\n");
+    }
     commit_all(repo.as_path(), "a tree far below the limit");
     std::fs::write(repo.join("edited.txt"), b"a change nobody committed\n").expect("the person's change");
     let plan: AddPlan = plan_to(root.join("topic"));
