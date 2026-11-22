@@ -41654,8 +41654,21 @@ stated in this entry. What follows from them, as work:
   daemon exit (probed with `sleep` children, default arm goes dead); a loaded name is retried every 250 ms in the deadline;
   no `systemd-run` or an unreachable user bus falls back to `virsh`'s own start with a warning, other failures refuse; README
   says never stop the unit; `package/vm-builder/cli` left with a reason (it runs in the caller's cgroup, so autostart off
-  would leave it no daemon). Not probed: a daemon crash, a cap overshoot, `systemd-oomd`. GOING: the integration reviewer's
-  recheck. Step 7's
+  would leave it no daemon). Not probed: a daemon crash, a cap overshoot, `systemd-oomd`. THE MVM RECHECK said fit (every
+  finding closed; a `sleep`-child crash probe: SIGKILL or exit 3 leaves the unit active with its children, the name refused
+  until they end, then `--collect` frees it). MERGED as `1f187c44de` at 2026-11-22T00:00:28-05:00 (issue 6338 stays open
+  until the real check). For the owner's eyes, not blocking: O1 no real daemon has run under the new arguments; O2 after a
+  daemon death with guests alive mvm cannot start a daemon until they end or the unit is stopped. OWED BEFORE THE MAIN
+  CHECKOUT'S `dist` IS REBUILT: one real guest check while no daemon runs, with the CLI built in the throwaway worktree
+  `.claude/worktrees/mvm-real-guest-check` (waiter unit `coordinator-wait-until-no-session-daemon`, scratch
+  `~/temp/agent/mvm-real-guest-check-2026-11-22/`); then rebuild `package/mvm/cli` and `package/mcp/mvm` in the main
+  checkout, and the owner restarts or reconnects the mvm MCP server. Old and new integration and feature branches are
+  removed. THE SKIP LOWS' RECHECK said fit (the btrfs rung-1 control red and green in a guest; `rel` 1.00 of `main`; 44
+  probes none worse). MERGED as `2b325ad27b` at 2026-11-22T00:02:51-05:00. NEW, ISSUE 6339: a `pnpm install` run right
+  after `git worktree add` races the commit service's relink, leaves the worktree's ignored-state copy unable to finish, and
+  puts a warning about it on every `git` command of every session until that worktree is removed (now:
+  `object-database-reftable-replace-refs`, a running round's, and `mvm-real-guest-check`, mine; remove both when their work
+  ends). The `pi-as-subagent` skill no longer tells runs to install; briefs written before it still do. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
