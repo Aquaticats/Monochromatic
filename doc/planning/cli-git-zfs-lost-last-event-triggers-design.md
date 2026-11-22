@@ -3374,11 +3374,19 @@ which is that design's answer.
   corrected the revision record and the provider section's wording.
 - 2026-11-22T17:30:36-05:00:
   said which taker clears a rate-refused mark.
-- This revision (the gate-review answer):
-  its commits and their committer times are listed by
-  `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`;
-  the newest of them is the commit
-  that carries this section.
+- 2026-11-22T18:15:57-05:00:
+  the gate-review answer,
+  a rewrite that fixes every finding in
+  `~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review.md`:
+  the provider hook (H1),
+  the nudge policy (H2),
+  the eleven medium findings,
+  the eight low findings,
+  the wrong citations,
+  the eight silently decided choices,
+  the sibling readings and this section.
+  The commit that records this bullet's own time is the newest one
+  `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md` lists.
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
 [proposal]: cli-git-zfs-worktree-design-proposal.md
