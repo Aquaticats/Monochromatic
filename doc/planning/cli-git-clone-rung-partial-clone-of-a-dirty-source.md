@@ -2163,18 +2163,23 @@ The bracket is 26 MB to 763 MB of the quantity the rule sums (index stat sizes),
 on trees of 10,001 and 24,620 files,
 and file count and mean size were never varied apart in one disk's worth of measurement.
 
-### This repository's own tree sits about 1.3 MB above the pinned size limit
+### This repository's own tree sits just above the whole-tree limit
 
-Its tracked files summed to 763,289,228 bytes when the limit was pinned
-(the build's measurement over 24,621 paths),
-which is about 1.3 MB above the 762,000,000-byte limit,
-and a reading on 2026-11-22 gives 763,409,836 bytes over 24,626 paths,
-so the margin holds as the tree moves.
+Its index records 763,293,228 bytes over 24,651 tracked paths,
+read on 2026-11-22 with `git ls-files --debug`,
+which is 1,293,228 bytes (0.17 per cent) above the 762,000,000-byte limit,
+and its mean tracked file is 30,963 bytes.
 Its own dirty adds therefore clone on that margin alone.
 That margin is where the measured bracket's top fell,
 not a value the fence chose.
-If the tree shrinks below the limit its own dirty adds take Git's own checkout and print the reason,
+If its tracked bytes fall below 762,000,000,
+a dirty add started from it moves to Git's own checkout and prints the reason:
+by the declined shapes' own ratios that is 0.69 of Git's checkout today,
+about 1.0 of it after the move,
 until a measurement below this tree's size moves the limit.
+The clean-source rule reads its mean,
+30,963 bytes against the pinned edge,
+so a clean add from this tree clones as it does today while the tree keeps files of this size.
 
 ### The size rules are environment variables of the prototype
 
@@ -2196,6 +2201,20 @@ It now takes the partial clone with no changed path,
 where before this proposal it ended in Git's checkout;
 the split's 127 ms and the fence's reads are what it adds over a whole clone,
 and no shape measures it.
+
+### A target that changes `.gitattributes` ends a dirty add late
+
+A dirty source whose later commit changes `.gitattributes` is served by the partial clone first,
+whose bytes equal Git's own checkout,
+and the two-tree update then ends the rung,
+so the add pays the partial clone's work and Git's checkout over it
+(the integration pass's low L2,
+probed but not timed).
+A clean source is not this case:
+its up-front skip reads the target tree before anything is copied,
+and it cannot decide this class on `main` either.
+No measurement prices the late ending,
+and no fix is proposed here.
 
 ### An ignored untracked `.gitattributes` is still invisible to the fence's listing
 
