@@ -95,11 +95,13 @@ export const SESSION_DAEMON_IDLE_TIMEOUT_SECONDS = 120;
  Memory cap of the unit that runs the session daemon and every guest it starts.
 
  Basis: four guests at mvm's default memory of 8 GiB each
- ({@link DEFAULT_MEMORY_MIB}) plus the measured memory of QEMU, `virtiofsd`,
- `virtlogd` and the daemon around them; the measurement and the reasoning are in
- the package README, section "Session daemon". Exceeding the cap kills the
- guest the kernel picks, not the daemon and every other guest, because the unit
- is started with `OOMPolicy=continue`.
+ ({@link DEFAULT_MEMORY_MIB}), which is 32 GiB, plus room for the daemon,
+ `virtlogd`, one `virtiofsd` per guest and QEMU's own bookkeeping. Measured
+ here on 2026-11-21: the unit with `virtqemud` and `virtlogd` held 11.6 MiB
+ (peak 14 MiB), and one running guest's `virtiofsd` processes held 1.7 MiB and
+ 15.4 MiB. Exceeding the cap kills the guest the kernel picks, not the daemon
+ and every other guest, because the unit runs with `OOMPolicy=continue`; the
+ README's "Session daemon" section says so for the reader.
  */
 export const SESSION_DAEMON_MEMORY_MAX = '36G';
 

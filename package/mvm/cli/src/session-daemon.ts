@@ -76,9 +76,9 @@ export const LIBVIRT_ENV = {
  Milliseconds mvm waits for a started daemon to answer before it reports the
  start as failed.
 
- Basis: measured on 2026-11-21, a daemon started in this unit answered within
- about a second of `systemd-run` returning; thirty seconds leaves room for a
- loaded host while still reporting a daemon that died at startup.
+ Basis: measured here on 2026-11-21, a daemon started in a user unit answered
+ 203 ms after `systemd-run` returned. Thirty seconds leaves room for a loaded
+ host while still reporting a daemon that died at startup.
  */
 export const SESSION_DAEMON_ANSWER_DEADLINE_MS = 30_000;
 
@@ -94,17 +94,18 @@ export const SESSION_DAEMON_ANSWER_DEADLINE_ENV = 'MVM_SESSION_DAEMON_START_TIME
 /**
  Milliseconds between two questions while mvm waits for a started daemon.
 
- The daemon creates its socket as soon as its process starts, so a question
- every tenth of a second finds it promptly without a busy loop.
+ The daemon answered 203 ms after `systemd-run` returned when measured on
+ 2026-11-21, so a question every tenth of a second finds it promptly without a
+ busy loop.
  */
 const ANSWER_POLL_INTERVAL_MS = 100;
 
 /**
  Milliseconds one question to libvirt may take.
 
- A daemon that answers does so at once; a socket with no daemon behind it is
- refused at once. Ten seconds is therefore a daemon that is there and stuck,
- which {@link daemonAnswers} reports as not answering.
+ Measured here on 2026-11-21, a daemon that answers did so in 37 ms; a socket
+ with no daemon behind it is refused at once. Ten seconds is therefore a daemon
+ that is there and stuck, which {@link daemonAnswers} reports as not answering.
  */
 const PROBE_DEADLINE_MS = 10_000;
 
@@ -116,9 +117,9 @@ const SYSTEMD_RUN = 'systemd-run';
 /**
  Milliseconds `systemd-run` may take to start the unit.
 
- Measured on 2026-11-21, `systemd-run --user` returned in under a second; a user
- manager that has not answered in thirty seconds is stuck, and waiting longer
- would hide that.
+ Measured here on 2026-11-21, `systemd-run --user` returned in 8 to 29 ms; a
+ user manager that has not answered in thirty seconds is stuck, and waiting
+ longer would hide that.
  */
 const SYSTEMD_RUN_DEADLINE_MS = 30_000;
 
