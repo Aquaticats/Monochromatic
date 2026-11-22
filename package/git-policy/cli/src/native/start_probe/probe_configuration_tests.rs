@@ -1,94 +1,196 @@
 //! What:
-//!  Controls of the two names the root-owned configuration supplies:
-//!  a document with comments and both keys,
-//!  a missing key,
-//!  a value that is no text,
-//!  a name the rule refuses,
-//!  and the checkout's absolute-path rule.
+//!  Controls of the two names the probe acts on:
+//!  the file's `startProbe` object,
+//!  the design's own names the mount table fills in,
+//!  and every refusal that names the word the record carries.
 //! Why:
-//!  A configuration the setup writes must be read the same way every boot,
-//!  and a boot whose configuration names nothing must record the arm that did
-//!  not run rather than a pass.
+//!  The project answered on 2026-11-22 that a missing file no longer leaves the
+//!  route blocked,
+//!  so a probe with no file has to find its dataset by its design's name and its
+//!  checkout as the sweep finds one
+//!  (`doc/decision/cli-git-zfs-start-probe.md`,
+//!  "Answer of 2026-11-22:
+//! the probe needs no configuration file").
+//!  Each control scripts the text of a mount table,
+//!  so nothing on this machine is read.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(sourceFromConfiguration('{"gitWorktreeProbeDataset":"pool/ds"}')).toEqual({ dataset: 'pool/ds' });
+//! expect(sourceName(undefined, path, table, undefined).snapshotName()).toBe('pool/nosnap/git-worktree-probe@ready');
 //! ```
 
-use super::{CheckoutRefusal, SourceRefusal, checkout_from_configuration, read_configuration, source_from_configuration};
-use crate::testing::test_support::fixture;
+use super::{CHECKOUT_KEY, DATASET_KEY, START_PROBE_KEY, checkout_path, read_configuration, source_name};
+use crate::start_probe::probe_configuration_refusal::{CheckoutRefusal, SourceRefusal};
+use crate::start_probe::probe_source_name::ProbeSource;
+use crate::testing::mounted_dataset_table::{ScriptedMountTable, row, the_designs_table};
 use std::path::{Path, PathBuf};
 
-/// A document with comments and both keys answers the source and the
-///  checkout.
+/// The configuration the controls read as if it were the installed one.
+const CONFIGURATION: &str = "/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc";
+
+/// The checkout dataset the design names,
+/// in the fixture's pool.
+const CHECKOUT_DATASET: &str = "zpcachyos/ROOT/cos/home/monochromatic-git-checkout";
+
+/// The probe dataset the design names in that pool.
+const PROBE_DATASET: &str = "zpcachyos/nosnap/git-worktree-probe";
+
+/// The checkout the controls name.
+const CHECKOUT: &str = "/home/user/Monochromatic";
+
+/// The design's own table.
+fn designed() -> ScriptedMountTable {
+    return ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET));
+}
+
+/// One `startProbe` object holding both names.
+fn both(dataset: &str, checkout: &str) -> String {
+    return format!(r#"{{ "{START_PROBE_KEY}": {{ "{DATASET_KEY}": "{dataset}", "{CHECKOUT_KEY}": "{checkout}" }} }}"#);
+}
+
+/// With no file the probe takes the design's probe dataset in the pool the
+/// mounted checkout dataset names,
+/// and that dataset's mount point as its checkout.
 #[test]
-fn a_document_with_comments_answers_both_names() {
-    let text: &str = "{\n  // the probe's own settings, nested under one key\n  \"startProbe\": {\n    \"dataset\": \"zpcachyos/nosnap/git-worktree-probe\",\n    \"checkout\": \"/home/user/Monochromatic\",\n  },\n}\n";
-    let path: PathBuf = PathBuf::from("/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc");
-    let source = source_from_configuration(text, path.as_path()).expect("the source is named");
+fn no_file_takes_the_designs_probe_dataset_and_the_mounted_checkout() {
+    let table: ScriptedMountTable = designed();
+    let checkout: PathBuf = checkout_path(None, &table).expect("the table holds the checkout once");
+    assert_eq!(checkout, PathBuf::from(CHECKOUT));
+    let source: ProbeSource = source_name(None, Path::new(CONFIGURATION), &table, Some(checkout.as_path())).expect("the design's probe dataset is named");
+    assert_eq!(source.dataset, PROBE_DATASET);
     assert_eq!(source.snapshot_name(), "zpcachyos/nosnap/git-worktree-probe@ready");
-    assert_eq!(checkout_from_configuration(text, path.as_path()), Ok(PathBuf::from("/home/user/Monochromatic")));
 }
 
-/// A document without the key names no source,
-/// and one without the checkout names no checkout.
+/// A file that holds no `startProbe` object does what no file does.
 #[test]
-fn a_missing_key_is_named_by_its_cause() {
-    let path: PathBuf = PathBuf::from("/etc/handler.jsonc");
-    assert!(matches!(source_from_configuration("{}", path.as_path()), Err(SourceRefusal::NameAbsent { .. })));
-    assert_eq!(checkout_from_configuration("{}", path.as_path()), Err(CheckoutRefusal::AbsentOrNotText));
+fn a_file_holding_no_start_probe_object_takes_the_designs_names() {
+    let table: ScriptedMountTable = designed();
+    let document: &str = r#"{"cloneMounts":{"checkout":"/home/user/Monochromatic"}}"#;
+    let checkout: PathBuf = checkout_path(Some(document), &table).expect("the table holds the checkout once");
+    assert_eq!(checkout, PathBuf::from(CHECKOUT));
+    let source: ProbeSource = source_name(Some(document), Path::new(CONFIGURATION), &table, Some(checkout.as_path())).expect("the design's names fill in");
+    assert_eq!(source.dataset, PROBE_DATASET);
 }
 
-/// A value that is no text is refused rather than read as a name.
+/// A file that names both uses both,
+/// and a dataset of its own wins over the design's name.
 #[test]
-fn a_value_that_is_no_text_is_refused() {
-    let path: PathBuf = PathBuf::from("/etc/handler.jsonc");
-    assert!(matches!(source_from_configuration("{\"startProbe\": {\"dataset\": 7}}", path.as_path()), Err(SourceRefusal::NameAbsent { .. })));
-    assert_eq!(checkout_from_configuration("{\"startProbe\": {\"checkout\": []}}", path.as_path()), Err(CheckoutRefusal::AbsentOrNotText));
+fn a_file_naming_both_uses_both() {
+    let table: ScriptedMountTable = designed();
+    let document: String = both("zpcachyos/nosnap/another-probe", "/home/user/another-checkout");
+    let checkout: PathBuf = checkout_path(Some(document.as_str()), &table).expect("the file names the checkout");
+    assert_eq!(checkout, PathBuf::from("/home/user/another-checkout"));
+    let source: ProbeSource = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &table, Some(checkout.as_path())).expect("the file names the dataset");
+    assert_eq!(source.dataset, "zpcachyos/nosnap/another-probe");
 }
 
-/// A name the rule refuses is refused with the rule's own cause,
-/// and its word reaches the record.
+/// A file that names the dataset and no checkout takes the mounted one.
 #[test]
-fn a_refused_name_carries_its_cause() {
-    let path: PathBuf = PathBuf::from("/etc/handler.jsonc");
-    let refusal = source_from_configuration("{\"startProbe\": {\"dataset\": \"pool/ds@snap\"}}", path.as_path()).expect_err("the name is refused");
-    assert_eq!(refusal.word(), "name-refused");
-    assert!(refusal.message().contains("pool/ds@snap"));
+fn a_start_probe_object_without_the_checkout_takes_the_mounted_one() {
+    let table: ScriptedMountTable = designed();
+    let document: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{DATASET_KEY}": "{PROBE_DATASET}" }} }}"#);
+    let checkout: PathBuf = checkout_path(Some(document.as_str()), &table).expect("the table holds the checkout once");
+    assert_eq!(checkout, PathBuf::from(CHECKOUT));
 }
 
-/// A checkout that is not absolute is refused.
+/// Two mounted instances of the design's leaf name are refused,
+/// and the reason word says several.
+#[test]
+fn two_mounted_instances_are_refused_with_the_several_word() {
+    let rows: Vec<String> = vec![
+        row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET),
+        row(50, 1, "/", "/home/user/second", "zfs", "otherpool/ROOT/cos/home/monochromatic-git-checkout"),
+    ];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let refusal: CheckoutRefusal = checkout_path(None, &table).expect_err("two instances name no single checkout");
+    assert_eq!(refusal.word(), "several-mounted-checkouts");
+    assert!(refusal.message(Path::new(CONFIGURATION)).contains("otherpool"), "{}", refusal.message(Path::new(CONFIGURATION)));
+}
+
+/// No mounted instance leaves the checkout untold with its own word,
+/// and a named probe dataset still lets the source be told.
+#[test]
+fn no_mounted_instance_leaves_the_checkout_untold() {
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&[row(1, 0, "/", "/", "zfs", "zpcachyos/ROOT/cos/root")]);
+    let refusal: CheckoutRefusal = checkout_path(None, &table).expect_err("no instance names no checkout");
+    assert_eq!(refusal.word(), "no-mounted-checkout");
+    let document: String = both(PROBE_DATASET, CHECKOUT);
+    let source: ProbeSource = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &table, None).expect("a named dataset needs no checkout");
+    assert_eq!(source.dataset, PROBE_DATASET);
+}
+
+/// A file that names no dataset and this run told no checkout has no pool,
+/// so the source is untold with the word that says so.
+#[test]
+fn no_checkout_and_no_named_dataset_leaves_the_source_untold() {
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&[row(1, 0, "/", "/", "zfs", "zpcachyos/ROOT/cos/root")]);
+    let refusal: SourceRefusal = source_name(None, Path::new(CONFIGURATION), &table, None).expect_err("no pool can be told");
+    assert_eq!(refusal.word(), "no-mounted-checkout");
+    assert!(refusal.message(Path::new(CONFIGURATION)).contains(&format!("{START_PROBE_KEY}.{DATASET_KEY}")), "{}", refusal.message(Path::new(CONFIGURATION)));
+}
+
+/// A checkout path that is not absolute is refused,
+/// because a relative one would be resolved against the worker's directory.
 #[test]
 fn a_relative_checkout_is_refused() {
-    assert_eq!(checkout_from_configuration("{\"startProbe\": {\"checkout\": \"relative/path\"}}", Path::new("/etc/handler.jsonc")), Err(CheckoutRefusal::NotAbsolute));
+    let document: String = both(PROBE_DATASET, "Monochromatic");
+    let refusal: CheckoutRefusal = checkout_path(Some(document.as_str()), &designed()).expect_err("a relative path is refused");
+    assert_eq!(refusal.word(), "name-refused");
 }
 
-/// A document that is not JSONC is its own cause.
+/// A dataset name the kernel refuses is refused by its own rule.
 #[test]
-fn a_document_that_does_not_parse_is_its_own_cause() {
-    let path: PathBuf = PathBuf::from("/etc/handler.jsonc");
-    assert!(matches!(source_from_configuration("{", path.as_path()), Err(SourceRefusal::ConfigurationUnparsable { .. })));
-    assert_eq!(checkout_from_configuration("{", path.as_path()), Err(CheckoutRefusal::Unparsable));
+fn a_dataset_name_the_kernel_refuses_is_refused() {
+    let document: String = both("zpcachyos/nosnap/probe@ready", CHECKOUT);
+    let refusal: SourceRefusal = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &designed(), Some(Path::new(CHECKOUT))).expect_err("a snapshot is no dataset");
+    assert_eq!(refusal.word(), "name-refused");
+    assert!(refusal.message(Path::new(CONFIGURATION)).contains("snapshot or a bookmark"), "{}", refusal.message(Path::new(CONFIGURATION)));
 }
 
-/// The two old flat keys name nothing now:
-/// the project answered that both sit inside one `startProbe` object.
+/// A value of the wrong type is refused rather than read as an entry the file
+/// left out.
 #[test]
-fn the_old_flat_keys_name_nothing() {
-    let path: PathBuf = PathBuf::from("/etc/handler.jsonc");
-    let flat: &str = "{\"gitWorktreeProbeDataset\": \"pool/ds\", \"gitWorktreeCheckout\": \"/checkout\"}";
-    assert!(matches!(source_from_configuration(flat, path.as_path()), Err(SourceRefusal::NameAbsent { .. })));
-    assert_eq!(checkout_from_configuration(flat, path.as_path()), Err(CheckoutRefusal::AbsentOrNotText));
+fn a_value_of_another_type_is_refused() {
+    let numbered: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{DATASET_KEY}": 7 }} }}"#);
+    let refusal: SourceRefusal = source_name(Some(numbered.as_str()), Path::new(CONFIGURATION), &designed(), Some(Path::new(CHECKOUT))).expect_err("a number is not text");
+    assert_eq!(refusal.word(), "name-not-text");
+    let numbered_checkout: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{CHECKOUT_KEY}": 7 }} }}"#);
+    let checkout_refusal: CheckoutRefusal = checkout_path(Some(numbered_checkout.as_str()), &designed()).expect_err("a number is not text");
+    assert_eq!(checkout_refusal.word(), "name-not-text");
 }
 
-/// An absent file is the missing-configuration cause,
-/// never a name the parse refused.
+/// A document that does not parse is refused as unparsable rather than as a
+/// file naming nothing.
 #[test]
-fn an_absent_file_is_its_own_cause() {
-    let root: PathBuf = fixture("start-probe-config-absent");
-    let path: PathBuf = root.join("no-such.jsonc");
-    match read_configuration(path.as_path()) {
-        Err(SourceRefusal::ConfigurationMissing { path: named }) => assert_eq!(named, path),
-        other => panic!("{other:?}"),
-    }
+fn a_document_that_does_not_parse_is_refused() {
+    let refusal: SourceRefusal = source_name(Some("{ \"startProbe\": "), Path::new(CONFIGURATION), &designed(), None).expect_err("a broken document names nothing");
+    assert_eq!(refusal.word(), "configuration-unparsable");
+    let checkout_refusal: CheckoutRefusal = checkout_path(Some("{ \"startProbe\": "), &designed()).expect_err("a broken document names nothing");
+    assert_eq!(checkout_refusal.word(), "configuration-unparsable");
+}
+
+/// A file that is not there is no longer a refusal,
+/// and a file that is there and unreadable still is.
+#[test]
+fn a_missing_file_is_no_refusal_and_an_unreadable_one_is() {
+    let folder: PathBuf = crate::test_support::fixture("probe-configuration-unreadable");
+    let absent: PathBuf = folder.join("nothing.jsonc");
+    assert_eq!(read_configuration(absent.as_path()).expect("a missing file is no refusal"), None);
+    let directory: PathBuf = folder.join("a-directory.jsonc");
+    std::fs::create_dir_all(directory.as_path()).expect("the fixture folder is made");
+    let refusal: SourceRefusal = read_configuration(directory.as_path()).expect_err("a folder is not a file");
+    assert_eq!(refusal.word(), "configuration-unreadable");
+}
+
+/// The file is read from disk and both names come from the same bytes.
+#[test]
+fn the_file_is_read_once_and_both_names_come_from_it() {
+    let folder: PathBuf = crate::test_support::fixture("probe-configuration-read");
+    let file: PathBuf = folder.join("git-worktree-clone-mounts.jsonc");
+    std::fs::write(file.as_path(), both(PROBE_DATASET, CHECKOUT).as_str()).expect("the fixture configuration is written");
+    let document: Option<String> = read_configuration(file.as_path()).expect("the fixture file is readable");
+    let checkout: PathBuf = checkout_path(document.as_deref(), &designed()).expect("the file names the checkout");
+    assert_eq!(checkout, PathBuf::from(CHECKOUT));
+    let source: ProbeSource = source_name(document.as_deref(), file.as_path(), &designed(), Some(checkout.as_path())).expect("the file names the dataset");
+    assert_eq!(source.dataset, PROBE_DATASET);
 }

@@ -49,8 +49,9 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
             )
         }
         ProbeVerdict::Blocked { arm } => format!(
-            "start probe did not run its `{}` arm, so managed attaches stay blocked, an unused slot takes the reflink or ordinary Git route, and which arm did not run and why is in {record}",
-            arm.name()
+            "start probe did not run its `{}` arm, so managed attaches stay blocked, an unused slot takes the reflink or ordinary Git route, and which arm did not run and why is in {record}.{}",
+            arm.name(),
+            blocked_hint(report)
         ),
         ProbeVerdict::TimedOut { in_flight, last_finished } => format!(
             "start probe missed its deadline: the step in flight was `{}` and the last one that finished was `{}`, so the record in {record} is not current and managed attaches stay blocked",
@@ -59,6 +60,38 @@ pub fn verdict_line(verdict: ProbeVerdict, report: &ProbeReport) -> String {
         ),
         ProbeVerdict::Skipped { gate_step } => format!("start probe skipped: the compatibility gate refused at `{gate_step}`, so nothing was mounted and no probe verdict exists in {record}"),
     };
+}
+
+/// What:
+///  The command a blocked record's reader needs,
+///  where the arm that did not run was asking for a source the pool does not
+///  hold.
+/// Why:
+///  The design requires the words a person reads to say which setup command
+///  creates the probe dataset
+///  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+///  "The source:
+/// the probe dataset"),
+///  and the record's own reason word is a closed word rather than a command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hint = blockedHint(report); // ' The probe dataset ... `zfs create` ...' or ''
+/// ```
+fn blocked_hint(report: &ProbeReport) -> String {
+    let mut hint: String = String::new();
+    for line in report.lines() {
+        let super::probe_status_line::StepAnswer::NotExercised { reason, .. } = &line.answer else {
+            continue;
+        };
+        if *reason == "missing-source" {
+            let dataset: String = format!("<pool>/{}", crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::DESIGN_PROBE_DATASET_UNDER_THE_POOL);
+            hint.push_str(&format!(
+                " The source that step asked for does not exist in this pool: plan step 19's setup creates it with `zfs create -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false {dataset}` and its empty snapshot with `zfs snapshot {dataset}@ready`, and `doctor` prints both commands with this pool's own name."
+            ));
+        }
+    }
+    return hint;
 }
 
 /// The first failed step's errno field,
