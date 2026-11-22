@@ -1068,12 +1068,12 @@ Which session owned `gallant_moore`,
 and whether one round's stop ended another round's gate,
 is not established.
 The gate's deadline is not known to send this signal:
-it stops the client with `SIGKILL` (`bin/process-group-stop.ts`),
-removes with `podman rm --force --time 0`,
-and a probe container received no SIGTERM from that.
+it stops the client with `SIGKILL` (`bin/process-group-stop.ts`)
+and removes with `podman rm --force --time 0`.
 A unit stop does send it:
 stopping a probe's unit sent SIGTERM through the `podman run` client to its container in every shape probed on
-2026-11-21,
+2026-11-21
+(the gate's suite container itself was not tried),
 so a stopped gate unit is a candidate,
 and whether any gate unit of that day was stopped is not established.
 An earlier reading here said a probe container kept running after its unit was stopped;
@@ -1161,13 +1161,18 @@ each record also says whose container it was:
   so the container's own `died` and `remove`,
   and a later `podman rm` or `podman inspect`,
   are logged under other podman processes,
-  and that is no outside stop.
+  and that alone is not evidence of an outside stop.
   A `podman stop` from outside the client logs nothing of its own:
   the client logs `died` and `remove`.
 - the gate unit's own `Stopping` and `Stopped` lines in the user journal,
-  in the same second as the client's `container died`,
+  in the same second as a `container died` line
+  (logged by the client or by another podman process),
   which name a unit stop
   (not who asked for it).
+  They carry the unit's description,
+  not the run's name,
+  so the `--grep` above misses them:
+  `journalctl --user --user-unit=<unit>.service` finds them.
 
 The label's run id is the one the gate printed before it built anything,
 and `manifest.json` records the same name,

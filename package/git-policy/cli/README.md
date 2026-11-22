@@ -6486,7 +6486,7 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
     one of them through the gate's own `runGateContainer`;
     the gate's suite container itself was not tried).
     A container whose workload the signal killed was left exited and unremoved,
-    and `podman ps` still printed it as `Up`;
+    and `podman ps` still printed it as `Up` until a podman command that checks it ran;
     one whose workload exited on the signal was left nowhere.
     So after a unit stop,
     `podman ps --all --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists what is left,
@@ -6613,7 +6613,8 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   It answers as soon as systemd has queued the unit,
   so nothing waits an hour for a run.
   Stopping that unit ends the gate,
-  and its `podman run` clients pass the SIGTERM on to their containers;
+  and its `podman run` clients passed the SIGTERM on to their containers in every shape probed
+  (the gate's suite container itself was not tried);
   what may be left,
   and how to list and clear it by this run's label,
   is in the `native:test:container` bullet of "Development";
