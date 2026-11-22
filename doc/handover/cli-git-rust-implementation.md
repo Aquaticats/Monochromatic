@@ -42353,7 +42353,23 @@ stated in this entry. What follows from them, as work:
   change time cannot vouch for; the refusals are re-run against the frozen capture; after the mount the add refuses with
   the pending state until the owner answers. Four questions (what the add may do when a mounted clone's proof refuses,
   whether rung 1 may decline a very dirty source, which writes the proof must refuse, what the slot looks like while it is
-  filled) and eight veto entries. GOING: its second, short gate pass by the same reviewer. Step 7's
+  filled) and eight veto entries. GOING: its second, short gate pass by the same reviewer. THE LOST-EVENT DESIGN'S SECOND
+  FIX ROUND ENDED `idle` (138 turns) at `2c860b3930` (report in its folder's `keep/report-second-pass-findings.md`): each
+  second-pass finding fixed. The printed root command is `reload-or-restart` with the condition under which it is safe; the
+  hook's reach is stated per unit state; a new section "The hook, in one form a sibling can cite"; it cites the
+  propagation design's order and states none of its own; each count names the step that builds it and what ships before
+  the measurement. One change beyond the findings, disclosed: its cost record became a pass-time budget, with the
+  budget's kind a veto entry (V13) in place of a question. Three questions stand (which trigger runs after the checkout
+  becomes ready, whether "moot" accepts waiting for the next trigger, whether the rule may hold a pass while a caller
+  waits). GOING: the diff check against `80a874b773` by the same reviewer, to `review-diff-check.md` beside its reviews.
+  THE DEFERRED-DESTROY DESIGN'S SECOND FIX ROUND ENDED `idle` (125 turns) at `f82f20ecab` (report in its folder's
+  `keep/report-second-pass-findings.md`): the four probes are rewritten with every line traced to a source or record line
+  (the origin's name read live, a mark made only on a cloned or held snapshot, the pause route said not to exist and
+  assigned to step 16, every wait bounded); the refusal's sentences come from the plan's recorded outcomes; the sibling
+  statements are re-read at the siblings' tips. Questions as they stand: keep the pending removal or cancel and remount;
+  whether to add a refusal before the unmount; what a refusal after the head check keeps; and, only if a guarded finish is
+  wanted, whether the wrapper may ever finish over a marked origin. GOING: the diff check against `3e34817184` by the same
+  reviewer, to `review-diff-check.md` beside its reviews. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
