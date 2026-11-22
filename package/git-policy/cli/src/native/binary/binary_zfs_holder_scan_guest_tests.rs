@@ -315,41 +315,81 @@ fn live_tasks() -> usize {
     return entries.filter_map(|entry| return entry.ok()).filter(|entry| return entry.file_name().to_string_lossy().bytes().all(|byte| return byte.is_ascii_digit())).count();
 }
 
-/// Start one child that stays alive for the whole arm,
-/// with its own mount namespace holding the clone.
-fn unshare_holder(sbin: &str, clone: &str, folder: &str) -> Child {
-    std::fs::create_dir_all(folder).expect("the holder's folder is made");
-    let script: String = format!("mount -t zfs {clone} {folder} && exec sleep {HOLDER_SECONDS}");
+/// What:
+///  One task the arm started in a mount namespace of its own.
+/// Why:
+///  `unshare` forks the task and waits for it, so the launcher's pid is in the
+///  host's namespace and killing it leaves the task that keeps the namespace
+///  alive.
+///  The task writes its own pid into a file and then execs into its work,
+///  so the arm signals the task itself and a namespace ends when the arm means
+///  it to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Task = { launcher: ChildProcess; pid: number; namespace: string };
+/// ```
+struct Task {
+    /// The launcher,
+    /// which waits for the task and exits with it.
+    launcher: Child,
+    /// The task's own pid,
+    /// which is in the namespace the launcher made.
+    pid: u32,
+    /// The task's mount namespace identity,
+    /// read while the task is alive.
+    namespace: String,
+}
+
+/// Start one task in its own mount namespace,
+/// bounded: it writes its pid first, and the arm reads that pid and the
+/// namespace it is in.
+fn start_task(script: &str, pid_file: &str, sbin: &str, unshare_arguments: &[&str]) -> Option<Task> {
+    let _removed: std::io::Result<()> = std::fs::remove_file(pid_file);
+    let written: String = format!("echo $$ > {pid_file}; {script}");
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-    return Command::new("unshare")
-        .args(["--mount", "--propagation", "private", "sh", "-c", script.as_str()])
+    let mut words: Vec<&str> = unshare_arguments.to_vec();
+    words.extend(["--mount", "sh", "-c", written.as_str()]);
+    let launcher: Child = Command::new("unshare")
+        .args(words.as_slice())
         .env("PATH", path)
         .env("LD_LIBRARY_PATH", format!("{}/lib", sbin.trim_end_matches("/sbin")))
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .spawn()
-        .unwrap_or_else(|error| panic!("the holder's unshare could not start: {error}"));
-}
-
-/// Wait,
-/// bounded,
-/// for a task's mount table to mention the dataset.
-fn wait_for_the_hold(pid: u32, clone: &str) -> bool {
-    let table: PathBuf = PathBuf::from(format!("/proc/{pid}/mountinfo"));
+        .unwrap_or_else(|error| panic!("the task's unshare could not start: {error}"));
+    let mut task: Task = Task { launcher, pid: 0, namespace: String::new() };
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
-        let mentions: bool = std::fs::read_to_string(table.as_path()).is_ok_and(|text| return text.lines().any(|line| return line.contains(&format!(" - zfs {clone} "))));
-        if mentions {
-            return true;
+        let found: Option<(u32, std::path::PathBuf)> = std::fs::read_to_string(pid_file)
+            .ok()
+            .and_then(|text| return text.trim().parse::<u32>().ok())
+            .and_then(|pid| return std::fs::read_link(format!("/proc/{pid}/ns/mnt")).ok().map(|link| return (pid, link)));
+        if let Some((pid, link)) = found {
+            task.pid = pid;
+            task.namespace = link.to_string_lossy().into_owned();
+            return Some(task);
+        }
+        if let Ok(Some(_status)) = task.launcher.try_wait() {
+            return None;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    return false;
+    return None;
+}
+
+/// End one task the arm started,
+/// and reap the launcher that waited for it.
+fn end(task: &mut Task) {
+    let _signalled: std::process::ExitStatus = Command::new("sh").args(["-c", format!("kill -TERM {}", task.pid).as_str()]).status().expect("the signal starts");
+    let _ended: bool = wait_for_the_end(task.pid);
+    let _reaped = task.launcher.wait();
 }
 
 /// Wait,
 /// bounded,
-/// for a task to be gone.
+/// for a task to be gone,
+/// which is how the arm knows the namespace it was in has no live member left.
 fn wait_for_the_end(pid: u32) -> bool {
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
@@ -361,7 +401,8 @@ fn wait_for_the_end(pid: u32) -> bool {
     return false;
 }
 
-/// The task number of one child.
+/// The task number of one launcher,
+/// which is a pid in this namespace and never the pid of a task it started.
 fn pid_of(child: &Child) -> u32 {
     return child.id();
 }
@@ -418,29 +459,33 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         baseline_scan.incomplete_reads()
     );
 
-    // Arm 2: a second mount namespace holding the clone is found.
-    let mut holder: Child = unshare_holder(sbin.as_str(), clone.as_str(), HOLDER_FOLDER);
-    assert!(wait_for_the_hold(pid_of(&holder), clone.as_str()), "the holder's namespace shows the clone");
+    // Arm 2: a second mount namespace holding the clone is found, under its own namespace identity.
+    std::fs::create_dir_all(HOLDER_FOLDER).expect("the holder's folder is made");
+    let holder_script: String = format!("mount -t zfs {clone} {HOLDER_FOLDER} && exec sleep {HOLDER_SECONDS}");
+    let mut holder: Task = start_task(holder_script.as_str(), "/root/holder-scan-holder.pid", sbin.as_str(), &[])
+        .unwrap_or_else(|| panic!("the holder's mount namespace could not be made; see the arm's log for the mount's own refusal"));
     let (holder_run, held): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(holder_run.status, Some(0), "the mode answers: {}", holder_run.said);
     let held_scan: HolderScan = held.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", holder_run.said));
-    assert_eq!(held_scan.holder_namespaces(), 1, "one foreign namespace holds the clone: {:?} {}", held_scan.holders, holder_run.said);
-    assert_ne!(held_scan.holders[0].namespace(), held_scan.own_namespace.as_deref().unwrap_or_default(), "the holder is not the handler's own namespace");
-    println!("SCAN HOLDER other-namespace={} namespace={} mount={}", held_scan.holder_namespaces(), held_scan.holders[0].namespace(), held_scan.holders[0].mounts[0].mount_point.display());
+    let named_holder: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = held_scan.holders.iter().find(|found| return found.namespace() == holder.namespace);
+    let foreign: &git_policy_cli::clone_holder_scan::NamespaceHolder =
+        named_holder.unwrap_or_else(|| panic!("the holder's own namespace {} is a holder: {:?}", holder.namespace, held_scan.holders));
+    assert_ne!(foreign.namespace(), held_scan.own_namespace.as_deref().unwrap_or_default(), "the holder is not the handler's own namespace");
+    println!("SCAN HOLDER other-namespace={} namespace={} mount={}", held_scan.holder_namespaces(), foreign.namespace(), foreign.mounts[0].mount_point.display());
 
     // Arm 3: a confined consumer holding a bind of the clone,
     // or a line saying this guest could not make one.
-    let confined: Option<Child> = confined_consumer(clone.as_str(), checkout.as_path(), sbin.as_str());
+    let confined: Option<Task> = confined_consumer(clone.as_str(), checkout.as_path(), sbin.as_str());
     match confined {
-        Some(mut child) => {
-            let waited: bool = wait_for_any_hold(pid_of(&child), clone.as_str());
+        Some(mut consumer) => {
             let (confined_run, after): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
             assert_eq!(confined_run.status, Some(0), "the mode answers: {}", confined_run.said);
             let after_scan: HolderScan = after.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", confined_run.said));
-            assert!(waited, "the confined consumer's namespace shows the clone");
+            let found: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = after_scan.holders.iter().find(|found| return found.namespace() == consumer.namespace);
+            assert!(found.is_some(), "the confined consumer's own namespace {} is a holder: {:?}", consumer.namespace, after_scan.holders);
             assert_eq!(after_scan.holder_namespaces(), 2, "the confined consumer is a second holder: {:?}", after_scan.holders);
-            println!("SCAN confined-consumer=held holders={}", after_scan.holder_namespaces());
-            stop(&mut child);
+            println!("SCAN confined-consumer=held holders={} namespace={}", after_scan.holder_namespaces(), consumer.namespace);
+            end(&mut consumer);
         }
         None => {
             println!("SCAN confined-consumer=unavailable this guest refused an unprivileged user namespace");
@@ -483,28 +528,25 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     );
 
     // Arm 6: a task with a divergent process root still names its namespace's mount of the clone.
-    let mut rooted: Child = divergent_root(sbin.as_str(), clone.as_str());
-    let rooted_waited: bool = wait_for_the_table_to_mention(pid_of(&rooted), ROOTED_FOLDER);
-    let rooted_pid: u32 = pid_of(&rooted);
-    let rooted_namespace: String = std::fs::read_link(format!("/proc/{rooted_pid}/ns/mnt")).expect("the rooted task's namespace link reads").to_string_lossy().into_owned();
+    let mut rooted: Task = divergent_root(sbin.as_str(), clone.as_str())
+        .unwrap_or_else(|| panic!("the divergent-root task's mount namespace could not be made; see the arm's log for the refusal"));
     let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
     let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
-    assert!(rooted_waited, "the divergent-root task's namespace mounts the clone at {ROOTED_FOLDER}");
-    let named: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = rooted_scan.holders.iter().find(|found| return found.namespace() == rooted_namespace);
-    let rooted_holder: &git_policy_cli::clone_holder_scan::NamespaceHolder =
-        named.unwrap_or_else(|| panic!("a holder read through a divergent root is a holder under its own namespace {rooted_namespace}: {:?}", rooted_scan.holders));
+    let named: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = rooted_scan.holders.iter().find(|found| return found.namespace() == rooted.namespace);
+    let rooted_holder: &git_policy_cli::clone_holder_scan::NamespaceHolder = named
+        .unwrap_or_else(|| panic!("a holder read through a divergent root is a holder under its own namespace {}: {:?}", rooted.namespace, rooted_scan.holders));
     let observed: String = rooted_holder.mounts.iter().map(|mount| return mount.mount_point.display().to_string()).collect::<Vec<String>>().join(",");
-    println!("SCAN divergent-root holders={} namespace={rooted_namespace} mount-points={observed}", rooted_scan.holder_namespaces());
-    stop(&mut rooted);
+    println!("SCAN divergent-root holders={} namespace={} mount-points={observed}", rooted_scan.holder_namespaces(), rooted.namespace);
+    end(&mut rooted);
 
     // Arm 7: a namespace pinned by a handle and no task is invisible,
     // which is the residual the destroy-anyway decision accepts rather than hides.
-    let held_pid: u32 = pid_of(&holder);
-    let held_namespace: String = std::fs::read_link(format!("/proc/{held_pid}/ns/mnt")).expect("the holder's namespace link reads").to_string_lossy().into_owned();
+    let held_pid: u32 = holder.pid;
+    let held_namespace: String = holder.namespace.clone();
     let mut pinned: Child = pin_the_namespace(held_pid);
     assert!(wait_for_the_namespace_handle(pid_of(&pinned), held_namespace.as_str()), "the pinning task holds the namespace's handle");
-    stop(&mut holder);
+    end(&mut holder);
     assert!(wait_for_the_end(held_pid), "the holder's task has ended");
     let (pinned_run, pinned_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
     assert_eq!(pinned_run.status, Some(0), "the mode answers: {}", pinned_run.said);
@@ -550,71 +592,16 @@ fn time_a_scan(clone: &str, rounds: usize) -> Duration {
 /// an unprivileged user namespace whose own mount namespace binds the clone's
 /// root somewhere else,
 /// which is a holder this route cannot end without --force.
-fn confined_consumer(clone: &str, checkout: &Path, sbin: &str) -> Option<Child> {
+fn confined_consumer(clone: &str, checkout: &Path, sbin: &str) -> Option<Task> {
+    let _unused_clone = clone;
     let slot: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
     let _made: std::io::Result<()> = std::fs::create_dir_all(CONFINED_FOLDER);
     let script: String = format!("mount --bind {} {CONFINED_FOLDER} && exec sleep {HOLDER_SECONDS}", slot.display());
-    let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-    let mut child: Child = Command::new("unshare")
-        .args(["--user", "--map-root-user", "--mount", "sh", "-c", script.as_str()])
-        .env("PATH", path)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap_or_else(|error| panic!("the confined consumer's unshare could not start: {error}"));
-    let started: Instant = Instant::now();
-    while Instant::now() < started + Duration::from_secs(30) {
-        if table_mentions(pid_of(&child), clone) {
-            return Some(child);
-        }
-        if !Path::new(format!("/proc/{}", pid_of(&child)).as_str()).exists() {
-            let _reaped = child.wait();
-            return None;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    let _reaped = child.wait();
-    return None;
+    return start_task(script.as_str(), "/root/holder-scan-confined.pid", sbin, &["--user", "--map-root-user"]);
 }
 
-/// Whether one task's mount table mentions the dataset as a mount's source.
-fn table_mentions(pid: u32, dataset: &str) -> bool {
-    let Ok(text) = std::fs::read_to_string(format!("/proc/{pid}/mountinfo")) else {
-        return false;
-    };
-    return text.lines().any(|line| return line.contains(&format!(" - zfs {dataset} ")));
-}
 
-/// Wait,
-/// bounded,
-/// for a task to appear whose table mentions the dataset.
-fn wait_for_any_hold(pid: u32, dataset: &str) -> bool {
-    let deadline: Instant = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < deadline {
-        if table_mentions(pid, dataset) {
-            return true;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    return false;
-}
 
-/// Wait,
-/// bounded,
-/// for a task's mount table to mention one folder,
-/// which is how the arm knows the divergent root's own mount is there.
-fn wait_for_the_table_to_mention(pid: u32, needle: &str) -> bool {
-    let table: PathBuf = PathBuf::from(format!("/proc/{pid}/mountinfo"));
-    let deadline: Instant = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < deadline {
-        let mentions: bool = std::fs::read_to_string(table.as_path()).is_ok_and(|text| return text.contains(needle));
-        if mentions {
-            return true;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    return false;
-}
 
 /// A task churn:
 /// short-lived processes arriving and leaving while the scan runs.
@@ -632,19 +619,11 @@ fn start_churn() -> Child {
 /// the guest's root is bound inside it,
 /// and the task then chroots into that bind,
 /// so its mount table's paths are rendered from another root.
-fn divergent_root(sbin: &str, clone: &str) -> Child {
+fn divergent_root(sbin: &str, clone: &str) -> Option<Task> {
     std::fs::create_dir_all(ROOTED_FOLDER).expect("the divergent root's folder is made");
     // The clone's own root is empty, so the bind target inside it is made after the mount and before the bind.
     let script: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && mkdir --parents {ROOTED_FOLDER}/rootfs && mount --bind / {ROOTED_FOLDER}/rootfs && exec chroot {ROOTED_FOLDER}/rootfs /bin/sleep {HOLDER_SECONDS}");
-    let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-    return Command::new("unshare")
-        .args(["--mount", "--propagation", "private", "sh", "-c", script.as_str()])
-        .env("PATH", path)
-        .env("LD_LIBRARY_PATH", format!("{}/lib", sbin.trim_end_matches("/sbin")))
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("the divergent-root task's unshare starts");
+    return start_task(script.as_str(), "/root/holder-scan-rooted.pid", sbin, &[]);
 }
 
 /// A task that holds another task's mount namespace open by a handle,
