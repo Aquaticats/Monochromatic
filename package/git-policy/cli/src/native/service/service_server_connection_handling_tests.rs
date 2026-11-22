@@ -181,6 +181,7 @@ fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequ
         shadow: None,
         captured: 0,
         holder: String::new(),
+        programs: None,
     };
 }
 
@@ -666,4 +667,55 @@ fn a_client_is_greeted_and_beaten_while_every_place_of_the_pool_is_held() {
     })
     .expect("the process runtime runs this control");
     assert_eq!(outcome, ServiceMessage::Landed { id: String::from("held-pool"), commit: String::from("c"), already: false, landing: None }, "the answer is written while every place is held");
+}
+
+/// What:
+///  A service told that a push record of its own worktree can no longer run gives up that record's values,
+///  and keeps its sibling's,
+/// and the same message about another worktree is refused and forgets nothing.
+/// Why:
+///   The three lines of that arm are what turns a one-way message into the memory holding no credential:
+///  nothing else checks them,
+///  because the seam and the protocol around them are controlled elsewhere
+///  (a Claude Sonnet review of this branch,
+///  its low that the handler had no control of its own).
+///   The sibling and the other worktree are the control:
+///  they prove the arm forgets exactly the records it was told,
+/// and that a refusal is not a forget.
+#[test]
+fn a_service_gives_up_the_values_of_the_records_a_forget_message_names() {
+    use crate::service_push_programs_held_in_memory::{PushPrograms, held, remember};
+    let own: PathBuf = PathBuf::from("/srv/repo/gitdir");
+    let elsewhere: PathBuf = PathBuf::from("/srv/other-repo/gitdir");
+    let (shared, _jobs) = shared_serving("connection-forget-programs", own.clone());
+    let programs = PushPrograms { variables: vec![(String::from("PATH"), String::from("/srv/repo/bin"))], transport: false };
+    let named: String = String::from("push-0123456789abcdef0123456789abcdef01234567-0123456789abcdef");
+    let sibling: String = String::from("push-89abcdef0123456789abcdef0123456789abcdef-0123456789abcdef");
+    let foreign: String = String::from("push-456789abcdef0123456789abcdef0123456789ab-fedcba9876543210");
+    // Every value is held against a record of one worktree, so a message for one worktree can be told from the other by what
+    //  it leaves behind alone.
+    remember(own.as_path(), named.as_str(), programs.clone());
+    remember(own.as_path(), sibling.as_str(), programs.clone());
+    remember(elsewhere.as_path(), foreign.as_str(), programs);
+    let ((), _ticks) = with_a_ticker_beside(async {
+        let line: String = encode_client(&ClientMessage::ForgetPrograms { git_dir: own.clone(), records: vec![named.clone()] });
+        let (_read_half, mut write_half, _client) = connection();
+        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+        drop(write_half);
+    });
+    assert_eq!(held(own.as_path(), named.as_str()), None, "the record the message named can no longer run, so its values are gone");
+    assert!(held(own.as_path(), sibling.as_str()).is_some(), "a record of the same worktree the message left out keeps its values");
+    assert!(held(elsewhere.as_path(), foreign.as_str()).is_some(), "another worktree's values are none of this message's");
+    // The control of the arm: a message about another worktree is refused, and what it names keeps its values.
+    let ((), _refusal_ticks) = with_a_ticker_beside(async {
+        let line: String = encode_client(&ClientMessage::ForgetPrograms { git_dir: elsewhere.clone(), records: vec![foreign.clone()] });
+        let (_read_half, mut write_half, mut client) = connection();
+        answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
+        drop(write_half);
+        assert_eq!(next_line(&mut client).await, ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }, "a message for another instance is refused");
+    });
+    assert!(held(elsewhere.as_path(), foreign.as_str()).is_some(), "a refused message forgets nothing");
+    // Leave the process's memory as it was found for the controls that run beside this one.
+    crate::service_push_programs_held_in_memory::forget_every(own.as_path());
+    crate::service_push_programs_held_in_memory::forget_every(elsewhere.as_path());
 }

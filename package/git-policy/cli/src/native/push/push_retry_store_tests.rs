@@ -27,6 +27,7 @@ fn plan(branch: &str, oid: &str, attempt: u32) -> StoredPlan {
             parent: String::new(),
             created: String::from("2026-11-03T05:40:00.000Z"),
             tries: 0,
+            transport: false,
         },
         attempt,
     };
@@ -63,7 +64,7 @@ fn a_plan_of_a_directory_that_is_not_text_is_read_back_whole() {
     std::fs::create_dir_all(git_dir.as_path()).expect("Git directory");
     let saved: StoredPlan = StoredPlan {
         git_dir: git_dir.clone(),
-        item: WorkItem { repository: worktree, git_dir: git_dir.clone(), ..plan("refs/heads/main", FIRST_OID, 2).item },
+        item: WorkItem { repository: worktree, git_dir: git_dir.clone(), transport: false, ..plan("refs/heads/main", FIRST_OID, 2).item },
         attempt: 2,
     };
     save(root.as_path(), &saved).expect("saved");
@@ -289,7 +290,8 @@ fn end_the_read_of(path: &Path) {
 
 /// What:
 ///  A plan's file that is a pipe is never waited for,
-///  read by the removal, by a save's cleanup or by a start,
+///  read by the removal,
+/// by a save's cleanup or by a start,
 ///  and it is never discarded either.
 /// Why:
 ///  Reading a record waits inside `open(2)` for a writer when the name holds a pipe,
@@ -300,7 +302,8 @@ fn end_the_read_of(path: &Path) {
 ///  so the pipe is answered at once and stays:
 ///  it is not a plan,
 ///  and the store discards what it cannot read as one.
-///  A read that was answered without a writer is the proof, and the deadline names the wait.
+///  A read that was answered without a writer is the proof,
+/// and the deadline names the wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

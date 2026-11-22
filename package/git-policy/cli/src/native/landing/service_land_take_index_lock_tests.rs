@@ -55,6 +55,7 @@ fn request_of(index: &Path, scratch: &Path, git_dir: &Path) -> CommitRequest {
         shadow: None,
         captured: 0,
         holder: String::new(),
+        programs: None,
     };
 }
 

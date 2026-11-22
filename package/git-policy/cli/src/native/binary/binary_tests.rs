@@ -82,6 +82,17 @@ mod support_observation_bound;
 #[path = "binary_support_btrfs_controls.rs"]
 mod support_btrfs_controls;
 
+/// The one place a control says that it needs a ZFS fixture root,
+/// the ZFS fixture's datasets and mounted clone,
+/// and the pool's block-clone counters.
+#[path = "binary_support_zfs_controls.rs"]
+mod support_zfs_controls;
+
+/// The physical address of a file's first extent,
+/// which two files share when one is a clone of the other.
+#[path = "binary_support_first_physical_extent.rs"]
+mod support_first_physical_extent;
+
 /// The clock ticks one process used,
 /// summed over every thread of it,
 /// and the two moments a listing and its reading are.
@@ -473,6 +484,26 @@ mod worktree_snapshot;
 #[path = "binary_worktree_clone_tests.rs"]
 mod worktree_clone;
 
+/// Rung 2 on ZFS:
+/// clones serve one dataset,
+/// and a second dataset,
+/// a mounted clone and a dataset without block cloning each end in Git's checkout.
+#[path = "binary_worktree_clone_zfs_tests.rs"]
+mod worktree_clone_zfs;
+
+/// Rung 2 under Git's checkout conversions:
+/// one control per conversion class,
+/// each comparing the worktree the clone rung served
+/// with real Git's own checkout of the same commit.
+#[path = "binary_worktree_clone_conversion_tests.rs"]
+mod worktree_clone_conversion;
+
+/// A measurement for the plan,
+/// not a control:
+/// what one clean same-dataset add on ZFS saves on disk against Git's own checkout of the same tree.
+#[path = "binary_worktree_clone_zfs_measurement_tests.rs"]
+mod worktree_clone_zfs_measurement;
+
 /// The line that says why an add took the slow way:
 /// the cause,
 /// the remedy,
@@ -707,6 +738,18 @@ mod push_queued_after_a_killed_wrapper;
 /// and does nothing while there is nothing to do.
 #[path = "binary_a_record_nothing_announced_is_found_tests.rs"]
 mod a_record_nothing_announced_is_found;
+
+/// The programs and transport settings of the command that asked for a push,
+/// held only in the memory of the commit service that runs it:
+/// nothing of them on any disk,
+/// a push that uses its own command's settings,
+/// a push a restarted service stops with the command that sends it,
+/// and the record of an unreleased branch removed.
+#[path = "binary_push_programs_held_in_memory_tests.rs"]
+mod push_programs_held_in_memory;
+
+#[path = "binary_push_programs_end_to_end_tests.rs"]
+mod push_programs_end_to_end;
 
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,

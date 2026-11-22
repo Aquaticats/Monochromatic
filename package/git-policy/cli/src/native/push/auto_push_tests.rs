@@ -1049,3 +1049,40 @@ fn only_a_push_to_the_branchs_own_tracked_remote_names_a_reference_to_write() {
     assert_eq!(pushed_tracking_ref(Some("refs/remotes/origin/main"), &tagged, "refs/heads/main"), None, "a push to another ref writes no branch reference");
     assert_eq!(pushed_tracking_ref(None, &own, "refs/heads/main"), None, "a branch with no upstream has no reference to write");
 }
+
+/// What:
+///  A push that failed and wrote nothing is reported with the status,
+///  and with the signal when one ended it,
+/// while a failure that printed its own lines keeps exactly those.
+/// Why:
+///   The program's lines are the cause a person's record and the retry's journal line carry,
+/// and a push that printed none used to leave both with nothing:
+/// the journal of a gate on `2026-11-21` said `cause:` and no more for the push of `refs/heads/other` of
+/// `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other`,
+/// so a killed push could not be told from a refused one
+/// (`doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md`).
+///   The second arm is the control of the first:
+/// it proves the words below are added only where the push said nothing of its own.
+#[test]
+fn a_push_that_failed_without_a_word_names_its_status_and_its_signal() {
+    let branch: &str = "refs/heads/main";
+    let mut sink: Vec<u8> = Vec::new();
+    // A push a signal ended: `128 + N` is also a status a program can choose, so the signal beside the code is what says which.
+    let killed: PushAttempt = PushAttempt { exit_code: 137, signal: Some(9), output: String::new() };
+    let reported_killed: AutoPushResult = reported(killed, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
+    assert_eq!(reported_killed.outcome, AutoPushOutcome::Failed, "a push a signal ended did not deliver: {}", String::from_utf8_lossy(sink.as_slice()));
+    assert!(reported_killed.shown.contains("was ended by signal 9"), "the record names the signal: {}", reported_killed.shown);
+    assert!(reported_killed.shown.contains("status 137"), "and the status beside it: {}", reported_killed.shown);
+    assert!(reported_killed.shown.contains("printed nothing"), "and says that the push itself said nothing: {}", reported_killed.shown);
+    // The first line is what the retry's journal line names as the cause, so the record must not start with a blank one.
+    assert_eq!(reported_killed.shown.lines().next().unwrap_or_default().trim(), reported_killed.shown.trim(), "the record's first line is its whole sentence");
+    // A push that exited by itself, with no signal and no words.
+    let exited: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::new() };
+    let reported_exited: AutoPushResult = reported(exited, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
+    assert!(reported_exited.shown.contains("exited with status 1"), "the record names the status: {}", reported_exited.shown);
+    assert!(!reported_exited.shown.contains("signal"), "and claims no signal where none ended it: {}", reported_exited.shown);
+    // The control of both: a failure with words of its own keeps exactly them.
+    let spoke: PushAttempt = PushAttempt { exit_code: 1, signal: None, output: String::from("fatal: the network is down") };
+    let reported_spoke: AutoPushResult = reported(spoke, false, &WhereThePushStops::Nothing, branch, "", &mut sink).expect("a failed push is reported");
+    assert_eq!(reported_spoke.shown, "fatal: the network is down", "the program's own lines are the whole record");
+}

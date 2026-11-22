@@ -56,9 +56,15 @@ pub mod js_text;
 /// Line-oriented debug and warning diagnostics on standard error.
 pub mod diagnostic_log;
 
-/// The diagnostic lines themselves, written by a thread of their own,
+/// The diagnostic lines themselves,
+/// written by a thread of their own,
 /// so a reader that stopped draining never holds the command that said them.
 pub mod diagnostic_lines_off_the_calling_thread;
+
+/// The record an unreleased branch wrote of a shell's programs,
+/// and the staging files of its writes,
+/// removed by the first command that meets them.
+pub mod earlier_push_programs_record;
 
 /// The two costs a command pays outside the phases of its timing record,
 /// and the writer that measures what it prints.

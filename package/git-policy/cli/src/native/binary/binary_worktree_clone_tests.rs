@@ -19,39 +19,12 @@
 //! ```
 
 /// Import the shared fixtures and the helpers of the snapshot controls.
-use super::support::{Fixture, Observed, fixture, git, remove, repository, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, first_physical_extent, git, remove, repository, run_wrapped, stderr_of};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{add_pair, age, commit_all, tracked, tracked_content};
 use git_policy_cli::fs_kind::is_subvolume_root;
 use std::ffi::OsStr;
-use std::os::unix::io::AsRawFd;
-use std::path::{Path, PathBuf};
-
-/// `FS_IOC_FIEMAP`,
-/// `_IOWR('f', 11, struct fiemap)`.
-const FS_IOC_FIEMAP: libc::c_ulong = 0xc020_660b;
-
-/// The physical address of the first extent of a file,
-/// which two files share when one is a clone of the other.
-fn first_physical_extent(path: &Path) -> u64 {
-    #[repr(C)]
-    struct Request {
-        start: u64,
-        length: u64,
-        flags: u32,
-        mapped: u32,
-        count: u32,
-        reserved: u32,
-        extent: [u8; 56],
-    }
-    let file: std::fs::File = std::fs::File::open(path).expect("open");
-    let mut request: Request = Request { start: 0, length: u64::MAX, flags: 1, mapped: 0, count: 1, reserved: 0, extent: [0; 56] };
-    // SAFETY: `request` is a `struct fiemap` followed by room for the one extent it asks for, and the descriptor is open.
-    let result: libc::c_int = unsafe { libc::ioctl(file.as_raw_fd(), FS_IOC_FIEMAP, &mut request) };
-    assert_eq!(result, 0, "FIEMAP of {}", path.display());
-    assert_eq!(request.mapped, 1, "{} has an extent", path.display());
-    return u64::from_ne_bytes(request.extent[8..16].try_into().expect("eight bytes"));
-}
+use std::path::PathBuf;
 
 /// A repository that is an ordinary directory with a large aged file,
 /// a second commit and an ignored directory.

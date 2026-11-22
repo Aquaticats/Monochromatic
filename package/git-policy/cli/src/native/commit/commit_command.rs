@@ -486,7 +486,14 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         // Why:  It writes the gate's refusal beside the record, and on this machine one such write can take a second; no other
         //       phase names that time, and the record must account for its own total.
         let taking_back: Instant = Instant::now();
-        let unkept: Option<String> = forget_the_push(handoff, landed, if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() });
+        // The gate's refusal takes the push's record back, and the service that held the values of the command that asked for it is
+        //  told they can be given up: nothing will run that record.
+        let unkept: Option<String> = forget_the_push(
+            handoff,
+            landed,
+            if said.is_empty() { NO_BLOCKING_CAUSE } else { said.as_str() },
+            &crate::held_push_release_wakes_the_service::AskTheService { context: command.context },
+        );
         timing.handoff += taking_back.elapsed();
         if let Some(kept) = unkept {
             write_stderr(format!("{kept}\n").as_str());

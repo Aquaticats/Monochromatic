@@ -71,7 +71,7 @@ fn btrfs_a_snapshot_over_a_nested_worktree_with_a_tracked_file_says_why() {
     let plan = plan_to(destination);
     let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a snapshot source");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
-    let failure = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect_err("the rung declines");
+    let failure = take_snapshot(&source, &plan, stage.as_path(), &admin, pointer.as_slice(), &crate::fixture_content_decision::content_environment(), &std::collections::HashSet::new()).expect_err("the rung declines");
     assert!(failure.reason.contains("ignored/wt/keep") && failure.reason.contains("registered worktree"), "the reason says why: {}", failure.reason);
     remove(root.as_path());
 }
@@ -438,6 +438,10 @@ impl crate::held_push_release_wakes_the_service::WakeTheService for Woken {
         if let Ok(mut named) = self.0.lock() {
             named.push(git_dir.to_path_buf());
         }
+    }
+
+    fn forget_programs(&self, _git_dir: &Path, _records: &[String]) {
+        panic!("the scan settles no push record here, so it forgets no values");
     }
 }
 

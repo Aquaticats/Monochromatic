@@ -242,7 +242,8 @@ because nothing was checked for changes before that destroy.
 The sections that describe those commands carry the same statement beside their guards:
 "Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot,
 and "Cheap worktree creation and removal on btrfs,
-XFS and overlayfs" for the conversion,
+XFS,
+overlayfs and ZFS" for the conversion,
 the removal and the migration.
 
 ## The two executables and shipped policies
@@ -1148,7 +1149,7 @@ and leaves value-position tokens with the same bytes untouched.
 An opted-out invocation performs no journal recovery;
 pending journals wait for the next repository invocation without the flag.
 
-### Cheap worktree creation and removal on btrfs, XFS and overlayfs
+### Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS
 
 Design,
 measurements and the reasons for each choice:
@@ -1428,6 +1429,7 @@ installs the index with `rewrite_index_stat_with` (extensions `UNTR` and `FSMN`
 dropped),
 applies the tree difference with `git read-tree -m -u <source commit> <new commit>` under Git's
 `GIT_DIR` and `GIT_WORK_TREE`,
+writes through Git the paths the conversion fence leaves to it,
 gives the stage the source's mode and swaps it with the destination
 (`RENAME_EXCHANGE`).
 The directory real Git made,
@@ -1437,6 +1439,23 @@ Git's pointer and the empty
 directory go,
 and anything another process added to it meanwhile stays there and is named in a warning.
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
+The same conversion fence decides the snapshot rung,
+before the snapshot and before its stage name is claimed:
+the attributes are read and the decline decided first,
+the rest of the fence (`git ls-tree` and the per-path decision) is decided in the same step,
+and the index the snapshot installs holds the fenced paths with no stat data,
+so no path is recorded clean before Git's own write records the bytes it checked out.
+In the stage,
+and before it is swapped in,
+those paths are written by one
+`git checkout-index --force -u --stdin`,
+intersected with the index the tree difference left.
+A fence that cannot read its inputs ends the rung and Git's own checkout completes the worktree,
+and so does the fence's decline rule,
+before the snapshot rather than after it.
+The fence's two reads run on the add's waiting path in this rung:
+a snapshot copies everything anyway,
+so there is no copy for them to run beside.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
 The swap this command made itself proves the worktree is its own,
@@ -2647,17 +2666,133 @@ and the package README names the gap left by
 gates that ran the claim-only source.
 
 Rung 2 needs a clean source on btrfs,
-XFS or overlayfs,
+XFS,
+overlayfs or ZFS,
 with the source and the destination in one clone domain.
+A clone domain is one btrfs filesystem,
+whose every mount carries one source in the mount table;
+one device,
+which overlayfs and XFS use;
+or one ZFS dataset,
+which rung 2 proves from the mount source the kernel reports (the dataset's own name)
+and the device of that name's mount,
+both read from `/proc/self/mountinfo` and from the inode's device number,
+with no ZFS ioctl and no call into the ZFS binding.
+Two paths are in one dataset only when that source and that device agree,
+so a pair whose dataset or whose device cannot be read is refused as unproved.
+Rung 2 asks the filesystem that would receive the clones:
+the destination when something already occupies it,
+its parent otherwise.
+A mounted ZFS clone at the destination is therefore refused,
+because the clones would land in that clone's dataset and not in the source's;
+so is a mounted clone used as the source of a slot in the checkout's dataset,
+and so is any destination on another dataset than the source,
+which a destination on a dataset mounted inside the source's own is,
+such as `~/.cache`,
+which this host's layout gives a dataset of its own
+(`zpcachyos/nosnap/user-cache`,
+which `findmnt -t zfs` lists).
+What a reflink needs is why:
+a clone shares data blocks only inside one dataset,
+`FICLONE` answers `EXDEV` across filesystems,
+and a `copy_file_range` that shares blocks across two datasets with one data key does not qualify.
+A refused or failed `FICLONE` ends the rung and never becomes a copy of the bytes;
+rung 3 fills the worktree.
+On ZFS a destination whose pool has block cloning off (`zfs_bclone_enabled` reads 0) is declined before the source
+proof,
+because every clone into that dataset would be refused and Git's checkout would follow anyway;
+a switch file that cannot be read declines nothing.
+Two costs of this rung on ZFS are waived in `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`
+until the partial-clone proposal that record names lands or is rejected.
+A source with uncommitted changes pays the proof and ends in Git's checkout,
+about 0.2 s more than the same add on `main`
+(0.80 to 1.59 times as long over 24,313 tracked files in twenty rounds,
+medians 0.93 to 1.25).
+A clean add of a tree of many small files is slower than on `main`,
+because cloning a small file costs more than Git's write of it
+(1.33 times at 10,001 files of about 2.6 KB,
+1.18 times at about 8.8 KB,
+parity at about 26 KB,
+0.64 times on this repository's own tree of 24,383 files of about 32 KB).
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept;
 links
 recreated),
 a second comparison of the source with its own index,
+the conversion fence below,
 the installation of the index,
 and the same tree
 difference.
+The conversion fence decides which tracked paths a clone may carry,
+so that no path is ever recorded clean while its bytes are not Git's own checkout's
+(GitHub issue 6323:
+a clone keeps the source's bytes where the checkout would convert line endings or `ident`).
+Git carries a path only where the checkout of its blob is the blob itself and the source's file is proven to hold that
+blob.
+The proof is Git's own conversion rules,
+read from the path's attributes (`text`,
+the legacy `crlf`,
+`eol`,
+`filter`,
+`ident`,
+`working-tree-encoding`),
+`core.autocrlf` and `core.eol`,
+in the order `convert.c` reads them:
+a path whose checkout could add a carriage return,
+expand an `ident` keyword,
+convert a
+`working-tree-encoding` or run a filter's smudge is written by Git in the new worktree through one
+`git checkout-index --force -u`;
+every other path is carried when the size its index records equals the size of its blob,
+which one `git ls-tree -r -l` reads,
+because a rule can only shrink a file on the way into the index and a file with no rule today can still hold a form
+an earlier rule wrote.
+The attributes are read (`git check-attr --all --stdin`) and the decline is decided before the copies;
+the rest of the fence (`git ls-tree` and the per-path decision) runs on the add's own thread while the clones copy,
+and both answers are joined before anything is installed.
+The index is written under a name of its own with the stat data of every path Git must write zeroed,
+Git's runs for the tree difference and for the one `git checkout-index --force -u` are pointed at that file with
+`GIT_INDEX_FILE`,
+and only after that write does the file take the worktree's name `index`.
+A process killed anywhere between the copies and that last step,
+the fallback checkout of a failed tree difference included,
+therefore leaves no index in the worktree at all,
+which the recovery names as an add that is possibly incomplete and follows with the commands that finish or remove it;
+the recovery also removes the waiting index and the lock a killed Git left beside it,
+so the finish leaves nothing of the add's own in the administrative directory;
+a kill inside that fallback leaves the unfinished shape above,
+with the waiting file and its lock and no index,
+and whatever the run had already written stays on disk for the finish to complete.
+An index published before the write could not vouch for a written path either,
+because the clean form of the source's bytes equals the blob the entry names,
+so a `git status` would refresh such an
+entry and report the worktree clean while a converted path still held the source's bytes.
+Where more than a quarter of the tracked paths,
+and more than a thousand,
+have a rule of their own that converts them,
+the rung declines before any copy and Git's checkout writes the worktree,
+with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
+a declined add is Git's own checkout plus one `git check-attr` and the count over it.
+A rung that ends after the fence,
+for any other reason,
+says
+`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+An add whose new `HEAD` differs in a path Git must write can end the rung at the tree difference,
+because its zeroed entry cannot be verified as up to date;
+Git's own checkout then writes the worktree against the rung's own index,
+which still holds the source's entries,
+so a path the new tree lacks is removed with the tracked ones and the bytes are equal.
+A source with an untracked or ignored `.gitattributes` anywhere above a tracked path refuses the rung,
+because Git read it when the files were added and the new worktree will not have it,
+and the refusal is taken before anything is copied.
+A source that sets `attr.tree` or `GIT_ATTR_SOURCE` is served when its stat data proves every tracked path,
+because the fence's `git check-attr` reads the same tree Git's checkout does and the bytes are equal;
+a source whose clean proof has to read content ends in Git's own checkout,
+because that proof reads the worktree's attribute files and cannot rule out the tree's.
 A refusal removes nothing,
 because a name cannot be checked and unlinked in one step:
+the tracked files of a run longer than the rung's break-even are cloned in up to the host's budget of slices at
+once,
+so a failure stops the other slices at their next entry and what stays can run past the entry that failed;
 the entries the clones created stay,
 `git reset --hard` overwrites the tracked ones,
 a message counts them and names `git -C <path> status` for any other,
@@ -10176,6 +10311,13 @@ in-process reader can) gives every value of the multi-valued keys.
   which is the only sign that the local view of the remote stayed behind,
   and it is written whatever the move came to,
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
+  A push that failed and printed nothing is named by the only evidence there is:
+  its status,
+  and the signal beside it when one ended it
+  (`silent_failure_line` and `record_words` in `src/native/push/push_retry_failure.rs`),
+  because a record built from the empty output named no cause at all and the journal's retry line said
+  `cause:` and nothing after it
+  (`doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md`).
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
   The name carries the commit the push sent,
@@ -13059,20 +13201,61 @@ The step:
   because a program that is there is not missing and its reader would go looking at a `PATH` that is right.
   Which folders that search reads is the push's own list.
   A typed push reads the environment of that command.
-  A push the commit service runs searches the service's own `PATH`,
-  which the manager that started the service fixed,
-  and no command of the person reaches that list:
-  nothing of the committing shell travels with the service's push
-  (on 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
-  and two runs' commits landed while their pushes were refused for a program their own shell could start).
+  A push the commit service runs reads the list the command that asked for it gave:
+  the five values (`PATH`,
+  `GIT_EXEC_PATH`,
+  `GIT_SSH`,
+  `GIT_SSH_COMMAND`,
+  `GIT_PROXY_COMMAND`) travel with each request and each wake,
+  live only in the memory of the service that runs the push,
+  are keyed by that push record's own id,
+  and are dropped when the record can no longer run
+  (`src/native/service/service_push_programs_held_in_memory.rs`).
+  Nothing of them is written as a setting of a file or of a work item,
+  because two are whole command lines that can hold a password:
+  the owner's decision of 2026-11-12T11:58:45-05:00 is "Memory only".
+  The one value that reaches a file is the folder list a missing-program refusal names,
+  which the next paragraph states.
+  On 2026-11-12 the manager's `PATH` held no folder `git-lfs` is installed in while the shell that committed had one,
+  and two runs' commits landed while their pushes were refused for a program their own shell could start;
+  that list is why the values travel.
+  The service's own list is searched only when no list came with the request:
+  a service that restarted holds none,
+  and so does a push an earlier release queued.
+  A push whose command chose `GIT_SSH`,
+  `GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND` stops rather than speaking another transport when those settings are gone,
+  and its words name the repository,
+  the branch,
+  both ways the settings can be gone (a service started again since,
+  or a command that could not reach it),
+  and the one command that pushes
+  (`src/native/push/push_without_its_transport.rs`).
+  A merge's,
+  a cherry-pick's or a pull's own push is written as a record before the wake that carries its values,
+  so a round that claims the record in that moment runs the push with the service's own list,
+  and a push whose command chose a transport stops with those words rather than speaking another one.
+  A commit's own push is not exposed:
+  the service writes that record as it lands the commit and holds its values in the same step,
+  so no round can claim the record before them.
+  That window is issue 6332,
+  which carries the ranked shapes of a fix and waits for its own round
+  (`doc/troubleshooting/git-policy-cli-commit-service-cannot-find-the-shells-programs.md`).
   The refusal names the program,
   every folder of the list it searched,
   and where that list came from,
-  so a person can tell the manager's list from their own;
-  the way forward it prints for a service push is a push by hand once from a shell that holds the program
+  so a person can tell the manager's list from the shell's;
+  a list that came with the request is remedied with a commit made again,
+  which hands that shell's list over again,
+  and a push that searched the service's own list is remedied with a push by hand once from a shell that holds the program
   (`git push`),
-  which searches that shell's own `PATH`,
-  because nothing of the committing shell travels with the service's push.
+  which searches that shell's own `PATH`.
+  Neither remedy promises that a typed push records a list,
+  because no release writes one.
+  A record or staging file of the shape an unreleased branch wrote
+  (`<git-dir>/monochromatic-git-policy-cli/push-programs.json` and `.push-programs.json.<random>.partial`)
+  is removed by the first command that meets it,
+  never what a link of that name points at
+  (`src/native/foundation/earlier_push_programs_record.rs`).
   If the upload exits non-zero or is ended by a signal,
   the wrapper prints,
   after the program's own output,
@@ -14684,6 +14867,25 @@ so the commit alone does not name the push;
 a record an earlier release named by the kind and the object alone keeps its name and is run as it is.
 The other kinds keep the commit as their key,
 because their work is of the commit and not of a branch.
+
+A push record keeps one flag of the environment it was queued with and no value:
+whether the command that asked for the push chose a transport
+(`GIT_SSH`,
+`GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND`),
+written as `transport` only when it is true,
+so a record of an earlier release,
+or one whose command chose none,
+reads and encodes exactly as it did before that field existed.
+The five values themselves live only in the memory of the service that runs the push
+(the section "Git LFS upload before a push" says which and why),
+and the batch's journal intent keeps that flag per commit (`transports=`),
+so a service that restarts re-holds the push with it:
+a push whose command chose a transport stops when this service no longer holds those settings,
+naming the repository,
+the branch,
+both ways they can be gone,
+and the one command that pushes,
+rather than speaking a transport nobody chose.
 
 The after-commit work of the service (pushes,
 upkeep,

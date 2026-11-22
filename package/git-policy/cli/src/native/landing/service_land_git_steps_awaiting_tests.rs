@@ -47,6 +47,7 @@ fn a_request(repository: &Path, base: &str, path: &str, captured: u64) -> Commit
         shadow: None,
         captured,
         holder: String::new(),
+        programs: None,
     };
 }
 

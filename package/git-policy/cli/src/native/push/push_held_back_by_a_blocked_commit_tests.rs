@@ -126,6 +126,7 @@ fn record_the_verdict(world: &World, commit: &str, reason: &str) -> Vec<BlockedV
         parent: String::new(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
     let work: PathBuf = work_directory(world.repo.join(".git").as_path());
     // The gate holds the push record before it decides, and blocks it when it refuses; the hold is what a case that only
@@ -424,6 +425,7 @@ fn push_item_of(world: &World, commit: &str) -> crate::work_item::WorkItem {
         parent: String::new(),
         created: crate::iso_time::now_iso(),
         tries: 0,
+        transport: false,
     };
 }
 
