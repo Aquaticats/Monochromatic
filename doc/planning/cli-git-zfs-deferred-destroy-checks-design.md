@@ -1069,11 +1069,11 @@ and the cause do not name as gone is still there; the Git registration stands. T
 monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` show the mark and the holds. The mark cannot be
 cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's
 destruction and destroy the clone yourself, or you clone that snapshot elsewhere first, which pins it, and then
-destroy the clone. Either way the plan beside the registration still names what this removal owed, and the plan's
-finish pass settles it, because a removal refuses a plan with no live intent
+destroy the clone. Either way the plan beside the registration still names what this removal owed, and once the
+head is gone it is a `head=gone` plan, which that design never refuses for want of a live intent
 (doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md,
-"the pointer beside the registration" and "A plan with no live intent at all is refused"). If neither is right
-for you, leave the slot and ask the administrator.
+"the pointer beside the registration" and "The head-gone path"), so its finish pass settles it. If neither is
+right for you, leave the slot and ask the administrator.
 ```
 
 and the same cause with a plan that recorded two destroyed snapshots:
@@ -1151,11 +1151,12 @@ and only three things can then happen:
   or `zfs destroy -r` of the clone),
   which reaps the marked origin in the same transaction (F10).
   The clone's own intent property went with the clone,
-  so the plan's rule is what completes it:
-  a plan with no live intent is refused by the removal
+  so the plan's head-gone rule is what completes it:
+  "A `head=gone` plan has no live intent by construction",
+  and "A plan whose head is gone is never refused for that reason"
   (doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md,
-  "A plan with no live intent at all is refused by the removal"),
-  and the plan's finish pass reaches it through the pointer beside the registration
+  "The head-gone path" and "The removal intent's rule"),
+  while the finish pass reaches the plan through the pointer beside the registration
   (the same design's "The pointer beside the registration" and its section 5).
   The finish pass then settles the registration and the pointer,
   leaves the origin-cleanup record where an origin remains (a sibling's design),
@@ -2462,7 +2463,7 @@ the quoted text is the text at that commit.
 - "Where a removal's persisted destruction plan lives,
   and its format"
   (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-  read at `a7823980b9`):
+  read at `76849b8d9b`):
   it places every field A1 needs,
   including `originDatasetGuid`,
   and says those are "the identities the deferred-destroy check compares with live";
@@ -2471,8 +2472,11 @@ the quoted text is the text at that commit.
   that agrees with A2 and V4.
   It writes `requested` before each request and `head=requested` before the head destroy,
   which is why the checks run before those rewrites.
-  It refuses "a plan with no live intent at all" and completes such a plan by the finish pass through the
-  pointer beside the registration,
+  Its head-gone path has "no lineage proof ... and no `unmount` intent ... because the intent is a property of the
+  clone and went with the head",
+  and it says "A `head=gone` plan has no live intent by construction" and is never refused for that reason,
+  while a plan with no live intent whose head still stands is refused.
+  Its finish pass reaches such a plan through the pointer beside the registration,
   which is what "How a person finishes" relies on after an out-of-wrapper destroy.
 - "What a cancelled,
   timed-out or killed removal leaves,
@@ -2500,9 +2504,9 @@ the quoted text is the text at that commit.
   not on a sibling statement.
 - "The record that carries origin cleanup after a registration is settled"
   (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
-  read at `4daa6c66ce`):
-  it assumes "the plan's step 15 check of the origin's deferred-destroy mark is available to this design's attempt
-  as a read".
+  read at `987a3ba886`):
+  it assumes "The removal's step 15 check of the origin's deferred-destroy mark is available to this design's
+  attempt as a read".
   This design exports `origin_mark` for exactly that,
   and the sibling may use it.
   That sibling also says the mark can be cleared "when an administrator removes the mark",
@@ -2531,18 +2535,21 @@ the quoted text is the text at that commit.
   and nothing here adopts it.
 - "The dirty-main restore on rung 1 and its frozen proof"
   (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-  read at `1f24dcc10d`):
-  its fallback "assumes the cancellation,
-  deferred-destroy and forced-removal designs leave those steps callable from an add's own invocation,
-  and that the add's own cleanup needs no forced arm",
-  and it "assumes a plan is written before the first of them".
-  This design answers:
-  the check is the removal's function,
-  so any caller of the removal's destruction steps gets it at the same call sites,
-  the add's fallback included,
-  and that caller writes the plan before its first destroy,
-  as the plan sibling requires.
-  A same-account mark on the add's fresh origin snapshot is the accepted residual,
+  read at `c342dd1a06`):
+  its fallback now records a dependency instead of an assumption:
+  "no sibling design gives an add a callable unmount-and-destroy;
+  ... the four removal designs are written for removals",
+  and "the settlement is marked as depending on a callable unmount-and-destroy no sibling offers".
+  Its list names this design at `3e34817184`.
+  This design's part of that answer is interface,
+  not permission:
+  `check_planned_origin` takes the plan's tuple,
+  the three reads and the stage,
+  so any caller that holds a plan gets the same check.
+  Whether an add may call the removal's unmount and destruction is the removal's and the add's design to settle,
+  which this design neither grants nor withholds.
+  What it does say is that its check gives an add's fresh clone no exception:
+  a same-account mark on the origin snapshot an add made is the accepted residual,
   and the check refuses it as it refuses any other.
 - "The add-time Git lock of a ZFS clone worktree"
   (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
@@ -2709,10 +2716,12 @@ and V9 stated as defence in depth),
 QA split into QA-1 and QA-2,
 Q2 (Option C dropped to V7,
 its framing corrected),
-"Dependencies on sibling designs" (the forced arm's current text,
-the dirty-main and add-time-lock statements and the answer to the first,
-the binding's silence at its current tip,
-every tip named),
+"Dependencies on sibling designs" (every sibling re-read at its current tip,
+including the forced arm's current text,
+the plan record's head-gone rule,
+the dirty-main design's dependency on a callable unmount-and-destroy,
+the add-time lock's statement and the answer to the dirty-main design,
+and the binding's silence at its tip),
 "Sources read" and "Revisions".
 
 Two statements the second pass found sound changed only where one of these fixes forced it:
@@ -2792,10 +2801,16 @@ nothing here claims their behaviour.
   committed `2026-11-22T18:39:07-05:00`:
   the version that answers the second pass,
   with the changes the second part of "What this revision rewrote" lists.
+- The commit that re-read the three siblings whose tips moved while this revision was written,
+  subject beginning "docs(planning):
+  follow the sibling tips that moved",
+  which corrects the plan record's head-gone rule,
+  the dirty-main design's dependency,
+  and the origin-cleanup read.
 - The metadata-only commit after it,
   subject beginning "docs(planning):
   record the second pass's revisions",
-  whose only change is this bullet and the time above,
+  whose only change is the times this list is missing,
   read from `git log --format=%cI` before it is made.
   Its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
