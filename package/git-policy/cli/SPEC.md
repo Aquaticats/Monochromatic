@@ -5927,8 +5927,11 @@ and each refusal names the dataset and the way forward:
 - the kernel calls it a filesystem (`DMU_OST_ZFS`) and not a snapshot;
 - its GUID is not zero and is canonical,
   because a receipt is filed under that number alone;
-- its origin is a snapshot of the pinned parent,
-  so a clone of another lineage is not this sweep's;
+- its origin is a snapshot of the checkout dataset,
+  under the prefix `git-worktree-clone-origin-` the design's add route gives it,
+  so a clone of another lineage,
+  a clone of the container's own snapshot and a sanoid snapshot are each not
+  this sweep's;
 - `mountpoint` is `legacy`,
   so neither `zfs mount -a` nor the systemd mount generator mounts it first;
 - `setuid` and `devices` are off,
@@ -5941,6 +5944,10 @@ and each refusal names the dataset and the way forward:
 A property the reply does not carry is refused as unreadable rather than treated
 as absent,
 because an absent `mountpoint` and a legacy one are different instructions.
+The one exception is `encryption`:
+an unencrypted dataset's reply carries no such property at all,
+so an absent `encryption` is read as `off`,
+and a value the route cannot read is still refused.
 The key check runs before the claim and the walk,
 which is what keeps an unloaded key from surfacing as the `EACCES` a detached
 mount setup answered in item 5 of the design's VM measurements.
@@ -5951,8 +5958,30 @@ the walk to the slot compares the parent and skips the slot's own record,
 the publication compares `.parent` against the walked parent and links the
 record in one step that replaces nothing,
 and a sweep that loses that race carries on with the record that won.
+The first observation also checks what the slot holds:
+its `.git` is read as a bounded,
+regular,
+no-follow pointer file,
+resolved nowhere,
+and must name this checkout's `worktrees/<slot>` registration,
+so a slot an account emptied or replaced is refused before any attach.
 Every later walk compares the slot against the record and refuses a folder that
 moved.
+
+The desired state and the identities are read again under the claim,
+and a sweep attaches nothing when the GUID,
+the nonce or the operation it read before the claim is not the one it reads
+under it.
+The ordinary run is one over a clone whose own mount still stands at its slot,
+because a clone whose intent is `mount` keeps that intent after it attached:
+the sweep reads the canonical slot's mount from the kernel's table,
+and when its source is this clone's dataset it answers `attached` from that
+mount and files the same `done` receipt for the request's nonce,
+instead of walking a slot that stands on another device and refusing it.
+A slot holding another dataset's mount is refused as the walk refuses it.
+The holder reads the intent again after it releases the claim,
+and when the nonce or the operation changed it turns once more,
+so a request made during a sweep is acted on rather than left to a trigger.
 The attach then runs the walk again,
 `fsmount` with `nosuid,nodev`,
 `move_mount` onto the held slot descriptor,
@@ -6017,7 +6046,8 @@ by the `refusals` arm with a real clone mounted there.
 The root-run integration test the plan suggests calls this module directly,
 because no account-side binary dispatch exists until step 5;
 it is the driver for those arms.
-The `first-attach` record a separate start-probe design assigns to this step is not part of this section.
+The `first-attach` writer a separate start-probe design assigns to the handler's
+attach path is built by plan step 8 and described under "The start probe".
 
 ### The clone's mount intent, receipts and readiness
 
@@ -6241,20 +6271,43 @@ and the handler runs it in two modes:
 Both read the start probe's record first,
 because every process that makes a raw request does,
 and a record that is absent,
+is no `v1` `probe-result`,
 names another boot,
+names another kernel,
+module,
+`srcversion` or build ID than the running one,
 or carries any verdict but `passed` refuses the run with nothing enumerated,
 attached,
 unmounted or recorded.
 That is the design's fail-closed answer for an arm that could not run.
 
-The two names the mode takes from the configuration are this build's choice,
+The three names the mode takes from the configuration are this build's choice,
 because the design names the file and not its keys:
 they sit in one `cloneMounts` object beside the start probe's,
-as `cloneMounts.parent` for the pinned clone parent dataset and
-`cloneMounts.checkout` for the checkout the walk starts from.
+as `cloneMounts.parent` for the pinned clone parent dataset,
+`cloneMounts.checkout` for the checkout the walk starts from,
+and `cloneMounts.checkoutDataset` for the checkout dataset a clone's origin is
+a snapshot of.
+The project decided on 2026-11-22 that step 19's setup writes the two dataset
+names itself,
+and that a file holding neither is read through the design's own names:
+the checkout dataset is the dataset the configured checkout path is mounted
+from,
+which must carry the leaf name `monochromatic-git-checkout`,
+and the container is that dataset's sibling
+`monochromatic-git-worktree-clone-datasets`.
+Nobody edits the file by hand.
+The start probe's object may name a checkout too;
+the two must be one folder,
+because a probe that passed for one says nothing about a walk that starts at
+another.
 A parent that is no dataset name,
 a checkout that is not absolute,
-a missing key and a document that does not parse are each refused by name,
+a missing checkout key,
+a checkout on no dataset,
+a checkout dataset with another name,
+two different checkouts and a document that does not parse are each refused
+by name,
 and nothing is enumerated or attached.
 
 The pool's name is the parent's first `/`-separated component.
@@ -6262,10 +6315,15 @@ The pool is `ready` when one identity read of the pinned parent answers,
 `not-ready` when the answer names a dataset that is not there,
 and `unknown` otherwise;
 the checkout is `ready` when the no-crossing walk reaches its
-`.claude/worktrees` folder,
-`not-ready` when the folder is missing or the path is not canonical,
-and `unknown` for every other walk refusal.
+`.claude/worktrees` folder and the checkout's own mount carries no `shared:`
+tag,
+`not-ready` when the folder is missing,
+the path is not canonical or the mount is shared,
+and `unknown` for every other walk refusal and for a mount that cannot be read.
 `unknown` admits nothing.
+The design measured the move refusing `EINVAL` under a shared checkout and
+passing once only the checkout was private,
+so a shared checkout is an unverified immediate parent.
 One safety is this build's own and not the readiness record's:
 the pool and the checkout are checked live before every sweep,
 so a ZED event in a boot whose record is `running` still attaches on the
@@ -6283,13 +6341,18 @@ because a receipt must carry the request's nonce and a malformed value has
 none;
 the sweep's line names the dataset and the property,
 and the durable value stays for an operator to repair.
-A local `unmount` intent is answered with a `refused` receipt whose
-`failed-step` is `unmount-awaits-step-9`,
-since the unmount is step 9's:
-a caller reads that answer instead of waiting out its deadline,
-and the intent stays on the clone unchanged.
-A clone whose checks refused files no receipt for the same reason:
-no verified GUID or nonce reached the receipt's grammar.
+A refusal files no receipt at all:
+the clone's line and the handler's journal are its answer,
+the durable intent stands for the next trigger,
+and a caller learns of it at its deadline.
+The one exception is an unavailable key,
+which files a `refused` receipt naming `key-unavailable`,
+because it is the one refusal a waiting command can act on.
+A local `unmount` intent is answered by the sweep's line naming
+`unmount-awaits-step-9`,
+since the unmount is step 9's,
+and it files no receipt under the same rule;
+the intent stays on the clone unchanged.
 
 A run reports one summary line and one line per clone it reached,
 beginning `attached`,
@@ -20632,9 +20695,16 @@ and,
 for a skipped record,
 the gate step that refused.
 A record whose fingerprint differs from the running kernel,
-module or boot is stale.
+module or boot is stale,
+and the reader compares the boot and the four fingerprint lines with the live
+values rather than the verdict alone.
 `first-attach` is a second file beside it with its own writer,
-which this build does not write.
+written by the handler process that makes this boot's first real clone attach,
+which plan step 8 builds:
+the first attempt that passes the key check claims the name with one exclusive
+creation that writes a started record,
+the outcome is staged beside it and renamed over it in one step,
+and a process that finds the name claimed writes nothing.
 
 Every managed attach reads the record before it attaches.
 The verdicts are:
