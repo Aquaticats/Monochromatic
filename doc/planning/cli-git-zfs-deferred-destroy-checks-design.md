@@ -2689,6 +2689,11 @@ L7 and L8.
 
 Rewritten after the second pass,
 and nothing else:
+the opening (the second pass named beside the gate review),
+"What this design reuses" (the wrapper-as-git fixture the probes run),
+F19 and F24 (their citations and the package named),
+"Reading the mark" (the pruning sentence's own citation),
+"The item and the sentences that bind it" (the man page named as the source of the marked-snapshot sentence),
 "The refusals" (one template,
 the history sentence chosen by the plan's recorded outcomes rather than the call site,
 the cancel sentence,
