@@ -1488,6 +1488,24 @@ so it pins the other half:
 that the abandoned holder's file does go,
 and that the new holder's lock does not.
 
+The whole container gate then ran the same tree,
+in run `native-c0DeF3` of image
+`localhost/git-policy-native-test:gpc-6342-cause-l-final3-20261122T1755`,
+on commit `9496b7e978`:
+
+```text
+Summary [1175.749s] 9880 tests run: 9878 passed (10 slow), 2 failed, 36 skipped
+FAIL [   1.039s] (9445/9880) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.388s] (9564/9880) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Both failures are the cause-H pair,
+and both controls of this section passed in that run.
+Its Clippy step finished clean
+(``Finished `dev` profile [unoptimized + debuginfo] target(s) in 4m 43s``),
+and the unit ended `Failed with result 'exit-code'`,
+which is the cause-H pair's status and not this section's control.
+
 ### What the product guarantees here
 
 The removal unlinks the PID file beside a lock it cleared only when that file is still the one it judged,
