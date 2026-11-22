@@ -223,6 +223,10 @@ so an idle exit with nobody else's guest in the way is still unobserved.
 
 ### Not run
 
+- A guest charged for the memory its domain asks for:
+  an 8 GiB guest measured 990 MB peak inside the unit on 2026-11-21,
+  so the cap bounds what guests touch,
+  not what they are configured for.
 - An overshoot of the memory cap,
   `OOMPolicy=continue` sparing the daemon when the kernel picks another process,
   and `systemd-oomd` acting on the unit:
@@ -283,10 +287,13 @@ with its basis:
   so every guest together may use half the machine (rule `LQM`).
 
 - `OOMPolicy=continue`:
-  the kernel kills the guest it picks rather than stopping the unit and every guest.
+  the kernel kills a process it picks inside the unit,
+  usually the largest guest,
+  and `continue` keeps systemd from stopping the unit over that kill.
   It holds against that per-process kill only;
   `systemd-oomd` acts on the whole cgroup,
   which one unit holding every session's guests makes a large candidate.
+  Nothing here says the kernel must pick a guest rather than the daemon.
 
 - `ExitType=cgroup`:
   `systemd.service(5)` on systemd 262 says a `cgroup` exit type keeps the service
@@ -312,9 +319,14 @@ A start that finds the name still loaded,
 as it is while the previous daemon exits,
 is tried again until a daemon answers or thirty seconds pass;
 measured on 2026-11-21,
-a unit name was refused for as long as the unit ran and became free 54 ms after its main process exited.
-When the name never frees,
-the error says so and names `systemctl --user reset-failed mvm-libvirt-session.service`.
+a probe asking for one unit's name every 25 ms was refused for as long as the unit ran
+and accepted again 2.054 s after the start,
+54 ms after that unit's two-second main process was due to exit.
+The same "already loaded or has a fragment file" text also comes from a failed unit that was never collected,
+and `systemctl --user reset-failed mvm-libvirt-session.service` frees that name:
+probed on 2026-11-21,
+a refused start of a failed unit's name was accepted after `reset-failed`.
+The error says both.
 `mvm` also runs every `virsh` call with `LIBVIRT_AUTOSTART=0`,
 so no call ever lets `virsh` start a daemon in `mvm`'s own cgroup.
 
@@ -352,12 +364,20 @@ Tradeoffs:
 `mvm` takes over a choice its README leaves to `virsh`;
 every guest is still charged to one cap,
 now half the machine,
-so guests that together exceed it get the one the kernel picks killed rather than the daemon;
+so guests that together exceed it get the process the kernel picks killed,
+usually the largest guest;
 a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs,
 and `package/vm-builder/cli` still runs bare `virsh` without `LIBVIRT_AUTOSTART=0`,
 so it forks daemons into its caller's cgroup:
-the same defect in another package,
-left for a change of its own because fixing it means giving that package a start of its own;
+the same defect in another package.
+That package has no dependency on the mvm CLI,
+its `virsh` calls go through its own `exec` runner (`src/exec.ts`,
+a nano-spawn wrapper),
+and its tasks run in whatever cgroup the caller has rather than a capped scope of their own,
+so setting the variable there would leave it without a daemon to talk to
+and no measured loss stands behind the change:
+left for a change of its own,
+which either calls mvm's start first or carries one;
 and the Flatpak path is untested,
 where the unit runs `flatpak run --command=virtqemud`,
 because no Flatpak installation was available.
