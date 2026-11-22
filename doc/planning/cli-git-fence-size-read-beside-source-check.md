@@ -1171,8 +1171,7 @@ The owner may also read C over A if one order everywhere is worth more than a wa
 clone-rung add;
 nothing measured here says that a changed rung 2 pays for itself.
 
-## The first fix round's timings,
-on Git 2.43.0
+## The first fix round's timings, on Git 2.43.0
 
 The settle fix was first timed in one throwaway `libvirt` guest
 (`fence-size-read-settle-2026-11-22`,
@@ -1196,8 +1195,7 @@ in 80 of 80 cone adds,
 and that every guest measurement of this branch ran on a Git older than the wrapper's tested minimum,
 so those figures are history and the re-time below is what this record states.
 
-## The re-time on Git 2.56.1,
-2026-11-22
+## The re-time on Git 2.56.1, 2026-11-22
 
 One throwaway `libvirt` guest through mvm,
 `never-fetches-guest`,
