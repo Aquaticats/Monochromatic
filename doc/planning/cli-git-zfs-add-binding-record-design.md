@@ -103,7 +103,7 @@ and that root therefore keeps its own identities ([proposal](cli-git-zfs-worktre
 > Root's conditional destruction therefore has to keep its own copy of the identities it checks,
 > which matters only for the alternative the project did not select
 
-When each identity is written ([proposal](cli-git-zfs-worktree-design-proposal.md):383 to :387 and :405 to :407):
+When each identity is written ([proposal](cli-git-zfs-worktree-design-proposal.md):383 to :384 and :405 to :407):
 
 > Record the actual snapshot and clone GUIDs and their `createtxg` values as each is confirmed
 
@@ -190,9 +190,9 @@ and this design reuses their primitives and their grammar before proposing anyth
   published whole by a rename and flushed by nobody,
   with `key=value` lines and a `phase=` line,
   written before real Git runs and rewritten as the add learns more (`package/git-policy/cli/SPEC.md`:4400 to :4408,
-  `src/native/worktree/worktree_add_binding.rs`:262 to :280).
+  `src/native/worktree/worktree_add_binding.rs`:287 to :300).
   Its identity fields are an `ObjectId` per directory and the pointer's bytes
-  in lowercase hexadecimal (`worktree_add_binding.rs`:96 to :114).
+  in lowercase hexadecimal (`worktree_add_binding.rs`:89 to :113).
 - The per-add stage claim `<id>.stage`,
   whose name carries no owner and whose last line does,
   so a command killed between the claim and its bytes is a claim no owner owns (`SPEC.md`:6252 to :6272,
@@ -221,7 +221,7 @@ The primitives it reuses rather than writes:
   an owner named by process birth and PID namespace,
   a newer generation taken only when the older records a release or a dead owner,
   the newest generation never removed,
-  and both the file and the folder flushed (`single_owner_claim.rs`:1 to :40 and :370 to :404).
+  and both the file and the folder flushed (`single_owner_claim.rs`:1 to :40 and :362 to :404).
 - `PRIVATE_DIRECTORY_MODE` and `PRIVATE_FILE_MODE` of `src/native/foundation/private_storage.rs`:82 to :86,
   and `replace_private_file` at `src/native/foundation/private_storage_replacing_a_record.rs`:50 to :59.
 - `create_new_entry`,
@@ -275,8 +275,13 @@ whose default is `3.months.ago` (`builtin/gc.c`:144,
 
 F5.
 `git worktree list` reads `<common>/worktrees` only (`builtin/worktree.c`:211 to :244);
-no Git command lists,
-reads or writes any other folder of the common directory.
+no Git command lists or reads a folder of the common directory it did not create,
+and none writes an entry into one.
+A Git command writes only the paths it owns (`objects/`,
+`refs/`,
+`logs/`,
+`worktrees/` and the files beside them),
+and the arms of F6 saw none of them touch a folder of the wrapper's.
 
 F6.
 Measured,
@@ -593,7 +598,7 @@ so a later grammar cannot be read as this one.
 It sits beside the copy journal's folder (`<common>/monochromatic-git-policy-cli-worktree-copy/v1`,
 `worktree_copy_journal.rs`:130 to :136) and never inside it,
 because that folder's sweep reads every `<id>.add` and `<id>.stage` it finds there and would take this design's files
-for an interrupted ignored-state copy (`SPEC.md`:4840 to :4890).
+for an interrupted ignored-state copy (`SPEC.md`:4873 to :4885).
 
 The folder is the account's,
 mode `0700`,
@@ -687,7 +692,7 @@ not because of a lock:
 so exactly one command creates `<slot>.claim.<n + 1>`,
 and every other command's link answers `EEXIST` and sends it back to read the winner (`single_owner_claim.rs`:1
 to :40,
-:236 to :260 and :370 to :404).
+:245 to :285 and :362 to :404).
 A claim whose owner is alive stops the second command with the owner's process id;
 a claim whose owner is dead,
 or that records a release,
@@ -733,7 +738,7 @@ which is why a concurrent add cannot change the record under a removal's proof.
 `<slot>.claim.<generation>` is `take_claim`'s own record and stays that:
 a header line,
 then either `released` or the owner's `pid=`,
-`birth=` and `namespace=` lines (`single_owner_claim.rs`:163 to :199).
+`birth=` and `namespace=` lines (`single_owner_claim.rs`:167 to :199).
 This design adds no field to it.
 Its generation is the only ordering evidence among operations on one slot,
 and the binding's `claim=` line says which generation wrote the binding's current bytes.
@@ -741,7 +746,7 @@ and the binding's `claim=` line says which generation wrote the binding's curren
 ### The binding
 
 `<slot>.binding` is the record the proposal calls the durable binding.
-Its grammar is the wrapper's own `key=value` grammar (`worktree_add_binding.rs`:53 to :66),
+Its grammar is the wrapper's own `key=value` grammar (`worktree_add_binding.rs`:77 to :87),
 one header line,
 one field per line,
 written in one fixed order:
@@ -839,7 +844,7 @@ Every type below is already the wrapper's,
 so a value cannot have two spellings:
 
 - A path is its bytes in lowercase hexadecimal,
-  which is how the btrfs binding writes a destination and a registration (`worktree_add_binding.rs`:96 to :114).
+  which is how the btrfs binding writes a destination and a registration (`worktree_add_binding.rs`:89 to :113).
   The encoding exists because a path may hold a newline,
   and a newline would forge a line of this record.
 - A ZFS name is written verbatim,
@@ -852,9 +857,9 @@ so a value cannot have two spellings:
 - A folder identity is `ObjectId`'s `device:inode:seconds:nanoseconds` (`fs_beneath.rs`:85 to :114).
 - The nonce is `RequestNonce`'s 32 lowercase hexadecimal digits (`request_nonce.rs`:1 to :20).
 - The claim generation is decimal digits with no leading zero,
-  which is the generation file's own name (`single_owner_claim.rs`:206 to :213).
+  which is the generation file's own name (`single_owner_claim.rs`:210 to :218).
 - The pointer is the `.git` file's bytes in lowercase hexadecimal,
-  which is how the btrfs binding records it (`worktree_add_binding.rs`:110 to :114).
+  which is how the btrfs binding records it (`worktree_add_binding.rs`:122 to :134).
 - The phase is one of the six words above and nothing else.
 
 ### The size bound and its basis
@@ -865,18 +870,27 @@ and each line and each fixed part is bounded from a kernel constant:
 - One binding line is at most a path's hexadecimal form,
   `2 × 4096 = 8192` bytes (F14,
   `PATH_MAX` 4096),
-  and the binding's whole fixed part is the sum of these terms:
-  3 paths at 8192 bytes,
-  the pointer at `2 × (8 + 4096) = 8208` bytes,
-  3 folder identities at 61 bytes,
-  4 ZFS names at 255 bytes (F9),
-  8 numbers at 20 bytes,
-  the nonce at 32,
-  the phase at 6,
-  the claim at 20,
-  the header at 63,
-  and 12 bytes of keys and separators per line.
-  The sum is 34,206 bytes,
+  and the binding's whole fixed part is the sum of these terms,
+  each line's key,
+  value and newline together:
+  the 64-byte header;
+  the three path lines at 8,204,
+  8,206 and 8,198 bytes;
+  the pointer line at 8,219 (`2 × (8 + 4096) + 9`);
+  the three identity lines at 81,
+  83 and 75 bytes;
+  the four ZFS-name lines at 261,
+  270,
+  271 and 269 bytes (F9);
+  the six number lines at 30,
+  39,
+  40,
+  46,
+  31 and 36 bytes;
+  the nonce line at 39;
+  the phase line at 13;
+  and the claim line at 27.
+  The sum is 34,502 bytes,
   and the constant is computed from those named terms the way the slot store computes
   its record's bound (`slot_identity_store_reading.rs`:63 to :85),
   so changing a term changes the bound.
@@ -897,7 +911,7 @@ the dataset holding the checkout keeps 25 hourlies and no other kind,
 so the origin-side inventory is 25 entries after a day and stays there;
 at 313 bytes each that is 7,825 bytes.
 Beside those stand the wrapper's own origin snapshots,
-one per add and destroyed by that add's removal's origin cleanup ([proposal](cli-git-zfs-worktree-design-proposal.md):945 to :975),
+one per add and destroyed by that add's removal's origin cleanup ([proposal](cli-git-zfs-worktree-design-proposal.md):947 to :953),
 and any snapshot a person takes.
 The measurement that would size a cap,
 if the project wants one,
@@ -1086,7 +1100,7 @@ and both are the wrapper's:
   `take_claim`'s private file,
   one `hard_link` under the next generation,
   the private file removed,
-  the folder flushed (`single_owner_claim.rs`:236 to :260).
+  the folder flushed (`single_owner_claim.rs`:245 to :285).
   A kill before the link leaves the private file `.cli-git-claim.tmp.<pid>.<nanos>.<counter>`,
   which no reader reads and which `doctor` removes.
 - The binding's first write and every rewrite:
@@ -1102,8 +1116,8 @@ and both are the wrapper's:
   filled and flushed,
   then given its name by one `link_entry`,
   so a second publication answers `EEXIST`;
-  the staging name is removed and the folder flushed (`publishing_entries_in_one_open_folder.rs`:1 to :100,
-  and the store's own use of it at `slot_identity_store_publication.rs`:225 to :260).
+  the staging name is removed and the folder flushed (`publishing_entries_in_one_open_folder.rs`:1 to :188,
+  and the store's own use of it at `slot_identity_store_publication.rs`:114 to :145).
   A kill before the link leaves `.<name>.<32 hex>.partial`.
 
 So two staging forms exist in the folder,
@@ -1198,16 +1212,16 @@ then reads the binding and both inventories,
 and refuses before its first delete when any of them is missing or unreadable.
 It never rebuilds the origin inventory,
 following the proposal's rule "never regenerate an authorized set from whatever names
-are left" ([proposal](cli-git-zfs-worktree-design-proposal.md):957 to :959),
+are left" ([proposal](cli-git-zfs-worktree-design-proposal.md):968),
 and never updates a recorded identity to match an external change ("Never update the recorded lineage to match
 an external change",
-[proposal](cli-git-zfs-worktree-design-proposal.md):880 to :881).
+[proposal](cli-git-zfs-worktree-design-proposal.md):873 to :874).
 It uses the binding's fields exactly as the proposal's removal steps say:
 the pool,
 clone and origin GUIDs;
 the origin snapshot's `createtxg`;
 the clone's own `createtxg` to order its snapshots;
-and the origin inventory for the third check ([proposal](cli-git-zfs-worktree-design-proposal.md):866 to :884).
+and the origin inventory for the third check ([proposal](cli-git-zfs-worktree-design-proposal.md):854 to :876).
 
 ### `doctor`
 
@@ -1218,7 +1232,7 @@ and reports:
 - the number of claims and of records,
   and each claim whose owner is alive,
   with its process id,
-  which is `live_owner_of`'s answer (`single_owner_claim.rs`:406 to :430);
+  which is `live_owner_of`'s answer (`single_owner_claim.rs`:416 to :441);
 - each slot with a binding and no clone,
   each clone with a binding and no registration,
   and each registration with no binding,
@@ -1262,7 +1276,7 @@ The order that ends the record is:
 2. It destroys the clone's own snapshots and the clone head,
   and proves absence by the recorded GUID:
   the name is absent and no child of
-  the pinned clone parent carries `cloneGuid=` ([proposal](cli-git-zfs-worktree-design-proposal.md):956 to :962).
+  the pinned clone parent carries `cloneGuid=` ([proposal](cli-git-zfs-worktree-design-proposal.md):966 to :968).
 3. It settles the registration,
   which Git removes with its folder (F2).
   The binding is not inside it,
@@ -1286,7 +1300,7 @@ That is deliberate:
 the binding is then the only home of the origin's identity,
 and its presence is what a later run and `doctor` read as "clone gone,
 origin retained",
-which is one of the proposal's resume states ([proposal](cli-git-zfs-worktree-design-proposal.md):962 to :968).
+which is one of the proposal's resume states ([proposal](cli-git-zfs-worktree-design-proposal.md):966 to :968).
 
 ### What a record whose clone is gone means
 
@@ -1346,7 +1360,9 @@ and the result decides the home:
 
 Git never lists,
 reads or writes that folder (F5),
-and it creates `<common>/worktrees/` and nothing else under the common directory for a worktree.
+For a worktree,
+Git creates `<common>/worktrees/` and the registration inside it,
+and nothing else in the common directory.
 
 The one Git behaviour the home must live with is F1's counter,
 which arm 8 of run B measured:
@@ -1388,8 +1404,8 @@ and by refusing a binding whose `registration=` no longer answers with `registra
 Each test names the race or the state it forces and how it forces it without timing luck.
 The wrapper's own seams are the model:
 a `thread_local` hook between two steps,
-as the store's publication has (`slot_identity_store_publication.rs`:395 to :420) and as `take_claim`
-has (`single_owner_claim.rs`:352 to :356`).
+as the store's publication has (`slot_identity_store_publication.rs`:387 to :400 and :505 to :510) and as
+`take_claim` has (`single_owner_claim.rs`:357 to :370).
 
 Unit tests,
 no guest needed:
@@ -1690,7 +1706,7 @@ The folder's name and its version segment.
   `<common>/monochromatic-git-policy-cli/worktree-clone/v1/`.
   Pros:
   one program's folder,
-  which the wrapper already writes `removal-snapshots/` into (`SPEC.md`:16475 to :16478).
+  which the wrapper already writes `removal-snapshots/` into (`SPEC.md`:3879 to :3881).
   Cons:
   `doctor` and every reader would list a folder that other commands' records share,
   and the wrapper's own top-level record folders (`monochromatic-git-policy-cli-worktree-copy/`) are
@@ -2088,8 +2104,8 @@ or removed when a removal settles?
   remove it at settlement.
   Example:
   the same file is deleted with the record,
-  and a later add starts at generation
-  1. Pros:
+  and a later add starts at generation 1.
+  Pros:
   no litter.
   Cons:
   it gives up the number monotonicity the primitive's rule exists for,
@@ -2200,3 +2216,11 @@ and any test suite.
 - 2026-11-22T17:52:00-05:00:
   the first draft,
   written on `docs/planning-cli-git-zfs-add-binding-record-design` from `main` at `5dd8883a60`.
+- 2026-11-22T18:31:00-05:00:
+  folded in the coordinator's note on the probes:
+  both runs are named with their versions,
+  the wrapper's added steps for `worktree add`,
+  `git worktree remove` and `git worktree prune` are named beside the results,
+  a run of real Git `2.56.1` in the gate image was added for every arm,
+  the wrapper build's date is recorded,
+  and the lines were normalized to the repository's Markdown style.
