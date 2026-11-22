@@ -838,7 +838,11 @@ Read-only commands,
      so this rung is the only one where the read needed moving:
      rung 2 keeps it beside its copies.
      A refused or declined add pays that read in the background,
-     and the timing record states it as `fenceSizesBesideTheCheck` work.
+     and the timing record states it as `fenceSizesBesideTheCheck` work:
+     measured on one packed source of 25,034 objects in a btrfs guest,
+     40.1 ms on a refused add and 62.3 on a declined one,
+     with no wait at the add's end,
+     and 380.7 ms on a loose source.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.

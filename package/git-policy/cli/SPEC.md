@@ -1487,6 +1487,14 @@ so such an add is Git's own checkout plus the `git check-attr` read and the coun
 and this read:
 the size read is the one Git run a refused or declined rung-1 add has that it did not have before,
 and the rule that a refused rung costs no extra Git run is amended for it.
+Measured on one packed source of 25,034 objects in a btrfs guest
+(`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+"A refused add and a declined add"):
+40.1 ms of work on a refused add and 62.3 on a declined one,
+with a wait of 0.003 to 0.007 ms at the add's end,
+because the read ends long before Git's own checkout does;
+on a loose source the same read is 380.7 ms there,
+still paid beside Git's checkout.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
