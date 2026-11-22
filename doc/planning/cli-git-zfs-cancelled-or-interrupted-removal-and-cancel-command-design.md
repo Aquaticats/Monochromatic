@@ -2173,3 +2173,12 @@ in the scratch folder:
 - The first revision,
   written 2026-11-22T17:23:19-05:00 and committed as `54d164aec4`,
   states every part of the three open items and owes every measurement it names.
+- The second revision,
+  committed as `bfb64b11eb`,
+  corrects the stop points,
+  the refusal wording and the receipt field,
+  and states where each record of a removal stands at each point.
+- The third revision,
+  committed as `b53e0e081c`,
+  states the two claims the guard rests on,
+  the deadline report and the two refusals whose state the open item asks about.
