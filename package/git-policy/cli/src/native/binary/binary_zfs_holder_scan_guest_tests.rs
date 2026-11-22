@@ -503,8 +503,9 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     // Arm 7: a namespace pinned by a handle and no task is invisible,
     // which is the residual the destroy-anyway decision accepts rather than hides.
     let held_pid: u32 = pid_of(&holder);
+    let held_namespace: String = std::fs::read_link(format!("/proc/{held_pid}/ns/mnt")).expect("the holder's namespace link reads").to_string_lossy().into_owned();
     let mut pinned: Child = pin_the_namespace(held_pid);
-    assert!(wait_for_the_namespace_handle(pid_of(&pinned), held_pid), "the pinning task holds the namespace's handle");
+    assert!(wait_for_the_namespace_handle(pid_of(&pinned), held_namespace.as_str()), "the pinning task holds the namespace's handle");
     stop(&mut holder);
     assert!(wait_for_the_end(held_pid), "the holder's task has ended");
     let (pinned_run, pinned_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
@@ -574,7 +575,8 @@ fn confined_consumer(clone: &str, checkout: &Path, sbin: &str) -> Option<Child> 
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    return Some(child);
+    let _reaped = child.wait();
+    return None;
 }
 
 /// Whether one task's mount table mentions the dataset as a mount's source.
@@ -639,18 +641,15 @@ fn pin_the_namespace(held_pid: u32) -> Child {
 /// Wait,
 /// bounded,
 /// for the pinning task to hold the namespace's handle.
-fn wait_for_the_namespace_handle(pinning_pid: u32, held_pid: u32) -> bool {
-    let wanted: &str = "ns/mnt";
+fn wait_for_the_namespace_handle(pinning_pid: u32, namespace: &str) -> bool {
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
         let folder: String = format!("/proc/{pinning_pid}/fd");
         if let Ok(entries) = std::fs::read_dir(folder.as_str()) {
             for entry in entries.filter_map(|entry| return entry.ok()) {
-                if let Ok(target) = std::fs::read_link(entry.path()) {
-                    let text: String = target.to_string_lossy().into_owned();
-                    if text.contains(wanted) && text.contains(held_pid.to_string().as_str()) {
-                        return true;
-                    }
+                let holds: bool = std::fs::read_link(entry.path()).is_ok_and(|target| return target.to_string_lossy() == namespace);
+                if holds {
+                    return true;
                 }
             }
         }
