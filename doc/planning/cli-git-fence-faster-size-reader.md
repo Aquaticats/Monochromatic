@@ -958,7 +958,8 @@ because:
   on the layout people have,
   `gix`'s header loop is 9.5 ms against the in-process read's 42 to 65 ms,
   and the in-process reader makes the common add slower;
-  C wins the loose layout by about 60 to 140 ms, depending on the rung,
+  C wins the loose layout by about 60 to 140 ms,
+  depending on the rung,
   which is the rarer layout,
   and it wins it with more code than any other option.
 - C ranks over D:
