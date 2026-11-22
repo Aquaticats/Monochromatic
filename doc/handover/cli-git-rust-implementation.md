@@ -41567,7 +41567,13 @@ stated in this entry. What follows from them, as work:
   `3dbc2819f3`: the 338 ms did not reproduce (the read is 33 to 53 ms of a 650 to 713 ms add; no arm separates from the
   identical pair on rung 1); `gix` reads in 10.7 ms against `ls-tree`'s 34.5 but is a new dependency; its guest was shut
   down twice, which matches the daemon kills. GOING: its gate review on Sonnet (review to
-  `~/temp/agent/gate-review-fence-faster-size-reader-2026-11-21/`). Step 7's
+  `~/temp/agent/gate-review-fence-faster-size-reader-2026-11-21/`). THE PER-SLOT STORE'S FINDINGS ROUND ended at
+  `d314e71364` (`main` merged as `9b1ee66797`, `slot_name.rs` the one definition; M1 cap removed with its reason; M2 compare
+  before any name, red then green; M3 loser control, red then green; L1 to L10 except L4; guest arms 22 and 23 green on the
+  second attempt, the first dying at 21:49 in `virsh` transport, which matches the daemon kill; gate 9750 of 9752; Incident J
+  recorded for the one-off `commit_timing` failure; its daemon scope ended by itself). OWED AT MERGE by the coordinator: L4,
+  the in-place note in `doc/decision/cli-git-zfs-slot-identity-store-format.md` for `STORE_LOCK_WAIT` (gone) and
+  `doc/slot-identity-store-lock-hold.md` (now `doc/slot-identity-store-write-cost.md`). GOING: its reviewer's recheck. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
