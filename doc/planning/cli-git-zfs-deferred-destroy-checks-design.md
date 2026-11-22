@@ -2347,15 +2347,15 @@ nothing here claims their behaviour.
   committed `2026-11-22T17:27:58-05:00`:
   the first version,
   which designed the open item for the first time.
-- The commit that answers the gate review,
-  whose subject begins "docs(planning):
-  answer the deferred-destroy checks gate review",
-  and whose committer time is what `git log --format=%cI` prints for it.
-  It makes the changes "What this revision rewrote" lists.
+- `6ea002aa7d`,
+  committed `2026-11-22T18:11:08-05:00`:
+  the version that answers the gate review,
+  with the changes "What this revision rewrote" lists.
 - The commit that fills this section in,
   a metadata-only change whose subject begins "docs(planning):
-  record the revisions",
-  whose committer time is what `git log --format=%cI` prints for it.
+  record the revisions".
+  Its own committer time can only be read from `git log --format=%cI` for it,
+  because a document cannot name the time of the commit that writes it.
 
 [vm-12]: cli-git-zfs-measurements-owed-before-acceptance.md
 [vm-17]: cli-git-zfs-measurements-owed-before-acceptance.md
