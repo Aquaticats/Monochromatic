@@ -41844,7 +41844,13 @@ stated in this entry. What follows from them, as work:
   `shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`, which
   passed alone and is filed as issue 6343 (undiagnosed, beside issue 6342). GOING: its integration pass on Sonnet (review
   to `~/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/`), which also looks for
-  other ways Git can be pointed at a store the reader does not scan. Step 7's
+  other ways Git can be pointed at a store the reader does not scan. GOING since 2026-11-22T14:45-05:00, the two one-off
+  gate failures, each diagnosed by reading and a narrow reproduction (no whole-suite reruns):
+  `pi-lock-control-freed-name-pid-file-failed-once-in-a-gate` (issue 6342, brief under
+  `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/`) and
+  `pi-shadow-control-init-cut-every-time-failed-once-in-a-gate` (issue 6343, brief under
+  `~/temp/agent/shadow-control-init-cut-every-time-failed-once-in-a-gate-2026-11-22/`). Both add a cause section to
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, so the second to merge resolves the letters. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
