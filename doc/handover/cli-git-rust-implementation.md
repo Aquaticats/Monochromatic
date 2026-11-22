@@ -41825,7 +41825,17 @@ stated in this entry. What follows from them, as work:
   question; the bound's measured figures go beside the constant, veto open. GOING:
   `pi-zfs-step-8-recheck-findings-and-sweep-cost` on `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` (M-1 to
   M-4, the lows, the sweep's cost; brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`; the
-  no-configuration question is not in it and gets a round of its own once answered). Step 7's
+  no-configuration question is not in it and gets a round of its own once answered). THE OWNER ANSWERED at
+  2026-11-22T14:27:54-05:00 "1: no file needed (Recommended)" (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`, section
+  "With no configuration file"; `doc/decision/cli-git-zfs-start-probe.md`, section "Answer of 2026-11-22"): with no file the
+  root handler finds the one mounted ZFS dataset whose last component is `monochromatic-git-checkout`, the container beside
+  it and the probe dataset by its design name, refuses on none or several, and a file that is present wins. GOING:
+  `pi-zfs-sweep-and-start-probe-need-no-configuration-file` on
+  `feat/git-policy-cli-zfs-sweep-and-start-probe-need-no-configuration-file` (design amendment first, then the sweep, the
+  boot reconciliation and the probe; brief under
+  `~/temp/agent/zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/`). The step 8 follow-up round was told by
+  message to leave low L-4 and the configuration code to it. Its integration pass must weigh who can make a name match
+  (the recheck ranked the pinned file first for that reason). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
