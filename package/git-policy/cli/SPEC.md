@@ -2862,27 +2862,39 @@ and the paths a change or the fence reaches are Git's own bytes.
 
 Rung 2 declines the add,
 and Git's own checkout makes the worktree,
-for two provisional limits,
-each pinned with the measurement it rests on and both open to the project's veto
-(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
-The whole-tree size limit sends a source whose tracked files sum to fewer than 762,000,000 bytes to Git's own
-checkout:
+for three provisional limit rules,
+each pinned with the measurement it rests on and all open to the project's veto
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+and its section "The size limit on a clean source, answered 2026-11-22").
+The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
+Git's own checkout:
 a dirty source of 10,001 files of 2,600 bytes,
 about 26 MB,
 took 1.30 times Git's own checkout on the fenced rung,
 one of 10,001 files of 26,000 bytes,
 about 260 MB,
 took 1.32 of it in eight balanced rounds,
-and this repository's tree of 763,289,228 bytes took 0.73 to 0.81 of it.
+and this repository's tree of 763,293,228 bytes took 0.73 to 0.81 of it.
 The rung's fence reads cost about the same whatever the tree holds,
 and Git's own checkout grows with the bytes,
 so the rung loses wherever a checkout is shorter than those reads;
 the pin sits at the top of that bracket,
 so no size nobody measured is cloned.
-The limit applies to a clean source too,
-so a clean tree below it takes Git's own checkout,
-which is where the clean small-file cost the waiver records ends;
-the clean trees measured between those sizes are parity with Git's own checkout.
+A clean source is judged by its mean tracked file size instead,
+because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
+files costs more to clone than to write:
+below the edge Git's own checkout writes a clean source,
+and at or above it the clone copies the tree as `main` does.
+Each filesystem the rung serves takes its own measured edge,
+and a filesystem nobody measured takes the higher of the two:
+btrfs at 49 bytes a file,
+where the lowest mean measured cloned at 0.86 of Git's own checkout and every larger mean cloned at parity or better;
+ZFS at 8,800 bytes a file,
+where the copy measured 1.02 of Git's own checkout and every larger mean 0.60 or less,
+with losses measured below it (1.20 at 2,599);
+and any other kind at the higher of the two.
+The index records a tracked file's size in 32 bits,
+so a file of 4 GiB or more counts modulo 2^32 and a tree dominated by such files can read as small.
 The changed-file cut sends a source with more changed tracked files than a quarter of its tracked paths to Git's own
 checkout,
 which is the share the conversion fence declines at,
@@ -2890,10 +2902,14 @@ and a quarter of this repository's 24,620 tracked paths is 6,155:
 6,000 changed paths took 1.00 to 1.05 times Git's own checkout,
 which is parity,
 and 20,000 took 1.68 to 1.74 of it.
+The rung's own partial clone asks the same cut of the paths Git must write,
+before it copies anything,
+so a tracked file whose recorded times are stale but whose bytes are unchanged is a path the cut counts:
+20,000 of 24,650 such paths were 1.39 times `main` before that refusal and 1.09 of it after.
 An untracked file is no changed file:
 no worktree takes it.
 A declined add is Git's own checkout,
-so it is never slower than the checkout it replaced,
+so no add these limits decline is slower than the checkout it replaced,
 and what it loses is the clone's gain.
 
 Rung 3 is Git's checkout and the ignored-state copy.
