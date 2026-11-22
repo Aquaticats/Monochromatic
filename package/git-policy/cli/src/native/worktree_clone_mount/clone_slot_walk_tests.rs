@@ -8,20 +8,17 @@ use super::*;
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
+use crate::worktree_clone_mount::{PARENT_RECORD_NAME, STORE_HEADER, StoreRefusal, StoredIdentity};
 use std::os::fd::AsRawFd as _;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-
-/// The store's header,
-/// which a fixture store must start with.
-const HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 1";
 
 /// One fixture checkout with one slot below `.claude/worktrees`,
 /// and a store recording what the two folders are now.
 struct Fixture {
     /// The checkout.
     checkout: PathBuf,
-    /// The store file.
+    /// The store folder.
     store: PathBuf,
     /// The `.claude/worktrees` folder.
     parent: PathBuf,
@@ -42,10 +39,13 @@ impl Fixture {
         return CloneFolderIdentity::capture(&std::fs::File::open(&self.slot).expect("slot")).expect("identity");
     }
 
-    /// Write a store recording `parent` and `slot` for the slot named `name`.
+    /// Write a store holding `parent` and `slot` for the slot named `name`.
     fn record(&self, name: &str, parent: &CloneFolderIdentity, slot: &CloneFolderIdentity) {
-        let text: String = format!("{HEADER}\nparent - {}\nslot {name} {}\n", parent.encode(), slot.encode());
-        std::fs::write(&self.store, text).expect("store");
+        std::fs::create_dir_all(self.store.as_path()).expect("the store folder");
+        let parent_text: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Parent(parent.clone()).encode());
+        std::fs::write(self.store.join(PARENT_RECORD_NAME), parent_text).expect("the parent record");
+        let slot_text: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Slot { name: name.to_string(), identity: slot.clone() }.encode());
+        std::fs::write(self.store.join(name), slot_text).expect("the slot record");
     }
 
     /// Record the two folders as they are now.
@@ -172,11 +172,14 @@ fn each_recorded_field_of_the_slot_is_a_refusal() {
 fn an_unrecorded_slot_or_parent_asks_for_the_run_that_writes_it() {
     let built: Fixture = fixture_slot("clone-walk-unrecorded");
     let parent: CloneFolderIdentity = built.parent_identity();
-    std::fs::write(&built.store, format!("{HEADER}\nparent - {}\n", parent.encode())).expect("store");
+    std::fs::create_dir_all(built.store.as_path()).expect("the store folder");
+    let _slot_record_gone: std::io::Result<()> = std::fs::remove_file(built.store.join("one"));
+    std::fs::write(built.store.join(PARENT_RECORD_NAME), format!("{STORE_HEADER}\n{}\n", StoredIdentity::Parent(parent.clone()).encode())).expect("the parent record");
     let refused_3: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("no slot record");
     assert!(matches!(refused_3, CloneSlotRefusal::Store(StoreRefusal::NoSlotRecord { .. })), "{refused_3:?}");
     assert!(refused_3.message().contains("sweep"), "{}", refused_3.message());
-    std::fs::write(&built.store, format!("{HEADER}\nslot one {}\n", built.slot_identity().encode())).expect("store");
+    std::fs::remove_file(built.store.join(PARENT_RECORD_NAME)).expect("the parent record goes");
+    std::fs::write(built.store.join("one"), format!("{STORE_HEADER}\n{}\n", StoredIdentity::Slot { name: String::from("one"), identity: built.slot_identity() }.encode())).expect("the slot record");
     let refused_4: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("no parent record");
     assert!(matches!(refused_4, CloneSlotRefusal::Store(StoreRefusal::NoParentRecord { .. })), "{refused_4:?}");
     assert!(refused_4.message().contains("setup"), "{}", refused_4.message());

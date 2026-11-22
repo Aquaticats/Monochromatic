@@ -8,7 +8,7 @@
 //!  Git refuses a name that starts with a dot,
 //!  so a leading dot here is a folder this route could only reach outside the
 //!  add.
-//!  The rule lives apart from the store's own line grammar and its lock,
+//!  The rule lives apart from the store's own folder and its record grammar,
 //!  because the project decided on 2026-11-21 that the store becomes one file
 //!  per slot
 //!  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`),

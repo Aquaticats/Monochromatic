@@ -16,7 +16,7 @@ use crate::worktree_ladder_run::begin_ladder;
 use crate::worktree_add_binding::Bound;
 use crate::worktree_copy_journal::journal_root;
 use crate::test_support::git_output;
-use crate::worktree_ladder_test_support::{OLDER_TARGET_OLD_PATHS, commit_all, main_identity, paths_below, plan_to, subvolume_repository, tracked, tracked_sparse};
+use crate::worktree_ladder_test_support::{OLDER_TARGET_OLD_PATHS, commit_all, main_identity, paths_below, plan_to, plan_to_at, subvolume_repository, tracked, tracked_sparse};
 use std::cell::RefCell;
 use std::process::{Command, Stdio};
 
@@ -61,9 +61,13 @@ fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: 
 
 /// `add_through_the_ladder` with the commit the add targets named,
 /// so a fixture can add a worktree at a tree that differs from the source's `HEAD`.
+/// The plan names that commit too,
+/// because the words this helper gives Git name it (`-b topic ../topic <commit>`):
+/// a plan without it would be the in-process twin of an add whose commit-ish the skip cannot read,
+/// which none of these controls means to make.
 fn add_through_the_ladder_at(repo: &Path, root: &Path, target: Option<&str>, extra: &[&str], fail_reset: bool, spoil: impl FnOnce(&Path)) -> (LadderResult, Vec<Vec<String>>, String) {
     let destination: PathBuf = root.join("topic");
-    let mut plan = plan_to(destination.clone());
+    let mut plan = plan_to_at(destination.clone(), target);
     plan.quiet = extra.contains(&"--quiet");
     let ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo));
     assert_eq!(ladder.first_step(), GitStep::WithoutCheckout(plan.insert_at), "the source is eligible");
@@ -748,6 +752,11 @@ fn tracked_bytes(worktree: &Path) -> Vec<(String, Vec<u8>, bool)> {
 /// the control requires that of the rung as of the clone rung,
 /// so the two rungs' endings are held to the same tree
 /// (`m05` of the class controls leaves the clone rung with its copies).
+/// The commit-ish is `-`,
+/// which Git reads as this worktree's previous branch and the skip's one name-only read cannot,
+/// so the ending is reached on purpose:
+/// a commit-ish the read resolves is skipped before the snapshot,
+/// which would leave this rung's ending untested.
 #[test]
 fn btrfs_a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_snapshot_behind() {
     let Some(root) = btrfs_fixture("finish-older-target") else { return };
@@ -762,7 +771,16 @@ fn btrfs_a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_snapshot_b
         tracked(repo.as_path(), format!("old/file-{index}.dat").as_str(), b"line one\n");
     }
     commit_all(repo.as_path(), "second");
-    let (result, _steps, _printed) = add_through_the_ladder_at(repo.as_path(), root.as_path(), Some("other"), &[], false, |_| {});
+    // `@{-1}`, which `-` names, is the branch this worktree was on before the current one, so the reflog has to hold
+    //  that checkout. Those two checkouts rewrite the files, and a file as new as the index proves nothing, so the
+    //  index is refreshed after the second has passed: only a provably clean source reaches the ending.
+    git(repo.as_path(), &["checkout", "--quiet", "other"]);
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    crate::worktree_ladder_test_support::wait_for_a_new_second();
+    git(repo.as_path(), &["update-index", "--really-refresh"]);
+    let (result, steps, _printed) = add_through_the_ladder_at(repo.as_path(), root.as_path(), Some("-"), &[], false, |_| {});
+    // The ending has a Git step of its own, and a skipped add has none: this is how the control says it reached it.
+    assert!(steps.iter().any(|words: &Vec<String>| return words.iter().any(|word: &String| return word == "read-tree")), "the two-tree update ran: {steps:?}");
     assert_eq!(result.git, GitStatus { code: Some(0) }, "Git's own checkout completed the worktree");
     assert_eq!(result.carried, None, "the snapshot rung published no worktree");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference", "other"]);

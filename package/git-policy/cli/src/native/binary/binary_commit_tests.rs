@@ -1912,6 +1912,120 @@ fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
     remove_settled(&fixture);
 }
 
+/// The `core.editor` a control gives a repository:
+/// a shell command that writes a fixed message into the file Git names after it.
+const EDITOR_WRITES_A_MESSAGE: &str = "printf 'editor subject\\n\\nbody line\\n' >";
+
+/// What:
+///  A repository a commit control runs the same sequence in,
+///  in the ref store the arm names:
+/// two commits,
+///  an editor,
+///  and a replace ref where the arm asks for one.
+/// Why:
+///  The ref store is the arm's whole difference:
+/// a reftable store and a files store holding a replace ref
+///  are the two stores the landing's in-process object reader declines.
+fn prepare_reflog_arm(fixture: &Fixture, repo: &Path, format: &[&str], replace: bool) {
+    std::fs::create_dir(repo).expect("repository directory");
+    let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
+    init.extend_from_slice(format);
+    git(fixture, repo, init.as_slice());
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
+    git(fixture, repo, &["add", "--", "a.txt"]);
+    git(fixture, repo, &["commit", "--quiet", "--message=first", "--", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), b"two\n").expect("a");
+    git(fixture, repo, &["add", "--", "a.txt"]);
+    git(fixture, repo, &["commit", "--quiet", "--message=second", "--", "a.txt"]);
+    if replace {
+        let older: String = git_text(fixture, repo, &["rev-parse", "HEAD~1"]).trim().to_string();
+        let head: String = git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_string();
+        git(fixture, repo, &["replace", older.as_str(), head.as_str()]);
+    }
+    git(fixture, repo, &["config", "core.editor", EDITOR_WRITES_A_MESSAGE]);
+    keep_maintenance_in_the_foreground(fixture, repo);
+}
+
+/// What:
+///  The reflog row of a commit Git itself builds is native Git's row,
+///  in a reftable repository and in a files repository that holds a replace ref.
+/// Why:
+///  Both stores make the landing's in-process object reader decline the database,
+///  and the row's subject and kind are read from the commit object:
+///  a commit Git built carries its message only in that object,
+///  and its parents say whether it concludes a merge.
+/// Taking the decline as an answer wrote `commit:` with no subject for every one of them,
+///  and lost the `(merge)` kind,
+/// so a person reading `git reflog` saw blank rows where native Git names the commit.
+/// Each arm runs one sequence twice,
+/// once through the wrapper and once through native Git.
+#[test]
+fn a_commit_git_builds_writes_gits_reflog_row_where_the_reader_declines() {
+    let fixture: Fixture = fixture("commit-reflog-declined");
+    let arms: [(&str, &[&str], bool); 2] = [("reftable", &["--ref-format=reftable"], false), ("files-replace-ref", &[], true)];
+    for (arm, format, replace) in arms {
+        let wrapped: PathBuf = fixture.root.join(format!("{arm}-wrapped"));
+        let native: PathBuf = fixture.root.join(format!("{arm}-native"));
+        prepare_reflog_arm(&fixture, wrapped.as_path(), format, replace);
+        prepare_reflog_arm(&fixture, native.as_path(), format, replace);
+        // An ordinary commit whose message comes from the editor.
+        for repo in [&wrapped, &native] {
+            std::fs::write(repo.join("a.txt"), b"three\n").expect("a");
+            git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        }
+        let served: Observed = run_commit(&fixture, wrapped.as_path(), &["commit", "--", "a.txt"]);
+        assert_eq!(served.code, Some(0), "{arm}: {}", stderr_of(&served));
+        assert_eq!(run_direct(&fixture, native.as_path(), &["commit", "--quiet", "--", "a.txt"]).code, Some(0), "{arm}: native Git makes the same commit");
+        assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "{arm}: the editor commit's row");
+        assert_eq!(
+            reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(),
+            "commit: editor subject\n",
+            "{arm}: the editor commit's wording"
+        );
+        // An amend whose message comes from the editor.
+        for repo in [&wrapped, &native] {
+            std::fs::write(repo.join("a.txt"), b"four\n").expect("a");
+            git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        }
+        let amended: Observed = run_commit(&fixture, wrapped.as_path(), &["commit", "--amend", "--", "a.txt"]);
+        assert_eq!(amended.code, Some(0), "{arm}: {}", stderr_of(&amended));
+        assert_eq!(run_direct(&fixture, native.as_path(), &["commit", "--quiet", "--amend", "--", "a.txt"]).code, Some(0), "{arm}: native Git amends as the wrapper does");
+        assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "{arm}: the editor amend's row");
+        assert_eq!(
+            reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(),
+            "commit (amend): editor subject\n",
+            "{arm}: the editor amend's wording"
+        );
+        // A merge whose conclusion the person commits once the conflict is resolved.
+        for repo in [&wrapped, &native] {
+            std::fs::write(repo.join("f.txt"), b"a\nb\n").expect("f");
+            git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+            git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base", "--", "f.txt"]);
+            git(&fixture, repo.as_path(), &["branch", "side"]);
+            std::fs::write(repo.join("f.txt"), b"a\nMAIN\n").expect("main edit");
+            git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+            git(&fixture, repo.as_path(), &["checkout", "--quiet", "side"]);
+            std::fs::write(repo.join("f.txt"), b"a\nSIDE\n").expect("side edit");
+            git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+            git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+            let merged: Observed = run_direct(&fixture, repo.as_path(), &["merge", "--quiet", "side"]);
+            assert_eq!(merged.code, Some(1), "{arm}: the control: the merge stops on the conflict");
+            std::fs::write(repo.join("f.txt"), b"a\nRESOLVED\n").expect("resolution");
+            git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+        }
+        let concluded: Observed = run_commit(&fixture, wrapped.as_path(), &["commit", "--no-only", "--message=merged"]);
+        assert_eq!(concluded.code, Some(0), "{arm}: {}", stderr_of(&concluded));
+        assert_eq!(run_direct(&fixture, native.as_path(), &["commit", "--quiet", "--message=merged"]).code, Some(0), "{arm}: native Git concludes the same merge");
+        assert_eq!(reflog_subjects(&fixture, wrapped.as_path(), "1"), reflog_subjects(&fixture, native.as_path(), "1"), "{arm}: the merge conclusion's row");
+        assert_eq!(
+            reflog_subjects(&fixture, wrapped.as_path(), "1").as_str(),
+            "commit (merge): merged\n",
+            "{arm}: the merge conclusion's wording"
+        );
+    }
+    remove_settled(&fixture);
+}
+
 /// What:
 ///  A commit Git itself builds lands in a reftable repository whose own directory name is not UTF-8.
 /// Why:

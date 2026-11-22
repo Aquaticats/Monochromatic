@@ -79,8 +79,10 @@ pub(crate) fn of(the: TheBatch<'_>) -> Result<(Intent, std::ffi::OsString), Fail
     // What the reflog row says: the kind of commit and the first line of its message, as native Git words both
     // (`builtin/commit.c`, `update_head_with_reflog` in `sequencer.c`). A landing answers a batch with one branch move, so
     // the row names the commit that landed last, which is the value the branch now holds.
+    // The commit's own object carries the message a commit Git built was never told here, and its parents say whether it
+    // concludes a merge: a store the reader declines is asked of Git (`service_built_checks.rs`), never taken as no parents.
     let last: &CommitRequest = batch.last().copied().unwrap_or(first);
-    let content: Option<crate::service_built_checks::CommitContent> = commit_content(first.common_dir.as_path(), new);
+    let content: Option<crate::service_built_checks::CommitContent> = commit_content(&context.git, first.repository.as_path(), first.common_dir.as_path(), new);
     let parents: usize = match &content {
         Some(read) => read.parents.len(),
         None => 0,

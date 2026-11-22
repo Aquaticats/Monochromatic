@@ -50,6 +50,16 @@ export const VIRSH_COMMAND_ENV = 'MVM_VIRSH_COMMAND';
 export const QEMU_IMG_COMMAND_ENV = 'MVM_QEMU_IMG_COMMAND';
 
 /**
+ Environment variable holding the command that runs `virtqemud`, as a JSON
+ array.
+
+ Unset, mvm derives the daemon command from the command that runs `virsh` by
+ replacing `virsh` with `virtqemud` in each argument; this variable is for a
+ wrapper whose name does not say `virsh`.
+ */
+export const VIRTQEMUD_COMMAND_ENV = 'MVM_VIRTQEMUD_COMMAND';
+
+/**
  Flatpak application whose sandbox ships libvirt and QEMU on hosts that have neither installed.
  */
 export const VIRT_MANAGER_FLATPAK = 'org.virt_manager.virt-manager';
@@ -133,16 +143,20 @@ export class ToolCommandConfigError extends Error {
   /**
    @param cause - Parse failure, when the value is not JSON at all
 
+   @param example - JSON array shown as the expected form; omitted, the message shows the `virsh` form
+
    @param value - Text the variable holds, quoted in the message
 
    @param variable - Name of the environment variable
    */
   constructor({
     cause,
+    example = EXAMPLE_VALUE,
     value,
     variable,
   }: {
     readonly cause?: unknown;
+    readonly example?: string;
     readonly value: string;
     readonly variable: string;
   },) {
@@ -150,7 +164,7 @@ export class ToolCommandConfigError extends Error {
       [
         `${variable} must be a JSON array of non-empty strings: the executable, then its leading arguments.`,
         `It is set to: ${value}`,
-        `Example: ${variable}='${EXAMPLE_VALUE}'`,
+        `Example: ${variable}='${example}'`,
         'A JSON array is used so that an argument may contain spaces without any quoting rules.',
       ].join('\n',),
       { cause, },
@@ -187,6 +201,8 @@ function isArgv(value: unknown,): value is readonly [
 /**
  Reads a tool command from the text of its environment variable.
 
+ @param example - Rendered JSON array shown as the expected form; omitted, the message shows the `virsh` form
+
  @param value - Text the variable holds
 
  @param variable - Name of the environment variable, named in the error
@@ -201,9 +217,11 @@ function isArgv(value: unknown,): value is readonly [
  ```
  */
 export function parseToolCommand({
+  example,
   value,
   variable,
 }: {
+  readonly example?: string;
   readonly value: string;
   readonly variable: string;
 },): readonly [
@@ -228,6 +246,7 @@ export function parseToolCommand({
       rl.debug(`${variable} is not JSON`,);
       throw new ToolCommandConfigError({
         cause: error,
+        ...(example === undefined ? {} : { example, }),
         value,
         variable,
       },);
@@ -235,6 +254,7 @@ export function parseToolCommand({
   })();
   if (!isArgv(parsed,)) {
     throw new ToolCommandConfigError({
+      ...(example === undefined ? {} : { example, }),
       value,
       variable,
     },);

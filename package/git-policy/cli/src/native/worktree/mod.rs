@@ -46,6 +46,14 @@ pub mod worktree_removal_rescue;
 /// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
 pub mod worktree_removal_held_commits;
 
+/// The option table of `git worktree add`,
+/// and the rules that read a long word,
+/// a bundled short word and a value.
+// Its only user is `worktree_add_plan`, which is `#[cfg(unix)]`, so a non-Unix build would hold this table's
+// `pub(crate)` items unused and the Windows lint denies that warning.
+#[cfg(unix)]
+pub mod worktree_add_option_table;
+
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
 #[cfg(unix)]
@@ -346,6 +354,16 @@ pub mod worktree_clone_rung_limits;
 /// as the decision whether a clone may carry the file.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_rules;
+
+/// How many tracked paths a rule converts,
+/// and the share past which the rung declines to write them.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_decline;
+
+/// One path the target tree of an add changes,
+/// and why a cheap rung cannot serve it.
+#[cfg(target_os = "linux")]
+pub mod worktree_change_a_rung_cannot_serve;
 
 /// The fence over a clone rung's bytes:
 /// which paths the clones may carry,

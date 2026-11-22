@@ -125,11 +125,6 @@ const INVENTORY: &[&str] = &[
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
     "landing/service_index_prestage.rs",
-    // The lock file that keeps two writes to the store apart:
-    //  the read of the recorded identity store and the append that adds one slot are one step,
-    //  and so are the adoption's read and whole-file rename,
-    //  and the lock stands on a file only root may open, so no account that may read the store can hold it.
-    "worktree_clone_mount/slot_identity_store.rs",
 ];
 
 /// Every `.rs` file below `root`,

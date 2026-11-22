@@ -402,14 +402,18 @@ await describe({
             using _command = withVirshCommand([
               process.execPath,
               '--eval',
-              'setTimeout(() => {}, 60000)',
+              [
+                '// The question mvm asks first is a listing; it answers at once, and every other call hangs.',
+                'if (process.argv.includes("list")) { process.exit(0); }',
+                'setTimeout(() => {}, 60000);',
+              ].join('\n',),
               '--',
             ],);
             const error = await caught(() =>
               virsh({
                 args: [
-                  'list',
-                  '--all',
+                  'domstate',
+                  'mvm-dev',
                 ],
                 deadlineMs: 300,
               },)

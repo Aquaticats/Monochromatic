@@ -949,11 +949,17 @@ Read-only commands,
      so a process killed in between leaves no index in the worktree at all,
      which the next command reports as an add that is possibly incomplete and follows with the commands that finish it,
      and it removes the index's waiting name and the lock a killed Git left beside it.
-     An add that names a commit is compared with the source's index before the add's record is claimed and before the
-     first copy,
-     by one `git diff-tree --name-only`,
-     and an add whose tree changes a path the attributes convert is skipped there,
-     so it is Git's own checkout and that one read.
+     An add is compared with the source's index before the add's record is claimed and before the first copy:
+     the tree read is the one `git worktree add` checks out,
+     the local branch a commit-ish names when the add neither creates a branch nor detaches,
+     and the branch its destination is named after when it names no commit at all,
+     which one `git for-each-ref` answers,
+     so the read is one `git diff-tree --name-only` of that branch or commit,
+     and an add whose tree changes a path the attributes convert,
+     or a tracked link the copies make again,
+     is skipped there,
+     so it is Git's own checkout and those reads;
+     an add whose rung hands Git no path at all pays no read.
      A path only the size proof hands to Git is not in that answer and can still end the rung at the tree difference,
      and Git's own checkout then completes the worktree against that waiting index,
      so the worktree equals Git's and nothing the clones copied stays behind.
@@ -6475,6 +6481,49 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
     for a step that
     does no work),
     so the Containerfile keeps its step count low and puts the steps that rarely change first.
+  - Every container this gate starts carries its run's own name and label,
+    `gpc-gate-<run id>-<suite|clippy>` and `dev.monochromatic.git-policy.gate-run=<run id>`
+    (`bin/native-gate-container-identity.ts`),
+    the run id being the random name of the run's evidence directory.
+    The gate prints the run id before it builds anything,
+    each container's name and label before that container starts,
+    and each container's ID as podman writes it to the run's ID file,
+    which is before the container's own output,
+    and records all of it in `target/verification/<run id>/manifest.json` as each ID is read,
+    so a gate killed without unwinding still leaves them.
+    Several sessions gate this machine at once,
+    so stop your own gate and nothing else.
+    `systemctl --user stop gpc-gate-<label>-<stamp>.service` ends a gate `native:gate` started.
+    In every shape probed on 2026-11-21,
+    stopping the unit sent SIGTERM to the `podman run` client,
+    which passed it to its container
+    (`sleep` and `sh` workloads,
+    one of them through the gate's own `runGateContainer`;
+    the gate's suite container itself was not tried).
+    A container whose workload the signal killed was left exited and unremoved,
+    and `podman ps` still printed it as `Up` until a podman command that checks it ran;
+    one whose workload exited on the signal was left nowhere.
+    So after a unit stop,
+    `podman ps --all --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists what is left,
+    and `podman rm --filter label=dev.monochromatic.git-policy.gate-run=<run id>` clears it.
+    A container still running,
+    such as one a gate started by hand left behind,
+    is stopped by label.
+    Naming a container fails when it already ended:
+    `podman stop gpc-gate-<run id>-<suite|clippy>` exits 125 with "no such container",
+    and Clippy's container has usually ended by the time the suite's does.
+    Name none instead:
+    `podman stop --ignore --filter label=dev.monochromatic.git-policy.gate-run=<run id>`
+    stops exactly this run's containers,
+    and `--ignore` keeps an ended one from failing the command.
+    A gate started by hand from a terminal has no unit to stop;
+    its containers are stopped by that same label command.
+    `podman ps --filter label=dev.monochromatic.git-policy.gate-run=<run id>` lists exactly one run's containers,
+    and a container whose label is another run's belongs to another session's gate,
+    which is never stopped (issue 6334;
+    the two gates of 2026-11-21 that ended by a signal nobody attributed are in
+    `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+    cause J).
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
   commits (explicit-path and service,
   unsigned and SSH-signed),
@@ -6578,6 +6627,13 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   and prints `<unit>.service=<log path>`.
   It answers as soon as systemd has queued the unit,
   so nothing waits an hour for a run.
+  Stopping that unit ends the gate,
+  and its `podman run` clients passed the SIGTERM on to their containers in every shape probed
+  (the gate's suite container itself was not tried);
+  what may be left,
+  and how to list and clear it by this run's label,
+  is in the `native:test:container` bullet of "Development";
+  never stop or remove a container whose label is not this run's.
   The label is what the gate covers,
   in lowercase letters,
   digits and hyphens:

@@ -12,6 +12,18 @@
 //!  It is plan step 8,
 //! so this build refuses the mode instead of attaching anything:
 //!  a partial sweep at root would be a mount nobody designed.
+//!  When that step lands the run reads `.parent` and the record of each slot it reaches,
+//!  and it lists no name:
+//!  one folder listing per run is what the accepted design's choice 9 does not take.
+//!  Until then a sweep run opens no folder and reads no record,
+//!  so a staging file a killed writer left stays where it is.
+//!  The adoption removes the two known staging forms,
+//!  and plan step 18's `doctor` is to report and remove them
+//!  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+//!  "Who removes a killed writer's staging file"),
+//!  so the adoption is their only remover until that step lands.
+//!  A leftover standing until then affects no reader,
+//!  because no reader reads a staging name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

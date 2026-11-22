@@ -10,11 +10,73 @@ It answers every item that
 left to a design.
 A gate review has read it and found two high,
 six medium and eleven low findings;
-this round fixes every one of them,
+this round fixed them,
 the section [This round](#this-round) at the end names what moved,
-and nothing is dismissed.
+and its recheck left eight low findings,
+R1 to R8,
+which the build answered as the [Built](#built) note says.
 Every choice inside an item is proposed with its options and a ranking,
 and none of them is decided until the owner accepts it.
+
+## Built
+
+This design was built on branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files`,
+on 2026-11-21,
+after the decision record accepted it,
+with the gate's recheck's low findings R1 to R8 answered in this text and in the code:
+R1 in the removal of the two known staging names,
+which the project placed with plan step 18's `doctor` while the sweep stays unlisted,
+and in the sweep's control that a run lists nothing,
+as `doc/decision/cli-git-zfs-slot-identity-store-format.md` records under
+"Who removes a killed writer's staging file",
+and in sections 1,
+2,
+4 and 5,
+R2's citations,
+length and status sentences,
+R3's grammar argument,
+R5's wording about `O_EXCL`,
+R6's variant counts and option B's owed controls,
+R7's Limitations line,
+and R8's two evidence points.
+R4's missing per-option pros and cons are not added,
+because the owner has accepted the first-ranked option of every
+choice and a ranking nobody decides any more would be prose about nothing;
+each open choice keeps the one reasoned paragraph it already had.
+Nothing of this design is approved or final,
+and only the owner declares it so.
+
+The merge of `main` at `72d8dbeb35` into the branch,
+on 2026-11-21,
+changed nothing this design decided and five things it records:
+
+- ZFS step 7's `slot_name.rs` is the only definition of the slot-name rule,
+  and the store's files import it;
+  the build's own copy in `slot_identity_store_records.rs` is gone.
+- The code keeps `SLOT_IDENTITY_STORE_PATH` and
+  `SlotIdentityStore::open_under_root_control`,
+  where section 6's text names `SLOT_IDENTITY_STORE_FOLDER_PATH` and
+  `open_the_store_folder_under_root_control`:
+  the path is the folder's,
+  and the open is the store's own method.
+  Section 6 also lists `BEFORE_THE_STORE_OPENS` as a deleted lock-hold hook;
+  the branch has a hook of that name again,
+  which holds the sweep's control,
+  and no lock exists.
+- The parent record's publication compares the record it finds before it makes any name,
+  which is what section 3 asks,
+  and `a_second_setup_run_that_finds_the_same_parent_makes_no_name` now holds it.
+- The adoption's first listing is also the removal of a killed writer's staging names,
+  as section 5's step 2 says,
+  so the folder is listed twice and not three times.
+- A listing has no entry cap.
+  The build had made one at 65,536 entries,
+  which neither this design nor the decision named and nothing measured,
+  and this round removed it rather than based it:
+  the store folder is root-owned `0755`,
+  so no other account adds an entry and root adds one per clone it makes,
+  and `doctor` reports the entry count beside the records,
+  as the Limitations section says.
 
 ## The decision's six items, and the section that answers each
 
@@ -68,10 +130,14 @@ the store at `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-iden
 that same path,
 and a machine that never ran the root setup has neither shape to convert.
 
-Those words are kept literally,
-and this is the one place to say so plainly.
+Those words are kept in the letter the build can keep:
+the file is created with `O_EXCL`,
+and exclusion at the record's own name is `linkat`'s `EEXIST`,
+not the creation's,
+because the creation is under a random staging name that excludes no second recorder.
 The slot's record file is created with `O_EXCL`,
 under a staging name that begins with a dot,
+and one `linkat` is what makes the record's own name exclusive,
 and its record name is given to it by one `linkat` that never replaces,
 after which the staging name is removed (section 2).
 The option that section 2 ranks second makes the record instead with `O_TMPFILE` and one `linkat`,
@@ -93,7 +159,8 @@ because two first-recording sweeps that both rebuilt the file would let the late
 taken from a folder that changed in between,
 which is the refresh the accepted design forbids (`package/git-policy/cli/SPEC.md:5475`,
 and the design's own rule at
-[`doc/planning/cli-git-zfs-worktree-design-proposal.md:611`](cli-git-zfs-worktree-design-proposal.md)):
+[`doc/planning/cli-git-zfs-worktree-design-proposal.md:612` to
+`:613`](cli-git-zfs-worktree-design-proposal.md)):
 "Never refresh a slot identity just because a new inode or permissions appeared there."
 One file per slot removes that reason with the file:
 a slot's record is published once and never replaced,
@@ -153,7 +220,7 @@ so no later writer can take an identity from a folder that moved under it.
   `hold_clone_slot`,
   which reads the store at `:333`,
   refuses `NoParentRecord` at `:336`,
-  and compares the walked parent at `:338` before it compares the slot at `:342`,
+  and compares the walked parent at `:338` before it looks the slot up at `:342` and compares it at `:346`,
   and `hold_clone_slot_under_root_control` at `:384`.
   `HoldCloneSlotRequest.store` is a path,
   and almost every control in `clone_slot_walk_tests.rs`,
@@ -334,8 +401,10 @@ and the printed line that showed it:
   `staged-name-survives-that-refusal`),
   publishes onto an absent name and removes the staged name (`renameat2-RENAME_NOREPLACE-onto-an-absent-name`,
   `staged-name-after-that-publish`);
-  `RENAME_EXCHANGE` succeeds and each name holds the other's bytes (`renameat2-RENAME_EXCHANGE`,
-  `slot-b-bytes-after-the-exchange`);
+  `RENAME_EXCHANGE` succeeds and the name it was exchanged with holds the other's bytes (`renameat2-RENAME_EXCHANGE`,
+  `slot-b-bytes-after-the-exchange`,
+  which prints one of the two names' bytes,
+  so the other name's are not among the printed lines);
   a plain replacing rename replaces in one step (`renameat2-plain-replacing-rename`).
 - `O_EXCL` at a name that exists answers `EEXIST` (`openat-O_EXCL-onto-a-taken-name`).
 - A 255-byte name is created in that folder and a 256-byte one is refused `ENAMETOOLONG`
@@ -574,10 +643,17 @@ and one rule tells them apart:
   because a third form means a writer this design has not accounted for.
   A leading dot is what the slot grammar already refuses,
   so no slot can ever be named like one.
-  Who removes them is one answer,
-  stated in section 2:
+  Who removes them is section 2's answer:
   a writer removes its own,
-  and the adoption removes any left by a killed writer.
+  the adoption removes the two known forms a killed writer left,
+  and plan step 18's `doctor` reports and removes them
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file"),
+  so the adoption is their only remover until that step lands.
+  No sweep run lists the folder,
+  so no sweep run removes one,
+  and a leftover affects no reader,
+  because no reader reads a staging name.
 
 No suffix and no second level is needed,
 and the reason is the grammar of names that can arrive,
@@ -591,8 +667,12 @@ bounded by the slot component limit and the remaining dataset-name budget,
 and the probe created a 255-byte name in the store's folder and was refused a 256-byte one
 (`create-a-255-byte-name`,
 `create-a-256-byte-name`).
-So a name of up to 255 bytes really can reach the store,
-and a file named `<slot>.slot` could not record such a slot without a new refusal for a name Git made.
+How long a name the sweep can derive is not measured:
+the remaining dataset-name budget bounds it below 255 by the length of the parent dataset's path,
+and this design does not compute that maximum for a real path.
+A file named `<slot>.slot` would refuse any name near that limit,
+which is a refusal for a name Git made whichever way the budget falls,
+and option C's rejection therefore rests on not wanting a length rule at all rather than on a measured name.
 A subfolder of slots would fit every name too,
 and it is option B of this section.
 
@@ -817,16 +897,30 @@ and each is readable:
   the record alone.
 
 Nothing reads a staging entry,
-and exactly one party removes one that a kill left:
-the adoption,
-which lists the folder as its first step and removes every entry that matches either known staging form before
-it stages its own record.
-Its own precondition is that managed operations are quiesced,
-so no other writer is live to own those names,
-and that is the whole answer to who removes them:
-a writer removes its own on its normal path and on failure,
-the adoption removes what a killed writer left,
-and `doctor` reports what it finds and removes nothing.
+and each party that removes one a kill left does so at a moment its own precondition makes safe:
+
+- a writer removes its own staging name on its normal path and on every failure path,
+  so a writer that returned never leaves one;
+- the adoption lists the folder as its first step and removes every entry matching either known staging form
+  before it stages its own record,
+  and its quiescence precondition is what makes that safe,
+  because no other writer is live to own those names.
+
+A sweep run lists no name at all (choice 9),
+so no sweep run removes one,
+and the adoption is the only remover until plan step 18 lands.
+That step's `doctor` reports the known forms with their count and age and any dot entry that matches neither,
+and removes the known forms,
+which is the answer the project gave on 2026-11-21
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
+A machine that runs no adoption keeps a killed writer's litter until that report removes it,
+and nothing is affected meanwhile:
+no reader reads a staging name,
+so a leftover entry changes no read,
+no compare and no mount.
+That is the reach the decision asked for when it added the removal beside the adoption (R1),
+and it is why option A's cons say what a machine that runs no remover keeps.
 No run needs a lock or a timeout to be sure another writer is gone.
 
 ### The alternative this design flags: a file with no name and one link
@@ -880,13 +974,18 @@ and a `.a1b2c3d4e5f60718293a4b5c6d7e8f90` entry exists only for the instant betw
 Pros:
 the file is made with `O_EXCL`,
 as the decision's own words say,
-one code path on every filesystem,
+the same one publication on every filesystem that makes a hard link,
 no unnamed-file support to assume,
 no partial record at the record's name,
 and the same staging remover the parent's replacement needs anyway.
 
 Cons:
-a kill leaves a dot entry for the adoption to remove,
+a kill leaves a dot entry,
+which the writer's own path and the adoption remove,
+and which plan step 18's `doctor` is to report and remove,
+but which stands on a machine that runs neither until then;
+one arm of the publication is the rename that never replaces,
+with its own two controls and its double-refusal arm;
 and the common path is two names and two calls more than a single create.
 
 #### Option B: a file with no name and one link, with the staged fallback
@@ -904,7 +1003,12 @@ it departs from the decision's words,
 so the project must accept that explicitly,
 its empty-name spelling carries the capability and kernel-version boundary above,
 the store's dataset's unnamed-file support is unmeasured,
-and it is three publication variants to test where option A is one.
+and it owes four more arms than option A:
+both link spellings refusing (the staged path or a `Write` naming both calls),
+a filesystem that refuses the unnamed file (the staged path,
+with the file-making call a parameter),
+the `AT_EMPTY_PATH` spelling on its own,
+and each of those against a folder that refuses a hard link.
 
 #### Option C: `O_EXCL` at the record's name and a completeness marker
 
@@ -1027,7 +1131,9 @@ The design carries the specification's split into two writers:
   The plan's step 19 boot unit runs on every boot,
   so a second run is the normal case and must not report an error.
   The compare runs before the name is made,
-  so a first run and a second cannot both publish.
+  and the exclusivity is the publication's own no-replace step:
+  two first runs that both find `.parent` absent still publish once,
+  because the second `linkat` answers `EEXIST` and its run compares what it finds.
 - `replace_parent_identity_under_root_control` is the adoption's one writer,
   and it refuses where `.parent` is absent.
 
@@ -1037,8 +1143,10 @@ Both keep the root-control checks inside the step that writes.
 
 #### Option A: one file replaced by one rename
 
-On the example store the adoption leaves `.parent` holding
-`parent - 57:67990:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-`,
+On the example store the adoption leaves `.parent` holding this one record line:
+
+`parent - 57:67990:1000:0755:0200000001000700ffffffff02000500e803000004000500ffffffff10000500ffffffff20000500ffffffff:-`
+
 and `add-cache-layer` and `fix-flaky-test` keep their inodes,
 their bytes and their modification times.
 
@@ -1243,6 +1351,12 @@ A staging entry (a leading dot that is not `.parent`) is ignored by every reader
 and a dot entry that matches neither of the two known staging forms is reported by `doctor` rather than
 refused or removed,
 because it means a writer this design has not accounted for.
+`doctor` reports the two known forms too,
+with their count and age,
+and removes them,
+so a machine that runs no adoption shows what a killed writer left and can have it removed there
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
 
 A record whose own key is not the name it is filed under refuses,
 because the record line carries its key:
@@ -1348,7 +1462,7 @@ and nothing in the attach's checks needs another slot's identity.
     The publication's first step is the parent's compare:
     a sweep whose walked `.claude/worktrees` differs from `.parent` publishes nothing,
     and its attach refuses `ParentIdentity` before it compares the slot,
-    which is the order `hold_clone_slot` already keeps (`clone_slot_walk.rs:338` to `:342`).
+    which is the order `hold_clone_slot` already keeps (`clone_slot_walk.rs:338` to `:346`).
     So no record is written for a folder reached through a parent nobody compared,
     and that is the rule that keeps the adoption's listings free of records taken under the replacement.
 3.  It attaches through step 4,
@@ -1361,9 +1475,13 @@ so a slot that is recorded but whose clone is gone costs it nothing,
 and a store entry for a slot the walk did not reach is outside the sweep's business:
 the decision's lost single read is exactly that no check sees the set,
 and no check in this step needs it.
-Choice 9 offers the owner the other reading of that,
-one `readdir` per sweep run,
-and this design ranks it second.
+The owner answered choice 9 "A:
+no listing per sweep (Recommended)",
+so a sweep run lists no name and a staging file a killed writer left is not the sweep's to remove:
+the adoption removes it,
+and plan step 18's `doctor` reports and removes it
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
 
 ### The adoption, and the listing it needs
 
@@ -1418,13 +1536,18 @@ and what is not restored".
   reports "the recorded parent and slot identities with the failing field or component"
   (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:1636`),
   so it is the one reader that reads every record,
-  and it is read-only.
+  and it is read-only except for the staging names it removes.
   It lists the folder and reads each record,
   reports the entry count beside them,
   reports a record filed under a name its key does not match,
   reports a foreign entry,
   and reports a dot entry that matches neither of the two known staging forms.
-  It removes nothing and raises nothing.
+  It removes the two known staging forms a killed writer left,
+  with their count and age,
+  which is the removal the project placed at plan step 18 while the sweep stays unlisted
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file"),
+  and it raises nothing.
 - The removal workflow and its cancel command read what plan step 4 and the unmount read:
   the recorded parent and,
   for the slot they act on,
@@ -1518,7 +1641,7 @@ and the timings are the ones the hooks of section 7 force:
     and refuses `ParentIdentity`,
     naming both inodes and the device.
     That compare is `clone_slot_walk.rs:338` to `:340`,
-    before the slot compare at `:342`,
+    before the slot lookup at `:342` and its compare at `:346`,
     so the sweep never reaches the slot and attaches nothing.
 3.  Sweep two reaches a new slot `rework-login`,
     reads no record for it,
@@ -1715,6 +1838,21 @@ this is the list the build follows and the review judges.
   step 19's setup run,
   which does not exist yet,
   is where the folder's creation at mode `0755` and `.parent`'s first publication belong.
+- The clone-mount sweep,
+  `package/git-policy/cli/src/native/worktree_clone_mount_handler/attaching_sweep_mode.rs`,
+  which lists nothing and removes nothing:
+  its stub refuses its step without opening the store,
+  and the removal of the two known staging forms left the sweep for plan step 18's `doctor`.
+- `doctor`'s store section,
+  which plan step 18 builds:
+  it reports the entry count,
+  a misfiled record,
+  a foreign entry,
+  the two known staging forms with their count and age,
+  and any dot entry matching neither form,
+  and it removes the two known staging forms
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file").
 - `package/git-policy/cli/e2e/README.md:838`,
   which says the guest adoption arm writes the store file,
   and `package/git-policy/cli/src/native/binary/binary_zfs_adoption_guest_tests.rs`,
@@ -1871,7 +2009,10 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     modification times and bytes of every slot file unchanged across an adoption.
 10. `a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption`:
     a hook between the listings,
-    asserting `SlotNotListed` names the slot and `.parent` is unchanged.
+    asserting `SlotNotListed` names the slot,
+    `.parent` is unchanged,
+    and the folder was listed exactly twice,
+    which is the count the first listing's removal must not raise.
 11. `a_publisher_whose_walked_parent_differs_from_the_parent_record_publishes_nothing`:
     the live folder's identity differs from `.parent`,
     asserting `ParentIdentity` with every field that moved,
@@ -1916,9 +2057,49 @@ and each refusal arm has its accepted fixture as well as its rejected one (rule 
     the two states the whole-store guard used to refuse,
     each reported by name,
     and the store left as it was.
+    This control is owed to `doctor`'s section,
+    which plan step 18 builds;
+    the listing refusal and the removal it depends on are controls 16 and 5 here,
+    and the report itself has no code yet.
 21. `the_specification_s_store_example_is_a_store_this_reader_reads`,
     over the three files of section 1,
     including the parent's access ACL that the specification's own control asserts.
+
+The sweep's own run stands beside these:
+`a_sweep_run_lists_nothing` holds a hook at the store's open and another at the store's listing,
+and asserts that a run reaches neither and still answers its step's refusal,
+which is choice 9's answer and the reason the removal waits for plan step 18.
+
+The round that answered the integration pass's findings added five controls beside these:
+
+- `a_second_setup_run_that_finds_the_same_parent_makes_no_name`:
+  a second setup run never reaches the publication's own steps,
+  so the boot unit pays no durable write,
+  no failed link and no unlink to learn that the record is right.
+- `the_rename_fallback_s_loser_keeps_the_record_that_won`:
+  the fallback's `EEXIST` keeps the winner's bytes,
+  which the plant the integration pass ran (the loser answered by a rename that replaces) fails.
+- `a_publication_whose_fill_fails_leaves_no_staging_name`:
+  a file-size limit cuts the staging file's fill short,
+  and the failed publication removes the staging name it made.
+- `a_failed_replacement_rename_leaves_the_old_parent_record_and_no_staging_name`:
+  the adoption's rename is refused,
+  and the old record stands whole with no staging name beside it.
+- `a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry`:
+  the listing keeps the kernel's bytes,
+  so such a name refuses rather than listing as a slot name with a replacement character in it;
+  the control prints `SKIPPED` on a filesystem that refuses the name and runs in the gate's tmpfs fixture root.
+
+One family of arms still has no control:
+the five folder-`fsync` failures (the link's success arm,
+the fallback's success arm,
+the loser's arm,
+the replacement's arm and the staging removal's arm).
+A folder sync fails on no filesystem a record can live on in a control,
+and forcing it would mean a test-only answer inside `publishing_entries_in_one_open_folder`,
+which every writer of this package shares;
+the arms map one error to one `Write` refusal and are unproven that way,
+not by oversight.
 
 If the project accepts section 2's option B instead,
 one more control is owed:
@@ -2000,6 +2181,14 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
   not a foreign writer:
   root adds one record per clone the account can make,
   and the delegated `zfs` grants that limit that count are outside the store.
+  A listing therefore has no entry cap of its own,
+  and the memory it takes is the names the folder holds and nothing else.
+- A name in the store folder that is not UTF-8 refuses the listing as a foreign entry,
+  which is the refusal a name the layout cannot read deserves.
+  A filesystem that refuses such a name at creation cannot show that control:
+  this host's own ZFS answers `EILSEQ`,
+  which the probe met,
+  and the gate's tmpfs fixture root is where the control runs for real.
 - The adoption's second window stays open:
   a slot published between the second listing and the rename is not verified by that adoption,
   and the design's argument that this is safe rests on a slot record holding no field of the parent's
@@ -2010,8 +2199,9 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
   so a `.parent` replacement that lands between that read and the link is not detected by the publisher;
   what notices it is the adoption's second listing and the next adoption's reconciliation.
 - Two adoptions that run at once are left with whichever renamed last,
-  exactly as `main` leaves them.
-  The mode's quiescence precondition forbids them,
+  exactly as `main` leaves them,
+  which is parity and not a loss.
+  The mode's quiescence precondition forbids them and no program checks it,
   and nothing in the store detects one.
 - This design does not decide whether a slot's record may be removed when its clone is destroyed and its
   registration settled,
@@ -2022,6 +2212,14 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
   a build that allowed it would also make a held read of a record able to go stale (section 5).
 - A dot entry that matches neither known staging form is reported by `doctor` and removed by nobody,
   which means a writer this design has not accounted for stays visible until an administrator acts.
+- A known staging form a killed writer left stands until the next adoption or until plan step 18's `doctor` runs,
+  because no sweep run lists the folder to find it;
+  no reader reads a staging name,
+  so it changes no read,
+  no compare and no mount.
+  Only the adoption removes it before that step
+  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+  "Who removes a killed writer's staging file").
 - No measurement here is a release-profile build,
   and none was taken under a loaded pool.
 - The probe those primitive numbers came from lives in this round's scratch folder and not in the repository,
@@ -2140,6 +2338,14 @@ and the last two are flagged because they need a decision this design cannot mak
     Only root writes the store,
     and the adoption and `doctor` already run that listing,
     so the sweep's copy buys detection of a state a root-only writer rarely makes.
+    The project answered A on 2026-11-21,
+    so a sweep run lists nothing and the adoption is the only remover of the two known staging forms
+    until plan step 18 lands,
+    and that step's `doctor` reports and removes them;
+    a leftover affects no reader,
+    because no reader reads a staging name
+    (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+    "Who removes a killed writer's staging file").
 
 ## References
 
@@ -2152,8 +2358,10 @@ and the last two are flagged because they need a decision this design cannot mak
 - The store as built:
   `package/git-policy/cli/SPEC.md:5348`,
   and `package/git-policy/cli/src/native/worktree_clone_mount/slot_identity_store.rs`.
-- The lock's measurement record:
-  `package/git-policy/cli/doc/slot-identity-store-lock-hold.md`.
+- The store's write-cost record:
+  `package/git-policy/cli/doc/slot-identity-store-write-cost.md`,
+  which was `slot-identity-store-lock-hold.md` until the build renamed it on 2026-11-21,
+  when the lock it measured went away.
 - The publication precedent:
   `package/git-policy/cli/src/native/worktree_copying/worktree_copy_publish_file.rs` and
   `package/git-policy/cli/src/native/foundation/private_storage.rs`.
@@ -2187,7 +2395,9 @@ and only the owner accepts any of it.
   each fact attributed to its line.
   It is Python,
   following the repository's one kept probe,
-  `package/git-policy/cli/doc/slot-identity-store-lock-hold/probe-reaches-storage.py`,
+  `package/git-policy/cli/doc/slot-identity-store-write-cost/probe-reaches-storage.py`
+  (then named `slot-identity-store-lock-hold/probe-reaches-storage.py`,
+  and renamed with its record on 2026-11-21),
   and the reason it is not the `.ts` that rule `NMJ` prefers is mechanical:
   `node` has no binding for `linkat(AT_EMPTY_PATH)`,
   `renameat2`'s flags or `setxattr`,

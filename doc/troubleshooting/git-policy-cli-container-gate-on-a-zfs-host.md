@@ -1025,3 +1025,261 @@ which is a defect in the reader,
 unless a waiting thread spent its one tick between the two reads.
 A sum that under-counts is not pinned,
 so their passing shows no more than that.
+
+## Cause J: whole gates ended by a SIGTERM no log attributes (issue 6334)
+
+### The symptom
+
+Two of one round's whole gates on 2026-11-21 ended with nextest counting hundreds of tests that never
+ran,
+and naming no failing one:
+
+```text
+9160 passed ... 317 not run due to signal
+8880 passed, 598 not run
+```
+
+nextest counts a test that a signal ended before it finished,
+or before it started,
+as "not run due to signal".
+Nothing in either log says what sent the signal.
+The gate's own deadline sends none:
+it removes the container it stops with `podman rm --force`,
+and the refusal that reaches the log names the bound it missed
+(`bin/native-gate-container.ts`).
+
+### What is known and what is not
+
+On 2026-11-21 one round reported stopping three gate containers it had matched by creation time
+(`trusting_poincare`,
+`gallant_moore` and
+`affectionate_diffie`).
+Another round,
+running the same gate image in the same hour,
+listed `gallant_moore` as its own gate container,
+and two of its whole gates ended with nextest counting tests as not run due to signal
+(`9160 passed ... 317 not run due to signal`,
+`8880 passed, 598 not run`).
+`podman events` shows `died` and `remove` for each of those containers and no `kill`.
+A `podman stop` also leaves only `died` and `remove`,
+as a probe on 2026-11-21 measured,
+so the events neither show nor exclude one.
+Which session owned `gallant_moore`,
+and whether one round's stop ended another round's gate,
+is not established.
+The gate's deadline is not known to send this signal:
+it stops the client with `SIGKILL` (`bin/process-group-stop.ts`)
+and removes with `podman rm --force --time 0`.
+A unit stop does send it:
+stopping a probe's unit sent SIGTERM through the `podman run` client to its container in every shape probed on
+2026-11-21
+(the gate's suite container itself was not tried),
+so a stopped gate unit is a candidate,
+and whether any gate unit of that day was stopped is not established.
+An earlier reading here said a probe container kept running after its unit was stopped;
+that probe read `podman ps`,
+which can print `Up` for a container that has already ended,
+while `podman inspect` showed it stopped with exit 143 at the moment of the unit stop.
+
+A gate container of that day carried no `--name` and no `--label`,
+and the gate printed no container ID,
+so the image it ran,
+the command in it and the moment it was created were the only things a session could match it by,
+and none of those says who started it.
+
+The same shape has a second witness on record.
+The section "A gate that ends with status 137 and no memory kill" records another session removing two
+containers it had taken for its own,
+found the same way.
+Its journal shows a podman process that was no client of those containers running `container remove`,
+so the stop itself is known there;
+whose gate each container belonged to is what neither record says.
+
+### How to tell
+
+Every gate now names itself and each container it starts in its own log,
+before that container's output,
+and records the same in its evidence directory.
+Those lines are what a person compares with the machine's own record:
+
+```text
+Gate run id native-fvukQ7: every container this gate starts carries the label dev.monochromatic.git-policy.gate-run=native-fvukQ7, so `podman ps --filter label=dev.monochromatic.git-policy.gate-run=native-fvukQ7` lists exactly this run's containers and no other session's.
+Gate container suite: name gpc-gate-native-fvukQ7-suite, label dev.monochromatic.git-policy.gate-run=native-fvukQ7, ID file target/verification/native-fvukQ7/suite.cid
+Gate container clippy: name gpc-gate-native-fvukQ7-clippy, label dev.monochromatic.git-policy.gate-run=native-fvukQ7, ID file target/verification/native-fvukQ7/clippy.cid
+Gate container suite: ID 53864b147d19baa324bd8246128479c2c0fe575485fb170b0ef848c13ee763f3 (name gpc-gate-native-fvukQ7-suite, label dev.monochromatic.git-policy.gate-run=native-fvukQ7)
+Gate container clippy: ID 56fbf1bbc54d1e824fa4ca090dbd9fb9a55aef0049c17db719aa541cc4f45317 (name gpc-gate-native-fvukQ7-clippy, label dev.monochromatic.git-policy.gate-run=native-fvukQ7)
+```
+
+The ID file path each line prints is the path the runner gave that client,
+which is absolute when the gate runs from the
+package directory and relative to it otherwise;
+the run id and the container names are the same either way.
+
+`target/verification/<run id>/manifest.json` records the run id,
+each container's name,
+label and ID,
+and the ID file each client wrote them to,
+under `run` (`bin/native-gate-container-identity.ts`,
+`bin/test-native-container.ts`).
+These records name which container died and when.
+They show a `kill`,
+or a `rm --force` by another podman process,
+as the ending it was;
+a `podman stop` of a container whose client still runs leaves only `died` and `remove`,
+the same as a normal end,
+so a stop leaves no event of its own and the stopping session's own report is the record that says it happened.
+Since every gate container now carries this run's name and label,
+each record also says whose container it was:
+
+- the stopping session's own report:
+  what it stopped,
+  and the name or ID its own command printed.
+- `podman events`:
+  `podman events --since <the time the gate started> --stream=false --filter container=gpc-gate-<run id>-suite --format '{{.Time}} {{.Status}} {{.Name}} {{.ID}}'`.
+  This host's podman writes its events to journald,
+  and this reads a container's events after the container is gone,
+  so the question can be answered after the fact,
+  for as long as the journal keeps them:
+  on 2026-11-21 the user journal's oldest entry was hours old.
+  Its `died` and `remove` lines carry the moment,
+  the name and the ID:
+  a probe on 2026-11-21 that stopped a container of its own read
+  `1795299678 died gpc-events-probe-6334 f553f7a85eda...` and
+  `1795299688 remove gpc-events-probe-6334 f553f7a85eda...`.
+  A `podman stop` from outside the client leaves no event of its own;
+  a `podman kill` leaves a `kill`.
+- the user journal,
+  which keeps podman's own lines,
+  labels and all,
+  after the fact:
+  `journalctl --user --since '<the minute the gate stopped>' --grep 'gpc-gate-<run id>-suite'`.
+  While this gate's client still runs,
+  a `container kill` or `container remove` line printed by a podman process that is not that
+  client is another podman command that ended it,
+  the way the section "A gate that ends with status 137 and no memory kill" read one.
+  After a unit stop the client is gone,
+  so the container's own `died` and `remove`,
+  and a later `podman rm` or `podman inspect`,
+  are logged under other podman processes,
+  and that alone is not evidence of an outside stop.
+  A `podman stop` from outside the client logs nothing of its own:
+  the client logs `died` and `remove`.
+- the gate unit's own `Stopping` and `Stopped` lines in the user journal,
+  in the same second as a `container died` line
+  (logged by the client or by another podman process),
+  which name a unit stop
+  (not who asked for it).
+  They carry the unit's description,
+  not the run's name,
+  so the `--grep` above misses them:
+  `journalctl --user --user-unit=<unit>.service` finds them.
+
+The label's run id is the one the gate printed before it built anything,
+and `manifest.json` records the same name,
+label and ID under `run.containers` while the run lasts,
+so a line or event naming `gpc-gate-<run id>-suite` is matched to the run that printed it,
+and a container carrying another run id was never this run's.
+
+The run whose lines those are ended with the two standing cause-H failures and still recorded both containers:
+`Summary [ 835.598s] 9478 tests run: 9476 passed (6 slow), 2 failed, 35 skipped`,
+with the gate's own exit status 1,
+and its manifest's `run.containers` names the suite's `53864b147d19...` and Clippy's `56fbf1bbc54d...`.
+Its unit's journal holds podman's `init`,
+`start`,
+`died` and `remove` lines for both containers,
+and each line names the container and its label,
+so the same comparison works after the fact:
+
+```text
+container remove 53864b147d19baa324bd8246128479c2c0fe575485fb170b0ef848c13ee763f3 (image=localhost/git-policy-native-test:gpc-6334-containers-carry-a-run-label-20261121T172158-0500, name=gpc-gate-native-fvukQ7-suite, dev.monochromatic.git-policy.gate-run=native-fvukQ7, io.buildah.version=1.46.0, ...)
+```
+
+While it ran,
+`podman ps --filter label=dev.monochromatic.git-policy.gate-run=native-fvukQ7` listed its suite container
+alone,
+its Clippy container having ended minutes earlier,
+and the same filter with another run's id listed nothing.
+
+A gate stopped by its own deadline says so in its refusal
+(`podman run was still running after ... ms, the bound it is given`);
+a status 137 with a memory kill names the kernel's own kill,
+as the section named above records;
+and a signal count with neither is a signal whose sender no record here names.
+
+### The fix
+
+Every container the gate starts now carries this run's own name and label,
+`gpc-gate-<run id>-<suite|clippy>` and `dev.monochromatic.git-policy.gate-run=<run id>`,
+named after the random name of the run's evidence directory and never after a clock
+(`bin/native-gate-container-identity.ts`).
+The gate prints the run id before it builds anything,
+prints each container's name and label before that container starts,
+prints its ID from podman's ID file before the container's own output,
+and records all of it in `manifest.json` as each ID is read,
+so a gate killed without unwinding still leaves the names,
+labels and IDs behind
+(`bin/native-gate-container.ts`,
+`bin/test-native-container.ts`).
+A session therefore stops only a container whose printed label is its own run's,
+and the package README says where to read those lines and which command stops one's own gate
+without naming a container
+(`package/git-policy/cli/README.md`,
+"Development").
+A container carrying another run's label is another session's gate,
+and is never stopped.
+
+## Cause K: a commit timing record 13 ms past its stop ceiling, once
+
+`commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time` failed once,
+in the second gate of the round that built the per-slot slot identity store
+(branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files` at `2b3e13f439`,
+2026-11-21),
+on the assertion at
+`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs:611`:
+the stretches the record states plus the steps whose offsets lie inside the build's window
+must fit that window plus `ROUNDING_MS`,
+which is 12 ms (`:711`).
+The excess was 13 ms,
+so the record's own parts summed to 25 ms more than its `buildMs`.
+The control passed alone in the same round,
+and passed in the whole gate of that branch's integration pass of 2026-11-21 on the same test binaries.
+
+What is known:
+
+- one failure in three gates
+  (the first of them on the commit before that tip),
+  and two passes of the same binary:
+  the control run alone in that round (2.317 s)
+  and the integration pass's whole gate;
+- nothing in the branch's changed modules is on this control's path:
+  the store,
+  the walk,
+  the adoption and the two foundation modules are called from `lib.rs`,
+  the mount binary,
+  one source-guard test and the guest tests,
+  and not from the commit,
+  landing or worktree-add code the control drives;
+- the assertion is an accounting one over numbers the record carries,
+  each measured on its own and each rounded on its own;
+- one more gate at the merged tip did not reproduce it:
+  this round's gate on `integ-store-findings-72d8dbeb`
+  ran 9752 tests,
+  and this control passed there in the same run as the standing cause-H pair.
+
+What is not known:
+
+- whether the 25 ms came from the steps' own rounding accumulating,
+  from a step whose `offsetMs` fell inside the build's window while its time fell outside,
+  or from a real gap between the build's window and the parts it states;
+- whether anything about this host changes it.
+  Host load is not recorded as a cause here (rule `NQH`),
+  and one failure and two passes cannot separate a busy host from a defect.
+
+So the incident stands on its own name and is not put down to load,
+not to this branch,
+and not to cause G.
+A later failure of it should read which numbers the assertion printed:
+the record's `stated` sum,
+the `steps_in_build` sum and its `buildMs`,
+and the `steps` array,
+before anything here is reopened.

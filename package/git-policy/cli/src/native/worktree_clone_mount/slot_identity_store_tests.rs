@@ -1,579 +1,824 @@
-//! Controls for the slot identity store:
-//! a store reads back what was written,
-//! an absent one asks for the setup run,
-//! a line this repository did not write refuses the whole read,
-//! a slot is recorded once and never refreshed,
-//! and the adoption's write keeps every slot record.
+//! Controls for the slot identity store as a folder with one file per slot:
+//! a publication is whole or absent at every instant,
+//! exactly one of two recorders records a slot,
+//! a folder that refuses a link publishes by the rename that never replaces,
+//! a killed writer's staging entry is removed,
+//! the per-file bound and the record's own key refuse what a writer outside this repository could make,
+//! the parent record is replaced by one rename,
+//! and the folder and every record answer the root-control terms.
 
-use super::*;
+use crate::worktree_clone_mount::slot_identity_store_publication::{
+    BETWEEN_THE_BYTES_AND_THE_LINK, BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME, THE_LINK_IS_ANSWERED_WITH, THE_REPLACING_RENAME_IS_ANSWERED_WITH, THE_RENAME_IS_ANSWERED_WITH, publish_parent_identity,
+    publish_slot_identity, replace_parent_identity,
+};
+use crate::worktree_clone_mount::*;
 use crate::clone_folder_identity::CloneFolderIdentity;
+use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_child_under_file_size_limit};
 use crate::test_support::{fixture, remove};
-use std::os::fd::AsRawFd;
-use std::os::unix::fs::PermissionsExt as _;
+use std::ffi::OsString;
+use std::os::unix::ffi::OsStringExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-
-/// The header a test store starts with,
-/// which the reader requires.
-const HEADER: &str = "# monochromatic-git-policy-cli worktree clone slot identities, version 1";
-
-/// How many slot records the small store of the hold measurement holds,
-/// which is the width `STORE_LOCK_WAIT` cites.
-const MEASUREMENT_SLOT_COUNT: usize = 1000;
-
-/// How many samples the small store's arm takes.
-const MEASUREMENT_SMALL_SAMPLES: usize = 40;
-
-/// How many samples each wide-store arm takes.
-const MEASUREMENT_WIDE_SAMPLES: usize = 10;
-
-/// Where the hold measurement writes its stores,
-/// which a run names so the measurement can be put on a chosen file system.
-const MEASUREMENT_ROOT_VARIABLE: &str = "MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT";
-
-/// How wide the access ACL of a slot record in the widest store is,
-/// which is what makes one record wide:
-/// a kernel ACL blob of a folder with a dozen named entries.
-const MEASUREMENT_ACL_BYTES: usize = 200;
 
 /// An identity with the given inode,
-/// so two records in one test never read alike.
+/// so two records in one control never read alike.
 fn identity(inode: u64) -> CloneFolderIdentity {
     return CloneFolderIdentity { device: 66304, inode, owner: 1000, mode: 0o755, access_acl: None, default_acl: None };
 }
 
-/// A store file holding `lines` below the header.
-fn store(root: &Path, lines: &[String]) -> PathBuf {
-    let path: PathBuf = root.join("slot-identities");
-    let mut text: String = String::from(HEADER);
-    text.push('\n');
-    for line in lines {
-        text.push_str(line);
-        text.push('\n');
+/// A slot record for `name`,
+/// which is what a writer publishes.
+fn slot_record(name: &str, inode: u64) -> StoredIdentity {
+    return StoredIdentity::Slot { name: name.to_string(), identity: identity(inode) };
+}
+
+/// The store folder of one control,
+/// holding no record.
+fn store_folder(root: &Path) -> PathBuf {
+    let folder: PathBuf = root.join("git-worktree-clone-slot-identities");
+    std::fs::create_dir(folder.as_path()).expect("the store folder is made");
+    return folder;
+}
+
+/// Write one record file below `folder`,
+/// the way a writer of this repository publishes it.
+fn write_record(folder: &Path, name: &str, record: &StoredIdentity) {
+    let text: String = format!("{STORE_HEADER}\n{}\n", record.encode());
+    std::fs::write(folder.join(name), text.as_bytes()).expect("the record file is written");
+}
+
+/// The store of one control:
+/// a folder recording the parent `inode` and every given slot.
+fn store(root: &Path, parent_inode: u64, slots: &[(&str, u64)]) -> (PathBuf, CloneFolderIdentity) {
+    let folder: PathBuf = store_folder(root);
+    let parent: CloneFolderIdentity = identity(parent_inode);
+    write_record(folder.as_path(), PARENT_RECORD_NAME, &StoredIdentity::Parent(parent.clone()));
+    for (name, inode) in slots {
+        write_record(folder.as_path(), name, &slot_record(name, *inode));
     }
-    std::fs::write(&path, text).expect("store");
-    return path;
+    return (folder, parent);
 }
 
-/// A parent record line for `identity`.
-fn parent_line(identity: &CloneFolderIdentity) -> String {
-    return format!("parent - {}", identity.encode());
+/// The names of the entries below `folder`,
+/// sorted,
+/// which is what the store's folder holds and nothing else.
+fn entries(folder: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(folder).expect("the folder lists").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    return names;
 }
 
-/// A slot record line for `name` and `identity`.
-fn slot_line(name: &str, identity: &CloneFolderIdentity) -> String {
-    return format!("slot {name} {}", identity.encode());
+/// The bytes of one entry below `folder`.
+fn bytes(folder: &Path, name: &str) -> Vec<u8> {
+    return std::fs::read(folder.join(name)).expect("the entry reads");
+}
+
+/// Clear every publication hook,
+/// so a control that panics does not leave one for the next.
+fn clear_hooks() {
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| { *hook.borrow_mut() = None });
+    BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME.with(|hook| { *hook.borrow_mut() = None });
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(None) });
+    THE_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(None) });
+    THE_REPLACING_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(None) });
 }
 
 /// What:
-///  A store written by the setup run and the sweep reads back,
-///  the parent and each slot under their own key.
+///  A publication holds every byte of its staging file before its record's name exists,
+///  so a reader in that window sees no record and one staging entry,
+///  and after the publication the record reads whole with no staging entry left.
 /// Why:
-///  Every later check compares against this one read,
-///  so a lookup answering the wrong record would compare against another folder's identity.
+///  A record's name must never hold a prefix of its bytes;
+///  a kill in the window leaves the staging entry and no record,
+/// which is control 4's state.
 #[test]
-fn a_written_store_reads_back() {
-    let root: PathBuf = fixture("slot-store-read");
-    let parent: CloneFolderIdentity = identity(300);
-    let first: CloneFolderIdentity = identity(301);
-    let second: CloneFolderIdentity = identity(302);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&parent), slot_line("one", &first), String::from("# a comment is nothing"), slot_line("two", &second)]);
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
-    assert_eq!(read.path(), path.as_path());
-    assert_eq!(read.parent(), Some(&parent));
-    assert_eq!(read.slot("one"), Some(&first));
-    assert_eq!(read.slot("two"), Some(&second));
-    assert_eq!(read.slot("three"), None, "a slot nobody recorded is nothing, and its own refusal follows");
-    assert_eq!(read.slot_names(), vec![String::from("one"), String::from("two")]);
-    let bare: PathBuf = store(root.as_path(), &[]);
-    let without_records: SlotIdentityStore = SlotIdentityStore::read(bare.as_path()).expect("a header alone is a store");
-    assert_eq!(without_records.parent(), None);
+fn a_record_is_published_whole_and_a_reader_never_sees_it_partly_written() {
+    let root: PathBuf = fixture("store-published-whole");
+    let (folder, parent) = store(root.as_path(), 300, &[]);
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<(Vec<String>, Option<Vec<u8>>)>>> = std::sync::Arc::default();
+    let during: std::sync::Arc<std::sync::Mutex<Vec<(Vec<String>, Option<Vec<u8>>)>>> = std::sync::Arc::clone(&seen);
+    let watched: PathBuf = folder.clone();
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            let record: Option<Vec<u8>> = std::fs::read(watched.join("one")).ok();
+            during.lock().expect("the control's own list").push((entries(watched.as_path()), record));
+        }));
+    });
+    publish_slot_identity(folder.as_path(), "one", &identity(301), &parent).expect("the slot is recorded");
+    clear_hooks();
+    let in_the_window = seen.lock().expect("the control's own list").clone();
+    assert_eq!(in_the_window.len(), 1, "the window was read once");
+    let (names, record) = &in_the_window[0];
+    assert!(record.is_none(), "the record's name holds nothing in the window");
+    assert_eq!(names.len(), 2, "the window holds the parent record and the staging entry: {names:?}");
+    let staging: &String = names.iter().find(|name| return name.as_str() != PARENT_RECORD_NAME).expect("a staging entry");
+    assert!(is_known_staging_name(staging.as_str()), "the staging entry is one of the two known forms: {staging}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME), String::from("one")], "the publication leaves the record and no staging entry");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot("one").expect("the slot reads"), identity(301));
+    assert_eq!(bytes(folder.as_path(), "one"), format!("{STORE_HEADER}\n{}\n", slot_record("one", 301).encode()).into_bytes(), "the record file is its header and one record line");
     remove(root.as_path());
 }
 
 /// What:
-///  An absent store refuses,
-///  names the path,
-///  and says the setup run writes it.
+///  Two recorders of one slot leave exactly one record,
+///  the winner's bytes,
+///  no staging entry of either,
+///  and the loser's `SlotAlreadyRecorded` carries the record that won.
 /// Why:
-///  Creating it here would mean inventing the identity the attach must compare against.
+///  The store takes no lock,
+/// so the kernel's own exclusivity at the record's name is the whole answer:
+///  a loser that rewrote the record or failed the sweep would lose the identity every attach compares against.
 #[test]
-fn an_absent_store_asks_for_the_setup_run() {
-    let root: PathBuf = fixture("slot-store-absent");
-    let path: PathBuf = root.join("slot-identities");
-    let refused: StoreRefusal = SlotIdentityStore::read(path.as_path()).expect_err("nothing there");
+fn two_recorders_of_one_slot_publish_once_and_the_second_reads_the_first() {
+    let root: PathBuf = fixture("store-two-recorders");
+    let (folder, parent) = store(root.as_path(), 310, &[]);
+    let second: CloneFolderIdentity = identity(312);
+    let raced_by: CloneFolderIdentity = second.clone();
+    let outcome: std::sync::Arc<std::sync::Mutex<Vec<Result<(), StoreRefusal>>>> = std::sync::Arc::default();
+    let held: std::sync::Arc<std::sync::Mutex<Vec<Result<(), StoreRefusal>>>> = std::sync::Arc::clone(&outcome);
+    let raced: PathBuf = folder.clone();
+    let raced_parent: CloneFolderIdentity = parent.clone();
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            // The second recorder publishes while this one holds every byte and no name yet.
+            let wrote: Result<(), StoreRefusal> = publish_slot_identity(raced.as_path(), "one", &raced_by, &raced_parent);
+            held.lock().expect("the control's own list").push(wrote);
+        }));
+    });
+    let first: Result<(), StoreRefusal> = publish_slot_identity(folder.as_path(), "one", &identity(311), &parent);
+    clear_hooks();
+    let second_wrote = outcome.lock().expect("the control's own list").clone();
+    assert_eq!(second_wrote.len(), 1, "the second recorder ran once, inside the window");
+    assert_eq!(second_wrote[0], Ok(()), "the second recorder published first and won");
+    let loser: StoreRefusal = first.expect_err("the first recorder lost the race");
+    assert!(matches!(loser, StoreRefusal::SlotAlreadyRecorded { ref slot, .. } if slot == "one"), "{loser:?}");
+    assert!(matches!(loser, StoreRefusal::SlotAlreadyRecorded { identity: ref carried, .. } if carried == &second), "the loser carries the record that won");
+    assert!(loser.message().contains("the record that won"), "the refusal says which record stands: {}", loser.message());
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME), String::from("one")], "one record and neither staging entry");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot("one").expect("the slot reads"), second, "the record holds the winner's identity");
+    remove(root.as_path());
+}
+
+/// What:
+///  A publication whose link fails leaves no record and no staging entry,
+///  and the same on the fallback's rename.
+/// Why:
+///  A failed write must not leave a name a reader could read or a remover must find;
+///  the second arm runs the fallback a folder without hard links takes.
+#[test]
+fn a_publication_that_fails_leaves_no_record_and_no_staging_entry() {
+    let root: PathBuf = fixture("store-failed-publication");
+    let (folder, parent) = store(root.as_path(), 320, &[]);
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EIO)) });
+    let refused: StoreRefusal = publish_slot_identity(folder.as_path(), "one", &identity(321), &parent).expect_err("the link failed");
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+    assert!(refused.message().contains(folder.to_string_lossy().as_ref()), "the folder is named: {}", refused.message());
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the failed link left no record and no staging entry");
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EPERM)) });
+    THE_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EIO)) });
+    let rename_refused: StoreRefusal = publish_slot_identity(folder.as_path(), "two", &identity(322), &parent).expect_err("both calls failed");
+    clear_hooks();
+    assert!(matches!(rename_refused, StoreRefusal::Write { .. }), "{rename_refused:?}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the failed rename left no record and no staging entry");
+    remove(root.as_path());
+}
+
+/// What:
+///  A writer killed between its bytes and its link leaves one staging entry and no record,
+///  and one killed between its link and its own removal leaves the record whole beside a staging entry naming the same file.
+/// Why:
+///  Both states must be readable:
+/// no reader reads a staging entry,
+///  and the record a kill left is whole because a link publishes every byte at once.
+#[test]
+fn a_killed_writer_leaves_one_staging_entry_and_no_record() {
+    let root: PathBuf = fixture("store-killed-writer");
+    let (folder, _parent) = store(root.as_path(), 330, &[]);
+    let before_the_link: String = format!(".{}", "a".repeat(32));
+    std::fs::write(folder.join(before_the_link.as_str()), format!("{STORE_HEADER}\n{}\n", slot_record("one", 331).encode())).expect("a staging file a kill left");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert!(matches!(read.slot("one"), Err(StoreRefusal::NoSlotRecord { .. })), "the staging entry is no record");
+    assert_eq!(read.slot_names().expect("the listing ignores a staging entry"), Vec::<String>::new(), "a staging entry is not a slot");
+    assert_eq!(entries(folder.as_path()), vec![before_the_link.clone(), String::from(PARENT_RECORD_NAME)], "one staging entry and no record");
+    // A kill between the link and the staging name's removal leaves the record whole beside the name that also holds it.
+    let published: String = format!(".{}", "b".repeat(32));
+    std::fs::write(folder.join(published.as_str()), format!("{STORE_HEADER}\n{}\n", slot_record("two", 332).encode())).expect("a staging file a kill left");
+    std::fs::hard_link(folder.join(published.as_str()), folder.join("two")).expect("the link a kill landed after");
+    let read_after: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read_after.slot("two").expect("the record reads whole"), identity(332));
+    let staging_links: u64 = std::fs::metadata(folder.join(published.as_str())).expect("the staging entry's metadata").nlink();
+    assert_eq!(staging_links, 2, "the staging name and the record name hold one file");
+    remove(root.as_path());
+}
+
+/// What:
+///  The removal takes both known staging forms and nothing else:
+///  the records stay as they were,
+///  and a dot entry matching neither form is left for an administrator.
+/// Why:
+///  The two forms are what this repository's writers make;
+///  a third form means a writer this layout has not accounted for,
+///  which only `doctor` reports and nobody removes.
+#[test]
+fn the_adoption_removes_the_staging_entries_a_killed_writer_left() {
+    let root: PathBuf = fixture("store-staging-removal");
+    let (folder, _parent) = store(root.as_path(), 340, &[("one", 341)]);
+    let record_before: Vec<u8> = bytes(folder.as_path(), "one");
+    let slot_staging: String = format!(".{}", "c".repeat(32));
+    let parent_staging: String = String::from("..parent.0123456789abcdef.partial");
+    let unknown: String = String::from(".a-third-form");
+    for name in [slot_staging.as_str(), parent_staging.as_str(), unknown.as_str()] {
+        std::fs::write(folder.join(name), b"staged bytes").expect("a staging entry");
+    }
+    let store_read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    let mut removed: Vec<String> = store_read.remove_staging_entries().expect("the known forms are removed");
+    removed.sort();
+    assert_eq!(removed, vec![parent_staging.clone(), slot_staging.clone()], "exactly the two known forms are removed and answered");
+    assert_eq!(entries(folder.as_path()), vec![unknown.clone(), String::from(PARENT_RECORD_NAME), String::from("one")], "the records stay and the unknown dot entry is left");
+    assert_eq!(bytes(folder.as_path(), "one"), record_before, "the record is untouched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A folder that refuses a hard link publishes the record by the rename that never replaces,
+///  with the staging name gone.
+/// Why:
+///  A publication must fall back only where the folder makes no links,
+///  and the fallback keeps the one-winner property and the cleanup.
+#[test]
+fn the_publication_falls_back_where_the_folder_refuses_a_link() {
+    let root: PathBuf = fixture("store-link-fallback");
+    let (folder, parent) = store(root.as_path(), 350, &[]);
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EPERM)) });
+    publish_slot_identity(folder.as_path(), "one", &identity(351), &parent).expect("the rename publishes the record");
+    clear_hooks();
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME), String::from("one")], "the record is published and the staging name is gone");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot("one").expect("the slot reads"), identity(351));
+    remove(root.as_path());
+}
+
+/// What:
+///  The rename fallback's loser arm keeps the record that won:
+///  a second recorder publishes in the window before the first recorder's link,
+///  the link is answered as a folder without hard links answers it,
+///  so the first recorder falls back to the rename that never replaces,
+///  and that rename loses on the winner's own name.
+/// Why:
+///  The fallback exists for a folder that makes no hard links,
+///  and its `EEXIST` must answer what the link's `EEXIST` answers:
+///  the loser removes its own staging name,
+///  reads the record that won and carries it,
+///  and never gives its own identity the winner's name,
+///  which would be the refresh this layout forbids.
+#[test]
+fn the_rename_fallback_s_loser_keeps_the_record_that_won() {
+    let root: PathBuf = fixture("store-rename-fallback-loser");
+    let (folder, parent) = store(root.as_path(), 500, &[]);
+    let winner: CloneFolderIdentity = identity(502);
+    let raced_by: CloneFolderIdentity = winner.clone();
+    let outcome: std::sync::Arc<std::sync::Mutex<Vec<Result<(), StoreRefusal>>>> = std::sync::Arc::default();
+    let held: std::sync::Arc<std::sync::Mutex<Vec<Result<(), StoreRefusal>>>> = std::sync::Arc::clone(&outcome);
+    let raced: PathBuf = folder.clone();
+    let raced_parent: CloneFolderIdentity = parent.clone();
+    // No hard link is made anywhere in this control: the folder answers every link as one without hard links does.
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EPERM)) });
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            let wrote: Result<(), StoreRefusal> = publish_slot_identity(raced.as_path(), "one", &raced_by, &raced_parent);
+            held.lock().expect("the control's own list").push(wrote);
+        }));
+    });
+    let loser: Result<(), StoreRefusal> = publish_slot_identity(folder.as_path(), "one", &identity(501), &parent);
+    clear_hooks();
+    let winner_wrote = outcome.lock().expect("the control's own list").clone();
+    assert_eq!(winner_wrote.len(), 1, "the second recorder ran once, inside the window");
+    assert_eq!(winner_wrote[0], Ok(()), "the second recorder's rename published the record first");
+    let refused: StoreRefusal = loser.expect_err("the first recorder's rename lost on the name that won");
+    assert!(matches!(refused, StoreRefusal::SlotAlreadyRecorded { ref slot, .. } if slot == "one"), "{refused:?}");
+    assert!(matches!(refused, StoreRefusal::SlotAlreadyRecorded { identity: ref carried, .. } if carried == &winner), "the loser carries the record that won");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME), String::from("one")], "one record and neither recorder's staging name");
+    assert_eq!(bytes(folder.as_path(), "one"), format!("{STORE_HEADER}\n{}\n", slot_record("one", 502).encode()).into_bytes(), "the record keeps the winner's bytes and not the loser's");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot("one").expect("the slot reads"), winner, "the record holds the winner's identity after the fallback's loss");
+    remove(root.as_path());
+}
+
+/// What:
+///  A folder that refuses both the link and the rename that never replaces refuses the write,
+///  names the folder and both calls,
+///  and leaves no record and no staging entry.
+/// Why:
+///  The one refusal must not fall back to a rename that could replace another run's record,
+///  and it must say which calls the folder answered.
+#[test]
+fn the_publication_refuses_where_the_folder_refuses_both_a_link_and_rename_that_never_replaces() {
+    let root: PathBuf = fixture("store-both-refused");
+    let (folder, parent) = store(root.as_path(), 360, &[]);
+    THE_LINK_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EOPNOTSUPP)) });
+    THE_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EINVAL)) });
+    let refused: StoreRefusal = publish_slot_identity(folder.as_path(), "one", &identity(361), &parent).expect_err("the folder makes neither a link nor a no-replace rename");
+    clear_hooks();
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+    let message: String = refused.message();
+    assert!(message.contains(folder.to_string_lossy().as_ref()), "the folder is named: {message}");
+    assert!(message.contains("link") && message.contains("rename"), "both calls are named: {message}");
+    assert!(message.contains("nothing is published by a rename that could replace"), "the refusal says what it will not do: {message}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "nothing was published and no staging entry is left");
+    remove(root.as_path());
+}
+
+/// What:
+///  A reader racing the parent's replacement reads the old record whole in the window,
+///  `.parent` is never absent,
+///  and the new identity stands afterwards.
+/// Why:
+///  The replacement is one rename,
+///  so a reader sees either whole record and never a third state,
+///  and a stale read refuses rather than permitting an attach elsewhere.
+#[test]
+fn a_parent_record_is_replaced_by_one_rename_and_a_reader_sees_one_whole_record() {
+    let root: PathBuf = fixture("store-parent-replaced");
+    let (folder, parent) = store(root.as_path(), 370, &[]);
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<CloneFolderIdentity>>> = std::sync::Arc::default();
+    let during: std::sync::Arc<std::sync::Mutex<Vec<CloneFolderIdentity>>> = std::sync::Arc::clone(&seen);
+    let watched: PathBuf = folder.clone();
+    BETWEEN_THE_PARENT_BYTES_AND_THE_RENAME.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            let read: SlotIdentityStore = SlotIdentityStore::open(watched.as_path()).expect("the store opens in the window");
+            assert_eq!(read.parent().expect("the record is never absent"), parent, "the reader in the window reads the old record");
+            during.lock().expect("the control's own list").push(read.parent().expect("the old record"));
+        }));
+    });
+    replace_parent_identity(folder.as_path(), &identity(371)).expect("the parent record is replaced");
+    clear_hooks();
+    assert_eq!(seen.lock().expect("the control's own list").len(), 1, "a reader stood in the window");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.parent().expect("the new record"), identity(371));
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "one rename leaves the record and no staging name");
+    remove(root.as_path());
+}
+
+/// Child of the control below:
+/// publish one slot record whose bytes the process's file-size limit cuts short.
+#[cfg(unix)]
+#[test]
+#[ignore = "started as a child process, under a file-size limit, by the control of the staging file's fill"]
+fn child_publishes_a_record_past_the_file_size_limit() {
+    let directory: PathBuf = PathBuf::from(std::env::var_os(LIMITED_DIRECTORY_VARIABLE).expect("directory"));
+    let folder: PathBuf = directory.join("git-worktree-clone-slot-identities");
+    let parent: CloneFolderIdentity = identity(520);
+    // The name is long enough that this record is wider than the limit the parent's record fits under.
+    let name: String = "s".repeat(200);
+    let refused: StoreRefusal = publish_slot_identity(folder.as_path(), name.as_str(), &identity(521), &parent).expect_err("the fill is cut short");
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+}
+
+/// What:
+///  A staging file whose fill fails part way is removed again,
+///  so a cut-short write leaves neither the record nor a staging name.
+/// Why:
+///  A failed publication must leave no name a reader could read and no name a remover must find;
+///  a full disk or a size limit is the privilege-free way to make the fill fail,
+///  and a half-written staging name left behind would be litter only an adoption or `doctor` removes.
+#[cfg(unix)]
+#[test]
+fn a_publication_whose_fill_fails_leaves_no_staging_name() {
+    let root: PathBuf = fixture("store-fill-cut-short");
+    let folder: PathBuf = store_folder(root.as_path());
+    let parent: CloneFolderIdentity = identity(520);
+    write_record(folder.as_path(), PARENT_RECORD_NAME, &StoredIdentity::Parent(parent.clone()));
+    let status: std::process::ExitStatus = run_child_under_file_size_limit(
+        "worktree_clone_mount::slot_identity_store::tests::child_publishes_a_record_past_the_file_size_limit",
+        250,
+        root.as_path(),
+    );
+    assert!(status.success(), "the child's publication must fail and say so: {status:?}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the failed fill left no record and no staging name");
+    remove(root.as_path());
+}
+
+/// What:
+///  A replacing rename the folder refuses leaves the old parent record whole beside no staging name,
+///  and refuses with the write's own cause.
+/// Why:
+///  The adoption's replacement is one rename;
+///  a refused rename must leave the record a reader compares against exactly as it was,
+///  and the staging name it made must not stand as litter a later reader could meet.
+#[test]
+fn a_failed_replacement_rename_leaves_the_old_parent_record_and_no_staging_name() {
+    let root: PathBuf = fixture("store-parent-rename-refused");
+    let (folder, parent) = store(root.as_path(), 510, &[]);
+    let record_before: Vec<u8> = bytes(folder.as_path(), PARENT_RECORD_NAME);
+    THE_REPLACING_RENAME_IS_ANSWERED_WITH.with(|answer| { answer.set(Some(libc::EIO)) });
+    let refused: StoreRefusal = replace_parent_identity(folder.as_path(), &identity(511)).expect_err("the replacing rename failed");
+    clear_hooks();
+    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
+    assert!(refused.message().contains(folder.to_string_lossy().as_ref()), "the folder is named: {}", refused.message());
+    assert_eq!(bytes(folder.as_path(), PARENT_RECORD_NAME), record_before, "the old record is what it was");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the failed rename left no staging name");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.parent().expect("the record is the one from before"), parent, "the store still records the old parent");
+    remove(root.as_path());
+}
+
+/// What:
+///  The adoption's replacement writes no slot file:
+///  every slot file keeps its bytes,
+///  its inode and its modification time.
+/// Why:
+///  An adoption must never overwrite a surviving slot identity,
+///  and the layout meets that with its shape:
+///  `.parent` holds nothing but the parent's identity.
+#[test]
+fn the_adoption_writes_no_slot_file() {
+    let root: PathBuf = fixture("store-adoption-slot-files");
+    let (folder, _parent) = store(root.as_path(), 380, &[("one", 381), ("two", 382)]);
+    let before: Vec<(u64, i64, Vec<u8>)> = ["one", "two"]
+        .iter()
+        .map(|name| {
+            let metadata: std::fs::Metadata = std::fs::metadata(folder.join(name)).expect("the slot file's metadata");
+            return (metadata.ino(), metadata.mtime(), bytes(folder.as_path(), name));
+        })
+        .collect();
+    replace_parent_identity(folder.as_path(), &identity(383)).expect("the parent record is replaced");
+    let after: Vec<(u64, i64, Vec<u8>)> = ["one", "two"]
+        .iter()
+        .map(|name| {
+            let metadata: std::fs::Metadata = std::fs::metadata(folder.join(name)).expect("the slot file's metadata");
+            return (metadata.ino(), metadata.mtime(), bytes(folder.as_path(), name));
+        })
+        .collect();
+    assert_eq!(after, before, "every slot file keeps its inode, its modification time and its bytes");
+    remove(root.as_path());
+}
+
+/// What:
+///  A publisher whose walked parent differs from `.parent` publishes nothing,
+///  naming every field that moved.
+/// Why:
+///  A record taken under a parent nobody compared would be a first observation an adoption could not trust,
+///  and the accepted design refuses managed mutations on a mismatched parent.
+#[test]
+fn a_publisher_whose_walked_parent_differs_from_the_parent_record_publishes_nothing() {
+    let root: PathBuf = fixture("store-parent-differs");
+    let (folder, _parent) = store(root.as_path(), 390, &[]);
+    let mut walked: CloneFolderIdentity = identity(391);
+    walked.mode = 0o700;
+    let refused: StoreRefusal = publish_slot_identity(folder.as_path(), "one", &identity(392), &walked).expect_err("the parent moved");
+    assert!(matches!(refused, StoreRefusal::ParentIdentity { ref fields, .. } if fields.contains(&crate::clone_folder_identity::CloneFolderField::Inode) && fields.contains(&crate::clone_folder_identity::CloneFolderField::Mode)), "{refused:?}");
+    let message: String = refused.message();
+    assert!(message.contains("inode") && message.contains("mode"), "every field that moved is named: {message}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "no record and no staging entry");
+    remove(root.as_path());
+}
+
+/// What:
+///  A publisher in a store with no parent record publishes nothing,
+///  and a store folder that is not there refuses before anything is created.
+/// Why:
+///  `.parent` is what a slot's record is taken against,
+///  and the setup run is what writes it.
+#[test]
+fn a_publisher_in_a_store_with_no_parent_record_publishes_nothing() {
+    let root: PathBuf = fixture("store-no-parent");
+    let folder: PathBuf = store_folder(root.as_path());
+    let refused: StoreRefusal = publish_slot_identity(folder.as_path(), "one", &identity(400), &identity(401)).expect_err("nothing to compare a slot against");
+    assert!(matches!(refused, StoreRefusal::NoParentRecord { .. }), "{refused:?}");
+    assert!(refused.message().contains("setup"), "the setup run is named: {}", refused.message());
+    assert_eq!(entries(folder.as_path()), Vec::<String>::new(), "nothing was created");
+    let absent: PathBuf = root.join("absent");
+    let missing: StoreRefusal = publish_slot_identity(absent.as_path(), "one", &identity(400), &identity(401)).expect_err("the folder is not there");
+    assert!(matches!(missing, StoreRefusal::Missing { .. }), "{missing:?}");
+    assert!(!absent.exists(), "a publication never invents the store folder");
+    remove(root.as_path());
+}
+
+/// What:
+///  Every name that is no plain slot name is refused before anything is created.
+/// Why:
+///  A name with a slash,
+///  a dot name or a name with a space could not be a record this folder files by a slot's name,
+///  and a refusal that created a file first would leave one no reader reads.
+#[test]
+fn a_publisher_refuses_a_name_that_is_no_plain_slot_name() {
+    let root: PathBuf = fixture("store-slot-names");
+    let (folder, parent) = store(root.as_path(), 410, &[]);
+    for refused_name in ["", "one/two", ".", "..", ".hidden", "with space", "with\ttab"] {
+        let refused: StoreRefusal = publish_slot_identity(folder.as_path(), refused_name, &identity(411), &parent).expect_err(refused_name);
+        assert!(matches!(refused, StoreRefusal::SlotName { .. }), "{refused_name}: {refused:?}");
+        assert!(refused.message().contains("no slot name"), "{}", refused.message());
+    }
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "no refused name created anything");
+    remove(root.as_path());
+}
+
+/// The widest identity this route's capture can make:
+/// two ACLs of `MAXIMUM_ACL_BYTES` and the widest digits each other field can hold,
+/// which is the token the bound's arithmetic is about.
+fn widest_identity(inode: u64) -> CloneFolderIdentity {
+    let mut widest: CloneFolderIdentity = identity(inode);
+    widest.device = u64::MAX;
+    widest.inode = u64::MAX;
+    widest.owner = u32::MAX;
+    widest.mode = 0o7777;
+    widest.access_acl = Some(vec![0x02; MAXIMUM_ACL_BYTES]);
+    widest.default_acl = Some(vec![0x02; MAXIMUM_ACL_BYTES]);
+    return widest;
+}
+
+/// What:
+///  A record file of exactly the bound reads,
+///  and a file one byte over it is refused by name and size;
+///  a publication whose record would be one byte over refuses before it creates anything.
+/// Why:
+///  The bound is derived from the kernel's own limits,
+///  so the widest record a writer of this repository makes must read,
+///  and a wider file can only come from a writer outside it.
+#[test]
+fn a_record_larger_than_the_bound_is_refused_by_name_and_size() {
+    let root: PathBuf = fixture("store-record-bound");
+    let folder: PathBuf = store_folder(root.as_path());
+    let widest: StoredIdentity = StoredIdentity::Slot { name: "a".repeat(255), identity: widest_identity(420) };
+    let text: String = format!("{STORE_HEADER}\n{}\n", widest.encode());
+    assert_eq!(text.len() as u64, RECORD_MAXIMUM_BYTES, "the widest record this repository makes is exactly the bound");
+    std::fs::write(folder.join("a".repeat(255)), text.as_bytes()).expect("a record at the bound");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot("a".repeat(255).as_str()).expect("the record at the bound reads"), widest_identity(420));
+    // A hundred bytes over, not one: the read's own cap reports the bound it reads and not the file's size, so a
+    // file of the bound plus one could answer either way and the control would prove neither.
+    let over: String = format!("{STORE_HEADER}\n{}\n{}", widest.encode(), "#".repeat(100));
+    let over_name: String = "b".repeat(255);
+    let over_size: u64 = over.len() as u64;
+    assert_eq!(over_size, RECORD_MAXIMUM_BYTES + 100, "the fixture is a hundred bytes over the bound");
+    std::fs::write(folder.join(over_name.as_str()), over.as_bytes()).expect("a record over the bound");
+    let refused: StoreRefusal = read.slot(over_name.as_str()).expect_err("a hundred bytes over the bound");
+    assert!(matches!(refused, StoreRefusal::RecordTooLarge { bytes, bound, .. } if bytes == over_size && bound == RECORD_MAXIMUM_BYTES), "{refused:?}");
+    let message: String = refused.message();
+    assert!(message.contains(&RECORD_MAXIMUM_BYTES.to_string()), "the bound is named: {message}");
+    assert!(message.contains(&over_size.to_string()), "the file's size is named: {message}");
+    // A publication whose record would be one byte over refuses before it creates even a staging name.
+    let live: CloneFolderIdentity = identity(422);
+    write_record(folder.as_path(), PARENT_RECORD_NAME, &StoredIdentity::Parent(live.clone()));
+    let publication: StoreRefusal = publish_slot_identity(folder.as_path(), "c".repeat(256).as_str(), &widest_identity(421), &live).expect_err("one byte over the bound");
+    assert!(matches!(publication, StoreRefusal::RecordTooLarge { bytes, .. } if bytes == RECORD_MAXIMUM_BYTES + 1), "{publication:?}");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME), "a".repeat(255), over_name.clone()], "a refused publication created nothing");
+    remove(root.as_path());
+}
+
+/// What:
+///  A good record copied and hard-linked under another name refuses,
+///  naming the name it is filed under and the key it carries.
+/// Why:
+///  A record's key is the name it is filed under,
+///  so a record for one folder cannot decide another slot's binding.
+#[test]
+fn a_record_whose_key_is_not_its_file_name_is_refused() {
+    let root: PathBuf = fixture("store-another-name");
+    let (folder, _parent) = store(root.as_path(), 430, &[("one", 431)]);
+    std::fs::copy(folder.join("one"), folder.join("two")).expect("a copied record");
+    std::fs::hard_link(folder.join("one"), folder.join("three")).expect("a hard-linked record");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    for name in ["two", "three"] {
+        let refused: StoreRefusal = read.slot(name).expect_err("the record's key is another name");
+        assert!(matches!(refused, StoreRefusal::RecordUnderAnotherName { ref filed_under, ref recorded, .. } if filed_under == name && recorded == "one"), "{refused:?}");
+        assert!(refused.message().contains(name), "the name it is filed under is named: {}", refused.message());
+        assert!(refused.message().contains('`' ), "the key it carries is named: {}", refused.message());
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  A name that is neither a record this layout names nor a staging entry refuses the listing,
+///  while both known staging forms and an unknown dot entry are left out of it;
+///  the removal takes the known forms only.
+/// Why:
+///  A foreign name could be a slot whose record a later read would miss,
+///  so the whole set the adoption verifies must refuse it.
+#[test]
+fn a_foreign_entry_refuses_the_listing_and_every_staging_form_does_not() {
+    let root: PathBuf = fixture("store-foreign-entry");
+    let (folder, _parent) = store(root.as_path(), 440, &[("one", 441)]);
+    let slot_staging: String = format!(".{}", "d".repeat(32));
+    let parent_staging: String = String::from("..parent.fedcba9876543210.partial");
+    for name in [slot_staging.as_str(), parent_staging.as_str(), ".unknown-form"] {
+        std::fs::write(folder.join(name), b"staged").expect("a staging entry");
+    }
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.slot_names().expect("the staging entries are left out"), vec![String::from("one")]);
+    std::fs::write(folder.join("with space"), format!("{STORE_HEADER}\n")).expect("a foreign entry");
+    let refused: StoreRefusal = read.slot_names().expect_err("a foreign name refuses the listing");
+    clear_hooks();
+    assert!(matches!(refused, StoreRefusal::ForeignEntry { ref entry, .. } if entry == "with space"), "{refused:?}");
+    assert!(refused.message().contains("with space"), "the entry is named: {}", refused.message());
+    std::fs::remove_file(folder.join("with space")).expect("the foreign entry goes");
+    assert_eq!(read.slot_names().expect("the listing reads again"), vec![String::from("one")]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A name in the store folder that is not UTF-8 refuses the listing as a foreign entry,
+///  naming the folder it stands in,
+///  and is never listed as a slot name.
+/// Why:
+///  The kernel lists bytes and not characters,
+///  so a name decoded into a string the folder does not hold would list as a slot name
+///  carrying a replacement character,
+///  which is neither whitespace nor a control character and so passes the name rule;
+///  the adoption would then refuse `NoSlotRecord` for a name no writer can publish,
+///  and would send the administrator to the sweep instead of to the entry that stands there.
+///  A filesystem that refuses such a name at creation (this host's own ZFS does,
+///  `EILSEQ`,
+///  which the design's probe met) prints `SKIPPED` and leaves the control to the gate's tmpfs fixture root,
+///  which allows the name.
+#[test]
+fn a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry() {
+    let root: PathBuf = fixture("store-non-utf8-entry");
+    let (folder, _parent) = store(root.as_path(), 490, &[("one", 491)]);
+    let invalid: OsString = OsString::from_vec(vec![b'a', 0xff, b'b']);
+    if let Err(error) = std::fs::write(folder.join(invalid.as_os_str()), b"staged") {
+        if error.raw_os_error() == Some(libc::EILSEQ) {
+            eprintln!("SKIPPED: this filesystem refuses a name that is not UTF-8 ({error}), so the listing's refusal cannot be shown here; the gate's tmpfs fixture root runs this control");
+            remove(root.as_path());
+            return;
+        }
+        panic!("the fixture entry is written: {error}");
+    }
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    let refused: StoreRefusal = read.slot_names().expect_err("a name that is not UTF-8 is no slot name");
+    assert!(matches!(refused, StoreRefusal::ForeignEntry { ref path, .. } if path.starts_with(folder.as_path())), "{refused:?}");
+    let message: String = refused.message();
+    assert!(message.contains(folder.to_string_lossy().as_ref()), "the folder the entry stands in is named: {message}");
+    assert!(message.contains("neither `.parent`"), "the refusal is the listing's own foreign-entry sentence: {message}");
+    remove(root.as_path());
+}
+
+/// What:
+///  An absent store folder and an absent record each refuse with their own cause,
+///  and a link at a record's name is never read through.
+/// Why:
+///  A missing folder asks for the setup run,
+///  a missing record asks for the sweep that publishes it,
+///  and a link at a record's name would make the route compare against a file the account chose.
+#[test]
+fn an_absent_store_folder_asks_for_the_setup_run_and_a_link_at_a_record_name_is_never_read_through() {
+    let root: PathBuf = fixture("store-absent-and-link");
+    let absent: PathBuf = root.join("absent");
+    let refused: StoreRefusal = SlotIdentityStore::open(absent.as_path()).expect_err("nothing there");
     assert!(matches!(refused, StoreRefusal::Missing { .. }), "{refused:?}");
     let message: String = refused.message();
-    assert!(message.contains(path.to_string_lossy().as_ref()), "the path is named: {message}");
-    assert!(message.contains("setup"), "the setup run is named: {message}");
-    assert!(message.contains("Ways forward"), "the ways forward are given: {message}");
-    let appended: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(1)).expect_err("nothing to add to");
-    assert!(matches!(appended, StoreRefusal::Missing { .. }), "{appended:?}");
-    assert!(!path.exists(), "an append never invents the store");
-    assert!(!store_lock_path(path.as_path()).exists(), "an append never invents the lock beside a store that is not there");
-    remove(root.as_path());
-}
-
-/// What:
-///  A file whose lines are not records of this repository refuses the whole read,
-///  naming the path and the line,
-///  while the store written the same way reads.
-/// Why:
-///  A skipped line could hide the record of the slot being checked,
-///  and then a slot that was never verified would look new.
-#[test]
-fn a_line_this_repository_did_not_write_refuses_the_read() {
-    let root: PathBuf = fixture("slot-store-lines");
-    let good: CloneFolderIdentity = identity(310);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&good), slot_line("one", &good)]);
-    assert!(SlotIdentityStore::read(path.as_path()).is_ok(), "positive control");
-    let broken: Vec<(String, &str)> = vec![
-        (String::new(), "the file is empty"),
-        (String::from("# another tool's file\n"), "the first line must be the store's own header"),
-        (format!("{HEADER}\nparent\n"), "a record holds three space-separated fields"),
-        (format!("{HEADER}\nparent - {} extra\n", good.encode()), "a record holds three space-separated fields"),
-        (format!("{HEADER}\nparent - 1:2\n"), "is not a recorded folder identity"),
-        (format!("{HEADER}\nfolder - {}\n", good.encode()), "is neither"),
-        (format!("{HEADER}\nparent one {}\n", good.encode()), "a parent record's key"),
-        (format!("{HEADER}\nslot one/two {}\n", good.encode()), "it holds a path separator"),
-    ];
-    for (text, expected) in &broken {
-        let bad: PathBuf = root.join("bad-store");
-        std::fs::write(&bad, text).expect("bad store");
-        let refused_2: StoreRefusal = SlotIdentityStore::read(bad.as_path()).expect_err(text.as_str());
-        assert!(refused_2.message().contains(expected), "{expected} is in {}", refused_2.message());
-        assert!(refused_2.message().contains(bad.to_string_lossy().as_ref()), "the path is named: {}", refused_2.message());
-    }
-    let numbered: PathBuf = root.join("bad-store");
-    std::fs::write(&numbered, format!("{HEADER}\nparent - {}\nfolder - {}\n", good.encode(), good.encode())).expect("bad store");
-    let refused_3: StoreRefusal = SlotIdentityStore::read(numbered.as_path()).expect_err("bad kind on line 3");
-    assert!(refused_3.message().contains("line 3"), "the line is named: {}", refused_3.message());
-    remove(root.as_path());
-}
-
-/// What:
-///  One key recorded twice refuses the read,
-///  naming the key and the line that repeats it.
-/// Why:
-///  Two identities for one folder decide nothing,
-///  so the read must not pick either of them.
-#[test]
-fn one_key_recorded_twice_is_refused() {
-    let root: PathBuf = fixture("slot-store-duplicate");
-    let good: CloneFolderIdentity = identity(320);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&good), slot_line("one", &good), slot_line("one", &identity(321))]);
-    let refused_4: StoreRefusal = SlotIdentityStore::read(path.as_path()).expect_err("one slot twice");
-    assert!(matches!(refused_4, StoreRefusal::DuplicateKey { number: 4, ref key, .. } if key.as_str() == "one"), "{refused_4:?}");
-    assert!(refused_4.message().contains('4'), "the second line is named: {}", refused_4.message());
-    let twice_parent: PathBuf = store(root.as_path(), &[parent_line(&good), parent_line(&identity(322))]);
-    let refused_5: StoreRefusal = SlotIdentityStore::read(twice_parent.as_path()).expect_err("one parent twice");
-    assert!(matches!(refused_5, StoreRefusal::DuplicateKey { ref key, .. } if key.as_str() == "-"), "{refused_5:?}");
-    remove(root.as_path());
-}
-
-/// What:
-///  A new slot is appended,
-///  and the same slot's second record is refused with the file unchanged.
-/// Why:
-///  Never refreshing a slot identity is what keeps a replaced folder from being adopted by accident.
-#[test]
-fn a_slot_is_recorded_once_and_never_refreshed() {
-    let root: PathBuf = fixture("slot-store-append");
-    let parent: CloneFolderIdentity = identity(330);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&parent)]);
-    let recorded: CloneFolderIdentity = identity(331);
-    append_slot_identity(path.as_path(), "one", &recorded).expect("a slot with no record is recorded");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
-    assert_eq!(read.slot("one"), Some(&recorded));
-    assert_eq!(read.parent(), Some(&parent), "an append leaves the parent record as it was");
-    let before: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
-    let refused_6: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(332)).expect_err("recorded already");
-    assert!(matches!(refused_6, StoreRefusal::SlotAlreadyRecorded { ref slot, .. } if slot.as_str() == "one"), "{refused_6:?}");
-    assert_eq!(std::fs::read(path.as_path()).expect("bytes"), before, "the store is unchanged");
-    assert!(refused_6.message().contains("never refreshed"), "{}", refused_6.message());
-    for refused_name in ["", "one/two", ".", "..", ".hidden", "with space", "with\ttab"] {
-        let refused_7: StoreRefusal = append_slot_identity(path.as_path(), refused_name, &identity(333)).expect_err(refused_name);
-        assert!(matches!(refused_7, StoreRefusal::SlotName { .. }), "{refused_name}: {refused_7:?}");
-        assert!(refused_7.message().contains("no slot name"), "{}", refused_7.message());
-    }
-    let no_parent: PathBuf = store(root.as_path(), &[]);
-    let refused_8: StoreRefusal = append_slot_identity(no_parent.as_path(), "one", &recorded).expect_err("nothing to compare a slot against");
-    assert!(matches!(refused_8, StoreRefusal::NoParentRecord { .. }), "{refused_8:?}");
-    remove(root.as_path());
-}
-
-/// What:
-///  The adoption's write replaces the parent record and keeps every slot record,
-///  both lines and both identities.
-/// Why:
-///  An adoption is the one write allowed to replace the parent's identity,
-///  and it must never overwrite a surviving slot identity.
-#[test]
-fn the_adoption_replaces_only_the_parent_record() {
-    let root: PathBuf = fixture("slot-store-adoption");
-    let old_parent: CloneFolderIdentity = identity(340);
-    let slot: CloneFolderIdentity = identity(341);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&old_parent), String::from("# a comment is no record and need not survive a rewrite"), slot_line("one", &slot)]);
-    let adopted: CloneFolderIdentity = identity(342);
-    record_parent_identity(path.as_path(), &adopted).expect("the parent record is replaced");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
-    assert_eq!(read.parent(), Some(&adopted));
-    assert_eq!(read.slot("one"), Some(&slot), "a surviving slot identity is not overwritten");
-    let text: String = std::fs::read_to_string(path.as_path()).expect("text");
-    assert!(text.starts_with(HEADER), "the file keeps its header: {text}");
-    assert_eq!(text.lines().filter(|line| { return line.starts_with("parent "); }).count(), 1, "one parent record: {text}");
-    assert_eq!(text.lines().filter(|line| { return line.starts_with("slot "); }).count(), 1, "the slot record is kept: {text}");
-    let missing: PathBuf = root.join("absent");
-    assert!(matches!(record_parent_identity(missing.as_path(), &adopted), Err(StoreRefusal::Missing { .. })), "an adoption never invents the store");
-    remove(root.as_path());
-}
-
-/// What:
-///  A link planted at the store's name is refused by the read and by the append,
-///  never followed.
-/// Why:
-///  The store sits under root control;
-///  a link at its name would make the route compare against a file the account chose.
-#[test]
-fn a_link_at_the_store_name_is_never_read_through() {
-    let root: PathBuf = fixture("slot-store-link");
+    assert!(message.contains(absent.to_string_lossy().as_ref()), "the path is named: {message}");
+    assert!(message.contains("setup") && message.contains("Ways forward"), "the setup run and the ways forward are named: {message}");
+    let (folder, _parent) = store(root.as_path(), 450, &[]);
     let elsewhere: PathBuf = root.join("elsewhere");
-    std::fs::write(&elsewhere, format!("{HEADER}\nparent - {}\n", identity(350).encode())).expect("elsewhere");
-    let path: PathBuf = root.join("slot-identities");
-    std::os::unix::fs::symlink(&elsewhere, &path).expect("link");
-    let refused_9: StoreRefusal = SlotIdentityStore::read(path.as_path()).expect_err("a link is not read through");
-    assert!(matches!(refused_9, StoreRefusal::Unreadable { .. }), "{refused_9:?}");
-    assert!(refused_9.message().contains("non-regular"), "{}", refused_9.message());
-    let refused_10: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(351)).expect_err("a link is not written through");
-    assert!(matches!(refused_10, StoreRefusal::Write { .. }), "a refused append is not a read problem: {refused_10:?}");
-    assert!(refused_10.message().contains("could not be written"), "{}", refused_10.message());
-    assert!(refused_10.message().contains("symbolic link"), "{}", refused_10.message());
-    remove(root.as_path());
-}
-
-/// Whether a second exclusive lock on `path` can be taken now,
-/// which says whether the append under test holds it.
-fn can_lock_exclusively(path: &Path) -> bool {
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(path).expect("the file opens");
-    // SAFETY: `flock` reads the descriptor and the flag only, and touches no memory of ours.
-    let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    return taken == 0;
-}
-
-/// What:
-///  The read,
-///  the checks and the append are one step under one exclusive lock of the lock file beside the store:
-///  a second exclusive lock cannot be taken on that file while they run,
-///  the store itself is not locked,
-///  and the same probe takes the lock file once the append returns.
-/// Why:
-///  Two sweeps that meet on one slot both read "no record" and both appended before this lock existed,
-///  and the duplicate then refused every later read until an administrator edited a root-owned file.
-///  The lock stands on a file of its own because an exclusive `flock` needs no write bit of the file it locks:
-///  on the store,
-///  every account that may read the store could hold it and stall root's own sweep.
-#[test]
-fn the_append_holds_one_lock_on_the_lock_file_from_the_read_to_the_write() {
-    let root: PathBuf = fixture("slot-store-lock");
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(360))]);
-    let lock: PathBuf = store_lock_path(path.as_path());
-    assert!(!lock.exists(), "positive control: no lock file stands before the append");
-    let seen: Arc<Mutex<Vec<(bool, bool)>>> = Arc::default();
-    let during: Arc<Mutex<Vec<(bool, bool)>>> = Arc::clone(&seen);
-    let probed_store: PathBuf = path.clone();
-    let probed_lock: PathBuf = lock.clone();
-    BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            let store_free: bool = can_lock_exclusively(&probed_store);
-            let lock_free: bool = can_lock_exclusively(&probed_lock);
-            during.lock().expect("the control's own list").push((store_free, lock_free));
-        }));
-    });
-    let recorded: Result<(), StoreRefusal> = append_slot_identity(path.as_path(), "one", &identity(361));
-    BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { *hook.borrow_mut() = None });
-    recorded.expect("a slot with no record is recorded");
-    assert_eq!(*seen.lock().expect("the control's own list"), vec![(true, false)], "the append holds the lock file and never the store");
-    assert!(can_lock_exclusively(lock.as_path()), "the same probe takes the lock file once the append returns");
-    let made: std::fs::Permissions = std::fs::metadata(lock.as_path()).expect("the lock's metadata").permissions();
-    assert_eq!(made.mode() & 0o777, STORE_LOCK_MODE, "the append makes the lock root's own, so no other account may open it");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("one record, so the store reads");
-    assert_eq!(read.slot("one"), Some(&identity(361)));
-    remove(root.as_path());
-}
-
-/// The append a control drives,
-/// which is the grammar's own writer or the route's.
-type Append = fn(&Path, &str, &CloneFolderIdentity) -> Result<(), StoreRefusal>;
-
-/// The adoption a control drives,
-/// which is the grammar's own writer or the route's.
-type Adopt = fn(&Path, &CloneFolderIdentity) -> Result<(), StoreRefusal>;
-
-/// What:
-///  The scenario one control runs through a pair of writers:
-///  an adoption is asked for while an append holds the lock,
-///  it refuses rather than replacing the file under that append,
-///  and the append's record is in the store afterwards.
-/// Why:
-///  The adoption publishes a whole new file by rename,
-///  so a rewrite that ran between an append's read and its write dropped that append's line;
-///  the `Locked` refusal names the adoption as a holder,
-///  and this scenario is what makes that sentence true.
-///  It takes its writers as arguments so the route's writers,
-///  the ones production calls,
-///  are pinned by the same red a plant on the grammar's own writer turns.
-fn the_adoption_waits_for_the_append_s_lock(name: &str, append: Append, adopt: Adopt) {
-    let root: PathBuf = fixture(name);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(500))]);
-    let during: Arc<Mutex<Vec<Result<(), StoreRefusal>>>> = Arc::default();
-    let seen: Arc<Mutex<Vec<Result<(), StoreRefusal>>>> = Arc::clone(&during);
-    let probed: PathBuf = path.clone();
-    BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = Some(std::time::Duration::from_millis(20)); });
-            let outcome: Result<(), StoreRefusal> = adopt(probed.as_path(), &identity(501));
-            THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = None; });
-            seen.lock().expect("the control's own list").push(outcome);
-        }));
-    });
-    let appended: Result<(), StoreRefusal> = append(path.as_path(), "one", &identity(502));
-    BETWEEN_THE_READ_AND_THE_APPEND.with(|hook| { *hook.borrow_mut() = None });
-    appended.expect("a slot with no record is recorded");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
-    assert_eq!(read.slot("one"), Some(&identity(502)), "the append's record survives the adoption");
-    assert_eq!(read.parent(), Some(&identity(500)), "the adoption recorded nothing");
-    let outcomes: Vec<Result<(), StoreRefusal>> = during.lock().expect("the control's own list").clone();
-    assert_eq!(outcomes.len(), 1, "the adoption ran once, while the append held the lock");
-    assert!(matches!(outcomes[0], Err(StoreRefusal::Locked { .. })), "the adoption refuses while the append holds the lock: {:?}", outcomes[0]);
+    std::fs::write(elsewhere.as_path(), format!("{STORE_HEADER}\n{}\n", slot_record("one", 451).encode())).expect("the link's target");
+    std::os::unix::fs::symlink(elsewhere.as_path(), folder.join("one")).expect("a link at a record's name");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    let linked: StoreRefusal = read.slot("one").expect_err("a link is not read through");
+    assert!(matches!(linked, StoreRefusal::Unreadable { .. }), "{linked:?}");
+    assert!(linked.message().contains("non-regular"), "{}", linked.message());
     remove(root.as_path());
 }
 
 /// What:
-///  The adoption's rewrite takes the same lock an append holds.
+///  A second setup run whose live parent equals the record succeeds,
+///  and one whose live parent differs refuses `ParentAlreadyRecorded` and writes nothing.
 /// Why:
-///  `the_adoption_waits_for_the_append_s_lock` is the proof;
-///  this control runs it through the writers the grammar's own tests drive.
+///  The setup run's boot unit runs on every boot,
+///  so a second run is the normal case and must not report an error,
+///  while only the administrator's adoption may replace the record.
 #[test]
-fn the_adoption_waits_for_the_append_s_lock_and_never_drops_its_record() {
-    the_adoption_waits_for_the_append_s_lock("slot-store-adoption-under-the-lock", append_slot_identity, record_parent_identity);
-}
-
-/// What:
-///  The scenario one control runs through a pair of writers:
-///  a rewrite replaces the store between the lock and the append's open,
-///  and the record still lands in the file the path names.
-/// Why:
-///  An append that opened the file first wrote into the replaced one when the rename landed before its lock,
-///  answered `Ok`,
-///  and the store at its path no longer held the record;
-///  the route's writers take the lock after the same refusal,
-///  so a plant on either pair is what this scenario turns red.
-fn a_rewrite_between_the_lock_and_the_open_still_receives_the_record(name: &str, append: Append) {
-    let root: PathBuf = fixture(name);
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(510))]);
-    let replacement: PathBuf = root.join("replacement-store");
-    std::fs::write(&replacement, format!("{HEADER}\n{}\n", parent_line(&identity(511)))).expect("the replacement store");
-    let swapped: PathBuf = path.clone();
-    let staged: PathBuf = replacement.clone();
-    BEFORE_THE_STORE_OPENS.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            std::fs::rename(&staged, &swapped).expect("the rewrite replaces the store");
-        }));
-    });
-    let appended: Result<(), StoreRefusal> = append(path.as_path(), "one", &identity(512));
-    BEFORE_THE_STORE_OPENS.with(|hook| { *hook.borrow_mut() = None });
-    appended.expect("a slot with no record is recorded");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
-    assert_eq!(read.parent(), Some(&identity(511)), "the append read the file the path names, after the lock");
-    assert_eq!(read.slot("one"), Some(&identity(512)), "the record lands in the file the path names");
-    remove(root.as_path());
-}
-
-/// What:
-///  The append opens the store only after it holds the lock,
-///  so a rewrite that replaces the file in the window between them still receives the record.
-/// Why:
-///  `a_rewrite_between_the_lock_and_the_open_still_receives_the_record` is the proof;
-///  this control runs it through the writer the grammar's own tests drive.
-#[test]
-fn the_append_opens_the_store_after_it_holds_the_lock() {
-    a_rewrite_between_the_lock_and_the_open_still_receives_the_record("slot-store-open-after-the-lock", append_slot_identity);
-}
-
-/// What:
-///  An append that cannot take the lock inside the wait it allows refuses,
-///  names the lock,
-///  and writes nothing.
-/// Why:
-///  A holder that never finishes must refuse rather than hold the command open,
-///  and a refusal that does not name the lock sends a person to the wrong file.
-#[test]
-fn an_append_that_cannot_take_the_lock_refuses_and_writes_nothing() {
-    let root: PathBuf = fixture("slot-store-locked");
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(362))]);
-    let lock: PathBuf = store_lock_path(path.as_path());
-    let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
-    let holder: std::fs::File = options.read(true).write(true).create(true).mode(STORE_LOCK_MODE).open(lock.as_path()).expect("the lock file");
-    // SAFETY: `flock` reads the descriptor and the flag only, and touches no memory of ours.
-    assert_eq!(unsafe { libc::flock(holder.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) }, 0, "the control holds the lock");
-    let before: Vec<u8> = std::fs::read(path.as_path()).expect("bytes");
-    THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = Some(std::time::Duration::from_millis(20)); });
-    let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(363)).expect_err("another run holds the lock");
-    THE_LOCK_WAIT_ALLOWED.with(|allowed| { *allowed.borrow_mut() = None });
-    assert!(matches!(refused, StoreRefusal::Locked { .. }), "{refused:?}");
-    assert!(refused.message().contains(lock.to_string_lossy().as_ref()), "the lock is named: {}", refused.message());
-    assert!(refused.message().contains("held by another run"), "the holder is named: {}", refused.message());
-    assert_eq!(std::fs::read(path.as_path()).expect("bytes"), before, "nothing was written");
-    assert!(SlotIdentityStore::read(path.as_path()).expect("the unmoved store reads").slot("one").is_none());
-    remove(root.as_path());
-}
-
-/// What:
-///  A link planted at the lock's name is refused,
-///  never followed.
-/// Why:
-///  The lock decides which append writes the store;
-///  a link there would let the account point the lock at a file it can lock itself.
-#[test]
-fn a_link_at_the_lock_name_is_refused() {
-    let root: PathBuf = fixture("slot-store-lock-link");
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(364))]);
-    let elsewhere: PathBuf = root.join("elsewhere-lock");
-    std::fs::write(&elsewhere, b"not a lock").expect("elsewhere");
-    std::os::unix::fs::symlink(&elsewhere, store_lock_path(path.as_path())).expect("link");
-    let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(365)).expect_err("a link is not written through");
-    assert!(matches!(refused, StoreRefusal::Write { .. }), "{refused:?}");
-    assert!(refused.message().contains("symbolic link"), "{}", refused.message());
-    remove(root.as_path());
-}
-
-/// What:
-///  A store larger than the bytes one read accepts is refused,
-///  naming the bound,
-///  while a store inside it reads.
-/// Why:
-///  The read took whatever size the file had:
-///  a replaced or runaway file was read into memory before its lines were even looked at.
-#[test]
-fn a_store_larger_than_the_read_accepts_is_refused() {
-    let root: PathBuf = fixture("slot-store-large");
-    let path: PathBuf = root.join("slot-identities");
-    let filler: String = format!("{HEADER}\n#{}\n", "0".repeat(usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits")));
-    std::fs::write(&path, filler.as_bytes()).expect("a store larger than the bound");
-    let refused: StoreRefusal = SlotIdentityStore::read(path.as_path()).expect_err("a runaway store is refused");
-    assert!(matches!(refused, StoreRefusal::Unreadable { .. }), "{refused:?}");
-    assert!(refused.message().contains(STORE_MAXIMUM_BYTES.to_string().as_str()), "the bound is named: {}", refused.message());
-    let inside: PathBuf = store(root.as_path(), &[parent_line(&identity(370))]);
-    assert!(SlotIdentityStore::read(inside.as_path()).is_ok(), "positive control: a store inside the bound reads");
-    remove(root.as_path());
-}
-
-/// What:
-///  An append whose record would make the store larger than one read accepts is refused,
-///  nothing is written,
-///  and the file still reads;
-///  the same append on a store one record below the bound is the widest write the store accepts.
-/// Why:
-///  A store that grows past its own read bound is a file no read accepts,
-///  so the write that would do it refuses instead of leaving one
-///  (`StoreRefusal::WouldNotFit`).
-///  The fitting arm is the positive control:
-///  the same call,
-/// one record narrower,
-/// writes and lands exactly on the bound,
-///  so the refusal is the size and not a broken fixture.
-#[test]
-fn an_append_that_would_outgrow_the_store_is_refused() {
-    let root: PathBuf = fixture("slot-store-bound-append");
-    let path: PathBuf = root.join("slot-identities");
-    std::fs::write(&path, the_widest_store().as_str()).expect("a store of the whole bound");
-    let before: u64 = std::fs::metadata(path.as_path()).expect("metadata").len();
-    let refused: StoreRefusal = append_slot_identity(path.as_path(), "one", &identity(410)).expect_err("the widest store has no room");
-    assert!(matches!(refused, StoreRefusal::WouldNotFit { .. }), "{refused:?}");
-    assert!(refused.message().contains(STORE_MAXIMUM_BYTES.to_string().as_str()), "the bound is named: {}", refused.message());
-    assert_eq!(std::fs::metadata(path.as_path()).expect("metadata").len(), before, "nothing was written");
-    assert!(SlotIdentityStore::read(path.as_path()).is_ok(), "the store a refused append left still reads");
-    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
-    let room: usize = slot_line("one", &identity(410)).len() + 1;
-    let fitting: PathBuf = root.join("fitting");
-    std::fs::write(&fitting, a_store_of_whole_bytes(boundary - room).as_str()).expect("a store one record below the bound");
-    append_slot_identity(fitting.as_path(), "one", &identity(410)).expect("the widest append the store accepts");
-    assert_eq!(std::fs::metadata(fitting.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the append lands exactly on the bound");
-    assert!(SlotIdentityStore::read(fitting.as_path()).is_ok(), "the store the widest append left reads");
-    remove(root.as_path());
-}
-
-/// What:
-///  An adoption that would make the store larger than one read accepts is refused,
-///  nothing is written,
-///  and the file keeps every record it held and still reads.
-/// Why:
-///  A store at the bound adopted with a wider parent record grew past its own read bound,
-///  and the next read refused it (issue 6327);
-///  the rewrite publishes a whole new file,
-///  so it refuses on the same terms the append does
-///  (`StoreRefusal::WouldNotFit`),
-///  and an adoption refused this way leaves the recorded parent identity in place.
-#[test]
-fn an_adoption_that_would_outgrow_the_store_is_refused() {
-    let root: PathBuf = fixture("slot-store-bound-adoption");
-    let path: PathBuf = root.join("slot-identities");
-    let recorded: CloneFolderIdentity = identity(700);
-    let adopted: CloneFolderIdentity = wide_identity(700);
-    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
-    std::fs::write(&path, a_rewrite_of_whole_bytes(boundary, &recorded).as_str()).expect("a store of the whole bound");
-    let before: u64 = std::fs::metadata(path.as_path()).expect("metadata").len();
-    assert_eq!(before, STORE_MAXIMUM_BYTES, "the fixture is a store of the whole bound");
-    let refused: StoreRefusal = record_parent_identity(path.as_path(), &adopted).expect_err("the wider parent record has no room");
-    assert!(matches!(refused, StoreRefusal::WouldNotFit { .. }), "{refused:?}");
-    let grown: u64 = before + u64::try_from(parent_line(&adopted).len() - parent_line(&recorded).len()).expect("a wider parent record");
+fn a_second_setup_run_compares_the_live_parent_with_the_parent_record() {
+    let root: PathBuf = fixture("store-second-setup");
+    let folder: PathBuf = store_folder(root.as_path());
+    let live: CloneFolderIdentity = identity(460);
+    publish_parent_identity(folder.as_path(), &live, &live).expect("the first setup run publishes the parent record");
+    publish_parent_identity(folder.as_path(), &live, &live).expect("a second run finds the same folder and succeeds");
+    let mut moved: CloneFolderIdentity = live.clone();
+    moved.inode = 461;
+    let refused: StoreRefusal = publish_parent_identity(folder.as_path(), &moved, &moved).expect_err("the live folder is not the recorded one");
+    assert!(matches!(refused, StoreRefusal::ParentAlreadyRecorded { ref fields, .. } if fields.contains(&crate::clone_folder_identity::CloneFolderField::Inode)), "{refused:?}");
     let message: String = refused.message();
-    assert!(message.contains(path.display().to_string().as_str()), "the store is named: {message}");
-    assert!(message.contains(grown.to_string().as_str()), "the size it would have held is named: {message}");
-    assert!(message.contains(STORE_MAXIMUM_BYTES.to_string().as_str()), "the bound is named: {message}");
-    assert!(message.contains("parent identity"), "what a refused adoption leaves is named: {message}");
-    assert!(message.contains("questions-for-the-owner"), "what the person does next is named: {message}");
-    assert_eq!(std::fs::metadata(path.as_path()).expect("metadata").len(), before, "nothing was written");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("the store a refused adoption left still reads");
-    assert_eq!(read.parent(), Some(&recorded), "the recorded parent identity is the one that stays");
+    assert!(message.contains("adopt-worktree-parent"), "the adoption is named: {message}");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    assert_eq!(read.parent().expect("the record is the first run's"), live, "a refused second run replaces nothing");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "no staging entry is left");
     remove(root.as_path());
 }
 
 /// What:
-///  A rewrite that lands exactly on the bound succeeds and reads back.
+///  A second setup run that finds the record holding the live folder's identity makes no staging name,
+///  links nothing and removes nothing:
+///  the publication's own steps are never reached,
+///  the record's bytes are what they were and the folder holds no other entry.
 /// Why:
-///  The positive control of the refusal:
-///  the same adoption,
-///  one wider parent record narrower,
-///  publishes exactly the bytes one read accepts,
-///  so the refusal is the bound and not a broken fixture.
+///  The setup run's boot unit runs on every boot,
+///  so a second run is the normal case;
+///  the design says the compare runs before the name is made
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "Two writers with two intents"),
+///  so the boot unit pays no durable write,
+///  no failed link,
+///  no unlink and no folder `fsync`
+///  to learn that the record is there,
+///  and a kill during that window leaves no staging litter.
 #[test]
-fn an_adoption_that_lands_exactly_on_the_bound_writes_a_store_that_reads() {
-    let root: PathBuf = fixture("slot-store-bound-adoption-fits");
-    let path: PathBuf = root.join("slot-identities");
-    let recorded: CloneFolderIdentity = identity(700);
-    let adopted: CloneFolderIdentity = wide_identity(700);
-    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
-    let target: String = a_rewrite_of_whole_bytes(boundary, &adopted);
-    let before_text: String = target.replacen(parent_line(&adopted).as_str(), parent_line(&recorded).as_str(), 1);
-    assert_ne!(before_text, target, "the fixture records the narrower parent record");
-    std::fs::write(&path, before_text.as_str()).expect("a store below the bound");
-    record_parent_identity(path.as_path(), &adopted).expect("the rewrite lands exactly on the bound");
-    assert_eq!(std::fs::metadata(path.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the rewrite lands exactly on the bound");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("the store the rewrite published reads");
-    assert_eq!(read.parent(), Some(&adopted), "the adopted parent identity is the one recorded");
-    let slots: usize = before_text.lines().filter(|line| { return line.starts_with("slot "); }).count();
-    assert_eq!(read.slot_names().len(), slots, "the rewrite keeps every slot record");
+fn a_second_setup_run_that_finds_the_same_parent_makes_no_name() {
+    let root: PathBuf = fixture("store-second-setup-writes-nothing");
+    let folder: PathBuf = store_folder(root.as_path());
+    let live: CloneFolderIdentity = identity(465);
+    publish_parent_identity(folder.as_path(), &live, &live).expect("the first setup run publishes the parent record");
+    let record_before: Vec<u8> = bytes(folder.as_path(), PARENT_RECORD_NAME);
+    let reached: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::default();
+    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::clone(&reached);
+    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }));
+    });
+    publish_parent_identity(folder.as_path(), &live, &live).expect("a second run finds the same folder and succeeds");
+    clear_hooks();
+    assert_eq!(reached.load(std::sync::atomic::Ordering::SeqCst), 0, "the compare answered before any staging name was made, and this run reached the publication itself");
+    assert_eq!(bytes(folder.as_path(), PARENT_RECORD_NAME), record_before, "the second run rewrote nothing");
+    assert_eq!(entries(folder.as_path()), vec![String::from(PARENT_RECORD_NAME)], "the second run left no staging entry");
     remove(root.as_path());
 }
 
-/// The truth table of the root-control check:
-/// root with no group or other write bit is under root control,
-/// an owner that is not root is not,
-/// and so is a mode another account can write.
+/// What:
+///  The store reads a record file whose grammar is the one a control writes,
+///  and a partial file refuses naming the line where it stopped.
+/// Why:
+///  A record's name must hold its header and one record line,
+///  and a partial file is the administrator's to repair rather than a state to retry.
+#[test]
+fn a_partial_record_refuses_naming_the_line_where_it_stopped() {
+    let root: PathBuf = fixture("store-partial");
+    let (folder, _parent) = store(root.as_path(), 470, &[("one", 471)]);
+    std::fs::write(folder.join("two"), format!("{STORE_HEADER}\n")).expect("a header and no record");
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
+    let refused: StoreRefusal = read.slot("two").expect_err("a header alone is no record");
+    assert!(matches!(refused, StoreRefusal::Line { .. }), "{refused:?}");
+    assert!(refused.message().contains("no record line"), "{}", refused.message());
+    std::fs::write(folder.join("three"), format!("{STORE_HEADER}\n{}\n{}\n", slot_record("three", 472).encode(), slot_record("three", 473).encode())).expect("two record lines");
+    let twice: StoreRefusal = read.slot("three").expect_err("a record file holds one record");
+    assert!(matches!(twice, StoreRefusal::Line { number: 3, .. }), "{twice:?}");
+    assert!(twice.message().contains("line 3"), "the second record line is named: {}", twice.message());
+    remove(root.as_path());
+}
+
+/// Environment variable that makes the control below run its inner half inside a user namespace,
+/// where this run's own files are root's.
+#[cfg(target_os = "linux")]
+const ROOT_SIDE_VARIABLE: &str = "SLOT_IDENTITY_STORE_FOLDER_ROOT_SIDE";
+
+/// What:
+///  A store folder and its records written by root read under root control,
+///  a record another account could write is refused,
+///  and so is a folder another account could write.
+/// Why:
+///  A record decides which folder a clone may be attached to,
+///  so a record or a folder this account could rewrite decides nothing,
+///  and the refusal must name which of the two it is.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_record_this_account_could_rewrite_is_refused() {
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        ROOT_SIDE_VARIABLE,
+        "worktree_clone_mount::slot_identity_store::tests::a_record_this_account_could_rewrite_is_refused",
+    ) {
+        return;
+    }
+    let root: PathBuf = fixture("store-root-side-records");
+    let (folder, parent) = store(root.as_path(), 480, &[("one", 481)]);
+    let read: SlotIdentityStore = SlotIdentityStore::open_under_root_control(folder.as_path()).expect("a store root wrote reads");
+    assert_eq!(read.parent().expect("the parent record reads"), parent);
+    std::fs::set_permissions(folder.join("one"), std::fs::Permissions::from_mode(0o666)).expect("a record another account can write");
+    let record_refused: StoreRefusal = SlotIdentityStore::open_under_root_control(folder.as_path()).expect("the folder is root's").slot("one").expect_err("a record another account can write is refused");
+    assert!(matches!(record_refused, StoreRefusal::NotUnderRootControl { ref what, .. } if what == "the record file"), "{record_refused:?}");
+    assert!(record_refused.message().contains("0666"), "the mode is named: {}", record_refused.message());
+    std::fs::set_permissions(folder.join("one"), std::fs::Permissions::from_mode(0o644)).expect("the record back to root's own");
+    std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o777)).expect("the folder widened");
+    let folder_refused: StoreRefusal = SlotIdentityStore::open_under_root_control(folder.as_path()).expect_err("a folder this account could write decides nothing");
+    assert!(matches!(folder_refused, StoreRefusal::NotUnderRootControl { ref what, .. } if what == "the store folder"), "{folder_refused:?}");
+    std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(STORE_FOLDER_MODE)).expect("the folder back to root's own");
+    let plain: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the grammar's own open reads the same folder");
+    assert_eq!(plain.slot("one").expect("the grammar's reader reads it"), identity(481));
+    remove(root.as_path());
+}
+
+/// What:
+///  The truth table of the root-control check:
+///  root with no group or other write bit is under root control,
+///  an owner that is not root is not,
+///  and so is a mode another account can write.
+/// Why:
+///  The folder and every record answer the same two terms,
+///  and a control proves the terms themselves rather than a fixture's owner.
 #[test]
 fn the_control_says_which_owner_and_mode_are_root_s_own() {
-    assert_eq!(store_control_refusal(STORE_OWNER, 0o644), None);
+    assert_eq!(store_control_refusal(STORE_OWNER, RECORD_MODE), None);
     assert_eq!(store_control_refusal(STORE_OWNER, 0o600), None);
     for owner in [1, 1000, u32::MAX] {
         let refused: String = store_control_refusal(owner, 0o600).expect("an owner that is not root");
@@ -587,181 +832,28 @@ fn the_control_says_which_owner_and_mode_are_root_s_own() {
 }
 
 /// What:
-///  The route's reader refuses a store this account owns,
-///  naming the owner,
-///  while the plain reader reads the same file,
-///  and a store whose folder another account can write is refused as well.
+///  The example store of the design's section 1 is a store this reader reads:
+///  `.parent` holding the specification's own access ACL,
+///  and one record file per slot.
 /// Why:
-///  A record the attach's account could rewrite decides nothing,
-///  and the refusal must say which of the two paths is not root's.
-#[test]
-fn the_route_refuses_a_store_this_account_could_rewrite() {
-    let root: PathBuf = fixture("slot-store-control");
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(380))]);
-    assert!(SlotIdentityStore::read(path.as_path()).is_ok(), "positive control: the grammar reads the file");
-    let refused: StoreRefusal = SlotIdentityStore::read_under_root_control(path.as_path()).expect_err("this account owns the store");
-    assert!(matches!(refused, StoreRefusal::NotUnderRootControl { .. }), "{refused:?}");
-    assert!(refused.message().contains("not under root control"), "{}", refused.message());
-    assert!(refused.message().contains(&format!("user {}", nix_uid_of(root.as_path()))), "the owner is named: {}", refused.message());
-    assert!(refused.message().contains(path.to_string_lossy().as_ref()), "the path is named: {}", refused.message());
-    remove(root.as_path());
-}
-
-/// The owner of a fixture directory,
-/// which is the account this run's fixtures belong to.
-fn nix_uid_of(path: &Path) -> u32 {
-    use std::os::unix::fs::MetadataExt;
-    return std::fs::metadata(path).expect("the fixture's metadata").uid();
-}
-
-/// Environment variable that makes the control below run its inner half,
-/// inside a user namespace of its own,
-/// where this run's own files are root's.
-#[cfg(target_os = "linux")]
-const ROOT_SIDE_VARIABLE: &str = "SLOT_IDENTITY_STORE_ROOT_SIDE";
-
-/// What:
-///  A store written by root reads through the route's reader,
-///  and a store whose mode lets another account write it is still refused.
-/// Why:
-///  The positive arm of the root-control check needs a root-owned store,
-///  which this account cannot make outside a namespace;
-///  inside a user namespace the run is root and its own files are root's,
-///  so both the accept and the refuse are exercised on a real file.
-#[cfg(target_os = "linux")]
-#[test]
-fn a_store_written_by_root_is_read_under_root_control() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
-        ROOT_SIDE_VARIABLE,
-        "worktree_clone_mount::slot_identity_store::tests::a_store_written_by_root_is_read_under_root_control",
-    ) {
-        return;
-    }
-    use std::os::unix::fs::PermissionsExt;
-    let root: PathBuf = fixture("slot-store-root-side");
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(390))]);
-    let read: SlotIdentityStore = SlotIdentityStore::read_under_root_control(path.as_path()).expect("a store written by root reads");
-    assert_eq!(read.parent(), Some(&identity(390)));
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o666)).expect("a store another account can write");
-    let refused: StoreRefusal = SlotIdentityStore::read_under_root_control(path.as_path()).expect_err("a store another account can write is not root's");
-    assert!(matches!(refused, StoreRefusal::NotUnderRootControl { .. }), "{refused:?}");
-    assert!(refused.message().contains("0666"), "the mode is named: {}", refused.message());
-    remove(root.as_path());
-}
-
-/// Environment variable that makes the control below run its inner half,
-/// inside a user namespace of its own,
-/// where this run's own files are root's.
-#[cfg(target_os = "linux")]
-const ROOT_SIDE_WRITES_VARIABLE: &str = "SLOT_IDENTITY_STORE_ROOT_SIDE_WRITES";
-
-/// What:
-///  The route's two writes refuse a store or a lock file this account could rewrite or open,
-///  and record a slot and a parent in a store root wrote.
-/// Why:
-///  A record decides which folder a clone may be attached to,
-///  so a store the account could rewrite decides nothing;
-///  the check stands inside the step that holds the lock,
-///  and the lock file is refused when another account may open it,
-///  because an exclusive `flock` needs no write bit of the file it locks.
-///  Inside a user namespace this run is root and its own files are root's,
-///  so the accept and both refusals are exercised on real files.
-#[cfg(target_os = "linux")]
-#[test]
-fn the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
-        ROOT_SIDE_WRITES_VARIABLE,
-        "worktree_clone_mount::slot_identity_store::tests::the_route_s_writes_refuse_a_store_or_lock_this_account_could_rewrite",
-    ) {
-        return;
-    }
-    let root: PathBuf = fixture("slot-store-root-writes");
-    let path: PathBuf = store(root.as_path(), &[parent_line(&identity(400))]);
-    append_slot_identity_under_root_control(path.as_path(), "one", &identity(401)).expect("a store written by root records a slot");
-    assert_eq!(SlotIdentityStore::read(path.as_path()).expect("store reads").slot("one"), Some(&identity(401)));
-    let lock: PathBuf = store_lock_path(path.as_path());
-    let made: std::fs::Permissions = std::fs::metadata(lock.as_path()).expect("the lock's metadata").permissions();
-    assert_eq!(made.mode() & 0o777, STORE_LOCK_MODE, "the append makes the lock root's own");
-    std::fs::set_permissions(lock.as_path(), std::fs::Permissions::from_mode(0o644)).expect("a lock another account may open");
-    let refused_lock: StoreRefusal = append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect_err("an account that may open the lock could hold it");
-    assert!(matches!(refused_lock, StoreRefusal::NotUnderRootControl { .. }), "{refused_lock:?}");
-    assert!(refused_lock.message().contains("0644"), "the mode is named: {}", refused_lock.message());
-    assert!(refused_lock.message().contains("the lock that keeps two writes to the store apart"), "the lock is named: {}", refused_lock.message());
-    let refused_adoption_lock: StoreRefusal = record_parent_identity_under_root_control(path.as_path(), &identity(406)).expect_err("the adoption refuses a lock another account may open too");
-    assert!(matches!(refused_adoption_lock, StoreRefusal::NotUnderRootControl { .. }), "{refused_adoption_lock:?}");
-    assert!(refused_adoption_lock.message().contains("0644"), "the mode is named: {}", refused_adoption_lock.message());
-    assert!(refused_adoption_lock.message().contains("the lock that keeps two writes to the store apart"), "the lock is named: {}", refused_adoption_lock.message());
-    std::fs::set_permissions(lock.as_path(), std::fs::Permissions::from_mode(STORE_LOCK_MODE)).expect("the lock back to root's own");
-    append_slot_identity_under_root_control(path.as_path(), "two", &identity(402)).expect("a root-owned store records a second slot");
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o666)).expect("a store another account can write");
-    let refused_store: StoreRefusal = append_slot_identity_under_root_control(path.as_path(), "three", &identity(403)).expect_err("a store this account could rewrite decides nothing");
-    assert!(matches!(refused_store, StoreRefusal::NotUnderRootControl { .. }), "{refused_store:?}");
-    assert!(refused_store.message().contains("0666"), "the mode is named: {}", refused_store.message());
-    let refused_parent: StoreRefusal = record_parent_identity_under_root_control(path.as_path(), &identity(404)).expect_err("the adoption refuses it too");
-    assert!(matches!(refused_parent, StoreRefusal::NotUnderRootControl { .. }), "{refused_parent:?}");
-    let recorded_parent: CloneFolderIdentity = identity(405);
-    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o600)).expect("the store back to root's own");
-    record_parent_identity_under_root_control(path.as_path(), &recorded_parent).expect("a root-owned store records the adopted parent");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("store reads");
-    assert_eq!(read.parent(), Some(&recorded_parent));
-    assert_eq!(read.slot("two"), Some(&identity(402)), "the adoption keeps every slot record");
-    let absent: PathBuf = root.join("absent-store");
-    let refused_absent: StoreRefusal = record_parent_identity_under_root_control(absent.as_path(), &recorded_parent).expect_err("an adoption never invents the store");
-    assert!(matches!(refused_absent, StoreRefusal::Missing { .. }), "{refused_absent:?}");
-    assert!(!absent.exists(), "the adoption wrote no store");
-    assert!(!store_lock_path(absent.as_path()).exists(), "the adoption made no lock file beside a store that is not there");
-    remove(root.as_path());
-}
-
-/// Environment variable that makes `the_route_s_writers_hold_the_lock_step_the_grammar_s_do` run its inner half,
-/// inside a user namespace of its own,
-/// where this run's own files are root's.
-#[cfg(target_os = "linux")]
-const ROOT_SIDE_ROUTE_WRITERS_VARIABLE: &str = "SLOT_IDENTITY_STORE_ROOT_SIDE_ROUTE_WRITERS";
-
-/// What:
-///  The route's two writers hold the lock step the grammar's own writers do:
-///  an adoption asked for while the route's append holds the lock refuses and drops no record,
-///  and the route's append reads the store only after it holds the lock.
-/// Why:
-///  `mod.rs` re-exports these two writers and nothing else,
-///  so they are the ones production calls and the ones an edit can break with no red;
-///  the same two scenarios run through `the_adoption_waits_for_the_append_s_lock` and
-///  `a_rewrite_between_the_lock_and_the_open_still_receives_the_record`,
-///  and this control proves the pair the route actually uses.
-///  Inside a user namespace this run is root and its own files are root's,
-///  so the route's root-control checks pass on the fixtures.
-#[cfg(target_os = "linux")]
-#[test]
-fn the_route_s_writers_hold_the_lock_step_the_grammar_s_do() {
-    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
-        ROOT_SIDE_ROUTE_WRITERS_VARIABLE,
-        "worktree_clone_mount::slot_identity_store::tests::the_route_s_writers_hold_the_lock_step_the_grammar_s_do",
-    ) {
-        return;
-    }
-    the_adoption_waits_for_the_append_s_lock("slot-store-route-adoption-under-the-lock", append_slot_identity_under_root_control, record_parent_identity_under_root_control);
-    a_rewrite_between_the_lock_and_the_open_still_receives_the_record("slot-store-route-open-after-the-lock", append_slot_identity_under_root_control);
-}
-
-/// What:
-///  The store example in `SPEC.md` is a store this reader reads,
-///  and its ACL field is the kernel's own blob rather than any bytes.
-/// Why:
-///  A person copies those lines into the file the setup run writes,
+///  A person copies those files into the setup run's store,
 ///  so an example the reader refuses teaches two wrong things at once:
 ///  that a comment may stand above the header,
 ///  and that any bytes are a kernel ACL.
 #[test]
 fn the_specification_s_store_example_is_a_store_this_reader_reads() {
+    let root: PathBuf = fixture("store-example");
+    let folder: PathBuf = store_folder(root.as_path());
     let spec: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/SPEC.md")).expect("the specification");
-    let example: String = the_store_example(spec.as_str());
-    let root: PathBuf = fixture("slot-store-example");
-    let path: PathBuf = root.join("slot-identities");
-    std::fs::write(&path, example.as_bytes()).expect("the specification's example");
-    let read: SlotIdentityStore = SlotIdentityStore::read(path.as_path()).expect("the specification's example is a store this reader reads");
-    let parent: &CloneFolderIdentity = read.parent().expect("the example records the parent folder");
-    assert!(read.slot("example").is_some(), "the example records one slot");
+    let example: Vec<String> = the_store_example(spec.as_str());
+    assert_eq!(example.len(), 3, "the section shows three files: the parent's and two slots'");
+    for (index, name) in [PARENT_RECORD_NAME, "add-cache-layer", "fix-flaky-test"].iter().enumerate() {
+        std::fs::write(folder.join(name), example[index].as_bytes()).expect("the specification's example file");
+    }
+    let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the specification's example is a store this reader reads");
+    let parent: CloneFolderIdentity = read.parent().expect("the example records the parent folder");
+    assert!(read.slot("add-cache-layer").is_ok() && read.slot("fix-flaky-test").is_ok(), "the example records two slots");
+    assert_eq!(read.slot_names().expect("the listing reads"), vec![String::from("add-cache-layer"), String::from("fix-flaky-test")]);
     let access: &[u8] = parent.access_acl.as_deref().expect("the example shows an access ACL");
     assert_eq!(access.get(..4), Some([0x02, 0x00, 0x00, 0x00].as_slice()), "the kernel's version word comes first");
     assert_eq!(access.len() % 8, 4, "a version word and then eight bytes per ACL entry, and no other length is a blob");
@@ -770,196 +862,25 @@ fn the_specification_s_store_example_is_a_store_this_reader_reads() {
     remove(root.as_path());
 }
 
-/// The record lines of the specification's store example,
-/// which is the first `text` block of the store section,
-/// as the file would hold them.
-fn the_store_example(spec: &str) -> String {
+/// The files of the specification's store example,
+/// which is the first three `text` blocks of the store section,
+/// as each file would hold them.
+fn the_store_example(spec: &str) -> Vec<String> {
     let heading: usize = spec.find("#### The recorded identities store").expect("the store section");
-    let opening: usize = heading + spec[heading..].find("```text\n").expect("the store example") + "```text\n".len();
-    let closing: usize = opening + spec[opening..].find("```").expect("the example's closing fence");
-    return String::from(&spec[opening..closing]);
-}
-
-/// A store text of `count` slot records below one parent record,
-/// which is the small store the hold measurement uses.
-fn a_store_of_slots(count: usize) -> String {
-    let parent: CloneFolderIdentity = identity(600);
-    let mut text: String = String::from(HEADER);
-    text.push('\n');
-    text.push_str(parent_line(&parent).as_str());
-    text.push('\n');
-    for index in 0..count {
-        text.push_str(slot_line(format!("slot-{index:04}").as_str(), &identity(1000 + index as u64)).as_str());
-        text.push('\n');
-    }
-    return text;
-}
-
-/// An identity carrying an access ACL of `MEASUREMENT_ACL_BYTES`,
-/// because a stored ACL is what makes one record wide.
-fn wide_identity(inode: u64) -> CloneFolderIdentity {
-    let mut wide: CloneFolderIdentity = identity(inode);
-    wide.access_acl = Some(vec![0x02; MEASUREMENT_ACL_BYTES]);
-    return wide;
-}
-
-/// A store text of exactly `bytes` bytes:
-/// one parent record,
-/// as many slot records as fit below that size,
-/// and a comment line that lands the file exactly on it.
-/// The slot records are `wide_identity` records,
-/// and comment padding alone would measure a store whose lines the reader skips.
-fn a_store_of_whole_bytes(bytes: usize) -> String {
-    let parent: CloneFolderIdentity = identity(700);
-    let mut text: String = String::from(HEADER);
-    text.push('\n');
-    text.push_str(parent_line(&parent).as_str());
-    text.push('\n');
-    let mut index: u64 = 0;
-    loop {
-        let line: String = slot_line(format!("slot-{index:05}").as_str(), &wide_identity(2000 + index));
-        // A record and its newline, and the last comment keeps its own two characters and newline.
-        if text.len() + line.len() + 1 + 2 > bytes {
+    let mut files: Vec<String> = Vec::new();
+    let mut cursor: usize = heading;
+    while files.len() < 3 {
+        let Some(fence) = spec[cursor..].find("```text\n") else {
             break;
+        };
+        let opening: usize = cursor + fence + "```text\n".len();
+        let closing: usize = opening + spec[opening..].find("```").expect("the block's closing fence");
+        let block: &str = &spec[opening..closing];
+        // Only the example's file blocks hold a record this grammar reads.
+        if block.starts_with(STORE_HEADER) {
+            files.push(String::from(block));
         }
-        text.push_str(line.as_str());
-        text.push('\n');
-        index += 1;
+        cursor = closing;
     }
-    let rest: usize = bytes - text.len();
-    if rest > 1 {
-        text.push('#');
-        text.push_str("0".repeat(rest - 2).as_str());
-        text.push('\n');
-    }
-    return text;
-}
-
-/// A store text of exactly the bytes one read accepts:
-/// the widest store the writer refuses to grow.
-fn the_widest_store() -> String {
-    let bound: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
-    return a_store_of_whole_bytes(bound);
-}
-
-/// What:
-///  A store text whose rewrite with `parent` is exactly `bytes` bytes.
-/// Why:
-///  The rewrite keeps every slot record and drops comment lines,
-///  so the file it publishes is the header,
-/// the parent record and the slot records alone;
-///  this builds that text,
-///  with the names of the last two slot records lengthened to land it exactly on the size a control asks for.
-///  Two names and not one,
-///  because one name of at most 255 bytes cannot fill every remainder below one record's width.
-fn a_rewrite_of_whole_bytes(bytes: usize, parent: &CloneFolderIdentity) -> String {
-    let fixed: String = format!("{}\n", slot_line("slot-0000", &wide_identity(3000)));
-    // What a tail record holds beside its name: the record's own bytes and its newline.
-    let tail_width: usize = format!("{}\n", slot_line("", &identity(4000))).len();
-    // Two tail names of at least one byte, and the two bytes that leave room for both.
-    let reserve: usize = 2 * tail_width + 2;
-    let mut text: String = String::from(HEADER);
-    text.push('\n');
-    text.push_str(parent_line(parent).as_str());
-    text.push('\n');
-    assert!(bytes >= text.len() + reserve, "a rewrite of {bytes} bytes leaves room for two slot records");
-    let mut index: u64 = 0;
-    while text.len() + fixed.len() + reserve <= bytes {
-        text.push_str(format!("{}\n", slot_line(format!("slot-{index:04}").as_str(), &wide_identity(3000 + index))).as_str());
-        index += 1;
-    }
-    let names: usize = bytes - text.len() - 2 * tail_width;
-    let first: usize = names / 2;
-    text.push_str(format!("{}\n", slot_line("t".repeat(first).as_str(), &identity(4000))).as_str());
-    text.push_str(format!("{}\n", slot_line("u".repeat(names - first).as_str(), &identity(4001))).as_str());
-    assert_eq!(text.len(), bytes, "the rewrite this fixture describes is exactly {bytes} bytes");
-    return text;
-}
-
-/// The holds of `samples` writes of `text` to `store`,
-/// in milliseconds,
-/// each sample starting from the same store.
-fn holds_of(store: &Path, text: &str, samples: usize, write: impl Fn(&Path, usize)) -> Vec<f64> {
-    let mut holds: Vec<f64> = Vec::with_capacity(samples);
-    for sample in 0..samples {
-        std::fs::write(store, text).expect("the store of this sample");
-        let began: std::time::Instant = std::time::Instant::now();
-        write(store, sample);
-        holds.push(began.elapsed().as_secs_f64() * 1_000.0);
-    }
-    return holds;
-}
-
-/// One arm's holds printed as the measurement line
-/// `package/git-policy/cli/doc/slot-identity-store-lock-hold.md` quotes,
-/// with the bytes the store held before the sample.
-fn print_hold(what: &str, bytes: u64, holds: &[f64]) {
-    let mut ordered: Vec<f64> = holds.to_vec();
-    ordered.sort_by(|left, right| return left.partial_cmp(right).expect("no sample is a NaN"));
-    let median: f64 = ordered[ordered.len() / 2];
-    println!(
-        "MEASUREMENT store-hold {what} bytes={bytes} samples={} min_ms={:.3} median_ms={:.3} max_ms={:.3}",
-        ordered.len(),
-        ordered[0],
-        median,
-        ordered[ordered.len() - 1],
-    );
-}
-
-/// What:
-///  The hold one write to the store takes on one file system,
-///  printed for `STORE_LOCK_WAIT`'s citation rather than asserted.
-/// Why:
-///  The shipped wait and pause cite measurements,
-///  and a citation whose probe is no longer in the repository cannot be repeated or checked;
-///  this is that probe,
-///  and it is ignored because it times a file system instead of checking a behaviour
-///  (`package/git-policy/cli/doc/slot-identity-store-lock-hold.md`).
-///  An arm times the writer's whole hold:
-///  the read,
-///  the check,
-///  the line,
-///  the file's `fsync`,
-///  the folder's `fsync`,
-///  and,
-/// for the adoption,
-/// the rename that publishes the file.
-#[test]
-#[ignore = "a measurement of one file system's hold, not a control; name the root to measure with MONOCHROMATIC_STORE_HOLD_MEASUREMENT_ROOT"]
-fn a_store_write_s_hold_is_measured_for_the_lock_wait() {
-    let parent: PathBuf = match std::env::var_os(MEASUREMENT_ROOT_VARIABLE) {
-        Some(named) => PathBuf::from(named),
-        None => fixture("slot-store-hold-measurement"),
-    };
-    std::fs::create_dir_all(&parent).expect("the measurement root");
-    let root: PathBuf = parent.join(format!("hold-{}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("the measurement's own folder");
-    let small_text: String = a_store_of_slots(MEASUREMENT_SLOT_COUNT);
-    // The wide arms time the widest write the store accepts: an append to a store one record below the bound, which
-    // lands exactly on it. A store of the whole bound refuses that append (`StoreRefusal::WouldNotFit`), so timing it
-    // would time a refusal.
-    let boundary: usize = usize::try_from(STORE_MAXIMUM_BYTES).expect("the bound fits this machine's pointer width");
-    let room: usize = slot_line("measure-0000", &identity(901)).len() + 1;
-    let wide_text: String = a_store_of_whole_bytes(boundary - room);
-    let wide: PathBuf = root.join("wide-store");
-    std::fs::write(&wide, wide_text.as_str()).expect("the wide store");
-    assert!(SlotIdentityStore::read(wide.as_path()).is_ok(), "positive control: the wide store is one the reader accepts");
-
-    let small: PathBuf = root.join("small-store");
-    let small_holds: Vec<f64> = holds_of(small.as_path(), small_text.as_str(), MEASUREMENT_SMALL_SAMPLES, |store, sample| {
-        append_slot_identity(store, format!("measure-{sample:04}").as_str(), &identity(900)).expect("the append");
-    });
-    print_hold("append-small-store", small_text.len() as u64, small_holds.as_slice());
-
-    let append_holds: Vec<f64> = holds_of(wide.as_path(), wide_text.as_str(), MEASUREMENT_WIDE_SAMPLES, |store, sample| {
-        append_slot_identity(store, format!("measure-{sample:04}").as_str(), &identity(901)).expect("the widest append the store accepts");
-    });
-    assert_eq!(std::fs::metadata(wide.as_path()).expect("metadata").len(), STORE_MAXIMUM_BYTES, "the wide append landed exactly on the bound");
-    print_hold("append-widest-store", wide_text.len() as u64, append_holds.as_slice());
-
-    let adoption_holds: Vec<f64> = holds_of(wide.as_path(), wide_text.as_str(), MEASUREMENT_WIDE_SAMPLES, |store, sample| {
-        record_parent_identity(store, &identity(902 + sample as u64)).expect("the adoption");
-    });
-    print_hold("adoption-widest-store", wide_text.len() as u64, adoption_holds.as_slice());
-    remove(root.as_path());
+    return files;
 }

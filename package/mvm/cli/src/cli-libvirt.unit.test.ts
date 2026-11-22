@@ -41,6 +41,12 @@ const DOMAINS = [
   },
 ];
 
+/**
+ Path of the troubleshooting document the fallback warning must name.
+ */
+const TROUBLESHOOTING_DOC =
+  'doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md';
+
 await describe({
   name: 'mvm with configured or detected libvirt tools',
   children: [
@@ -59,7 +65,14 @@ await describe({
         expect(result.stdout,).toContain('dev',);
         expect(result.stdout,).toContain('running',);
         expect(result.stdout,).not.toContain('someone-elses-vm',);
+        // The first call asks whether a session daemon answers; the second is the listing. Both ask libvirt for the same table.
         expect(await sandbox.calls(),).toEqual([
+          [
+            '--connect',
+            'qemu:///session',
+            'list',
+            '--all',
+          ],
           [
             '--connect',
             'qemu:///session',
@@ -122,20 +135,18 @@ await describe({
     },),
 
     it({
-      name: 'says how to start the session daemon inside the Flatpak when virsh cannot connect',
+      name: 'lets the Flatpak\'s virsh start the daemon and warns when there is no systemd-run',
       fn: async () => {
-        await using sandbox = await createSandbox({ connectFailure: true, },);
+        await using sandbox = await createSandbox({ sessionDaemon: 'on-demand', },);
         await installFakeFlatpak(sandbox,);
         const result = await runCli({
           args: ['list',],
           sandbox,
         },);
-        expect(result.exitCode,).not.toBe(0,);
-        expect(result.stderr,).toContain('virsh could not connect to libvirt\'s session daemon',);
-        expect(result.stderr,).toContain('virtqemud-sock',);
-        expect(result.stderr,).toContain(
-          'flatpak run --command=virtqemud org.virt_manager.virt-manager --verbose',
-        );
+        // The daemon may start on demand only after mvm gave up on its own unit, so a clean run proves the fallback.
+        expect(result.exitCode,).toBe(0,);
+        expect(result.stderr,).toContain('mvm found no systemd-run on PATH',);
+        expect(result.stderr,).toContain(TROUBLESHOOTING_DOC,);
       },
     },),
 

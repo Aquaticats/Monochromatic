@@ -239,15 +239,23 @@ pub struct CommitContent {
 /// not a plain commit,
 /// or written with an encoding Git would convert.
 /// Why:
-///   One read answers both questions the landing asks of a commit it built or landed.
+///   One read answers both questions the landing asks of a commit it built or landed,
+/// which a reflog row repeats,
+/// and a commit Git built carries its message only in the object.
+/// A store this reader declines (a replace ref,
+///  a reftable ref store) is asked of Git instead,
+/// which answers the message and parents it reads there;
+/// a caller that took the decline as an answer wrote an empty subject and no parents.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const readCommitContent = (commonDir, commit) => parseCommit(readObject(commonDir, commit));
 /// ```
-pub fn commit_content(common_dir: &Path, commit: &str) -> Option<CommitContent> {
+pub fn commit_content(git: &GitContext, repository: &Path, common_dir: &Path, commit: &str) -> Option<CommitContent> {
     let format: ObjectFormat = format_of(commit);
-    let database: ObjectDatabase = ObjectDatabase::open(common_dir, None, format)?;
+    let Some(database) = ObjectDatabase::open(common_dir, None, format) else {
+        return content_git_reads(git, repository, commit);
+    };
     let object = database.read(from_hex(commit.as_bytes(), format)?.as_slice())?;
     if object.kind != ObjectKind::Commit {
         return None;
@@ -257,23 +265,43 @@ pub fn commit_content(common_dir: &Path, commit: &str) -> Option<CommitContent> 
 }
 
 /// What:
+///  The same facts for a repository whose object store this reader declines,
+/// asked of Git:
+/// `git cat-file commit <name>` prints the object Git reads,
+/// the replacement a replace ref names included.
+/// Why:
+///   The reader declines a store it cannot vouch for rather than answer an object Git replaces,
+/// so the message and parents must come from the program that knows the replacements.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const contentGitReads = (git, repository, commit) => parseCommit(git(['cat-file', 'commit', commit]).stdout);
+/// ```
+fn content_git_reads(git: &GitContext, repository: &Path, commit: &str) -> Option<CommitContent> {
+    let bytes: Vec<u8> = crate::service_object_questions_left_to_git::commit_bytes(git, repository, commit)?;
+    let fields = parse_commit(bytes.as_slice(), format_of(commit))?;
+    return Some(CommitContent { parents: hex_of_parents(&fields.parents), tree: fields.tree, message: fields.message });
+}
+
+/// What:
 ///  The parents of the commit `built`;
 /// `None` when Git is to say (the object is not a plain commit,
 /// or the repository's
-///  history is rewritten by grafts,
-/// a shallow file or replacement objects).
+///  history is rewritten by grafts or a shallow file).
 /// Why:
-///   `git rev-list --parents --max-count=1 <commit>` prints the commit and these parents.
+///   `git rev-list --parents --max-count=1 <commit>` prints the commit and these parents,
+/// and a store this reader declines is asked of Git through `commit_content`,
+/// so the amend's base keeps Git's parents.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// readCommit(commonDir, built)?.parents
 /// ```
-pub fn read_commit(common_dir: &Path, built: &str) -> Option<BuiltCommit> {
+pub fn read_commit(git: &GitContext, repository: &Path, common_dir: &Path, built: &str) -> Option<BuiltCommit> {
     if history_is_rewritten(common_dir) {
         return None;
     }
-    let content: CommitContent = commit_content(common_dir, built)?;
+    let content: CommitContent = commit_content(git, repository, common_dir, built)?;
     return Some(BuiltCommit { name: from_hex(built.as_bytes(), format_of(built))?, parents: content.parents, tree: content.tree });
 }
 
