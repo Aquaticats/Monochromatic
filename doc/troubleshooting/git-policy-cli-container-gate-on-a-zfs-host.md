@@ -1706,6 +1706,47 @@ and a start that ended sooner ran nothing: 546.502363ms`
 Green with the plant removed:
 `2 tests run: 2 passed`.
 
+### This round's gate, on the fix
+
+The whole container gate of the fix ran as its own capped unit,
+`ssc-6344-shadow-gate-20261122`,
+started 2026-11-22T16:51:52-05:00 with `RuntimeMaxSec=3600`,
+on image `localhost/git-policy-native-test:ssc-6344-20261122T165142-0500`
+(run `native-2KpJix`),
+with the gate's four test threads and their 1024 processes:
+
+```text
+Summary [ 917.011s] 9879 tests run: 9876 passed (7 slow), 3 failed, 36 skipped
+```
+
+Both controls passed there:
+the sibling `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
+at 0.965 s (test 6050 of 9879),
+and `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
+at 1.153 s (6054 of 9879),
+so neither window failed and the lower bound held under the gate's contention.
+Its Clippy step finished clean
+(`Finished `dev` profile [unoptimized] target(s) in 3m 21s`).
+
+Two of the three failures are the cause-H pair named above.
+The third is
+`worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`,
+the control cause G records:
+it failed with `the sweep removed the worktree whose branch landed`,
+and the product's own words there say the removal went to the commit service
+and that the branch `refs/heads/feature` is now on `main`.
+Run alone on this host afterwards it passed (5.469 s),
+which is the shape cause G records for it.
+No failure of cause I appeared,
+nor of cause J or K,
+and nothing of issue 6342 did either:
+nothing else failed,
+so there was nothing to run alone.
+The total is two above the 9877 of issue 6343's gates
+because `473dccebbc` (the subvolume record's branch) landed two controls
+between those runs and this one,
+not because this branch adds a test.
+
 ### What the controls ask of the host now
 
 - The sibling control asks for one cut:
