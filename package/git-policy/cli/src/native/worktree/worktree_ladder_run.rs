@@ -273,16 +273,17 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
                 //  the entries of the paths it changes, so such a tree difference ends the rung after the snapshot and pays
                 //  Git's whole checkout over it (`doc/planning/cli-git-clone-rung-conversion-fence.md`, "Limitations").
                 //  The fence's own answer is the set, so one name-only read decides it;
-                //  a source with changes is restored to its `HEAD` rather than tree-differenced, so it is not this case.
+                //  a source with changes is restored to its `HEAD` rather than tree-differenced, so it is not this case,
+                //  and a fence that hands Git no path at all pays no read.
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
-                // const skip = source.dirty ? undefined : skipReasonForTheTargetTree(source, context, plan, (changed) => firstWrittenChange(fence, changed));
+                // const skip = source.dirty ? undefined : skipReasonForTheTargetTree(source, context, plan, fence.gitWrites.length > 0, (changed) => firstWrittenChange(fence, changed));
                 // if (skip) return { rung: git, slow: explainDecline(skip) };
                 // ```
                 let skip_entered: bool = begin_step("targetTreeDifference");
                 let skip: Option<String> = match source.dirty.is_none() {
-                    true => crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, &|changed: &[Vec<u8>]| {
+                    true => crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, !fence.git_writes.is_empty(), &|changed: &[Vec<u8>]| {
                         return crate::worktree_clone_conversion_fence::first_written_change(&fence, changed);
                     }),
                     false => None,
@@ -343,24 +344,31 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
             }
         };
         // What:
-        //  A target tree that changes a path this fence hands to Git ends the rung here,
+        //  A target tree that changes a path this fence cannot serve ends the rung here,
         //  before the add's record is claimed and before the first copy.
         // Why:
         //  The paths the fence installs without stat data are exactly what `git read-tree -m -u` refuses when the target
         //  tree changes one of them, and the fallback then pays the copies and Git's whole checkout over them
         //  (`doc/planning/cli-git-clone-rung-conversion-fence.md`, "Limitations").
+        //  A link the copies make again is the same refusal: its index entry cannot describe the destination's link.
         //  The attributes half already names every path a rule of its own converts, which is what this rung can answer
         //  before its copies; a path the size proof would still hand to Git is left to the rung's own ending.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const skip = skipReasonForTheTargetTree(source, context, plan, (changed) => firstConvertingChange(fence, changed));
+        // const couldMatter = fence.kind === 'beside' ? fence.read.aChangedPathCouldMatter() : fence.decided.gitWrites.length > 0;
+        // const skip = skipReasonForTheTargetTree(source, context, plan, couldMatter, (changed) => firstChangeItCannotServe(fence, changed));
         // if (skip) return { rung: git, slow: explainDecline(skip) };
         // ```
+        let a_changed_path_could_matter: bool = match &fence {
+            CloneFence::Beside(read) => read.a_changed_path_could_matter(),
+            #[cfg(feature = "measurement-routes")]
+            CloneFence::BeforeTheClone(decided) => !decided.git_writes.is_empty(),
+        };
         let skip_entered: bool = begin_step("targetTreeDifference");
-        let skip: Option<String> = crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, &|changed: &[Vec<u8>]| {
+        let skip: Option<String> = crate::worktree_ladder_target_tree_skip::skip_reason_for_the_target_tree(&source, context, plan, a_changed_path_could_matter, &|changed: &[Vec<u8>]| {
             return match &fence {
-                CloneFence::Beside(read) => read.first_converting_change(changed),
+                CloneFence::Beside(read) => read.first_change_it_cannot_serve(changed),
                 #[cfg(feature = "measurement-routes")]
                 CloneFence::BeforeTheClone(decided) => crate::worktree_clone_conversion_fence::first_written_change(decided, changed),
             };
