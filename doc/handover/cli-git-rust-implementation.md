@@ -41458,7 +41458,15 @@ stated in this entry. What follows from them, as work:
   (recorded in the decision record, "Who removes a killed writer's staging file"). GOING:
   `pi-zfs-slot-identity-store-sweep-unlisted` in the build worktree (the sweep's removal out, a control that a sweep lists
   nothing, SPEC, design and plan step 18; brief under `~/temp/agent/zfs-slot-identity-store-sweep-unlisted-2026-11-21/`);
-  then its integration pass on Sonnet. Step 7's
+  then its integration pass on Sonnet. THE PARTIAL CLONE ROUND ended at `e8169161d6` (`main` merged as `ec4dd92ae2`; the
+  prototype's dirty path takes the fence's beside shape, writes the union of the split's and the fence's paths through Git
+  under the waiting index): dirty adds of this tree 0.64 of `main` (3 changed, range 0.23 to 2.84), 0.74 (300), 0.86
+  (6,000); the dirty small-file tree 1.44, which option B hands to Git's checkout at 0.91; ranking B > A > D > C; the
+  waiver's dirty half met by A on this tree's shapes, its small-file half not endable by this proposal (a clean source
+  never takes the partial clone and that cost is now `main`'s own fenced rung); harness 27 of 27, sample 300 of 300; four
+  red proofs not re-planted. GOING: its gate re-check on Sonnet (to
+  `~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`), rerunning three shapes
+  against the wide spreads; then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
