@@ -827,10 +827,10 @@ Read-only commands,
      or its decline rule,
      ends the rung and Git's own checkout completes the worktree.
      The size read starts before the source check on this rung,
-     as a task of the process's runtime,
+     on a thread of its own,
      and is joined at the fence under a ceiling,
      so the check and the attribute read hide most of it;
-     it runs with `GIT_NO_LAZY_FETCH=1`,
+     that read runs with `GIT_NO_LAZY_FETCH=1`,
      so a partial clone fetches nothing,
      and its answer is used only when it listed the commit the check proved,
      with another commit left for the fence to read itself.

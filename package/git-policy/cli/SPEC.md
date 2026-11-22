@@ -1458,9 +1458,9 @@ which is why rung 1 is the one rung where the read leaves the add's waiting path
 it needs only the source's root,
 the commit `HEAD` names and the object format,
 all answered in process from the plain ref files,
-so it starts as a task of the process's runtime before `checkSource`
+so it starts on a thread of its own before `checkSource`
 (`worktree_clone_conversion_size_read.rs`).
-It runs `git ls-tree -r -l -z` of that commit with `GIT_NO_LAZY_FETCH=1`,
+That read runs `git ls-tree -r -l -z` of that commit with `GIT_NO_LAZY_FETCH=1`,
 so a partial clone fetches nothing into a source the check may refuse,
 and it leaves the process-wide failed-step note alone
 (`GitRequest::beside_another_step`),
@@ -1469,23 +1469,25 @@ At the fence it is joined inside the step that decides the attributes and the pa
 under the plumbing step's ceiling plus the wait the runner gives an ended child,
 and its answer decides the paths only when the commit it listed is the one the check proved;
 a read of another commit is left unused and the fence reads the proved commit itself.
-A read that answers nothing within that join (a task that dies,
+A read that answers nothing within that join (a thread that dies,
 a thread the system refuses,
 a read held past its own ceiling)
 ends the rung in the sentence a failed read gives,
-never in a wait.
+never in a wait:
+the join is a receive with a deadline,
+measured from entering it,
+and the read's own runner still ends its Git step at that step's ceiling.
 A snapshot copies everything anyway,
 so this rung has no copy to run the read beside;
 rung 2 keeps the read beside its copies.
-An add that ends before that join (a source check that refuses,
-an untracked `.gitattributes`,
-or the decline rule)
-pays the read in the background,
+An add that ends before that join pays the read in the background,
 usually while Git's own checkout runs,
-and its time is the record's `fenceSizesBesideTheCheck` work:
-so such an add is Git's own checkout plus the `git check-attr` read and the count over it,
-and this read:
-the size read is the one Git run a refused or declined rung-1 add has that it did not have before,
+and its time is the record's `fenceSizesBesideTheCheck` work.
+Which of its other reads it already paid depends on where it ends:
+a source check that refuses costs Git's own checkout and this read,
+an untracked `.gitattributes` costs those and no `git check-attr`,
+and the decline rule costs those and the `git check-attr` read and the count over it.
+The size read is the one Git run a refused or declined rung-1 add has that it did not have before,
 and the rule that a refused rung costs no extra Git run is amended for it.
 Measured on one packed source of 25,034 objects in a btrfs guest
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
