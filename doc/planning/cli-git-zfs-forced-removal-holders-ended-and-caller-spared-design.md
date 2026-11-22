@@ -2554,6 +2554,10 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   2026-11-22T18:30:33-05:00:
   this revision list,
   and the final newline.
+- `9949210964`,
+  2026-11-22T18:32:03-05:00:
+  the paragraph that says the caller property carries the wrapper's identity rather than each chain entry,
+  and why.
 
 ## What this revision left as it was
 
