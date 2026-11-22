@@ -826,9 +826,19 @@ Read-only commands,
      and a fence that cannot read its inputs,
      or its decline rule,
      ends the rung and Git's own checkout completes the worktree.
-     The fence's two reads are on this rung's waiting path:
-     a snapshot copies everything anyway,
-     so there is no copy for them to run beside.
+     The size read starts before the source check on this rung,
+     as a task of the process's runtime,
+     and is joined at the fence under a ceiling,
+     so the check and the attribute read hide most of it;
+     it runs with `GIT_NO_LAZY_FETCH=1`,
+     so a partial clone fetches nothing,
+     and its answer is used only when it listed the commit the check proved,
+     with another commit left for the fence to read itself.
+     A snapshot copies everything anyway,
+     so this rung is the only one where the read needed moving:
+     rung 2 keeps it beside its copies.
+     A refused or declined add pays that read in the background,
+     and the timing record states it as `fenceSizesBesideTheCheck` work.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
