@@ -389,6 +389,30 @@ and the project answered each in the question tool on 2026-11-21:
   drop hold-mode (Recommended)".
   So `CLI_GIT_TEST_ONLY_START_PROBE` keeps `disabled` and `hold-<step>` only.
 
+## Answer of 2026-11-22: the probe needs no configuration file
+
+Recorded 2026-11-22T14:27:54-05:00.
+On 2026-11-22 the project said of the sweep's configuration that everything must work by default with no configuration,
+and then answered "1:
+no file needed (Recommended)"
+(`cli-git-zfs-step-8-sweep-choices.md`,
+section "With no configuration file").
+For the probe that amends two things this record and its design said:
+
+- With no configuration file,
+  or with a file that lacks the `startProbe` object,
+  the probe finds its dataset by the name this record's Q3 gives it
+  (`nosnap/git-worktree-probe` in the pool that holds the checkout,
+  with the snapshot `ready`)
+  and its checkout the way the sweep finds one.
+  Before this answer a missing file left the record `blocked` with `configuration-missing`.
+- The configuration field that step 18's `doctor` prints is no longer something the owner must apply for the route to work.
+  The setup's printed commands still write the file,
+  and a file that is present wins.
+
+Creating the probe dataset stays the owner's act through the setup steps,
+as Q3 and the design say.
+
 [answered]: ../planning/cli-git-zfs-start-probe-design.md#questions-the-owner-answered
 [design]: ../planning/cli-git-zfs-start-probe-design.md
 [owed]: ../planning/cli-git-zfs-start-probe-design.md#owed-measurements

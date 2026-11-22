@@ -28,6 +28,44 @@ writes both names into the root-owned configuration file itself,
 and when the file holds no names the handler finds the two datasets by those design names.
 No person edits the file by hand.
 
+### With no configuration file
+
+Recorded 2026-11-22T14:27:54-05:00,
+after step 8 merged as `00d857a435` and its recheck ran the built sweep with no file
+(`~/temp/agent/integration-recheck-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`,
+"Owner item 1"):
+with no file,
+with an empty object,
+or with only a `startProbe` object,
+the sweep exited 2 and attached nothing,
+because `cloneMounts.checkout` was required,
+and the start probe needed its own `startProbe.dataset` and `startProbe.checkout`.
+
+The project answered "1:
+no file needed (Recommended)".
+With no file,
+the root handler finds the checkout as the one mounted ZFS dataset whose last name component is
+`monochromatic-git-checkout`,
+takes the container beside it,
+and the start probe finds its dataset by its design name too.
+Only a dataset that is mounted counts.
+When the name matches none or several,
+the handler refuses and lists them.
+The setup still writes the file,
+and a file that is present wins.
+
+Not taken:
+"2:
+setup writes whole file",
+which pins every entry in the root-owned file and stops the route when the file is missing
+(the recheck ranked it first,
+because under the chosen answer a root program picks its target by name);
+and "3:
+keep as built".
+
+The start probe's side of this answer is recorded in `cli-git-zfs-start-probe.md`,
+section "Answer of 2026-11-22".
+
 ### Receipts for refusals
 
 "C:
