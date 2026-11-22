@@ -34,10 +34,7 @@ struct Fixture {
 impl Fixture {
     /// A fresh folder under this process's own temporary root.
     fn new(name: &str) -> Self {
-        let path: PathBuf = std::env::temp_dir().join(format!("attaching-sweep-mode-{name}-{}", std::process::id()));
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(path.as_path());
-        std::fs::create_dir_all(path.as_path()).expect("the fixture folder is made");
-        return Fixture { path };
+        return Fixture { path: crate::test_support::fixture(format!("attaching-sweep-mode-{name}").as_str()) };
     }
 
     /// Write one configuration document and answer its path.
@@ -48,12 +45,6 @@ impl Fixture {
     }
 }
 
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(self.path.as_path());
-    }
-}
-
 /// The installed places are the design's own four paths.
 #[test]
 fn the_installed_places_are_the_designs() {
@@ -61,7 +52,7 @@ fn the_installed_places_are_the_designs() {
     assert_eq!(places.configuration, PathBuf::from(CONFIGURATION_PATH));
     assert_eq!(places.store, PathBuf::from(SLOT_IDENTITY_STORE_PATH));
     assert_eq!(places.probe_record, PathBuf::from(RECORD_DIRECTORY).join(RESULT_NAME));
-    let fixture: PathBuf = std::env::temp_dir().join("a-fixture-configuration");
+    let fixture: PathBuf = crate::test_support::fixture("a-fixture-configuration");
     let handed: SweepPlaces = SweepPlaces::at(fixture.clone(), PathBuf::from("/fixture/store"), PathBuf::from("/fixture/record"));
     assert_eq!(handed.configuration, fixture);
     assert_ne!(handed.store, places.store, "a control's store is never the installed one");

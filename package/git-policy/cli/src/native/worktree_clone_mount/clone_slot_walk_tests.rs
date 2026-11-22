@@ -139,7 +139,7 @@ fn the_first_observation_walk_still_compares_the_parent() {
     built.record("one", &changed, &built.slot_identity());
     let refused: CloneSlotRefusal = observe_the_clone_slot(&request(&built, "one")).expect_err("the parent is compared first");
     assert!(names_parent_field(&refused, "inode"), "{refused:?}");
-    let _removed: std::io::Result<()> = std::fs::remove_file(built.store.join("one"));
+    let _record_removed: std::io::Result<()> = std::fs::remove_file(built.store.join("one"));
     remove(built.checkout.parent().expect("root"));
 }
 

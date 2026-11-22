@@ -48,10 +48,7 @@ struct Fixture {
 impl Fixture {
     /// A fresh folder under this process's own temporary root.
     fn new(name: &str) -> Self {
-        let path: PathBuf = std::env::temp_dir().join(format!("sweep-preconditions-{name}-{}", std::process::id()));
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(path.as_path());
-        std::fs::create_dir_all(path.as_path()).expect("the fixture folder is made");
-        return Fixture { path };
+        return Fixture { path: crate::test_support::fixture(format!("sweep-preconditions-{name}").as_str()) };
     }
 
     /// The folder,
@@ -74,12 +71,6 @@ impl Fixture {
     /// The record's path.
     fn record(&self) -> PathBuf {
         return self.path.join("probe-record");
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(self.path.as_path());
     }
 }
 

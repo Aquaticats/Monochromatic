@@ -38,10 +38,7 @@ struct Fixture {
 impl Fixture {
     /// A fresh folder under this process's own temporary root.
     fn new() -> Self {
-        let path: PathBuf = std::env::temp_dir().join(format!("sweep-configuration-{}", std::process::id()));
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(path.as_path());
-        std::fs::create_dir_all(path.as_path()).expect("the fixture folder is made");
-        return Fixture { path };
+        return Fixture { path: crate::test_support::fixture("sweep-configuration") };
     }
 
     /// The configuration file inside the fixture folder,
@@ -50,12 +47,6 @@ impl Fixture {
         let file: PathBuf = self.path.join("git-worktree-clone-mounts.jsonc");
         std::fs::write(file.as_path(), document).expect("the fixture configuration is written");
         return file;
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(self.path.as_path());
     }
 }
 

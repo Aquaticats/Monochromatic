@@ -168,7 +168,7 @@ struct ScriptedAttach {
 
 impl CloneAttachStep for ScriptedAttach {
     fn attach(&self, request: &AttachRequest<'_>) -> AttachStepOutcome {
-        assert_eq!(request.checkout, request.checkout, "the step is asked with the context's own checkout");
+        let _asked = (request.checkout, request.clone, request.store);
         self.asked.set(self.asked.get() + 1);
         return self.answer.clone();
     }
@@ -193,8 +193,6 @@ fn mounted() -> MountIdentity {
 /// a root-owned store with the parent record,
 /// a claims folder and a receipts folder.
 struct Fixture {
-    /// The fixture's root.
-    root: PathBuf,
     /// The checkout.
     checkout: PathBuf,
     /// The store folder.
@@ -208,8 +206,7 @@ struct Fixture {
 impl Fixture {
     /// Build the fixture under this run's own temporary root.
     fn build(name: &str) -> Self {
-        let root: PathBuf = std::env::temp_dir().join(format!("sweep-one-clone-{name}-{}", std::process::id()));
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(root.as_path());
+        let root: PathBuf = crate::test_support::fixture(format!("sweep-one-clone-{name}").as_str());
         let checkout: PathBuf = root.join("checkout");
         let parent: PathBuf = checkout.join(".claude").join("worktrees");
         for slot in ["one", "two"] {
@@ -222,7 +219,7 @@ impl Fixture {
         publish_parent_identity_under_root_control(store.as_path(), &identity, &identity).expect("the setup run's parent record is published");
         let claims: PathBuf = root.join("claims");
         let receipts: PathBuf = root.join("receipts");
-        return Fixture { root, checkout, store, claims, receipts };
+        return Fixture { checkout, store, claims, receipts };
     }
 
     /// The store as a reader opens it.
@@ -238,12 +235,6 @@ impl Fixture {
     /// The claims folder this fixture claims in.
     fn opened_claims(&self) -> SlotClaimDirectory {
         return SlotClaimDirectory::at(self.claims.clone(), 0);
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(self.root.as_path());
     }
 }
 
@@ -305,10 +296,7 @@ fn claimed(fixture: &Fixture, slot: &str) -> bool {
 fn filed(fixture: &Fixture, receipts: &ReceiptsFolder) -> Option<CloneMountReceipt> {
     let guid: DatasetGuid = DatasetGuid::parse(GUID.to_string().as_str()).expect("the GUID is canonical");
     let _fixture = fixture;
-    return match receipts.read(guid) {
-        Ok(receipt) => receipt,
-        Err(_absent) => None,
-    };
+    return receipts.read(guid).unwrap_or_default();
 }
 
 /// What:

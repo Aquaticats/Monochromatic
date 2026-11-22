@@ -325,7 +325,7 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     assert!(loaded.0, "the encrypted fixture's key loads: {}", loaded.2);
     let encrypted_clone: String = create_clone(sbin.as_str(), pool.as_str(), ENCRYPTED_PARENT_NAME, Some(mount_request().as_str()));
     write_configuration(encrypted.as_str(), checkout.as_path());
-    let _cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
+    let _encrypted_slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
     prepare_the_store(checkout.as_path());
     zfs_ok(sbin.as_str(), &["unload-key", encrypted.as_str()]);
     let unloaded: Run = sweep();
@@ -368,7 +368,7 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     zfs_ok(sbin.as_str(), &["destroy", &foreign_clone]);
     zfs_ok(sbin.as_str(), &["clone", &format!("{foreign}@origin"), &foreign_clone]);
     zfs_ok(sbin.as_str(), &["set", format!("{DESIRED_STATE}={}", mount_request()).as_str(), foreign_clone.as_str()]);
-    let _cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
+    let _foreign_slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
     let foreign_run: Run = sweep();
     let refused_foreign: &str = line_about(foreign_run.said.as_str(), foreign_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {foreign_clone}: {}", foreign_run.said));
     assert!(refused_foreign.starts_with("refused ") && refused_foreign.contains("step=clone-origin"), "a clone of another parent is refused: {refused_foreign}");

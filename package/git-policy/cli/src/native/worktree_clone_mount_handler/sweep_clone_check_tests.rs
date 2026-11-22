@@ -182,10 +182,10 @@ fn the_two_safety_properties_must_be_off() {
 
     let mut devices: CloneObjectFacts = managed_clone();
     devices.devices = PropertyValue::Number(1);
-    let refused = verify(&devices, PARENT).expect_err("devices on is refused");
-    assert!(matches!(refused, CloneRefusal::DevicesIsOn { .. }));
-    assert_eq!(refused.step(), "devices");
-    assert!(refused.message().contains(DEVICES_PROPERTY), "the refusal names the property: {}", refused.message());
+    let devices_refusal = verify(&devices, PARENT).expect_err("devices on is refused");
+    assert!(matches!(devices_refusal, CloneRefusal::DevicesIsOn { .. }));
+    assert_eq!(devices_refusal.step(), "devices");
+    assert!(devices_refusal.message().contains(DEVICES_PROPERTY), "the refusal names the property: {}", devices_refusal.message());
 }
 
 /// What:

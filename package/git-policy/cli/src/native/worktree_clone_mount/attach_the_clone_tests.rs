@@ -37,22 +37,13 @@ struct Fixture {
 impl Fixture {
     /// A fresh folder under this process's own temporary root.
     fn new() -> Self {
-        let path: std::path::PathBuf = std::env::temp_dir().join(format!("attach-the-clone-{}", std::process::id()));
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(path.as_path());
-        std::fs::create_dir_all(path.as_path()).expect("the fixture folder is made");
-        return Fixture { path };
+        return Fixture { path: crate::test_support::fixture("attach-the-clone") };
     }
 
     /// The folder,
     /// opened as the descriptor an attach or an unmount acts on.
     fn open(&self) -> std::fs::File {
         return std::fs::File::open(self.path.as_path()).expect("the fixture folder opens");
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(self.path.as_path());
     }
 }
 

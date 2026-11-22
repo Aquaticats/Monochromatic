@@ -163,8 +163,6 @@ impl CloneAttachStep for MountingAttach {
 /// One fixture:
 /// a checkout with three slots and a root-owned store.
 struct Fixture {
-    /// The fixture's root.
-    root: PathBuf,
     /// The checkout.
     checkout: PathBuf,
     /// The store.
@@ -178,8 +176,7 @@ struct Fixture {
 impl Fixture {
     /// Build the fixture under this run's own temporary root.
     fn build(name: &str) -> Self {
-        let root: PathBuf = std::env::temp_dir().join(format!("sweep-run-{name}-{}", std::process::id()));
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(root.as_path());
+        let root: PathBuf = crate::test_support::fixture(format!("sweep-run-{name}").as_str());
         let checkout: PathBuf = root.join("checkout");
         let parent: PathBuf = checkout.join(".claude").join("worktrees");
         for slot in ["mounting", "quiet", "malformed"] {
@@ -192,7 +189,7 @@ impl Fixture {
         publish_parent_identity_under_root_control(store.as_path(), &identity, &identity).expect("the parent record is published");
         let claims: PathBuf = root.join("claims");
         let receipts: PathBuf = root.join("receipts");
-        return Fixture { root, checkout, store, claims, receipts };
+        return Fixture { checkout, store, claims, receipts };
     }
 
     /// The context a run sweeps with.
@@ -208,12 +205,6 @@ impl Fixture {
             reader: pool,
             attach,
         };
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_dir_all(self.root.as_path());
     }
 }
 
