@@ -3570,7 +3570,7 @@ which is that design's answer.
   the nudge-during-pass arm,
   doctor's step 18 narrowing,
   the full revision list and the revision tail's wording.
-- 2026-11-22T18:39:44-05:00:
+- 2026-11-22T18:41:39-05:00:
   the second gate pass's answer.
   The printed root lever is `reload-or-restart` with its `ExecReload=` condition (T5,
   the `doctor` block,
