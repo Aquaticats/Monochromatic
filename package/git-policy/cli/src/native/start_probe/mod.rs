@@ -87,6 +87,9 @@
 //! - `probe_record_files.rs`:
 //!   the record's directory,
 //!   its mode and its atomic write.
+//! - `first_attach_record.rs`:
+//!   this boot's first real attach,
+//!   claimed once and published by one rename.
 //! - `probe_deadline.rs`:
 //!   the bound the mode enforces,
 //!   cited beside its measurement.
@@ -174,6 +177,10 @@ pub mod probe_record;
 /// The record's directory,
 /// its mode and its atomic write.
 pub mod probe_record_files;
+/// This boot's first real attach:
+/// its claim,
+/// its started record and its outcome.
+pub mod first_attach_record;
 /// The bound the mode enforces.
 pub mod probe_deadline;
 /// The child that moves and unmounts.

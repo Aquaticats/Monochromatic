@@ -869,3 +869,79 @@ when `store-fsync.log` carries both `PROBE` lines,
 and when neither log holds a `SKIPPED` line,
 so an arm that returned without running fails the run.
 `--keep-guest` keeps a failed run's guest to inspect.
+
+## The ZFS sweep arms
+
+The same driver runs plan step 8's arms in the same guest,
+under `src/native/binary/binary_zfs_sweep_guest_tests.rs` and the `sweep-arm.log` it pulls back
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 8,
+"Acceptance tests" and "VM measurements").
+The arms build the shipped handler inside the guest and drive it,
+not a module,
+because the sweep's order and its receipts are what an operator reads.
+
+The guest gets what a boot has and a person's machine must not:
+a passing start-probe record for the guest's own boot identifier and its live
+kernel and module fingerprint in the probe record's directory,
+a root-owned handler configuration naming only the checkout,
+and the store folder the setup run would have published.
+The pool is the guest's own file-backed pool,
+and the fixture is the design's layout:
+a checkout dataset mounted at the configured path with its own mount made
+private,
+a sibling container,
+and a clone of the checkout's `git-worktree-clone-origin-` snapshot.
+The configuration names no dataset,
+so the run reads the two dataset names through the design's fallback
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"The datasets the sweep acts on").
+
+The arms:
+
+- item 1 repeated through the handler,
+  with the design's own origin:
+  a registered slot holding this checkout's Git pointer,
+  a clone of the checkout dataset's fresh snapshot carrying a mount request,
+  and one sweep run that records the slot's first observation,
+  attaches the clone,
+  records this boot's first attach,
+  and files a receipt;
+  the arm reads the mount at the slot from `mountinfo` with `nosuid,nodev`,
+  the store's record,
+  the receipt's nonce and mount identity,
+  and the `first-attach` file's outcome;
+- the same clone swept again with its mount left standing:
+  the second run answers `attached`,
+  leaves the mount where it was,
+  and keeps the same `done` receipt rather than replacing it with a refusal;
+- item 5 repeated through the handler,
+  on an encrypted checkout dataset of its own:
+  the same fixture with the key unloaded,
+  where the sweep refuses with the key refusal,
+  files a `refused` receipt naming `key-unavailable` and attaches nothing,
+  then the key load after which the same sweep attaches,
+  and the log carries both arms so a run that skipped the unloaded half fails;
+- the handler's own refusals:
+  a malformed intent,
+  an inherited intent,
+  a clone of the container's own snapshot and a clone of another checkout
+  dataset's snapshot are each refused with nothing attached,
+  which is item 2's shape through the product's own code,
+  and a clone of the container's snapshot is the shape H1 of step 8's
+  integration pass let through wrongly;
+- the descriptor unmount a rollback makes:
+  a clone attached through a held descriptor after the walk's parent was
+  renamed lands at the moved path,
+  a holder inside it makes the descriptor unmount answer `EBUSY` with the mount
+  still standing,
+  and the same call succeeds after the holder leaves;
+- the child bound the listing takes:
+  one sweep over one more child than the bound visits stops at the bound,
+  says so,
+  and prints the milliseconds it took beside the number in
+  `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`.
+
+The arms print `MEASUREMENT sweep-attach-ms=` and
+`MEASUREMENT child-bound-listing-ms=` lines beside their assertions,
+and the driver fails a run whose pulled log lacks a line or a marker.
