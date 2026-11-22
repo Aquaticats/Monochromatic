@@ -3394,9 +3394,9 @@ which is that design's answer.
   recorded that commit's time in this section.
 - 2026-11-22T18:16:38-05:00:
   pointed T1's sentence about the handler's lost line at V8 rather than V7.
-- Any later commit touching this file corrects this section's own record,
+- Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
-  lists each of them with its committer time.
+  lists it with its committer time.
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
 [proposal]: cli-git-zfs-worktree-design-proposal.md
