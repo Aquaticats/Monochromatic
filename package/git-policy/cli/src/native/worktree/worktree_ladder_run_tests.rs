@@ -47,7 +47,9 @@ fn can_clone_a_file(root: &Path) -> bool {
 ///   The size limit sums what the index records for each tracked file,
 /// and a control that reaches the rung must be above it;
 /// a sparse file costs the fixture nothing on disk and Git still records its length,
-///  and the length is derived from the limit so no control carries a stale number (`AGENTS.md`, rule `MGN`).
+///  and the length is derived from the limit so no control carries a stale number
+///  (`AGENTS.md`,
+///  rule `MGN`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,7 +127,8 @@ fn no_plan_means_the_persons_run() {
 /// Why:
 ///  An untracked file was this fixture's source while a source with changes ended the clone rung;
 /// a source with changes
-///  now clones the paths its proof settles, so the fixture needs a state no rung can serve
+///  now clones the paths its proof settles,
+///  so the fixture needs a state no rung can serve
 ///  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
 #[test]
 fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of() {
@@ -402,8 +405,8 @@ fn a_target_tree_that_changes_a_fenced_path_is_skipped_before_anything_is_claime
 /// reason,
 ///  and one that only checked the route would not show that the person gets Git's result.
 /// Removing the limit makes the rung clone the fixture and the worktree holds a shared extent,
-///  which this control's byte comparison alone would not catch, so the clone-capable skip and the extent are what make
-/// it red.
+///  which this control's byte comparison alone would not catch,
+///  so the clone-capable skip and the extent are what make it red.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -452,7 +455,8 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
 /// so the shape must be above the size limit or the
 ///  size limit would be the one that declined it and this control would stay green with the cut removed;
 /// the
-///  fixture's files are sparse, so being above the limit costs it no disk.
+///  fixture's files are sparse,
+///  so being above the limit costs it no disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

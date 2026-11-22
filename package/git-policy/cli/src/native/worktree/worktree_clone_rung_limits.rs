@@ -18,9 +18,11 @@
 //! what a declined add loses is the clone's gain.
 //! Both values are
 //!  provisional and open to the project's veto:
-//! the decision record accepted the proposal's option "clone with limits" and left the
-//!  values to this build, to be pinned at a measured edge with the measurement beside each
-//!  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`, "Left to the build").
+//! the decision record accepted the proposal's option "clone with limits",
+//! and left the values to this build,
+//! to be pinned at a measured edge with the measurement beside each
+//!  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+//!  "Left to the build").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,12 +41,15 @@ use std::path::Path;
 /// in position-balanced rounds against Git's own checkout with an identical-binary control,
 /// a dirty source lost at every size below this repository's tree:
 /// 1.30 at 10,001 files of 2,600 bytes (about 26,000,028 bytes),
-/// and 1.32 (1.03 to 1.71, identical control 1.40, 8 counted rounds) at 10,001 files of 26,000 bytes
-/// (260,000,028 bytes, measured 2026-11-21 for this pin);
+/// and 1.32 (1.03 to 1.71,
+/// identical control 1.40,
+/// 8 counted rounds) at 10,001 files of 26,000 bytes (260,000,028 bytes,
+/// measured 2026-11-21 for this pin);
 /// this repository's own tree of 24,621 files and 763,289,228 bytes
 /// (the same shape as the 762,638,866-byte tree of the re-check) won at 0.73 to 0.81 of it.
 /// The rung's fence reads cost about as much whatever the tree holds
-/// (`git ls-tree` alone is 275 ms at 24,621 paths, 110 ms at 10,001),
+/// (`git ls-tree` alone is 275 ms at 24,621 paths,
+/// 110 ms at 10,001),
 /// while Git's own checkout grows with the bytes,
 /// so the rung loses wherever Git's checkout is shorter than those reads.
 /// No size between 260 MB and this tree was measured a win,
@@ -79,7 +84,8 @@ pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 /// and it reuses the fence's own decline share rather than
 ///  pinning a second share nobody measured.
 /// Every value from 6,000 to below 20,000 fits the measurements
-///  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`, "The measurements it rests on").
+///  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+///  "The measurements it rests on").
 ///
 /// Provisional and open to the project's veto,
 /// and to a cut in changed paths once one is measured.
@@ -117,7 +123,8 @@ pub fn tracked_bytes(source: &SnapshotSource) -> Option<u64> {
 /// Why:
 ///   A declined add is Git's own checkout,
 /// so the person is owed the numbers the decision was made on rather than a bare refusal
-/// (`AGENTS.md`, rule `DGT`).
+/// (`AGENTS.md`,
+/// rule `DGT`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

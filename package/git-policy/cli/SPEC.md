@@ -2855,9 +2855,11 @@ each pinned with the measurement it rests on and both open to the project's veto
 The whole-tree size limit sends a source whose tracked files sum to fewer than 762,000,000 bytes to Git's own
 checkout:
 a dirty source of 10,001 files of 2,600 bytes,
-about 26 MB, took 1.30 times Git's own checkout on the fenced rung,
+about 26 MB,
+took 1.30 times Git's own checkout on the fenced rung,
 one of 10,001 files of 26,000 bytes,
-about 260 MB, took 1.32 of it in eight balanced rounds,
+about 260 MB,
+took 1.32 of it in eight balanced rounds,
 and this repository's tree of 763,289,228 bytes took 0.73 to 0.81 of it.
 The rung's fence reads cost about the same whatever the tree holds,
 and Git's own checkout grows with the bytes,
@@ -2872,12 +2874,14 @@ The changed-file cut sends a source with more changed tracked files than a quart
 checkout,
 which is the share the conversion fence declines at,
 and a quarter of this repository's 24,620 tracked paths is 6,155:
-6,000 changed paths took 1.00 to 1.05 times Git's own checkout, which is parity,
+6,000 changed paths took 1.00 to 1.05 times Git's own checkout,
+which is parity,
 and 20,000 took 1.68 to 1.74 of it.
 An untracked file is no changed file:
 no worktree takes it.
 A declined add is Git's own checkout,
-so it is never slower than the checkout it replaced, and what it loses is the clone's gain.
+so it is never slower than the checkout it replaced,
+and what it loses is the clone's gain.
 
 Rung 3 is Git's checkout and the ignored-state copy.
 Where the destination's parent is on btrfs and the rung is 2 or 3,
