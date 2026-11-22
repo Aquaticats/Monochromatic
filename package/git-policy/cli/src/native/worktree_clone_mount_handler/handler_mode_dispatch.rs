@@ -225,12 +225,8 @@ pub fn run_behind(gate: &dyn BeforeRequests, arguments: &[OsString]) -> i32 {
             report_line(handler_mode_arguments::version_line().as_str());
             EXIT_DONE
         }
-        HandlerMode::AttachingSweep => report(behind_the_gate(gate, || {
-            return attaching_sweep_mode::run().map_err(|awaiting| return awaiting.message());
-        })),
-        HandlerMode::BootReconcile => report(behind_the_gate(gate, || {
-            return boot_reconcile_mode::run().map_err(|awaiting| return awaiting.message());
-        })),
+        HandlerMode::AttachingSweep => report(behind_the_gate(gate, attaching_sweep_mode::run)),
+        HandlerMode::BootReconcile => report(behind_the_gate(gate, boot_reconcile_mode::run)),
         HandlerMode::StartProbe => report(behind_the_gate_for_the_probe(gate, &RecordPlace::live(), std::path::Path::new(CONFIGURATION_PATH))),
         HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
             return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());

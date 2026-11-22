@@ -141,11 +141,7 @@ fn a_refused_gate_keeps_the_mode_unentered_and_says_so() {
 /// never the awaiting value's own words alone.
 #[test]
 fn each_unbuilt_mode_names_its_plan_step() {
-    for (awaiting, words, mode) in [
-        (boot_reconcile_mode::AWAITING, vec!["boot-reconcile"], HandlerMode::BootReconcile),
-        (attaching_sweep_mode::AWAITING, Vec::<&str>::new(), HandlerMode::AttachingSweep),
-        (shutdown_unmount_mode::AWAITING, vec!["shutdown-unmount"], HandlerMode::ShutdownUnmount),
-    ] {
+    for (awaiting, words, mode) in [(shutdown_unmount_mode::AWAITING, vec!["shutdown-unmount"], HandlerMode::ShutdownUnmount)] {
         let invocation: Vec<OsString> = arguments(words.as_slice());
         assert_eq!(
             handler_mode_arguments::parse(invocation.as_slice()),
@@ -159,8 +155,6 @@ fn each_unbuilt_mode_names_its_plan_step() {
         );
         let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
             return match mode {
-                HandlerMode::BootReconcile => boot_reconcile_mode::run(),
-                HandlerMode::AttachingSweep => attaching_sweep_mode::run(),
                 HandlerMode::ShutdownUnmount => shutdown_unmount_mode::run(),
                 _ => unreachable!("the table names only the unbuilt modes"),
             }
@@ -170,6 +164,29 @@ fn each_unbuilt_mode_names_its_plan_step() {
             panic!("{words:?} answered a passing gate");
         };
         assert!(line.contains(message.as_str()), "{line}");
+    }
+}
+
+/// What:
+///  The sweep and the boot reconciliation are built,
+///  so a passing gate enters them instead of a step's refusal,
+///  and each answers the mode's own word.
+/// Why:
+///  The two modes plan step 8 builds must not answer as a step that has not
+///  landed,
+///  and this host has no installed configuration,
+///  so each answers the configuration's own refusal naming the key to write.
+#[test]
+fn the_two_built_modes_answer_their_own_work() {
+    for words in [Vec::<&str>::new(), vec!["boot-reconcile"]] {
+        let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
+            return if words.is_empty() { attaching_sweep_mode::run() } else { boot_reconcile_mode::run() };
+        });
+        let Err(line): Result<String, String> = answer else {
+            panic!("{words:?} answered a passing gate on a host with no installed configuration");
+        };
+        assert!(line.contains("git-worktree-clone-mounts.jsonc") || line.contains("start probe"), "the mode entered its own work and answered its own refusal: {line}");
+        assert!(!line.contains("is not built yet"), "a built mode must not answer as one whose step has not landed: {line}");
     }
 }
 

@@ -319,7 +319,31 @@ pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSl
     // comes before the store's: a store the walk never reached is not their problem.
     let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
     let store: SlotIdentityStore = SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
-    return hold_the_walk(request, checkout_handle, parent, canonical, &store);
+    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::Compared);
+}
+
+/// What:
+///  Whether the walk compares the slot against the record the store holds.
+/// Why:
+///  The sweep's first observation of a slot is the walk that records it,
+///  so that one walk reaches the slot before any record exists for it
+///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "The sweep plan step 8").
+///  Every other walk of a slot compares it,
+///  and the type says which walk a caller is taking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SlotRecord = 'compare' | 'first-observation';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SlotRecord {
+    /// The store holds this slot's record,
+    /// and the walk refuses any folder that is not it.
+    Compared,
+    /// The sweep is about to publish this slot's first record,
+    /// so there is nothing to compare yet.
+    FirstObservation,
 }
 
 /// What:
@@ -337,7 +361,14 @@ pub fn hold_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSl
 /// # Errors
 /// Every refusal the walk answers after the parent folder is reached,
 /// and every record's read refusal.
-fn hold_the_walk(request: &HoldCloneSlotRequest<'_>, checkout_handle: std::fs::File, parent: std::fs::File, canonical: PathBuf, store: &SlotIdentityStore) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+fn hold_the_walk(
+    request: &HoldCloneSlotRequest<'_>,
+    checkout_handle: std::fs::File,
+    parent: std::fs::File,
+    canonical: PathBuf,
+    store: &SlotIdentityStore,
+    slot_record: SlotRecord,
+) -> Result<HeldCloneSlot, CloneSlotRefusal> {
     let parent_identity: CloneFolderIdentity = CloneFolderIdentity::capture(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
     let slot_name: &OsStr = OsStr::new(request.slot);
     let component: String = slot_component(request.slot);
@@ -356,10 +387,12 @@ fn hold_the_walk(request: &HoldCloneSlotRequest<'_>, checkout_handle: std::fs::F
     if !parent_fields.is_empty() {
         return Err(CloneSlotRefusal::ParentIdentity { checkout: canonical.clone(), recorded: Box::new(recorded_parent), found: Box::new(parent_identity), fields: parent_fields });
     }
-    let recorded_slot: CloneFolderIdentity = store.slot(request.slot).map_err(CloneSlotRefusal::Store)?;
-    let slot_fields = recorded_slot.differences(&slot_identity);
-    if !slot_fields.is_empty() {
-        return Err(CloneSlotRefusal::SlotIdentity { slot: request.slot.to_string(), recorded: Box::new(recorded_slot), found: Box::new(slot_identity), fields: slot_fields });
+    if slot_record == SlotRecord::Compared {
+        let recorded_slot: CloneFolderIdentity = store.slot(request.slot).map_err(CloneSlotRefusal::Store)?;
+        let slot_fields = recorded_slot.differences(&slot_identity);
+        if !slot_fields.is_empty() {
+            return Err(CloneSlotRefusal::SlotIdentity { slot: request.slot.to_string(), recorded: Box::new(recorded_slot), found: Box::new(slot_identity), fields: slot_fields });
+        }
     }
     #[cfg(test)]
     AFTER_THE_SLOT_IS_READ.with(|hook| { if let Some(after) = hook.borrow().as_ref() { after(); } });
@@ -398,7 +431,64 @@ fn hold_the_walk(request: &HoldCloneSlotRequest<'_>, checkout_handle: std::fs::F
 pub fn hold_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
     let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store).map_err(CloneSlotRefusal::Store)?;
     let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
-    return hold_the_walk(request, checkout_handle, parent, canonical, &store);
+    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::Compared);
+}
+
+/// What:
+///  Walk to a slot the store holds no record for yet,
+///  comparing the parent and recording nothing,
+///  so the sweep can publish the slot's first observation from the folder it
+///  opened.
+/// Why:
+///  The first observation is the plan's step 8 record:
+///  root opens and checks the account's underlay before the attach,
+///  records its identity once,
+///  and every later walk compares that record
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Descriptor mount and unmount";
+///  `doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+///  "The step").
+///  The parent is still compared,
+///  because a record taken through a parent nobody compared is exactly what the
+///  publication's own compare exists to prevent,
+///  and the walk refuses before it reaches the slot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const observed = observeTheCloneSlot({ checkout, slot, store }); // no slot record is compared
+/// publishSlotIdentity(store, slot, observed.slotIdentity, observed.parentIdentity);
+/// ```
+///
+/// # Errors
+/// The walk's refusal,
+/// the store's refusal,
+/// and a parent folder that is not the recorded one.
+pub fn observe_the_clone_slot(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+    let store: SlotIdentityStore = SlotIdentityStore::open(request.store).map_err(CloneSlotRefusal::Store)?;
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
+    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::FirstObservation);
+}
+
+/// What:
+///  The route's first observation of a slot:
+///  the store is answered as root's own before the walk reaches anything,
+///  and then the walk records the slot it opened.
+/// Why:
+///  The first observation is what every later walk compares,
+///  so it is taken only into a folder this account could not have rewritten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const observed = observeTheCloneSlotUnderRootControl({ checkout, slot, store });
+/// ```
+///
+/// # Errors
+/// The store's root-control refusal,
+/// and every refusal the first observation answers.
+pub fn observe_the_clone_slot_under_root_control(request: &HoldCloneSlotRequest<'_>) -> Result<HeldCloneSlot, CloneSlotRefusal> {
+    let store: SlotIdentityStore = SlotIdentityStore::open_under_root_control(request.store).map_err(CloneSlotRefusal::Store)?;
+    let (checkout_handle, parent, canonical): (std::fs::File, std::fs::File, PathBuf) = walk_to_the_parent(request.checkout)?;
+    return hold_the_walk(request, checkout_handle, parent, canonical, &store, SlotRecord::FirstObservation);
 }
 
 /// What:

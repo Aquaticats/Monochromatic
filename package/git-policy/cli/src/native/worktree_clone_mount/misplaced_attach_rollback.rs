@@ -171,14 +171,38 @@ impl RollbackOutcome {
 /// The recorded mount is the parent folder's own mount,
 /// or the held target's descriptor names no absolute path a report can carry.
 pub fn plan_rollback(misplaced: &MisplacedAttach, target: std::fs::File, parent_mount_id: u64) -> Result<RollbackPlan, RollbackRefusal> {
-    if misplaced.attached_mount_id == parent_mount_id {
-        return Err(RollbackRefusal::NoVerifiedMount { attached_mount_id: misplaced.attached_mount_id, parent_mount_id });
+    return plan_rollback_of(misplaced.attached_mount_id, misplaced.canonical_slot.clone(), target, parent_mount_id);
+}
+
+/// What:
+///  Plan the rollback of a mount whose place the attach could not prove,
+///  from the two facts the plan needs rather than from a misplacement's report.
+/// Why:
+///  A post-attach check whose mount table could not be read has a mount number
+///  and a held target but no reason to print,
+///  and the route takes that mount down by the same rules:
+///  the number must prove a mount,
+///  the descriptor must name an absolute path,
+///  and a report names both paths.
+///  The sweep's own step is the one caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = planRollbackOf(attachedMountId, canonicalSlot, heldTarget, parentMountId);
+/// ```
+///
+/// # Errors
+/// The recorded mount is the parent folder's own mount,
+/// or the held target's descriptor names no absolute path a report can carry.
+pub fn plan_rollback_of(attached_mount_id: u64, canonical_slot: PathBuf, target: std::fs::File, parent_mount_id: u64) -> Result<RollbackPlan, RollbackRefusal> {
+    if attached_mount_id == parent_mount_id {
+        return Err(RollbackRefusal::NoVerifiedMount { attached_mount_id, parent_mount_id });
     }
-    let mounted_at: PathBuf = observed_path(&target).map_err(|_error| return RollbackRefusal::NoPlaceRecorded { attached_mount_id: misplaced.attached_mount_id })?;
+    let mounted_at: PathBuf = observed_path(&target).map_err(|_error| return RollbackRefusal::NoPlaceRecorded { attached_mount_id })?;
     if mounted_at.as_os_str().is_empty() || !mounted_at.is_absolute() {
-        return Err(RollbackRefusal::NoPlaceRecorded { attached_mount_id: misplaced.attached_mount_id });
+        return Err(RollbackRefusal::NoPlaceRecorded { attached_mount_id });
     }
-    return Ok(RollbackPlan { attached_mount_id: misplaced.attached_mount_id, mounted_at, canonical_slot: misplaced.canonical_slot.clone(), target });
+    return Ok(RollbackPlan { attached_mount_id, mounted_at, canonical_slot, target });
 }
 
 /// Controls stay out of the release executable.
