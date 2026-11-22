@@ -1219,9 +1219,7 @@ look for the mark at step 7,
 so that holder's look sees a mark written before its release.
 A mark written at step 2 is
 followed by the release;
-either a taker comes and removes it at step 4,
-or the holder's own second pass at step 7
-removes it,
+a later taker removes it at step 4,
 or it stands for the next trigger,
 which is the deferral the bound intends.
 So:
