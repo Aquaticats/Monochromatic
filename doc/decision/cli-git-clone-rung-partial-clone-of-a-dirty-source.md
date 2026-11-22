@@ -56,6 +56,41 @@ in position-balanced rounds with an identical-binary control
   Adds they send to Git's own checkout miss the clone's gain until more measuring moves them.
 - The small-file clean-add cost waived in the waiver record ends where the size threshold declines.
 
+## The size limit on a clean source, answered 2026-11-22
+
+Recorded 2026-11-22T13:18:08-05:00,
+after the build's integration pass
+(`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`,
+findings H1,
+H2 and M2).
+
+The pass measured what the whole-tree size threshold does to a clean source,
+which `main` clones whatever its size:
+20 files of 20 MB (400 MB,
+below the pinned 762,000,000 bytes) took 952 ms through Git's own checkout against `main`'s 33 ms,
+about 30 times slower,
+a shape none of this record's measurements held.
+The waiver record's clean-add loss is on small files only
+(10,001 files of 2.6 KB at 1.33 times `main`,
+parity near 26 KB a file,
+this repository's 32 KB files at 0.64),
+so on a clean source the mean file size decides,
+not the total.
+
+The project answered "3:
+file-size rule now":
+before the merge,
+a clean source whose mean tracked file is below a measured edge goes to Git's own checkout,
+and a clean source of larger files clones as on `main`.
+The whole-tree size threshold stays as decided for a source with changes,
+where every measurement in this record was taken.
+The edge is measured on the current build,
+because the 26 KB figure came from step 3's builds on ZFS.
+
+The pass's other findings are fixed in the same round without a question:
+paths whose index entry is stale but whose bytes are unchanged are counted against the changed-file cut,
+because Git writes them and the add was 1.39 times `main` on that shape.
+
 ## Left to the build
 
 - Pin both limits at a measured edge,
