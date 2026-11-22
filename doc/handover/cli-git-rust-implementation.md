@@ -41573,7 +41573,14 @@ stated in this entry. What follows from them, as work:
   second attempt, the first dying at 21:49 in `virsh` transport, which matches the daemon kill; gate 9750 of 9752; Incident J
   recorded for the one-off `commit_timing` failure; its daemon scope ended by itself). OWED AT MERGE by the coordinator: L4,
   the in-place note in `doc/decision/cli-git-zfs-slot-identity-store-format.md` for `STORE_LOCK_WAIT` (gone) and
-  `doc/slot-identity-store-lock-hold.md` (now `doc/slot-identity-store-write-cost.md`). GOING: its reviewer's recheck. Step 7's
+  `doc/slot-identity-store-lock-hold.md` (now `doc/slot-identity-store-write-cost.md`). GOING: its reviewer's recheck.
+  THE MVM DAEMON BUILD ended at `ba04350a6d` (issue 6338): unit `mvm-libvirt-session` (`MemoryMax=36G` for four 8 GiB guests
+  plus overhead, `OOMPolicy=continue`, no time limit, `virtqemud --timeout=120`), every `virsh` call with
+  `LIBVIRT_AUTOSTART=0` so none can fork a daemon into its caller; no session-bus name claimed (libvirt 12.9 source); eight
+  tests red then green; the real guest check not run because another session's daemon stayed up. The host has 61 GiB, 35
+  available at 22:4x. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-mvm-cli-session-daemon-in-its-own-unit-2026-11-21/`). After merge, the MCP server's `dist`
+  may need a rebuild for sessions to get it (the pass is asked). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
