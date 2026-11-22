@@ -3518,7 +3518,7 @@ the identical binary 0.96,
 1.00 and 1.03,
 median 0.99),
 its record holding one 1 ms `git for-each-ref` in 5 of 5 rounds
-(`keep/timing-unnamed-new-branch.log`),
+(`keep/timing-unnamed-new-branch.log` of the integration pass),
 so the add is `main`'s time inside the floor of 0.94 to 1.03 and the read's cost is the step.
 A named add without `-b` pays the same read before its `git diff-tree`;
 an add that names `-b` or `--detach` pays none.
@@ -3573,6 +3573,36 @@ The read now takes the record whose ref is exactly the wanted one,
 and answers no branch when none is,
 so that shape is skipped on both rungs,
 with a control for each (the snapshot rung's needs a btrfs fixture root).
+
+The same shape after that correction
+(a tag `rel-<arm>` at the older tree,
+a branch `rel-<arm>/one` at `HEAD`,
+the add naming the tag and no `-b`;
+the same 10,002 files,
+5 counted rounds after a warm-up,
+arms rotating,
+every add in a capped scope of its own):
+this branch 440 ms (410 to 483),
+`main` 441 (434 to 494),
+the identical binary again 417 (378 to 523);
+per round against `main` 1.02,
+0.92,
+0.93,
+0.98 and 1.03 (median 0.98),
+the identical binary 1.20,
+0.82,
+0.95,
+0.80 and 0.99 (median 0.95),
+and the identical binary's own ratio to this branch 1.19,
+0.89,
+1.02,
+0.81 and 0.96 (median 0.96),
+so every round is inside the floor and the 1.11 the pass measured is gone.
+All three arms route `Git's checkout`,
+this branch's one extra step is `git for-each-ref` (1 ms against none),
+and `gitAdd` is 340 against `main`'s 346.
+The binaries are this branch `f677af2d0dc4…` and `main` `03ede0d3e8bd…`,
+the second built at `f2408a11f7`.
 
 ## Limitations
 
