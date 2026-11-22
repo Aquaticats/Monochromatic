@@ -1703,8 +1703,10 @@ fact F22).
     and assert the mark was removed by the second pass.
     The forcing is the
     record's appearance;
-    the clone population is the measurement's,
-    not a bet (M4).
+    the clone population is the measurement's (M4),
+    not a bet,
+    and the arm asserts the nudge was written while the claim was held,
+    so a pass too short to be caught fails rather than passes.
 3.  The device's contended paths,
     host:
     the test holds the run claim with its own owner,
@@ -3232,9 +3234,12 @@ so a pass's cost varies by orders of magnitude with the clone count.
   step 19's build list,
   which gains the filter,
   the device and the mark (V12's option A);
-  and step 22's
+  step 22's
   "no existing constant changes" line,
-  which gains `recent-starts` and the rule.
+  which gains `recent-starts` and the rule;
+  and step 18's
+  "ZED and service wiring" check,
+  which V9 narrows to the printed commands and the plan's text should say so.
 - D9.
   The `SPEC.md` edits owed:
   a section for the three cost records and their modes and bounds;
