@@ -1396,6 +1396,45 @@ Steps 2,
 4,
 6 and 8.
 
+#### Notes of the first build, 2026-11-22
+
+The unmount half is built in
+`package/git-policy/cli/src/native/worktree_clone_unmount/`,
+reached from one dispatch arm in
+`sweep_one_clone_answers.rs`.
+It holds the per-removal staging name and record,
+the `user-cache` pin,
+the identity comparisons and the turn that binds,
+moves,
+proves and unmounts from the held descriptor,
+the checked reattach,
+the later sweep from the record's handle,
+the staging claim and the wrapper's `rmdir`-only cleanup.
+The interface steps 14,
+16 and 17 call is
+`staged_unmount::unmount_the_staged_mount` for a held descriptor and
+`staged_unmount::finish_a_staged_unmount` for a fresh process.
+Step 16 will find the retained clone and bind named by the turn's `failed` receipt,
+and it must still mount the all-namespace holder scan before its snapshot requests.
+Step 17 will find the reattach's `reattached` receipt and the bind's state,
+which its cancel path reuses.
+Step 18 will find the folder,
+record and claim under the names the SPEC section states,
+and the record's boot id and namespace pair for its print.
+
+Still owed by this step:
+the all-namespace holder scan is another round's,
+built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
+the guest arms for the design's ZFS layout,
+the repeat of VM items 3,
+4 and 15 with the built code,
+and M1 to M9 were not run to completion in this round,
+so every one of them stays owed;
+the unmount's own deadline is unsized here and remains step 22's.
+The `user-cache` pin is read from
+`/var/lib/monochromatic-git-policy-cli/user-cache-pin`,
+which step 19's setup must write before the first removal binds.
+
 ### Step 10: The add route from registration to verified fill
 
 #### What it builds
