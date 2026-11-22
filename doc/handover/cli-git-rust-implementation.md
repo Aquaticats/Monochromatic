@@ -41628,7 +41628,13 @@ stated in this entry. What follows from them, as work:
   (issue 6338 comment). GOING: `pi-mvm-cli-session-daemon-integration-findings` in
   `.claude/worktrees/mvm-cli-session-daemon-findings`. AFTER MERGE: rebuild `package/mvm/cli` and `package/mcp/mvm` in the main
   checkout (the `mvm` shim runs a `dist` built 2026-11-01), and the owner restarts or reconnects the mvm MCP server (PID 5607,
-  started 2026-11-19), which holds the old code. Until then old callers still fork a daemon into their own cgroup. Step 7's
+  started 2026-11-19), which holds the old code. Until then old callers still fork a daemon into their own cgroup. THE SIZE
+  READER'S GATE FINDINGS ROUND ended at `4ec8aa27f6`: loose 340.9 of 868.5 ms against packed 24.0 of 517.1 ms on one tree in
+  one guest; 98.1 percent of `HEAD` blobs packed; `gix` 0.90.0 measured (47 added packages, MPL-2.0 and Zlib among the
+  licences, 11 `unsafe` in `gix-pack`, 18.45 s build; reftable replace refs answered wrongly); `gix-odb` alone 15 packages;
+  the promisor control can fail; the owner question ranks A (keep `git ls-tree`) > B (`gix` or `gix-odb`) > C (in-process,
+  wins loose) > D (`cat-file`), leaving common-case speed against no slow case and facade against `gix-odb`. Records
+  committed under `package/git-policy/cli/perf/size-reader-*`. GOING: the gate reviewer's recheck; then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
