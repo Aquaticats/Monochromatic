@@ -140,7 +140,10 @@ fn set_modified(path: &Path, seconds: u64) {
 }
 
 /// Wait until a new whole second of the wall clock has begun.
-fn wait_for_a_new_second() {
+/// Why a control needs it:
+///  a file as new as the index proves nothing about its bytes,
+///  so a fixture whose Git run rewrote its files refreshes the index only after the second has passed.
+pub(crate) fn wait_for_a_new_second() {
     let now: Duration = SystemTime::now().duration_since(UNIX_EPOCH).expect("a clock after 1970");
     std::thread::sleep(Duration::from_secs(1) - Duration::from_nanos(u64::from(now.subsec_nanos())) + Duration::from_millis(2));
 }

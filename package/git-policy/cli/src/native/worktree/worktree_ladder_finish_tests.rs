@@ -750,10 +750,15 @@ fn btrfs_a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_snapshot_b
     }
     commit_all(repo.as_path(), "second");
     // `@{-1}`, which `-` names, is the branch this worktree was on before the current one, so the reflog has to hold
-    //  that checkout.
+    //  that checkout. Those two checkouts rewrite the files, and a file as new as the index proves nothing, so the
+    //  index is refreshed after the second has passed: only a provably clean source reaches the ending.
     git(repo.as_path(), &["checkout", "--quiet", "other"]);
     git(repo.as_path(), &["checkout", "--quiet", "main"]);
-    let (result, _steps, _printed) = add_through_the_ladder_at(repo.as_path(), root.as_path(), Some("-"), &[], false, |_| {});
+    crate::worktree_ladder_test_support::wait_for_a_new_second();
+    git(repo.as_path(), &["update-index", "--really-refresh"]);
+    let (result, steps, _printed) = add_through_the_ladder_at(repo.as_path(), root.as_path(), Some("-"), &[], false, |_| {});
+    // The ending has a Git step of its own, and a skipped add has none: this is how the control says it reached it.
+    assert!(steps.iter().any(|words: &Vec<String>| return words.iter().any(|word: &String| return word == "read-tree")), "the two-tree update ran: {steps:?}");
     assert_eq!(result.git, GitStatus { code: Some(0) }, "Git's own checkout completed the worktree");
     assert_eq!(result.carried, None, "the snapshot rung published no worktree");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "reference", "../reference", "other"]);
