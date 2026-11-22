@@ -67,9 +67,6 @@ const ENCRYPTED_PARENT_NAME: &str = "encrypted";
 /// The slot the clone attaches at.
 const SLOT: &str = "one";
 
-/// The slot no clone asks for.
-const QUIET_SLOT: &str = "quiet";
-
 /// The passphrase when the driver names none,
 /// which the guest's throwaway pool accepts and no other machine ever sees.
 const DEFAULT_PASSPHRASE: &str = "zfs-step-8-sweep";
@@ -238,17 +235,24 @@ fn prepare_the_store(checkout: &Path) {
 }
 
 /// What:
-///  Create one clone under `parent`,
-///  with the two safety properties and a legacy mountpoint inherited,
-///  and ask it to mount with `intent`.
+///  Create one clone parent with the two safety properties and a legacy
+///  mountpoint,
+///  and the snapshot its clones are made from.
 /// Why:
 ///  The sweep verifies exactly these facts,
 ///  so the fixture is the shape the design's container leaves.
-fn create_clone(sbin: &str, pool: &str, parent_name: &str, intent: Option<&str>) -> String {
-    let parent: String = format!("{pool}/{parent_name}");
-    zfs_ok(sbin, &["create", &parent]);
-    zfs_ok(sbin, &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", &parent]);
+///  A parent an earlier attempt left is destroyed first,
+///  so a re-run in the same guest starts from the same state.
+fn reset_parent(sbin: &str, parent: &str) {
+    let _ignored: (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-r", "-f", parent], None);
+    zfs_ok(sbin, &["create", parent]);
+    zfs_ok(sbin, &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", parent]);
     zfs_ok(sbin, &["snapshot", &format!("{parent}@origin")]);
+}
+
+/// One clone of `parent`'s origin at the slot,
+/// asking for its mount with `intent` when one is given.
+fn clone_at_the_slot(sbin: &str, parent: &str, intent: Option<&str>) -> String {
     let clone: String = format!("{parent}/{SLOT}");
     zfs_ok(sbin, &["clone", &format!("{parent}@origin"), &clone]);
     if let Some(value) = intent {
@@ -286,18 +290,17 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     let checkout: PathBuf = PathBuf::from(required(CHECKOUT_VARIABLE));
     let passphrase: String = std::env::var(PASSPHRASE_VARIABLE).unwrap_or_else(|_error| return String::from(DEFAULT_PASSPHRASE));
     let parent: PathBuf = checkout.join(".claude").join("worktrees");
-    for slot in [SLOT, QUIET_SLOT] {
-        std::fs::create_dir_all(parent.join(slot)).expect("the slot folder is made");
-        std::fs::set_permissions(parent.join(slot), std::fs::Permissions::from_mode(0o755)).expect("the slot folder holds its mode");
-    }
+    std::fs::create_dir_all(parent.join(SLOT)).expect("the slot folder is made");
+    std::fs::set_permissions(parent.join(SLOT), std::fs::Permissions::from_mode(0o755)).expect("the slot folder holds its mode");
     write_passing_probe_record(GUEST_VARIABLE);
     prepare_the_store(checkout.as_path());
     let _device = ZfsDevice::open().expect("the guest permits the device");
 
     // Item 1: a clone that asks for its mount is attached by one sweep run.
     write_configuration(format!("{pool}/{PLAIN_PARENT_NAME}").as_str(), checkout.as_path());
-    let clone: String = create_clone(sbin.as_str(), pool.as_str(), PLAIN_PARENT_NAME, Some(mount_request().as_str()));
-    let _quiet: String = create_clone(sbin.as_str(), pool.as_str(), PLAIN_PARENT_NAME, None);
+    let plain_parent: String = format!("{pool}/{PLAIN_PARENT_NAME}");
+    reset_parent(sbin.as_str(), plain_parent.as_str());
+    let clone: String = clone_at_the_slot(sbin.as_str(), plain_parent.as_str(), Some(mount_request().as_str()));
     let first: Run = sweep();
     assert_eq!(first.status, Some(0), "a sweep that reached the end exits successfully: {}", first.said);
     let attached: &str = line_about(first.said.as_str(), clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {clone}: {}", first.said));
@@ -321,10 +324,13 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     // Item 5: the same fixture with the pool's key unloaded refuses as a key
     // question, and the same sweep attaches after the load.
     let encrypted: String = format!("{pool}/{ENCRYPTED_PARENT_NAME}");
+    let _ignored: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["destroy", "-r", "-f", encrypted.as_str()], None);
     zfs_ok(sbin.as_str(), &["create", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", &encrypted]);
     let loaded: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["load-key", encrypted.as_str()], Some(format!("{passphrase}\n").as_str()));
     assert!(loaded.0, "the encrypted fixture's key loads: {}", loaded.2);
-    let encrypted_clone: String = create_clone(sbin.as_str(), pool.as_str(), ENCRYPTED_PARENT_NAME, Some(mount_request().as_str()));
+    zfs_ok(sbin.as_str(), &["set", "mountpoint=legacy", "canmount=off", "setuid=off", "devices=off", encrypted.as_str()]);
+    zfs_ok(sbin.as_str(), &["snapshot", &format!("{encrypted}@origin")]);
+    let encrypted_clone: String = clone_at_the_slot(sbin.as_str(), encrypted.as_str(), Some(mount_request().as_str()));
     write_configuration(encrypted.as_str(), checkout.as_path());
     let _encrypted_slot_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(SLOT));
     prepare_the_store(checkout.as_path());
@@ -362,9 +368,7 @@ fn the_built_sweep_attaches_a_clone_and_refuses_each_mismatch() {
     println!("SWEEP nothing inherited=true");
     zfs_ok(sbin.as_str(), &["inherit", DESIRED_STATE, encrypted.as_str()]);
     let foreign: String = format!("{pool}/foreign");
-    zfs_ok(sbin.as_str(), &["create", &foreign]);
-    zfs_ok(sbin.as_str(), &["set", "mountpoint=legacy", "setuid=off", "devices=off", &foreign]);
-    zfs_ok(sbin.as_str(), &["snapshot", &format!("{foreign}@origin")]);
+    reset_parent(sbin.as_str(), foreign.as_str());
     let foreign_clone: String = format!("{encrypted}/{SLOT}");
     zfs_ok(sbin.as_str(), &["destroy", &foreign_clone]);
     zfs_ok(sbin.as_str(), &["clone", &format!("{foreign}@origin"), &foreign_clone]);
