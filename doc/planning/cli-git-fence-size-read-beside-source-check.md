@@ -203,7 +203,7 @@ prints `BAD` in the size column of a blob the clone does not hold,
 and leaves 40 missing and 2 packs unchanged;
 without the variable the same read fetches (0 missing,
 42 packs).
-A Git older than those releases ignores the variable and can fetch,
+A Git older than those releases that does not carry the fix ignores the variable and can fetch,
 and its fetch child can outlive the command:
 that is the recorded limit of this read on such a Git,
 which is older than the wrapper's tested minimum
