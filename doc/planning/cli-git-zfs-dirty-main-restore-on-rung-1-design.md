@@ -1037,9 +1037,8 @@ re-run against the frozen capture;
 its content settle and its proof (`restore_dirty`,
 `prove_restored`,
 F27);
-- the index install's dirty form,
-which keeps the seed's fields and takes none from a file (F28),
-and the copy's own index read (`read_own_index`);
+- the copy's own index read (`read_own_index`,
+F28);
 - the leave-out rule and the trash hand-over of the snapshot rung (`prune_snapshot`,
 `remove_stub`,
 `replace_git_pointer`,
@@ -1057,9 +1056,12 @@ Changed rather than reused:
 - `restore_dirty`'s Git runs gain `GIT_INDEX_FILE`,
 a parameter `checkout_environment_with_index` already carries (F9),
 and the rung calls the runs with the clone's root as their work tree.
-- The install is called through the private-name writer (`write_index_under_a_name`) with a lookup that answers nothing,
-then published (F8).
-`install_index` itself is unchanged and is not the function this rung calls.
+- The index install is `write_index_under_a_name` (F8) and not `install_index`,
+because the private name is what H2 needs.
+The rule the dirty form already follows (every entry keeps the fields its own index recorded,
+F28) is the rule this write follows,
+with a lookup that answers nothing for every path.
+`install_index` is left as it is and is not the function this rung calls.
 - No device-and-inode rewrite exists and none is added;
 [M2][m2] decides whether one is needed,
 and "Choices this design marks for the project's veto" carries the contingency.
