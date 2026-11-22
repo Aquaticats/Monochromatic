@@ -190,7 +190,8 @@ fn branch_tree(source: &SnapshotSource, shown: OsString, branch: OsString, commi
 /// The answer is read with one `git for-each-ref` rather than by looking into the Git directory,
 ///  so the packed refs and whatever ref backend the repository keeps are Git's own to read.
 /// A name `check_branch_ref` rejects is no branch,
-///  and an answer that names anything else than the one ref asked for decides nothing.
+///  and a record whose ref is another name is no branch of this one,
+///  so the name is read as written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,32 +209,32 @@ fn the_local_branch(context: &GitContext, source: &SnapshotSource, name: &OsStr)
     if output.code != Some(0) {
         return Err(format!("`git for-each-ref` ended with {:?} ({})", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim()));
     }
-    return the_one_branch(output.stdout.as_slice(), wanted);
+    return Ok(the_one_branch(output.stdout.as_slice(), wanted));
 }
 
 /// What:
-///  The one branch of a `for-each-ref` answer,
-///  or nothing when the answer is empty.
+///  The record that names exactly the wanted ref,
+///  as the ref and the object it holds,
+///  or nothing when no record does.
 /// Why:
 ///   A pattern without a wildcard also matches every ref that begins with it up to a slash,
-/// so a branch `topic` and a branch `topic/one` both answer;
-///  an answer that is not exactly the one ref asked for decides nothing rather than guessing.
+/// so a tag `rel` beside a branch `rel/one` answers `refs/heads/rel/one`;
+///  only a record whose ref is exactly the wanted one is the branch Git checks out,
+///  and other records are no branch of that name rather than a failed read,
+///  so the name is read as written and the rung declines exactly where `main` skips.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const theOneBranch = (stdout, wanted) => { const lines = stdout.split('\n').filter(Boolean); if (lines.length !== 1) return undefined; const [object, ref] = lines[0].split(' '); return ref === wanted ? [ref, object] : undefined; };
+/// const theOneBranch = (stdout, wanted) => { for (const line of stdout.split('\n').filter(Boolean)) { const space = line.indexOf(' '); if (space >= 0 && line.slice(space + 1) === wanted) return [line.slice(0, space), wanted]; } return undefined; };
 /// ```
-fn the_one_branch(stdout: &[u8], wanted: OsString) -> Result<Option<(OsString, String)>, String> {
-    let mut records = stdout.split(|byte| return *byte == b'\n').filter(|line| return !line.is_empty());
-    let Some(record) = records.next() else { return Ok(None) };
-    if records.next().is_some() {
-        return Err(format!("more than one ref answers for {}", String::from_utf8_lossy(wanted.as_encoded_bytes())));
+fn the_one_branch(stdout: &[u8], wanted: OsString) -> Option<(OsString, String)> {
+    for record in stdout.split(|byte| return *byte == b'\n').filter(|line| return !line.is_empty()) {
+        let Some(space) = record.iter().position(|byte| return *byte == b' ') else { continue };
+        if &record[space + 1..] == wanted.as_encoded_bytes() {
+            return Some((wanted, String::from_utf8_lossy(&record[..space]).into_owned()));
+        }
     }
-    let Some(space) = record.iter().position(|byte| return *byte == b' ') else { return Err(String::from("`git for-each-ref` answered without a ref name")) };
-    if &record[space + 1..] != wanted.as_encoded_bytes() {
-        return Err(format!("`git for-each-ref` answered for another ref than {}", String::from_utf8_lossy(wanted.as_encoded_bytes())));
-    }
-    return Ok(Some((wanted, String::from_utf8_lossy(&record[..space]).into_owned())));
+    return None;
 }
 
 /// What:

@@ -17,12 +17,13 @@
 //! ```
 
 use crate::add_timing::ADD_TIMING_FILE;
+use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{age, fixture, git, git_context, remove, repository};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_ladder_run::{Ladder, Rung, begin_ladder};
-use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_naming_a_commit, plan_naming_no_commit, plan_to_at, tracked};
+use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_naming_a_commit, plan_naming_no_commit, plan_to_at, subvolume_repository, tracked};
 use crate::worktree_slow_route::SlowRoute;
 use std::path::{Path, PathBuf};
 
@@ -126,6 +127,93 @@ fn a_destination_that_names_an_existing_branch_is_skipped_before_any_copy() {
     assert_eq!(route.word(), "declines", "{route:?}");
     assert!(route.line().contains("differs from the source's index at extra.txt"), "{}", route.line());
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "no stage name was claimed, so nothing was copied");
+    remove(root.as_path());
+}
+
+/// What:
+///  An add whose commit-ish is a tag no branch of that name holds,
+///  and whose name is the leading part of a branch's,
+///  is skipped before any copy,
+/// as Git's own checkout of the tag is.
+/// Why:
+///   `git for-each-ref refs/heads/<name>` answers every ref that begins with the pattern up to a slash,
+/// so a tag `rel` beside a branch `rel/one` answers `refs/heads/rel/one`;
+///  an answer that is not the one ref asked for used to decide nothing,
+///  so the rung copied and then fell back where `main` skipped before any copy.
+/// `add_worktree` checks `refs/heads/rel`,
+///  absent here,
+///  so Git detaches at the tag.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ladder = beginLadder(plan_naming_a_commit(topic, 'rel'), context, identity); // tag at the older tree, branch rel/one at HEAD
+/// expect(ladder.firstStep()).toBe('person'); expect(ladder.rung).toBe('git');
+/// ```
+#[test]
+fn a_tag_that_leads_a_branch_name_is_skipped_before_any_copy() {
+    let root: PathBuf = fixture("target-tree-tag-leading-a-branch");
+    let repo: PathBuf = converting_fixture(root.as_path());
+    // The tag holds the older tree, and the branch whose name begins with the tag's holds this `HEAD`.
+    git(repo.as_path(), &["tag", "rel", "other"]);
+    git(repo.as_path(), &["update-ref", "refs/heads/rel/one", "HEAD"]);
+    let plan: AddPlan = plan_naming_a_commit(root.join("topic"), "rel");
+    if let Some(reason) = the_clone_rung_cannot_run(repo.as_path(), &plan) {
+        eprintln!("CLONE RUNG NOT RUN: a_tag_that_leads_a_branch_name_is_skipped_before_any_copy ({reason})");
+        remove(root.as_path());
+        return;
+    }
+    let (ladder, record) = chosen(&plan, repo.as_path());
+    assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree: {record}");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "the rung steps aside before the first copy: {record}");
+    let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
+    assert_eq!(route.word(), "declines", "{route:?}");
+    assert!(route.line().contains("differs from the source's index at extra.txt"), "{}: {record}", route.line());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "no stage name was claimed, so nothing was copied");
+    remove(root.as_path());
+}
+
+/// What:
+///  The same tag that leads a branch's name,
+///  on a subvolume source,
+///  is skipped by the snapshot rung before its snapshot is taken.
+/// Why:
+///   The one branch read is shared by both rungs,
+///  so the shape that made the clone rung copy and fall back took the snapshot rung's skip away too;
+/// `add_worktree` checks `refs/heads/rel`,
+///  absent here,
+///  so Git detaches at the tag,
+///  and the snapshot rung's fence hands every `.txt` path to Git.
+/// This control needs a btrfs fixture root,
+///  which the ZFS host has none of:
+///  it runs under `native:test:host:btrfs` on a btrfs host,
+///  and the gate's tmpfs acknowledges its absence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = btrfsFixture('target-tree-tag-leading-a-branch-snapshot'); if (!root) return;
+/// const ladder = beginLadder(plan_naming_a_commit(topic, 'rel'), context, identity); // subvolume source
+/// expect(ladder.firstStep()).toBe('person'); expect(ladder.rung).toBe('git');
+/// ```
+#[test]
+fn btrfs_a_tag_that_leads_a_branch_name_is_skipped_before_the_snapshot() {
+    let Some(root) = btrfs_fixture("target-tree-tag-leading-a-branch-snapshot") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
+    tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "conversion");
+    // The tag holds the older tree, and the branch whose name begins with the tag's holds this `HEAD`.
+    git(repo.as_path(), &["tag", "rel"]);
+    tracked(repo.as_path(), "extra.txt", b"line one\nline two\n");
+    commit_all(repo.as_path(), "second");
+    git(repo.as_path(), &["update-ref", "refs/heads/rel/one", "HEAD"]);
+    let plan: AddPlan = plan_naming_a_commit(root.join("topic"), "rel");
+    let (ladder, record) = chosen(&plan, repo.as_path());
+    assert_eq!(ladder.first_step(), GitStep::Person, "Git's own checkout writes the worktree: {record}");
+    assert!(matches!(ladder.rung, Rung::Git(_)), "the snapshot rung steps aside before its snapshot: {record}");
+    let route: &SlowRoute = ladder.slow.as_ref().expect("the sentence that says why");
+    assert_eq!(route.word(), "declines", "{route:?}");
+    assert!(route.line().contains("differs from the source's index at extra.txt"), "{}: {record}", route.line());
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "no stage name was claimed, so no snapshot was taken");
     remove(root.as_path());
 }
 
