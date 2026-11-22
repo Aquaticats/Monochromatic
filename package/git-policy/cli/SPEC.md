@@ -6419,6 +6419,203 @@ step 22 sizes it from the acceptance workload and replaces the value.
 The wait polls once every 50 milliseconds,
 which is a bounded interval and not a measured latency.
 
+### The all-namespace holder scan of a ZFS worktree clone
+
+"Unmounted" means absent in every mount namespace that holds the clone's ZFS
+source,
+including binds and staging,
+so the root handler answers that question by reading every live task's mount
+namespace rather than only the one it runs in.
+This section states the scan the ZFS worktree plan's step 9 builds
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 9:
+Unmount from a fresh process,
+the staging folder and reattach"):
+step 16 consumes its result before each snapshot-destroy request and before the
+head destroy,
+and step 18 reports its holders.
+The code is `package/git-policy/cli/src/native/clone_holder_scan/`;
+the task grouping,
+the one mount table per namespace and the exact source match are
+`package/git-policy/cli/src/native/mount_namespace_scan/`,
+which the start probe's namespace arm reads as well,
+so the two cannot disagree about what a mount of one dataset is.
+The unmount,
+the staging folder and the reattach are the same plan step's other half and are
+not described here.
+
+#### What the scan reads
+
+The scan lists the `/proc` root it is given and keeps the entries the kernel
+names by number.
+For each it reads `/proc/<pid>/ns/mnt` and groups the tasks by that kernel text,
+so two tasks of one namespace are one namespace and one table is read for both.
+It reads one `<task>/mountinfo` per distinct namespace,
+under the wrapper's own bound for a table another namespace holds,
+and a mount matches when its filesystem type is `zfs` and its source is exactly
+the dataset's name.
+Equality is the whole name:
+a dataset whose name begins with this one is another dataset,
+and a bind of the clone anywhere carries the clone's own superblock,
+so it names the same type and source and is a holder too.
+The reader's own namespace comes from `/proc/self/ns/mnt`,
+and its mounts are reported as its own rather than as foreign holders,
+because a local unmount is what that namespace answers for.
+No path,
+slot spelling or working directory takes part in the match.
+
+#### The result and its reader
+
+One scan answers one value:
+the dataset's canonical numeric GUID,
+the request's nonce,
+the exact source,
+the reader's own namespace and its mounts,
+one entry per namespace that holds the clone,
+the managed attaches set aside,
+every read that could not be completed,
+the number of namespaces read,
+and the time.
+It is written as one fixed line grammar in
+`src/native/clone_holder_scan/holder_scan_text.rs`,
+whose size bound is derived from the scan's own detail bound and the bound of
+every field the writer fills,
+so a result the writer wrote is one the reader accepts.
+`parse_holder_scan` reads it back key by key:
+a truncated,
+reordered,
+padded or foreign file is refused with the line named,
+and every count is checked against the lines it introduces.
+`HolderScan::accept` then compares the GUID and the nonce with the request at
+hand,
+so a result for another clone,
+or one written for an earlier scan of this clone,
+is refused by name before anything it holds is read.
+The GUID and the nonce are written in the file and never in its name.
+
+A result whose own mounts,
+holders and incomplete reads are all empty is the only one reported as clear.
+An incomplete read makes the result not clear without refusing a removal by
+itself,
+which is the destroy-anyway decision's residual and not a second rule here.
+
+#### Every read the scan could not complete
+
+Each cause is its own value,
+so a report points at a directory,
+a namespace or a task rather than at a count:
+
+- the listing:
+  the `/proc` root could not be read,
+  so nothing was scanned and that is the whole finding;
+- a task that ended:
+  the task left between the listing and its table read,
+  and the namespace is reported by whichever other task answered it,
+  which is ordinary churn and is named so a report can say the read raced;
+- a table this process may not open:
+  the namespace's mounts are unknown and it is never reported as empty;
+- a namespace with no live member:
+  every task of it ended before its table was read,
+  so the namespace may hold the clone and the scan cannot say it does not;
+- the scan's two bounds:
+  it stopped reading namespaces,
+  or stopped listing and reading,
+  so the namespaces after that point are in none of its lists.
+
+A namespace that answered no table names one cause and not two,
+so one unknown namespace is never counted as two.
+
+#### The managed attach it sets aside
+
+Before reporting a removal-ready unmount the scan excludes the clone's own
+managed attach while the clone carries a standing `unmount` intent.
+The exclusion is deliberately narrow,
+because its two mistakes do not cost the same:
+a managed attach reported as a holder costs a removal that refuses and a person
+reading the report,
+while a holder set aside lets a removal go on around it.
+A mount is set aside only when all of these hold:
+
+- the clone's durable intent reads as a local `unmount` request:
+  an absent,
+  inherited or malformed value sets nothing aside;
+- the caller knew the slot the managed attach stands at,
+  which the checkout and the dataset's last name component give;
+- the mount shows the dataset's own root rather than a folder inside it;
+- the mount point is exactly that slot.
+
+A bind of a folder inside the clone is never set aside,
+and neither is a mount at any other path,
+so "a bind of the clone elsewhere is a holder" stays true while a removal is in
+progress.
+What the rule cannot tell apart,
+and therefore accepts:
+a bind of the clone's own root placed at the slot's path,
+which only an administrator can make and which this route never makes.
+
+#### What the scan cannot show
+
+A clear result is never proof that nothing holds the clone.
+The scan sees what a live task's namespace file names:
+
+- a namespace held open by a handle and no task is in no file the scan reads,
+  so it is invisible,
+  and a run that pins one that way is how the guest arms show it;
+- a task that mounts the clone after the scan is not in it,
+  and nothing in the scan is race-free:
+  the tasks it listed and the tables it read are read at different moments;
+- a namespace is read through one of its tasks,
+  so a task that ended is a retry and not a second look;
+- a process whose root is not `/` has its mount points rendered from that root,
+  so the paths a holder reports may differ from the slot's spelling while the
+  mount is the same one,
+  and the match on the filesystem type and the source is what still finds it.
+
+The project's destroy-anyway decision accepts that residual rather than
+hiding it.
+A clean scan that misses a later copy leaves the snapshots gone with the head
+still busy,
+which is the resume state the removal workflow names,
+and a removal that auto-cancels there leaves a living worktree without its own
+snapshots.
+A deployment can narrow the window and cannot close it:
+closing per-worktree admission and draining managed consumers and namespace
+handles before the scan,
+and keeping admission closed through the head destroy,
+excludes the consumers it manages.
+It does not exclude untracked copies,
+pinned handles,
+or a namespace made in that interval,
+and no channel program excludes Linux namespace changes because it excludes ZFS
+administrative changes only.
+An unrestricted caller that attaches the clone after a scan is unmeasured,
+and a clean scan alone does not qualify such a deployment.
+
+#### The mode, and who reads the result
+
+`mount-git-worktree-clone-datasets holder-scan --dataset <name> --checkout <path>`
+runs one scan for one dataset:
+
+- it reads the dataset's identity and durable intent through the binding,
+  behind the same start-time gate every mode that makes a request runs behind;
+- it derives the slot from the checkout and the dataset's last name component;
+- it answers under the clone's own request nonce when the clone carries one and
+  under a fresh nonce otherwise;
+- it prints the result's own lines and one line that counts what it found,
+  where every other mode's answer goes;
+- and it mounts,
+  unmounts,
+  destroys and records nothing.
+
+A checkout that is not absolute,
+a dataset the pool cannot answer,
+a GUID of zero,
+and a fresh nonce the random source cannot give are refusals with nothing
+scanned.
+The mode is the reading and not the carrying:
+how root's finding reaches the account's wrapper is step 17's,
+and this mode neither writes a receipt nor changes durable intent.
+
 ### Post-commit
 
 After a successful non-dry-run commit lands
