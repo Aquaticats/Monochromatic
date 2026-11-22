@@ -1,10 +1,22 @@
 /**
- One gate container, run under its own ID file so it can be removed whatever ended the client that ran it.
+ One gate container, run under its own name, label and ID file, so the session that started it can prove which container
+ is its own and remove it whatever ended the client that ran it.
 
  `podman run` keeps its container running when its client is stopped, and the gate stops a client at the deadline it gives
  every check (`bin/native-gate-checks.ts`). The ID file is where the client wrote the container's identity while it ran,
- so the container is removed even then; a run whose `--rm` already removed it leaves the removal nothing to find.
+ so the container is removed even then; a run whose `--rm` already removed the container leaves the removal nothing to
+ find, and takes the ID file with it.
+
+ The name and label come from this run's own id (`bin/native-gate-container-identity.ts`), and the lines printed here
+ name them: several sessions run gates at once, and a session stops only a container carrying its own label. The ID
+ itself is read from the client's ID file (`bin/native-gate-container-id-file.ts`).
  */
+import { announceContainerId, } from './native-gate-container-id-file.ts';
+import {
+  type GateContainerIdentity,
+  gateContainerArgumentsOf,
+  gateContainerLineOf,
+} from './native-gate-container-identity.ts';
 import {
   type CommandOutcome,
   runCommand,
@@ -63,11 +75,14 @@ function containerRemoval({
 }
 
 /**
- Run one gate container and remove it, whether it ended by itself or its client was stopped at the deadline.
+ Run one gate container under its own name and label, print both and then the container's ID before its own output, and
+ remove it, whether it ended by itself or its client was stopped at the deadline.
 
  @param cidFile - file the client writes the container's ID to, under this run's evidence directory
 
- @param args - complete `podman run` arguments after the program name
+ @param identity - the name and label every person and every listing proves this container against
+
+ @param args - complete `podman run` arguments after the program name and the container's identity
 
  @param capture - whether to capture output instead of streaming it
 
@@ -77,12 +92,17 @@ function containerRemoval({
 
  @param environment - environment both clients run in, which defaults to this process's
 
+ @param onStarted - receives the container's ID as soon as its client writes it, which is how the run's evidence
+   records it even though `--rm` takes the ID file away with the container; this waits for it, so the evidence is on
+   disk while the container still runs
+
  @returns exit state and captured output of the client
 
  @example
  ```ts
  const suite = await runGateContainer({
    cidFile: join(evidence, 'suite.cid'),
+   identity: gateContainerIdentityOf({ runId, role: 'suite' }),
    args: [...limits, image],
    deadlineMilliseconds,
  });
@@ -90,18 +110,22 @@ function containerRemoval({
  */
 export async function runGateContainer({
   cidFile,
+  identity,
   args,
   capture = false,
   allowFailure = false,
   deadlineMilliseconds,
   environment = process.env,
+  onStarted,
 }: {
   readonly cidFile: string;
+  readonly identity: GateContainerIdentity;
   readonly args: readonly string[];
   readonly capture?: boolean;
   readonly allowFailure?: boolean;
   readonly deadlineMilliseconds: number;
   readonly environment?: NodeJS.ProcessEnv;
+  readonly onStarted?: (id: string) => Promise<void>;
 },): Promise<CommandOutcome> {
   /**
    The container's removal, run when this scope ends whatever the client did.
@@ -110,12 +134,22 @@ export async function runGateContainer({
     cidFile,
     environment,
   },);
-  return await runCommand({
+  // The name and label are printed before the client starts, so they reach the log before any of the container's own
+  // output and a person reading along can stop the container from the line alone.
+  console.log(gateContainerLineOf({
+    identity,
+    cidFile,
+  },),);
+  /**
+   The client whose container this scope removes whatever ends it.
+   */
+  const running = runCommand({
     command: 'podman',
     args: [
       'run',
       '--cidfile',
       cidFile,
+      ...gateContainerArgumentsOf({ identity, },),
       ...args,
     ],
     capture,
@@ -123,4 +157,11 @@ export async function runGateContainer({
     deadlineMilliseconds,
     env: environment,
   },);
+  await announceContainerId({
+    identity,
+    cidFile,
+    running,
+    ...(onStarted === undefined ? {} : { onStarted, }),
+  },);
+  return await running;
 }
