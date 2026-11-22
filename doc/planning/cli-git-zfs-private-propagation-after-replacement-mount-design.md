@@ -3249,6 +3249,23 @@ with its committer time from `git log --format=%cI`:
 - `9a5ca2e6cf`,
   2026-11-22T18:18:06-05:00:
   this list gained its own commit's hash and time.
+- `5e6a2ff9dc`,
+  2026-11-22T18:18:14-05:00:
+  the list gained the commit that recorded it.
+- `43aba4b52c`,
+  2026-11-22T18:49:30-05:00:
+  the second gate review's findings:
+  the propagation service gains `Type=oneshot` and `RemainAfterExit=yes`,
+  asks the boot unit to act with the sibling's job request,
+  and has its whole text and each of its exits stated from source;
+  the job-driven examples name only units systemd can start,
+  with the start refusal of a table-learned mount unit as a new fact;
+  the headline answer and A4 are rewritten;
+  the stale-instance comparison uses the unique mount number;
+  the trigger question becomes an order of adding them;
+  the cross-references,
+  the record's set bound and the review labels are corrected;
+  and the sibling section is rewritten against its tip `2c860b3930`.
 
 ## Links
 
