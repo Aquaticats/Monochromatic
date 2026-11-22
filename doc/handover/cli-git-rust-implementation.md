@@ -41995,7 +41995,19 @@ stated in this entry. What follows from them, as work:
   to diagnose and its round is owed. GOING: its pass on Sonnet, review to
   `~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/review.md`, integration branch
   `integrate/git-policy-cli-shadow-sibling-control-two-timing-windows`. When the lock and binding-record designs both end,
-  their gate review starts together and does not wait for the other eight. Step 7's
+  their gate review starts together and does not wait for the other eight. A DESIGN RUN PUT A PASSWORD DIALOG ON THE
+  OWNER'S DESKTOP at 2026-11-22T17:24:06-05:00 ("Authentication is required to send a UNIX signal to the processes of
+  'systemd-random-seed.service'"; the owner asked "Is this yours?"). It was the forced-removal design run: its feed holds
+  `systemctl kill --signal=KILL systemd-random-seed.service`, run as a probe of what an account's request to signal a
+  system unit answers, which ended after 25.2 s with "Failed to kill unit systemd-random-seed.service: Connection timed
+  out"; the journal has the agent's request at 17:24:06 and its cancelling at 17:24:31, and `polkitd` wrote that the
+  session "FAILED to authenticate" for `org.freedesktop.systemd1.manage-units`. Nothing was signalled, and the unit's
+  `MainPID` read 0 just before. The briefs said never `sudo` and never start a service manager, and said nothing about
+  asking the system manager to act. All ten design runs were sent the rule at once (no `systemctl` verb that acts without
+  `--user` on a unit the run started, no call to `org.freedesktop.systemd1`, `login1` or `PolicyKit1` on the system bus, no
+  `pkexec`, `--no-ask-password` on every `systemctl`, no signal to a process the run did not start; the answer comes from
+  the source or is owed to a guest), the shared brief text carries it, and the skill `pi-as-subagent` now tells every
+  brief to say it. The build rounds going were not sent it: their briefs put root-only work in guests. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
