@@ -5637,14 +5637,20 @@ so the sweep carries on with the identity that stands rather than failing.
 
 A writer removes its own staging name on its success path and on its failure path.
 The adoption removes the two known staging forms before it stages its own record,
-which its quiescence precondition makes safe,
-and the sweep removes them before it does anything else,
-so a machine that runs either one does not keep a killed writer's litter.
+which its quiescence precondition makes safe.
+A sweep run lists no name at all,
+so it removes nothing,
+and until plan step 18 lands the adoption is the only remover.
+A leftover can therefore stand until the next adoption.
 Plan step 18's `doctor` is to report the known forms with their count and age,
 and any unknown dot entry,
-and to remove nothing.
-A dot entry that matches neither form is therefore left for an administrator,
+and to remove the known forms.
+A dot entry that matches neither form is left for an administrator,
 which is the one state no command of this repository repairs.
+A staging file that stands affects no reader,
+because no reader reads a staging name
+(`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+"Who removes a killed writer's staging file").
 
 The parent folder's record has two writers.
 The setup run publishes `.parent` only where it is absent,
