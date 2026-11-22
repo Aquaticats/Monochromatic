@@ -1,7 +1,8 @@
 //! What:
 //!  The per-slot claim every root handler takes before it reads a clone's
 //!  desired state and acts on it:
-//!  a root-owned directory under `/run`,
+//!  a root-owned directory under `/run` that the claim makes itself when a
+//!  fresh boot has none,
 //!  one numbered claim file per slot,
 //!  and a lock-free claim that never waits.
 //! Why:
@@ -202,23 +203,7 @@ impl SlotClaimDirectory {
     /// The directory could not be made or given its mode,
     /// or it is owned by another account.
     pub fn prepare(&self) -> Result<(), ClaimRefusal> {
-        let path: &Path = self.directory.as_path();
-        if let Err(error) = std::fs::create_dir_all(path) {
-            return Err(ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
-        }
-        // The descriptor is opened with no link followed and its owner is checked before its mode is changed,
-        // so a link or another account's folder is refused without being written.
-        let directory: std::fs::File = self.open_owned_directory()?;
-        directory.set_permissions(std::fs::Permissions::from_mode(SLOT_CLAIM_DIRECTORY_MODE)).map_err(|error| {
-            return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() };
-        })?;
-        let facts: std::fs::Metadata = directory
-            .metadata()
-            .map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
-        let permission_bits: u32 = facts.mode() & 0o7777;
-        if permission_bits != SLOT_CLAIM_DIRECTORY_MODE {
-            return Err(ClaimRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });
-        }
+        let directory: std::fs::File = self.make_and_prove()?;
         drop(directory);
         return Ok(());
     }
@@ -240,15 +225,20 @@ impl SlotClaimDirectory {
         if let Some(reason) = slot_name_refusal(slot) {
             return Err(ClaimRefusal::SlotName { slot: String::from(slot), reason });
         }
+        // A fresh boot has no claims directory, and the claims live under `/run`, so the claim makes its own directory at
+        // its designed mode exactly as `prepare` does rather than refusing every claim until an earlier mode made it.
         // The shared claim makes path-based calls and checks no owner or mode of its directory, so the designed folder is
-        // proved through its own descriptor first, and the claim is then taken inside a folder only root can replace.
-        // Its own calls still resolve that path again, so the window between this proof and the claim is open; closing it
-        // needs a descriptor-relative take_claim (the shared module's openat, linkat and unlinkat) and belongs to the step
-        // that first calls this claim.
-        self.open_directory()?;
+        // made and proved through its own descriptor here, and the claim is then taken inside a folder only root can
+        // replace. Its own calls still resolve that path again, so the window between this proof and the claim is open;
+        // closing it needs a descriptor-relative take_claim (the shared module's openat, linkat and unlinkat) and belongs
+        // to the step that first calls this claim.
+        let directory: std::fs::File = self.make_and_prove()?;
         let outcome: ClaimOutcome = take_claim(self.directory.as_path(), OsStr::new(slot)).map_err(|error| {
             return ClaimRefusal::Records { slot: String::from(slot), reason: error.to_string() };
         })?;
+        // The descriptor the directory was proved through stays open until the claim's own calls answered, so the folder
+        // this route proved is the folder the claim was taken in.
+        drop(directory);
         return match outcome {
             ClaimOutcome::Held(claim) => Ok(HeldSlotClaim { claim, slot: String::from(slot) }),
             ClaimOutcome::Busy(owner) => {
@@ -258,12 +248,29 @@ impl SlotClaimDirectory {
         };
     }
 
-    /// Open the directory and prove its owner and mode.
-    fn open_directory(&self) -> Result<std::fs::File, ClaimRefusal> {
-        let directory: std::fs::File = self.open_owned_directory()?;
+    /// Make the directory when it is absent,
+    /// give it its designed mode,
+    /// and prove it,
+    /// handing back the descriptor this claim's proof holds.
+    /// Why:
+    ///  A fresh boot has no directory under `/run`,
+    ///  and the claim's own `claim` must not refuse the first sweep of a boot,
+    ///  so the maker and the prover are one place both entries call,
+    ///  as the receipts folder and the readiness file share theirs.
+    fn make_and_prove(&self) -> Result<std::fs::File, ClaimRefusal> {
         let path: &Path = self.directory.as_path();
-        let facts: std::fs::Metadata =
-            directory.metadata().map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
+        if let Err(error) = std::fs::create_dir_all(path) {
+            return Err(ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() });
+        }
+        // The descriptor is opened with no link followed and its owner is checked before its mode is changed,
+        // so a link or another account's folder is refused without being written.
+        let directory: std::fs::File = self.open_owned_directory()?;
+        directory.set_permissions(std::fs::Permissions::from_mode(SLOT_CLAIM_DIRECTORY_MODE)).map_err(|error| {
+            return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() };
+        })?;
+        let facts: std::fs::Metadata = directory
+            .metadata()
+            .map_err(|error| return ClaimRefusal::Directory { path: path.to_path_buf(), reason: error.to_string() })?;
         let permission_bits: u32 = facts.mode() & 0o7777;
         if permission_bits != SLOT_CLAIM_DIRECTORY_MODE {
             return Err(ClaimRefusal::DirectoryMode { path: path.to_path_buf(), found: permission_bits });

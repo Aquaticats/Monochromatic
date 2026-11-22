@@ -4,6 +4,7 @@
 //!  a dropped claim frees the slot,
 //!  two slots are independent,
 //!  a claim an owner left behind is taken over only when that owner is gone,
+//!  the first claim after a boot makes its own directory,
 //!  and a name that is no slot is refused.
 //! Why:
 //!  The design lets parallel handlers sweep at once but forbids conflicting
@@ -70,6 +71,34 @@ fn the_claim_directory_and_file_take_their_modes() {
     assert_eq!(held.slot(), "one");
     let file: PathBuf = directory.claim_generation_file("one", 1);
     let file_mode: u32 = std::fs::metadata(file.as_path()).expect("the claim file exists").permissions().mode() & 0o777;
+    assert_eq!(file_mode, SLOT_CLAIM_FILE_MODE);
+    held.release();
+}
+
+/// What:
+///  The first claim after a boot makes the claim directory itself,
+///  at its designed mode,
+///  instead of refusing every claim until something else made it.
+/// Why:
+///  The claims live under `/run`,
+///  so every boot starts with no directory,
+///  and a first sweep whose claim refused would mount nothing until an
+///  earlier mode made it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claims = SlotClaimDirectory.at(empty.join('never-made'), uid); expect(claims.claim('one').kind).toBe('held');
+/// ```
+#[test]
+fn a_first_claim_in_a_missing_directory_is_taken() {
+    let parent: PathBuf = fixture("claim-fresh-boot");
+    let directory: SlotClaimDirectory = SlotClaimDirectory::at(parent.join("never-made"), this_uid());
+    assert!(!directory.directory().exists(), "the boot starts with no claims directory");
+    let held: HeldSlotClaim = directory.claim("one").expect("the first claim after a boot makes its own directory");
+    let mode: u32 = std::fs::metadata(directory.directory()).expect("the claim made the directory").permissions().mode() & 0o777;
+    assert_eq!(mode, SLOT_CLAIM_DIRECTORY_MODE);
+    let file: PathBuf = directory.claim_generation_file("one", 1);
+    let file_mode: u32 = std::fs::metadata(file.as_path()).expect("the claim record exists").permissions().mode() & 0o777;
     assert_eq!(file_mode, SLOT_CLAIM_FILE_MODE);
     held.release();
 }
@@ -179,8 +208,18 @@ fn the_record_names_this_process_by_its_birth() {
     held.release();
 }
 
-/// A name that is no slot name is refused before any file is opened,
-/// and a wrong directory owner or mode is refused too.
+/// What:
+///  A name that is no slot name is refused before any file is opened,
+///  a directory owned by another account is refused,
+///  and a directory with another mode is given the designed one before the
+///  claim is taken.
+/// Why:
+///  The claim makes and proves its directory exactly as `prepare` does,
+///  so a fresh boot's absent directory,
+///  a foreign owner and a wrong mode each answer the way the receipts and
+///  readiness writers answer them:
+///  the owner is the trust boundary and is never changed,
+///  while the mode is the claim's own to set.
 #[test]
 fn a_foreign_name_or_directory_is_refused() {
     let directory: SlotClaimDirectory = claims("claim-names");
@@ -191,7 +230,10 @@ fn a_foreign_name_or_directory_is_refused() {
     let wrong_owner: SlotClaimDirectory = SlotClaimDirectory::at(directory.directory().to_path_buf(), this_uid() + 1);
     assert!(matches!(wrong_owner.claim("one"), Err(ClaimRefusal::DirectoryOwner { .. })));
     std::fs::set_permissions(directory.directory(), std::fs::Permissions::from_mode(0o700)).expect("the directory takes another mode");
-    assert!(matches!(directory.claim("one"), Err(ClaimRefusal::DirectoryMode { found: 0o700, .. })));
+    let held: HeldSlotClaim = directory.claim("one").expect("the claim gives the directory its designed mode and takes the slot");
+    let mode: u32 = std::fs::metadata(directory.directory()).expect("the directory exists").permissions().mode() & 0o777;
+    assert_eq!(mode, SLOT_CLAIM_DIRECTORY_MODE, "the claim set the designed mode before it claimed");
+    held.release();
 }
 
 /// A claim record this route did not write is refused and named,

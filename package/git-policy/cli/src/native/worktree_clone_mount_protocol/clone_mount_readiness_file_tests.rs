@@ -17,7 +17,8 @@
 //! ```
 
 use super::{
-    READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, ReadinessFile, ReadinessFileRefusal, readiness_staging_name,
+    READINESS_DIRECTORY, READINESS_DIRECTORY_MODE, READINESS_MODE, READINESS_NAME, READINESS_STAGING_NAME, ReadinessFile, ReadinessFileRefusal,
+    readiness_staging_name,
 };
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessRecord, ReadyState, SweepState};
@@ -221,6 +222,51 @@ fn two_publishes_at_once_leave_one_whole_record() {
 }
 
 /// What:
+///  Every staging sibling the directory holds right now,
+///  under any name a publish could have drawn.
+/// Why:
+///  A publish's staging name carries a counter,
+///  so a control that draws a name of its own asks about a file no publish
+///  ever made and stays green with the cleanup removed.
+fn staging_siblings(directory: &std::path::Path) -> Vec<PathBuf> {
+    return std::fs::read_dir(directory)
+        .expect("the directory lists")
+        .flatten()
+        .map(|entry| return entry.path())
+        .filter(|path| return path.file_name().is_some_and(|name| return name.to_string_lossy().starts_with(READINESS_STAGING_NAME)))
+        .collect();
+}
+
+/// What:
+///  A publish whose rename cannot take the record's name leaves no staging
+///  sibling,
+///  so this process's next publish is not blocked by one.
+/// Why:
+///  The writer removes the sibling its failure staged,
+///  and this is the only control that reaches that removal:
+///  every publish draws a fresh staging name,
+///  so a control that names a sibling of its own would ask about a file no
+///  publish made and stay green with the cleanup removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdir(file.record()); expect(() => file.publish(record)).toThrow(); expect(listing(dir).filter(staging)).toEqual([]); rmdir(file.record()); file.publish(record);
+/// ```
+#[test]
+fn a_failed_publish_leaves_no_staging_sibling() {
+    let file: ReadinessFile = live_file("readiness-failed-publish");
+    let blocker: PathBuf = file.record();
+    std::fs::create_dir(blocker.as_path()).expect("a folder stands where the record belongs");
+    let refusal: ReadinessFileRefusal = file.publish(&record()).expect_err("a rename onto a folder fails");
+    assert!(matches!(refusal, ReadinessFileRefusal::Staging { .. }), "{refusal:?}");
+    let left: Vec<PathBuf> = staging_siblings(file.directory());
+    assert!(left.is_empty(), "the writer removed the sibling its failure staged: {left:?}");
+    std::fs::remove_dir(blocker.as_path()).expect("the folder is removed");
+    file.publish(&record()).expect("this process's next publish is not blocked");
+    assert_eq!(file.read().expect("the record is read"), Some(record()));
+}
+
+/// What:
 ///  A readiness record this route's own reader would refuse is never written,
 ///  and a leftover staging sibling of this process does not block the retry.
 /// Why:
@@ -230,7 +276,7 @@ fn two_publishes_at_once_leave_one_whole_record() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(() => file.publish(hostile)).toThrow(); expect(publishAgain()).toBeUndefined();
+/// expect(() => file.publish(hostile)).toThrow(); expect(file.publish(record)).toBeUndefined();
 /// ```
 #[test]
 fn a_record_no_reader_accepts_is_not_written_and_a_leftover_does_not_block() {

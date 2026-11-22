@@ -21,7 +21,7 @@
 //! ```
 
 use super::{
-    DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsFolder, ReceiptsRefusal,
+    DIRECTORY_MODE, RECEIPT_MODE, RESULTS_DIRECTORY, ReceiptsFolder, ReceiptsRefusal, STAGING_SUFFIX,
 };
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
@@ -81,6 +81,23 @@ fn live_folder(name: &str) -> ReceiptsFolder {
     let root: PathBuf = fixture(name);
     std::fs::set_permissions(root.as_path(), std::fs::Permissions::from_mode(DIRECTORY_MODE)).expect("the fixture takes the directory mode");
     return ReceiptsFolder::at(root, this_uid());
+}
+
+/// What:
+///  Every staging sibling the directory holds right now,
+///  under any name a publish could have drawn.
+/// Why:
+///  A publish's staging name carries a counter,
+///  so a control that draws a name of its own asks about a file no publish
+///  ever made and stays green with the cleanup removed.
+///  Listing the directory asks the question the cleanup answers.
+fn staging_siblings(directory: &std::path::Path) -> Vec<PathBuf> {
+    return std::fs::read_dir(directory)
+        .expect("the directory lists")
+        .flatten()
+        .map(|entry| return entry.path())
+        .filter(|path| return path.to_string_lossy().contains(STAGING_SUFFIX))
+        .collect();
 }
 
 /// The live folder is the designed path and requires root.
@@ -334,10 +351,14 @@ fn a_receipt_no_reader_accepts_is_not_written() {
 /// Why:
 ///   A handler that retries after a failed publish in the same process met
 ///   `EEXIST` on its own sibling and could never file again.
+///  The control lists the directory rather than naming a sibling of its own,
+///  because every publish draws a fresh staging name:
+///  a name the control draws is a file no publish ever made,
+///  and the control would stay green with the cleanup removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// mkdir(dir.join(guid)); expect(() => folder.publish(receipt)).toThrow(); expect(staging).not.toExist(); rmdir(dir.join(guid)); folder.publish(receipt);
+/// mkdir(dir.join(guid)); expect(() => folder.publish(receipt)).toThrow(); expect(listing(dir).filter(staging)).toEqual([]); rmdir(dir.join(guid)); folder.publish(receipt);
 /// ```
 #[test]
 fn a_failed_publish_leaves_no_staging_sibling() {
@@ -347,7 +368,8 @@ fn a_failed_publish_leaves_no_staging_sibling() {
     std::fs::create_dir(blocker.as_path()).expect("a folder stands where the receipt belongs");
     let refusal: ReceiptsRefusal = folder.publish(&receipt).expect_err("a rename onto a folder fails");
     assert!(matches!(refusal, ReceiptsRefusal::Staging { .. }), "{refusal:?}");
-    assert!(!folder.directory().join(folder.staging_name(receipt.dataset)).exists(), "the writer removed its own sibling");
+    let left: Vec<PathBuf> = staging_siblings(folder.directory());
+    assert!(left.is_empty(), "the writer removed the sibling its failure staged: {left:?}");
     std::fs::remove_dir(blocker.as_path()).expect("the folder is removed");
     folder.publish(&receipt).expect("this process's next publish is not blocked");
     assert_eq!(folder.read(receipt.dataset).expect("the receipt is read"), Some(receipt));

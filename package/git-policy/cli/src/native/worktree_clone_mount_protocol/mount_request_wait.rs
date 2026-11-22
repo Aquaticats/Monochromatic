@@ -376,6 +376,8 @@ async fn read_the_receipt(
     folder: &ReceiptsFolder,
     dataset: DatasetGuid,
 ) -> Result<Result<Option<CloneMountReceipt>, ReceiptsRefusal>, WaitRefusal> {
+    #[cfg(test)]
+    count_the_read();
     return run_blocking_job({
         let holder: ReceiptsFolder = folder.clone();
         move || return holder.read(dataset)
@@ -409,6 +411,47 @@ fn remaining(now: Duration, deadline: Duration) -> Option<Duration> {
         return None;
     }
     return Some(deadline - now);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The reads this thread's waits have taken,
+    /// for the control of the sleep between them.
+    static READS_TAKEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// What:
+///  Count one read of the wait's loop,
+///  in a control build only.
+/// Why:
+///   The sleep between reads is what keeps a waiting caller off the CPU for the
+///  whole deadline,
+///  and a wait without it still answers every control:
+///  counting the reads is the one thing a control can read that tells the two
+///  apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readsTaken += 1;
+/// ```
+#[cfg(test)]
+fn count_the_read() {
+    READS_TAKEN.with(|reads| return reads.set(reads.get() + 1));
+}
+
+/// What:
+///  The reads this thread's waits have taken so far.
+/// Why:
+///  The control of the sleep takes the count before and after one wait of its
+///  own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(readsTaken()).toBeLessThanOrEqual(deadline / pollInterval + 2);
+/// ```
+#[cfg(test)]
+pub(crate) fn reads_taken() -> u64 {
+    return READS_TAKEN.with(|reads| return reads.get());
 }
 
 /// Controls stay out of the release executable.
