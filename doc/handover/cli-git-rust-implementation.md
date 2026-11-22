@@ -41809,7 +41809,23 @@ stated in this entry. What follows from them, as work:
   `pi-btrfs-subvol-info-call-site-control-and-doc-lows` on
   `fix/git-policy-cli-btrfs-subvol-info-call-site-control-and-doc-lows` (the pass's medium: the portable control holds only
   the reader, not the call site; and the document's lows; brief under
-  `~/temp/agent/btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/`). Step 7's
+  `~/temp/agent/btrfs-subvol-info-call-site-control-and-doc-lows-2026-11-22/`). ZFS STEP 8 IS MERGED as `00d857a435`
+  (2026-11-22T14:25:51-05:00, pushed): its recheck on Sonnet said fit
+  (`~/temp/agent/integration-recheck-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`; H1, H2, M1, M4, M6, M8 and M9
+  each red without their fix; every guest arm green; gate 9873 of 9875). `main` was merged into the integration branch
+  again first (the 6341 fix) and `native:check` passed; no gate ran on that combination. The recheck left: M-1 to M-4 (no
+  control holds M3's take-down, M2's wiring, the own-mount predicate or the key-keeps-`done` rule; the holder's re-read
+  exists on the attach path only), lows L-1 to L-5, and two owner items. OWNER ITEM 1, ASKED 2026-11-22: with no
+  configuration file, with `{}`, or with only a `startProbe` object, the sweep exits 2 and attaches nothing;
+  `cloneMounts.checkout` is required, the start probe needs `startProbe.dataset` and `startProbe.checkout`, and the
+  accepted start-probe design has `doctor` print the probe's field for the owner to apply, against the owner's "Everything
+  must work by default w/o any configuration". OWNER ITEM 2, the sweep's cost with every clone mounted: 64 children about
+  0.3 s steady and 1 s cold (one child about 0.15 s); 1,024 about 8.3 s and 25.5 s; 2,048 about 26 s and 66 s. A
+  `git worktree add` waits on a sweep's receipt, so the growth is treated as a defect on a waiting path and fixed without a
+  question; the bound's measured figures go beside the constant, veto open. GOING:
+  `pi-zfs-step-8-recheck-findings-and-sweep-cost` on `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` (M-1 to
+  M-4, the lows, the sweep's cost; brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`; the
+  no-configuration question is not in it and gets a round of its own once answered). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
