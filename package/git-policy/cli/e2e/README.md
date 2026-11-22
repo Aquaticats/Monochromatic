@@ -892,10 +892,14 @@ a checkout dataset mounted at the configured path with its own mount made
 private,
 a sibling container,
 and a clone of the checkout's `git-worktree-clone-origin-` snapshot.
-The configuration names no dataset,
+The first configuration names no dataset,
 so the run reads the two dataset names through the design's fallback
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"The datasets the sweep acts on").
+"The datasets the sweep acts on"),
+and the shapes that name no checkout at all read them from the guest's own mount
+table
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"With no configuration file").
 
 The arms:
 
@@ -940,8 +944,75 @@ The arms:
   one sweep over one more child than the bound visits stops at the bound,
   says so,
   and prints the milliseconds it took beside the number in
-  `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`.
+  `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`;
+- the four shapes that name no checkout,
+  each on its own sweep run:
+  no file at all,
+  an empty object,
+  a file holding only the start probe's object,
+  and a file naming both datasets and no checkout,
+  each of which has to attach the designed clone,
+  with the mount taken down and the slot's record cleared between them;
+- the `several` a second pool makes:
+  a second file-backed pool holding a dataset named
+  `monochromatic-git-checkout` is a second instance of the leaf name,
+  and the sweep refuses with a status of 2,
+  lists both instances and the leaf name it looked for,
+  and mounts nothing.
+
+The arm's no-configuration lines are its `SWEEP no-configuration` markers,
+one per shape and one for the second pool.
 
 The arms print `MEASUREMENT sweep-attach-ms=` and
 `MEASUREMENT child-bound-listing-ms=` lines beside their assertions,
 and the driver fails a run whose pulled log lacks a line or a marker.
+
+## The ZFS start-probe arms
+
+`start-probe-guest.ts` runs the root probe's own arms in a guest of the same
+recipe:
+the compatibility gate,
+the private namespace and the scratch tmpfs,
+the exclusive attach of the probe dataset's `ready` snapshot,
+the holder in a second namespace,
+the move and the unmount from a second process,
+and the record under `/run`
+(`doc/planning/cli-git-zfs-start-probe-design.md`,
+"The arms").
+Its `probe-dataset` step makes the fixture a probe needs:
+the file-backed pool,
+the `nosnap` container,
+the probe dataset with its empty `ready` snapshot and its user property,
+an encrypted dataset beside it for the unloaded-key control,
+a checkout that is a mounted dataset of the design's leaf name,
+and the root-owned configuration naming both names.
+
+The no-configuration arm is the project's answer of 2026-11-22 for the probe
+(`doc/decision/cli-git-zfs-start-probe.md`,
+"Answer of 2026-11-22:
+the probe needs no configuration file"):
+
+- with no file the record's verdict passes,
+  and its source is `nosnap/git-worktree-probe` in the pool that holds the
+  checkout,
+  which is the design's own name;
+- the dataset is then renamed away,
+  and the same run leaves the `ENOENT` record,
+  not exercised with `missing-source`,
+  whose mode line names the `zfs create` and `zfs snapshot` commands plan step
+  19's setup runs.
+
+Its lines are the `NO-CONFIGURATION` markers,
+and the driver fails a run whose pulled log lacks one.
+The start-probe measurements of steps 6 and 10 run from the same driver's other
+steps;
+this section covers only what the no-configuration answer added.
+
+```sh
+# package/git-policy/cli: one guest of the sweep driver, then the probe's arms
+node e2e/mount-git-worktree-clone-datasets-guest.ts create --name <guest> --log-dir <dir>
+node e2e/mount-git-worktree-clone-datasets-guest.ts prepare --name <guest> --log-dir <dir>
+node e2e/start-probe-guest.ts probe-dataset --name <guest> --log-dir <dir>
+node e2e/start-probe-guest.ts no-configuration --name <guest> --log-dir <dir>
+node e2e/mount-git-worktree-clone-datasets-guest.ts destroy --name <guest> --log-dir <dir>
+```

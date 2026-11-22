@@ -6281,34 +6281,79 @@ attached,
 unmounted or recorded.
 That is the design's fail-closed answer for an arm that could not run.
 
-The three names the mode takes from the configuration are this build's choice,
+The three names the mode acts on are this build's choice,
 because the design names the file and not its keys:
-they sit in one `cloneMounts` object beside the start probe's,
+they may sit in one `cloneMounts` object beside the start probe's,
 as `cloneMounts.parent` for the pinned clone parent dataset,
 `cloneMounts.checkout` for the checkout the walk starts from,
 and `cloneMounts.checkoutDataset` for the checkout dataset a clone's origin is
 a snapshot of.
-The project decided on 2026-11-22 that step 19's setup writes the two dataset
-names itself,
-and that a file holding neither is read through the design's own names:
-the checkout dataset is the dataset the configured checkout path is mounted
-from,
-which must carry the leaf name `monochromatic-git-checkout`,
-and the container is that dataset's sibling
-`monochromatic-git-worktree-clone-datasets`.
+Every one of them is optional.
+The project decided on 2026-11-22 that everything works by default with no
+configuration file,
+and that step 19's setup still writes the two dataset names into that file.
+The rule this build keeps is entry by entry:
+
+- `cloneMounts.checkout` names the checkout path as written;
+- `cloneMounts.checkoutDataset` names the checkout dataset as written;
+- `cloneMounts.parent` names the container as written;
+- `startProbe.checkout` names the probe's checkout as written;
+- an entry the file leaves out is found from this process's own mount table,
+  `/proc/self/mountinfo`;
+- the table's rows are the mounts of the namespace the handler runs in,
+  and a row is an instance of a dataset when its filesystem type is exactly
+  `zfs`,
+  its source's last `/`-separated component is the leaf name looked for,
+  and its root within the dataset is `/`;
+- a bind mount of a subtree shows a deeper root and is no instance,
+  while a bind mount of the dataset's own root and a second mount of the
+  dataset are instances;
+- with neither the path nor the dataset named,
+  the one instance of `monochromatic-git-checkout` is both:
+  its source is the checkout dataset and its mount point is the checkout path;
+- with the path named and the dataset left out,
+  the mount the path is on must be a `zfs` mount of a dataset whose leaf name is
+  `monochromatic-git-checkout`;
+- with the dataset named and the path left out,
+  the path is the one mount point of that dataset at its own root;
+- with the container left out,
+  it is the sibling `monochromatic-git-worktree-clone-datasets` of the checkout
+  dataset in the same parent dataset.
+
+No instance,
+and more than one instance,
+are refusals that list every row the table held whose source carried the leaf
+name,
+and the sweep never picks one of several:
+two pools that hold that leaf name,
+one dataset mounted at two paths and a bind mount of the dataset's own root
+outside it all refuse,
+while a mount inside another mount namespace is not a row of this table and
+never counts.
+The container and the probe dataset are named rather than mounted,
+so no row is looked for for either.
 Nobody edits the file by hand.
 The start probe's object may name a checkout too;
+when a file names both,
 the two must be one folder,
 because a probe that passed for one says nothing about a walk that starts at
-another.
-A parent that is no dataset name,
-a checkout that is not absolute,
-a missing checkout key,
-a checkout on no dataset,
-a checkout dataset with another name,
-two different checkouts and a document that does not parse are each refused
-by name,
-and nothing is enumerated or attached.
+another,
+and with neither named they are the same found mount by construction.
+A parent or a dataset name that is no dataset name,
+a checkout path that is not absolute,
+a file that is there and cannot be read or parsed,
+a value of the wrong type,
+a path on a mount that is no ZFS dataset,
+a dataset of another leaf name at the path,
+no mounted instance,
+several instances,
+a named dataset with no mount or with several,
+a checkout dataset with no parent component and two different checkouts are each
+refused by name,
+and nothing is enumerated,
+attached or recorded.
+A file that is not there is not a refusal:
+it is read as a file that names nothing.
 
 The pool's name is the parent's first `/`-separated component.
 The pool is `ready` when one identity read of the pinned parent answers,
@@ -20624,15 +20669,46 @@ in this order:
   and a recorded identity that changed.
   It opens the configured checkout read-only and reads no entry there.
 - It reads the source from
-  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`:
-  one `startProbe` object holds `dataset`,
+  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`
+  when that file is there,
+  and otherwise from the names the design fixes.
+  One `startProbe` object holds `dataset`,
   which names the dataset whose `ready` snapshot the probe attaches,
   and `checkout`,
   which names the folder the walk opens.
+  An entry that is there is used as written,
+  and each entry the file or the object leaves out is found:
+  the checkout is the one mounted ZFS dataset of this namespace whose last name
+  component is `monochromatic-git-checkout`,
+  and the dataset is `nosnap/git-worktree-probe` in the pool that holds it,
+  which is the checkout dataset's first component,
+  with the snapshot `ready`.
+  A file that is absent,
+  or that holds no `startProbe` object,
+  is therefore no refusal:
+  before the project's answer of 2026-11-22 it left the record `blocked` with
+  `configuration-missing`,
+  and now it leaves a probe that runs.
+  A file that is there and unreadable or unparsable,
+  and a value of the wrong type,
+  are still refusals,
+  because such a file won a precedence it cannot fill.
   The dataset is checked as a name:
   each component holds alphanumerics and `_ - . :`,
   the dataset and its `@ready` suffix together are at most 255 bytes,
   and the dataset carries no `@` or `#`.
+  A checkout that cannot be told,
+  or several mounted instances of the leaf name,
+  leave the checkout-root step not exercised with the reason word
+  `mount-table-unreadable`,
+  `no-mounted-checkout` or `several-mounted-checkouts`,
+  and a dataset that cannot be told for want of a pool leaves the source-name
+  step not exercised with `no-mounted-checkout`.
+  The mode's own line for a blocked record whose attach arm asked for a source
+  the pool does not hold names the two commands plan step 19's setup runs,
+  `zfs create` with the design's properties and `zfs snapshot <dataset>@ready`,
+  so a boot that meets an absent dataset reads which command creates it rather
+  than only which call answered `ENOENT`.
 - It opens a `zfs` context,
   writes the source and the `ro`,
   `nosuid` and `nodev` options,

@@ -1754,6 +1754,17 @@ The sweep and `boot-reconcile` are described in `SPEC.md` under the section
 on the sweep and the boot it reconciles,
 and the guest arms that run them against a real pool are in
 the sweep arms section of `e2e/README.md`.
+Both work with no configuration file:
+the checkout is the one mounted ZFS dataset whose last name component is
+`monochromatic-git-checkout`,
+the clone container is its sibling `monochromatic-git-worktree-clone-datasets`,
+and the start probe's dataset is `nosnap/git-worktree-probe` in the pool that
+holds the checkout.
+A file that is present wins entry by entry,
+and plan step 19's setup still writes the two dataset names into it.
+A name that matches no mounted dataset,
+or several,
+is a refusal that lists what the mount table held rather than a guess.
 Only the wrapper is linked,
  and not as the installed file's own name:
 link it as `git` in a directory that comes before the real Git on `PATH`:
