@@ -366,7 +366,8 @@ fn a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader() {
 ///  an open from that proof still declines a repository holding a replace ref.
 /// Why:
 ///  `open_where_the_layout_proved_the_store` skips the reftable folder and the configuration read,
-///  never the replace refs, the shallow file or the grafts,
+///  never the replace refs,
+/// the shallow file or the grafts,
 ///  which the layout does not look at.
 #[test]
 fn a_store_a_layout_proved_still_declines_a_replacement_object() {
@@ -382,8 +383,10 @@ fn a_store_a_layout_proved_still_declines_a_replacement_object() {
     remove(root.as_path());
 }
 
-/// A repository of three commits, each adding one line to `a.txt`,
-/// and their names, the oldest first.
+/// A repository of three commits,
+/// each adding one line to `a.txt`,
+/// and their names,
+/// the oldest first.
 fn three_commits(parent: &Path, name: &str) -> (PathBuf, Vec<String>) {
     let repo: PathBuf = parent.join(name);
     std::fs::create_dir(repo.as_path()).expect("repository directory");

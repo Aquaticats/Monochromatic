@@ -175,7 +175,9 @@ const MOVED_READ_ENVIRONMENTS: [&str; 3] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNA
 ///  while a value of `files` changes nothing and leaves the repository open.
 ///  The other three change what a read means whatever their value,
 ///  even a value that names the store this reader already scans,
-///  so their presence declines: Git answers there, at the price of its starts.
+///  so their presence declines:
+/// Git answers there,
+/// at the price of its starts.
 fn environment_names_another_read() -> bool {
     if std::env::var_os(REFERENCE_BACKEND_ENVIRONMENT).is_some_and(|value| { return value.as_os_str() != OsStr::new("files"); }) {
         return true;

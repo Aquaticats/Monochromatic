@@ -298,13 +298,16 @@ fn keep_the_commit_bytes(state: &LandingState, read: (&str, &[u8])) {
 ///  Empty the memory of commits read,
 ///  so this landing asks Git about a commit an earlier one asked about.
 /// Why:
-///  The state below belongs to the service's loop, which enters it once,
+///  The state below belongs to the service's loop,
+/// which enters it once,
 ///  so without this the bytes of a commit outlive the landing that read them.
 ///  A replace ref added to a commit after a landing read it changes what Git answers for that name,
 ///  and an amend of that commit then stands on the replaced commit's parents where Git reads none
 ///  (`service_land.rs`,
 ///  `land_batch_timed`).
-///  Emptying it also bounds what a service holds: one landing's commits, never the run's.
+///  Emptying it also bounds what a service holds:
+/// one landing's commits,
+/// never the run's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

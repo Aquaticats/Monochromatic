@@ -547,7 +547,8 @@ fn an_environment_that_moves_the_ref_store_declines_the_database() {
 const REPLACE_BASE_CHILD: &str = "CLI_GIT_READER_REPLACE_BASE_CHILD";
 
 /// The namespace replacement refs are read from in that control:
-/// a path under the common directory, as Git resolves it.
+/// a path under the common directory,
+/// as Git resolves it.
 const NAMED_REPLACE_BASE: &str = "refs/probe/";
 
 /// The marker that tells the child of the object-store control which body it runs.

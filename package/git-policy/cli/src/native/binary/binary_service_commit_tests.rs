@@ -640,9 +640,11 @@ const SETTINGS_A_SERVICE_CANNOT_SEE: [(&str, &str); 4] = [
 /// The same settings as a *service* is given them,
 /// each with a value that moves what the service's Git reads.
 /// Why:
-///  A `files://` payload store names the whole ref store of the command, and a store that holds only a branch and a
+///  A `files://` payload store names the whole ref store of the command,
+/// and a store that holds only a branch and a
 ///  replacement is read by Git for `cat-file` and not for the branch;
-///  a reftable store that holds no reference at all is the shape the service fails on, which is what Git does under it.
+///  a reftable store that holds no reference at all is the shape the service fails on,
+/// which is what Git does under it.
 const SETTINGS_ONLY_A_SERVICE_SEES: [(&str, &str); 4] = [
     ("GIT_REFERENCE_BACKEND", "reftable"),
     ("GIT_REPLACE_REF_BASE", "refs/probe/"),
@@ -657,7 +659,8 @@ const A_SETTING_THAT_MOVES_NOTHING: (&str, &str) = ("GIT_ATTR_NOSYSTEM", "1");
 /// A repository of two commits with an edit staged for an amend,
 /// and the store or the replacement base `variable` names written under `value`.
 /// Why:
-///  The setting has to move what Git answers for the base, or the control proves nothing:
+///  The setting has to move what Git answers for the base,
+/// or the control proves nothing:
 ///  a replacement that stands on no parent makes an amended commit stand on none,
 ///  an empty object store makes Git find no base at all,
 ///  and a base moved into the alternate store is found only through it.
@@ -719,7 +722,8 @@ fn git_under_setting(fixture: &Fixture, repo: &Path, setting: (&str, &str), argu
 /// Why:
 ///  The client and the resident service are separate processes and a request carries no environment,
 ///  so the service would land the commit from its own environment:
-///  a replacement base, an object store or an alternate store named for one command is read by that command's
+///  a replacement base,
+/// an object store or an alternate store named for one command is read by that command's
 ///  Git and by nothing the landing asks.
 #[test]
 fn a_setting_only_the_client_sees_refuses_the_commit_plainly() {

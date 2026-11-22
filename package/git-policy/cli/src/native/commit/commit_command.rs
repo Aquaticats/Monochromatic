@@ -261,7 +261,8 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 }
 
 /// The variables that move an object read for the command that sets them,
-/// and never for the resident service: it is another process and lands from its own environment,
+/// and never for the resident service:
+/// it is another process and lands from its own environment,
 /// as does every Git it starts.
 const SETTINGS_ONLY_THIS_COMMAND_SEES: [&str; 4] = ["GIT_REFERENCE_BACKEND", "GIT_REPLACE_REF_BASE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
 
@@ -288,7 +289,8 @@ fn setting_the_service_cannot_see(environment: &[(OsString, OsString)]) -> Optio
 }
 
 /// What:
-///  Refuse a commit whose own environment names another ref store, another object store or another replacement base,
+///  Refuse a commit whose own environment names another ref store,
+/// another object store or another replacement base,
 ///  naming the variable,
 ///  before anything is prepared or sent.
 /// Why:
@@ -299,7 +301,8 @@ fn setting_the_service_cannot_see(environment: &[(OsString, OsString)]) -> Optio
 ///  The commit would then land as if the setting were absent while Git reads something else,
 ///  which is the wrong answer this round declines the in-process reader for elsewhere.
 ///  A person who set the variable for one command is told plainly and nothing changes,
-///  and the service started with the variable already reads it, because its own Git children inherit it.
+///  and the service started with the variable already reads it,
+/// because its own Git children inherit it.
 fn refuse_a_setting_the_service_cannot_see(environment: &[(OsString, OsString)]) -> Option<CommitEnding> {
     let variable: &str = setting_the_service_cannot_see(environment)?;
     write_stderr(

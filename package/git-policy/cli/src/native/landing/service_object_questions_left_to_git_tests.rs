@@ -199,7 +199,8 @@ fn built_commits_missing_asks_every_commit() {
     remove(root.as_path());
 }
 
-/// What one landing begins with, as the service's landing entry begins it:
+/// What one landing begins with,
+/// as the service's landing entry begins it:
 /// the bytes a commit read before it are not answered from.
 fn begin_a_landing() {
     crate::landing_state_carried_by_its_task::forget_the_commits_read_by_an_earlier_landing();
@@ -231,7 +232,8 @@ fn a_landing_reads_a_commit_once() {
 ///  A landing does not answer with the bytes an earlier landing read,
 ///  so a replace ref added between two landings is what the second one's commit question reads.
 /// Why:
-///  The state the memory lives in belongs to the service's loop, which enters it once (`land_batch_timed`),
+///  The state the memory lives in belongs to the service's loop,
+/// which enters it once (`land_batch_timed`),
 ///  so a memory that is not emptied hands the first landing's bytes to every later one:
 ///  an amend of that commit then stands on the commit's own parents where Git reads the replacement's.
 #[test]
@@ -254,7 +256,8 @@ fn a_landing_does_not_answer_with_the_commits_an_earlier_landing_read() {
 }
 
 /// The names the cut-write control asks about:
-/// two object names, so the input file holds more bytes than the child may write.
+/// two object names,
+/// so the input file holds more bytes than the child may write.
 const TWO_NAMES: [&str; 2] = ["1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"];
 
 /// The number of bytes the child that cuts a write short may write into one file:
