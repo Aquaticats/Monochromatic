@@ -19,7 +19,7 @@
 
 use super::{
     LastObservation, MOUNT_REQUEST_POLL_INTERVAL, PROVISIONAL_MOUNT_REQUEST_DEADLINE, MountRequest, ReceiptStanding, StaleReason, WaitRefusal,
-    standing_of, wait_for_answer,
+    reads_taken, standing_of, wait_for_answer,
 };
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
@@ -240,6 +240,56 @@ fn a_directory_that_appears_empty_is_not_reported_as_absent() {
         };
         assert_eq!(last, &None, "the deadline reports no receipt rather than a directory that is there: {refusal:?}");
     });
+}
+
+/// What:
+///  How many reads the deadline of the sleep control holds,
+///  which is how many sleeps a wait with that deadline takes between them.
+/// Why:
+///   The count is the control's own and not the route's,
+///  so it is stated once here and the deadline and its bound both read it.
+const READS_IN_THE_CONTROL_DEADLINE: u32 = 4;
+
+/// What:
+///  The reads a sleeping wait makes at the edges of its deadline:
+///  the first read,
+///  and the last look the loop takes once its final sleep returned.
+/// Why:
+///   The bound and the proof that the count is live both read this number,
+///  so a wait that reads fewer times than this is a wait that never looked
+///  again.
+const READS_AT_THE_DEADLINES_EDGES: u64 = 2;
+
+/// What:
+///  A wait that no receipt answers reads a bounded number of times in a fixed
+///  span,
+///  which is the sleep between its reads.
+/// Why:
+///   Every other control hands the wait its receipt at once or a deadline that
+///  already passed,
+///  so none of them holds the sleep:
+///  a wait without it still answers,
+///  and reads in a tight loop until its deadline.
+///  The control counts the reads of one wait of its own on the thread it runs
+///  that wait on,
+///  so no other control's waits are in the count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reads = waitAndCountReads(staleFolder, request, 4n * pollInterval); expect(reads).toBeLessThanOrEqual(4 + 2);
+/// ```
+#[test]
+fn a_wait_with_no_answer_sleeps_between_its_reads() {
+    let folder: ReceiptsFolder = folder("wait-poll-sleep");
+    folder.publish(&receipt(OTHER_NONCE, MountOperation::Mount)).expect("a stale receipt keeps the wait looking");
+    let deadline: Duration = MOUNT_REQUEST_POLL_INTERVAL * READS_IN_THE_CONTROL_DEADLINE;
+    let allowed: u64 = u64::from(READS_IN_THE_CONTROL_DEADLINE) + READS_AT_THE_DEADLINES_EDGES;
+    let before: u64 = reads_taken();
+    let refusal: WaitRefusal = runtime().block_on(wait_for_answer(&folder, &request(), deadline)).expect_err("a stale receipt never answers");
+    let reads: u64 = reads_taken() - before;
+    assert!(matches!(refusal, WaitRefusal::TimedOut { .. }), "the wait looked until its deadline: {refusal:?}");
+    assert!(reads >= READS_AT_THE_DEADLINES_EDGES, "the wait read more than once: {reads} reads");
+    assert!(reads <= allowed, "the wait slept between its reads: {reads} reads in {deadline:?} at {MOUNT_REQUEST_POLL_INTERVAL:?} a read");
 }
 
 /// What:
