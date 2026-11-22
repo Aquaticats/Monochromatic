@@ -60,7 +60,7 @@ where neither `ret` from the search nor the copy is reset to zero on this path.
 checked the result against zero:
 
 ```rust
-// package/git-policy/cli/src/native/subvolume/fs_btrfs_ioctl.rs, `subvolume_info` before c5615e51eb
+// package/git-policy/cli/src/native/subvolume/fs_btrfs_ioctl.rs, subvolume_info before c5615e51eb
 let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut arguments) };
 if result != 0 {
     return Err(PrimitiveError::last_os_error(operation, path));
