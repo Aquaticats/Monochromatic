@@ -48,6 +48,7 @@ use crate::repo_read_object::{ObjectKind, from_hex, name_length};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{MODE_GITLINK, is_tree_mode, parse_tree};
 use crate::service_protocol::{Change, CommitRequest};
+use crate::transaction_git::GitContext;
 use crate::transaction_phase::{Phase, PhaseMarkerError, reach_transaction_phase};
 use std::collections::HashSet;
 use std::path::Path;
@@ -234,19 +235,29 @@ fn tree_closures_missing(database: &ObjectDatabase, roots: &[&str], format: Obje
 /// Why:
 ///   When the service cannot land a request it answers with a general failure;
 /// whether the cause is removed content is
-///  something only the objects can say,
-/// and reading them here starts no Git.
-/// A store the in-process reader cannot open
-///  answers `false`,
-/// which leaves the general failure as it is.
+///  something only the objects can say.
+/// A store the in-process reader declines (a replace ref,
+///  a reftable ref store) is asked of Git,
+/// which is what the service's own answer was read against;
+/// a decline taken as an answer reported removed content as present,
+/// so the person met the service's general words instead of the plain ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// namesOf(request).some((name) => !objectStore.has(name))
 /// ```
-pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_format: &str, request: &CommitRequest) -> bool {
+pub fn prepared_content_missing(git: &GitContext, repository: &Path, common_dir: &Path, objects_dir: &Path, object_format: &str, request: &CommitRequest) -> bool {
     let format: ObjectFormat = if object_format == ObjectFormat::Sha256.name() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
-    let Some(database) = ObjectDatabase::open(common_dir, Some(objects_dir), format) else { return false };
+    let Some(database) = ObjectDatabase::open(common_dir, Some(objects_dir), format) else {
+        let named: Vec<&str> = request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()).collect();
+        if crate::service_object_questions_left_to_git::objects_missing(git, repository, named.as_slice()) {
+            return true;
+        }
+        return match request.commit.as_deref() {
+            Some(commit) => crate::service_object_questions_left_to_git::object_missing(git, repository, commit),
+            None => false,
+        };
+    };
     let named = request
         .changes
         .iter()
@@ -275,10 +286,12 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (theObjectsItNamesAreGone(request, layout)) fail(CONTENT_PRUNED);
+/// if (theObjectsItNamesAreGone(git, repository, request, layout)) fail(CONTENT_PRUNED);
 /// ```
-pub(crate) fn the_objects_it_names_are_gone(request: &CommitRequest, layout: &InvocationLayout) -> bool {
+pub(crate) fn the_objects_it_names_are_gone(git: &GitContext, repository: &Path, request: &CommitRequest, layout: &InvocationLayout) -> bool {
     return prepared_content_missing(
+        git,
+        repository,
         layout.common_dir.as_path(),
         layout.object_directory.as_path(),
         layout.object_format.as_str(),
@@ -326,37 +339,54 @@ fn is_loose(objects: &std::path::Path, name: &str) -> bool {
 ///  objects are found with one lookup each;
 /// the packs are opened only when an object is not loose.
 /// A store the in-process
-///  reader cannot open answers `false`,
-/// which leaves the decision to Git,
-/// as for the client's own check.
+///  reader declines is asked of Git,
+/// which is the question's owner;
+/// a decline taken as an answer imported over missing
+///  content and left `fast_import_crash_<pid>` behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// requests.flatMap(namesOf).some((name) => !loose(name) && !(await packs()).has(name))
+/// requests.flatMap(namesOf).some((name) => !store.has(name))
 /// ```
-pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> bool {
-    let mut names: Vec<&str> = Vec::new();
-    for request in requests {
-        names.extend(request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()).chain(request.commit.as_deref()));
-    }
+pub fn batch_content_missing(git: &GitContext, repository: &Path, common_dir: &Path, requests: &[&CommitRequest]) -> bool {
     let objects: std::path::PathBuf = common_dir.join("objects");
     let mut absent: Vec<&str> = Vec::new();
-    for name in names {
-        if !is_loose(objects.as_path(), name) {
-            absent.push(name);
-        }
-    }
-    // An embedded tree is walked whether or not its own object is loose, so a request with one always needs the reader.
+    // The commits are asked apart from the objects: walking a commit walks its history, and presence of the commit
+    //  object alone is what the reader answered.
+    let mut commits: Vec<&str> = Vec::new();
+    // An embedded tree is walked whether or not its own object is loose, so a request with one always needs the walk.
     let mut trees: Vec<&str> = Vec::new();
     for request in requests {
+        for name in request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()) {
+            if !is_loose(objects.as_path(), name) {
+                absent.push(name);
+            }
+        }
+        if let Some(commit) = request.commit.as_deref()
+            && !is_loose(objects.as_path(), commit)
+        {
+            commits.push(commit);
+        }
         if let Some(tree) = request.tree.as_deref() {
             trees.push(tree);
         }
     }
-    let Some(sample) = absent.first().or(trees.first()) else { return false };
+    let Some(sample) = absent.first().or(commits.first()).or(trees.first()) else { return false };
     let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
-    let Some(database) = ObjectDatabase::open(common_dir, None, format) else { return false };
+    let Some(database) = ObjectDatabase::open(common_dir, None, format) else {
+        // A declined reader: Git answers both questions, presence and what the trees hold.
+        return crate::service_object_questions_left_to_git::objects_missing(git, repository, absent.as_slice())
+            || crate::service_object_questions_left_to_git::objects_missing(git, repository, trees.as_slice())
+            || crate::service_object_questions_left_to_git::built_commits_missing(git, repository, commits.as_slice());
+    };
     for name in &absent {
+        if let Some(bytes) = from_hex(name.as_bytes(), format)
+            && !database.contains(bytes.as_slice())
+        {
+            return true;
+        }
+    }
+    for name in &commits {
         if let Some(bytes) = from_hex(name.as_bytes(), format)
             && !database.contains(bytes.as_slice())
         {

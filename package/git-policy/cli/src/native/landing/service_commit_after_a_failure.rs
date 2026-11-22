@@ -102,7 +102,7 @@ pub(crate) fn answer_after_a_failure(attempt: FailedAttempt<'_>) -> Result<Servi
     // Content a prune removed is its own ending: the service answered that the commit names an object that is gone, and the
     //  worktree is not read again to make that commit.
     if matches!(attempt.failure, ClientFailure::Unavailable)
-        && the_objects_it_names_are_gone(attempt.sent, &attempt.native_inputs.capture.layout)
+        && the_objects_it_names_are_gone(attempt.invocation.context, attempt.ready.repository.as_path(), attempt.sent, &attempt.native_inputs.capture.layout)
     {
         return Err(content_was_pruned());
     }

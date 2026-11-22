@@ -175,6 +175,124 @@ fn what_cannot_be_trusted_is_declined() {
     remove(root.as_path());
 }
 
+/// What:
+///  A replace ref a reftable repository keeps in its tables declines the database.
+/// Why:
+///  `what_cannot_be_trusted_is_declined` looks at `refs/replace` and `packed-refs`,
+/// and the reftable backend writes neither:
+///  the ref is in `reftable/`,
+/// so a replacement there would go unseen and the reader would answer the object Git replaces,
+///  with the parents and the tree of the commit the replace ref stands for.
+/// The control reads the same fixture with Git,
+/// whose answer is the replacement,
+///  and declines the database only when the ref store is one this reader cannot scan.
+#[test]
+fn a_reftable_repositorys_replace_ref_declines_the_database() {
+    let root = fixture("repo-read-odb-reftable-replace");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let older = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD~1"]).stdout).expect("UTF-8");
+    let head = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
+    git(repo.as_path(), &["replace", older.trim(), head.trim()]);
+    let git_dir = repo.join(".git");
+    // Positive control: the two objects differ, so Git's answer for the replaced name is not the object the files hold.
+    let replaced = git_output(repo.as_path(), &["cat-file", "commit", older.trim()]).stdout;
+    let unreplaced = git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", older.trim()]).stdout;
+    assert_ne!(replaced, unreplaced, "the fixture's replace ref changes what Git reads");
+    // The ref store the reader cannot scan: tables instead of the replace dir and the packed refs it looks for.
+    assert!(git_dir.join("reftable").is_dir(), "the repository keeps its refs in reftable tables");
+    assert!(!git_dir.join("refs/replace").exists(), "no replace ref is a file");
+    assert!(!git_dir.join("packed-refs").exists(), "no replace ref is packed");
+    let format = ObjectFormat::Sha1;
+    let name = from_hex(older.trim().as_bytes(), format).expect("name");
+    let opened: Option<ObjectDatabase> = ObjectDatabase::open(git_dir.as_path(), None, format);
+    let answered: Option<Vec<u8>> = opened.as_ref().and_then(|database| { return database.read(name.as_slice()).map(|object| { return object.bytes; }); });
+    assert!(
+        opened.is_none(),
+        "a replace ref kept in reftable/ is outside what this reader scans, and it answered {answered:?} instead of declining"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A ref store the repository's configuration moves out of the common directory declines the database,
+///  and a configuration that names the files backend leaves it open.
+/// Why:
+///  Git 2.56 reads `extensions.refStorage` as `<format>://<payload>`
+/// (`git-config(1)`,
+///  entry `refStorage`),
+/// and the tables of such a store stand wherever the value names,
+/// so a store moved that way leaves no `reftable` folder behind:
+///  a refusal that keyed on the folder opened the database and answered the object Git replaces,
+/// which is the wrong parent issue 6340 measured.
+/// The files backend is the value that changes nothing,
+///  so the second arm shows the configuration is read and not merely present.
+#[test]
+fn a_ref_store_the_configuration_moves_away_declines_the_database() {
+    let root = fixture("repo-read-odb-refstorage");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let older = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD~1"]).stdout).expect("UTF-8");
+    let head = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
+    git(repo.as_path(), &["replace", older.trim(), head.trim()]);
+    let git_dir = repo.join(".git");
+    // The tables move out of the common directory and the configuration names the new place.
+    let store = root.join("store");
+    std::fs::create_dir(&store).expect("store");
+    std::fs::rename(git_dir.join("reftable"), store.join("reftable")).expect("move the tables");
+    let named = format!("reftable://{}", store.display());
+    git(repo.as_path(), &["config", "--local", "extensions.refstorage", named.as_str()]);
+    assert!(!git_dir.join("reftable").exists(), "no reftable folder stands in the common directory");
+    // Positive control: Git still resolves the store the configuration names, replacement included.
+    let replaced = git_output(repo.as_path(), &["cat-file", "commit", older.trim()]).stdout;
+    let unreplaced = git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", older.trim()]).stdout;
+    assert_ne!(replaced, unreplaced, "the moved store still holds the replace ref Git reads");
+    let format = ObjectFormat::Sha1;
+    assert!(
+        ObjectDatabase::open(git_dir.as_path(), None, format).is_none(),
+        "a ref store the configuration names outside the common directory is outside what this reader scans"
+    );
+    // Git reads the version as an integer, so `01` is the same repository format and the store is still Git's.
+    git(repo.as_path(), &["config", "--local", "core.repositoryformatversion", "01"]);
+    assert_eq!(
+        git_output(repo.as_path(), &["rev-parse", "--show-ref-format"]).stdout,
+        b"reftable\n",
+        "the control: Git reads the moved store as the reftable backend under this spelling of the version"
+    );
+    assert!(
+        ObjectDatabase::open(git_dir.as_path(), None, format).is_none(),
+        "a version Git spells `01` names the same store, so the reader declines it too"
+    );
+    // The files backend, named the same way, is the store this reader does scan.
+    let files = root.join("files");
+    std::fs::create_dir(&files).expect("dir");
+    git(files.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(files.join("a.txt"), "one\n").expect("a");
+    git(files.as_path(), &["add", "--", "a.txt"]);
+    git(files.as_path(), &["commit", "--quiet", "--message=first"]);
+    git(files.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
+    git(files.as_path(), &["config", "--local", "extensions.refstorage", "files"]);
+    assert!(
+        ObjectDatabase::open(files.join(".git").as_path(), None, format).is_some(),
+        "a configuration that names the files backend is the store this reader scans"
+    );
+    remove(root.as_path());
+}
+
 /// Reading every version of a file kept as one long delta chain decodes each stored entry about once:
 /// a base that one read
 /// decoded is not decoded again for the next version.
