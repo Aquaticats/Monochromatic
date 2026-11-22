@@ -78,10 +78,11 @@ const KIB_PER_MIB = 1_024;
 const MEMORY_MAX_SUFFIX = 'M';
 
 /**
- Smallest cap mvm gives the unit, in mebibytes, so the value is never zero.
+ Smallest cap mvm gives the unit, in mebibytes.
 
- A machine whose total memory is under two mebibytes cannot run a guest, and
- systemd reads `0` as no limit rather than as none.
+ Half of a machine whose total memory is under two mebibytes is not a cap any unit
+ can run in, and such a machine is not one mvm runs on. The floor keeps the value
+ mvm hands systemd a positive one, without claiming what `0` would mean there.
  */
 const MINIMUM_MEMORY_MAX_MIB = 1;
 

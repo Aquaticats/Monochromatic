@@ -119,7 +119,9 @@ export * from './path-exists.ts';
 export * from './registry.ts';
 export * from './run.ts';
 export * from './session-daemon.ts';
+export * from './session-daemon-fallback.ts';
 export * from './session-daemon-memory.ts';
+export * from './session-daemon-question.ts';
 export * from './spawn-errors.ts';
 /**
  Host command runner, exposed for built-artifact verification.

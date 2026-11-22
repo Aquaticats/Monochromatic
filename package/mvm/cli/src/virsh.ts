@@ -25,10 +25,8 @@ import {
   toolNotFoundRemedy,
   VIRSH_COMMAND_ENV,
 } from './libvirt-tools.ts';
-import {
-  ensureSessionDaemon,
-  libvirtEnv,
-} from './session-daemon.ts';
+import { libvirtEnv, } from './session-daemon-fallback.ts';
+import { ensureSessionDaemon, } from './session-daemon.ts';
 import {
   CommandFailedError,
   CommandTimedOutError,

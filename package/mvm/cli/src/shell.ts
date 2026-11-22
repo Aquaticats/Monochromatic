@@ -11,10 +11,8 @@ import {
   toolNotFoundRemedy,
   VIRSH_COMMAND_ENV,
 } from './libvirt-tools.ts';
-import {
-  ensureSessionDaemon,
-  libvirtAutostartEnv,
-} from './session-daemon.ts';
+import { libvirtAutostartEnv, } from './session-daemon-fallback.ts';
+import { ensureSessionDaemon, } from './session-daemon.ts';
 import {
   ExecutableNotFoundError,
   isMissingExecutable,

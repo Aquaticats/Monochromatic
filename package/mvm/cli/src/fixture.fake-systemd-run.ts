@@ -47,6 +47,12 @@ export type SystemdRunOutcome = 'accepted' | 'exclusive' | 'refused';
 const CLAIM_DELAY_MS = 1_000;
 
 /**
+ Variable that shortens that wait, so a test can watch several retries inside a
+ deadline shorter than the default wait.
+ */
+export const CLAIM_DELAY_ENV = 'MVM_FAKE_SYSTEMD_RUN_DELAY_MS';
+
+/**
  JavaScript body of the stand-in, for `writeExecutable` in the CLI harness.
 
  @returns Program text, without the leading interpreter line
@@ -60,16 +66,21 @@ export function systemdRunBody(): string {
   return [
     'const { appendFileSync, readFileSync, writeFileSync } = require(\'node:fs\');',
     'const { join } = require(\'node:path\');',
+    'const args = process.argv.slice(2);',
+    // A real `systemd-run --version` prints its version and exits without starting or contacting anything.
+    'if (args.includes(\'--version\')) {',
+    String.raw`  process.stdout.write('systemd 262 (262.2-1)\n');`,
+    '  process.exit(0);',
+    '}',
     'const directory = process.env.MVM_FAKE_VIRSH_DIR;',
     'if (directory === undefined) { throw new Error("MVM_FAKE_VIRSH_DIR is not set; the stand-in systemd-run needs its state directory"); }',
-    `const claimDelayMs = ${String(CLAIM_DELAY_MS,)};`,
+    `const claimDelayMs = Number(process.env[${JSON.stringify(CLAIM_DELAY_ENV,)}] ?? ${String(CLAIM_DELAY_MS,)});`,
     `const outcomesFile = join(directory, ${
       JSON.stringify(SYSTEMD_RUN_OUTCOMES_FILE,)
     });`,
     `const markerFile = join(directory, ${
       JSON.stringify(SESSION_DAEMON_UNIT_MARKER,)
     });`,
-    'const args = process.argv.slice(2);',
     'const unitArgument = args.find((argument) => argument.startsWith(\'--unit=\'));',
     'const unit = unitArgument === undefined ? \'\' : unitArgument.slice(\'--unit=\'.length);',
     'let outcome = \'exclusive\';',

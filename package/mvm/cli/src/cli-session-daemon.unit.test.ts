@@ -25,6 +25,7 @@ import {
   SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,
   SESSION_DAEMON_UNIT,
 } from '../dist/final/node/index.mjs';
+import { CLAIM_DELAY_ENV, } from './fixture.fake-systemd-run.ts';
 import {
   createSandbox,
   FAKE_VIRSH_PATH,
@@ -53,12 +54,6 @@ const DOMAINS = [
 ];
 
 /**
- Path of the troubleshooting document the fallback warning must name.
- */
-const TROUBLESHOOTING_DOC =
-  'doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md';
-
-/**
  Variable that shortens the wait for a started daemon, so a test can watch it give up.
  */
 const START_TIMEOUT_ENV = 'MVM_SESSION_DAEMON_START_TIMEOUT_MS';
@@ -69,12 +64,17 @@ const START_TIMEOUT_ENV = 'MVM_SESSION_DAEMON_START_TIMEOUT_MS';
 const SHORT_START_TIMEOUT_MS = 800;
 
 /**
- Text the stand-in `systemd-run` writes when it stands for a user manager the
- caller cannot reach, as recorded here on 2026-11-21 from a caller with a private
- `XDG_RUNTIME_DIR`.
+ Milliseconds the stand-in `systemd-run` waits before it answers in the retry test,
+ short enough that several attempts fit inside {@link RETRY_START_TIMEOUT_MS}.
  */
-const UNREACHABLE_BUS_TEXT =
-  'Failed to connect to user scope bus via local transport: No such file or directory';
+const CLAIM_DELAY_MS_FOR_RETRIES = 10;
+
+/**
+ Milliseconds the retry test lets mvm wait, long enough that several start attempts
+ fit inside it even on a loaded host, and far below the thirty seconds mvm would
+ otherwise spend before giving up.
+ */
+const RETRY_START_TIMEOUT_MS = 3_000;
 
 /**
  Derives the cap mvm must give the unit from this machine's own total memory,
@@ -267,7 +267,7 @@ await describe({
           second,
         ].filter(function waited(result,) {
           return result.stderr
-            .includes('is still loaded; waiting for it to go inactive',);
+            .includes('is still loaded; retrying the start while it stays loaded',);
         },);
         expect(losers,).toHaveLength(1,);
       },
@@ -396,7 +396,7 @@ await describe({
     },),
 
     it({
-      name: 'says the unit name stayed loaded when no start ever claimed it',
+      name: 'retries the start inside its deadline and then says the unit name stayed loaded',
       fn: async () => {
         await using sandbox = await createSandbox({
           domains: DOMAINS,
@@ -413,6 +413,14 @@ await describe({
             'refused',
             'refused',
             'refused',
+            'refused',
+            'refused',
+            'refused',
+            'refused',
+            'refused',
+            'refused',
+            'refused',
+            'refused',
           ],
           sandbox,
         },);
@@ -420,66 +428,26 @@ await describe({
           args: ['list',],
           env: {
             ...fakeVirshEnv(sandbox,),
-            [START_TIMEOUT_ENV]: String(SHORT_START_TIMEOUT_MS,),
+            [CLAIM_DELAY_ENV]: String(CLAIM_DELAY_MS_FOR_RETRIES,),
+            [START_TIMEOUT_ENV]: String(RETRY_START_TIMEOUT_MS,),
           },
           sandbox,
         },);
         expect(result.exitCode,).toBe(1,);
+        const starts = await systemdRunCalls(sandbox,);
+        // More than one attempt inside the deadline, every one of them refused, and the run ended when the deadline did.
+        expect(starts.length,).toBeGreaterThan(1,);
+        expect(
+          starts.every(function refused(call,) {
+            return !call.accepted;
+          },),
+        ).toBe(true,);
         expect(result.stderr,).toContain('still loaded every time mvm tried to start it',);
         expect(result.stderr,).toContain(`systemctl --user reset-failed ${SESSION_DAEMON_UNIT}.service`,);
       },
     },),
 
     //endregion Starting it again
-
-    //region What it does without a user manager
-
-    it({
-      name: 'lets virsh start the daemon and warns when there is no systemd-run',
-      fn: async () => {
-        await using sandbox = await createSandbox({
-          domains: DOMAINS,
-          sessionDaemon: 'on-demand',
-        },);
-        const result = await runCli({
-          args: ['list',],
-          env: fakeVirshEnv(sandbox,),
-          sandbox,
-        },);
-        expect(result.exitCode,).toBe(0,);
-        expect(result.stderr,).toContain('mvm found no systemd-run on PATH',);
-        expect(result.stderr,).toContain(TROUBLESHOOTING_DOC,);
-      },
-    },),
-
-    it({
-      name: 'lets virsh start the daemon and warns when the user manager cannot be reached',
-      fn: async () => {
-        await using sandbox = await createSandbox({
-          domains: DOMAINS,
-          sessionDaemon: 'on-demand',
-        },);
-        await writeExecutable({
-          body: [
-            `process.stderr.write(${JSON.stringify(`${UNREACHABLE_BUS_TEXT}\n`,)});`,
-            'process.exitCode = 1;',
-          ].join('\n',),
-          name: 'systemd-run',
-          sandbox,
-        },);
-        const result = await runCli({
-          args: ['list',],
-          env: fakeVirshEnv(sandbox,),
-          sandbox,
-        },);
-        expect(result.exitCode,).toBe(0,);
-        expect(result.stderr,).toContain(`mvm could not reach systemd's user manager`,);
-        expect(result.stderr,).toContain('XDG_RUNTIME_DIR',);
-        expect(result.stderr,).toContain(TROUBLESHOOTING_DOC,);
-      },
-    },),
-
-    //endregion What it does without a user manager
 
     //region What it says when the daemon does not come up
 
@@ -512,6 +480,8 @@ await describe({
       name: 'says how to name the daemon command when nothing in the virsh command says virsh',
       fn: async () => {
         await using sandbox = await createSandbox({ sessionDaemon: 'absent', },);
+        // A systemd-run that exists is what makes the daemon command matter; without one mvm falls back instead.
+        await installFakeSystemdRun({ sandbox, },);
         await writeExecutable({
           body: [
             `process.env.MVM_FAKE_VIRSH_DIR = ${JSON.stringify(

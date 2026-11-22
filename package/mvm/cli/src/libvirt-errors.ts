@@ -205,8 +205,8 @@ export class SessionDaemonStartError extends Error {
         ...(cause === undefined ? [] : [caughtValueText(cause,),]),
         ...(unitStillLoaded
           ? [
-            `That unit name was still loaded every time mvm tried to start it, up to its deadline, so a unit of that name was running or shutting down.`,
-            'If it is still active after its daemon exited, it holds processes (guests the daemon no longer manages), and stopping it kills them.',
+            'That unit name was still loaded every time mvm tried to start it, up to its deadline, which systemd reports for a unit that is running, shutting down, failed and not yet unloaded, or holds a fragment file.',
+            'If it is active after its daemon exited, it holds processes (guests the daemon no longer manages), and stopping it kills them.',
           ]
           : []),
         'Read what the unit reported:',
