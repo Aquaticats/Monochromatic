@@ -36,7 +36,7 @@ use crate::worktree_clone_mount::parent_adoption_decision::AdoptionRefusal;
 use crate::worktree_clone_mount::parent_adoption_facts::{BindingState, SlotState};
 use crate::worktree_clone_mount::slot_identity_store::SlotIdentityStore;
 use crate::worktree_clone_mount::slot_identity_store_refusals::StoreRefusal;
-use crate::worktree_clone_mount::{HeldWorktreesParent, PARENT_RECORD_NAME, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, StoredIdentity, hold_the_worktrees_parent};
+use crate::worktree_clone_mount::{HeldWorktreesParent, PARENT_RECORD_NAME, SLOT_IDENTITY_STORE_PATH, STORE_HEADER, StoredIdentity, WHEN_THE_STORE_IS_LISTED, hold_the_worktrees_parent};
 use crate::worktree_clone_mount_handler::handler_mode_arguments::AdoptRequest;
 use std::path::Path;
 use std::path::PathBuf;
@@ -237,6 +237,9 @@ const ROOT_SIDE_LISTINGS_VARIABLE: &str = "ADOPT_ROOT_SIDE_TWO_LISTINGS";
 ///  The decision verified exactly the names its first listing produced,
 ///  so a slot that appeared afterwards was not verified by this adoption;
 ///  the second listing is what closes that window without a lock.
+///  The count this control also reads is what holds the promise of two listings:
+///  the first is also the pass that removes a killed writer's staging names,
+///  so an adoption lists the folder twice and not once per thing it needs.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
@@ -254,6 +257,13 @@ fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
     let parent_before: Vec<u8> = std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes");
     let appeared: PathBuf = built.store.clone();
     let appeared_slot: PathBuf = built.parent.join("two");
+    let listings: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::default();
+    let counted: std::sync::Arc<std::sync::atomic::AtomicUsize> = std::sync::Arc::clone(&listings);
+    WHEN_THE_STORE_IS_LISTED.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }));
+    });
     BETWEEN_THE_TWO_LISTINGS.with(|hook| {
         *hook.borrow_mut() = Some(Box::new(move || {
             std::fs::create_dir(appeared_slot.as_path()).expect("a slot folder appears with the record");
@@ -266,6 +276,8 @@ fn a_slot_file_that_appears_between_the_two_listings_refuses_the_adoption() {
     });
     let refusal: AdoptFailure = adopt_at(&request(&built), built.store.as_path(), true, 0).expect_err("a slot appeared between the two listings");
     BETWEEN_THE_TWO_LISTINGS.with(|hook| { *hook.borrow_mut() = None });
+    WHEN_THE_STORE_IS_LISTED.with(|hook| { *hook.borrow_mut() = None });
+    assert_eq!(listings.load(std::sync::atomic::Ordering::SeqCst), 2, "the adoption lists the folder exactly twice: once for the set it decides on and the staging names it removes, and once before it publishes");
     assert!(matches!(refusal, AdoptFailure::Decision(AdoptionRefusal::SlotNotListed { ref slot }) if slot == "two"), "{refusal:?}");
     assert!(refusal.message().contains("`two`"), "the slot is named: {}", refusal.message());
     assert_eq!(std::fs::read(built.store.join(PARENT_RECORD_NAME)).expect("the parent record's bytes"), parent_before, "a refused adoption publishes nothing");
