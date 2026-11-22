@@ -64,39 +64,6 @@ thread_local! {
 pub(crate) const INIT_ATTEMPT_VARIABLE: &str = "MONOCHROMATIC_TEST_SHADOW_INIT_ATTEMPT";
 
 /// What:
-///  One attempt at the shadow's `init`,
-/// recorded for the controls only.
-/// Why:
-///   The count a control reads from here is the attempt the wrapper made,
-/// which exists whether or not the program it starts writes anything
-///  before the ceiling ends it.
-///  A file the started program writes cannot promise that:
-/// the program is ended at the ceiling wherever it has got to.
-///  The attempt number in the request's environment is what a control's stand-in reads,
-/// and no shipped build carries it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// noteInitAttempt(request, attempt)
-/// ```
-pub(crate) fn note_init_attempt(request: &mut GitRequest, attempt: u32) {
-    #[cfg(test)]
-    {
-        INIT_ATTEMPTS.with(|counter| {
-            counter.set(counter.get() + 1);
-        });
-        // A later attempt replaces the number an earlier one left, so the request the start is made from holds one value.
-        request.environment.retain(|(name, _)| {
-            return name.as_os_str() != INIT_ATTEMPT_VARIABLE;
-        });
-        request.environment.push((OsString::from(INIT_ATTEMPT_VARIABLE), OsString::from(attempt.to_string())));
-        apply_the_planted_cut(attempt);
-    }
-    #[cfg(not(test))]
-    let _ = (request, attempt);
-}
-
-/// What:
 ///  Ends the first `init` start of this thread's next creation at `ceiling`,
 /// and leaves the start made after it to the ceiling production gives it.
 /// Why:
@@ -169,6 +136,39 @@ fn apply_the_planted_cut(attempt: u32) {
     CUT_AT.with(|cell| {
         cell.set(None);
     });
+}
+
+/// What:
+///  One attempt at the shadow's `init`,
+/// recorded for the controls only.
+/// Why:
+///   The count a control reads from here is the attempt the wrapper made,
+/// which exists whether or not the program it starts writes anything
+///  before the ceiling ends it.
+///  A file the started program writes cannot promise that:
+/// the program is ended at the ceiling wherever it has got to.
+///  The attempt number in the request's environment is what a control's stand-in reads,
+/// and no shipped build carries it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noteInitAttempt(request, attempt)
+/// ```
+pub(crate) fn note_init_attempt(request: &mut GitRequest, attempt: u32) {
+    #[cfg(test)]
+    {
+        INIT_ATTEMPTS.with(|counter| {
+            counter.set(counter.get() + 1);
+        });
+        // A later attempt replaces the number an earlier one left, so the request the start is made from holds one value.
+        request.environment.retain(|(name, _)| {
+            return name.as_os_str() != INIT_ATTEMPT_VARIABLE;
+        });
+        request.environment.push((OsString::from(INIT_ATTEMPT_VARIABLE), OsString::from(attempt.to_string())));
+        apply_the_planted_cut(attempt);
+    }
+    #[cfg(not(test))]
+    let _ = (request, attempt);
 }
 
 /// What:
