@@ -5673,7 +5673,8 @@ an equal folder is success,
 and only a difference refuses `ParentAlreadyRecorded`.
 Two first runs that both find `.parent` absent still publish once,
 and the loser of that link compares what the winner left,
-so the boot unit's normal case pays no staging file, no failed link and no unlink.
+so the boot unit's normal case pays no staging file,
+no failed link and no unlink.
 The administrator's adoption is the one writer that replaces the record,
 publishing the new file by one rename over `.parent` while `.parent` is never removed,
 so a reader racing that rename reads either whole record and never a third state.

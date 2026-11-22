@@ -630,8 +630,9 @@ fn a_foreign_entry_refuses_the_listing_and_every_staging_form_does_not() {
 ///  the adoption would then refuse `NoSlotRecord` for a name no writer can publish,
 ///  and would send the administrator to the sweep instead of to the entry that stands there.
 ///  A filesystem that refuses such a name at creation (this host's own ZFS does,
-///  `EILSEQ`, which the design's probe met) prints `SKIPPED` and leaves the control to the gate's
-///  tmpfs fixture root, which allows the name.
+///  `EILSEQ`,
+///  which the design's probe met) prints `SKIPPED` and leaves the control to the gate's tmpfs fixture root,
+///  which allows the name.
 #[test]
 fn a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry() {
     let root: PathBuf = fixture("store-non-utf8-entry");
@@ -718,7 +719,9 @@ fn a_second_setup_run_compares_the_live_parent_with_the_parent_record() {
 ///  the design says the compare runs before the name is made
 ///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
 ///  "Two writers with two intents"),
-///  so the boot unit pays no durable write, no failed link, no unlink and no folder `fsync`
+///  so the boot unit pays no durable write,
+///  no failed link,
+///  no unlink and no folder `fsync`
 ///  to learn that the record is there,
 ///  and a kill during that window leaves no staging litter.
 #[test]

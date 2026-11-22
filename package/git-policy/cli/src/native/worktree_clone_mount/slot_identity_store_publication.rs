@@ -188,7 +188,9 @@ pub fn publish_parent_identity_under_root_control(store: &Path, identity: &Clone
 ///  the design says the compare runs before the name is made
 ///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
 ///  "Two writers with two intents"),
-///  so the normal case pays no durable write, no failed link, no unlink and no folder `fsync`,
+///  so the normal case pays no durable write,
+///  no failed link,
+///  no unlink and no folder `fsync`,
 ///  and a kill in that window leaves no staging name.
 ///  The `EEXIST` arm is kept for two first runs that both found `.parent` absent,
 ///  where the loser compares what the winner left.

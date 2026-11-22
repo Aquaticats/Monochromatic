@@ -177,7 +177,8 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 ///  and removes the two staging forms before it stages its own record;
 ///  a second listing only for the removal would be a third pass of a folder it then lists a second time
 ///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
-///  "The adoption, and the listing it needs").
+///  "The adoption,
+///  and the listing it needs").
 ///  The removal follows the listing's own checks,
 ///  so a listing that refuses a foreign name removes nothing and leaves the staging names to the next adoption.
 ///
@@ -187,7 +188,8 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 /// ```
 ///
 /// # Errors
-/// Everything the listing refuses, and a removal the system refused.
+/// Everything the listing refuses,
+/// and a removal the system refused.
 pub(super) fn listed_slot_names_removing_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<(Vec<String>, Vec<String>), StoreRefusal> {
     #[cfg(test)]
     fire_the_listing_hook();
@@ -207,7 +209,8 @@ fn one_listing(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<OsStrin
 }
 
 /// The slot names one listing holds,
-/// which is every entry that is not `.parent`, a dot name or a foreign name.
+/// which is every entry that is not `.parent`,
+/// a dot name or a foreign name.
 ///
 /// # Errors
 /// A name that is not UTF-8,

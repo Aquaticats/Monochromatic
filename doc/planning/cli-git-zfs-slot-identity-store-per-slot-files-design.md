@@ -2071,7 +2071,8 @@ The round that answered the integration pass's findings added five controls besi
 
 - `a_second_setup_run_that_finds_the_same_parent_makes_no_name`:
   a second setup run never reaches the publication's own steps,
-  so the boot unit pays no durable write, no failed link and no unlink to learn that the record is right.
+  so the boot unit pays no durable write,
+  no failed link and no unlink to learn that the record is right.
 - `the_rename_fallback_s_loser_keeps_the_record_that_won`:
   the fallback's `EEXIST` keeps the winner's bytes,
   which the plant the integration pass ran (the loser answered by a rename that replaces) fails.
@@ -2087,7 +2088,9 @@ The round that answered the integration pass's findings added five controls besi
   the control prints `SKIPPED` on a filesystem that refuses the name and runs in the gate's tmpfs fixture root.
 
 One family of arms still has no control:
-the five folder-`fsync` failures (the link's success arm, the fallback's success arm, the loser's arm,
+the five folder-`fsync` failures (the link's success arm,
+the fallback's success arm,
+the loser's arm,
 the replacement's arm and the staging removal's arm).
 A folder sync fails on no filesystem a record can live on in a control,
 and forcing it would mean a test-only answer inside `publishing_entries_in_one_open_folder`,
@@ -2180,7 +2183,8 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
 - A name in the store folder that is not UTF-8 refuses the listing as a foreign entry,
   which is the refusal a name the layout cannot read deserves.
   A filesystem that refuses such a name at creation cannot show that control:
-  this host's own ZFS answers `EILSEQ`, which the probe met,
+  this host's own ZFS answers `EILSEQ`,
+  which the probe met,
   and the gate's tmpfs fixture root is where the control runs for real.
 - The adoption's second window stays open:
   a slot published between the second listing and the rename is not verified by that adoption,

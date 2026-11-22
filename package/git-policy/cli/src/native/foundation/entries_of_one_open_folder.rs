@@ -129,11 +129,15 @@ pub fn read_entry_bytes(file: &mut std::fs::File, limit: u64) -> Result<Vec<u8>,
 ///  The listing has no entry cap:
 ///  the accepted design says the store folder has no total bound
 ///  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
-///  "A record file's bound, and what replaces the whole-store bound"),
-///  and what sizes a listing is the account's clone count, not a foreign writer:
-///  the folder is root-owned `0755`, so no other account adds an entry,
+///  "A record file's bound,
+///  and what replaces the whole-store bound"),
+///  and what sizes a listing is the account's clone count,
+///  not a foreign writer:
+///  the folder is root-owned `0755`,
+///  so no other account adds an entry,
 ///  and root adds one per clone it makes on the account's behalf.
-///  `doctor` reports the entry count beside the records, which is what makes a grown store visible.
+///  `doctor` reports the entry count beside the records,
+///  which is what makes a grown store visible.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
