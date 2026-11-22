@@ -41728,7 +41728,16 @@ stated in this entry. What follows from them, as work:
   `mvm-libvirt-session.service`; the unit ended by itself after the destroy); the main checkout's mvm and mcp builds are rebuilt;
   issue 6338 closed with the result; the owner restarts or reconnects the mvm MCP server. The check worktree is removed, so no
   worktree now prints the issue 6339 warning. THE DECLINED-READER ROUND hit its 400-turn cap mid-work (commits to `e1453eb8d0`,
-  three files uncommitted); resumed as `pi-object-database-declined-reader-callers-2` with `continuation-1.md`. Step 7's
+  three files uncommitted); resumed as `pi-object-database-declined-reader-callers-2` with `continuation-1.md`. THE PARTIAL
+  CLONE'S BTRFS FIXTURE ROUND ended at `4f434a5e66`: the six `worktree_ladder_finish` controls red on `28d06e70b7` and green
+  (the fixture now sits above the size limit on purpose); the whole btrfs-control population in one guest gave the same 18
+  failures on the branch and on `main` (eight are `BTRFS_IOC_GET_SUBVOL_INFO` answering 1 on success, filed as issue 6341;
+  seven need a caller without `CAP_SYS_ADMIN`; one undiagnosed hand-over in `worktree_landed_removal`; two guest limits); the
+  proposal states the tree's 1.3 MB margin over the size limit. GOING: its integration pass on Sonnet (review to
+  `~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/`; its brief wrongly said 6341 was fixed, corrected by
+  message), and `pi-btrfs-subvol-info-success-value` fixing issue 6341 in `.claude/worktrees/btrfs-subvol-info-success-value`
+  (brief under `~/temp/agent/btrfs-subvol-info-success-value-2026-11-22/`). Queued: the seven root-only controls need a
+  guest account without `CAP_SYS_ADMIN`, and the `worktree_landed_removal` hand-over needs diagnosis. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
