@@ -93,7 +93,7 @@ pub(crate) fn objects_missing(git: &GitContext, repository: &Path, input_directo
     request.input = Some(input.into_bytes());
     // The request's input file is made in the repository's own scratch directory, never the system temporary directory.
     let scoped: GitContext = GitContext { common_dir: Some(input_directory.to_path_buf()), ..git.clone() };
-    let Some(output) = asked_or_logged(run_git(&scoped, &request)) else { return None };
+    let output: GitOutput = asked_or_logged(run_git(&scoped, &request))?;
     return Some(output.stdout.split(|byte| { return *byte == b'\n'; }).any(|line| { return line.starts_with(b"?"); }));
 }
 

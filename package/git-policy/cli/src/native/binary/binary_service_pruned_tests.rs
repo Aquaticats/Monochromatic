@@ -204,7 +204,7 @@ fn assert_plain_failure(case: &Case, seen: &Observed) {
 #[test]
 fn content_removed_while_staged_fails_plainly_without_reading_the_worktree_again() {
     let case: Case = case("pruned-staged");
-    let answer = answer_phase(&case, "service-staged", 2, |_| { return true; }, |case| { return case.blob.clone(); });
+    let answer = answer_phase(&case, "service-staged", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
     let (seen, removed) = commit_paused(&case, "service-staged", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -219,7 +219,7 @@ fn content_removed_while_staged_fails_plainly_without_reading_the_worktree_again
 #[test]
 fn content_removed_before_landing_fails_plainly_without_reading_the_worktree_again() {
     let case: Case = case("pruned-landing");
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |case| { return case.blob.clone(); });
+    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
     let (seen, removed) = commit_paused(&case, "service-prepared", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -237,7 +237,7 @@ fn content_removed_before_landing_fails_plainly_without_reading_the_worktree_aga
 #[test]
 fn content_removed_before_landing_fails_plainly_in_a_reftable_repository() {
     let case: Case = case_in("pruned-landing-reftable", &["--ref-format=reftable"], false);
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |case| { return case.blob.clone(); });
+    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
     let (seen, removed) = commit_paused(&case, "service-prepared", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -254,7 +254,7 @@ fn content_removed_before_landing_fails_plainly_in_a_reftable_repository() {
 #[test]
 fn content_removed_before_landing_fails_plainly_beside_a_replace_ref() {
     let case: Case = case_in("pruned-landing-replace-ref", &[], true);
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |case| { return case.blob.clone(); });
+    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.blob.clone(); });
     let (seen, removed) = commit_paused(&case, "service-prepared", THE_PLAIN_COMMIT, answer);
     assert_eq!(removed, vec![true], "the commit was not prepared again");
     assert_plain_failure(&case, &seen);
@@ -272,7 +272,7 @@ fn content_removed_before_landing_fails_plainly_beside_a_replace_ref() {
 #[test]
 fn a_blob_removed_below_an_amended_tree_fails_plainly_where_the_reader_declines() {
     let case: Case = case_in("pruned-amend-tree-reftable", &["--ref-format=reftable"], false);
-    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |case| { return case.under_the_tree.clone(); });
+    let answer = answer_phase(&case, "service-prepared", 2, |_| { return true; }, |whole| { return whole.under_the_tree.clone(); });
     let (seen, removed) = commit_paused(&case, "service-prepared", AN_AMEND, answer);
     assert_eq!(removed, vec![true], "the amend was not prepared again");
     assert_plain_failure(&case, &seen);

@@ -352,8 +352,8 @@ fn a_replace_ref_added_between_two_landings_reaches_the_second_landing() {
         // Positive control: Git now reads no parent for the commit the second landing amends.
         assert_eq!(query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", first.as_str()]), first, "{arm}: Git reads the replacement's parents");
         std::fs::write(repo.join("a.txt"), "two\n").expect("a");
-        let served: Output = through_service(&fixture, repo.as_path(), service_name.as_str(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
-        assert!(served.status.success(), "{arm}: {}", String::from_utf8_lossy(served.stderr.as_slice()));
+        let amended: Output = through_service(&fixture, repo.as_path(), service_name.as_str(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
+        assert!(amended.status.success(), "{arm}: {}", String::from_utf8_lossy(amended.stderr.as_slice()));
         let landed: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
         assert_ne!(landed, first, "{arm}: the branch moved to the amended commit");
         assert_eq!(
