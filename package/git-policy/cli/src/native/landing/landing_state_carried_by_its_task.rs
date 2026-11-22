@@ -90,6 +90,11 @@ pub struct LandingState {
     /// by commit name,
     /// so one commit read for its objects and again for its reflog row costs one Git start
     /// (`service_object_questions_left_to_git.rs`).
+    /// It holds one landing's reads at a time:
+    /// the landing begins with `forget_the_commits_read_by_an_earlier_landing`,
+    /// because this state belongs to the service's whole loop
+    /// (`service_land.rs`,
+    /// `land_batch_timed`).
     commits_read: RefCell<HashMap<String, Vec<u8>>>,
 }
 
@@ -287,6 +292,31 @@ pub(crate) fn remember_commit_bytes(name: &str, bytes: &[u8]) {
 fn keep_the_commit_bytes(state: &LandingState, read: (&str, &[u8])) {
     let (name, bytes) = read;
     state.commits_read.borrow_mut().insert(name.to_owned(), bytes.to_vec());
+}
+
+/// What:
+///  Empty the memory of commits read,
+///  so this landing asks Git about a commit an earlier one asked about.
+/// Why:
+///  The state below belongs to the service's loop, which enters it once,
+///  so without this the bytes of a commit outlive the landing that read them.
+///  A replace ref added to a commit after a landing read it changes what Git answers for that name,
+///  and an amend of that commit then stands on the replaced commit's parents where Git reads none
+///  (`service_land.rs`,
+///  `land_batch_timed`).
+///  Emptying it also bounds what a service holds: one landing's commits, never the run's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// landing.commitsRead.clear()
+/// ```
+pub(crate) fn forget_the_commits_read_by_an_earlier_landing() {
+    return on_the_landing_state((), forget_every_commit_read);
+}
+
+/// The write `forget_the_commits_read_by_an_earlier_landing` makes.
+fn forget_every_commit_read(state: &LandingState, _nothing: ()) {
+    state.commits_read.borrow_mut().clear();
 }
 
 /// Whether the caller runs inside a landing's scope.

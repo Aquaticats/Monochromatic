@@ -516,7 +516,13 @@ pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> 
 /// ```
 pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut file: File = exclusive_options().open(path)?;
-    return file.write_all(bytes);
+    // A write cut short by a full disk or a size limit leaves nothing at its name: a caller reads these bytes as the
+    //  input of one command, and half of them would be read as an answer.
+    if let Err(error) = file.write_all(bytes) {
+        let _ = std::fs::remove_file(path);
+        return Err(error);
+    }
+    return Ok(());
 }
 
 /// Publishing a record over the one its name holds,

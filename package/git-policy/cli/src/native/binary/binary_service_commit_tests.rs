@@ -294,6 +294,79 @@ fn a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway() {
     remove_settled(&fixture);
 }
 
+/// What:
+///  A replace ref added to a commit between two landings of one service reaches the second landing.
+/// Why:
+///  The service's landing state is entered once around its whole loop,
+///  so a memory of commits read that no landing empties lives as long as the service:
+///  the amend then takes the commit's own parents where Git reads the replacement's,
+///  and lands on a parent Git gives it none for.
+///  A service of this test lands a commit,
+///  the replacement is added,
+///  and the amend is the second landing of the same service,
+///  in a reftable repository and in a files repository holding an unrelated replace ref.
+#[test]
+fn a_replace_ref_added_between_two_landings_reaches_the_second_landing() {
+    let fixture: Fixture = fixture("service-two-landings-replaced");
+    let arms: [(&str, &str, &[&str], bool); 2] = [
+        ("reftable", "reftable", &["--ref-format=reftable"], false),
+        ("files-replace", "files beside a replace ref", &[], true),
+    ];
+    let mut repos: Vec<PathBuf> = Vec::new();
+    for (name, arm, format, unrelated) in arms {
+        let repo: PathBuf = fixture.root.join(name);
+        std::fs::create_dir(repo.as_path()).expect("repository directory");
+        let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
+        init.extend_from_slice(format);
+        git(&fixture, repo.as_path(), init.as_slice());
+        std::fs::write(repo.join("a.txt"), "base\n").expect("a");
+        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        if unrelated {
+            // A replace ref that stands on an object nothing else names: it makes the reader decline the store
+            //  without changing what Git answers for this history.
+            let root: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+            let tree: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+            let dangling: String = query(&fixture, repo.as_path(), &["commit-tree", tree.as_str(), "-m", "unrelated"]);
+            git(&fixture, repo.as_path(), &["replace", dangling.as_str(), root.as_str()]);
+            assert_eq!(query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]), root, "{arm}: the unrelated ref leaves the branch where it was");
+        }
+        git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+        repos.push(repo);
+    }
+    let service_name: String = format!("two-landings-replaced-{}", std::process::id());
+    let mut service: Running = start(&fixture, service_name.as_str());
+    for (index, (_name, arm, _format, _unrelated)) in arms.iter().enumerate() {
+        let repo: &PathBuf = &repos[index];
+        // The first landing of the service reads the commit it builds for its objects and for its reflog row.
+        std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+        let served: Output = through_service(&fixture, repo.as_path(), service_name.as_str(), &["commit", "--quiet", "--message=first", "--", "a.txt"]);
+        assert!(served.status.success(), "{arm}: {}", String::from_utf8_lossy(served.stderr.as_slice()));
+        let first: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        let parent: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD~1"]);
+        assert_eq!(query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", first.as_str()]), format!("{first} {parent}"), "{arm}: the landed commit stands on the base");
+        // The replacement stands on no parent, so Git gives the amended commit none either.
+        let tree: String = query(&fixture, repo.as_path(), &["rev-parse", format!("{first}^{{tree}}").as_str()]);
+        let replacement: String = query(&fixture, repo.as_path(), &["commit-tree", tree.as_str(), "-m", "replacement"]);
+        git(&fixture, repo.as_path(), &["replace", first.as_str(), replacement.as_str()]);
+        // Positive control: Git now reads no parent for the commit the second landing amends.
+        assert_eq!(query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", first.as_str()]), first, "{arm}: Git reads the replacement's parents");
+        std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+        let served: Output = through_service(&fixture, repo.as_path(), service_name.as_str(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
+        assert!(served.status.success(), "{arm}: {}", String::from_utf8_lossy(served.stderr.as_slice()));
+        let landed: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        assert_ne!(landed, first, "{arm}: the branch moved to the amended commit");
+        assert_eq!(
+            query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]),
+            landed,
+            "{arm}: the amended commit stands on the parents Git reads, which are none"
+        );
+    }
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
 /// A scoped commit with messages lands through the service and equals the commit native Git makes of the same input.
 #[test]
 fn a_scoped_commit_through_the_service_equals_the_native_commit() {
