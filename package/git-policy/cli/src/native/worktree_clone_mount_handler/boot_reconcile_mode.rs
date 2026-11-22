@@ -19,7 +19,15 @@
 //!  not step 6's and not step 19's:
 //!  step 8 owns the gate's use,
 //!  the intent reconciliation and the readiness publish this mode runs,
-//!  and step 19 only installs the unit that calls it.
+//!  and its "What it builds" names this mode,
+//!  while step 19 only installs the unit that calls it
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//!  "Step 8:
+//! The attaching sweep for a clone that carries a mount request",
+//!  "What it builds",
+//!  and "Step 19:
+//! The one-time migration,
+//! the immutable entry and the boot and shutdown units").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

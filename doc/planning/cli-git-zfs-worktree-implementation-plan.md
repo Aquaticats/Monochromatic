@@ -1172,6 +1172,15 @@ publish the receipt and the readiness,
 and refuse malformed intent before any filesystem operation on its behalf.
 Before attach it checks the encryption root and key state,
 and reports an unavailable key separately from identity or permission failures.
+This step owns the handler's `boot-reconcile` mode as well:
+the start-time compatibility gate,
+the key and checkout checks,
+the intent reconciliation and this boot's readiness publish,
+all before any sweep,
+which is what step 19's unit runs at boot.
+The mode is this step's because it is the work the sweep does without a
+request;
+step 6 built the gate it calls and step 19 only installs the unit around it.
 
 #### Design sections
 
