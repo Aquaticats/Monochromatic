@@ -35,9 +35,10 @@ struct Fixture {
 }
 
 impl Fixture {
-    /// A fresh folder under this process's own temporary root.
-    fn new() -> Self {
-        return Fixture { path: crate::test_support::fixture("attach-the-clone") };
+    /// A fresh folder of this control's own,
+    /// named so two controls of one process never share it.
+    fn new(name: &str) -> Self {
+        return Fixture { path: crate::test_support::fixture(format!("attach-the-clone-{name}").as_str()) };
     }
 
     /// The folder,
@@ -58,7 +59,7 @@ impl Fixture {
 ///  not to a summary.
 #[test]
 fn a_filesystem_type_the_kernel_does_not_have_is_refused_at_fsopen() {
-    let fixture: Fixture = Fixture::new();
+    let fixture: Fixture = Fixture::new("fsopen");
     let target: std::fs::File = fixture.open();
     let refusal = attach_with(ABSENT_FILE_SYSTEM, "pool/clone", &target).expect_err("a type no module registers cannot be opened");
     assert_eq!(refusal.call, AttachCall::FileSystemContext, "the refusal names fsopen: {refusal:?}");
@@ -101,7 +102,7 @@ fn the_two_flag_spellings_are_the_same_two_bits() {
 ///  and the kernel's answer that nothing is mounted there.
 #[test]
 fn a_folder_that_is_no_mount_is_refused_by_the_descriptor_unmount() {
-    let fixture: Fixture = Fixture::new();
+    let fixture: Fixture = Fixture::new("unmount");
     let target: std::fs::File = fixture.open();
     let refusal = unmount_through_descriptor(&target).expect_err("a plain folder is no mount");
     assert_eq!(refusal.call, AttachCall::Unmount);

@@ -36,9 +36,10 @@ struct Fixture {
 }
 
 impl Fixture {
-    /// A fresh folder under this process's own temporary root.
-    fn new() -> Self {
-        return Fixture { path: crate::test_support::fixture("sweep-configuration") };
+    /// A fresh folder of this control's own,
+    /// named so two controls of one process never share it.
+    fn new(name: &str) -> Self {
+        return Fixture { path: crate::test_support::fixture(format!("sweep-configuration-{name}").as_str()) };
     }
 
     /// The configuration file inside the fixture folder,
@@ -65,7 +66,7 @@ fn a_configuration_that_names_both_keys_is_read() {
 /// and the message names the two keys a person writes.
 #[test]
 fn a_missing_file_is_refused_with_the_keys_to_write() {
-    let fixture: Fixture = Fixture::new();
+    let fixture: Fixture = Fixture::new("missing");
     let absent: PathBuf = fixture.path.join("nothing.jsonc");
     let refusal: ConfigurationRefusal = read_configuration(absent.as_path()).expect_err("a missing file names nothing");
     assert!(matches!(refusal, ConfigurationRefusal::Missing { .. }), "{refusal:?}");
@@ -128,7 +129,7 @@ fn a_relative_checkout_is_refused() {
 /// so the release path and a control take the same route to the same parse.
 #[test]
 fn the_file_is_read_and_parsed() {
-    let fixture: Fixture = Fixture::new();
+    let fixture: Fixture = Fixture::new("read");
     let file: PathBuf = fixture.write(document(PARENT, CHECKOUT).as_str());
     let configuration: SweepConfiguration = read_configuration(file.as_path()).expect("the fixture file names both keys");
     assert_eq!(configuration.parent_dataset, PARENT);
