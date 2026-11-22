@@ -202,13 +202,16 @@ each with its basis:
   Measured on 2026-11-21:
   the unit with `virtqemud` and `virtlogd` held 11.6 MiB (peak 14 MiB),
   one running guest's `virtiofsd` processes held 1.7 MiB and 15.4 MiB,
-  a unit with one guest reached a peak of 990 MB,
-  and a unit holding that guest and another session's 8 GiB guest reached 2.7 GB.
+  a unit with one guest whose domain asked for 8 GiB charged a peak of 990 MB,
+  and a unit holding that guest and another session's 8 GiB guest charged 2.7 GB.
+  A guest is charged what it touches,
+  not the memory its domain asks for.
   A host whose `/proc/meminfo` cannot be read fails the start with an error naming the file.
 - `OOMPolicy=continue`:
   when the guests' memory exceeds the cap,
-  the kernel kills the guest it picks,
-  and the daemon and the other guests keep running.
+  the kernel kills a process of its choosing inside the unit,
+  usually the largest guest,
+  and `continue` keeps systemd from stopping the unit over that kill.
   systemd's default,
   `OOMPolicy=stop`,
   would stop the unit and kill every guest,
@@ -228,8 +231,10 @@ each with its basis:
   When the daemon exits while guests run,
   the name stays loaded:
   mvm reports that instead of starting a second unit,
-  and a fresh daemon then needs the unit stopped,
-  which kills those guests.
+  because a second unit would be a second cap over the same guests.
+  A person can still stop the unit,
+  which kills those guests,
+  and a later mvm then starts a fresh daemon.
 - No `RuntimeMaxSec=`:
   a time limit on the command that started the daemon is one of the ways guests died before.
 - `virtqemud --timeout=120`:
@@ -252,8 +257,10 @@ not to each guest:
 four guests at mvm's default memory of 8 GiB each exceed it on a machine with 61.7 GiB,
 and the kernel then kills the guest it picks rather than the daemon.
 Because the cap is half the machine's total,
-the rest of the session keeps the other half,
+guests can never take more than half of it,
 and everything outside the unit is handled by the machine as it was before.
+The other half is not reserved for the session:
+it is simply memory the unit may not have.
 
 `MVM_VIRTQEMUD_COMMAND` names the command that runs `virtqemud`,
 as a JSON array,
@@ -278,10 +285,14 @@ and does not fall back to letting `virsh` start it:
 that is the cgroup problem again.
 Two cases leave mvm no unit to use,
 and there it falls back to the old on-demand start and warns,
-naming this defect and the troubleshooting document:
+naming this defect and the troubleshooting document,
+and saying that the cap and the separation from the cgroup are not in place:
 no `systemd-run` on `PATH`,
-and a `systemd-run --user` that cannot reach the user manager,
+and a `systemd-run --user` that reports it cannot reach the user manager,
 which a caller whose `XDG_RUNTIME_DIR` is not the user manager's gets.
+For those calls mvm sets `LIBVIRT_AUTOSTART=1` itself,
+so libvirt starts the daemon on demand as it did before,
+whatever the caller's own setting.
 A caller with its own runtime directory also cannot see the daemon a unit would start,
 so a fully isolated run needs no unit.
 
