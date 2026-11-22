@@ -250,9 +250,9 @@ fn a_head_moved_to_another_tree_drops_the_read_beside_the_check() {
 fn a_linked_worktrees_head_moving_drops_the_read_beside_the_check() {
     let root: PathBuf = fixture("moved-linked");
     let repo: PathBuf = a_clean_source(root.as_path(), "linked-main");
-    let linked: PathBuf = root.join("linked");
-    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("utf8")]);
-    let linked: PathBuf = std::fs::canonicalize(linked).expect("canonical");
+    let made: PathBuf = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", made.to_str().expect("utf8")]);
+    let linked: PathBuf = std::fs::canonicalize(made).expect("canonical");
     // A checkout made a moment ago is racy against its own index, and the clean check refuses that until the files are older.
     age_every_file(linked.as_path());
     let common: PathBuf = repo.join(".git");
@@ -449,7 +449,9 @@ fn a_sparse_partial_clone(origin: &Path, root: &Path, name: &str) -> PathBuf {
 fn missing_and_packs(clone: &Path) -> (usize, usize) {
     let listed: std::process::Output = git_output(clone, &["rev-list", "--objects", "--all", "--missing=print"]);
     let missing: usize = listed.stdout.split(|byte| return *byte == b'\n').filter(|line| return line.first() == Some(&b'?')).count();
-    let packs: usize = std::fs::read_dir(clone.join(".git/objects/pack")).map(|entries| entries.flatten().filter(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("pack"))).count()).unwrap_or(0);
+    let packs: usize = std::fs::read_dir(clone.join(".git/objects/pack"))
+        .map(|entries| { return entries.flatten().filter(|entry| return entry.path().extension() == Some(std::ffi::OsStr::new("pack"))).count(); })
+        .unwrap_or(0);
     return (missing, packs);
 }
 
