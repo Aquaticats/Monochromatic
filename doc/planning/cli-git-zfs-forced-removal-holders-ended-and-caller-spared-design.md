@@ -2547,6 +2547,10 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   the citation corrections,
   the sibling reconciliation,
   and the questions moved and added.
+- `ba03f31b47`,
+  2026-11-22T18:30:33-05:00:
+  this revision list,
+  and the final newline.
 
 ## What this revision left as it was
 
