@@ -41428,7 +41428,19 @@ stated in this entry. What follows from them, as work:
   `fix/git-policy-cli-lfs-push-programs-are-held-in-memory-and-never-written`) deleted locally and on `origin`. The note
   `doc/troubleshooting/push-that-ended-with-no-words-names-its-status.md` corrected on `main` (the signal from the
   fixture's teardown after the control's own race, issue 6336; the memory reading not supported). Low left: the forget
-  seam's manager-first order has no control. Step 7's
+  seam's manager-first order has no control. GOING: `pi-git-policy-cli-lfs-hang-control-race` (issue 6336 red first,
+  plus the forget seam's control; brief under `~/temp/agent/git-policy-cli-lfs-hang-control-race-2026-11-21/`). THE
+  UP-FRONT SKIP ROUND ended at `48401e559d`: `skip_reason_for_the_target_tree` in `choose_rung` runs one `git diff-tree`
+  between the source's `HEAD` and the named commit and declines the rung before any claim or copy when a changed path is one
+  the fence hands to Git; the control red on `main` (copies happened) then green; the converting-path add 0.83 of `main`
+  (pair 0.76), the size-proof path (not caught; the ending after copies kept) 0.90 (pair 0.97), same-tree adds unchanged
+  (no read when no commit is named, one 2 to 3 ms read when one is); harness 26 of 26, sample 300 of 300, guest 20 of 20 ZFS
+  and btrfs controls green; gate 9576 of 9578; the Limitations entry restored. GOING: its integration pass on Sonnet
+  (review to `~/temp/agent/integration-pass-clone-rung-skips-a-differing-fenced-tree-2026-11-21/keep/review.md`). The
+  faster size reader waits for the skip's merge (same fence reads). HOUSEKEEPING: the old step 3 worktree
+  `zfs-step-3-reflink-rung-recognition` removed (its ignored mise file differed only by a generated line the main
+  checkout has) and its branch deleted locally and on `origin`; the wrapper kept that worktree's service journal for its
+  `claim-watch` (59,400 bytes, left as a reproduction; added to issue 6322). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
