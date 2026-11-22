@@ -882,7 +882,7 @@ and removes the known forms,
 which is the answer the project gave on 2026-11-21
 (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
 "Who removes a killed writer's staging file").
-A machine that runs no adoption keeps a killed writer's litter until its next adoption or that report,
+A machine that runs no adoption keeps a killed writer's litter until that report removes it,
 and nothing is affected meanwhile:
 no reader reads a staging name,
 so a leftover entry changes no read,
