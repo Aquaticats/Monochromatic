@@ -1024,19 +1024,19 @@ fn a_graft_file_the_service_names_lands_as_git_reads_it() {
 }
 
 /// What:
-///  A reftable store keeps the amendment on the parents Git reads,
+///  A replace ref keeps the amendment on the parents Git reads,
 ///  with no variable of the landing's history list set anywhere.
 /// Why:
-///  This is the landing's second door alone: the reader declines a store whose replace refs are in tables,
+///  This is the landing's second door alone: the reader declines a repository holding a replace ref,
 ///  so the base's parents are asked of Git, and the fixture closes the first door by setting nothing that
-///  `history_is_plain` lists.
-///  This control is red with the `reftable` folder taken out of the reader's decline and nothing else.
+///  `history_is_plain` lists (a `refs/replace` entry is not one of its variables).
+///  This control is red with the replace refs taken out of the reader's decline and nothing else.
 #[test]
-fn a_reftable_store_keeps_the_amendment_on_the_parents_git_reads() {
-    let fixture: Fixture = fixture("service-reftable-store");
+fn a_replace_ref_keeps_the_amendment_on_the_parents_git_reads() {
+    let fixture: Fixture = fixture("service-replace-ref-door");
     let repo: PathBuf = fixture.root.join("repo");
     std::fs::create_dir(repo.as_path()).expect("repository directory");
-    git(&fixture, repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(&fixture, repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=root"]);
     std::fs::write(repo.join("a.txt"), "one\n").expect("a");
     git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
@@ -1045,12 +1045,12 @@ fn a_reftable_store_keeps_the_amendment_on_the_parents_git_reads() {
     let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let tree: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
     let replacement: String = query(&fixture, repo.as_path(), &["commit-tree", tree.as_str(), "-m", "replacement"]);
-    // A replacement that stands on no parent, in the tables of the reftable store.
+    // A replacement that stands on no parent, under `refs/replace`, where Git reads it and the reader declines the store.
     git(&fixture, repo.as_path(), &["replace", base.as_str(), replacement.as_str()]);
     assert_eq!(
         query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", base.as_str()]),
         base,
-        "the positive control: Git reads the store's replacement, which stands on no parent"
+        "the positive control: Git reads the replacement, which stands on no parent"
     );
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
@@ -1066,7 +1066,7 @@ fn a_reftable_store_keeps_the_amendment_on_the_parents_git_reads() {
     assert_eq!(
         query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]),
         landed,
-        "the amended commit stands on the parents Git reads under the reftable store, which are none"
+        "the amended commit stands on the parents Git reads under the replace ref, which are none"
     );
     remove_settled(&fixture);
 }
