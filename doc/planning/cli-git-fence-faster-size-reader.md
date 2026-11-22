@@ -543,7 +543,7 @@ eight balanced rounds:
   `git ls-tree` **292.5** (206.5 to 10,368.9);
   `git cat-file` **208.4** (194.5 to 4,145.9);
   in-process **175.4** (158.3 to 11,575.8);
-  `gix` 0.90.0's loop **223.0** (218.8 to 269.8);
+  `gix` 0.90.0's loop **227.3** (218.8 to 269.8);
   `gix-odb` alone's loop **234.5** (216.5 to 265.5).
 - **Packed**:
   `git ls-tree` **36.7** (32.6 to 63.4);
@@ -584,7 +584,7 @@ a bulk add never packed):
 1. **C**,
    in-process:
    211.0 ms in the guest add and 175.4 ms on this host,
-   0.60 to 0.72 of the shipped read,
+   0.60 to 0.62 of the shipped read,
    and fastest on both.
 2. **A**,
    `git ls-tree`:
@@ -598,7 +598,7 @@ a bulk add never packed):
    `gix`:
    0.90.0's loop is **385.4** ms in the guest,
    slower than the shipped read,
-   and 223.0 ms on this host,
+   and 227.3 ms on this host,
    between C and A;
    0.77.0's is 206.9 ms in the guest,
    but that release shares none of the lock's twenty plumbing crates.
@@ -921,7 +921,7 @@ What should the project do about the read?"
   no dependency;
   it is the fastest read on the all-loose layout (211 ms in the guest,
   175 ms on the host,
-  0.60 to 0.72 of the shipped read) and it makes that add 14 percent faster;
+  0.60 to 0.62 of the shipped read) and it makes that add 14 percent faster;
   it reuses the repository's own pack and loose readers and refuses what it cannot answer.
   Cons:
   slower than the shipped read on the common packed layout (41.6 ms against 24.0 to 28.2 in the guest,
