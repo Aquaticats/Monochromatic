@@ -41473,7 +41473,15 @@ stated in this entry. What follows from them, as work:
   folder proof and `take_claim`'s path-based calls documented and left to step 8; the two `/run` folders made, the wait
   kept past an absent folder, per-attempt staging names, a done unmount in the grammar, derived bounds with a read-back
   refusal; lows mostly fixed; guest arm green on the final tree (event to receipt 16.9 ms); gate 9678 of 9680. GOING: the
-  step 7 reviewer's closure check. Step 7's
+  step 7 reviewer's closure check. THE LFS_HANG RACE FIX'S PASS said fit (`main`'s settle code fails the forced control,
+  the branch passes it; the seam control red with the old order; the 100-line production change a behaviour-free
+  extraction; the settle fix probed for absolute, relative, missing and malformed `gitdir:` lines; 83 fixtures had shared
+  the blind spot, three with open work; gate 9625 of 9627). MERGED as `2bceadd125` at 2026-11-21T20:03:12-05:00; issue
+  6336 closes; corrective comment on `ddd3ade4e4` ("the only caller" was false). Lows left in that review
+  (`~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`): `git_directory_of` has
+  no controls of its own; the `>= 1 s` assertion times more than the wait; the settle doc overstates its reach; a possible
+  trailing-space trim in the product's own `.git` resolver (read, not run, not this branch's); "above" pointers and a long
+  line; `AskTheService::forget_programs` still has no control. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
