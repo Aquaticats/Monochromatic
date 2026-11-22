@@ -41785,7 +41785,22 @@ stated in this entry. What follows from them, as work:
   "second-pass fixes" came from a review nobody briefed. THE 6341 FIX ended at `2a17a4175d`
   (`~/temp/agent/btrfs-subvol-info-success-value-2026-11-22/keep/report-from-summary.md`): only `-1` is a failure; the
   kernel answers 1 or 0 up to v7.1 and 0 from v7.2; eight controls 0 of 8 on `main` and 10 of 10 on the fix; gate 9762 of
-  9764. The mvm unit held last night's overlapping guests with no kill (peak 13.2 G memory, 18.3 G swap). Step 7's
+  9764. The mvm unit held last night's overlapping guests with no kill (peak 13.2 G memory, 18.3 G swap). GOING since
+  2026-11-22T13:40-05:00, each brief under its own folder in `~/temp/agent/` with the driver's run folder apart from the
+  run's `scratch/`: `pi-fence-size-read-settle-never-waits` (the overlap: an add never waits for a read it does not use;
+  what becomes of the unjoined `git ls-tree`; the two losing shapes re-timed; the first Git release honouring
+  `GIT_NO_LAZY_FETCH`); `pi-clone-rung-partial-clone-clean-source-file-size-rule` (the mean-file-size edge measured on btrfs
+  and ZFS; the declined fixtures anchored; the 28 ZFS guest controls run; few-small-files and mixed trees measured for the
+  owner; the stat-stale fix); `pi-object-reader-declined-branches-controls-and-lows` on
+  `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows` (the recheck's medium and lows on the merged
+  reader); step 8's recheck on Sonnet (review to `~/temp/agent/integration-recheck-zfs-step-8-attaching-sweep-2026-11-22/`;
+  it shows a red per fix, runs the sweep with no `cloneMounts` member and with no file, and times 64 and 1,024 children); the
+  6341 fix's pass on Sonnet (review to `~/temp/agent/integration-pass-btrfs-subvol-info-success-value-2026-11-22/`). Merge
+  the 6341 fix before the partial clone: both carry `doc/troubleshooting/btrfs-get-subvol-info-returns-one-on-success.md`,
+  and the partial clone round was told to take the fix branch's version. Removed at 2026-11-22T13:55-05:00, local and on the
+  remote, after a check that each held only merges of commits `main` or a live branch has: the two reftable branches and
+  their two integration branches, the step 8 first-pass integration branch (`567d1e5d32`; its commits are on the feature
+  branch), and the three skip-pass-lows branches, with their three worktrees. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
