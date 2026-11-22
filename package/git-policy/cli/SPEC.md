@@ -1479,7 +1479,7 @@ The variable is honoured from the May 2024 maintenance releases
 `v2.44.1`,
 `v2.45.1`,
 the commit `7b70e9efb`)
-and by Ubuntu 24.04's `2.43.0-1ubuntu7.3`:
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`:
 with it an unavailable size prints `BAD` in the size column,
 the run exits 0 with its output,
 and the clone is unchanged.
