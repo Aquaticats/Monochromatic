@@ -9,7 +9,8 @@
 //! too large,
 //! replaced by a `refs/replace` ref,
 //! in a shallow or grafted
-//!  history) returns `None`,
+//!  history,
+//! kept in a ref store this reader does not scan) returns `None`,
 //! and the caller asks Git,
 //! which words the failure or fetches a promised object itself.
 //!
@@ -139,11 +140,24 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
     return Some(());
 }
 
+/// Whether the repository keeps its references in the reftable backend's tables:
+/// a replace ref is then in `reftable/`,
+/// not in `refs/replace`
+///  or `packed-refs`,
+/// so a replacement there would go unseen and the reader would answer the object Git replaces.
+fn ref_store_is_reftable(common_dir: &Path) -> bool {
+    return common_dir.join("reftable").exists();
+}
+
 /// Whether the repository changes what an object name means:
 /// replace refs,
 /// a shallow file,
-/// grafts.
+/// grafts,
+///  a ref store whose replacements this reader cannot see.
 fn objects_are_replaced(common_dir: &Path) -> bool {
+    if ref_store_is_reftable(common_dir) {
+        return true;
+    }
     let replace_dir: PathBuf = common_dir.join("refs/replace");
     if let Ok(mut entries) = std::fs::read_dir(&replace_dir)
         && entries.next().is_some()

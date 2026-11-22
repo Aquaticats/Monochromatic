@@ -175,6 +175,50 @@ fn what_cannot_be_trusted_is_declined() {
     remove(root.as_path());
 }
 
+/// What:
+///  A replace ref a reftable repository keeps in its tables declines the database.
+/// Why:
+///  The scans above look at `refs/replace` and `packed-refs`,
+/// and the reftable backend writes neither:
+///  the ref is in `reftable/`,
+/// so a replacement there would go unseen and the reader would answer the object Git replaces,
+///  with the parents and the tree of the commit the replace ref stands for.
+/// The control reads the same fixture with Git,
+/// whose answer is the replacement,
+///  and declines the database only when the ref store is one this reader cannot scan.
+#[test]
+fn a_reftable_repositorys_replace_ref_declines_the_database() {
+    let root = fixture("repo-read-odb-reftable-replace");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let older = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD~1"]).stdout).expect("UTF-8");
+    let head = String::from_utf8(git_output(repo.as_path(), &["rev-parse", "HEAD"]).stdout).expect("UTF-8");
+    git(repo.as_path(), &["replace", older.trim(), head.trim()]);
+    let git_dir = repo.join(".git");
+    // Positive control: the two objects differ, so Git's answer for the replaced name is not the object the files hold.
+    let replaced = git_output(repo.as_path(), &["cat-file", "commit", older.trim()]).stdout;
+    let unreplaced = git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", older.trim()]).stdout;
+    assert_ne!(replaced, unreplaced, "the fixture's replace ref changes what Git reads");
+    // The ref store the reader cannot scan: tables instead of the replace dir and the packed refs it looks for.
+    assert!(git_dir.join("reftable").is_dir(), "the repository keeps its refs in reftable tables");
+    assert!(!git_dir.join("refs/replace").exists(), "no replace ref is a file");
+    assert!(!git_dir.join("packed-refs").exists(), "no replace ref is packed");
+    let format = ObjectFormat::Sha1;
+    let name = from_hex(older.trim().as_bytes(), format).expect("name");
+    if let Some(database) = ObjectDatabase::open(git_dir.as_path(), None, format) {
+        assert_eq!(database.read(name.as_slice()).expect("read").bytes, replaced, "the reader answers the replacement Git answers");
+    }
+    assert!(ObjectDatabase::open(git_dir.as_path(), None, format).is_none(), "a replace ref kept in reftable/ is outside what this reader scans");
+    remove(root.as_path());
+}
+
 /// Reading every version of a file kept as one long delta chain decodes each stored entry about once:
 /// a base that one read
 /// decoded is not decoded again for the next version.

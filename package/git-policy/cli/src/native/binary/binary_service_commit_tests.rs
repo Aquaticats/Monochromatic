@@ -473,3 +473,62 @@ fn a_scoped_commit_beside_a_stat_dirty_lfs_asset_lands_through_the_service() {
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// What:
+///  An amend of a commit a replace ref stands for lands with the parents Git reads,
+///  in a files-backend repository and in a reftable one.
+/// Why:
+///   A reftable repository keeps `refs/replace/<name>` in its tables,
+///  and the object reader the landing asks for the amended commit's parents scans
+///  `refs/replace` and `packed-refs` only:
+///  it answered the replaced commit's own parents while Git answers the replacement's,
+///  so the amend built and landed a commit on a parent Git does not name.
+///  The files-backend arm is the control that the difference is the ref store:
+///  there the reader declines the database and Git's answer is used.
+#[test]
+fn an_amend_of_a_replaced_commit_lands_with_gits_parents() {
+    let fixture: Fixture = fixture("service-amend-replaced");
+    let arms: [(&str, &[&str]); 2] = [("files", &[]), ("reftable", &["--ref-format=reftable"])];
+    let mut repos: Vec<PathBuf> = Vec::new();
+    for (arm, format) in arms {
+        let repo: PathBuf = fixture.root.join(arm);
+        std::fs::create_dir(repo.as_path()).expect("repository directory");
+        let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
+        init.extend_from_slice(format);
+        git(&fixture, repo.as_path(), init.as_slice());
+        std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=first"]);
+        std::fs::write(repo.join("a.txt"), "two\n").expect("a");
+        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second"]);
+        git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+        let head: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        // A replacement commit with the head's tree and no parent, so Git gives the amended commit no parent either.
+        let tree: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+        let replacement: String = query(&fixture, repo.as_path(), &["commit-tree", tree.as_str(), "-m", "replacement"]);
+        git(&fixture, repo.as_path(), &["replace", head.as_str(), replacement.as_str()]);
+        // Positive control: Git answers the replacement, which stands on no parent.
+        assert_eq!(query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", head.as_str()]), head, "{arm}: Git reads the replacement's parents");
+        repos.push(repo);
+    }
+    let name: String = format!("amend-replaced-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    for (index, (arm, _format)) in arms.iter().enumerate() {
+        let repo: &PathBuf = &repos[index];
+        let before: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        std::fs::write(repo.join("a.txt"), "three\n").expect("a");
+        let served: Output = through_service(&fixture, repo.as_path(), name.as_str(), &["commit", "--amend", "--message=amended", "--", "a.txt"]);
+        assert!(served.status.success(), "{arm}: {}", String::from_utf8_lossy(&served.stderr));
+        let landed: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        assert_ne!(landed, before, "{arm}: the branch moved to the amended commit");
+        assert_eq!(
+            query(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]),
+            landed,
+            "{arm}: the amended commit stands on the parents Git reads, which are none"
+        );
+    }
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
