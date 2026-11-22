@@ -74,6 +74,16 @@ all of it read-only on this host:
 `ls /etc/zfs/zfs-list.cache`;
 `git --version`;
 and text searches over the repository.
+
+What it did not run:
+any guest,
+container or virtual machine;
+any ZFS or pool command that changes anything;
+any mount,
+unmount or propagation change;
+any request to the service manager that changes or signals anything;
+and any test suite,
+because it changed no code.
 No guest ran,
 so every claim
 that rests on kernel,
@@ -1482,6 +1492,7 @@ checkout-propagation`;
   `open`,
   `statmount`,
   `point`,
+  `type`,
   `source`,
   `namespace`,
   `before-table`,
@@ -1559,9 +1570,11 @@ and no test waits.
     No race.
 3.  A refusal at each verified field,
     one test each:
+    an open that fails (`open`),
+    a `statmount` that fails (`statmount`),
     a point that is another path (`point`),
     a type that is not `zfs`
-    (`source`),
+    (`type`),
     a source that is another dataset (`source`),
     a missing namespace id (`namespace`),
     an unreadable table
@@ -2063,7 +2076,6 @@ and the ranking with its reason.
 
 3.  What should the route do with a checkout mount that is `slave` or `unbindable` rather than `shared`?
     Example:
-    an
     `/home/user` is made a slave of a container host's mount;
     a new checkout mount inherits nothing shared
     and reports `slave`;
@@ -2123,7 +2135,7 @@ and the ranking with its reason.
       Cons:
       it changes a mount the route did not make,
       and a descendant whose propagation was set deliberately
-      would not see it in the record as their value any more.
+      would no longer show its own value in the record.
     - Ranking:
       A > B,
       because B changes mounts the route does not own,
