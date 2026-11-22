@@ -632,8 +632,9 @@ which is the cost the dirty-source waiver recorded
 (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`).
 That cost ends where the partial clone lands:
 such a source clones every tracked path its proof settles and lets Git write the rest,
-and the two provisional limits that send an add to Git's own checkout instead are pinned, with the measurements
-they rest on, in `package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs`
+and the two provisional limits that send an add to Git's own checkout instead are pinned,
+with the measurements they rest on,
+in `package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs`
 (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
 A linked worktree with uncommitted changes still pays the source checks and then ends in Git's own checkout,
 and step 11's verified dirty restore is still the snapshot's.

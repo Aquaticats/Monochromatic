@@ -2,13 +2,17 @@
 
 ## Status
 
-Proposal.
+Accepted 2026-11-21 in the question tool as the option the decision record calls "clone with limits",
+recorded in `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+which is the answer this proposal went to the owner for.
 **Unapproved and not final**:
 only the owner declares work complete.
-Nothing here is in `main`;
-the design is proposed,
-a prototype measures it on `main`'s fenced clone rung,
-and "The decision asked for" asks for a decision.
+The build that lands it is on
+`feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source`,
+with both limits pinned and the round of 2026-11-21 recorded in "The build that landed".
+
+The design was proposed and a prototype measured it on `main`'s fenced clone rung,
+and "The decision asked for" records what was asked.
 This is the answering round of the gate re-check
 (`~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`,
 not final,
@@ -90,6 +94,187 @@ The records are in `~/temp/agent/clone-rung-partial-clone-on-the-fenced-rung-202
 `red-plant-second-listing-ignored.log`,
 `class-tests-this-round.log` and `summary-this-round.txt`).
 The work is unapproved and non-final.
+
+## The build that landed
+
+The design is built on
+`feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source`,
+in production shape.
+The prototype's measurement switches are gone.
+The same code is split under the file-size limit:
+`worktree_clone_partial.rs` for the run itself,
+`worktree_clone_partial_tracked.rs` for the source's index,
+the tree and the stat fields the new index records,
+and `worktree_clone_partial_staged.rs` for the live staged-path listing.
+A source's changed-path count comes from the status read the source check already makes,
+so an untracked file is no changed file.
+
+### The two limits as pinned
+
+`package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs` holds both limits,
+each with its measurement beside it.
+Both are stated as provisional and open to the project's veto.
+
+The whole-tree size limit is 762,000,000 tracked bytes,
+pinned at the winning edge of the bracket.
+A dirty source lost at every size measured below it:
+1.30 of Git's own checkout at 10,001 files of 2,600 bytes (about 26 MB),
+and 1.32 at 10,001 files of 26,000 bytes (260,000,028 bytes,
+1.03 to 1.71,
+identical control 1.40,
+8 counted rounds,
+measured for this pin on 2026-11-21).
+This repository's tree of 24,621 files and 763,289,228 bytes won at 0.73 to 0.81 of it.
+The rung's fence reads cost about the same whatever the tree holds:
+275 ms of `git ls-tree` at 24,621 paths,
+110 ms at 10,001.
+Git's own checkout grows with the bytes,
+so the rung loses wherever a checkout is shorter than those reads.
+The pin sits at the top of the bracket,
+so no size nobody measured is cloned.
+The 260 MB shape measured 1.04 of Git's own checkout (0.76 to 1.35),
+and 1.00 of `main` (0.77 to 1.21),
+once the pin declined it,
+which is the control for the pin's placement.
+
+The changed-file cut is one quarter of the tracked paths,
+which is the fence's own decline share.
+It is 6,155 of this repository's 24,621.
+Three rounds measured 6,000 changed paths at 1.00 to 1.05 of Git's own checkout,
+which is parity,
+and 20,000 at 1.68 to 1.74,
+which is the loss the cut declines.
+
+### The controls this build added
+
+Each limit has a ladder control that goes red when the limit is removed.
+`a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes` and
+`a_source_above_the_changed_file_cut_gets_gits_own_checkout_and_its_bytes` each assert:
+the rung the ladder chose,
+the numbers its sentence names,
+that nothing was claimed,
+that nothing was copied,
+and that the worktree the add leaves is byte for byte the one Git's own checkout makes,
+with the source's change in neither.
+Their fixtures derive their sizes from the pinned constant,
+and both name their own skip where the fixture root cannot reflink a file.
+
+`the_size_limit_declines_one_byte_below_the_pinned_bytes_and_clones_it` and
+`the_cut_declines_one_changed_path_more_than_its_share_and_ignores_untracked_ones` hold each value's own edge in
+`worktree_clone_rung_limits_tests.rs`,
+including the untracked file the cut must not count,
+and `the_cut_is_the_fence_own_share_of_the_tracked_paths` ties the cut to the fence's constant,
+so a change to that share moves both.
+
+The ladder controls that have to reach the clone rung now build fixtures above the size limit,
+and the btrfs control that relied on a dirty source ending the rung uses a state no rung serves,
+because a source with changes no longer does.
+
+### The six guard re-plants
+
+Each was planted alone in a scratch copy of the tip,
+and run once against the class controls
+(`keep/plant-*.log` in the round's folder).
+Every one went red:
+
+- the union drops the fence's paths:
+  `a_path_a_conversion_rule_reaches_is_written_by_git`.
+- the new index is the source's index bytes:
+  four controls.
+- written paths keep their clones' stat data:
+  `a_path_a_conversion_rule_reaches_is_written_by_git`.
+- the object-name comparison dropped:
+  five controls,
+  `a_staged_path_is_written_not_cloned` among them.
+- the stat verdict accepts every file:
+  nine controls.
+- the second staged-path listing computed and ignored:
+  `a_path_staged_after_the_source_check_is_refused`.
+  This is the plant that stayed green before that control existed,
+  so no control had to be added for it.
+
+### This build's own rounds
+
+The shapes the decision rests on were rerun against `main` and Git's own checkout,
+in a position-balanced order.
+That order is a Williams square of four arms,
+two blocks after one warm-up,
+with the second block reversed.
+The identical-binary control is the same build under another name.
+The records are `keep/measure-balanced-*.json` and `keep/log-*.txt` in the round's folder.
+
+- The usual dirty state (3 changed and 3 untracked paths),
+  8 counted rounds:
+  the partial clone is 0.63 of `main` (0.29 to 0.87,
+  below in 8 of 8),
+  and 0.81 of Git's own checkout (0.68 to 1.17).
+  The identical control is 0.65 of `main`,
+  and the pair's median ratio is 0.99.
+- 6,000 changed paths,
+  12 counted rounds pooled from three blocks:
+  0.85 of `main` (0.74 to 1.16,
+  below in 9 of 12),
+  and 1.00 of Git's own checkout (0.90 to 1.31,
+  below in 6 of 12),
+  which is parity.
+  The identical control is 0.91 of `main` and 1.03 of Git's own checkout,
+  and the pair's median is 1.06.
+- 20,000 changed paths,
+  8 counted rounds:
+  every arm took Git's own checkout,
+  because the cut declines the shape.
+  The add is 1.02 of `main` (0.39 to 2.11),
+  where it was 1.74 of Git's own checkout before the cut.
+- The 2.6 KB dirty tree,
+  8 counted rounds:
+  every arm took Git's own checkout,
+  because the size limit declines it.
+  The add is 0.91 of `main` (0.79 to 1.05),
+  and 0.98 of Git's own checkout (0.77 to 1.21),
+  which is parity,
+  where the clone took 1.30 of Git's own checkout.
+- The 260 MB dirty tree (10,001 files of 26,000 bytes),
+  8 counted rounds before the pin and 8 after it.
+  Before,
+  the clone took 1.32 of Git's own checkout (1.03 to 1.71),
+  with its control at 1.40.
+  After,
+  the limit declines it,
+  and the add is 1.04 of Git's own checkout (0.76 to 1.35).
+
+Every arm of every counted round exited 0,
+took the route its name and the record say,
+left a worktree clean by `git status`,
+and was equal to Git's own checkout by `diff --recursive --no-dereference`.
+
+### The correctness checks
+
+- The class controls:
+  28 in the three sidecar files,
+  and the ladder's routing control,
+  all passing on this host with the two new limit controls beside them.
+- The seeded differential sample (seed 11,
+  150 combinations,
+  300 checks):
+  300 of 300 equal to Git's checkout by bytes,
+  mode,
+  link target and staged index,
+  and clean by `git status` with an index equal to its `HEAD`'s tree.
+  Its fixtures carry a sparse anchor above the size limit,
+  so the rung is reached rather than declined:
+  70 combinations went through the partial clone,
+  and 80 through Git's own checkout,
+  which are the fence's refusals and the cut on the combinations with more changed paths than a quarter of a small
+  fixture's.
+- The container gate on this host:
+  9,770 tests run,
+  9,768 passed,
+  with the two standing cause-H failures
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` names,
+  and nothing else.
+
+The work is **unapproved and non-final**.
+Only the owner declares it complete.
 
 ## What the rung does today
 
@@ -1957,7 +2142,8 @@ The entry point this round added belongs in a sibling when the rung is written f
   where it is placed if the partial clone is not taken,
   and what it costs on a clean add above its threshold.
 - A differing new `HEAD` whose differing tree changes a path the size proof hands to Git:
-  that class still ends after the clone rung and pays the copies, and the up-front skip does not cover it.
+  that class still ends after the clone rung and pays the copies,
+  and the up-front skip does not cover it.
   The class the skip does cover,
   the differing tree that changes a path a conversion rule reaches,
   is what the re-check's variant sample measured 22 of 43 attempts ending after the clone rung on the pre-merge tip;
@@ -1978,16 +2164,25 @@ The entry point this round added belongs in a sibling when the rung is written f
 ## The decision asked for
 
 Answered on 2026-11-21:
-the project chose "1: clone with limits",
+the project chose the option its record calls "clone with limits",
 which is the partial clone with the whole-tree size rule and the changed-path cut,
 and the answer is `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`.
 What is below is the record of what was asked and of the figures it rested on.
 
-Two questions were asked, not one list of options,
+Two questions were asked,
+not one list of options,
 because the rule is separable from the clone:
-the clone (A without a bound, F with the changed-path cut, or D with no clone),
-and the whole-tree size rule (yes or no).
-Their products are A, B (A with the rule), F, F with the rule, D and E (D with the rule),
+the clone,
+which is A without a bound,
+F with the changed-path cut,
+or D with no clone;
+and the whole-tree size rule,
+yes or no.
+Their products are A,
+B (A with the rule),
+F,
+F with the rule,
+D and E (D with the rule),
 and F with the rule is the seventh,
 which with the cut pinned is the one the decision takes.
 
