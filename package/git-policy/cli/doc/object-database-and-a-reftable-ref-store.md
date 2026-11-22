@@ -42,7 +42,7 @@ built in the scratch folder with real Git:
   the commit the files hold.
 
 What `main`'s reader answered there,
-from the probe in `scratch/odb-probe` linked against this branch's base
+from the probe in `keep/odb-probe` linked against this branch's base
 (`5632932...` is the release build of that base,
 `9f95002...` the probe):
 
