@@ -1455,10 +1455,13 @@ the metadata comparison is already the answer.
 
 - The control is now `a_pid_file_a_holder_put_at_the_freed_name_is_left_alone`.
   Its hook writes the new lock and then removes the judged PID file before writing its own,
-  which is the only way a program puts its own file at a taken name,
-  and the inode the name has afterwards is a new one.
-  It also reads the judged file's inode before the call and asserts that the file standing afterwards is another one,
-  so a later reader cannot go back to a write in place without the control saying so.
+  which is the only way a program puts its own file at a taken name:
+  a file that is there only because the judged one went.
+  The control asserts what the product promises for that state,
+  which is that the file stands and names the new holder.
+  It does not assert that the inode number differs,
+  because a file system may hand the freed number to the next file,
+  and a check that needed a new number would fail for a file system and not for the product.
 - A second control,
   `a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock`,
   holds the state a repository really meets:
@@ -1501,6 +1504,9 @@ which the comparison keeps.
 The one state the comparison cannot tell apart is a write over the judged file within one millisecond of the plant,
 and what it costs is the dead holder's file rather than a live holder's;
 no Git makes such a write at that name.
+On a file system that hands a freed number to the next file,
+as one transaction of btrfs can,
+the inode says nothing and the change time carries the comparison alone.
 
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issue 6343)
 
