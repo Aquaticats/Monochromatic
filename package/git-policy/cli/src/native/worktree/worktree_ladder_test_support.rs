@@ -62,7 +62,7 @@ pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
 ///   A clean source is cloned only when its tracked files average at least the rung's mean edge,
 /// and a control's fixture holds a few dozen bytes a file,
 /// so a fixture that must reach the clone rung sits above the edge on purpose
-/// (`worktree_clone_rung_limits::THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG`).
+/// (`worktree_clone_rung_limits::the_safest_mean_tracked_file`), the higher of the two measured edges.
 /// The anchor is a tenth above the edge per path,
 /// so a path a control adds later cannot pull the mean under it,
 /// and it derives its size from the constant rather than carrying a stale number
@@ -74,7 +74,7 @@ pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
 /// const file = createFile(repo + '/' + name); file.truncate(Math.ceil(edge * 1.1) * (paths + 1));
 /// ```
 pub(crate) fn tracked_above_the_mean_edge(repo: &Path, name: &str, paths: u64) {
-    let edge: u64 = crate::worktree_clone_rung_limits::THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
+    let edge: u64 = crate::worktree_clone_rung_limits::the_safest_mean_tracked_file();
     let per_path: u64 = edge + edge / 10;
     tracked_sparse(repo, name, per_path.saturating_mul(paths + 1));
     // Aged, so the clean check proves the anchor instead of calling it racy and making the whole source one with changes.

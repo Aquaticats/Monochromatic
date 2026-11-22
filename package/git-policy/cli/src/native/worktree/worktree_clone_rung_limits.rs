@@ -35,6 +35,7 @@
 //! const reason = entries && (source.dirty ? tooSmallATree(entries) : tooSmallAFilesMean(entries) ?? tooManyChangedPaths(source, entries));
 //! ```
 
+use crate::fs_kind::{FilesystemKind, filesystem_kind};
 use crate::worktree_clean::{StatEntry, stored_stats};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::path::Path;
@@ -64,36 +65,94 @@ use std::path::Path;
 ///
 /// The limit applies only to a source with changes,
 /// where every measurement above was taken.
-/// A clean source is judged by `THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG`,
+/// A clean source is judged by `the_smallest_mean_tracked_file`,
 /// so a clean tree of a few large files clones whatever its total.
 ///
 /// Provisional and open to the project's veto,
 /// and to a lower value once a size below this tree is measured a win.
 pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 
-/// The smallest mean tracked file size a clean source may have and still be cloned.
+/// The smallest mean tracked file size a clean source on ZFS may have and still be cloned.
 ///
 /// Provenance:
-/// pinned at the mean file size where copying a clean tree stops being quicker than Git's write of it,
-/// measured on this build in one throwaway guest per filesystem,
-/// on trees of 10,001 files at 2,600, 4,400, 6,600, 8,800, 13,200, 17,600, 22,000, 26,000, 32,000
-/// and 44,000 bytes a file,
-/// in position-balanced rounds with an identical-binary control,
-/// against `main` and Git's own checkout
-/// (see the record beside this constant's measurement in the proposal,
-/// "The clean-source mean-file edge, measured").
+/// pinned where the measured copy of a clean tree and Git's write of it crossed,
+/// measured on this build in a throwaway ZFS guest:
+/// trees of 10,001 files of 2,600, 8,800, 13,200, 17,600, 22,000, 26,000, 29,000, 32,000 and 44,000 bytes a file,
+/// in position-balanced rounds with an identical-binary control, against `main` and Git's own checkout
+/// (the record is "The clean-source mean-file edge, measured" in
+/// `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
+/// Provisional at the waiver record's figure until this round's ZFS measurement pins it:
+/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time, 8.8 KB 1.18 times, 26 KB parity,
+/// and this repository's 32 KB files 0.64 times, on the step 3 builds
+/// (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
+/// "The small-file clean-add cost, waived the same day").
 ///
-/// The waiver record's ZFS round measured the same edge from below:
-/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time,
-/// 8.8 KB 1.18 times,
-/// 26 KB parity,
+/// The waiver record measured the same edge from below on ZFS:
+/// 10,001 files of about 2.6 KB took 1.33 times `main`'s time, 8.8 KB 1.18 times, 26 KB parity,
 /// and this repository's 32 KB files 0.64 times
 /// (`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
-/// "The small-file clean-add cost, waived the same day"),
-/// which is the bracket this build measured again on both filesystems.
+/// "The small-file clean-add cost, waived the same day").
 ///
 /// Provisional and open to the project's veto.
-pub const THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG: u64 = 26_000;
+pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 26_000;
+
+/// The smallest mean tracked file size a clean source on btrfs may have and still be cloned.
+///
+/// Provenance:
+/// no measured btrfs shape lost to Git's checkout, so the edge sits at the lowest mean measured,
+/// where parity was the worst reading;
+/// measured on this build in a throwaway btrfs guest:
+/// trees of 10,001 files of 50, 100, 250, 500, 1,000, 1,500, 2,000, 2,600, 8,800, 13,200, 17,600, 22,000, 26,000,
+/// 29,000, 32,000 and 44,000 bytes a file,
+/// in position-balanced rounds with an identical-binary control, against `main` and Git's own checkout
+/// (the record is "The clean-source mean-file edge, measured" in
+/// `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
+/// Measured: 10,001 files of 50 bytes averaged 49 bytes a file and cloned at 0.86 of Git's own checkout
+/// (0.73 to 1.06), and every larger mean measured cloned at parity or better;
+/// no btrfs shape measured lost.
+/// So the edge sits at the lowest mean measured, 49 bytes:
+/// below it no btrfs mean was measured, and the rule takes Git's own checkout there,
+/// which cannot be slower than itself.
+///
+/// Provisional and open to the project's veto.
+pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS: u64 = 49;
+
+/// What:
+///  The mean edge of one filesystem,
+/// or the safer of the two measured edges for a filesystem nobody measured.
+/// Why:
+///   The two measured filesystems cross at different means:
+/// btrfs shares every file cheaply enough that its copy never lost, while ZFS's copy of small files costs more than
+/// Git's write of them.
+/// A filesystem nobody measured (XFS with reflink, overlayfs, another kind) takes the higher measured edge,
+/// which declines at least every shape each of the two measured filesystems declines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const edge = kind === 'btrfs' ? BTRFS : kind === 'zfs' ? ZFS : Math.max(BTRFS, ZFS);
+/// ```
+pub fn the_smallest_mean_tracked_file(kind: FilesystemKind) -> u64 {
+    return match kind {
+        FilesystemKind::Btrfs => THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS,
+        FilesystemKind::Zfs => THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS,
+        FilesystemKind::Overlayfs | FilesystemKind::Other => the_safest_mean_tracked_file(),
+    };
+}
+
+/// What:
+///  The higher of the two measured mean edges.
+/// Why:
+///   A filesystem nobody measured takes this edge,
+/// and a fixture that must reach the clone rung on any of them sizes its anchor from it,
+/// so no control carries a per-filesystem number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const safest = Math.max(THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS, THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS);
+/// ```
+pub fn the_safest_mean_tracked_file() -> u64 {
+    return THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS.max(THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS);
+}
 
 /// What:
 ///  The changed paths the clone rung still clones a source with:
@@ -223,10 +282,12 @@ pub fn reason_the_tree_is_too_small(source: &SnapshotSource, entries: &[StatEntr
 /// ```
 pub fn reason_the_mean_file_is_too_small(source: &SnapshotSource, entries: &[StatEntry]) -> Option<String> {
     let mean: u64 = mean_tracked_file(entries)?;
-    if mean >= THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG {
+    // An unreadable filesystem takes the safer of the two measured edges, as an unmeasured one does.
+    let edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(source.root.as_path()).unwrap_or(FilesystemKind::Other));
+    if mean >= edge {
         return None;
     }
-    return Some(format!("the tracked files of {} average {} bytes each, below the {} a clean tree needs for the clone to be quicker than Git's own checkout", shown(source.root.as_path()), mean, THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG));
+    return Some(format!("the tracked files of {} average {} bytes each, below the {} a clean tree needs for the clone to be quicker than Git's own checkout", shown(source.root.as_path()), mean, edge));
 }
 
 /// What:

@@ -56,14 +56,14 @@ pub(super) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
 ///   A clean source is cloned only when its tracked files average at least the rung's mean edge,
 /// and a control's fixture holds a few dozen bytes a file,
 /// so a fixture that must reach the clone rung sits above the edge on purpose
-/// (`git_policy_cli::worktree::worktree_clone_rung_limits::THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG`).
+/// (`git_policy_cli::worktree::worktree_clone_rung_limits::the_safest_mean_tracked_file`).
 /// The anchor is a tenth above the edge per path,
 /// so a path a control adds later cannot pull the mean under it,
 /// and it derives its size from the constant rather than carrying a stale number
 /// (`AGENTS.md`,
 ///  rule `MGN`).
 pub(super) fn tracked_above_the_mean_edge(repo: &Path, relative: &str, paths: u64) {
-    let edge: u64 = git_policy_cli::worktree::worktree_clone_rung_limits::THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
+    let edge: u64 = git_policy_cli::worktree::worktree_clone_rung_limits::the_safest_mean_tracked_file();
     let per_path: u64 = edge + edge / 10;
     let path: PathBuf = repo.join(relative);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");

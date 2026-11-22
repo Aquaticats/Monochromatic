@@ -5,6 +5,7 @@
 //! and each reason appears exactly at the edge it was pinned at.
 
 use super::*;
+use crate::fs_kind::{FilesystemKind, filesystem_kind};
 use crate::test_support::{fixture, git_context, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
 use crate::worktree_snapshot_source::{SnapshotSource, source_or_dirty};
@@ -111,18 +112,19 @@ fn the_size_limit_declines_one_byte_below_the_pinned_bytes_for_a_source_with_cha
 #[test]
 fn the_mean_limit_declines_one_byte_below_the_pinned_mean_and_clones_it() {
     let files: usize = 4;
-    let edge: u64 = THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
     let at: PathBuf = fixture("limit-at-the-mean");
+    let edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(at.as_path()).expect("the fixture's filesystem"));
     let at_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), edge); }).collect();
     let at_source: SnapshotSource = source_of(at.as_path(), at_files.as_slice());
     assert_eq!(mean_tracked_file(entries_of(&at_source).as_slice()), Some(edge), "a tree of the edge's mean");
     assert!(reason_the_mean_file_is_too_small(&at_source, entries_of(&at_source).as_slice()).is_none(), "a tree of the pinned mean is cloned");
     crate::test_support::remove(at.as_path());
     let below: PathBuf = fixture("limit-below-the-mean");
-    let below_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), if index == 0 { edge - 1 } else { edge }); }).collect();
+    let below_edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(below.as_path()).expect("the fixture's filesystem"));
+    let below_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), if index == 0 { below_edge - 1 } else { below_edge }); }).collect();
     let below_source: SnapshotSource = source_of(below.as_path(), below_files.as_slice());
     let mean: u64 = mean_tracked_file(entries_of(&below_source).as_slice()).expect("a mean");
-    assert!(mean < edge, "one byte off the total is under the edge: {mean}");
+    assert!(mean < below_edge, "one byte off the total is under the edge: {mean}");
     let reason: String = reason_the_mean_file_is_too_small(&below_source, entries_of(&below_source).as_slice()).expect("one byte fewer of the mean is declined");
     assert!(reason.contains("average"), "{reason}");
     assert!(reason.contains(mean.to_string().as_str()), "{reason}");
@@ -143,8 +145,8 @@ fn the_mean_limit_declines_one_byte_below_the_pinned_mean_and_clones_it() {
 /// ```
 #[test]
 fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_sum() {
-    let edge: u64 = THE_SMALLEST_MEAN_TRACKED_FILE_THAT_KEEPS_THE_CLONE_RUNG;
     let few_large: PathBuf = fixture("limit-clean-few-large");
+    let edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(few_large.as_path()).expect("the fixture's filesystem"));
     // Two files of eight times the edge average eight times it: a clean tree far above the mean edge and far below the
     // whole-tree pin, which is the shape that must clone and that the whole-tree rule declined.
     let large_files: Vec<(String, u64)> = vec![(String::from("first.bin"), edge * 8), (String::from("second.bin"), edge * 8)];
@@ -165,6 +167,25 @@ fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_su
     assert!(sum_reason.contains("sum to"), "the source with changes is declined by its sum: {sum_reason}");
     assert!(!sum_reason.contains("average"), "the mean says nothing about a source with changes: {sum_reason}");
     crate::test_support::remove(small.as_path());
+}
+
+/// What:
+///  Each filesystem takes its own measured mean edge, and one nobody measured takes the safer of the two.
+/// Why:
+///   The two measured filesystems cross at different means, so a mapping that swapped them would decline the wrong
+/// shapes on both; this control is what pins the mapping.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(edge('btrfs')).toBe(THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS); expect(edge('zfs')).toBe(THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS); expect(edge('other')).toBe(Math.max(...));
+/// ```
+#[test]
+fn the_mean_edge_is_the_subject_filesystems_own_measurement() {
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Btrfs), THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS);
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Zfs), THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS);
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Overlayfs), the_safest_mean_tracked_file());
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Other), the_safest_mean_tracked_file());
+    assert_eq!(the_safest_mean_tracked_file(), THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS.max(THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS), "the safer edge is the higher one measured");
 }
 
 /// What:
