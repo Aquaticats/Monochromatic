@@ -41532,7 +41532,13 @@ stated in this entry. What follows from them, as work:
   the staged content was the pushed feature branch's and the conflict was saved in that review's `keep/`, then removed the
   worktree and the `integrate/...` branch locally and on `origin` (it equalled an older `main`). GOING:
   `pi-zfs-slot-identity-store-integration-findings-fixed` in the build worktree (brief under
-  `~/temp/agent/zfs-slot-identity-store-integration-findings-fixed-2026-11-21/`). Step 7's
+  `~/temp/agent/zfs-slot-identity-store-integration-findings-fixed-2026-11-21/`). THE PARTIAL CLONE'S RE-CHECK FINDINGS
+  ROUND ended at `dc7b5e5624` (`main` merged as `e86faecf31`): the end condition read against Git's own checkout in a
+  position-balanced order (usual 0.73 met, 300 changed 0.73 met, 6,000 changed 1.00 parity, 20,000 changed 1.74 not met, the
+  small dirty tree 1.30 under A and 1.04 under B); options unbundled A, B, E (size rule alone), F (changed-path bound), C, D,
+  ranked B > F > A > E > D > C, B's threshold and F's cut unpinned; a new control red when the second staged-path listing is
+  ignored; classes 29 of 29, sample 300 of 300; five of the re-check's six re-plants owed before any merge. GOING: the
+  re-check's recheck on Sonnet; then the owner. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
