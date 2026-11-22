@@ -327,8 +327,11 @@ fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, 
     let checkout_dataset: String = format!("{base}/{CHECKOUT_LEAF}");
     let container: String = format!("{base}/{CONTAINER_LEAF}");
     zfs_ignored(sbin, &["destroy", "-r", "-f", base.as_str()]);
+    // The parent is made without the mountpoint, because `zfs create -p -o` applies its options to every parent it makes
+    // and a second mount at the same path would hide the checkout.
+    zfs_ok(sbin, &["create", "-p", "-o", "mountpoint=none", base.as_str()]);
     let mountpoint: String = format!("mountpoint={}", checkout.display());
-    zfs_ok(sbin, &["create", "-p", "-o", mountpoint.as_str(), checkout_dataset.as_str()]);
+    zfs_ok(sbin, &["create", "-o", mountpoint.as_str(), checkout_dataset.as_str()]);
     // The design requires a not-shared immediate parent, which its boot unit sets; this arm sets it for the checkout
     // alone, exactly as item 3 of the design's measurements did.
     command_ok("mount", &["--make-private", checkout.display().to_string().as_str()]);
@@ -449,19 +452,22 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let encrypted_base: String = format!("{pool}/step8-encrypted");
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", encrypted_base.as_str()]);
     let encrypted_checkout: String = format!("{encrypted_base}/{CHECKOUT_LEAF}");
-    let created: (bool, String, String) = zfs(
+    let encrypted_created: (bool, String, String) = zfs(
         sbin.as_str(),
         "zfs",
-        &["create", "-p", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", encrypted_checkout.as_str()],
+        // The dataset is never mounted, so its key can be unloaded: a mounted dataset's key cannot be.
+        &["create", "-p", "-o", "mountpoint=none", "-o", "encryption=on", "-o", "keyformat=passphrase", "-o", "keylocation=prompt", encrypted_checkout.as_str()],
         Some(format!("{passphrase}\n{passphrase}\n").as_str()),
     );
-    assert!(created.0, "the encrypted fixture is created: {}", created.2);
+    assert!(encrypted_created.0, "the encrypted fixture is created: {}", encrypted_created.2);
     let encrypted_container: String = format!("{encrypted_base}/{CONTAINER_LEAF}");
     zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", encrypted_container.as_str()]);
     make_the_slot(checkout.as_path(), SLOT_TWO);
     let encrypted_nonce: &str = "00112233445566778899aabbccddee01";
     let encrypted_clone: String = clone_the_checkouts_snapshot(sbin.as_str(), encrypted_checkout.as_str(), encrypted_container.as_str(), SLOT_TWO, encrypted_nonce, Some(mount_request(encrypted_nonce).as_str()));
     write_configuration(checkout.as_path(), Some(encrypted_container.as_str()), Some(encrypted_checkout.as_str()));
+    // The checkout dataset is the encryption root, and it is not mounted, so its key can be unloaded and its clone's
+    // keystatus reads unavailable.
     zfs_ok(sbin.as_str(), &["unload-key", encrypted_checkout.as_str()]);
     let unloaded: Run = sweep();
     let refused: &str = line_about(unloaded.said.as_str(), encrypted_clone.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {encrypted_clone}: {}", unloaded.said));
@@ -551,7 +557,9 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let canonical_slot: PathBuf = worktrees_parent.join("worktrees").join(held_slot);
     assert!(mount_row(moved_slot.as_path()).is_some(), "the mount landed at the moved path the descriptor names");
     assert!(mount_row(canonical_slot.as_path()).is_none(), "no mount stands at the canonical slot");
-    let mut holder = Command::new("sh").arg("-c").arg(format!("cd {} && sleep 60", moved_slot.display())).spawn().expect("the holder starts");
+    // The shell replaces itself with the sleeper, so killing the holder kills the process whose working directory is
+    // the mount; a shell that kept a sleeping child would leave that child holding the mount busy.
+    let mut holder = Command::new("sh").arg("-c").arg(format!("cd {} && exec sleep 60", moved_slot.display())).spawn().expect("the holder starts");
     std::thread::sleep(Duration::from_millis(250));
     let busy = unmount_through_descriptor(&held.target).expect_err("a mount a holder stands in answers EBUSY");
     assert_eq!(busy.errno, libc::EBUSY, "the unmount answered the kernel's EBUSY: {busy:?}");
@@ -569,7 +577,7 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     // and the time it took is the number beside the constant.
     let bound_parent: String = format!("{pool}/step8-bound/clones");
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8-bound").as_str()]);
-    zfs_ok(sbin.as_str(), &["create", "-p", "mountpoint=legacy", "canmount=off", bound_parent.as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=legacy", "-o", "canmount=off", bound_parent.as_str()]);
     let children: usize = git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN + 1;
     let children_created: (bool, String, String) = zfs(
         sbin.as_str(),

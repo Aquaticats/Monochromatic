@@ -1201,11 +1201,6 @@ then the same sweep the default invocation runs,
 and this boot's readiness published `running` before that sweep and `finished`
 or `failed` after it,
 which is what step 19's unit runs at boot.
-The order of the two readiness writes is the project's veto-open adoption
-(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"Adopted with the project's veto open"):
-a crash mid-sweep leaves a visible `running` for `doctor`,
-while the design's sentence names the publish after the reconciliation.
 The order is the design's own in "Boot and shutdown unit":
 its `ExecStart` "verifies ABI,
 keys,
@@ -1214,6 +1209,12 @@ then reconciles current intent and publishes this boot's readiness",
 and the design's reconciliation of intent is the sweep this step builds,
 so the mode's own checks come before the sweep and the readiness record comes
 after it.
+The project adopted one deviation with its veto open
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Adopted with the project's veto open"):
+a `running` record is published before the sweep as well,
+so a crash mid-sweep leaves a state `doctor` can show,
+while the design's sentence names only the publish after the reconciliation.
 The mode is this step's because it is the work the sweep does without a
 request;
 step 6 built the gate it calls and step 19 only installs the unit around it.

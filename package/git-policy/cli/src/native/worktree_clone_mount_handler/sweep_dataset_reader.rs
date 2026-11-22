@@ -37,8 +37,19 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  and stops at the next one with a report that says where it stopped,
 ///  so a parent nobody meant to configure is reported and the clones past the
 ///  bound are left unattached rather than half swept.
-///  The measurement that sizes it is beside the number in this file's own
-///  control and in the guest arm's `MEASUREMENT child-bound-listing-ms=` line.
+///  The measurement,
+///  from one run of the step 8 guest arm on OpenZFS 2.4.4 in a
+///  disposable guest
+///  (2026-11-22,
+///  `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`):
+///  the arm created 4097 children,
+///  one more than the bound,
+///  and one sweep run visited the first 4096,
+///  answered each from the checks,
+///  and stopped at the next one in 14183 milliseconds;
+///  one handler run over a single clone in the same guest took 99 milliseconds.
+///  The number stays the project's to change,
+///  and these are the measurements it was adopted with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
