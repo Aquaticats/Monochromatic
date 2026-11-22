@@ -32,7 +32,8 @@
 //!  The result is written where every other mode's answer is written and not on
 //!  the program's standard output:
 //!  step 17 owns how a finding reaches the wrapper,
-//!  and this mode is the reading, not the carrying.
+//!  and this mode is the reading,
+//!  not the carrying.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -230,7 +231,8 @@ pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, p
 /// Why:
 ///  A reader that parses the result reads its lines,
 ///  and a person reads the last line;
-///  both come from one value, so the counts and the findings cannot disagree.
+///  both come from one value,
+///  so the counts and the findings cannot disagree.
 fn answer_of(scan: &HolderScan, dataset: &str, nonce_source: &str, exclusion: &str) -> String {
     return format!("{}\n{}", scan.text().trim_end(), summary_of(scan, dataset, nonce_source, exclusion));
 }

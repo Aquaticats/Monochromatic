@@ -111,7 +111,8 @@ pub const MAXIMUM_REASON_BYTES: usize = 320;
 /// The bound one cause's word is written within.
 pub const MAXIMUM_KIND_BYTES: usize = 32;
 
-/// How many bytes a key, its separator and the longest value on its line take.
+/// How many bytes a key,
+/// its separator and the longest value on its line take.
 const fn line_bytes(key: &str, bound: usize) -> usize {
     return key.len() + 1 + bound;
 }

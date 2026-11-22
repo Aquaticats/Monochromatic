@@ -65,7 +65,8 @@ pub enum TaskTableAttempt {
         mounts: Vec<MountFacts>,
     },
     /// The task ended before its table could be read,
-    /// which is what `ENOENT`, `ESRCH` and `EINVAL` say about a task that is
+    /// which is what `ENOENT`,
+    /// `ESRCH` and `EINVAL` say about a task that is
     /// gone.
     Ended {
         /// The task.

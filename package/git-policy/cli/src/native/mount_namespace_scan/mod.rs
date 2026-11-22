@@ -42,7 +42,8 @@
 //! const held = mountsOfSource(read.table()?.mounts ?? [], source);
 //! ```
 
-/// The live tasks of one `/proc` root, grouped by mount namespace.
+/// The live tasks of one `/proc` root,
+/// grouped by mount namespace.
 pub mod mount_namespace_tasks;
 
 /// One namespace's table read and the attempts it took.
@@ -51,7 +52,8 @@ pub mod namespace_table_reads;
 /// The exact ZFS source match.
 pub mod zfs_source_mounts;
 
-/// The task grouping, its identity read and its refusal.
+/// The task grouping,
+/// its identity read and its refusal.
 pub use mount_namespace_tasks::{ListingRefusal, MountNamespaceTasks, mount_namespace_of, tasks_by_mount_namespace};
 /// One namespace's table read and what each attempt answered.
 pub use namespace_table_reads::{MOUNT_TABLE_FILE, MOUNT_TABLE_LIMIT, NamespaceTableRead, TaskTableAttempt, read_one_namespace};

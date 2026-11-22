@@ -73,7 +73,8 @@ pub mod incomplete_reads;
 /// The managed attach a standing `unmount` intent sets aside.
 pub mod standing_unmount;
 
-/// The scan, its bounds and the value it answers.
+/// The scan,
+/// its bounds and the value it answers.
 pub mod holder_scan;
 
 /// Why a text is not a result.
@@ -96,11 +97,14 @@ pub use namespace_holder::NamespaceHolder;
 pub use incomplete_reads::IncompleteRead;
 /// The managed attach a standing `unmount` intent sets aside.
 pub use standing_unmount::StandingUnmount;
-/// The scan, its request, its bounds and its value.
+/// The scan,
+/// its request,
+/// its bounds and its value.
 pub use holder_scan::{HolderScan, HolderScanRequest, MAXIMUM_DETAIL_LINES, MAXIMUM_MOUNT_NAMESPACES, MAXIMUM_REASON_BYTES, scan_holders};
 /// Why a text is not a result.
 pub use holder_scan_refusals::HolderScanRefusal;
-/// The result's text, its escaping and its bound.
+/// The result's text,
+/// its escaping and its bound.
 pub use holder_scan_text::{MAXIMUM_RESULT_BYTES, RESULT_KIND, RESULT_VERSION, escape_path, escape_text, unescape_path, unescape_text};
 /// Reading that text back.
 pub use holder_scan_parse::parse_holder_scan;
