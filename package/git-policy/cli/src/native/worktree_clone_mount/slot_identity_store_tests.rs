@@ -434,14 +434,18 @@ fn a_record_larger_than_the_bound_is_refused_by_name_and_size() {
     std::fs::write(folder.join("a".repeat(255)), text.as_bytes()).expect("a record at the bound");
     let read: SlotIdentityStore = SlotIdentityStore::open(folder.as_path()).expect("the store opens");
     assert_eq!(read.slot("a".repeat(255).as_str()).expect("the record at the bound reads"), widest_identity(420));
-    let over: String = format!("{STORE_HEADER}\n{}\n\n", widest.encode());
+    // A hundred bytes over, not one: the read's own cap reports the bound it reads and not the file's size, so a
+    // file of the bound plus one could answer either way and the control would prove neither.
+    let over: String = format!("{STORE_HEADER}\n{}\n{}", widest.encode(), "#".repeat(100));
     let over_name: String = "b".repeat(255);
-    std::fs::write(folder.join(over_name.as_str()), over.as_bytes()).expect("a record one byte over the bound");
-    let refused: StoreRefusal = read.slot(over_name.as_str()).expect_err("one byte over the bound");
-    assert!(matches!(refused, StoreRefusal::RecordTooLarge { bytes, bound, .. } if bytes == RECORD_MAXIMUM_BYTES + 1 && bound == RECORD_MAXIMUM_BYTES), "{refused:?}");
+    let over_size: u64 = over.len() as u64;
+    assert_eq!(over_size, RECORD_MAXIMUM_BYTES + 100, "the fixture is a hundred bytes over the bound");
+    std::fs::write(folder.join(over_name.as_str()), over.as_bytes()).expect("a record over the bound");
+    let refused: StoreRefusal = read.slot(over_name.as_str()).expect_err("a hundred bytes over the bound");
+    assert!(matches!(refused, StoreRefusal::RecordTooLarge { bytes, bound, .. } if bytes == over_size && bound == RECORD_MAXIMUM_BYTES), "{refused:?}");
     let message: String = refused.message();
     assert!(message.contains(&RECORD_MAXIMUM_BYTES.to_string()), "the bound is named: {message}");
-    assert!(message.contains(&(RECORD_MAXIMUM_BYTES + 1).to_string()), "the file's size is named: {message}");
+    assert!(message.contains(&over_size.to_string()), "the file's size is named: {message}");
     // A publication whose record would be one byte over refuses before it creates even a staging name.
     let live: CloneFolderIdentity = identity(422);
     write_record(folder.as_path(), PARENT_RECORD_NAME, &StoredIdentity::Parent(live.clone()));
