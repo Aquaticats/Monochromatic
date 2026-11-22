@@ -2,22 +2,27 @@
 //!  Controls of the sweep's refusal:
 //!  its mode name,
 //!  its plan step,
-//!  and that running it answers the refusal rather than a sweep's line.
+//!  that running it answers the refusal rather than a sweep's line,
+//!  and that a run lists no store name and opens no store folder.
 //! Why:
 //!  The default invocation is what the installed ZED event starts,
 //!  so a build that answered it with success would report a sweep nobody ran
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //! step 8).
+//!  A sweep that removed a killed writer's staging file would list the store folder once per run,
+//!  and the project answered that plan step 18's `doctor` reports and removes those forms
+//!  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+//!  "Who removes a killed writer's staging file").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! expect(AWAITING).toEqual({ mode: 'sweep (no argument)', step: 8, does: expect.any(String) });
 //! ```
 
-use super::{AWAITING, run, sweep_at};
-use crate::test_support::{fixture, remove};
-use crate::worktree_clone_mount::{PARENT_RECORD_NAME, STORE_HEADER, StoredIdentity};
-use std::path::PathBuf;
+use super::{AWAITING, run};
+use crate::worktree_clone_mount::WHEN_THE_STORE_IS_LISTED;
+use crate::worktree_clone_mount::slot_identity_store::BEFORE_THE_STORE_OPENS;
+use std::sync::{Arc, Mutex};
 
 /// The refusal names the default invocation and step 8.
 #[test]
@@ -35,27 +40,37 @@ fn running_the_mode_answers_the_refusal() {
 }
 
 /// What:
-///  The sweep removes the staging names a killed writer left and nothing else,
+///  A sweep run lists no store name,
+///  opens no store folder and reads no record,
 ///  and still answers its step's refusal.
 /// Why:
-///  A machine that never adopts must not keep a killed writer's litter forever,
-///  and a removers arm that also touched a record or an unknown dot entry
-///  would hide the state `doctor` exists to report.
+///  The store's listing is the adoption's and `doctor`'s,
+///  because a run that removes a staging name must list the folder to find it,
+///  and the project answered that step 18's `doctor` is where that report and removal belong.
+///  The listing hook stands where either listing call starts,
+///  so a run that listed would be caught whether or not the folder it names is there,
+///  and the open hook stands at the store's own open,
+///  because this host has no store folder and a plant that put the removal back would otherwise
+///  reach nothing and pass.
 #[test]
-fn the_sweep_removes_the_staging_names_a_killed_writer_left() {
-    let root: PathBuf = fixture("sweep-staging-removal");
-    let folder: PathBuf = root.join("slot-identities");
-    std::fs::create_dir(folder.as_path()).expect("the store folder fixture");
-    let parent: String = format!("{STORE_HEADER}\n{}\n", StoredIdentity::Parent(crate::worktree_clone_mount::CloneFolderIdentity { device: 1, inode: 2, owner: 1000, mode: 0o755, access_acl: None, default_acl: None }).encode());
-    std::fs::write(folder.join(PARENT_RECORD_NAME), parent).expect("the parent record");
-    let slot_staging: String = format!(".{}", "e".repeat(32));
-    let parent_staging: String = String::from("..parent.0123456789abcdef.partial");
-    for name in [slot_staging.as_str(), parent_staging.as_str(), ".a-third-form"] {
-        std::fs::write(folder.join(name), b"staged").expect("a staging entry");
-    }
-    assert_eq!(sweep_at(folder.as_path()), Err(AWAITING), "the sweep still refuses its own step");
-    let mut left: Vec<String> = std::fs::read_dir(folder.as_path()).expect("the folder lists").flatten().map(|entry| return entry.file_name().to_string_lossy().into_owned()).collect();
-    left.sort();
-    assert_eq!(left, vec![String::from(".a-third-form"), String::from(PARENT_RECORD_NAME)], "the two known forms are gone, the record and the unknown dot entry stay");
-    remove(root.as_path());
+fn a_sweep_run_lists_nothing() {
+    let reached: Arc<Mutex<Vec<&'static str>>> = Arc::default();
+    let listed: Arc<Mutex<Vec<&'static str>>> = Arc::clone(&reached);
+    WHEN_THE_STORE_IS_LISTED.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            listed.lock().expect("the control's own list").push("listed");
+        }));
+    });
+    let opened: Arc<Mutex<Vec<&'static str>>> = Arc::clone(&reached);
+    BEFORE_THE_STORE_OPENS.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            opened.lock().expect("the control's own list").push("opened");
+        }));
+    });
+    let answered: Result<String, super::AwaitingItsStep> = run();
+    WHEN_THE_STORE_IS_LISTED.with(|hook| { *hook.borrow_mut() = None });
+    BEFORE_THE_STORE_OPENS.with(|hook| { *hook.borrow_mut() = None });
+    let touched: Vec<&'static str> = reached.lock().expect("the control's own list").clone();
+    assert_eq!(answered, Err(AWAITING), "the sweep still refuses its own step");
+    assert!(touched.is_empty(), "a sweep run reaches no store folder and lists no name, and this one did: {touched:?}");
 }

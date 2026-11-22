@@ -118,6 +118,10 @@ mod slot_identity_store_reading;
 /// held open by one descriptor.
 pub mod slot_identity_store;
 
+/// The hook a control sets to catch any listing of the store folder.
+#[cfg(test)]
+pub(crate) use slot_identity_store_reading::WHEN_THE_STORE_IS_LISTED;
+
 /// The three writes the store takes:
 /// a slot's first record,
 /// the parent's first record,
@@ -169,7 +173,7 @@ pub use clone_folder_identity::{CloneFolderField, CloneFolderIdentity};
 pub use clone_folder_identity_acl::MAXIMUM_ACL_BYTES;
 /// The store folder's path,
 /// its open and its lookups and listing.
-pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore, remove_staging_entries_in};
+pub use slot_identity_store::{SLOT_IDENTITY_STORE_PATH, SlotIdentityStore};
 /// Whose the store folder and its records must be,
 /// and the modes they are made with.
 pub use slot_identity_store_control::{RECORD_MODE, STORE_FOLDER_MODE, STORE_OWNER, store_control_refusal};

@@ -42,6 +42,14 @@ const TAG: &str = "slotIdentityStore";
 /// a folder holding one record file per slot and `.parent` for the parent folder.
 pub const SLOT_IDENTITY_STORE_PATH: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities";
 
+#[cfg(test)]
+thread_local! {
+    /// A control may catch every attempt to open a store folder,
+    /// which is where a run that must read nothing stands,
+    /// and which catches the attempt even where no folder is there to open.
+    pub(crate) static BEFORE_THE_STORE_OPENS: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
 /// What:
 ///  The store folder as one reader holds it:
 ///  its descriptor,
@@ -88,6 +96,8 @@ impl SlotIdentityStore {
     /// `Missing` when nothing is at the path,
     /// and `Unreadable` when the name holds a link or another non-folder.
     pub fn open(path: &Path) -> Result<SlotIdentityStore, StoreRefusal> {
+        #[cfg(test)]
+        BEFORE_THE_STORE_OPENS.with(|hook| { if let Some(before) = hook.borrow().as_ref() { before(); } });
         let folder: std::fs::File = open_folder(path).map_err(|error| return match error.kind() {
             std::io::ErrorKind::NotFound => StoreRefusal::Missing { path: path.to_path_buf() },
             _ => StoreRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
@@ -213,8 +223,12 @@ impl SlotIdentityStore {
     /// Why:
     ///  A kill between a staging file's bytes and its link leaves an entry no reader reads and no writer owns;
     ///  the adoption removes them before it stages its own record,
-    ///  and a sweep run removes them before it does anything else,
-    ///  so a machine that never adopts does not keep them forever.
+    ///  and plan step 18's `doctor` is to report and remove them
+    ///  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+    ///  "Who removes a killed writer's staging file").
+    ///  No sweep run removes them,
+    ///  because that would cost one listing of the folder per run,
+    ///  which the accepted design's choice 9 does not take.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -226,27 +240,6 @@ impl SlotIdentityStore {
     pub fn remove_staging_entries(&self) -> Result<Vec<String>, StoreRefusal> {
         return super::slot_identity_store_reading::remove_known_staging_entries(&self.folder, self.path.as_path());
     }
-}
-
-/// What:
-///  Remove the staging names a killed writer left in the store at `path`,
-///  and answer their names.
-/// Why:
-///  A caller that holds no store (the sweep,
-/// before its step lands) still removes what a killed writer left,
-///  and a caller that holds one removes them through `SlotIdentityStore::remove_staging_entries`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const removed = removeStagingEntriesIn('/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities');
-/// ```
-///
-/// # Errors
-/// Everything opening the folder,
-/// listing it or a removal refuses.
-pub fn remove_staging_entries_in(path: &Path) -> Result<Vec<String>, StoreRefusal> {
-    let store: SlotIdentityStore = SlotIdentityStore::open(path)?;
-    return store.remove_staging_entries();
 }
 
 #[cfg(test)]

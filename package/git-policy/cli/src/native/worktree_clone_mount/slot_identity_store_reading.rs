@@ -30,6 +30,13 @@ use crate::private_storage::ReadRefusal;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+thread_local! {
+    /// A control may catch any listing of the store folder,
+    /// which is where a run that must list nothing stands.
+    pub(crate) static WHEN_THE_STORE_IS_LISTED: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
 /// The largest one record file may hold,
 /// derived from the two kernel limits rather than chosen.
 ///
@@ -70,6 +77,13 @@ const fn widest_identity_token_bytes() -> u64 {
     let owner_digits: u64 = 10;
     let mode_digits: u64 = 4;
     return acls_per_record * (super::clone_folder_identity_acl::MAXIMUM_ACL_BYTES as u64) * hexadecimal_digits_per_byte + five_colons + device_digits + inode_digits + owner_digits + mode_digits;
+}
+
+/// Fire the listing hook,
+/// which a control sets to catch any listing of the store folder.
+#[cfg(test)]
+fn fire_the_listing_hook() {
+    WHEN_THE_STORE_IS_LISTED.with(|hook| { if let Some(listed) = hook.borrow().as_ref() { listed(); } });
 }
 
 /// The path a refusal names for the record filed under `name`.
@@ -141,6 +155,8 @@ pub(super) fn read_record(folder: &std::fs::File, folder_path: &Path, name: &str
 /// a name that is not UTF-8,
 /// or an entry that is none of the three kinds this layout names.
 pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+    #[cfg(test)]
+    fire_the_listing_hook();
     let entries: Vec<OsString> = entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() })?;
     let mut names: Vec<String> = Vec::new();
     for entry in entries {
@@ -166,12 +182,17 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 /// Why:
 ///  A writer killed between its bytes and its link leaves one,
 ///  and a writer killed between the link and the removal of its own staging name leaves one naming a published record too;
-///  a run that lists the folder anyway removes them,
-///  and a dot entry matching neither form is left in place for an administrator,
+///  the adoption lists the folder and removes them,
+///  and plan step 18's `doctor` is to do the same,
+///  while a dot entry matching neither form is left in place for an administrator,
 ///  because a third form means a writer this layout has not accounted for.
+///  No sweep run calls this,
+///  because a sweep lists no name at all
+///  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+///  "Who removes a killed writer's staging file").
 ///  The caller's own precondition is what makes the removal safe:
 ///  an adoption runs with managed operations quiesced,
-///  and a sweep run removed a live writer's staging name only at the cost of that writer's own refusal to publish.
+///  so no live writer owns a staging name it removes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,6 +203,8 @@ pub(super) fn listed_slot_names(folder: &std::fs::File, folder_path: &Path) -> R
 /// A folder that could not be listed,
 /// and a removal the system refused.
 pub(super) fn remove_known_staging_entries(folder: &std::fs::File, folder_path: &Path) -> Result<Vec<String>, StoreRefusal> {
+    #[cfg(test)]
+    fire_the_listing_hook();
     let entries: Vec<OsString> = entry_names(folder).map_err(|error| return StoreRefusal::Unreadable { path: folder_path.to_path_buf(), reason: error.to_string() })?;
     let mut removed: Vec<String> = Vec::new();
     for entry in entries {

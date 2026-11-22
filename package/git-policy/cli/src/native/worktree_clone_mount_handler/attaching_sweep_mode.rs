@@ -12,12 +12,18 @@
 //!  It is plan step 8,
 //! so this build refuses the mode instead of attaching anything:
 //!  a partial sweep at root would be a mount nobody designed.
-//!  Until that step lands the mode does one thing and no more:
-//!  it removes the staging names a killed writer left in the store folder,
-//!  which is the remover the accepted design's decision adds beside the administrator's adoption,
-//!  and it lists nothing else and reads no record.
-//!  Its one listing per run is the cost of that removal,
-//!  and it refuses a store folder that is not there rather than making one.
+//!  When that step lands the run reads `.parent` and the record of each slot it reaches,
+//!  and it lists no name:
+//!  one folder listing per run is what the accepted design's choice 9 does not take.
+//!  Until then a sweep run opens no folder and reads no record,
+//!  so a staging file a killed writer left stays where it is.
+//!  The adoption removes the two known staging forms,
+//!  and plan step 18's `doctor` is to report and remove them
+//!  (`doc/decision/cli-git-zfs-slot-identity-store-format.md`,
+//!  "Who removes a killed writer's staging file"),
+//!  so the adoption is their only remover until that step lands.
+//!  A leftover standing until then affects no reader,
+//! because no reader reads a staging name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,9 +31,6 @@
 //! ```
 
 use super::mode_awaiting_its_step::AwaitingItsStep;
-use crate::diagnostic_log::warn;
-use crate::worktree_clone_mount::{SLOT_IDENTITY_STORE_PATH, StoreRefusal, remove_staging_entries_in};
-use std::path::Path;
 
 /// The mode this build refuses,
 /// its plan step and the work that step adds.
@@ -37,51 +40,12 @@ pub const AWAITING: AwaitingItsStep = AwaitingItsStep {
     does: "enumerates the pinned parent's clone datasets, reads each clone's durable mount intent and attaches only the clones that ask for a mount",
 };
 
-/// Module tag for diagnostics.
-const TAG: &str = "attachingSweep";
-
-/// Refuse the sweep until its step lands,
-/// after removing the staging names a killed writer left in the store folder.
+/// Refuse the sweep until its step lands.
 ///
 /// # Errors
 /// Always,
 /// with the refusal naming the step that builds it.
 pub fn run() -> Result<String, AwaitingItsStep> {
-    return sweep_at(Path::new(SLOT_IDENTITY_STORE_PATH));
-}
-
-/// What:
-///  The sweep against a named store folder:
-///  one removal of the staging names a killed writer left,
-///  and then the step's own refusal.
-/// Why:
-///  The store's path is what a control cannot set,
-///  so it is an argument here:
-///  a control drives the removal on a fixture folder,
-///  and the program passes the folder the design fixes.
-///  A missing folder is the setup run's to make and says nothing on a boot that never had one,
-///  while any other refusal is said rather than swallowed,
-///  because the litter a killed writer leaves is what this run exists to shed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const sweep = sweepAt(path); // the staging names are gone, and step 8 is still refused
-/// ```
-///
-/// # Errors
-/// Always,
-/// with the refusal naming the step that builds it.
-fn sweep_at(store: &Path) -> Result<String, AwaitingItsStep> {
-    match remove_staging_entries_in(store) {
-        Ok(removed) => {
-            if !removed.is_empty() {
-                warn(TAG, format!("the sweep removed {} staging entries a killed writer left in {}", removed.len(), store.display()).as_str());
-            }
-        }
-        // A store folder the setup run never made holds no staging name to remove.
-        Err(StoreRefusal::Missing { .. }) => {}
-        Err(refusal) => warn(TAG, refusal.message().as_str()),
-    }
     return Err(AWAITING);
 }
 
