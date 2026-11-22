@@ -326,7 +326,8 @@ pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &
 ///   A source with uncommitted changes clones only the paths its proof settles,
 /// which is a set the caller chose,
 /// and its index is built from the tree rather than copied from the source;
-/// the copies, the slices and the work beside them are the whole rung's own,
+/// the copies,
+/// the slices and the work beside them are the whole rung's own,
 /// so only the entry set differs.
 ///
 /// In TS you'd write (pseudocode):

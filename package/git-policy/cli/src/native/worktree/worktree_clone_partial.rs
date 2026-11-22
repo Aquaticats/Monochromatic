@@ -35,6 +35,15 @@
 //! ```ts
 //! const part = cloneTheUnchanged({ context, source, destination, adminPath, fence, rules }); // throws the reason Git's checkout is needed
 //! ```
+//!
+//! **PROTOTYPE FOR MEASUREMENT,
+//! NOT FOR MERGING.**
+//! This module,
+//! `worktree_clone_partial_split.rs` and
+//! `worktree_clone_partial_index.rs`
+//! exist to measure the proposal that names them
+//! (`doc/planning/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`),
+//! and that proposal's "What this leaves owed" says what a merge would have to change first.
 
 use crate::add_timing::{begin_step, end_step};
 use crate::diagnostic_log::debug;
@@ -384,7 +393,8 @@ fn the_recorded_stats(made: HashMap<Vec<u8>, StatFields>, split: &Split, entries
 /// in path order.
 /// Why:
 ///  Both lists are sorted by path,
-/// and the index, the tree and both steps read them in that order;
+/// and the index,
+/// the tree and both steps read them in that order;
 /// a path on both lists is written once,
 /// which is what the fence's own answer for a path a change also reaches needs.
 ///
