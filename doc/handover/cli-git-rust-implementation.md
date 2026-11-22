@@ -41705,7 +41705,15 @@ stated in this entry. What follows from them, as work:
   evades the refusal (not worse than `main`). The issue body's claim about the clean check and the ladder target was wrong
   (`head_commit` refuses first); corrected on issue 6340. Integration branch at `24e1776e63` with a corrective commit
   comment. GOING: `pi-object-database-declined-reader-callers` in `.claude/worktrees/object-database-reftable-declined-reader`
-  (brief under `~/temp/agent/object-database-declined-reader-callers-2026-11-22/`). Step 7's
+  (brief under `~/temp/agent/object-database-declined-reader-callers-2026-11-22/`). STEP 8'S BUILD ended at `5b401d49c4`:
+  the sweep, `boot-reconcile`, the product attach calls step 4 left (`attach_the_clone.rs`), the first observation through
+  the walk, guest arms through the built handler (attach 114 ms; key refusal then attach; account-owned refusals); four guards
+  red; gate at `aaf3b516e0` (three commits short) 9816 of 9818 with `service_no_manager` and a `package_repair_prewarm_job`
+  control, not the documented cause-H pair; twelve choices the documents left open, including config keys
+  `cloneMounts.parent` and `cloneMounts.checkout`, a 4096-child bound, a slot grammar narrower than `slot_name_refusal`,
+  `setuid=off` and `devices=off` checks, the claim window kept open. `native:test:host` could not run (no `cargo-nextest` on
+  `PATH`; the reftable pass found it in the toolchain store and put it first on `PATH`). GOING: its integration pass on
+  Sonnet (review to `~/temp/agent/integration-pass-zfs-step-8-attaching-sweep-2026-11-22/`). Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
