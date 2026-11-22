@@ -19,6 +19,15 @@ seconds in gate 26 with "the service never settled the after-commit work in .../
 having passed in
 twelve earlier gates in under 2.4 seconds.
 
+A third recorded failure of the same control is not this one:
+the wait after its second worktree's commit returned at once because that worktree's `.git` is a file,
+so the control read the origin before that push landed
+(issue 6336,
+fixed in `ddd3ade4e4`,
+which follows that file to the administrative directory).
+The 60-second settle failure above is this document's,
+and that fix leaves it as it is.
+
 ## What was measured
 
 - Run alone,
