@@ -374,6 +374,40 @@ pub const SERVICE_WORK_PATIENCE: std::time::Duration = std::time::Duration::from
 #[path = "binary_support_observation_tests.rs"]
 mod tests;
 
+/// What:
+///  The Git directory of the worktree `directory` is in:
+///  the first `.git` on the way up,
+///  followed to the directory it names when that `.git` is a file.
+/// Why:
+///   A linked worktree has no `.git` directory of its own;
+/// it holds a file with one `gitdir:` line naming its administrative directory,
+///  where its own queue of after-commit work lives.
+/// A wait that looked for a directory alone returned at once for such a worktree,
+///  so a control that committed in one read the origin before its push landed (issue 6336).
+///  The named path is read as Git wrote it:
+///  a trailing space belongs to the directory's name
+///  (`a_commit_lands_in_a_worktree_whose_git_directory_name_ends_with_a_space`),
+///  and a relative path is relative to the directory that holds the file.
+fn git_directory_of(directory: &Path) -> Option<PathBuf> {
+    for candidate in directory.ancestors() {
+        let marker: PathBuf = candidate.join(".git");
+        if marker.is_dir() {
+            return Some(marker);
+        }
+        if !marker.is_file() {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(marker.as_path()) else { return None };
+        let Some(named) = text.lines().next().and_then(|line| { return line.strip_prefix("gitdir: "); }) else { return None };
+        if named.is_empty() {
+            return None;
+        }
+        let path: PathBuf = PathBuf::from(named);
+        return Some(if path.is_absolute() { path } else { candidate.join(path) });
+    }
+    return None;
+}
+
 /// Every state directory of a work directory with the names it holds,
 /// for the failure message of a wait that ran out.
 pub fn work_listing(work: &Path) -> String {
@@ -399,6 +433,10 @@ pub fn work_listing(work: &Path) -> String {
 /// the packs or the push's failure after the command must first wait for the records to leave `pending`,
 ///  `claimed` and `recovering`;
 /// it waits only where a work directory exists.
+/// The repository is the first `.git` on the way up,
+/// which a linked worktree keeps as a file that names its own Git directory
+/// (`git_directory_of`),
+/// so the wait covers a commit made in any worktree of the repository.
 ///  This wait is `SERVICE_WORK_PATIENCE`,
 ///  which is shorter than one claim's lease (`CLAIM_LEASE`,
 ///  120 seconds):
@@ -407,7 +445,7 @@ pub fn work_listing(work: &Path) -> String {
 /// A control that means to read one attempt of such a record reads that instead
 /// (`observe_without_waiting_for_the_after_commit_work`).
 pub fn settle_service_work(directory: &Path) {
-    let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
+    let Some(git_dir) = git_directory_of(directory) else {
         return;
     };
     let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
