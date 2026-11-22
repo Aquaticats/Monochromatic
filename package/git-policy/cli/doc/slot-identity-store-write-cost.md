@@ -57,8 +57,8 @@ and the counters it reads (`/proc/diskstats` and the pool's `kstat` objset files
 are read by nothing else in the repository.
 It is run by hand and by no task,
 and the guest driver's `run` step runs it too,
-on a folder under `/var/lib`,
-which is the dataset the store itself is on.
+in the guest's own `git-policy-cli-store/probe` dataset,
+which is a dataset of the same pool as the store and not the store's own mount.
 
 The dataset comes from `findmnt` at run time;
 the pool's partition and whole disk are options,
@@ -159,8 +159,11 @@ Read:
   answers a flush for every `fsync`:
   all 60 samples completed a flush request on `/dev/vda`,
   where the host's `nvme1n1` completed none.
-- The log is `store-fsync.log` in this build's guest log folder,
-  and the probe's own output in a hand run is `keep/store-fsync-guest.log` of the same scratch folder.
+- The log is `store-fsync.log` in the guest log folder the driver was given,
+  pulled there by the driver from the guest;
+  the probe's own output in a hand run is `store-fsync-guest.log` in that hand run's keep folder,
+  which is outside the repository,
+  so this record's figures are the log the driver pulled and not a file a reader can open.
 
 What this does not show is a real pool disk:
 the pool stands on a file in the guest's ext4 root,

@@ -275,8 +275,8 @@ function storeDataset({ chosen, }: { readonly chosen: Options; }): void {
  Run the store's publication cost against a dataset of the store's own pool, inside the same guest.
 
  The probe is pushed rather than snapshot, because it lives in the package's `doc/` folder and the snapshot holds only
- what a build reads. It is run on a folder under `/var/lib`, which is the dataset the store itself is on, so the arm is
- what replaced the lock-hold record's subject.
+ what a build reads. It is run in the guest's own `git-policy-cli-store/probe` dataset, which lies on the same pool as the
+ store and beside the store's own dataset rather than on it, so the arm is what replaced the lock-hold record's subject.
 
  @param chosen - the run's options
 

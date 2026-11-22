@@ -847,11 +847,14 @@ builds from,
 and runs the controls the guest's variable enables:
 the adoption and each of its refusals,
 the store folder publishing a record as root on the dataset it lives on and reading it back,
+which is the guest's own `git-policy-cli-store/store` dataset and not the host's `zpcachyos/ROOT/cos/root`,
 and a writer killed between its bytes and its link,
-whose staging entry the adoption removes.
+whose staging entry the adoption removes;
+the killed process is the arm's own child re-running the publication's primitives and killing itself,
+not the shipped publisher stopped at a window hook, which is a state a kill leaves rather than a code path.
 The same guest runs the store's publication-fsync probe from `doc/slot-identity-store-write-cost/`
-on a folder under `/var/lib`,
-which is the dataset the store itself is on,
+in the guest's own `git-policy-cli-store/probe` dataset,
+which lies on the same pool as the store and is a dataset beside it,
 and pulls its log as `store-fsync.log`.
 
 ```sh

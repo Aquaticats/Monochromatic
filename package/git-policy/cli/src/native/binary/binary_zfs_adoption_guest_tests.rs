@@ -22,9 +22,14 @@
 //!  the folder under `/var/lib` publishes a record as root and reads it back
 //!  (a hard link,
 //! an unlink,
-//! a rename and the folder's `fsync` on `zpcachyos/ROOT/cos/root`),
+//! a rename and the folder's `fsync`
+//! on the guest's own `git-policy-cli-store/store` dataset,
+//! which is a file-backed pool of the guest and not the host's `zpcachyos/ROOT/cos/root`),
 //!  and a writer killed between its bytes and its link leaves one staging entry and no record,
 //!  which the adoption then removes.
+//!  The folder's mode `0755` is one the driver sets before the arm runs,
+//!  so the arm reads it rather than proving the route makes it;
+//!  plan step 19's setup run is what makes the folder, and that step is not built.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -389,6 +394,12 @@ fn the_store_folder_under_var_lib_publishes_a_record_as_root_and_reads_it_back()
 ///  only a killed process,
 /// on the store's own dataset,
 /// shows what the kill leaves.
+///  The killed process is the arm's own child,
+///  which makes the staging name with `O_EXCL`, fills and `fsync`s it and then sends itself `SIGKILL`;
+///  it is not the shipped publisher stopped in its own window,
+///  because that window's hooks exist only in this crate's tests and this arm is a separate one,
+///  so what the arm proves is the state a kill between the bytes and the link leaves,
+///  and not the publisher's own code path through that window.
 #[test]
 fn a_killed_writer_between_its_bytes_and_its_link_leaves_no_record() {
     let Some(_guest) = std::env::var_os(GUEST_VARIABLE) else {

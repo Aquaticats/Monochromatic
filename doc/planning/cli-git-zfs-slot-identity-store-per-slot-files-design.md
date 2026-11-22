@@ -46,6 +46,38 @@ each open choice keeps the one reasoned paragraph it already had.
 Nothing of this design is approved or final,
 and only the owner declares it so.
 
+The merge of `main` at `72d8dbeb35` into the branch,
+on 2026-11-21,
+changed nothing this design decided and five things it records:
+
+- ZFS step 7's `slot_name.rs` is the only definition of the slot-name rule,
+  and the store's files import it;
+  the build's own copy in `slot_identity_store_records.rs` is gone.
+- The code keeps `SLOT_IDENTITY_STORE_PATH` and
+  `SlotIdentityStore::open_under_root_control`,
+  where section 6's text names `SLOT_IDENTITY_STORE_FOLDER_PATH` and
+  `open_the_store_folder_under_root_control`:
+  the path is the folder's,
+  and the open is the store's own method.
+  Section 6 also lists `BEFORE_THE_STORE_OPENS` as a deleted lock-hold hook;
+  the branch has a hook of that name again,
+  which holds the sweep's control,
+  and no lock exists.
+- The parent record's publication compares the record it finds before it makes any name,
+  which is what section 3 asks,
+  and `a_second_setup_run_that_finds_the_same_parent_makes_no_name` now holds it.
+- The adoption's first listing is also the removal of a killed writer's staging names,
+  as section 5's step 2 says,
+  so the folder is listed twice and not three times.
+- A listing has no entry cap.
+  The build had made one at 65,536 entries,
+  which neither this design nor the decision named and nothing measured,
+  and this round removed it rather than based it:
+  the store folder is root-owned `0755`,
+  so no other account adds an entry and root adds one per clone it makes,
+  and `doctor` reports the entry count beside the records,
+  as the Limitations section says.
+
 ## The decision's six items, and the section that answers each
 
 The decision leaves six items to a design,
@@ -2035,6 +2067,34 @@ The sweep's own run stands beside these:
 and asserts that a run reaches neither and still answers its step's refusal,
 which is choice 9's answer and the reason the removal waits for plan step 18.
 
+The round that answered the integration pass's findings added five controls beside these:
+
+- `a_second_setup_run_that_finds_the_same_parent_makes_no_name`:
+  a second setup run never reaches the publication's own steps,
+  so the boot unit pays no durable write, no failed link and no unlink to learn that the record is right.
+- `the_rename_fallback_s_loser_keeps_the_record_that_won`:
+  the fallback's `EEXIST` keeps the winner's bytes,
+  which the plant the integration pass ran (the loser answered by a rename that replaces) fails.
+- `a_publication_whose_fill_fails_leaves_no_staging_name`:
+  a file-size limit cuts the staging file's fill short,
+  and the failed publication removes the staging name it made.
+- `a_failed_replacement_rename_leaves_the_old_parent_record_and_no_staging_name`:
+  the adoption's rename is refused,
+  and the old record stands whole with no staging name beside it.
+- `a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry`:
+  the listing keeps the kernel's bytes,
+  so such a name refuses rather than listing as a slot name with a replacement character in it;
+  the control prints `SKIPPED` on a filesystem that refuses the name and runs in the gate's tmpfs fixture root.
+
+One family of arms still has no control:
+the five folder-`fsync` failures (the link's success arm, the fallback's success arm, the loser's arm,
+the replacement's arm and the staging removal's arm).
+A folder sync fails on no filesystem a record can live on in a control,
+and forcing it would mean a test-only answer inside `publishing_entries_in_one_open_folder`,
+which every writer of this package shares;
+the arms map one error to one `Write` refusal and are unproven that way,
+not by oversight.
+
 If the project accepts section 2's option B instead,
 one more control is owed:
 both link spellings answering `ENOENT` or `EPERM` takes the staged path or a `Write` refusal naming both
@@ -2115,6 +2175,13 @@ or that a filesystem the gate never mounts answers the fallbacks the way the arm
   not a foreign writer:
   root adds one record per clone the account can make,
   and the delegated `zfs` grants that limit that count are outside the store.
+  A listing therefore has no entry cap of its own,
+  and the memory it takes is the names the folder holds and nothing else.
+- A name in the store folder that is not UTF-8 refuses the listing as a foreign entry,
+  which is the refusal a name the layout cannot read deserves.
+  A filesystem that refuses such a name at creation cannot show that control:
+  this host's own ZFS answers `EILSEQ`, which the probe met,
+  and the gate's tmpfs fixture root is where the control runs for real.
 - The adoption's second window stays open:
   a slot published between the second listing and the rename is not verified by that adoption,
   and the design's argument that this is safe rests on a slot record holding no field of the parent's
