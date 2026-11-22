@@ -103,16 +103,16 @@ The section names are the ones in this revision.
   a seventh phase,
   `slot`,
   records the slot's identity after the slot exists,
-    and "The add's writes in one order" says how a resume finds a registration Git made and the wrapper did
-  not yet record.
+        and "The add's writes in one order" says how a resume finds a registration Git made and the wrapper did
+    not yet record.
   T20 and T21 force both kills.
 - M7:
   F12 now says what the OpenZFS source says,
   L4 is withdrawn,
   and T27 replaces the old T20 with a real power cut.
 - M8:
-    the host's runs are named as the host's ZFS home dataset and the gate image's container filesystem are named
-  as what they are;
+        the host's runs are named as the host's ZFS home dataset and the gate image's container filesystem are named
+    as what they are;
   the opening and "Sources read and runs made" say that one container ran.
 - M9:
   the Git common directory is named as the plan's suggestion,
@@ -120,8 +120,8 @@ The section names are the ones in this revision.
   V1 is reordered,
   and the argument against a registration-internal home rests on F2 and the settle order rather than on prune arms.
 - M11 and the review's Q3:
-    "The route's three record folders" states the convention this design recommends to the two siblings and
-  where they differ from it.
+        "The route's three record folders" states the convention this design recommends to the two siblings and
+    where they differ from it.
 - M12:
   "The claim" and "The readers" now say that every take and every liveness read lists the folder,
   and M2 measures its size.
@@ -141,8 +141,8 @@ The section names are the ones in this revision.
   so "The record's end" step 2 now confirms a record that already stands instead of publishing one;
   and the binding is removed as soon as that confirmation succeeds,
   blocked cleanup or not,
-    because the proposal says "settling does not wait for the origin" and "settling frees
-  the slot" ([proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469 and :1460 to :1463).
+        because the proposal says "settling does not wait for the origin" and "settling frees
+    the slot" ([proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469 and :1460 to :1463).
   The earlier revision's "the binding stays while the origin is blocked" is withdrawn,
   and V10 states the corrected choice.
 - The same review's fourteen disagreements:
@@ -315,8 +315,8 @@ and this design reuses their primitives and their shape before proposing anythin
   written before real Git runs and rewritten as the add learns more (`package/git-policy/cli/SPEC.md`:4400 to :4408,
   `src/native/worktree/worktree_add_binding.rs`:122 to :134).
   Its reader finds a field by its key and skips every line it does not ask for (`worktree_add_binding.rs`:77 to :87),
-    and its identity fields are an `ObjectId` per directory and the pointer's bytes
-  in lowercase hexadecimal (`worktree_add_binding.rs`:89 to :113).
+        and its identity fields are an `ObjectId` per directory and the pointer's bytes
+    in lowercase hexadecimal (`worktree_add_binding.rs`:89 to :113).
 - The per-add stage claim `<id>.stage`,
   whose name carries no owner and whose last line does,
   so a command killed between the claim and its bytes is a claim no owner owns (`SPEC.md`:4401 to :4405,
@@ -327,7 +327,7 @@ and this design reuses their primitives and their shape before proposing anythin
   no lock,
   and with a bound computed from the kernel's name and access-list limits (`SPEC.md`:5525 to :5546,
   `src/native/worktree_clone_mount/slot_identity_store_publication.rs`:114 to :145,
-    and [`cli-git-zfs-slot-identity-store-per-slot-files-design.md`](cli-git-zfs-slot-identity-store-per-slot-files-design.md)).
+        and [`cli-git-zfs-slot-identity-store-per-slot-files-design.md`](cli-git-zfs-slot-identity-store-per-slot-files-design.md)).
 - The `worktree-added` record inside a registration,
   whose module says "The registration's directory is deleted with the worktree,
   so the record needs no removal of its own" (`src/native/worktree/worktree_added_by_the_wrapper.rs`:1 to :26),
@@ -498,8 +498,8 @@ The results:
 
 - `git worktree list`,
   `git worktree prune`,
-    `git worktree repair` and `git gc --prune=now` left both files as they were while
-  the worktree's pointer existed (arm 1,
+        `git worktree repair` and `git gc --prune=now` left both files as they were while
+    the worktree's pointer existed (arm 1,
   both runs).
 - `git worktree remove --force` deleted the registration and the file inside it,
   and left the folder beside the journal untouched (arm 2b,
@@ -1080,8 +1080,8 @@ and the other two rounds are told to line up with this section or list the diffe
   and a version the grammar itself compares,
   either a `v1/` segment or a first line such as `plan=1`.
   Precedent:
-    the accepted slot identity store's version-2 header line (`SPEC.md`:5540 to :5546) and
-  the copy journal's `v1/` folder (`worktree_copy_journal.rs`:130 to :136).
+        the accepted slot identity store's version-2 header line (`SPEC.md`:5540 to :5546) and
+    the copy journal's `v1/` folder (`worktree_copy_journal.rs`:130 to :136).
   A version inside the grammar is what lets a later release refuse rather than misread.
 - Key:
   the thing the record's first reader knows first,
@@ -1090,8 +1090,8 @@ and the other two rounds are told to line up with this section or list the diffe
   the destruction plan's knows the clone's GUID,
   and the origin cleanup record's knows the origin snapshot's name.
   Precedent:
-    the mount receipts are filed under the dataset GUID because the waiter knows
-  the GUID (`clone_mount_receipts_folder.rs`),
+        the mount receipts are filed under the dataset GUID because the waiter knows
+    the GUID (`clone_mount_receipts_folder.rs`),
   and the copy journal is filed under the destination's identifier.
   A uniform key is therefore not possible,
   and the set still reaches from any one key through this record's `cloneGuid=`,
@@ -1132,7 +1132,7 @@ and the other two rounds are told to line up with this section or list the diffe
   Where a writer holds a claim across a long step,
   `doctor` removes a staging name only when the folder holds no live claim (V8);
   the destruction plan and the origin cleanup record remove theirs unconditionally,
-    following the store's own decided rule ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
+        following the store's own decided rule ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
   "Who removes a killed writer's staging file").
   Precedent:
   the store's decision,
@@ -1152,8 +1152,8 @@ and the other two rounds are told to line up with this section or list the diffe
   each record's widest line and fixed part is derived from kernel constants named with it,
   and no cap is shipped on a count nothing bounds.
   Precedent:
-    the accepted slot store's bound computed from named terms and
-  its dropped whole-store cap (`slot_identity_store_reading.rs`:63 to :85,
+        the accepted slot store's bound computed from named terms and
+    its dropped whole-store cap (`slot_identity_store_reading.rs`:63 to :85,
   [`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
   "What was decided").
   Rounding a derived bound up to a round number,
@@ -1416,8 +1416,8 @@ and each line and each fixed part is bounded from a kernel constant:
   The terms sum to 34,797 bytes,
     and a scratch script printed that sum from the wide strings this section names (`scratch/bound.ts`,
     this round).
-  The constant in code is computed from those terms the way the slot store computes
-    its record's bound (`slot_identity_store_reading.rs`:63 to :85),
+    The constant in code is computed from those terms the way the slot store computes
+  its record's bound (`slot_identity_store_reading.rs`:63 to :85),
     so changing a term changes the bound.
     The earlier revision printed 34,502 from a set of terms that did not derive the identity lines;
     the review's L1 found the arithmetic and the missing derivations,
@@ -1429,8 +1429,8 @@ and each line and each fixed part is bounded from a kernel constant:
 - An inventory's total is the count in `entries=` times that line's widest form plus its eleven fixed lines.
   What an origin can reach is not bounded by a kernel fact,
   so this design ships no cap,
-    and the accepted store made the same choice for the reason that its item count is bounded by nothing
-  the kernel says ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
+        and the accepted store made the same choice for the reason that its item count is bounded by nothing
+    the kernel says ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
   "What was decided").
 
 How large an inventory gets on a checkout the hourly tool also snapshots,
@@ -1688,8 +1688,8 @@ then one proof:
 
 1. List `<common>/worktrees/` and read each entry's `gitdir` file as bytes;
    keep the ones whose absolute or registration-relative target is exactly `<slot>/.git`.
-  The resolution is the wrapper's own (`worktree_add_binding.rs`:77 to :113 reads a pointer and a back-link
-    the same way).
+    The resolution is the wrapper's own (`worktree_add_binding.rs`:77 to :113 reads a pointer and a back-link
+  the same way).
 2. Refuse when more than one names it,
    and refuse when one names it but the slot's `.git` names another registration.
 3. When one is found,
@@ -1729,8 +1729,8 @@ and never lead it.
   phases `claimed`,
   `slot`,
   `registered` and `snapshotted`.
-    Proven by a registration whose `gitdir` names the slot's `.git` path and
-  whose identity equals `registrationIdentity=`,
+        Proven by a registration whose `gitdir` names the slot's `.git` path and
+    whose identity equals `registrationIdentity=`,
   with no clone dataset at `cloneDataset=`.
   With phase `snapshotted` the origin snapshot at `originSnapshot=` exists and its GUID equals `originSnapshotGuid=`;
   that is the "possible origin only" arm.
@@ -1765,8 +1765,8 @@ this section gives the recovery each phase's gap needs when the fact is missing.
   the clone dataset's name was fixed by the add and recorded,
   and `zfs get guid` and `zfs get createtxg` answer it.
   The reader records both and goes on,
-    provided the name holds a dataset whose `origin` names the recorded origin snapshot and whose parent is
-  the configured clone parent.
+        provided the name holds a dataset whose `origin` names the recorded origin snapshot and whose parent is
+    the configured clone parent.
   A name holding anything else refuses.
 - The origin snapshot's identity is recoverable the same way,
   and its name carries the nonce,
@@ -1824,8 +1824,8 @@ and both are the wrapper's:
   a private staging file made with `O_EXCL` and mode `0600`,
   filled whole,
   flushed,
-    then renamed over `<slot>.binding` with one rename that replaces (`private_storage_replacing_a_record.rs`:50
-  to :59).
+        then renamed over `<slot>.binding` with one rename that replaces (`private_storage_replacing_a_record.rs`:50
+    to :59).
   A kill before the rename leaves the staging name `.<slot>.binding.<random>.partial` and the binding as it was,
   which is the state before that write.
 - Each inventory:
@@ -2015,8 +2015,8 @@ The order that ends the record is:
    which is the same refusal the origin cleanup design gives a removal that cannot write its own record.
 3. It destroys the clone's own snapshots and the clone head,
    and proves absence by the recorded GUID:
-  the name is absent and no child of
-   the pinned clone parent carries `cloneGuid=` ([proposal](cli-git-zfs-worktree-design-proposal.md):966 to :968).
+    the name is absent and no child of
+  the pinned clone parent carries `cloneGuid=` ([proposal](cli-git-zfs-worktree-design-proposal.md):966 to :968).
 4. It settles the registration,
    which either Git removes with its folder (F2,
    A4) or the wrapper's own settle removes by descriptor,
@@ -2031,11 +2031,11 @@ The order that ends the record is:
    which leaves the newest generation file as a released claim.
    It prints what it removed.
    This happens whether or not the origin's cleanup is still blocked,
-  because the origin's identity now lives in that design's record and nothing about the pending snapshot depends on
-   the slot:
-  the proposal decides that "settling does not wait for the origin" and that "settling frees the slot
-   but requires recovery without its Git entry" ([proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469
-   and :1460 to :1463).
+    because the origin's identity now lives in that design's record and nothing about the pending snapshot depends on
+  the slot:
+    the proposal decides that "settling does not wait for the origin" and that "settling frees the slot
+  but requires recovery without its Git entry" ([proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469
+  and :1460 to :1463).
 
 So the binding is the carrier of the origin's identity only up to step 2,
 and the slot is freed at step 4 rather than at the cleanup's end.
@@ -2074,8 +2074,8 @@ told apart by what else stands:
 - Neither stands:
   the clone was destroyed outside this wrapper.
   The binding proves which GUID is missing,
-    so the reader requires "the name is absent and no child of the pinned parent carries the recorded GUID" before
-  it settles anything,
+        so the reader requires "the name is absent and no child of the pinned parent carries the recorded GUID" before
+    it settles anything,
   it reports the case as an outside change,
   and it destroys nothing.
   It never removes the binding on the strength of a name being absent alone.
@@ -2484,8 +2484,8 @@ and "The route's record convention" is where this design answers it.
   its A1 and D0 say the claim record carries the nonce and the reason bytes.
   This design's claim carries nothing new and the binding's `nonce=` is that root,
   written at A2 before Git runs.
-    The proposal fixes only the claim's home and
-  its proposed names ([proposal](cli-git-zfs-worktree-design-proposal.md):373 to :376),
+        The proposal fixes only the claim's home and
+    its proposed names ([proposal](cli-git-zfs-worktree-design-proposal.md):373 to :376),
   so the claim's payload is undecided:
   Q1 asks it,
   with the review's answer B (a function of the nonce) ranked first,
@@ -2908,8 +2908,8 @@ adopted as B).
 
 - A,
   a second record inside the registration holds the lock's exact bytes:
-    example `<registration>/monochromatic-git-policy-cli-managed-lock` holding
-  `monochromatic-git-policy-cli holds this registration ...`,
+        example `<registration>/monochromatic-git-policy-cli-managed-lock` holding
+    `monochromatic-git-policy-cli holds this registration ...`,
   with `locked` equal to it.
   Pros:
   a byte comparison with no recomputation.
@@ -3195,8 +3195,8 @@ which shape does the route follow?
   All inside `<common>/monochromatic-git-policy-cli/<kind>/`,
   which the two sibling designs do and this design now does.
   Example:
-    `.git/monochromatic-git-policy-cli/worktree-clones/add-cache-layer.binding` beside `clone-destruction-plans/`
-  and `origin-cleanups/`.
+        `.git/monochromatic-git-policy-cli/worktree-clones/add-cache-layer.binding` beside `clone-destruction-plans/`
+    and `origin-cleanups/`.
   Pros:
   one parent that the rename machinery already moves;
   a person who knows one knows the others.
@@ -3441,8 +3441,8 @@ and the ranges below were wrong and are corrected.
   `dataset_guid.rs`'s length (128 lines,
   so `:94 to :128`),
   F5's citation of `git worktree list`'s own reads (now `worktree.c`:140 to :151 and :305 to :326),
-    the two host-statement slips (L8 and F6 now name the host's ZFS home dataset and
-  the gate image's container filesystem),
+        the two host-statement slips (L8 and F6 now name the host's ZFS home dataset and
+    the gate image's container filesystem),
   the "no container" sentence (the one container was the gate image),
   the size bound (recomputed from named terms),
   the "wrapper's own grammar" claim (now "shape",
@@ -3576,21 +3576,30 @@ and any test suite.
   named each revision's real commit time.
 - 2026-11-22T17:35:10-05:00:
   named the probe container's real command.
-- this round's commits,
-  whose times are below in the order they were made,
-  answer the gate review:
-  H1,
-  H2,
-  H3,
-  M6,
-  M7,
-  M8,
-  M9,
-  M11,
-  M12,
-  M13,
+- 2026-11-22T18:28:11-05:00:
+  answered the first gate review:
+  H1 (the claim carries nothing new and "The add's writes in one order" is the joint list),
+  H2 (the `claim=` reader rule and T18),
+  H3 (inode and birth with the dataset GUID,
+  L11 and T19),
+  M6 (the `slot` phase and the finder of "A resume after a kill between Git's add and the registered write"),
+  M7 (F12 rewritten from the OpenZFS source,
+  L4 withdrawn,
+  T28 and M6's power cut),
+  M8 (the host's ZFS home dataset and the gate image's filesystem,
+  and the one container),
+  M9 (the plan's suggestion named,
+  Q4,
+  V1 reordered,
+  the F2 argument),
+  M11 and the route's convention,
+  M12 (the listing cost and M2),
+  M13 (root's claim kept apart),
   L1,
   L2,
   L7,
-  L8,
-  L9 and every citation it marks.
+  L8 and L9,
+  and every citation the review listed,
+  plus the ranges this round's own checking found.
+- The commit that carries this list is the last of the round and is not listed,
+  because a list cannot name its own commit's time before that commit exists.
