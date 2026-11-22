@@ -104,6 +104,46 @@ fn the_walk_holds_each_folder_and_compares_both_records() {
 }
 
 /// What:
+///  A slot the store holds no record for is refused by a walk that compares it,
+///  and the same folder is held by the walk that takes its first observation.
+/// Why:
+///  The sweep publishes the first observation from the folder it opened,
+///  so the branch that reaches a slot before a record exists must exist and must
+///  not be the branch every other walk takes.
+#[test]
+fn a_slot_with_no_record_is_held_only_by_the_first_observation_walk() {
+    let built: Fixture = fixture_slot("clone-walk-first-observation");
+    let _removed: std::io::Result<()> = std::fs::remove_file(built.store.join("one"));
+    let compared: CloneSlotRefusal = hold_clone_slot(&request(&built, "one")).expect_err("a walk that compares needs a record");
+    assert!(matches!(compared, CloneSlotRefusal::Store(StoreRefusal::NoSlotRecord { .. })), "{compared:?}");
+    let observed: HeldCloneSlot = observe_the_clone_slot(&request(&built, "one")).expect("the first observation reaches the slot");
+    assert_eq!(observed.slot_identity, built.slot_identity());
+    assert_eq!(observed.parent_identity, built.parent_identity());
+    assert_eq!(observed.canonical_slot, std::fs::canonicalize(&built.slot).expect("canonical"));
+    remove(built.checkout.parent().expect("root"));
+}
+
+/// What:
+///  The first-observation walk still refuses a parent that is not the recorded one,
+///  and names no slot it reached.
+/// Why:
+///  A record taken through a parent nobody compared is what the publication
+///  exists to prevent,
+///  and this walk is the one that could take it.
+#[test]
+fn the_first_observation_walk_still_compares_the_parent() {
+    let built: Fixture = fixture_slot("clone-walk-first-observation-parent");
+    let _removed: std::io::Result<()> = std::fs::remove_file(built.store.join("one"));
+    let recorded: CloneFolderIdentity = built.parent_identity();
+    let changed: CloneFolderIdentity = CloneFolderIdentity { inode: recorded.inode + 1, ..recorded.clone() };
+    built.record("one", &changed, &built.slot_identity());
+    let refused: CloneSlotRefusal = observe_the_clone_slot(&request(&built, "one")).expect_err("the parent is compared first");
+    assert!(names_parent_field(&refused, "inode"), "{refused:?}");
+    let _removed: std::io::Result<()> = std::fs::remove_file(built.store.join("one"));
+    remove(built.checkout.parent().expect("root"));
+}
+
+/// What:
 ///  A store whose parent record differs in one field is refused,
 ///  and the sentence names that field.
 /// Why:

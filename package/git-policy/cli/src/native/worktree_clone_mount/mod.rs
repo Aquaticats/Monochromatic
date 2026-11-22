@@ -212,11 +212,14 @@ pub use attach_the_clone::{AttachCall, AttachRefusal, AttachedMount, attach_the_
 /// Why a walk or an identity compare refused.
 pub use clone_slot_walk_refusals::{CloneSlotRefusal, WalkRefusal, WalkRefusalReason};
 /// The walks and what they hold.
-pub use clone_slot_walk::{FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control, hold_the_worktrees_parent, look_again_at_the_slot, mount_id_at_the_held_target};
+pub use clone_slot_walk::{
+    FreshSlotLookup, HeldCloneSlot, HeldWorktreesParent, HoldCloneSlotRequest, LookAgainAtSlotRequest, SlotRecord, WORKTREES_PARENT_NAMES, hold_clone_slot, hold_clone_slot_under_root_control,
+    hold_the_worktrees_parent, look_again_at_the_slot, mount_id_at_the_held_target, observe_the_clone_slot, observe_the_clone_slot_under_root_control,
+};
 /// The post-attach check.
 pub use attach_post_check::{AttachOutcome, AttachPostCheck, MisplacedAttach, MisplacedReason, post_attach_check};
 /// The rollback plan and its report.
-pub use misplaced_attach_rollback::{RollbackOutcome, RollbackPlan, RollbackRefusal, plan_rollback};
+pub use misplaced_attach_rollback::{RollbackOutcome, RollbackPlan, RollbackRefusal, plan_rollback, plan_rollback_of};
 /// The shapes an adoption compares against.
 pub use parent_adoption_facts::{BindingState, ParentPolicy, SlotState};
 /// The adoption decision.

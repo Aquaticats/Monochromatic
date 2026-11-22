@@ -72,6 +72,30 @@ pub mod mode_awaiting_its_step;
 /// the clone-mount sweep.
 pub mod attaching_sweep_mode;
 
+/// The two names the sweep takes from the handler's configuration.
+pub mod sweep_configuration;
+
+/// What one dataset the sweep reached says about itself.
+pub mod sweep_dataset_facts;
+
+/// The checks one child of the pinned parent passes before it is attached.
+pub mod sweep_clone_check;
+
+/// The attach step one clone goes through and its rollback.
+pub mod sweep_attach_step;
+
+/// The pool reads one sweep makes and the parent's child listing.
+pub mod sweep_dataset_reader;
+
+/// One clone's whole turn of the sweep.
+pub mod sweep_one_clone;
+
+/// One whole sweep run and the lines it reports.
+pub mod sweep_run;
+
+/// What a run checks before any attach.
+pub mod sweep_preconditions;
+
 /// The boot unit's reconciliation.
 pub mod boot_reconcile_mode;
 

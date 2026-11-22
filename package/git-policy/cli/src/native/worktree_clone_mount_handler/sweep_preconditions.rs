@@ -1,0 +1,454 @@
+//! What:
+//!  What the sweep and the boot reconciliation check before any attach:
+//!  this boot's identifier,
+//!  the start probe's record for it,
+//!  the pool the pinned parent lives in,
+//!  and the checkout the walk starts from.
+//! Why:
+//!  A failed prerequisite authorizes no attachment
+//!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//!  "Boot and shutdown unit"),
+//!  and every process that makes a raw request reads the start probe's record
+//!  first,
+//!  because an arm that could not run keeps the managed route blocked
+//!  (`doc/decision/cli-git-zfs-start-probe.md`,
+//!  Q4).
+//!  The readiness record is a cache and not authority,
+//!  so these are read from the live kernel and the live folders each run,
+//!  and each answer is one of the record's own three states.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const facts = bootFacts(configuration, reader, recordPath); // { boot, poolName, poolState, checkout, checkoutState }
+//! ```
+
+use super::sweep_configuration::SweepConfiguration;
+use super::sweep_dataset_reader::DatasetReader;
+use crate::start_probe::{RECORD_DIRECTORY, RESULT_NAME};
+use crate::worktree_clone_mount::clone_slot_walk_refusals::WalkRefusalReason;
+use crate::worktree_clone_mount::hold_the_worktrees_parent;
+use crate::worktree_clone_mount_protocol::{ReadyState, READINESS_DIRECTORY};
+use std::path::{Path, PathBuf};
+
+/// The kernel file that names this boot.
+pub const BOOT_ID_PATH: &str = "/proc/sys/kernel/random/boot_id";
+
+/// The start probe's record,
+/// which every run that makes a raw request reads first.
+pub fn probe_record_path() -> PathBuf {
+    return Path::new(RECORD_DIRECTORY).join(RESULT_NAME);
+}
+
+/// What:
+///  The record's verdict about the managed route,
+///  as the record itself words it.
+/// Why:
+///   Only a passed probe enables a managed attach,
+///  and a record that names another boot or another verdict is a reason to
+///  attach nothing rather than a reason to guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProbeStanding = { kind: 'passed' } | { kind: 'blocked'; verdict; step };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProbeStanding {
+    /// The probe passed for this boot.
+    Passed,
+    /// The record says the managed route is blocked,
+    /// and names the verdict and the step it stopped at.
+    Blocked {
+        /// The verdict word the record carries.
+        verdict: String,
+        /// The step the record names,
+        /// or `none`.
+        step: String,
+    },
+}
+
+/// What:
+///  Why a run attaches nothing:
+///  the record is unreadable,
+///  names another boot,
+///  or blocks the route.
+/// Why:
+///  A person has to tell "the probe never wrote a record here" from "the probe
+///  ran and its `fsmount` arm failed",
+///  because the first is a boot unit that did not run and the second is a kernel
+///  the route cannot attach on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProbeRefusal = { kind: 'missing' | 'unreadable' | 'another-boot' | 'blocked' | 'boot-id'; ... };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProbeRefusal {
+    /// The boot identifier could not be read.
+    BootId {
+        /// What the read answered.
+        reason: String,
+    },
+    /// The record is not there.
+    Missing {
+        /// The path that was read.
+        path: PathBuf,
+    },
+    /// The record could not be read.
+    Unreadable {
+        /// The path that was read.
+        path: PathBuf,
+        /// What the read answered.
+        reason: String,
+    },
+    /// The record holds no line this route reads,
+    /// or names another boot.
+    AnotherBoot {
+        /// The path that was read.
+        path: PathBuf,
+        /// The boot the record names,
+        /// where it names one.
+        named: Option<String>,
+        /// This boot's identifier.
+        boot: String,
+    },
+    /// The record's verdict does not enable a managed attach.
+    Blocked {
+        /// The path that was read.
+        path: PathBuf,
+        /// The verdict word.
+        verdict: String,
+        /// The step the verdict names.
+        step: String,
+    },
+    /// The pool is not ready.
+    PoolNotReady {
+        /// The pool's name.
+        pool: String,
+        /// The state the read answered.
+        state: ReadyState,
+    },
+    /// The checkout is not ready.
+    CheckoutNotReady {
+        /// The checkout's path.
+        checkout: PathBuf,
+        /// The state the walk answered.
+        state: ReadyState,
+        /// What the walk answered,
+        /// where it refused.
+        said: String,
+    },
+}
+
+impl ProbeRefusal {
+    /// The refusal in words,
+    /// naming the file,
+    /// the verdict and every way forward.
+    pub fn message(&self) -> String {
+        let cause: String = match self {
+            ProbeRefusal::BootId { reason } => format!("this boot's identifier could not be read from {BOOT_ID_PATH} ({reason})"),
+            ProbeRefusal::Missing { path } => format!("the start probe's record {path:?} is not there, and a boot whose probe never wrote one attaches nothing"),
+            ProbeRefusal::Unreadable { path, reason } => format!("the start probe's record {path:?} could not be read ({reason})"),
+            ProbeRefusal::AnotherBoot { path, named, boot } => format!(
+                "the start probe's record {path:?} names the boot {} and this boot is {boot}, so the record is another boot's",
+                named.as_deref().unwrap_or("no boot at all")
+            ),
+            ProbeRefusal::Blocked { path, verdict, step } => {
+                format!("the start probe's record {path:?} carries the verdict `{verdict}` and names the step `{step}`, so the managed route is blocked for this boot")
+            }
+            ProbeRefusal::PoolNotReady { pool, state } => format!("the pool `{pool}` is `{}` and only a ready pool admits an attach", state.word()),
+            ProbeRefusal::CheckoutNotReady { checkout, state, said } => format!("the checkout {} is `{}` and only a ready checkout admits an attach: {said}", checkout.display(), state.word()),
+        };
+        return format!(
+            "{cause}. Nothing was enumerated, attached, unmounted or recorded, and every clone's mount intent stands untouched. Ways forward: run `mount-git-worktree-clone-datasets start-probe` and read the record it writes, load the pool's key and mount the checkout, or read {READINESS_DIRECTORY} and the handler's journal; the sweep runs again on a ZED event, the checkout provider's post-key-load hook, or a caller's sweep nudge."
+        );
+    }
+}
+
+/// What:
+///  This boot's identifier,
+///  as the kernel's own file spells it.
+/// Why:
+///  The readiness record and the probe's record are both compared with this
+///  boot,
+///  so a record another boot wrote is stale rather than ready.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const boot = readFileSync('/proc/sys/kernel/random/boot_id').trim();
+/// ```
+///
+/// # Errors
+/// The kernel file could not be read.
+pub fn boot_identifier() -> Result<String, ProbeRefusal> {
+    let text: String = std::fs::read_to_string(BOOT_ID_PATH).map_err(|error| return ProbeRefusal::BootId { reason: error.to_string() })?;
+    return Ok(text.trim().to_string());
+}
+
+/// What:
+///  One line of a record,
+///  by its first word.
+/// Why:
+///  Both records this step reads are `key value` lines,
+///  and reading one field rather than parsing the whole file keeps a record
+///  another step owns from being decoded twice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const field = lineOf(record, 'verdict'); // 'passed' | ...
+/// ```
+fn line_of(record: &str, key: &str) -> Option<String> {
+    let prefix: String = format!("{key} ");
+    return record.lines().find(|line| return line.starts_with(prefix.as_str())).map(|line| return String::from(line[prefix.len()..].trim()));
+}
+
+/// What:
+///  Whether the start probe's record enables a managed attach for this boot.
+/// Why:
+///  The record is the only evidence that this boot's kernel passed the
+///  probe's arms,
+///  and its verdict is written by the mode itself rather than inferred.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standing = probeStanding(record, boot); // passed | blocked | another boot
+/// ```
+///
+/// # Errors
+/// The record names another boot,
+/// holds no verdict,
+/// or blocks the route.
+pub fn probe_standing(record: &str, boot: &str, path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
+    let named: Option<String> = line_of(record, "boot");
+    if named.as_deref() != Some(boot) {
+        return Err(ProbeRefusal::AnotherBoot { path: path.to_path_buf(), named, boot: String::from(boot) });
+    }
+    let verdict: String = line_of(record, "verdict").ok_or_else(|| return ProbeRefusal::Unreadable { path: path.to_path_buf(), reason: String::from("the record holds no verdict line") })?;
+    if verdict == "passed" {
+        return Ok(ProbeStanding::Passed);
+    }
+    let step: String = line_of(record, "verdict-step").unwrap_or_else(|| return String::from("none"));
+    return Err(ProbeRefusal::Blocked { path: path.to_path_buf(), verdict, step });
+}
+
+/// What:
+///  Read the start probe's record and its standing for this boot.
+/// Why:
+///  Every run that makes a raw request reads it first,
+///  so one function is the read and the decision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standing = readProbeStanding(path, boot);
+/// ```
+///
+/// # Errors
+/// The record is absent or unreadable,
+/// names another boot,
+/// or blocks the route.
+pub fn read_probe_standing(path: &Path) -> Result<ProbeStanding, ProbeRefusal> {
+    let boot: String = boot_identifier()?;
+    let record: String = std::fs::read_to_string(path).map_err(|error| {
+        return match error.kind() {
+            std::io::ErrorKind::NotFound => ProbeRefusal::Missing { path: path.to_path_buf() },
+            _ => ProbeRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() },
+        };
+    })?;
+    return probe_standing(record.as_str(), boot.as_str(), path);
+}
+
+/// What:
+///  The pool one pinned parent lives in,
+///  which is the first `/`-separated component of its name.
+/// Why:
+///  The readiness record names the pool beside the checkout,
+///  and the pool is the parent's own first component rather than a second
+///  configuration key that could disagree with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pool = parent.split('/')[0];
+/// ```
+pub fn pool_name_of(parent: &str) -> &str {
+    return parent.split('/').next().unwrap_or(parent);
+}
+
+/// What:
+///  Whether the pool is imported and its copy of the parent readable.
+/// Why:
+///  One identity read of the pinned parent answers both:
+///  a pool that is not imported cannot answer it,
+///  and a parent the pool no longer holds is not ready either.
+///  A read the route cannot interpret is `unknown`,
+///  which admits nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = poolState(reader, parent); // ready | not-ready | unknown
+/// ```
+pub fn pool_state(reader: &dyn DatasetReader, parent: &str) -> ReadyState {
+    return match reader.identity(parent) {
+        Ok(_identity) => ReadyState::Ready,
+        Err(reason) if reason.contains("does not exist") || reason.contains("no such pool") => ReadyState::NotReady,
+        Err(_reason) => ReadyState::Unknown,
+    };
+}
+
+/// What:
+///  Whether the checkout is there and its `.claude/worktrees` folder walkable.
+/// Why:
+///  The walk the attach starts with is the only proof that the checkout is
+///  mounted and its parent folder reachable,
+///  so the state is the walk's own answer rather than a path check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = checkoutState('/home/user/Monochromatic'); // ready | not-ready | unknown
+/// ```
+pub fn checkout_state(checkout: &Path) -> (ReadyState, String) {
+    return match hold_the_worktrees_parent(checkout) {
+        Ok(_parent) => (ReadyState::Ready, String::new()),
+        Err(refusal) => {
+            let said: String = refusal.message();
+            let state: ReadyState = match refusal.reason {
+                // A checkout that is not there, or that is reached through a link which is not its own canonical path, is
+                // not mounted as the provider promises; every other refusal is a state this run cannot interpret.
+                WalkRefusalReason::Missing | WalkRefusalReason::NotTheCanonicalPath | WalkRefusalReason::Checkout | WalkRefusalReason::NotADirectory => ReadyState::NotReady,
+                WalkRefusalReason::LinkInTheWay
+                | WalkRefusalReason::BoundaryCrossed
+                | WalkRefusalReason::NotAPlainName
+                | WalkRefusalReason::Unreadable
+                | WalkRefusalReason::UnreadableFields => ReadyState::Unknown,
+            };
+            return (state, said);
+        }
+    };
+}
+
+/// What:
+///  What one run knows about this boot before it attaches anything.
+/// Why:
+///  The readiness record's fields are these facts,
+///  and the sweep's own admission is the same two states,
+///  so one value carries them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type BootFacts = { boot; poolName; poolState; checkout; checkoutState };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BootFacts {
+    /// This boot's identifier.
+    pub boot: String,
+    /// The pool's name.
+    pub pool_name: String,
+    /// Whether the pool is ready.
+    pub pool_state: ReadyState,
+    /// The checkout's path.
+    pub checkout: PathBuf,
+    /// Whether the checkout is ready.
+    pub checkout_state: ReadyState,
+}
+
+impl BootFacts {
+    /// What:
+    ///  Refuse an attach unless both the pool and the checkout are ready.
+    /// Why:
+    ///  A failed prerequisite authorizes no attachment,
+    ///  and `unknown` admits nothing.
+    ///
+    /// # Errors
+    /// The first field that is not ready.
+    pub fn admit(&self) -> Result<(), ProbeRefusal> {
+        if self.pool_state != ReadyState::Ready {
+            return Err(ProbeRefusal::PoolNotReady { pool: self.pool_name.clone(), state: self.pool_state });
+        }
+        if self.checkout_state != ReadyState::Ready {
+            return Err(ProbeRefusal::CheckoutNotReady { checkout: self.checkout.clone(), state: self.checkout_state, said: String::from("the walk from the checkout did not reach its worktrees folder") });
+        }
+        return Ok(());
+    }
+}
+
+/// What:
+///  What one run knows before it opens the device:
+///  this boot,
+///  the probe's answer for it,
+///  and whether the checkout is walkable.
+/// Why:
+///  Every check here reads a file or walks a folder,
+///  so a run that fails one of them makes no raw request at all,
+///  and a boot with no probe record never opens the pool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PreparedBoot = { boot; checkout; checkoutState; standing };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedBoot {
+    /// This boot's identifier.
+    pub boot: String,
+    /// The checkout's path.
+    pub checkout: PathBuf,
+    /// Whether the checkout is walkable.
+    pub checkout_state: ReadyState,
+    /// The probe's standing for this boot.
+    pub standing: ProbeStanding,
+}
+
+/// What:
+///  Read this boot's identifier,
+///  the start probe's record for it,
+///  and whether the checkout walks,
+///  before anything is opened.
+/// Why:
+///  A boot with no passing probe record attaches nothing,
+///  and that decision costs the pool nothing to make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const prepared = prepare(configuration, probeRecordPath);
+/// ```
+///
+/// # Errors
+/// The probe's record,
+/// the boot identifier,
+/// or nothing at all when every check passed.
+pub fn prepare(configuration: &SweepConfiguration, probe_record: &Path) -> Result<PreparedBoot, ProbeRefusal> {
+    let standing: ProbeStanding = read_probe_standing(probe_record)?;
+    let boot: String = boot_identifier()?;
+    let (checkout_state, _said): (ReadyState, String) = checkout_state(configuration.checkout.as_path());
+    return Ok(PreparedBoot { boot, checkout: configuration.checkout.clone(), checkout_state, standing });
+}
+
+/// What:
+///  Fill in the pool's state and refuse the run when a prerequisite is not ready.
+/// Why:
+///  The pool is read through the device,
+///  so this half is what needs the open handle,
+///  and the checkout's own state joins it here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const facts = complete(prepared, reader, parent);
+/// ```
+///
+/// # Errors
+/// The pool or the checkout is not ready.
+pub fn complete(prepared: PreparedBoot, reader: &dyn DatasetReader, parent: &str) -> Result<BootFacts, ProbeRefusal> {
+    let facts: BootFacts = BootFacts {
+        boot: prepared.boot,
+        pool_name: String::from(pool_name_of(parent)),
+        pool_state: pool_state(reader, parent),
+        checkout: prepared.checkout,
+        checkout_state: prepared.checkout_state,
+    };
+    facts.admit()?;
+    return Ok(facts);
+}
+
+
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "sweep_preconditions_tests.rs"]
+mod tests;
