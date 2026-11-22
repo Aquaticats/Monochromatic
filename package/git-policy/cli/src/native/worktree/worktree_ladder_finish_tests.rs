@@ -900,6 +900,26 @@ fn btrfs_a_target_tree_that_changes_a_fenced_path_is_served_by_gits_checkout_wit
     remove(root.as_path());
 }
 
+/// Give every file below `root` the fixture's own past time,
+/// so the index a checkout just wrote is newer than all of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const entry of readdirSync(root, { withFileTypes: true })) { entry.isDirectory() && entry.name !== '.git' ? ageBelow(join(root, entry.name)) : utimesSync(join(root, entry.name), past, past); }
+/// ```
+fn age_below(root: &Path) {
+    for entry in std::fs::read_dir(root).expect("the checkout").flatten() {
+        let path: PathBuf = entry.path();
+        if entry.file_type().expect("a file type").is_dir() {
+            if path.file_name() != Some(std::ffi::OsStr::new(".git")) {
+                age_below(path.as_path());
+            }
+            continue;
+        }
+        crate::test_support::age(path.as_path());
+    }
+}
+
 /// What:
 ///  A linked-worktree source whose snapshot is blocked after the check takes rung 2
 ///  with the early read already started,
@@ -924,7 +944,10 @@ fn btrfs_a_rung_two_fall_through_does_not_wait_for_the_read_before_its_copies() 
     let linked: PathBuf = root.join("linked");
     crate::fs_btrfs_ioctl::subvolume_create_at(linked.as_path()).expect("the linked worktree's subvolume");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", linked.to_str().expect("utf8")]);
-    let nested: PathBuf = root.join("nested");
+    age_below(linked.as_path());
+    git(linked.as_path(), &["update-index", "--really-refresh"]);
+    let nested: PathBuf = linked.join("ignored").join("nested");
+    std::fs::create_dir_all(nested.parent().expect("the ignored directory")).expect("the ignored directory");
     git(linked.as_path(), &["worktree", "add", "--quiet", "--detach", nested.to_str().expect("utf8")]);
     let common: PathBuf = repo.join(".git");
     let identity = WorktreeIdentity::LinkedWorktree { worktree_root: linked.clone(), git_dir: common.join("worktrees").join("linked"), common_dir: common.clone() };
@@ -932,7 +955,8 @@ fn btrfs_a_rung_two_fall_through_does_not_wait_for_the_read_before_its_copies() 
     let hold = crate::worktree_clone_conversion_size_read::a_control_holds_the_read();
     crate::add_timing::begin(repo.join(".git"), true);
     let ladder: Ladder = begin_ladder(Some(&plan), &git_context(), &identity);
-    assert!(matches!(ladder.rung, Rung::Clone(..)), "the snapshot is blocked after the check, so the clone rung serves it");
+    let why = ladder.slow.as_ref().map(|route| return route.detail()).unwrap_or_default();
+    assert!(matches!(ladder.rung, Rung::Clone(..)), "the snapshot is blocked after the check, so the clone rung serves it (slow route: {why})");
     assert!(ladder.sizes_beside.is_none(), "the read rung 2 never uses is ended, not left running beside the copies");
     let mut runner = |_step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> { panic!("a failed Git run serves nothing here") };
     let began = std::time::Instant::now();
