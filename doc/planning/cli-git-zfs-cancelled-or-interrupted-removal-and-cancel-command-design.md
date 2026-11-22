@@ -603,7 +603,7 @@ which the handler would have to refuse.
     because nothing recorded a removal.
 2.  The removal claim taken,
     before anything else.
-    The same state as the point above,
+    The same state as point 1 describes,
     plus a claim file naming a live process or a dead one.
     A kill here leaves a claim whose owner is dead,
     which the next claimant replaces with the next generation and nothing to clean by hand (F16).
@@ -615,8 +615,7 @@ which the handler would have to refuse.
     the intent still carries what the add left,
     which is `mount` or nothing;
     the removal claim is held.
-    A kill here leaves an empty folder,
-    a record and a claim,
+    A kill here leaves an empty folder and a claim,
     and no request that can act.
 4.  The intent written,
     `v1:<nonce>:unmount`,
@@ -633,8 +632,9 @@ which the handler would have to refuse.
     The clone is mounted at the folder instead of its slot;
     the bind and the clone are the only mounts there;
     the intent stands;
-    the record,
-    the claims and the plan as above.
+    the staged-folder record,
+    the claims,
+    and still no plan.
     A kill here leaves a staged clone a later sweep finishes from the recorded handle.
 6.  The clone unmounted,
     its bind still standing.
@@ -672,7 +672,7 @@ which the handler would have to refuse.
     since nothing was destroyed.
 10. The check before the first snapshot delete refused.
     Nothing was deleted,
-    so the state is the point above with a refusal recorded;
+    so the state is the one point 9 describes with a refusal recorded;
     what that refusal keeps is the deferred-destroy item's,
     another writer's open question.
 11. The snapshot batch submitted,
@@ -712,14 +712,20 @@ which the handler would have to refuse.
     Nothing of the removal is left but the released claim and the plan's terminal record.
     A cancel command finds no removal to reverse.
 
-The slot identity store's record and the underlay pointer stand unchanged for the same reason.
-The intent and the plan are the only records that change inside a removal.
+From points 1 to 14 the Git registration and its lock stand unchanged,
+because settling them belongs to the step after the head's destroy,
+and the lock is what keeps `git worktree prune` away from a registration whose clone may stand unmounted for a
+while (F3).
+The slot identity store's record and the underlay pointer stand unchanged for the same reason,
+and the intent and the plan are the only records that change inside a removal.
 
 Three of these points are where a removal stops by cancelling itself,
-and they are the two holder-blocked points and the one point a holder can block after the snapshots are gone:
+and they are the two holder-blocked steps:
 the unmount of point 6,
 where the handler's busy answer reattaches,
-and the head destroy that leaves the state a cancellation meets after points 11 to 14.
+and the head destroy,
+which refuses while the state is the one points 12 and 13 describe,
+so that a cancelled removal can meet its own snapshots already destroyed.
 Every other point refuses and keeps its records rather than cancelling,
 which is the proposal's rule for a proof,
 a dependency or a hold that fails ([proposal][proposal],
@@ -728,7 +734,7 @@ step 2).
 
 ## What a removal that cancels itself restores
 
-Both arms below end with the clone standing at its slot and the removal ended.
+Each arm ends with the clone standing at its slot and the removal ended.
 They differ in what was destroyed before the block and therefore in whether the clone's mount is moved back or made
 again.
 
@@ -903,12 +909,23 @@ and plan step 18 builds them:
 - for a cancelled removal,
   every destroyed name and the time of the cancellation;
 - the next safe step,
-  which is one of the two commands the report above names,
+  which is one of the two commands the cancellation report names,
   or the administrator's where a record cannot be proven.
 
 `doctor` changes nothing,
 so it neither reverses a removal nor settles a folder.
 It reads what the removal and the cancel command wrote.
+The lines for a cancelled removal read,
+with the fixture's names:
+
+```text
+worktree clone slot `one`: dataset zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/one,
+GUID 12345678901234567890, registration .git/worktrees/one, lock held by the wrapper.
+intent: `v1:9c41...:mount`, a local request for the clone's mount. mount: at its slot.
+removal: cancelled 2026-11-22T16:41:07-05:00, and one snapshot was destroyed and cannot be restored:
+`...@sanoid-hourly-2026-11-22_03`. The removal claim is released. No staged folder stands.
+next safe step: none for the loss, which is recorded; run the removal again when the clone is to go.
+```
 
 ## What a timed-out or killed removal leaves
 
@@ -980,6 +997,18 @@ The removal adds three sentences to it:
   and the fact that `doctor` shows the state until then.
 
 The removal exits `1`.
+The report reads,
+with the fixture's names and its own numbers:
+
+```text
+removal of `.claude/worktrees/one` did not finish within 30000 milliseconds. The last observation was: no result for
+this request was filed. Nothing had been destroyed, because no destruction plan was written. The request is operation
+`unmount` under nonce 3f2a... for dataset GUID 12345678901234567890, and it stays on the clone.
+A deadline is not cancellation, so the clone stays unmounted and the removal is neither cancelled nor finished.
+Ways forward: run `git worktree remove .claude/worktrees/one` again to resume it, run
+`git monochromatic-git-policy-cli cancel-worktree-removal one` to reverse it, and run
+`git monochromatic-git-policy-cli doctor` to see the state until one of them runs.
+```
 
 ### How the worktree returns to use
 
@@ -1061,7 +1090,8 @@ Each step names its refusal.
     because the claim is what makes the reads one moment:
     the pointer,
     the binding record,
-    the staged-folder record and the plan.
+    the plan,
+    and the staged-folder record where one stands.
     All of them must name one clone,
     one GUID and one slot,
     and the intent must read as a local request.
@@ -1071,7 +1101,7 @@ Each step names its refusal.
     the dataset name from the records exists,
     answers with the recorded GUID,
     and names the recorded origin.
-    A missing dataset is the head-gone case of the next part,
+    A missing dataset is the head-gone case under "Settling the destroy outcomes before anything moves",
     not this one.
 
 ### Settling the destroy outcomes before anything moves
@@ -1107,7 +1137,14 @@ Nothing in this part writes to the pool.
 ### The act: one mount intent and one answer
 
 With the proof done and the outcomes settled,
-the command:
+the command first reads the intent it found:
+where the intent already reads as a `mount` request,
+the terminal plan already records a cancellation,
+and the clone stands at its slot,
+the command writes no second request,
+reports that state and exits `0`,
+which is the already-cancelled case the exit codes name.
+In every other state it:
 
 1.  writes the terminal plan,
     with the destroyed set and the nonce it is about to write;
@@ -1200,6 +1237,28 @@ because it needs no authority it does not have:
 the account owns the clone,
 the folder and the claims,
 and the handler's work runs as root under its own per-slot claim.
+Two of these refusals need their own words,
+because their state is the one the open item asks about.
+An unknown destroy outcome says what is unknown and names no attach:
+
+```text
+cannot cancel the removal of `.claude/worktrees/one`: the destruction plan records a snapshot whose outcome cannot be
+settled. `...@sanoid-hourly-2026-11-22_03` is not in the clone's live snapshot list and no child of
+`zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets` carries GUID 12345678901234567890, so the head's
+state is unknown. Nothing was mounted and nothing was changed. Ways forward: run
+`git worktree remove .claude/worktrees/one` again, which settles the plan before anything else, and read
+`git monochromatic-git-policy-cli doctor`; where that removal also refuses, an administrator recovers the lineage.
+```
+
+A head that is gone says so and names the removal's own settle step:
+
+```text
+cannot cancel the removal of `.claude/worktrees/one`: its clone is gone. The dataset
+`zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/one` is absent and no child of the pinned parent
+carries GUID 12345678901234567890, so the head was destroyed. A cancelled removal cannot bring it back and nothing is
+mounted. Ways forward: run `git worktree remove .claude/worktrees/one` again, which settles the registration, the
+underlay and the origin cleanup; `git monochromatic-git-policy-cli doctor` lists what is still owed.
+```
 
 ### Exit codes and streams
 
@@ -1274,7 +1333,8 @@ of the repository's own generation claim kind (F16):
   which no journal pass lists;
 - its prefix is `<guid>.removal`,
   which is the clone's canonical dataset GUID,
-  so the same derivation serves both sides and no record has to hand a name across;
+  so a person and `doctor` can match the claim to a clone without reading its record,
+  and the handler never reads it at all;
 - its generations are the shared claim's,
   and its record is the shared record:
   the owner's process id,
@@ -1320,9 +1380,9 @@ How long the terminal record lives is one of the questions only the project can 
 
 A cancelled removal's receipt must say whether the bind is gone from the host namespace,
 because the wrapper's namespace may differ from the handler's (L7),
-and the accepted staging design says the receipt does not name the folder's state today (F13).
+and the receipt's own shape has no key for it today (F13).
 This design asks step 9's reattach and step 17 to add one key to the receipt,
-after `canonical-path`:
+as its last key after `time`:
 
 - `bind`,
   whose value is one of `none`,
@@ -1764,7 +1824,7 @@ as the plan's own arms do.
   every snapshot survives,
   and the holder still runs.
 - The arm blocked at the head destroy,
-  which is stop point 14 with the live list empty.
+  which is the state stop point 12 describes with the live list empty.
   Hold the dataset busy while its snapshot list is empty,
   and assert the batch's destroyed names are gone,
   the head survives,
@@ -1774,8 +1834,10 @@ as the plan's own arms do.
 - The cancel command at each kill point,
   forced by a step-indexed fault hook that ends the process at that step and not by timing:
   stop points 3,
+  4,
   5,
   7,
+  8,
   9,
   11 and 14.
   Each arm asserts the command's proof,
@@ -1918,7 +1980,7 @@ so a later pass can reconcile the two.
   this design's unmounted window between a kill and the next command relies on that lock
   keeping `git worktree prune` from deleting the registration (F3).
   If that lock is not written before the removal can run,
-  this design's states 5 to 14 have an unprotected window and the cancel command must report it.
+  this design's points 5 to 14 have an unprotected window and the cancel command must report it.
 - The deferred-destroy checks of step 15:
   that design decides whether a refusal before the first delete or before the
   head destroy keeps the plan or cancels the removal.
@@ -1928,7 +1990,7 @@ so a later pass can reconcile the two.
 - The forced arm:
   with `--force` the removal ends holders instead of cancelling,
   so the automatic arm of this design does not run for a forced removal,
-  and the cancel command may still reverse one (the question above).
+  and the cancel command may still reverse one (the question on cancelling a forced removal).
   Who ends a holder,
   by what authority,
   and what an unprivileged signal to another account's process or to a system unit's task answers are that item's,
@@ -1975,7 +2037,7 @@ None is dropped here.
 - The add-time Git lock's format and the distinction between it and an operator's.
 - The staging folder's own creation,
   bind,
-  unmount and cleanup beyond the two sentences this design relies on,
+  unmount and cleanup beyond what this design cites,
   which the accepted staging design owns.
 - The start probe,
   the runtime layout checker,
@@ -2001,7 +2063,9 @@ In this repository:
   whole.
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   the sections this file quotes and the whole of "Removal and recovery",
-  "Cancelling a blocked removal" and "Waiting and refusal".
+  "Cancelling a blocked removal",
+  "Waiting and refusal" and "Unmounted,
+  pruned or moved worktrees".
 - `doc/planning/cli-git-zfs-staging-under-cache-design.md`,
   its lead,
   "Answers of 2026-11-19",
@@ -2018,11 +2082,12 @@ In this repository:
 - `package/git-policy/cli/SPEC.md`,
   "Management grammar",
   "Doctor",
-  the removal section,
+  "Records of a worktree that is removed",
   "The clone's mount intent,
   receipts and readiness",
-  "Unmounted,
-  pruned or moved worktrees" and the credential section.
+  and the credential paragraph at line 7348.
+  It has no removal section yet,
+  because plan step 14 adds one with this design's sentences.
 - The code named in "What the wrapper already has",
   read at the lines this file cites.
 
@@ -2058,5 +2123,5 @@ in the scratch folder:
 ## Revisions
 
 - The first revision,
-  written 2026-11-22T17:23:19-05:00,
+  written 2026-11-22T17:23:19-05:00 and committed as `54d164aec4`,
   states every part of the three open items and owes every measurement it names.
