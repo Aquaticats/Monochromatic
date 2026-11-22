@@ -1960,7 +1960,7 @@ The entry point this round added belongs in a sibling when the rung is written f
 
 ## The decision asked for
 
-The owner is asked to choose the partial clone,
+The owner is asked to choose the partial clone (with or without the changed-path bound),
 the whole-tree size rule and the per-file rule as three separate decisions,
 because they are separable,
 and the ranking gives the order the figures support.
@@ -1971,7 +1971,7 @@ A is the clone as it is measured.
 F adds the changed-path bound,
 which answers the one shape measured over Git's own checkout at many changed paths,
 and costs one count and an unpinned cut.
-D keeps step 3 under the waiver and leaves the usual shape's 0.36 of `main` in place.
+D keeps step 3 under the waiver and leaves the usual shape's 0.20 to 0.36 of `main` in place.
 
 ### The whole-tree size rule: B, E or neither
 
@@ -1980,7 +1980,8 @@ E is the rule alone,
 with no partial clone,
 which ends the clean small-file half and the dirty small tree
 and leaves the dirty half under the waiver.
-Neither leaves the small-file half as `main`'s own cost.
+Neither leaves the small-file half where it is:
+it stays `main`'s own cost.
 Either needs a threshold,
 its unit and its placement decided;
 both are options for the owner,
@@ -1990,7 +1991,7 @@ not a recommendation.
 
 C is the per-file rule,
 which this round's numbers put last:
-the write step costs 63 microseconds a path at 6,000,
+the write step costs 62 to 63 microseconds a path at 6,000,
 so moving an unchanged path from the clones to the write step loses at every size measured.
 
 ### The small-file half under A or D
@@ -2011,7 +2012,7 @@ then the rule once its threshold is measured,
 which makes it B,
 and the bound after its cut is measured,
 which makes it F;
-both orders are reachable among the options in this section and neither is bundled with the other.
+each order is reachable among the options in this section and none is bundled with another.
 Whichever is chosen,
 what lands is the prototype's design on the fenced rung,
 with the `SPEC.md`,
