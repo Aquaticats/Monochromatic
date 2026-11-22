@@ -1460,43 +1460,64 @@ the commit `HEAD` names and the object format,
 all answered in process from the plain ref files,
 so it starts on a thread of its own before `checkSource`
 (`worktree_clone_conversion_size_read.rs`).
-That read runs `git ls-tree -r -l -z` of that commit with `GIT_NO_LAZY_FETCH=1`,
-so a partial clone fetches nothing into a source the check may refuse,
-and it leaves the process-wide failed-step note alone
+That read runs `git ls-tree -r -l -z` of that commit,
+and a source that may hold a promisor remote gets `GIT_NO_LAZY_FETCH=1` and the global
+`--no-lazy-fetch`,
+so a partial clone fetches nothing into a source the check may refuse.
+Git 2.45.0 is the first release that honours either switch: it sets `fetch_if_missing = 0`
+(`environment.c`,
+`NO_LAZY_FETCH_ENVIRONMENT`),
+so an unavailable size prints `BAD` in the size column and the run exits 0 with its output.
+A plain source has no promisor remote and no fetch is possible, so its read carries neither switch,
+and an older Git keeps the overlap there.
+A source that may hold a promisor remote gets both switches, and a Git before 2.45.0 refuses the option
+before it reads anything (exit 129), so the read fails instead of fetching and the fence falls through
+to Git's own checkout; the add does not fail.
+Ubuntu 24.04's Git 2.43.0 is one such Git: its plain `git ls-tree` under the variable alone exits 128
+with `could not fetch ... from promisor remote` and leaves the clone unchanged (40 missing and 2 packs),
+which is the fact its package carries, and it does not know the option.
+The read also leaves the process-wide failed-step note alone
 (`GitRequest::beside_another_step`),
 because the add's own steps may fail while it runs.
 At the fence it is joined inside the step that decides the attributes and the paths,
 under the plumbing step's ceiling plus the wait the runner gives an ended child,
 and its answer decides the paths only when the commit it listed is the one the check proved;
 a read of another commit is left unused and the fence reads the proved commit itself.
-A read that answers nothing within that join (a thread that dies,
-a thread the system refuses,
-a read held past its own ceiling)
+Only that join waits.
+A read that answers nothing within it (a deadline or a dead thread)
 ends the rung in the sentence a failed read gives,
 never in a wait:
 the join is a receive with a deadline,
 measured from entering it,
 and the read's own runner still ends its Git step at that step's ceiling.
+A thread the system refuses never starts a read;
+the fence reads where it stands.
 A snapshot copies everything anyway,
 so this rung has no copy to run the read beside;
 rung 2 keeps the read beside its copies.
-An add that ends before that join pays the read in the background,
-usually while Git's own checkout runs,
-and its time is the record's `fenceSizesBesideTheCheck` work.
-Which of its other reads it already paid depends on where it ends:
-a source check that refuses costs Git's own checkout and this read,
-an untracked `.gitattributes` costs those and no `git check-attr`,
+An add that ends before the fence's join states the read in its record:
+when the read has already answered, its time is the record's `fenceSizesBesideTheCheck` work,
+and when it has not, the record says `started and not joined`,
+and the add ends without it.
+An add that will not use the read, because the source check refused or the fence declined, ends its Git child
+there (`SIGKILL` to the id the read's runner published) and the thread ends with the process,
+so a refused or declined add neither waits for it nor pays its work beside Git's own checkout.
+A read still running when the process ends carries `PR_SET_PDEATHSIG`,
+so its child ends with the thread that started it, however the process ends.
+Which of an add's other reads it already paid depends on where it ends:
+a source check that refuses costs Git's own checkout and the read it started and ended,
+an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
-The size read is the one Git run a refused or declined rung-1 add has that it did not have before,
-and the rule that a refused rung costs no extra Git run is amended for it.
-Measured on one packed source of 25,034 objects in a btrfs guest
+Measured in one btrfs guest of 2026-11-22
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-"A refused add and a declined add"):
-40.1 ms of work on a refused add and 62.3 on a declined one,
-with a wait of 0.003 to 0.007 ms at the add's end,
-because the read ends long before Git's own checkout does;
-on a loose source the same read is 380.7 ms there,
-still paid beside Git's checkout.
+"The settle that never waits, timed"),
+four or six rounds, position-balanced, with an identical-binary control:
+a served loose add 905.1 ms against `main`'s 960.6, and a packed one 599.9 against 677.4;
+a refused loose add 2928.5 against 2988.8, and a packed one 2665.6 against 2623.7;
+a declined packed add 7455.0 against 7525.9;
+a cone sparse refused add 168.1 against 161.8 loose and 115.4 against 99.9 packed;
+a refused add whose Git fails at once 16.0 against 13.0 loose and 23.5 against 21.4 packed.
+The ratios and the control's spread are in that section.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,

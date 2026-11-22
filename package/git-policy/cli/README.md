@@ -830,19 +830,29 @@ Read-only commands,
      on a thread of its own,
      and is joined at the fence under a ceiling,
      so the check and the attribute read hide most of it;
-     that read runs with `GIT_NO_LAZY_FETCH=1`,
+     only that join waits.
+     A source that may hold a promisor remote gets `GIT_NO_LAZY_FETCH=1` and `--no-lazy-fetch`,
      so a partial clone fetches nothing,
-     and its answer is used only when it listed the commit the check proved,
+     while a plain source keeps today's read so an older Git keeps the overlap;
+     Git 2.45.0 is the first release that honours either switch,
+     and an older Git refuses the option before reading anything,
+     so on a promisor source it reads nothing and the fence falls through to Git's own checkout.
+     The read's answer is used only when it listed the commit the check proved,
      with another commit left for the fence to read itself.
      A snapshot copies everything anyway,
      so this rung is the only one where the read needed moving:
      rung 2 keeps it beside its copies.
-     A refused or declined add pays that read in the background,
-     and the timing record states it as `fenceSizesBesideTheCheck` work:
-     measured on one packed source of 25,034 objects in a btrfs guest,
-     40.1 ms on a refused add and 62.3 on a declined one,
-     with no wait at the add's end,
-     and 380.7 ms on a loose source.
+     An add that ends before that join states the read as `fenceSizesBesideTheCheck` work when it has answered,
+     and as started and not joined when it has not,
+     and it never waits;
+     a read an add will not use is ended at the refusal or the decline,
+     and its child ends with the process.
+     Measured in one btrfs guest of 2026-11-22 with an identical-binary control:
+     a served loose add 905.1 ms against `main`'s 960.6,
+     a served packed one 599.9 against 677.4,
+     a refused loose one 2928.5 against 2988.8,
+     a declined packed one 7455.0 against 7525.9,
+     and a refused add whose Git fails at once 16.0 against 13.0.
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
