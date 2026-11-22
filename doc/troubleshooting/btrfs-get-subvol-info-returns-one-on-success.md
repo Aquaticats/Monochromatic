@@ -123,7 +123,7 @@ Read from `fs/btrfs/ioctl.c` of each of these:
 - v6.1 line 3005;
 - v6.8 line 2133;
 - v6.12 line 2160;
-- v6.18;
+- v6.18 line 2061;
 - v7.0 line 1948;
 - v7.1 line 1948.
 
