@@ -41448,7 +41448,17 @@ stated in this entry. What follows from them, as work:
   the report as the very last message, mirrored with the installed `file-enforcer` 0.1.3 by its store path because
   `mise run file-enforcer` cannot find the binary on `PATH`, the linking question already open in the owner file). GOING:
   its integration pass on Sonnet, judging from the commits (review to
-  `~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`). Step 7's
+  `~/temp/agent/integration-pass-git-policy-cli-lfs-hang-control-race-2026-11-21/keep/review.md`). THE PER-SLOT STORE
+  BUILD ended at `c498fa1db3` (15 commits): every design section built; the lock, `STORE_LOCK_WAIT`, the whole-store check
+  and `WouldNotFit`/`DuplicateKey` deleted; ten controls red under named plants then green; guest arms 22 to 24 green on a
+  ZFS pool the guest driver now makes at the store's path (the killed writer leaves one staging entry and no record; the
+  publication `fsync` reaches the device 60 of 60); the lock-hold document renamed as the write cost; gate 9488 of 9490.
+  Control 20 (doctor's report) owed to step 18; the boot arm owed to step 8. It put the staging removal in the sweep,
+  against the answer "no listing per sweep". THE OWNER ANSWERED on 2026-11-21: "A: doctor at step 18 (Recommended)"
+  (recorded in the decision record, "Who removes a killed writer's staging file"). GOING:
+  `pi-zfs-slot-identity-store-sweep-unlisted` in the build worktree (the sweep's removal out, a control that a sweep lists
+  nothing, SPEC, design and plan step 18; brief under `~/temp/agent/zfs-slot-identity-store-sweep-unlisted-2026-11-21/`);
+  then its integration pass on Sonnet. Step 7's
   running round was steered to stop only containers it can prove are its own. The gate runner gives its containers no name,
   label or printed ID (`package/git-policy/cli/bin/test-native-container.ts:294-302`): issue 6334, fixed by
   `pi-git-policy-cli-gate-containers-carry-a-run-label` (brief under
