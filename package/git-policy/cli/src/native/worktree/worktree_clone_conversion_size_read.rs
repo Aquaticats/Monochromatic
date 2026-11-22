@@ -431,11 +431,12 @@ impl SizeReadBesideTheCheck {
     /// Why:
     ///   An add the source check refuses,
     ///   or the fence declines,
-    ///  may pay this read in the background
+    ///  starts this read before the check and then ends it (`abandon`);
+    /// an add that reaches this method with the read still held is one that served the add
     /// (the decision `doc/decision/cli-git-fence-size-read-keeps-git-ls-tree.md`,
     /// its section "The overlap,
     /// answered 2026-11-22"),
-    ///  but it never waits for it:
+    ///  and it never waits for it:
     /// a read longer than the add's own Git run would otherwise make the add slower than on `main`,
     ///  which is the integration pass's High 1 of 2026-11-22.
     /// A read that has answered is stated as the record's work;
