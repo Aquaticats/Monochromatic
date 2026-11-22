@@ -52,6 +52,23 @@ const EXPECTED_MARKERS = [
   'STORE killed-writer staging-removed=true',
 ] as const;
 
+/** The lines a run must find in the guest's sweep-arm log, one per arm plan step 8 runs. */
+const EXPECTED_SWEEP_MARKERS = [
+  'SWEEP attached item=1 slot=one',
+  'SWEEP refusal item=5 step=key-unavailable',
+  'SWEEP attached item=5 slot=one',
+  'SWEEP refusal item=2 step=intent',
+  'SWEEP nothing inherited=true',
+  'SWEEP refusal item=2 step=clone-origin',
+  'SWEEP done',
+] as const;
+
+/** The checkout the sweep arms walk inside the guest, under the guest's own root. */
+const SWEEP_CHECKOUT = '/root/sweep-checkout';
+
+/** The pool the sweep arms create their clone parents in, which the driver prepared for the store's arms. */
+const SWEEP_POOL = 'git-policy-cli-store';
+
 /** The lines a run must find in the guest's publication-fsync log. */
 const EXPECTED_FSYNC_MARKERS = [
   'PROBE append with fsync of the file and the folder:',
@@ -242,6 +259,7 @@ async function run(chosen: Options): Promise<void> {
   if (/(^|\n)SKIPPED/m.test(pulled))
     throw new Error('the pulled arm log holds a SKIPPED line, so the adoption arm did not run');
   publicationFsync({ chosen, });
+  sweepArms({ chosen, });
 }
 
 /**
@@ -304,6 +322,50 @@ function publicationFsync({ chosen, }: { readonly chosen: Options; }): void {
   for (const marker of EXPECTED_FSYNC_MARKERS) {
     if (!pulled.includes(marker))
       throw new Error(`the pulled publication-fsync log lacks ${marker}; the guest ran the probe without that arm`);
+  }
+}
+
+/**
+ Drive plan step 8's arms in the same guest: the built handler's own sweep against the guest's pool.
+
+ The arms make their own fixtures as root inside the guest, because the sweep attaches a real clone and writes
+ `/var/lib` and `/run`: one unencrypted clone parent with a clone that asks for its mount, one encrypted parent whose
+ key is unloaded and then loaded, and the handler's refusals. This host owns the pool and the checkout only, so a run
+ whose guest cannot answer fails here rather than reporting a green suite.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
+  const script = [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    `rm --recursive --force ${SWEEP_CHECKOUT}`,
+    `mkdir --parents ${SWEEP_CHECKOUT}/.claude/worktrees`,
+    `cd ${CRATE_DIR}/package/git-policy/cli`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export CLI_GIT_ZFS_SWEEP_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
+    'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
+    `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      '--filterset "test(zfs_sweep_guest)" > /root/sweep-arm.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=60 /root/sweep-arm.log',
+    'test "$status" = 0',
+    `if grep --quiet '^SKIPPED' /root/sweep-arm.log; then echo 'the sweep arm returned without running'; exit 1; fi`,
+    ...EXPECTED_SWEEP_MARKERS.map(function markerLine(marker) {
+      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/sweep-arm.log`;
+    }),
+    'grep --quiet --fixed-strings "MEASUREMENT sweep-attach-ms=" /root/sweep-arm.log',
+    'cp /root/sweep-arm.log /mnt/shared/sweep-arm.log',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-sweep.log', timeout: ARM_TIMEOUT_MS * 2, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/sweep-arm.log', join(chosen.logDir, 'sweep-arm.log'),], log: 'host-pull-sweep.log', });
+  const pulled = readFileSync(join(chosen.logDir, 'sweep-arm.log'), 'utf8');
+  for (const marker of EXPECTED_SWEEP_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the pulled sweep-arm log lacks ${marker}; the guest ran the arm without performing it`);
   }
 }
 
