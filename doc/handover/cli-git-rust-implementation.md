@@ -535,8 +535,10 @@ because the guest round is its test.
 The cancelled removal's round closed its one medium
 (it no longer refuses a kept receiver the forced arm does not refuse);
 the coordinator read its diff.
-Ended,
-with its report and results unread:
+Being read against its logs by the design's reviewer,
+resumed as agent `abfa3e9e26276b294`,
+who also drafts the confirmation question
+(`review-guest-probe-arms.md` in that review's `keep/`):
 `pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
 a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
 Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
@@ -663,31 +665,35 @@ The merged code compares the number the PID file names,
 and the owner chose that its contents be compared
 (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
 The round that builds the byte comparison and folds in the second pass's lows has ended,
-on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`;
-its report and diff are unread.
+on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`.
+Running:
+its third Sonnet pass,
+the second-pass reviewer resumed as agent `a53733389dde02725`,
+to `review-third-pass.md` in its earlier pass's `keep/`.
 
 Next:
-read its diff;
-then a Sonnet pass,
-since it changes product code.
+merge,
+or a fix round.
 
 #### Issue 6344: the sibling shadow control
 
 State:
 merged as `0b7a48def4`.
+The follow-up round on what its pass left ended on
+`fix/git-policy-cli-shadow-sibling-control-two-timing-windows` at `48346ef6c2`,
+all seven items done,
+its gate (before enforcement) failing only the cause-H pair.
+The guard costs about one second per gate,
+and the owner kept it
+(`doc/decision/cli-git-shadow-sibling-control-guard-costs-a-second-per-gate.md`).
 Running:
-`pi-shadow-sibling-control-follow-ups-after-the-merge`,
-on what its pass left:
-cause M's reasoning,
-and two guards with no committed control.
-The coordinator took the pass's first-ranked option for the guards,
-a committed delay of about a second in each gate run;
-the owner has not been asked.
+its Sonnet pass on the follow-ups,
+the integration pass's reviewer resumed as agent `a8d0bc7335c71001c`,
+to `review-follow-ups.md` in that pass's `keep/`.
 
 Next:
-put that cost to the owner;
-a Sonnet pass,
-since it changes test code.
+merge,
+or a fix round.
 
 #### Issue 6345: the worktree-removal control
 
@@ -727,8 +733,11 @@ The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
 Issue 6354 is decided
 (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`)
-and is built after this branch merges,
-because its round edits the same documents.
+and edits the same documents,
+so it is built on a branch made from this one's tip,
+`fix/git-policy-cli-worktree-removal-not-woken-warning-names-the-way-out`,
+by the round `pi-worktree-removal-not-woken-warning-names-the-way-out`,
+and merged after it.
 
 #### The tests and the gate under AppArmor
 
@@ -837,13 +846,15 @@ with contradictions between the old text and current documents and proposals for
 The second sorter's is also in its `keep/state-so-far.md`;
 the first sorter's is only in the session's record until it is copied into its `keep/`.
 
-Running:
-the sorter of lines 41,470 to 44,767,
-and the sorter of the open review findings,
+The sorters of lines 41,470 to 44,767
+and of the open review findings,
 the picks and the working rules
-(40,844 to 41,469 and 49,500 to 49,707).
-Their briefs are `brief-sorter-owner-decisions-first-and-last-parts.md`
-and `brief-sorter-findings-picks-and-working-rules.md` in that folder.
+(40,844 to 41,469 and 49,500 to 49,707)
+have ended too,
+the second with 78 items covering its 834 lines exactly.
+Running:
+the sorter of the open work (34,867 to 40,843),
+briefed by `brief-sorter-open-work.md` in that folder.
 
 Next,
 in this order:
