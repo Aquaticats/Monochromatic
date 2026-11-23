@@ -1,0 +1,51 @@
+Running as unit: run-p2391827-i94635408.scope; invocation ID: a2a7c2fac30f4131b6d029009f5eedf8
+[
+  {
+    "git": "git version 2.56.1\nmonochromatic-git-policy-cli 0.6.1-alpha.44, shadowing git at /usr/bin/git"
+  },
+  {
+    "arm": "env",
+    "before": {
+      "missing": 40,
+      "packs": 2
+    },
+    "exit": 0,
+    "bytes": 5900,
+    "bad": 40,
+    "after": {
+      "missing": 40,
+      "packs": 2
+    },
+    "stderr": ""
+  },
+  {
+    "arm": "option",
+    "before": {
+      "missing": 40,
+      "packs": 2
+    },
+    "exit": 0,
+    "bytes": 5900,
+    "bad": 40,
+    "after": {
+      "missing": 40,
+      "packs": 2
+    },
+    "stderr": ""
+  },
+  {
+    "arm": "neither",
+    "before": {
+      "missing": 40,
+      "packs": 2
+    },
+    "exit": 0,
+    "bytes": 5900,
+    "bad": 0,
+    "after": {
+      "missing": 0,
+      "packs": 42
+    },
+    "stderr": ""
+  }
+]
