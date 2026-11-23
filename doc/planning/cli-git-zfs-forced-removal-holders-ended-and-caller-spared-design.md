@@ -2894,6 +2894,12 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   F38 to F46,
   the sibling read at `1fee10f2ce`,
   and the unit's mount-namespace constraint on step 19.
+- `bb875b0282`,
+  2026-11-22T20:03:54-05:00:
+  this round's entries in the revision list.
+- `ceb7bc06c2`,
+  2026-11-22T20:03:59-05:00:
+  the line breaks those entries needed.
 
 The four answers are built in:
 "Who ends each kind of holder" is the chosen channel,
