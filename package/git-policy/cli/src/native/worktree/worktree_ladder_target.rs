@@ -482,7 +482,9 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     let Some(commit) = head_commit(admin.as_path(), source.common_dir.as_path(), format) else {
         return Err(String::from("the new HEAD is not a plain ref to a commit"));
     };
-    let Some(database) = ObjectDatabase::open(source.common_dir.as_path(), None, format) else {
+    // The target's own objects, read as `main`'s reader read them: this is the new worktree's own HEAD and tree, and a store
+    //  the command's environment names is not what they are.
+    let Some(database) = ObjectDatabase::open_of_the_repository_alone(source.common_dir.as_path(), None, format) else {
         return Err(String::from("the object database is not plain"));
     };
     let Some(name) = from_hex(commit.as_bytes(), format) else {
