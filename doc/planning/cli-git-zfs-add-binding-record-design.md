@@ -90,14 +90,16 @@ The section names are the ones in this revision.
   which is V11's answer B,
   and marked for the project's veto as V11.
 - H2:
-  the reader's rule is now "the `claim=` generation is not newer than the newest generation present",
-  and T23 takes two generations in a row with a binding read between them.
+  the reader's rule was "the `claim=` generation is not newer than the newest generation present";
+  this round replaced it with one rule,
+  "`claim=` is informational and the claim's own liveness is the only refusal",
+  and T18 takes two generations in a row with a binding read between them.
 - H3:
   no identity in this record holds a device number.
   Each identity is the folder's inode and birth time,
   and `checkoutDatasetGuid=` anchors the dataset those inodes belong to.
   The boot hazard is L11,
-  T24 remounts before a read,
+  T17's second arm reads after the fixture's device number changes,
   and the answer waits on step 8's guest boot arm.
 - M6:
   a seventh phase,
@@ -3844,6 +3846,10 @@ and nothing else in the design turns on it.
   each is its own sibling design,
   named under "Where the siblings disagree".
 - The content proof of the clone's fill (the frozen index and tree comparison) and where it lives across a kill.
+  A resumed add whose proof is gone refuses rather than comparing against nothing,
+  because a comparison that has lost its reference is not a proof;
+  the proof's own home is the dirty-main restore design's,
+  and this record carries none.
 - The mount's own records:
   the intent property,
   the receipts and the readiness record are steps 7 and 8's.
