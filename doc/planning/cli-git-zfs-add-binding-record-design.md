@@ -4112,6 +4112,9 @@ and any test suite.
 - 2026-11-22T19:06:42-05:00:
   named the resumed add's refusal when its frozen proof is gone,
   which the second pass's N8 observed had been dropped.
+- 2026-11-22T19:07:27-05:00:
+  removed the veto option the proposal's own sentences decide (a binding kept until the origin cleanup finishes)
+  and corrected V8's statement about the origin cleanup record's staging rule.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
