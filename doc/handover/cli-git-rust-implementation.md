@@ -212,8 +212,9 @@ Outcome:
 the owner accepts the two designs step 10 is built from.
 
 State:
-the lock design is on `docs/planning-cli-git-zfs-add-time-git-lock-design`,
-the binding record on `docs/planning-cli-git-zfs-add-binding-record-design` at `c077bdb1e1`.
+the lock design is on `docs/planning-cli-git-zfs-add-time-git-lock-design` at `4625537ae5`,
+the binding record on `docs/planning-cli-git-zfs-add-binding-record-design` at `c077bdb1e1`,
+each after a round on the reviewer's sixth read.
 The reviewer's sixth read
 (`review-sixth-read-before-acceptance.md` in
 `~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/`)
@@ -224,11 +225,11 @@ and a hazard in the settling command,
 which on a `settling` binding could remove the registration of a worktree Git had already checked out.
 That file holds both veto lists in plain words and the two plan sentences as they would read after the change.
 Running:
-`pi-zfs-add-time-git-lock-design-sixth-read-lows`.
+the same reviewer's read of both last diffs,
+to `review-seventh-read-before-acceptance.md` beside it.
 
 Next:
-one read of the binding's and the lock design's last diffs,
-then the acceptance question.
+the acceptance question.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
 step 10's "discarded copied Git administration",
@@ -241,8 +242,10 @@ the owner accepts the records a removal persists,
 together with the binding record they share states with.
 
 State:
-the plan record is on `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
-the origin cleanup record on `docs/planning-cli-git-zfs-origin-cleanup-record-design` at `f17455b786`.
+the plan record is on `docs/planning-cli-git-zfs-removal-destruction-plan-record-design` at `28c590b4c4`,
+after its round on the sixth read,
+and the origin cleanup record on `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
+which was at `f17455b786` before its round.
 The reviewer's sixth read
 (`review-sixth-read-before-acceptance.md` in
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`)
@@ -250,11 +253,10 @@ found each fit after listed fixes and the set not yet ready,
 for two things in the binding its round has since been given.
 It holds the three veto lists in plain words.
 Running:
-`pi-zfs-removal-destruction-plan-record-design-sixth-read`.
+`pi-zfs-origin-cleanup-record-design-sixth-read-lows`.
 
 Next:
-a round on the origin cleanup record's lows;
-one read of the three last diffs;
+the same reviewer's read of the three last diffs;
 then the acceptance question for the three.
 
 The plan record's one rule for a kept plan with an `unknown` outcome leaves sentences of two accepted designs untrue:
@@ -274,7 +276,8 @@ and confirms or changes the direction to unmount inside a holder's mount namespa
 State:
 the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design` at `cf9a0e44b8`,
 the cancelled removal on
-`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design`.
+`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design` at `4fe792a697`,
+each after a round on the reviewer's sixth read.
 The reviewer's sixth read
 (`review-sixth-read.md` in
 `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`)
@@ -282,10 +285,10 @@ found each fit after listed fixes,
 and the first group of the forced arm's probe arms not ready to be scripted as written.
 It holds both veto lists and the confirmation question's wording.
 Running:
-`pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-sixth-read`.
+the same reviewer's read of both last diffs,
+to `review-seventh-read.md` beside it.
 
 Next:
-one read of both last diffs;
 a Pi round with one guest that scripts and runs the first group of arms,
 on the fixture's guest,
 whose kernel is 6.8,
@@ -439,22 +442,6 @@ Issue 6354 is decided
 and is built after this branch merges,
 because its round edits the same documents.
 
-#### Issue 6346: the commit-timing control
-
-State:
-branch `fix/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` at `dd4898b867`.
-The code is sound by two passes.
-A third pass on its wording said fit after listed wording fixes,
-and holds the comment to post on the issue at the merge
-(`~/temp/agent/integration-third-pass-commit-timing-control-wording-2026-11-23/keep/review.md`).
-Running:
-`pi-commit-timing-control-third-pass-wording`.
-
-Next:
-read the round's diff,
-merge,
-and post the comment.
-
 #### Tests that failed once and are not diagnosed
 
 Issues 6348 to 6352 on GitHub hold them,
@@ -497,6 +484,14 @@ and the ledger of which range went where,
 are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
 Ranges sorted so far:
 none.
+Running:
+three Sonnet sorters on the owner's decisions,
+one each for lines 41,470 to 44,767,
+44,768 to 46,713 and 46,714 to 49,499,
+writing to `sorter-lines-<first>-to-<last>/keep/` in that folder;
+and one Sonnet agent that checks the held backlog's entries against `main` and GitHub
+and drafts their issues under `backlog-to-github-issues/keep/`,
+creating nothing on GitHub.
 
 Next,
 in this order:
