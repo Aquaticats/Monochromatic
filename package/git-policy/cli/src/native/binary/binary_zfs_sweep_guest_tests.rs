@@ -38,8 +38,9 @@
 //!  so the run reads the two dataset names through the design's fallback,
 //!  and the checkout's own mount is made private because the design's route
 //!  requires a not-shared immediate parent.
-//!  Four further shapes name no checkout at all, one of them no file, and each
-//!  has to attach the designed clone on its own run
+//!  Four further shapes name no checkout at all,
+//!  one of them no file,
+//!  and each has to attach the designed clone on its own run
 //!  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 //!  "With no configuration file").
 //!  Item 1 and item 5 are repeated through the handler,

@@ -65,9 +65,10 @@ fn leaf_of(dataset: &str) -> &str {
 ///  a guest run of 2026-11-22 made exactly that clone.
 ///  The design's dataset is a sibling of the container and never a child of it,
 ///  so a row inside one is a clone the route itself attaches at a slot,
-///  and it is no candidate for the checkout:
-///  without this rule an account's clone would add a second instance and make
-///  the sweep refuse, and with it the sweep finds the checkout it should.
+///  and it is no candidate for the checkout.
+///  Without this rule an account's clone would add a second instance and make
+///  the sweep refuse,
+///  and with it the sweep finds the checkout it should.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
