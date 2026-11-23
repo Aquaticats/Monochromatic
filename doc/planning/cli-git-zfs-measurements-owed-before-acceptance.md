@@ -1247,7 +1247,7 @@ The common start makes P in H:
 `mount --bind <dir> P`,
 `mount --make-private P`,
 `mount --make-shared P`,
-and it checks that P carries a `shared:` group no other row of H carries (46 checked phases per kernel).
+and it checks that P carries a `shared:` group no other row of H carries (56 checked phases per kernel).
 "P" is that mount,
 "the copy" a bind of `$B/copy` onto `$B/parent/slot`,
 "the slot" that path,
@@ -1280,7 +1280,7 @@ Every phase has its arm's bound as a wall-clock deadline and the parent kills th
 it passes.
 No phase reached its bound;
 the longest were T0-7's,
-at 10.10 s in the guest and 10.12 s in the container,
+at 10.11 s in the guest and 10.27 s in the container,
 against the 30 s the program gives that arm because the design's own `Bound: T_wait 10 s` is shorter than the
 phase (it waits `T_wait` and then does the rest).
 
