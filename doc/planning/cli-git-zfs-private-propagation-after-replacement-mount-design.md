@@ -3745,6 +3745,13 @@ with its committer time from `git log --format=%cI`:
   and M11 is added as the arm that settles it.
   Its commit message is `docs(planning): state what a boot unit without ExecReload answers, from the source,
   and measure it`.
+  Corrected 2026-11-22T21:16:00-05:00 by `81fa3efddb`:
+  the reading was wrong.
+  `ReloadOrRestartUnit` enqueues a restart job with a reload preference (`src/core/dbus-manager.c:788` to `:790`),
+  only a unit that can reload has it turned into `reload-or-start` (`src/core/unit.c:7192` to `:7197`),
+  and a restart stops the unit and runs its `ExecStopPost=`,
+  which is what the lost-event record states.
+  The lost-event record was right.
 - `236c5f5a3f`,
   2026-11-22T20:47:38-05:00:
   this list gained the correction commit.
@@ -3752,6 +3759,26 @@ with its committer time from `git log --format=%cI`:
   2026-11-22T20:48:03-05:00:
   the list is put back in commit order,
   which the correction's insertion had broken.
+- `037bcee2e5`,
+  2026-11-22T20:48:10-05:00:
+  the list gained the last two commits of that round and their order.
+- `81fa3efddb`,
+  2026-11-22T21:16:00-05:00,
+  on the merge of `main` at `249da7f102`'s line:
+  the diff check's high finding is answered by restoring the project's reading:
+  F39 now says a boot unit without `ExecReload=` takes the request as a restart,
+  the install paragraph and L11 say the stop pass unmounts every clone,
+  M11 is reframed as the guest confirmation of that reading,
+  and the previous round's contrary claim is corrected here;
+  the record gains `unread` for a field a refusal never reached,
+  the four-path bound becomes V7,
+  the guest arm mounts its shared child while the checkout is still shared,
+  V1 and V2 are corrected,
+  V8 lists the kill rule,
+  and the round's lows are fixed.
+- `3fe3022909`,
+  2026-11-22T21:16:18-05:00:
+  the kernel's path escaping and the parser's parent rule are cited beside the scan.
 
 ## Links
 
