@@ -1124,7 +1124,8 @@ one program.
   bind-mounted in,
   and that directory sits on this machine's ZFS dataset `zpcachyos/ROOT/cos/home` (`dev=0:57`),
   with the host's module `2.4.4-1` behind it;
-  the container's own `/` is an overlay.
+  the container's own `/` is a `fuse-overlayfs` mount,
+  which is rootless podman's overlay.
   So the Tier 0 rows in the container are rows over ZFS on 7.3,
   and the handle rows there are ZFS handles.
 - `mvm`'s registry,
@@ -1321,7 +1322,8 @@ the handle's own bytes (12 on ZFS,
 8 on ext4),
 the filesystem root attempt (on 6.8 it opens and answers `EINVAL` on the unmount,
 because the fixture and `/` are one filesystem;
-on 7.3 the handle is ZFS's and the container's overlay `/` answers `ESTALE`),
+on 7.3 the handle is ZFS's and the container's `fuse-overlayfs` `/` answers `ESTALE`,
+  a fuse mount being unable to resolve another filesystem's handle),
 and the top row's `fstype` and `source` in the handle results.
 T0-10 differs because 6.8 has neither `listns` nor the `NS_GET_ID` ioctl and 7.3 has both.
 No mount row,
@@ -1527,7 +1529,7 @@ Three things the design's text does not say are measured:
 the handle must be opened on the mount that carries the slot (on 6.8 the attempt on the filesystem root opens
 but names the covered directory's path there and no mount,
 and `umount2` answers `EINVAL`;
-on 7.3 the overlay root answers `ESTALE` for a ZFS handle);
+on 7.3 the `fuse-overlayfs` root answers `ESTALE` for a ZFS handle);
 the open call must carry `O_DIRECTORY` on 7.3 for the reason given under the container's confinement;
 `open_by_handle_at` refuses an `O_PATH` directory descriptor with `EBADF` on both kernels.
 Decisions needed to script it:
