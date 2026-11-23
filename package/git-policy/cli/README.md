@@ -1021,7 +1021,7 @@ Read-only commands,
      and more than a thousand of them,
      is declined before anything is copied,
      and the line on standard error is the fence's own count and rule in place of
-     `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+     `the add ended after it had read the source (<reason>), so Git's own checkout wrote the worktree.`
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,

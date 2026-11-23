@@ -555,7 +555,7 @@ fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() 
     let topic: PathBuf = fixture.root.join("topic");
     let reference: PathBuf = fixture.root.join("control");
     assert!(!stderr_of(&created).contains("clones served"), "the tree difference ends the rung: {}", stderr_of(&created));
-    assert!(stderr_of(&created).contains("and Git's own checkout made the worktree"), "{}", stderr_of(&created));
+    assert!(stderr_of(&created).contains("so Git's own checkout wrote the worktree"), "{}", stderr_of(&created));
     assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, reference.as_path()), "every tracked path is Git's checkout's");
     assert_eq!(porcelain(&fixture, topic.as_path()), "", "the served worktree is clean");
     assert_eq!(paths_below(topic.as_path(), &[".git"]), paths_below(reference.as_path(), &[".git"]), "a path the clones copied and the target tree lacks stays behind");

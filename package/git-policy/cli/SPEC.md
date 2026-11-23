@@ -2886,7 +2886,7 @@ Where more than a quarter of the tracked paths,
 and more than a thousand,
 have a rule of their own that converts them,
 the rung declines before any copy and Git's checkout writes the worktree,
-with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
+with the line `the add ended after it had read the source (...)` absent and the fence's own count in its place:
 a declined add is Git's own checkout plus one `git check-attr` and the count over it,
 and,
 on rung 1,
@@ -2894,7 +2894,7 @@ the size read that rung started before its source check.
 A rung that ends after the fence,
 for any other reason,
 says
-`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+`the add ended after it had read the source (<reason>), so Git's own checkout wrote the worktree.`
 An add is compared with the source's index before the add's record is claimed and before the first copy:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
