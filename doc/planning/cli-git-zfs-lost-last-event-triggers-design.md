@@ -4070,6 +4070,38 @@ which is that design's answer.
   and the blank line before "What this design does not cover".
 - 2026-11-22T19:03:39-05:00:
   recorded the answer's commit time above.
+- 2026-11-22T19:33:18-05:00:
+  the project's three answers are written in;
+  `main` was merged first,
+  at 2026-11-22T19:22:22-05:00,
+  bringing the decision record `cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`.
+  The questions left the question list and became "The project's three answers",
+  and the options not chosen are listed once.
+  The hook is the record's answer and is stated without a fallback;
+  the sibling's `Upholds=` service is named as a third sender of the same job request,
+  and the `ExecReload=` sample now names `mount-git-worktree-clone-datasets`.
+  T4 is the wrapper's nudge on Git commands;
+  "The nudge on Git commands" designs the record in the Git common directory,
+  the command-path check,
+  the gap `G`,
+  the stale age `A`,
+  the burst and the measurement M8.
+  The no-waiter case is rewritten to the command trigger.
+  The cost rule holds only passes with no unanswered request,
+  with the taker's one clone read.
+  V2 gained the checkout-dataset option,
+  V3 became the command-nudge choice,
+  V11 the timeout sentence,
+  and V12 lost the switch sub-choice.
+  The build steps,
+  tests 15 to 20,
+  measurement M8,
+  the counts,
+  facts F38 to F42,
+  assumptions A11 and A12,
+  limits L16 to L20,
+  and dependencies D1 to D4,
+  D8 and D9 follow.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
