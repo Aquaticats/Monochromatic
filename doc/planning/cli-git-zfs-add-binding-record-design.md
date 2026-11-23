@@ -6096,6 +6096,38 @@ and any test suite.
   L4 (A6's sentence),
   and L5 (A21 widened).
   Each was proved by the searches kept in `keep/sixth-reads-searches-2026-11-22.txt`.
+- 2026-11-23T05:20:00-05:00 (the round's first,
+  `wip` commit;
+  its real time is the one `git log` names for
+`cc6e19b439`):
+  a work-in-progress save of the seventh reads' edits.
+- 2026-11-23T05:28:00-05:00 (`5f483f3dd5`):
+  finished the seventh reads' edits:
+  H1 and U15 (one test,
+  "When a checkout has begun",
+  cited by the states list,
+  read 4,
+  "What it removes" and
+  V23 A;
+  the `index` and lock clauses gone),
+  H2 (the printing rule's second clause,
+  and the no-plan state),
+  U16 (the proved-absence refusal only while the registration stands,
+  and the printed lines),
+  U17 (V23's third option removed with its reason,
+  and the option named by its letter),
+  H3 and U22 (T30's arms and the test map),
+  H4 to H8 (doctor's lines and T35's arms,
+  the rerun rules,
+  `cloneGuid=` carved out,
+  the removal's rule stated
+  once,
+  Q7 marked decided,
+  the tips),
+  U19 (no lost lock in the records-only mode),
+  U20 (`--force` for a partial checkout),
+  and U23 (the accepted design's quoted sentence and the replacement words in "Where the siblings disagree").
+  Each was proved by the searches kept in `keep/seventh-reads-searches-2026-11-22.txt`.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
