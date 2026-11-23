@@ -1914,7 +1914,7 @@ fn a_merge_conclusion_writes_the_reflog_message_native_git_writes() {
 
 /// The `core.editor` a control gives a repository:
 /// a shell command that writes a fixed message into the file Git names after it.
-const EDITOR_WRITES_A_MESSAGE: &str = "printf 'editor subject\\n\\nbody line\\n' >";
+pub(super) const EDITOR_WRITES_A_MESSAGE: &str = "printf 'editor subject\\n\\nbody line\\n' >";
 
 /// What:
 ///  A repository a commit control runs the same sequence in,

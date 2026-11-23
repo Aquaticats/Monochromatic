@@ -160,7 +160,7 @@ fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
     if layout.common_dir.join("hooks").join(POST_INDEX_HOOK).symlink_metadata().is_ok() {
         return None;
     }
-    let database: ObjectDatabase = ObjectDatabase::open(layout.common_dir.as_path(), None, layout.object_format)?;
+    let database: ObjectDatabase = ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None)?;
     return Some(Surroundings { layout, settings, database });
 }
 

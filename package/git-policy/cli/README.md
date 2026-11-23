@@ -5777,6 +5777,16 @@ an index extension other than the ones Git reads without a word,
 an index offset table that does not name the entries the reader parsed,
 a ref name Git's own rule for a ref name would refuse,
 a ref listing past the 256 refs the listing reader answers,
+a ref store the configuration or the environment moves away
+(`extensions.refStorage` other than exactly `files`,
+including a `files://` or `reftable://` payload,
+a `reftable` folder in the common directory or a linked worktree's,
+`GIT_REFERENCE_BACKEND` other than exactly `files`,
+an unparseable or over-large configuration),
+an object store or replacement base the environment moves away
+(`GIT_OBJECT_DIRECTORY`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`,
+`GIT_REPLACE_REF_BASE`),
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,
@@ -5784,6 +5794,28 @@ Differential controls run real Git and the readers over the same command lines
 
 Set `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment to start Git for every one of these questions,
 for a measurement that compares both paths or to rule the readers out when output differs.
+
+A `git commit` is not refused for any of these variables:
+the commit service that lands the commit is another process and reads from its own environment,
+so a store or a replacement base named for one command is read by that command's Git and by nothing the landing asks,
+and the commit lands as `main` landed it.
+An effective replacement base the command alone holds lands on one parent where Git reads none,
+and an effective store the command alone holds fails loudly instead of landing:
+both are what `main` does,
+and issue 6347 covers that class
+(`doc/object-database-and-a-reftable-ref-store.md`,
+"An effective setting the command alone holds").
+
+A `git worktree add` and a `git worktree remove` read the repository's own store,
+so `GIT_REPLACE_REF_BASE` naming a base that holds a replacement of the commit reaches Git's own reads and not the
+wrapper's proofs:
+the add snapshots the commit's own files where Git under the variable checks out the replacement's,
+and the removal destroys such a worktree where plain Git refuses it as dirty.
+That is what `main` does,
+a base with nothing under it keeps the snapshot,
+and issue 6396 holds it as a recorded limit
+(`doc/object-database-and-a-reftable-ref-store.md`,
+"An effective replacement base the command names on the worktree-add path").
 
 ## Operating conditions
 
