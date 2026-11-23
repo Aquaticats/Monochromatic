@@ -179,7 +179,9 @@ verified cache hits, preserved prior runtime policy, and reloaded the real loade
 
 Original recovery cache: `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
-Pre-enforcement backup:
+Current verified backup:
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-23T15-56-00-0500`. All 18
+copied objects compared equal. The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
 
 Recovery instructions: `/etc/apparmor/recovery.md`. Disabling only `apparmor.service` is
@@ -188,18 +190,11 @@ and remove `apparmor,` from `lsm=`.
 
 ## Remaining work
 
-1.  Finish document rendering and citation checks, commit only the intended troubleshooting and
-    handover documents, and preserve the four unrelated repository modifications separately.
-2.  Run `capture-enforcement-cold-boot.ts` and the isolated positive control on this boot, then
-    repeat host and Konsole workloads, both Podman roles, the strengthened Incus workload, and
-    enforced Helium with phase `cold-boot` against the latest selected cache.
-3.  Review all current-boot AppArmor records, inspect the next real scheduled Sanoid run without
-    manufacturing snapshots, and verify `zfs-nvme-gen3.service` and KeePassXC's directory again.
-4.  Back up policy, cache, boot settings, and unrelated working-tree changes. The owner confirmed
-    that no additional reboot is needed: the enforcement cold boot already occurred, the repaired
-    policies are reloaded in place, and the rebuilt cache is verified for future boots. Do not
-    reboot solely to repeat it.
-5.  Update `/etc/apparmor/full-system-policy.md`, finish native cleanup, and request explicit owner
-    review. The exact LTS recovery entry remains untested.
+1.  Owner reviews the measured configuration and evidence and either accepts it or requests changes.
+
+No additional reboot is required. The enforcement cold boot already occurred, the repaired policies
+are reloaded in place, and the rebuilt cache is verified for future boots. The exact LTS recovery
+entry remains untested. KeePassXC save behavior at the selected database path, portal pressure
+writes, and fresh profile-sync-daemon mount operations remain explicitly unexercised.
 
 This handover is not final and not owner-approved.
