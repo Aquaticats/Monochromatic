@@ -340,6 +340,13 @@ LFS 3.8.1 is built with Go 1.27.3-X:nodwarf5. The Go runtime source cited in
 qualifier. The local rule covers only this proc read; any subsequent cgroup-file denial requires its
 own evidence.
 
+After the proc repair, Git LFS produced an owner-matched `/proc/<pid>/mountinfo` denial. It also
+requested execution of this repository's own cached
+`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`. The
+active `git` command resolves through this exact owner-managed wrapper. Only that binary gets
+inherit-exec permission; a rebuilt wrapper needs a new review, and third-party build output gets no
+general grant.
+
 ## Verification
 
 ### Versions and evidence scope
@@ -374,8 +381,9 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
   required separate evidence.
 - The first auto-push failed because `/usr/bin/gh` had no transition target. After a custom `gh`
   profile succeeded at `gh auth status`, the real push failed on this repository's own `pre-push`
-  hook. The follow-up auto-push also recorded Git LFS's `/proc/154971/cgroup` denial. These were new
-  workflow stages, not repeats of the signing-buffer incident.
+  hook. The follow-up auto-push also recorded Git LFS's `/proc/154971/cgroup` denial, followed by
+  `mountinfo` and exact policy-wrapper exec denials. These were new workflow stages, not repeats of
+  the signing-buffer incident.
 
 ### Passing catalog
 
@@ -398,10 +406,10 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
   helper. Audited events proved its OS-release read, existing crash-report reads, settings
   read/write opens, and lock-file operations. It did not create a new crash dump.
 - Signed commits `02f5e836951eaa990e1c6e3f88e5017b51e39d0b`,
-  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a`, and `d189b6f6d0355cd41c377d1fdfc4b68aff043668` reached
-  `main`. `gh auth status` read the existing keyring credential through the enforcing custom
-  profile, and `git ls-remote` returned the same commit hashes. The push also exercised the exact
-  own Git LFS hook.
+  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a`, `d189b6f6d0355cd41c377d1fdfc4b68aff043668`, and
+  `2a6969039952edf5564c8f384f03ea9ad4aa7737` reached `main`. `gh auth status` read the existing
+  keyring credential through the enforcing custom profile, and `git ls-remote` returned the same
+  commit hashes. The push also exercised the exact own Git LFS hook.
 
 ## Verified workarounds
 
@@ -480,6 +488,8 @@ owner @{HOME}/temp/agent{,/**} rwlk -> @{HOME}/temp/agent{,/**},
 owner @{tmp}/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
 owner @{HOME}/Monochromatic/.git/hooks/pre-push rix,
 @{PROC}/@{pid}/cgroup r,
+owner @{PROC}/@{pid}/mountinfo r,
+owner @{HOME}/Monochromatic/.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli rix,
 ```
 
 The signer has the same file boundary in its own profile:
