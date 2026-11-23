@@ -5140,7 +5140,11 @@ an unreadable record refuses there too.
   named under "Where the siblings disagree".
 - The content proof of the clone's fill (the frozen index and tree comparison) and where it lives across a kill.
   A resumed add whose proof is gone refuses rather than comparing against nothing,
-  because a comparison that has lost its reference is not a proof;
+  because a comparison that has lost its reference is not a proof,
+  and that refusal stands for a clone whose identity cannot be proven;
+  where the clone's identity can be proven, the fallback at A20 settles and finishes instead,
+  which is the restoring design's own requirement on this record (its "Dependencies on the sibling designs",
+  read at `5237948862`);
   the proof's own home is the dirty-main restore design's,
   and this record carries none.
 - The mount's own records:
