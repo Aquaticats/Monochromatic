@@ -3330,22 +3330,46 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
 - `09b6365c6f`,
   2026-11-22T21:18:32-05:00:
   the line breaks those entries needed.
+- `0f9b500c58`,
+  2026-11-22T21:47:59-05:00:
+  the merge of `main` with the records record.
+- `1b7e769230`,
+  2026-11-22T21:52:25-05:00:
+  this revision:
+  the fourth review's A1 to A13,
+  the ways' peer case and the repaired state,
+  the act's liveness,
+  the move after the signals,
+  the receiver closure,
+  the socket read,
+  the leftover directory's prefix,
+  the structural-stage state,
+  the blind definition,
+  S11 and S8 as the records record's,
+  the rewritten confirmation and probe,
+  and the corrected F45,
+  F49 and F53 with F55 to F58.
+- `cb3b291f53`,
+  2026-11-22T21:52:36-05:00:
+  the correction of the previous commit's message spelling.
 
-The record's answers are built in:
-"Who ends each kind of holder" is the chosen channel,
-"The reach" is the eight ways with the recommended policy (way 8 where the preflight proves a handle and no receiver outside the act,
-otherwise way 7),
-the preflight over every namespace,
-and the `SIGTERM`/wait/`SIGKILL` order,
-"The caller and its protected set" is the session plus every ancestor to pid 1 and the check on the wrapper's parent and the session leader's parent,
-and "The refusal" carries the three words,
-leaving the unforced cancel for a holder outside the set to the sibling.
-The review's H1 is fixed by the corrected propagation rules and the two new ways;
-M1 by the wait constant and the all-namespace order;
-M2 by the destination's conditions and the handle route;
-M3 by the arms on the production kernel;
-M4 by the preflight's reads;
-the changed facts are F47 to F54.
+The fourth review's A1 to A13 are built in:
+the ways' propagation rule and the peer case (A1,
+A2),
+the repaired state as the primary arm and the shared checkout as the control (A1),
+S11 and S8 as the records record's (A3),
+the act's liveness rule (A4),
+the move after the signals (A5),
+the receiver closure (A6),
+the `sock_diag` socket read (A7),
+the leftover directory's reserved prefix (A8),
+the structural-stage refusal state (A9),
+the blind definition (A10),
+F53's `may_decode_fh` cite (A11),
+L17 closed (A12),
+and the `setsid --wait` remedy (A13).
+The confirmation and the probe are rewritten;
+the questions section is the decided record.
 
 ## What this revision left as it was
 
