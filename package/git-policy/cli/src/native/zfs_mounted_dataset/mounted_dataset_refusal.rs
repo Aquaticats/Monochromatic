@@ -183,7 +183,7 @@ impl MountedDatasetRefusal {
                 "Ways forward: run the route from a process that can read `/proc/self/mountinfo`, or write `cloneMounts.checkout` and `cloneMounts.checkoutDataset` in {file}."
             ),
             MountedDatasetRefusal::NoneMounted { .. } | MountedDatasetRefusal::DatasetNotMounted { .. } => format!(
-                "Ways forward: run plan step 19's setup, which creates the checkout dataset `{DESIGN_CHECKOUT_DATASET_NAME}` and mounts it at the checkout path, then run this again; or write `cloneMounts.checkout` (the path) or `cloneMounts.checkoutDataset` (the dataset) in {file}. `mount-git-worktree-clone-datasets doctor` reports which entry is missing."
+                "Ways forward: run plan step 19's setup, which creates the checkout dataset `{DESIGN_CHECKOUT_DATASET_NAME}` and mounts it at the checkout path, then run this again; or write `cloneMounts.checkout` (the path) or `cloneMounts.checkoutDataset` (the dataset) in {file}. `git monochromatic-git-policy-cli doctor` reports which entry is missing once plan step 18 adds that."
             ),
             MountedDatasetRefusal::SeveralMounted { .. } | MountedDatasetRefusal::DatasetMountedSeveralTimes { .. } => format!(
                 "Ways forward: leave one mounted instance of the checkout dataset and run this again, or name the dataset with `cloneMounts.checkoutDataset` and its path with `cloneMounts.checkout` in {file}."

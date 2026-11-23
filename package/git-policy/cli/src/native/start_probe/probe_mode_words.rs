@@ -87,7 +87,7 @@ fn blocked_hint(report: &ProbeReport) -> String {
         if *reason == "missing-source" {
             let dataset: String = format!("<pool>/{}", crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::DESIGN_PROBE_DATASET_UNDER_THE_POOL);
             hint.push_str(&format!(
-                " The source that step asked for does not exist in this pool: plan step 19's setup creates it with `zfs create -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false {dataset}` and its empty snapshot with `zfs snapshot {dataset}@ready`, and `doctor` prints both commands with this pool's own name."
+                " The source that step asked for does not exist in this pool: plan step 19's setup creates it with `zfs create -o mountpoint=legacy -o canmount=off -o com.sun:auto-snapshot=false {dataset}` and its empty snapshot with `zfs snapshot {dataset}@ready`, and `git monochromatic-git-policy-cli doctor` prints both commands with this pool's own name once plan step 18 adds that."
             ));
         }
     }

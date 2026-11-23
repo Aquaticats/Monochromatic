@@ -43,6 +43,12 @@ pub enum ConfigurationRefusal {
         /// What the read answered.
         reason: String,
     },
+    /// The configuration file is there and holds nothing,
+    /// which is not the same as no file at all.
+    Empty {
+        /// The path that was read.
+        path: PathBuf,
+    },
     /// The configuration is not one JSONC document.
     NotJsonc {
         /// The path that was read.
@@ -100,6 +106,7 @@ impl ConfigurationRefusal {
     pub fn path(&self) -> &Path {
         return match self {
             ConfigurationRefusal::Unreadable { path, .. }
+            | ConfigurationRefusal::Empty { path }
             | ConfigurationRefusal::NotJsonc { path }
             | ConfigurationRefusal::NotText { path, .. }
             | ConfigurationRefusal::NameRefused { path, .. }
@@ -114,7 +121,7 @@ impl ConfigurationRefusal {
     /// or nothing when no single key settles it.
     pub fn key(&self) -> Option<String> {
         return match self {
-            ConfigurationRefusal::Unreadable { .. } | ConfigurationRefusal::NotJsonc { .. } => Some(String::from(CLONE_MOUNTS_KEY)),
+            ConfigurationRefusal::Unreadable { .. } | ConfigurationRefusal::Empty { .. } | ConfigurationRefusal::NotJsonc { .. } => Some(String::from(CLONE_MOUNTS_KEY)),
             ConfigurationRefusal::NotText { key, .. }
             | ConfigurationRefusal::NameRefused { key, .. }
             | ConfigurationRefusal::CheckoutNotAbsolute { key, .. } => Some(key.clone()),
@@ -140,6 +147,10 @@ impl ConfigurationRefusal {
     pub fn message(&self) -> String {
         let cause: String = match self {
             ConfigurationRefusal::Unreadable { path, reason } => format!("the clone-mount configuration {} could not be read ({reason})", path.display()),
+            ConfigurationRefusal::Empty { path } => format!(
+                "the clone-mount configuration {} is empty, and an empty file is not the same as no file: a file that is present wins, so this sweep acts on nothing until the file holds the entries or is removed",
+                path.display()
+            ),
             ConfigurationRefusal::NotJsonc { path } => format!("the clone-mount configuration {} is not one JSONC document", path.display()),
             ConfigurationRefusal::NotText { path, key } => format!("`{key}` in {} is not text", path.display()),
             ConfigurationRefusal::NameRefused { name, why, .. } => format!("`{name}` is not a dataset name the kernel takes: {}", why.message()),
@@ -154,7 +165,7 @@ impl ConfigurationRefusal {
             ),
         };
         return format!(
-            "{cause}, so this sweep enumerated nothing, attached nothing and recorded nothing, and every clone's mount intent stands untouched. Ways forward: write any of `{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}` (the checkout path), `{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}` (the checkout dataset, such as `zpcachyos/ROOT/cos/home/{DESIGN_CHECKOUT_DATASET_NAME}`) and `{CLONE_MOUNTS_KEY}.{PARENT_KEY}` (the clone container, such as `zpcachyos/ROOT/cos/home/{DESIGN_CONTAINER_DATASET_NAME}`) as text in {}; every entry a file leaves out is found from this process's own mount table, so a file with no such object works as long as the checkout dataset `{leaf}` is mounted once. `mount-git-worktree-clone-datasets doctor` reports the entries plan step 19's setup writes.",
+            "{cause}, so this sweep enumerated nothing, attached nothing and recorded nothing, and every clone's mount intent stands untouched. Ways forward: write any of `{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}` (the checkout path), `{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}` (the checkout dataset, such as `zpcachyos/ROOT/cos/home/{DESIGN_CHECKOUT_DATASET_NAME}`) and `{CLONE_MOUNTS_KEY}.{PARENT_KEY}` (the clone container, such as `zpcachyos/ROOT/cos/home/{DESIGN_CONTAINER_DATASET_NAME}`) as text in {}; every entry a file leaves out is found from this process's own mount table, so a file with no such object works as long as the checkout dataset `{leaf}` is mounted once. `git monochromatic-git-policy-cli doctor` reports the entries once plan step 18 adds that.",
             self.path().display(),
             leaf = DESIGN_CHECKOUT_DATASET_NAME
         );
