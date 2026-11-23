@@ -3,9 +3,10 @@
 ## Status
 
 Non-final and unapproved design proposal by an agent.
-The project answered its three questions on 2026-11-22
-([the decision record][answers])
-and has not read this whole design;
+The project answered three questions on 2026-11-22
+([the decision record][answers]),
+and a fourth on how long a lost request is nudged later that day;
+it has not read this whole design;
 only the project declares a design accepted.
 "Revisions" lists the commits and what each changed,
 including the findings each answered.
@@ -131,11 +132,12 @@ The no-waiter case has no statement of what happens between the loss and the nex
 The provider hook is "proposed and unrun" and has no shape.
 The merge and rate rule have no shape at all.
 This design answers those four;
-the project's three answers settle the hook,
-the lost request with nobody waiting and what the cost rule may hold,
-and "The project's three answers" states them.
+the project's answers settle the hook,
+the lost request with nobody waiting,
+what the cost rule may hold and how long a request is nudged,
+and "The project's answers" states them.
 
-## The project's three answers
+## The project's answers
 
 The project answered all three questions in
 [the decision record][answers],
@@ -189,6 +191,8 @@ not the project's:
 > and a measurement of what a command pays in each case,
 > before this ships.
 
+Wherever this design says the record requires M8,
+it means this requirement as the record states it.
 So the wrapper's command path carries a trigger (T4),
 the section "The nudge on Git commands" designs the record and the command's check,
 and measurement M8's numbers ship before the nudge does.
@@ -275,6 +279,11 @@ with what each would have done.
   for the cost rule.
   "What is bounded" states why the exception the project chose is the one a waiting caller needs,
   and V13 and its window choice are the shape the bound ships in.
+- A gap that doubles without a cap,
+  and stopping after a set number of tries,
+  for how long a lost request is nudged.
+  The project took neither,
+  and "How long a lost request keeps being nudged" states the rule it took.
 
 ## The records that bind this design
 
@@ -476,7 +485,7 @@ so a printed command is printed and never run by a step,
 and it carries `--no-ask-password` so that no shell of a script waits on the agent
 ([sibling propagation][sibprop],
 its fact F22,
-lines 817 to 830 at `037bcee2e5`).
+read at `12ff579a2c`).
 That is why this design prints levers and runs none.
 
 Concurrency is lock-free first,
@@ -907,7 +916,7 @@ and T4 is the trigger it chose for a request with nobody waiting
   and the gate,
   the device,
   the property write and the record's publish are the helper's (fact F43).
-  A refused device or a failed write is recorded in the next attempt as its outcome,
+  A refused device or a failed write is recorded in its attempt's outcome,
   prints nothing on the common path,
   and leaves the command's exit status alone.
   A pass the nudge's event starts is never held by the budget,
@@ -921,7 +930,7 @@ and T4 is the trigger it chose for a request with nobody waiting
   With ZED stopped it recovers nothing,
   which is a likely cause of the first loss.
 - Recorded where:
-  the entry's next attempt and its outcome,
+  the entry's attempt and its outcome,
   the helper's own line when it writes one,
   and V8's answer for the handler's line.
 
@@ -1064,22 +1073,30 @@ The file's content is one line:
   as the intent carries them.
 - `written-at` is the moment the entry was written,
   as an ISO 8601 timestamp with its offset.
-- `outcome` is `claimed` when a writer has just taken the attempt,
+- `outcome` is `waiting` for the entry a wait writes before any nudge claims it,
+  `claimed` when a writer has just taken the attempt,
   `nudged` when the helper wrote the property,
   `refused-gate` or `refused-device` when the gate or the device refused,
   and `clone-gone` when the write found no dataset,
   so a host without the device records its refusal once instead of printing a line per command.
 
-A new attempt is published the way the slot store publishes a record:
+A wait publishes its first entry the way the slot store publishes a record:
 written whole under a staging name made with `O_EXCL`,
 synced,
 and `link`ed to `<guid>.<attempt>`,
 and the writer removes its staging name after the link,
 leaving it to `doctor` only when it was killed.
+A command or a wait that claims the next attempt writes its staging file and links it without a sync (V18):
+a crash after an unsynced claim can lose the attempt file,
+so the next command after the gap claims again and nudges again,
+which loses no request state and only repeats a nudge that may already have been written.
+The helper syncs the outcome it records,
+off the command's path.
 The staging name is unique per writer,
 `.` and 32 lowercase hexadecimal digits as the slot store's own staging names are
 (`slot_identity_store_records.rs`,
-`STAGING_NAME_DIGITS` and `is_known_staging_name`),
+`STAGING_NAME_DIGITS` and `is_known_staging_name`;
+F45),
 so a killed writer's leftover blocks no later writer:
 the next writer's own name is free,
 and its `link` is what decides the race.
@@ -1088,9 +1105,16 @@ as the slot store's answer has `doctor` remove its own
 ([store decision][store],
 "Who removes a killed writer's staging file"),
 and a command ignores a staging name it did not make.
-The file's modification time is the moment of its attempt,
-so the gap that "How often,
-and the burst" states is read from it.
+The file's modification time is the moment it was last published or recorded,
+so the next gap runs from the helper's outcome for an attempt the helper recorded,
+and from the claim for one it did not.
+The winner of the link unlinks every lower attempt of the same GUID,
+so a clone holds one file at rest,
+and a reader takes the highest attempt of a GUID and ignores a lower one.
+A winner killed between its link and its unlink leaves two files,
+which the next winner unlinks and `doctor` prints.
+The folder therefore holds one file per clone the pass can sweep,
+and the pass's child bound bounds them (F28).
 
 The entry is read the way the pending check reads a Git pointer file:
 opened as a plain file without following a link,
@@ -1105,7 +1129,7 @@ One page is the gate's own per-file bound,
 and no measurement is owed for it:
 an entry's fields are bounded (the GUID,
 a 32-digit nonce,
-two fixed timestamps,
+one timestamp,
 one operation word and a dataset
 name under ZFS's own name limit),
 so a page holds any entry this design writes,
@@ -1123,8 +1147,11 @@ An entry is removed:
 - by the command that reads the receipt and finds it answering the entry's nonce;
 - by the helper,
   after it reads the clone's intent with the device open,
-  when the intent is absent or carries another nonce than the entry's,
-  which proves the entry can never be answered;
+  when the entry is older than the wait's own deadline and the intent is absent or carries another nonce than the entry's,
+  which proves the entry can never be answered.
+  The deadline condition keeps the entry alive through the window between the add's entry write and its intent's
+  transaction group committing,
+  in which the intent is not yet readable (L23);
 - by the helper whose nudge write fails because the clone is gone;
 - by the wait that is finally answered,
   before it reports;
@@ -1169,7 +1196,7 @@ This is what keeps the cheap negative the owner required for a repository whose 
   and nothing else.
 - A folder whose entry is due:
   the same,
-  and the command writes a staging file and `link`s `<guid>.<n + 1>` with the outcome `claimed`;
+  and the command writes a staging file without a sync and `link`s `<guid>.<n + 1>` with the outcome `claimed`;
   the link decides the one owner,
   a command that lost it writes nothing more,
   and the one that won spawns a detached helper for that attempt.
@@ -1203,11 +1230,13 @@ A nudge that the helper writes,
 and the pass it starts,
 are the root work M8's root-side arm counts.
 
-A host without `/dev/zfs` pays the first three cases and no more:
+A host without `/dev/zfs` pays the read cases and,
+once per gap,
+the claim and the spawn:
 the gate refuses at its device step before it reads any BTF
 ([spec][spec],
 lines 20492 to 20493),
-the helper publishes the next attempt with `refused-device`,
+the helper records `refused-device` in its attempt,
 and nothing on the common path prints a line.
 A `.git` copied to a machine without the datasets behaves the same way,
 and `doctor` reports the refusals.
@@ -1243,7 +1272,8 @@ so no nudge makes the command wait for the gate,
 the device,
 the transaction group or the record's sync,
 and none changes the command's exit status.
-A spawn that fails prints one line and leaves the command's own outcome alone.
+A spawn that fails is silent,
+like every other failure on the command's read path.
 
 The wrapper's own management commands do not take this path:
 the add and the removal write and remove their own entries,
@@ -1382,7 +1412,7 @@ in these cases:
   the device open,
   the property write and the publish);
 - a host with the device refused:
-  the recorded refusal and its next attempt;
+  the recorded refusal in its attempt;
 - the root side:
   handler runs,
   pass time and events per command for an answerable request and for one nothing answers,
@@ -1455,7 +1485,9 @@ The project's answer to the word "moot" is that the command trigger is the one i
 and it accepted the wait the other triggers leave for a repository nobody touches
 ([the decision record][answers],
 "A Git command recovers a lost request with nobody waiting"):
-the answer also requires M8's measurement before the command trigger ships.
+the coordinator's requirement,
+as the record states it,
+is M8's measurement before the command trigger ships.
 
 The clone's state meanwhile is not lost and not silently changed:
 
@@ -1720,8 +1752,8 @@ keeping one short note for a machine that lacks it
 "The project's four answers,
 and what this design does with each",
 its fifth bullet,
-read at `037bcee2e5`,
-2026-11-22T20:48:10-05:00).
+read at `12ff579a2c`,
+2026-11-22T21:16:54-05:00).
 So one `ExecReload=` serves two consumers here:
 the hook's job request and the project's printed lever,
 and neither needs a fallback sentence.
@@ -1735,11 +1767,9 @@ whose `ExecStart=` is the same `systemctl --no-block --no-ask-password reload-or
 "Which triggers the route adds";
 [sibling propagation][sibprop],
 "The trigger the route adds,
-and what it must show",
-lines 1400 to 1503,
+and what it must show"
 and "The propagation service and its drop-in",
-lines 2941 to 3067,
-read at `037bcee2e5`;
+read at `12ff579a2c`;
 fact F42).
 The project took it provisionally:
 it is dropped if the guest measurement shows that it misses a replacement typed by hand or that it loops.
@@ -1892,7 +1922,7 @@ The order inside either mode is the propagation sibling's and not this design's
 "Where it runs,
 as whom,
 and in what order",
-lines 1566 to 1644 at `037bcee2e5`):
+read at `12ff579a2c`):
 read the configuration and resolve the checkout,
 its propagation step,
 the start probe's record,
@@ -1926,7 +1956,7 @@ does this in order:
     "Where it runs,
     as whom,
     and in what order",
-    lines 1566 to 1644 at `037bcee2e5`).
+    read at `12ff579a2c`).
     A prerequisite that refuses exits 2,
     and it records no start and removes no mark,
     because nothing will be enumerated and no claim was taken.
@@ -2076,7 +2106,7 @@ A wait writes no entry of its own:
 its entry is written with the intent,
 so a wait killed before its deadline leaves the trigger behind (V15's first option).
 At a delay `D` after its start with no receipt answering its nonce,
-the wait asks for one nudge through the same detached helper the command path uses,
+the wait claims its nudge through the same link the command path uses and spawns the same detached helper,
 which is the accepted proposal's nudge the wrapper writes on a caller's behalf.
 `D` is owed to M8,
 and V16 lists keeping that nudge and dropping it.
@@ -2220,7 +2250,10 @@ runbook owns and no agent performs here.
 
 `doctor` runs as the account,
 reads the records read-only,
-and runs nothing it prints ([plan][plan],
+except the known staging names of killed writers it removes,
+which is the one write its reading makes ([store decision][store],
+"Who removes a killed writer's staging file"),
+and it runs nothing else it prints ([plan][plan],
 "Step 18",
 line
 2064).
@@ -2325,7 +2358,7 @@ clone zpcachyos/nosnap/monochromatic-git-worktree-clone-datasets/one
   ready    boot 5d0f..., pool ready, checkout ready, sweep finished at 2026-11-22T17:29:58-05:00
   runs     no pass is running, as far as the account can read; a pass is due since 2026-11-22T17:30:05-05:00
   events   the last event for this clone may be lost; the next triggers are a ZED event or start, a provider start, the next Git command in this repository, or a lever you fire
-  nudge    the folder names this clone (attempt 3, outcome pending, written 2026-11-22T17:30:04-05:00); the receipt does not answer it; the next command after the current gap nudges again
+  nudge    the folder names this clone (attempt 1, outcome waiting, written 2026-11-22T17:30:04-05:00); the receipt does not answer it; the next command after the current gap nudges again
   fix      as root: systemctl --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service
   fix      as you: zfs set org.monochromatic:git-worktree-clone-mount-sweep-nonce=<32 fresh lowercase hex digits> <clone>
   journal  journalctl -u reconcile-git-worktree-clone-mounts.service ; journalctl -u zfs-zed.service
@@ -2425,8 +2458,10 @@ the entry written with the intent,
 the helper and the command-path check land in step 10 because that is
 where the wrapper's first wait and its forwarded path are built,
 and the first gap,
-the cap and the delay land in step 22 because the record itself requires the nudge's
-measurement before the nudge ships,
+the cap and the delay land in step 22 because the coordinator's requirement,
+as the record states it,
+needs the
+nudge's measurement before the nudge ships,
 and rule `LQM` requires the budget's measurement before it ships (V12).
 
 ## The tests a build must have
@@ -2637,6 +2672,10 @@ fact F22).
     no link,
     no spawn and no output,
     and a leftover staging name of a killed writer does not block a later command.
+    After a burst,
+    and after a winner killed between its link and its unlink,
+    exactly one attempt file per GUID is left,
+    and a reader takes the highest attempt and ignores a lower one.
     A wait and a command that find the entry due together write one nudge (V16's first option).
 17. The entry's life on a wait,
     host:
@@ -2644,8 +2683,11 @@ fact F22).
     an answered wait removes it,
     and a killed wait leaves it (V15's first option);
     a second request on the same clone removes the older entries it supersedes;
-    an add that fails before its intent write leaves an entry the helper drops,
-    because the clone's intent is absent;
+    an add that fails before its intent write leaves an entry the helper drops once the entry is older than the wait's
+    deadline,
+    because the clone's intent is then absent;
+    an add whose intent write is still uncommitted leaves its entry alone,
+    which the deadline condition protects;
     a command killed after the link leaves the attempt counted,
     and its staging name is one `doctor` removes;
     a helper killed before it records its outcome leaves the attempt `claimed`,
@@ -2659,7 +2701,7 @@ fact F22).
     which names the other triggers;
     a host without the device records `refused-device`,
     prints nothing per command,
-    and the next attempt's gap has grown (M5's case).
+    and the following gap has grown (M5's case).
 19. The rule's exception,
     host with a fixture budget and a planted clone:
     with the budget spent,
@@ -2811,7 +2853,10 @@ None ran.
     with no device and no gate;
   - a folder whose entry is unanswered and inside its gap;
   - a folder whose entry is due,
-    with the spawn measured on the command and the helper's gate,
+    with the staging write without its sync,
+    the link,
+    the unlink and the spawn measured on the command,
+    and the helper's gate,
     device open,
     property write and publish measured on the helper;
   - a folder left behind by a racing creator,
@@ -2870,7 +2915,9 @@ No number is invented to fill a gap (rule `LQM`).
   the helper and the nudge behind a compiled switch that is off;
   step 22 ships `G0`,
   `Gmax` and `D` with M8 beside them and turns the nudge on,
-  which the record itself requires before the nudge ships.
+  which the coordinator's requirement,
+  as the record states it,
+  puts before the nudge ships.
   Until then a person sees one event per add (the intent),
   no nudge,
   and the timeout text and the levers when a wait times out;
@@ -3263,11 +3310,9 @@ Nothing here is new measurement on this host.
   and its `ExecStart=` is the same job request this design's hook sends
   ([sibling propagation][sibprop],
   "The trigger the route adds,
-  and what it must show",
-  lines 1400 to 1503,
+  and what it must show"
   and "The propagation service and its drop-in",
-  lines 2941 to 3067,
-  read at `037bcee2e5`).
+  read at `12ff579a2c`).
 - F43.
   The wrapper's intent writer runs the compatibility gate before it opens the device:
   `CloneIntentWriter::open` calls `gate.verdict()` and then `ZfsDevice::open`
@@ -3302,7 +3347,8 @@ Nothing here is new measurement on this host.
   (`package/git-policy/cli/README.md`,
   line 91;
   the templates under `src/native/service/service_units/`).
-  The service is the account's existing place to run work outside a command's process.
+  The service is the account's commit service;
+  nothing here shows that it can run a nudge.
 
 ## Assumptions
 
@@ -3366,6 +3412,10 @@ Nothing here is new measurement on this host.
 - A13.
   The wrapper can start the nudge helper detached as the account,
   and the helper can open the device under the agreed `mount,userprop` grant (F43).
+- A14.
+  Two requests on one clone do not overlap:
+  the add's registration holds the clone's slot from its Git lock (the add-time lock design) and a removal holds its per-slot claim,
+  so the clone's intent names one request's nonce while that request stands (D10).
 
 ## Limitations
 
@@ -3480,7 +3530,7 @@ Nothing here is new measurement on this host.
   the device open,
   the property write that waits for a transaction group and the publish (F43,
   F44).
-  A refusal the helper meets is recorded as the next attempt's outcome,
+  A refusal the helper meets is recorded in its attempt's outcome,
   so a host without the device prints nothing on the common path.
 - L21.
   A request that nothing can answer is nudged for ever at one nudge per `Gmax`,
@@ -3495,6 +3545,18 @@ Nothing here is new measurement on this host.
   A command killed after it links the next attempt leaves the attempt counted and a staging name that `doctor` removes;
   a helper killed before it records its outcome leaves the attempt `claimed`,
   which the next command counts.
+- L23.
+  The helper's proof that an intent is absent has a window:
+  an add writes its entry before its intent,
+  and the intent is unreadable until its transaction group commits.
+  The helper drops an absent-intent entry only once the entry is older than the wait's own deadline,
+  which bounds the window by that deadline,
+  and the add's own wait re-links the entry at `D` while it lives.
+- L24.
+  A helper whose property write never returns is not bounded:
+  a later command links the next attempt and spawns another each `Gmax`.
+  The case needs a pool whose writes hang,
+  and nothing here measures it.
 
 ## Choices this design marks for the project's veto
 
@@ -3504,6 +3566,10 @@ pros and cons,
 and a
 ranking with the reason for each adjacent pair.
 The first option is what the rest of the document describes.
+V14 was answered by the project and is no longer an entry;
+its rule is the section "How long a lost request keeps being nudged".
+The numbers are handles and not an order,
+so V17 and V18 sit beside the entries they belong with.
 
 ### V1. The ZED handler stays an asynchronous zedlet
 
@@ -3612,7 +3678,7 @@ The first option is what the rest of the document describes.
   Example:
   with an illustrative `G0` of one second and an illustrative `Gmax` of one minute,
   both placeholders and no value shipped here,
-  a loop of `git status` in a repository with one unanswered entry writes one nudge at the start,
+  a loop of `git status` in a repository whose entry is already older than `G0` writes one nudge on its first command,
   reads the receipt and writes nothing for the next second,
   then one nudge after the second,
   then one after two more,
@@ -3687,25 +3753,60 @@ The first option is what the rest of the document describes.
   Pro:
   no new process and no mode name.
   Con:
-  the gate's BTF walk and the transaction-group wait are unbounded syscalls a timer cannot cancel,
-  so the command can still wait as long as the transaction group takes,
-  which the record's cost forbids.
+  it breaks this design's own rule that a nudge must not make a command wait,
+  because the gate's BTF walk and the transaction-group wait are syscalls a timer cannot cancel:
+  the command waits as long as the transaction group takes.
 - C,
-  handed to the account's existing service.
+  handed to the account's commit service.
   Example:
-  the same command writes a request for the clone to the user service's runtime folder,
+  the same command writes a request for the clone into the service's runtime folder,
   and `monochromatic-git-policy-cli@.service` runs the nudge.
   Pro:
-  no new process model,
-  and the service's lifecycle is known.
+  the command's path holds no unbounded syscall and no new process model,
+  and the service's lifecycle is known (F46).
   Con:
-  the service's own readiness and restart story becomes the nudge's,
-  and a request file is one more record to publish and clean.
+  it ties the nudge to the commit service's readiness and restart story,
+  and adds one more record to publish and clean;
+  nothing here shows that the commit service can run a nudge at all.
 - Ranking:
-  A > B > C,
-  because A is the only option whose path holds no unbounded syscall,
-  B cannot bound the two waits the record forbids,
-  and C trades them for a service dependency and another record.
+  A > C > B,
+  because A is the only option whose path holds no unbounded syscall and that adds no dependency,
+  C meets the rule but ties the nudge to a service whose readiness is not designed for it,
+  and B cannot meet the rule at all.
+
+### V18. Whether the claim of the next attempt is synced
+
+- A,
+  adopted:
+  the claim is written and linked without a sync.
+  Example:
+  a command finds a due entry,
+  writes its staging file,
+  links `<guid>.<n + 1>` and spawns the helper;
+  a crash before the filesystem commits the link loses the attempt,
+  and the next command after the gap claims again and nudges again.
+  Pro:
+  the command's path holds no sync,
+  which is the one wait a sync would add there,
+  and a lost claim only repeats a nudge,
+  which is harmless.
+  Con:
+  a crash can lose an attempt that was already nudged,
+  so one duplicate nudge is possible.
+- B,
+  the claim is synced.
+  Example:
+  the same command syncs its staging file before the link;
+  a crash after the link keeps the attempt.
+  Pro:
+  an attempt that was linked is never lost.
+  Con:
+  every claim pays a log commit on the Git command's path,
+  which is a wait the design's own rule would have to name and M8 would have to measure.
+- Ranking:
+  A > B,
+  because A keeps the command's path free of a sync and loses only a duplicate nudge to a crash,
+  while B pays a log commit per claim for a state the request does not depend on.
 
 ### V4. Whether event-driven passes are exclusive route-wide
 
@@ -4049,7 +4150,9 @@ The first option is what the rest of the document describes.
   unbound until step 22,
   and C ships an unmeasured limit.
 - The nudge on Git commands is not part of this entry:
-  the record itself requires measurement M8 before the nudge ships,
+  the coordinator's requirement,
+  as the record states it,
+  needs measurement M8 before the nudge ships,
   so its switch is the record's condition and not a step choice.
   The folder,
   the entry written with the intent,
@@ -4172,7 +4275,7 @@ The first option is what the rest of the document describes.
   and the waiting command's own nudge needs a second path.
 - Ranking:
   A > B,
-  because A leaves the trigger after any kill at the price of two file operations per add,
+  because A leaves the trigger after any kill at the price of four file operations per add,
   and B leaves a killed request with no command trigger at all.
 
 ### V16. The waiting command's own nudge
@@ -4215,8 +4318,8 @@ The first option is what the rest of the document describes.
 
 - D1.
   The propagation sibling ([sibling propagation][sibprop]),
-  read at `037bcee2e5`
-  (2026-11-22T20:48:10-05:00),
+  read at `12ff579a2c`
+  (2026-11-22T21:16:54-05:00),
   and its record ([repair record][repair],
   accepted 2026-11-22T19:23:30-05:00,
   with its further answer on a shared and slave mount recorded 2026-11-22T20:37:32-05:00).
@@ -4231,18 +4334,16 @@ The first option is what the rest of the document describes.
   The repair record's further answer that a checkout which is shared and slave counts as shared
   touches no statement here,
   because this design only cites the record for the trigger and the filter.
-  The sibling states all of this as accepted
-  ("The project's four answers,
+  The sibling states all of this as accepted in
+  "The project's four answers,
   and what this design does with each",
-  lines 249 to 378)
-  and its two pointers to this design are by commit,
-  accurate at its tip `b6855dce15`,
+  and its two pointers to this design are by commit:
+  it names this design's tip `6d820735cd`,
   which this design has since moved.
-  The order inside both of its entry points
-  ("Where it runs,
+  The order inside both of its entry points,
+  "Where it runs,
   as whom,
   and in what order",
-  lines 1566 to 1644)
   is the order this design cites and states no other:
   configuration and checkout,
   its propagation step,
@@ -4250,21 +4351,20 @@ The first option is what the rest of the document describes.
   the pool and checkout checks,
   the sweep;
   this design's taker runs those prerequisites first and takes its claim only after them.
-  The sibling's service and drop-in are that trigger's files
-  ("The trigger the route adds,
-  and what it must show",
-  lines 1400 to 1503,
-  and "The propagation service and its drop-in",
-  lines 2941 to 3067;
-  F42),
+  The sibling's service and drop-in are that trigger's files,
+  "The trigger the route adds,
+  and what it must show"
+  and "The propagation service and its drop-in" (F42),
   and its `ExecStart=` is the same job request this design's hook sends.
-  Its A3 (lines 1113 to 1134) and its dependency bullet (lines 3303 to 3380) read this design's hook as two
-  files asking the boot unit,
+  Its A3 and its dependency bullet read this design's hook as two files asking the boot unit,
   which is what this design states;
-  its L11 (lines 1250 to 1263) keeps one note for a machine whose boot unit lacks the line.
-  Its F31 (lines 920 to 934) relies on this design's filter keeping the checkout dataset's events out,
+  its L11 keeps one note for a machine whose boot unit lacks the line.
+  Its F31 relies on this design's filter keeping the checkout dataset's events out,
   which V2's first option does and the repair record confirms.
-  Its F22 (lines 817 to 830) is the authorization-agent fact the records section cites.
+  Its F22 is the authorization-agent fact the records section cites.
+  No line number is given here:
+  both documents move their sections between rounds,
+  and a heading read at the commit named above is the stable reference.
 - D2.
   The forced-removal sibling ([sibling forced][sibforced]) at `2dda3d993e`
   assumes "each removal request is one nudge-shaped property write"
@@ -4469,7 +4569,7 @@ which is that design's answer.
   the two `[[bin]]` entries and the handler's installed name.
 - Sibling design documents,
   with `git show <branch>:<path>`:
-  the private propagation document at `037bcee2e5`,
+  the private propagation document at `12ff579a2c`,
   then the forced removal,
   cancelled or
   interrupted removal,
