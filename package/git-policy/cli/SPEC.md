@@ -20152,10 +20152,19 @@ The build phase's names are `branch`,
 and a build that stops inside itself closes the phase where the command stops,
 so its time is stated by `buildMs` and never left to `otherMs`.
 `offsetMs` counts from the command's start,
-and the route and the preparation are the two phases that precede the build,
-so the build's window is `routeMs + prepareMs` to `routeMs + prepareMs + buildMs`:
-a step that began before it lies in the route or the preparation,
-and `prepareParts` or `buildParts` states the time it spent there in that phase's `childrenMs`.
+so the build's window begins at `routeMs + prepareMs` and is `buildMs` long,
+each figure cut to whole milliseconds and their sum therefore up to two whole milliseconds early,
+and the window is one build's:
+with more than one attempt `routeMs`,
+`prepareMs` and `buildMs` are sums over attempts,
+and no single pair of offsets states where each build began.
+`buildParts` states the Git steps that began inside the build,
+each under the stretch that ran it in `childrenMs`;
+a step that began in the preparation is stated that way by `prepareParts`;
+and a step of the route,
+or one that began between two stretches of a phase,
+is taken out of no stretch's `ms`,
+so its time lies in `routeMs` or in the `ms` of the stretch it fell in.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to the next free generation (`monochromatic-git-policy-cli-commit-timing.jsonl.1`,

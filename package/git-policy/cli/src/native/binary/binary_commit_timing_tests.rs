@@ -544,10 +544,12 @@ fn the_record_names_every_stretch_of_the_build_phase() {
     // The Git children are recorded apart, so the stretches and the steps together are no more than the build itself.
     assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
+    // A frame that moved would empty the window, and an empty selection passes the sum below by adding nothing.
+    assert!(steps.iter().any(|step| { return step["name"].as_str() == Some("git commit"); }), "the window holds the scratch commit the build ran: {record}");
     let steps_in_build: u64 = steps_ms(steps.as_slice());
     let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
     assert!(
-        stated + steps_in_build <= number(record, "buildMs") + rounding_of(parts.len() + steps.len() + 1),
+        stated + steps_in_build <= number(record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
         "the stretches and steps lie inside the build ({} + {steps_in_build} of {}): {record}",
         stated,
         number(record, "buildMs")
@@ -603,10 +605,12 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     // The step the ceiling ended is recorded apart, so the stretch around it is the time the build spent outside that step.
     assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
+    // A frame that moved would empty the window, and an empty selection passes the sum below by adding nothing.
+    assert!(steps.iter().any(|step| { return step["name"].as_str() == Some("git commit"); }), "the window holds the scratch commit the build ran: {record}");
     let steps_in_build: u64 = steps_ms(steps.as_slice());
     let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
     assert!(
-        stated + steps_in_build <= number(record, "buildMs") + rounding_of(parts.len() + steps.len() + 1),
+        stated + steps_in_build <= number(record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
         "the stretches and steps lie inside the stopped build ({} + {steps_in_build} of {}): {record}",
         stated,
         number(record, "buildMs")
@@ -708,10 +712,11 @@ fn a_commit_refused_by_a_policy_states_the_policy() {
     remove_settled(&fixture);
 }
 
-/// The whole milliseconds the bounds below allow for figures read from two records and two moments,
-/// because every phase is cut to whole milliseconds on its own.
-/// The build's own accounting derives its allowance from the number of figures it sums (`rounding_of`),
-/// so no fixed number decides whether a build's stretches and steps fit its window.
+/// The whole milliseconds two records' figures may differ from a hold both measured,
+/// because each figure is cut to whole milliseconds on its own.
+/// The two accounting controls derive their own bound from the one place a cut can raise their sum
+/// (`WINDOW_ORIGIN_ROUNDING_MS`),
+/// so this number decides only the wait for a foreign holder and the phase beside it.
 const ROUNDING_MS: u64 = 12;
 
 /// What:
@@ -723,7 +728,10 @@ const ROUNDING_MS: u64 = 12;
 ///  A window read from `prepareMs` alone therefore began a route's length early,
 ///  and counted the preparation's last steps inside the build while `prepareParts` already states their time in
 ///  `childrenMs`:
-///  that is the excess of the two whole gates of 2026-11-21 and 2026-11-22 (issue 6346).
+///  that is the excess of the whole gate of 2026-11-22,
+///  whose record was kept (issue 6346);
+///  the gate of 2026-11-21 on the same assertion kept no line,
+///  so its cause is inferred and not shown.
 ///  A record of more than one build (`attempts` above 1) is several windows separated by further preparations,
 ///  which no single pair states,
 ///  so every control that reads this states one attempt.
@@ -760,30 +768,30 @@ fn steps_ms(steps: &[&serde_json::Value]) -> u64 {
 }
 
 /// What:
-///  The whole milliseconds a sum of `figures` figures cut to whole milliseconds may state beyond its own whole.
+///  The whole milliseconds by which a build's accounting may pass the build's own figure.
 /// Why:
-///  Every figure of the record is a duration cut to whole milliseconds on its own and can fall a whole millisecond short,
-///  `buildMs` among them,
-///  so how far a sum may pass the whole depends on how many figures it is made of and never on a fixed number.
-///  The bound is a generous one:
-///  a stretch's `ms` and `childrenMs` are two cuts of one duration,
-///  and their sum can only fall below it,
-///  so the stretches alone cannot pass their phase by the figure count.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const roundingOf = (figures: number) => figures;
-/// ```
-fn rounding_of(figures: usize) -> u64 {
-    return u64::try_from(figures).unwrap_or(u64::MAX);
-}
+///  Every figure the accounting sums is a duration cut to whole milliseconds on its own
+///  (`commit_build_part_durations.rs`,
+///  `transaction_step_durations.rs`,
+///  `CommitTiming::line`),
+///  and a cut never raises a sum:
+///  a stretch's `ms` and `childrenMs` are two cuts of one duration whose sum can only fall below it,
+///  so a right record states the build's parts and the steps that began in them at `buildMs` or under it.
+///  The one figure whose cut can add is the window's origin:
+///  `routeMs + prepareMs` is two cuts,
+///  so it begins the window less than two milliseconds before the build did,
+///  and a step wrongly selected there is one the preparation had not finished,
+///  so it ran in less than those two milliseconds and states at most one whole one.
+const WINDOW_ORIGIN_ROUNDING_MS: u64 = 1;
 
 /// The record of the whole gate of 2026-11-22T17:35:47-05:00,
 /// kept to the fields a build's accounting reads.
 /// Why:
 ///  Its assertion printed `the stretches and steps lie inside the stopped build (34 + 2071 of 2086)`,
-///  and the sums are the control below's subject.
-/// `gh issue view 6346` quotes every byte of the record and of the journal line it came in.
+///  and the sums are `a_preparations_last_steps_are_not_counted_inside_the_build`'s subject.
+/// The whole journal line is in cause K of `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`;
+/// `gh issue view 6346` quotes excerpts of it,
+/// not every byte.
 const STOPPED_RECORD_OF_THE_2026_11_22_GATE: &str = r#"{"routeMs":101,"prepareMs":111,"buildMs":2086,"attempts":1,
 "prepareParts":{"index":{"ms":11,"calls":1,"childrenMs":12},"policies":{"ms":29,"calls":1,"childrenMs":36}},
 "buildParts":{"branch":{"ms":0,"calls":1,"childrenMs":0},"message":{"ms":0,"calls":1,"childrenMs":0},
@@ -797,8 +805,8 @@ const STOPPED_RECORD_OF_THE_2026_11_22_GATE: &str = r#"{"routeMs":101,"prepareMs
 {"name":"git rev-parse","offsetMs":153,"durationMs":36},{"name":"git commit","offsetMs":250,"durationMs":2023}]}"#;
 
 /// A record whose route phase is long enough to hide the preparation's last steps keeps them out of the build's accounting,
-/// and the allowance is the figures' own,
-/// not a fixed number.
+/// and the bound is the window origin's own,
+/// not a count of figures.
 /// Why:
 ///  The gate of 2026-11-22T17:35:47-05:00 failed
 ///  `a_build_stopped_in_its_scratch_commit_still_states_its_time` by 7 ms with this record:
@@ -810,26 +818,32 @@ const STOPPED_RECORD_OF_THE_2026_11_22_GATE: &str = r#"{"routeMs":101,"prepareMs
 ///  `prepareParts` already states those milliseconds under `index` and `policies`.
 ///  Read from the route and the preparation both,
 ///  the build's steps are `git commit` alone,
-///  and the failure's excess is larger than the figures' own cut can explain,
+///  and the failure's excess is larger than the origin's own cut can explain,
 ///  so rounding is not its cause.
 #[test]
 fn a_preparations_last_steps_are_not_counted_inside_the_build() {
     let record: serde_json::Value = serde_json::from_str(STOPPED_RECORD_OF_THE_2026_11_22_GATE).expect("the gate's record");
-    assert_eq!(build_window(&record), (212, 2298), "the build begins after the route and the preparation: {record}");
-    let steps: Vec<&serde_json::Value> = steps_inside_the_build(&record);
-    assert_eq!(steps.iter().map(|step| { return step["name"].as_str().unwrap_or_default(); }).collect::<Vec<&str>>(), ["git commit"], "the build's steps are the ones it began: {record}");
     let parts: &serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().expect("the record's build parts");
     let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
-    assert_eq!((stated, steps_ms(steps.as_slice())), (34, 2023), "the gate's own sums, its build's part alone: {record}");
-    let figures: usize = parts.len() + steps.len() + 1;
-    assert!(stated + steps_ms(steps.as_slice()) <= number(&record, "buildMs") + rounding_of(figures), "the stretches and steps lie inside the build ({} + {} of {}): {record}", stated, steps_ms(steps.as_slice()), number(&record, "buildMs"));
-    // The reading this control replaces: the window began at `prepareMs`, so it counted the preparation's steps again.
-    let from_the_preparation: Vec<&serde_json::Value> = steps_within(&record, number(&record, "prepareMs"), number(&record, "prepareMs") + number(&record, "buildMs"));
-    assert_eq!((from_the_preparation.len(), steps_ms(from_the_preparation.as_slice())), (3, 2071), "the failure's own sum counts the preparation's steps: {record}");
-    let figures_counted_twice: usize = parts.len() + from_the_preparation.len() + 1;
+    let steps: Vec<&serde_json::Value> = steps_inside_the_build(&record);
+    let steps_in_build: u64 = steps_ms(steps.as_slice());
+    assert_eq!(steps.iter().map(|step| { return step["name"].as_str().unwrap_or_default(); }).collect::<Vec<&str>>(), ["git commit"], "the build's steps are the ones it began: {record}");
+    assert!(stated + steps_in_build <= number(&record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS, "the stretches and steps lie inside the build ({} + {steps_in_build} of {}): {record}", stated, number(&record, "buildMs"));
+    // Each preparation step began before the window, and the part that ran it states that step's own time.
+    let began: u64 = build_window(&record).0;
+    for (part, name) in [("index", "git add"), ("policies", "git rev-parse")] {
+        let found: &serde_json::Value = record["steps"].as_array().expect("the record's steps").iter().find(|step| { return step["name"].as_str() == Some(name); }).unwrap_or_else(|| { panic!("the record has no {name}: {record}") });
+        assert!(number(found, "offsetMs") < began, "{name} began before the build did: {record}");
+        assert_eq!(number(&record["prepareParts"][part], "childrenMs"), number(found, "durationMs"), "{part} states the time {name} ran: {record}");
+    }
+    // The reading this control replaces: the window began at `prepareMs`, so it counted the preparation's steps again,
+    //  and what it states passes even the origin's own bound.
+    let prepare_ms: u64 = number(&record, "prepareMs");
+    let from_the_preparation: Vec<&serde_json::Value> = steps_within(&record, prepare_ms, prepare_ms + number(&record, "buildMs"));
+    assert!(from_the_preparation.len() > steps.len(), "the old window counts the preparation's steps: {record}");
     assert!(
-        stated + steps_ms(from_the_preparation.as_slice()) > number(&record, "buildMs") + rounding_of(figures_counted_twice),
-        "the failure's excess passes even the figures' own allowance, so it is no rounding: {record}"
+        stated + steps_ms(from_the_preparation.as_slice()) > number(&record, "buildMs") + WINDOW_ORIGIN_ROUNDING_MS,
+        "the failure's excess passes even the origin's own bound, so it is no rounding: {record}"
     );
 }
 
