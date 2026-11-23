@@ -53,7 +53,9 @@ The two halves talk over the session bus under `org.monochromatic.KeyHelper`.
 - Neovim (for the F16 and F20 RPC features);
    optional if you do not use Neovide.
 - Node (for building);
-   the shipped daemon is a self-contained Node SEA binary needing no Node at runtime.
+   the daemon embeds Node and uses the shared libraries required by the build-time Node executable.
+   See [the simdjson upgrade incident](../../../doc/troubleshooting/node-sea-keeps-stale-simdjson-soname.md)
+   for how to rebuild after a library change.
 
 ## Build
 
