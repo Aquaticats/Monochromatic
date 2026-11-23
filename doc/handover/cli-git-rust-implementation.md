@@ -1270,13 +1270,28 @@ by step:
 - Step 17.
   The forced arm's round ended at `2a2747ebfb`,
   the cancelled removal's at `3f2475e430`.
+  The reviewer's read of both is in
+  (`review-sixth-read.md` in its folder):
+  each fit after listed fixes,
+  nothing high,
+  and the first group of probe arms not ready to be scripted as written
+  (three of ten can be;
+  the rest lack a named program,
+  a state or a control,
+  and one needs a guest that answers `listns`).
+  It also says what the answer a stopped unmount files makes out of date in each,
+  and holds both veto lists and the confirmation question's wording.
   Running:
-  the reviewer's read of both,
-  to `review-sixth-read.md` in its folder;
-  it was sent the answer a stopped unmount files.
+  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-sixth-read`.
   Next:
-  the guest round for the arms that need only mounts and namespaces
-  (task 465).
+  the cancelled removal's round on the same read
+  (its words for two refusals differ from the forced arm's;
+  three places still contradict the empty plan's unlink),
+  citing the forced arm's new tip;
+  then the guest round for the first group of arms
+  (task 465),
+  on the fixture's guest,
+  whose kernel is 6.8.
 - The lost-event design:
   accepted by the owner as written,
   seventeen choices,
@@ -1355,6 +1370,18 @@ by step:
   It is an average over a night nobody watched,
   not the comparison under a load like the freeze's,
   which is still owed (task 463).
+- Issue 6344's follow-ups (task 460):
+  running `pi-shadow-sibling-control-follow-ups-after-the-merge`
+  on what its integration pass left
+  (cause M's reasoning about a refused start,
+  two guards without a committed control,
+  and smaller wording).
+  The coordinator took the pass's first-ranked option for the guards,
+  a committed delay that adds about a second to each gate run,
+  open to the owner's veto.
+  Next:
+  a Sonnet pass,
+  since it changes test code.
 - The watcher for a Pi round stuck in one command runs until about 2026-11-23T07:00-05:00.
 
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
