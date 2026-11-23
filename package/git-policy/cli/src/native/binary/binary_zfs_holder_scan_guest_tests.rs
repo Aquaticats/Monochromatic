@@ -574,37 +574,46 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     }
 
     // Arm 6 (M3): a thread with a mount namespace of its own is found.
-    match python_task(THREAD_NAMESPACE_SCRIPT, "/root/holder-scan-thread.pid", sbin.as_str(), clone.as_str()) {
+    match python_task(THREAD_NAMESPACE_SCRIPT, "/root/holder-scan-thread.pid", sbin.as_str(), clone.as_str(), THREAD_FOLDER) {
         Some(mut threaded) => {
-            assert!(wait_for_the_task_table_to_mention(&threaded, THREAD_FOLDER), "the thread's own namespace shows its mount at {THREAD_FOLDER}");
+            let holding: Option<(String, String)> = wait_for_a_thread_holding(threaded.pid, THREAD_FOLDER);
+            let (thread_path, thread_namespace): (String, String) =
+                holding.unwrap_or_else(|| panic!("the thread's own table shows its mount at {THREAD_FOLDER}; see the arm's log for the mount's own refusal"));
             let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a thread's own namespace");
-            assert!(scan.holders.iter().any(|found| return found.namespace() == threaded.namespace), "a thread's own namespace is a holder: {:?}", scan.holders);
-            println!("SCAN thread-namespace found=true namespace={}", threaded.namespace);
+            assert!(scan.holders.iter().any(|found| return found.namespace() == thread_namespace), "a thread's own namespace {thread_namespace} is a holder: {:?}", scan.holders);
+            println!("SCAN thread-namespace found=true namespace={thread_namespace} thread={thread_path}");
             end(&mut threaded);
         }
         None => println!("SCAN thread-namespace found=false reason=the-python-thread-could-not-unshare"),
     }
 
     // Arm 7 (M3): a task whose leader ended is read through the thread that lives.
-    match python_task(LEADER_ENDED_SCRIPT, "/root/holder-scan-leader.pid", sbin.as_str(), clone.as_str()) {
+    match python_task(LEADER_ENDED_SCRIPT, "/root/holder-scan-leader.pid", sbin.as_str(), clone.as_str(), THREAD_FOLDER) {
         Some(mut leaderless) => {
-            assert!(wait_for_the_task_table_to_mention(&leaderless, slot_folder.display().to_string().as_str()), "the live thread's table shows the clone");
+            let slot_text: String = slot_folder.display().to_string();
+            let holding: Option<(String, String)> = wait_for_a_thread_holding(leaderless.pid, slot_text.as_str());
+            let (_thread_path, thread_namespace): (String, String) =
+                holding.unwrap_or_else(|| panic!("the live thread's table shows the clone at {slot_text}, and its leader's link answers nothing"));
+            let leader_link: std::io::Result<std::path::PathBuf> = std::fs::read_link(format!("/proc/{}/ns/mnt", leaderless.pid));
+            assert!(leader_link.is_err(), "the leader's own namespace link answers nothing: {leader_link:?}");
             let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a task whose leader ended");
-            assert!(scan.holders.iter().any(|found| return found.namespace() == leaderless.namespace), "the namespace of a task whose leader ended is a holder: {:?}", scan.holders);
-            println!("SCAN leader-ended found=true namespace={}", leaderless.namespace);
+            assert!(scan.holders.iter().any(|found| return found.namespace() == thread_namespace), "the namespace of a task whose leader ended is a holder: {:?}", scan.holders);
+            println!("SCAN leader-ended found=true namespace={thread_namespace} leader-link=unreadable");
             end(&mut leaderless);
         }
         None => println!("SCAN leader-ended found=false reason=the-python-task-could-not-start"),
     }
 
     // Arm 8 (M3): a namespace whose lowest task is chrooted is read at its own root.
-    match python_task(CHROOTED_LOWEST_SCRIPT, "/root/holder-scan-chrooted.pid", sbin.as_str(), clone.as_str()) {
+    match python_task(CHROOTED_LOWEST_SCRIPT, "/root/holder-scan-chrooted.pid", sbin.as_str(), clone.as_str(), CHROOT_MOUNT_FOLDER) {
         Some(mut chrooted) => {
-            assert!(wait_for_the_task_table_to_mention(&chrooted, CHROOT_AWAY_FOLDER), "the chrooted task's own table names the folder it was taken to");
+            let holding: Option<(String, String)> = wait_for_a_thread_holding(chrooted.pid, CHROOT_MOUNT_FOLDER);
+            let (thread_path, thread_namespace): (String, String) =
+                holding.unwrap_or_else(|| panic!("the child's table shows its mount at {CHROOT_MOUNT_FOLDER}; see the arm's log for the mount's own refusal"));
             let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a chrooted lowest task");
-            let found: bool = scan.holders.iter().any(|found| return found.namespace() == chrooted.namespace);
+            let found: bool = scan.holders.iter().any(|found| return found.namespace() == thread_namespace);
             assert!(found, "a namespace whose lowest task is chrooted is read through a task at its root: {:?}", scan.holders);
-            println!("SCAN chrooted-lowest found=true namespace={}", chrooted.namespace);
+            println!("SCAN chrooted-lowest found=true namespace={thread_namespace} read-through={thread_path} lowest-is-chrooted=true");
             end(&mut chrooted);
         }
         None => println!("SCAN chrooted-lowest found=false reason=the-python-task-could-not-start"),
@@ -700,6 +709,10 @@ const THREAD_FOLDER: &str = "/srv/holder-scan-thread";
 /// The folder the chrooted lowest task is taken to inside its own namespace.
 const CHROOT_AWAY_FOLDER: &str = "/srv/holder-scan-chrooted-away";
 
+/// The folder the chrooted lowest task's child mounts the clone at,
+/// inside the namespace they share.
+const CHROOT_MOUNT_FOLDER: &str = "/srv/holder-scan-chrooted-clone";
+
 /// A python task that gives one thread a mount namespace of its own and mounts
 /// the clone in it,
 /// which is a holder no read of `/proc/<pid>/ns/mnt` alone can see.
@@ -745,11 +758,43 @@ else:
 /// start it in a mount namespace of its own with the clone and the folders its
 /// arm needs,
 /// and answer the task it is.
-fn python_task(script: &str, pid_file: &str, sbin: &str, clone: &str) -> Option<Task> {
+fn python_task(script: &str, pid_file: &str, sbin: &str, clone: &str, folder: &str) -> Option<Task> {
     let outline: String = pid_file.replace(".pid", ".py");
     std::fs::write(outline.as_str(), script).expect("the arm's python script is written");
-    let command: String = format!("exec python3 -I {outline} {clone} {THREAD_FOLDER} {CHROOT_AWAY_FOLDER} {sbin}/mount.zfs");
+    let command: String = format!("exec python3 -I {outline} {clone} {folder} {CHROOT_AWAY_FOLDER} {sbin}/mount.zfs");
     return start_task(command.as_str(), pid_file, sbin, &[]);
+}
+
+/// Wait,
+/// bounded,
+/// for one thread of one task to show a folder in its own mount table,
+/// and answer that thread's path and its namespace.
+/// Why:
+///  A thread's own mount namespace is not the leader's,
+///  so the leader's `/proc/<pid>/mountinfo` never shows the mount and only the
+///  thread's own table does.
+///  The same is true of a task whose leader has ended: its table cannot be
+///  read at all.
+fn wait_for_a_thread_holding(pid: u32, needle: &str) -> Option<(String, String)> {
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        let threads: std::fs::ReadDir = match std::fs::read_dir(format!("/proc/{pid}/task")) {
+            Ok(iter) => iter,
+            Err(_gone) => return None,
+        };
+        for entry in threads.filter_map(|entry| return entry.ok()) {
+            let thread: std::path::PathBuf = entry.path();
+            let mentions: bool = std::fs::read_to_string(thread.join("mountinfo")).is_ok_and(|text| return text.contains(needle));
+            if !mentions {
+                continue;
+            }
+            if let Ok(link) = std::fs::read_link(thread.join("ns/mnt")) {
+                return Some((thread.display().to_string(), link.to_string_lossy().into_owned()));
+            }
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    return None;
 }
 
 /// Run one holder scan through a handler whose capability bounding set lacks
