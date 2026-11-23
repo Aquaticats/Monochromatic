@@ -1,8 +1,13 @@
 # The deferred-destroy checks of a removal
 
-Non-final,
-unapproved design proposal by an agent.
-It is not approved by the project owner and nothing in it is final.
+Design by an agent,
+accepted by the project as written on 2026-11-22
+(`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`,
+"The design is accepted",
+which lists the ten choices accepted with it).
+Nothing in it has been run:
+every probe and arm is a specification the build step writes and runs,
+and its statements about designs that are still unapproved bind nothing until those are accepted.
 It designs the open item "How the deferred-destroy checks are designed" of the accepted ZFS worktree design
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 "Open items the decisions leave"),
@@ -3450,7 +3455,7 @@ and the two may again be a set rather than a sequence.
   and how the caller's session is spared"
   (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
   read at `aa1233b331`):
-  its D3 says "[The deferred-destroy checks][deferred] own step 16's checks and call sites.
+  its D3 says "The deferred-destroy checks own step 16's checks and call sites.
   This design claims no ownership of them;
   it needs the scan file's reader and V2's rule,
   and the build place is the first consumer's choice" (`:2778` to `:2782`),
