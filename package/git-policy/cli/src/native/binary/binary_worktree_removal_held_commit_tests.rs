@@ -51,8 +51,8 @@ const HANDOVER_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60
 /// The pause between two looks at the worktree a handed-over removal names.
 const HANDOVER_STEP: std::time::Duration = std::time::Duration::from_millis(10);
 
-/// The kind a removal's record's file name begins with,
-/// which no other record of this queue carries for a worktree.
+/// The kind a record of this queue carries when it names a subvolume to delete,
+/// which a landed removal's record and a leaving's and a snapshot-ahead hand-over's all carry.
 const RECORD_KIND: &str = "subvolume-delete-";
 
 /// Real Git's answer to a question,
