@@ -5010,6 +5010,8 @@ which is that design's answer.
   The propagation design is cited on `main`,
   accepted,
   with the commit its text equals.
+- 2026-11-23T04:04:21-05:00:
+  recorded the answer's commit time above.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
