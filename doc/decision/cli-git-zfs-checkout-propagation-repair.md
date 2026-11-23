@@ -157,7 +157,8 @@ under the design's own numbers V1 to V8 in the same order:
     Four is the writer's own pick.
     Not taken:
     name every one.
-8.  The rule that turns the guest's readings into "the systemd trigger stays" or "is dropped" is spelled out as two rules,
+8.  The rule that turns the guest's readings into "the systemd trigger stays" or "is dropped"
+    is spelled out as two rules,
     numbers left to the measurement.
     Not taken:
     take the record's words literally.
