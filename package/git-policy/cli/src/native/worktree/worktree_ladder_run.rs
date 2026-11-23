@@ -191,6 +191,28 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 }
 
 /// What:
+///  Stop a read this rung will not use,
+///  and state it in the add's record.
+/// Why:
+///   The check's refusal,
+/// the fence's decline and the rung-2 fall-through all leave the read unused;
+///  none of them may leave it running beside Git's own checkout.
+/// Its own step keeps the cost of ending the read apart from the decision that refused it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const abandon = (started) => started?.abandon();
+/// ```
+fn abandon_the_read_beside_the_check(sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) {
+    let abandon_entered: bool = begin_step("abandonRead");
+    let abandoned = sizes_beside.take();
+    if let Some(read) = abandoned {
+        read.abandon();
+    }
+    end_step(abandon_entered);
+}
+
+/// What:
 ///  Choose the rung for one invocation and prepare it:
 /// a snapshot source and the claim on its stage,
 /// a clone source,
@@ -215,24 +237,6 @@ fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
 /// ```ts
 /// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
-/// What:
-///  Stop a read this rung will not use,
-///  and state it in the add's record.
-/// Why:
-///   The check's refusal,
-/// the fence's decline and the rung-2 fall-through all leave the read unused;
-///  none of them may leave it running beside Git's own checkout.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const abandon = (started) => started?.abandon();
-/// ```
-fn abandon_the_read_beside_the_check(sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) {
-    if let Some(read) = sizes_beside.take() {
-        read.abandon();
-    }
-}
-
 fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity, held: &mut Option<StageClaim>, sizes_beside: &mut Option<crate::worktree_clone_conversion_size_read::SizeReadBesideTheCheck>) -> (Rung, Option<SlowRoute>) {
     let refusals_entered: bool = begin_step("refusals");
     let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
@@ -265,7 +269,9 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     // if (snapshotRefusal === undefined) sizesBesideTheCheck = startBesideTheCheck(context, identity);
     // ```
     if snapshot_refusal.is_none() {
+        let start_entered: bool = begin_step("startBesideTheCheck");
         *sizes_beside = crate::worktree_clone_conversion_size_read::start_beside_the_check(context, identity);
+        end_step(start_entered);
     }
     let check_source_entered: bool = begin_step("checkSource");
     let check_source_outcome = source_or_dirty(context, identity);
