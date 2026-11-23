@@ -515,13 +515,25 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
 ///  The creation's stretches are the ones a slow build must name,
 ///  and they are only reached when Git builds the commit.
 ///  A configuration key the service does not embed asks for that.
+/// What it catches,
+/// on this file as on `main`'s control:
+///  an overlap of the stretches;
+///  an overstatement of the scratch step from 6 ms up,
+///  where `main`'s fixed 12 ms let an overstatement of 6 to 14 ms pass and went red only at 20;
+///  and an understatement of `buildMs` big enough to empty the window,
+///  which the selection assertion catches (8 ms did,
+///  on a build of 8 to 15 ms),
+///  and the accounting catches once a longer build is planted
+///  (8 and 12 ms red against a 40 ms stretch,
+///  3 and 6 ms green).
 /// What it does not catch,
-/// on this file as on `main`'s control,
-///  a stretch noted twice while what it adds stays under the build's uncovered time plus
-///  `WINDOW_ORIGIN_ROUNDING_MS`,
-///  and an understated `buildMs` smaller than the same slack.
-///  An overlap of the stretches and an understatement of 8 ms are caught,
-///  and a 20 ms overstatement of the step is caught where `main`'s fixed 12 ms let it pass.
+/// on this file as on `main`'s control:
+///  a Git child split by a build seam while the child is a few milliseconds,
+///  the tail it leaves being under the build's uncovered time plus `WINDOW_ORIGIN_ROUNDING_MS`
+///  (a 3 ms seam passes,
+///  and a child of about 11 ms fails);
+///  and a stretch noted twice at natural size,
+///  where what it adds stays under that slack (at most 1 ms over in three runs).
 #[test]
 fn the_record_names_every_stretch_of_the_build_phase() {
     let fixture: Fixture = fixture("timing-build-parts");
@@ -551,7 +563,7 @@ fn the_record_names_every_stretch_of_the_build_phase() {
     // The Git children are recorded apart, so the stretches and the steps together are no more than the build itself.
     assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
-    // A frame that moved would empty the window, and an empty selection passes the sum below by adding nothing.
+    // A frame that moved would empty the window, and an empty selection passes the accounting assertion by adding nothing.
     assert!(steps.iter().any(|step| { return step["name"].as_str() == Some("git commit"); }), "the window holds the scratch commit the build ran: {record}");
     let steps_in_build: u64 = steps_ms(steps.as_slice());
     let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
@@ -579,13 +591,27 @@ const STOP_CEILING_SECONDS: &str = "2";
 /// while its shadow's steps began 70 s after its preparation had ended.
 ///  The stop's words and the exit code are the ones the ceiling's control states;
 /// what this one adds is what the record says about the time.
-/// What it does not catch,
-/// on this file as on `main`'s control,
+/// What it catches,
+/// on this file as on `main`'s control:
+///  an overlap of the stretches;
 ///  a Git child split by a build seam,
-///  because the build's children are a few milliseconds and the tail such a split leaves is under the slack;
-///  and an understated `buildMs` smaller than that slack,
-///  where a larger one trips the part-inside-the-phase assertion before this accounting.
-///  An overlap of the stretches and a 20 ms overstatement of the step are caught.
+///  seams tried at 3 or 10 or 500 ms into its 2 s scratch commit all failing this accounting;
+///  an understatement of `buildMs` from 8 to 30 ms,
+///  where 100 ms fails `the stopped build states its time` first;
+///  and an overstatement of the scratch step from 10 ms up,
+///  where `main`'s fixed 12 ms let an overstatement of 10 or 14 ms pass and went red only at 20.
+/// What it does not catch,
+/// on this file as on `main`'s control:
+///  a stretch noted twice at natural size,
+///  where what it adds stays under the build's uncovered time plus `WINDOW_ORIGIN_ROUNDING_MS`
+///  (2 ms over once and 1 or -1 ms in the other two runs),
+///  and an understatement under the same slack (3 ms passed).
+/// Its selection is asserted exactly,
+/// as `["git commit"]`,
+/// which is stricter than the bound:
+/// a right record in which a preparation step that ran under two milliseconds began inside the origin band
+/// would fail that assertion while the accounting passes it,
+/// and in the pass's 17 clean stopped records the last preparation step began 5 to 11 ms before the window's start.
 #[test]
 fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     let fixture: Fixture = fixture("timing-build-stopped");
@@ -619,7 +645,7 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     // The step the ceiling ended is recorded apart, so the stretch around it is the time the build spent outside that step.
     assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
-    // A frame that moved would empty the window, and an empty selection passes the sum below by adding nothing.
+    // A frame that moved would empty the window, and an empty selection passes the accounting assertion by adding nothing.
     let names: Vec<&str> = steps.iter().map(|step| { return step["name"].as_str().unwrap_or_default(); }).collect();
     assert_eq!(names, ["git commit"], "the window holds the scratch commit the build ran and no step before it: {record}");
     let steps_in_build: u64 = steps_ms(steps.as_slice());
@@ -731,7 +757,10 @@ fn a_commit_refused_by_a_policy_states_the_policy() {
 /// because each figure is cut to whole milliseconds on its own.
 /// The two accounting controls derive their own bound from the one place a cut can raise their sum
 /// (`WINDOW_ORIGIN_ROUNDING_MS`),
-/// so this number decides only the wait for a foreign holder and the phase beside it.
+/// so this number decides the wait for a foreign holder,
+/// the phase beside it,
+/// and the stopped control's lower bound on `buildMs`,
+/// where an understatement under it passes as on `main`.
 const ROUNDING_MS: u64 = 12;
 
 /// What:
@@ -795,8 +824,10 @@ fn steps_ms(steps: &[&serde_json::Value]) -> u64 {
 ///  The one figure whose cut can add is the window's origin:
 ///  `routeMs + prepareMs` is two cuts,
 ///  so it begins the window less than two milliseconds before the build did,
-///  and a step wrongly selected there is one the preparation had not finished,
-///  so it ran in less than those two milliseconds and states at most one whole one.
+///  and a step wrongly selected there is one the preparation had awaited,
+///  so it ended before the preparation did,
+///  ran in less than those two milliseconds,
+///  and states at most one whole one.
 const WINDOW_ORIGIN_ROUNDING_MS: u64 = 1;
 
 /// The record of the whole gate of 2026-11-22T17:35:47-05:00,
