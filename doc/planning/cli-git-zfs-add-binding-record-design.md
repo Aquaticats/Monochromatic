@@ -3229,7 +3229,8 @@ and reports:
   "run the add again at `<slot>`" when its clone's absence is proved and a registration stands,
   the settling command when its clone is gone and either the absence cannot be proved or no registration stands,
   `git worktree remove <slot>` with `--force` when its clone still stands and a checkout has begun,
-  and `git worktree remove <slot>`, with the add again at the slot while nothing is busy,
+  and `git worktree remove <slot>`,
+  with the add again at the slot while nothing is busy,
   when its clone still stands otherwise,
   naming the worktree the command leaves when it removes records only;
 - for a binding at `phase=settling` with no `cloneGuid=`:
@@ -3670,14 +3671,20 @@ the plan,
 the two inventories,
 the binding,
 and the claim,
-in that order,
-and it names the registration and the slot it leaves,
-with the wrapper's ordinary removal command for that worktree.
+in that order.
+It writes no lost lock there:
+A24 released the lock on purpose,
+an ordinary worktree is never locked,
+and a lock left on it would make the removal this command names refuse (U19 of the seventh add-side read).
+It names the registration and the slot it leaves,
+with `git worktree remove <slot>`,
+and `--force` as well when the checkout is partial,
+because Git refuses to remove a worktree holding files it did not index (U20).
 The full recipe would strip the registration of a worktree Git made at A25 and leave its files behind,
 so it never runs there (G1).
-The alternative,
-refusing and naming the add's re-run for that state,
-is V23's second option,
+V23's other option,
+B,
+refuses every `settling` binding instead,
 for the project to choose.
 
 That order is one sentence a sibling can quote,
