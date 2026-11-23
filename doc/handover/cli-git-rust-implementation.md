@@ -822,8 +822,11 @@ the same counters under a load like the freeze's,
 which cannot be made on purpose and has to be caught;
 then the persistent form of the two settings,
 for the owner to apply;
-and one gate's fixture file system memory,
-measured.
+and one gate's container memory sampled across a whole run,
+for its peak.
+A gate's fixture file system is a `tmpfs` capped at 768 MiB,
+so one gate's fixtures hold at most that
+(the freeze account's question 4 has the one reading so far).
 
 ### The handover holds only open work
 
