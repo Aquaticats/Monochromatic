@@ -24,7 +24,7 @@
 //! ```
 
 use super::probe_source_name::{NameRefusal, ProbeSource, check_dataset_name};
-use monochromatic_jsonc_edit::units_to_string;
+use crate::jsonc_member_text::{MemberReading, text_of_member};
 use std::path::{Path, PathBuf};
 
 /// The one object the project answered holds both names.
@@ -173,41 +173,25 @@ pub enum CheckoutRefusal {
 }
 
 /// What:
-///  Read one configuration document's text value at one key.
+///  Read one configuration document's text value at one key inside
+///  `startProbe`.
 /// Why:
 ///  Both keys are one JSONC member,
-///  and the parse and the key lookup are one place so a missing file and a
-///  missing key cannot be worded twice.
+///  and the parse and the key lookup are the repository's own single reader of
+///  that file,
+///  so a missing file and a missing key cannot be worded twice and the two
+///  readers of the configuration cannot drift
+///  (`package/git-policy/cli/src/native/foundation/jsonc_member_text.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const text = textAtKey(document, 'gitWorktreeProbeDataset'); // undefined when absent or not text
+/// const text = textAtKey(document, 'dataset'); // undefined when absent or not text
 /// ```
 fn text_at_key(configuration: &str, key: &str) -> Result<Option<String>, ()> {
-    let root: monochromatic_jsonc_edit::JsoncValue = match monochromatic_jsonc_edit::parse_jsonc(configuration) {
-        Ok(value) => value,
-        Err(_) => return Err(()),
-    };
-    let Some(entries) = root.entries() else {
-        return Ok(None);
-    };
-    let start_wanted: Vec<u16> = START_PROBE_KEY.encode_utf16().collect();
-    let Some(start_entry) = entries.iter().find(|entry| return entry.key.units == start_wanted) else {
-        return Ok(None);
-    };
-    let Some(start_entries) = start_entry.value.entries() else {
-        return Ok(None);
-    };
-    let wanted: Vec<u16> = key.encode_utf16().collect();
-    let Some(entry) = start_entries.iter().find(|entry| return entry.key.units == wanted) else {
-        return Ok(None);
-    };
-    let Some(units) = entry.value.text_units() else {
-        return Ok(None);
-    };
-    return match units_to_string(units) {
-        Ok(text) => Ok(Some(text)),
-        Err(_) => Ok(None),
+    return match text_of_member(configuration, START_PROBE_KEY, key) {
+        MemberReading::Text(text) => Ok(Some(text)),
+        MemberReading::Absent | MemberReading::NotText => Ok(None),
+        MemberReading::DocumentNotJsonc => Err(()),
     };
 }
 

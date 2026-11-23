@@ -28,6 +28,44 @@ writes both names into the root-owned configuration file itself,
 and when the file holds no names the handler finds the two datasets by those design names.
 No person edits the file by hand.
 
+### With no configuration file
+
+Recorded 2026-11-22T14:27:54-05:00,
+after step 8 merged as `00d857a435` and its recheck ran the built sweep with no file
+(`~/temp/agent/integration-recheck-zfs-step-8-attaching-sweep-2026-11-22/keep/review.md`,
+"Owner item 1"):
+with no file,
+with an empty object,
+or with only a `startProbe` object,
+the sweep exited 2 and attached nothing,
+because `cloneMounts.checkout` was required,
+and the start probe needed its own `startProbe.dataset` and `startProbe.checkout`.
+
+The project answered "1:
+no file needed (Recommended)".
+With no file,
+the root handler finds the checkout as the one mounted ZFS dataset whose last name component is
+`monochromatic-git-checkout`,
+takes the container beside it,
+and the start probe finds its dataset by its design name too.
+Only a dataset that is mounted counts.
+When the name matches none or several,
+the handler refuses and lists them.
+The setup still writes the file,
+and a file that is present wins.
+
+Not taken:
+"2:
+setup writes whole file",
+which pins every entry in the root-owned file and stops the route when the file is missing
+(the recheck ranked it first,
+because under the chosen answer a root program picks its target by name);
+and "3:
+keep as built".
+
+The start probe's side of this answer is recorded in `cli-git-zfs-start-probe.md`,
+section "Answer of 2026-11-22".
+
 ### Receipts for refusals
 
 "C:
@@ -51,12 +89,147 @@ build it in step 8 now":
 step 8 builds the `first-attach` writer and the call the start-probe design gives it,
 in the claim order that design states.
 
+## The bound of 4,096 children stays
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:21:19-05:00,
+on the integration pass of the step 8 follow-up
+(`~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
+the section whose heading starts "Owner item 2").
+
+Asked with that pass's figures:
+the only count on record is the owner's "Up to 64" worktrees at once;
+with 1,024 mounted clones one steady sweep took about 3.4 s (2.8 to 4.5 s) in the pass's guest;
+the fix round's single reading at 4,096 was 20 to 22 s,
+two thirds of the provisional 30 s a waiting command is to allow,
+and no command waits on a receipt yet.
+
+The project chose "A:
+keep 4,096 (Recommended)":
+the bound does not change,
+and the comment beside `MAXIMUM_CHILDREN` is corrected to cite only measurements whose raw lines are kept.
+
+Not chosen:
+lowering the bound to 1,024,
+and keeping the count while adding a time limit per sweep.
+
+## Four further answers on the look-up with no configuration file
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T22:22:43-05:00,
+on the integration pass of the branch that builds the section "With no configuration file"
+(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review.md`,
+"Owner's to decide",
+decisions D1 to D4).
+They bind the sweep and the start probe alike
+(`doc/decision/cli-git-zfs-start-probe.md` holds the probe's own answers).
+Each answer is given as the option's label and its own description,
+as the project was shown them.
+
+### A dataset mounted in the clone container is never the checkout
+
+Asked:
+with no file,
+the sweep and the probe find the checkout as the one mounted dataset whose last name is `monochromatic-git-checkout`,
+and none or several refuse.
+The pass showed in a guest that an ordinary account,
+with only the grants the route gives it,
+can make a clone with that last name inside the clone container and have the route mount it,
+which makes "several" and stops the route for every user until the clone is destroyed.
+The branch added a rule this record did not hold,
+that a dataset mounted directly inside the clone container is never the checkout,
+and knew the container by its designed name only.
+
+The project chose "A:
+the container this run uses (Recommended)":
+"Ignore a dataset mounted directly inside whichever clone container this run uses:
+the designed one,
+or the one root's file names."
+The costs stated with it:
+the probe reads one more key of the file than it does today,
+and a little more code.
+
+Not chosen:
+the designed name only,
+as built;
+any clone anywhere,
+which makes the look-up open the ZFS device;
+and no exception.
+
+### The probe lists what it found
+
+Asked:
+when the sweep finds none or several it refuses and prints every row it found,
+while the probe prints only that it did not run and writes one word in its record.
+
+The project chose "A:
+list the rows,
+like the sweep (Recommended)":
+"When the probe meets none or several,
+it prints each mounted dataset it found with its path."
+The cost stated with it:
+one more read of the mount table in that case.
+
+Not chosen:
+the word only;
+and the rows as extra lines in the record.
+
+### Snapshot directories are hidden on the checkout
+
+Asked:
+the look-up refuses when the machine's mount table is larger than 4 MiB.
+Listing a snapshot's directory makes the kernel mount that snapshot,
+and each such mount adds a row,
+so an account could grow the table until the look-up refuses for everyone
+(the pass computed about 25,500 such mounts and did not try it).
+`main` has the same bound.
+
+The project chose "C:
+hide snapshot directories",
+not the option recommended:
+"Turn off snapshot-directory visibility on the checkout so accounts cannot trigger those mounts."
+The cost stated with it:
+browsing snapshots under `.zfs/snapshot` in the checkout is lost.
+
+Not chosen:
+leaving the bound and documenting it,
+which was recommended;
+and reading the table without a bound for the look-up.
+
+What the question did not establish,
+and the build must before it relies on the answer
+(the coordinator's note,
+not the project's words):
+which setting of the installed OpenZFS release stops those mounts,
+since a directory that is merely not listed can still be entered by name;
+who applies it and when;
+and whether any part of the route reads a snapshot through that directory.
+
+### An empty configuration file is refused
+
+Asked:
+a file that exists and is empty is refused as "not one JSONC document",
+where a missing file is fine.
+
+The project chose "A:
+keep refusing,
+say why (Recommended)":
+"An empty file is refused,
+and the message says an empty file is not the same as no file."
+The cost stated with it:
+an accidentally emptied file stops the route until fixed or deleted.
+
+Not chosen:
+treating an empty file as no file.
+
 ## Adopted with the project's veto open
 
 These were not asked;
 the integration pass ranked one option first for each and the coordinator adopted it:
 
-- the 4096-child bound is measured in the guest and its numbers are written beside the constant;
+- the 4096-child bound is measured in the guest and its numbers are written beside the constant
+  (the bound itself has since been decided:
+  section "The bound of 4,096 children stays");
 - the claim's window between its directory proof and its path-based calls stays documented and open;
 - readiness is published `running` before the sweep and `finished` or `failed` after it,
   and the plan's paragraph is reworded to say so.

@@ -230,8 +230,9 @@ impl SlotClaimDirectory {
         // The shared claim makes path-based calls and checks no owner or mode of its directory, so the designed folder is
         // made and proved through its own descriptor here, and the claim is then taken inside a folder only root can
         // replace. Its own calls still resolve that path again, so the window between this proof and the claim is open;
-        // closing it needs a descriptor-relative take_claim (the shared module's openat, linkat and unlinkat) and belongs
-        // to the step that first calls this claim.
+        // plan step 8 is the step that first calls this claim, and it documented and left that window rather than growing
+        // the shared claim (SPEC.md, "The per-slot claim", and the plan's step 8 open items). Closing it needs a
+        // descriptor-relative take_claim (the shared module's openat, linkat and unlinkat).
         let directory: std::fs::File = self.make_and_prove()?;
         let outcome: ClaimOutcome = take_claim(self.directory.as_path(), OsStr::new(slot)).map_err(|error| {
             return ClaimRefusal::Records { slot: String::from(slot), reason: error.to_string() };

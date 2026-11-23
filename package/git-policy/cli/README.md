@@ -826,9 +826,57 @@ Read-only commands,
      and a fence that cannot read its inputs,
      or its decline rule,
      ends the rung and Git's own checkout completes the worktree.
-     The fence's two reads are on this rung's waiting path:
-     a snapshot copies everything anyway,
-     so there is no copy for them to run beside.
+     The size read starts before the source check on this rung,
+     on a thread of its own,
+     and is joined at the fence under a ceiling,
+     so the check and the attribute read hide most of it;
+     only that join waits.
+     Every early read carries `GIT_NO_LAZY_FETCH=1`,
+     so a partial clone fetches nothing,
+     whatever route the promisor remote's flags arrive by;
+     the global `--no-lazy-fetch` is not used,
+     because an older Git refuses it before reading anything and would send a plain source to Git's whole checkout.
+     The variable is honoured from the May 2024 maintenance releases
+     (`v2.39.4`,
+     `v2.40.2`,
+     `v2.41.1`,
+     `v2.42.2`,
+     `v2.43.4`,
+     `v2.44.1`,
+     `v2.45.1`,
+     the commit `7b70e9efb`)
+     and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`;
+     a Git older than those that does not carry the fix
+     (Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores it and can fetch a missing blob,
+     which is the recorded limit of this read there.
+     The read's answer is used only when it listed the commit the check proved,
+     and when no path needs a size it is not used at all;
+     either case ends the read where the fence decides,
+     and the fence reads the proved commit itself when it needs sizes.
+     A snapshot copies everything anyway,
+     so this rung is the only one where the read needed moving:
+     rung 2 keeps it beside its copies.
+     An add that ends before that join states the read as `fenceSizesBesideTheCheck` work when it has answered,
+     and as started and not joined when it has not,
+     and it never waits;
+     a read an add will not use is ended at the refusal or the decline,
+     a read abandoned before its child was published has that child ended the moment it is published,
+     and the thread and child end with the process.
+     Re-timed in one btrfs guest of 2026-11-22 on Git 2.56.1 built from source,
+     position-balanced,
+     with an identical-binary control:
+     a served loose add 1282.8 ms against `main`'s 1692.9,
+     a served packed one 752.1 against 831.5,
+     a refused loose one 4540.6 against 4945.9,
+     a declined packed one 8882.5 against 8651.8,
+     a cone sparse refused one 190.6 against 203.2 loose and 159.2 against 169.3 packed,
+     and a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
+     No shape is resolved slower;
+     the ratios,
+     the rounds and the control's spread are in
+     `doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+     "The re-time on Git 2.56.1,
+     2026-11-22".
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.
@@ -1757,6 +1805,20 @@ One archive carries two executables,
 The wrapper is the file a caller runs as `git`;
 the handler is never linked as `git`,
 and a machine that never mounts a ZFS worktree clone leaves it unused.
+
+The handler runs four kinds of work:
+no argument at all is the clone-mount sweep the installed ZED event starts,
+`boot-reconcile` is the boot unit's own checks and that same sweep and this
+boot's readiness,
+`start-probe` is the root probe's arms and its record,
+and `shutdown-unmount` is the shutdown unit's verified unmount,
+which is not built yet and names plan step 9 when it is run.
+`adopt-worktree-parent` is the administrator's decision to record a replacement
+`.claude/worktrees` folder.
+The sweep and `boot-reconcile` are described in `SPEC.md` under the section
+on the sweep and the boot it reconciles,
+and the guest arms that run them against a real pool are in
+the sweep arms section of `e2e/README.md`.
 Only the wrapper is linked,
  and not as the installed file's own name:
 link it as `git` in a directory that comes before the real Git on `PATH`:

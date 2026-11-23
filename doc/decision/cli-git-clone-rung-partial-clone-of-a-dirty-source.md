@@ -91,6 +91,110 @@ The pass's other findings are fixed in the same round without a question:
 paths whose index entry is stale but whose bytes are unchanged are counted against the changed-file cut,
 because Git writes them and the add was 1.39 times `main` on that shape.
 
+## Four further answers after the recheck, answered 2026-11-23
+
+Accepted in the question tool,
+recorded 2026-11-23T04:06:17-05:00,
+on the integration recheck of the build
+(`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`,
+"For the owner to decide",
+decisions A to D).
+Each answer is given as the option's label and its own description,
+as the project was shown them.
+
+### No size rule on btrfs
+
+Asked:
+the build pinned a mean of 49 bytes a file on btrfs only because that was the smallest size measured,
+and no btrfs size was ever measured to lose.
+A clean btrfs tree whose files average under 49 bytes is 1.4 to 1.6 times slower than on `main`,
+in every round,
+because `main` clones it and the branch declines it.
+
+The project chose "A:
+no size rule on btrfs (Recommended)":
+"Clone as main does on btrfs;
+keep the rule on ZFS and on filesystems nobody measured."
+The cost stated with it:
+trees of a handful of tiny files keep `main`'s small loss against Git,
+about 25 ms.
+
+Not chosen:
+keeping 49 bytes;
+and a pin of about 2,600 bytes.
+
+### What a declined add may cost
+
+Asked:
+the requirement was that no add is slower than Git's own checkout,
+and the records say an add the rung declines is Git's own checkout.
+Measured,
+a declined add is the source check and then Git's checkout:
+1.07 to 1.24 times Git's own checkout on small clean trees,
+and inside the spread on dirty ones.
+
+The project chose "A:
+restate the requirement (Recommended)":
+"The requirement becomes:
+a declined add costs what main paid for the same source (the source check,
+then Git's checkout),
+with the measured figures written in the specification."
+The cost stated with it:
+"no add slower than Git's own checkout",
+as first put,
+is then not met on small clean trees.
+
+Not chosen:
+declining before the source check where the index alone decides;
+and leaving the sentences as they are.
+
+### No floor on the number of files
+
+Asked:
+whether a clean tree of only a few files goes to Git's own checkout whatever its file sizes,
+since cloning's fixed cost makes trees of 20 to 500 files 10 to 30 ms slower cloned than written by Git,
+which is also `main`'s cost.
+
+The project chose "A:
+no floor (Recommended)":
+"Leave it as built."
+The cost stated with it:
+the requirement is missed by 10 to 30 ms on trees of a few files.
+
+Not chosen:
+making the clone's fixed cost cheaper as separate work;
+and a measured floor per filesystem.
+
+### The ZFS edge is lowered to about 3,000 bytes a file
+
+Asked:
+the ZFS edge is 8,799 bytes a file,
+and the measurements cannot place the crossing better than between about 3,000 and 9,600 bytes;
+across that range the clone ties Git on average and the declined route costs about 13% more than Git.
+
+The project chose "A:
+lower it to about 3,000 (Recommended)":
+"Clone from about 3,000 bytes a file up,
+as main does;
+decline only below,
+where the clone clearly loses."
+The costs stated with it:
+it clones at two sizes,
+5,199 and 7,999,
+whose own measurements read 1.2 times Git,
+with the sizes between them winning;
+and it is a new pin on the same noisy points.
+
+Not chosen:
+measuring first;
+keeping 8,799;
+and raising it to about 11,000.
+
+The exact value is the build's to set beside the measurement it cites:
+the question said "about 3,000",
+just above 2,599,
+the one mean with a clear pooled loss.
+
 ## Left to the build
 
 - Pin both limits at a measured edge,

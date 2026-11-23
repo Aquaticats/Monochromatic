@@ -1172,25 +1172,81 @@ GUID,
 origin and the inherited legacy and safety properties,
 derive the slot from one name under the grammar,
 parse the intent and ignore inherited intent,
-record the slot's first-observation identity before attach,
+take the slot's claim,
+read the clone's identity and intent again under it,
+recognise a mount of this clone that already stands at the slot,
+claim this boot's first attach,
+check the slot's Git pointer and record its first-observation identity before
+attach,
 attach through step 4,
+record the first attach's outcome,
+release the claim and read the intent once more,
 publish the receipt and the readiness,
 and refuse malformed intent before any filesystem operation on its behalf.
+A clone's origin is a snapshot of the checkout dataset the configuration names,
+under the `git-worktree-clone-origin-` prefix the design's add route gives it,
+which is the snapshot that route clones
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Dataset and path layout",
+item 3 of "Requests,
+results and ordering").
+The two dataset names come from the root-owned configuration,
+and a file holding neither is read through the design's own names,
+`monochromatic-git-checkout` and its sibling
+`monochromatic-git-worktree-clone-datasets`
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"The datasets the sweep acts on");
+step 19's setup writes them.
 Before attach it checks the encryption root and key state,
 and reports an unavailable key separately from identity or permission failures.
 This step owns the handler's `boot-reconcile` mode as well:
-the start-time compatibility gate,
+the start-time compatibility gate the dispatch runs before the mode,
+the start probe's record for this boot,
 the key and checkout checks,
-the intent reconciliation and this boot's readiness publish,
-all before any sweep,
+then the same sweep the default invocation runs,
+and this boot's readiness published `running` before that sweep and `finished`
+or `failed` after it,
 which is what step 19's unit runs at boot.
+The order is the design's own in "Boot and shutdown unit":
+its `ExecStart` "verifies ABI,
+keys,
+checkout and the private propagation the boot unit itself sets,
+then reconciles current intent and publishes this boot's readiness",
+and the design's reconciliation of intent is the sweep this step builds,
+so the mode's own checks come before the sweep and the readiness record comes
+after it.
+The project adopted one deviation with its veto open
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Adopted with the project's veto open"):
+a `running` record is published before the sweep as well,
+so a crash mid-sweep leaves a state `doctor` can show,
+while the design's sentence names only the publish after the reconciliation.
 The mode is this step's because it is the work the sweep does without a
 request;
 step 6 built the gate it calls and step 19 only installs the unit around it.
+The start time gate is step 6's,
+and the dispatch runs it before any mode that makes a request,
+so a refused gate enters no mode here.
+
+(Amended 2026-11-21T23:54:02-05:00 by an agent,
+from the review at
+`/home/user/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`,
+"Step 8's text against the design".)
+The sentences this note replaces said the mode's checks ran "all before any
+sweep",
+which read as the intent reconciliation coming before the sweep;
+in the accepted designs the reconciliation is the sweep,
+so the order is now stated as the design states it,
+and "Boot and shutdown unit" joins the design sections below.
+The assignment of the mode to this step was made by an agent rather than by the
+owner and is open to the owner's veto;
+if it is dropped,
+the mode moves with the readiness publish to the step the owner names.
 
 #### Design sections
 
 "ZED reconciliation and mount safety";
+"Boot and shutdown unit" (the mode's checks and the readiness publish);
 "Requests,
 results and ordering";
 "Descriptor mount and unmount" (the first-observation record and the no-crossing walk);
@@ -1217,7 +1273,33 @@ Runs in the throwaway guest.
 
 #### Open items
 
-None for attach.
+The unmount half of an `unmount` intent is step 9's.
+The positions this build settles are its own,
+each written where it is made and now answered by the project's record
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`):
+the sweep's three configuration names
+(`cloneMounts.parent`,
+`cloneMounts.checkout` and `cloneMounts.checkoutDataset`,
+beside the start probe's own object,
+with the design's names as the fallback only when the file holds neither
+dataset name),
+the receipt rule that a refusal files no receipt but an unavailable key's,
+the holder reading the intent again after it releases the claim,
+and the `first-attach` writer and its call,
+which this step now builds in the claim order the start-probe design states.
+The 4096-child bound is measured in the guest and its numbers sit beside the
+constant
+(`src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`),
+which is the project's veto-open adoption of the measurement.
+The per-slot claim's directory proof stays path-based because `take_claim` is
+still the shared module's path-based claim,
+and the window between that proof and the claim is documented in `SPEC.md`.
+What this step still leaves to a later one:
+the removal protocol's use of a standing `unmount` intent is step 14's,
+the claim's descriptor-relative form is the step that takes it on,
+and `doctor` reads `first-attach` in step 18.
+The checkout's private propagation is checked here,
+and the unit that sets it is step 19's.
 
 #### Depends on
 
@@ -2087,6 +2169,13 @@ The gate that orders every path descendant after a verified checkout mount.
 The private propagation the unit sets on the verified checkout,
 and what re-applies it after a replacement mount.
 The provider hook that triggers reconciliation after post-key-load checkout readiness.
+The two dataset names the setup writes into the root-owned configuration:
+the checkout dataset and the clone container,
+so no person edits that file by hand
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"The datasets the sweep acts on").
+Step 8's handler reads them and falls back to the design's own names only when
+the file holds neither.
 None of this runs on this host.
 Applying the migration,
 the immutable flag,

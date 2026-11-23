@@ -120,7 +120,7 @@ pub fn output_watched_within(
     stoppable: bool,
     bound: StepBound,
 ) -> std::io::Result<Output> {
-    return output_watched_within_for_a_stop(command, waiting_for, ledger_step, terms, stoppable, bound, false);
+    return output_watched_within_for_a_stop(command, waiting_for, ledger_step, terms, stoppable, bound, false, None);
 }
 
 /// What:
@@ -147,6 +147,7 @@ pub fn output_watched_within_for_a_stop(
     stoppable: bool,
     bound: StepBound,
     a_stop_lets_it_finish: bool,
+    started_child: Option<&std::sync::Arc<std::sync::atomic::AtomicI32>>,
 ) -> std::io::Result<Output> {
     let ceiling: Option<Duration> = match bound {
         StepBound::EndAt(limit) => Some(limit),
@@ -178,6 +179,22 @@ pub fn output_watched_within_for_a_stop(
         release_write_ends(command);
     }
     let child: Child = spawned?;
+    if let Some(cell) = started_child {
+        let published: i32 = child.id().try_into().unwrap_or(i32::MAX);
+        // The owner may have abandoned the run before the child existed (the early size read, whose add refuses or
+        //  declines the source before this thread reached its spawn). The abandon writes `ABANDONED_CHILD`, and the
+        //  child then ends here, the moment it is published, rather than running its whole length beside the command
+        //  that will not use its answer (`worktree_clone_conversion_size_read.rs`, `abandon`).
+        match cell.compare_exchange(0, published, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst) {
+            Ok(_) => {}
+            Err(current) if current == crate::transaction_git_request_and_reply_types::ABANDONED_CHILD => {
+                // SAFETY: `published` is the id `spawn_retrying` just returned, so the child exists and is this process's.
+                let _ = unsafe { libc::kill(published, libc::SIGKILL) };
+                crate::diagnostic_log::debug("childWatch", format!("{waiting_for} was abandoned before its child was published, so child {published} is ended at publication").as_str());
+            }
+            Err(_published_by_somebody_else) => {}
+        }
+    }
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
@@ -250,7 +267,17 @@ pub fn output_watched_within_for_a_stop(
             }
         }
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends(child, waiting_for, carried),
+            Some(open) => {
+                let ended: std::io::Result<Output> = open.read_until_the_child_ends(child, waiting_for, carried);
+                // The child is reaped here, so from this line its number may name another process. The cell must stop
+                //  naming it before the caller parses anything, or an abandon after this line could signal a reused id
+                //  (the integration recheck's Low 1 of 2026-11-22). The value is cleared, not abandoned: an abandon that
+                //  came earlier wrote `ABANDONED_CHILD` and already signalled through the id it read.
+                if let Some(cell) = started_child {
+                    cell.store(0, std::sync::atomic::Ordering::SeqCst);
+                }
+                ended
+            }
             None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
         },
         StepBound::Unbounded => {
