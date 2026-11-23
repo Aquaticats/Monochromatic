@@ -4787,6 +4787,30 @@ which is that design's answer.
   and facts F45 and F46 carry the staging names and the user service.
 - 2026-11-22T21:00:30-05:00:
   recorded the answer's commit time above.
+- 2026-11-22T21:43:28-05:00:
+  the check before acceptance.
+  `main` was merged first,
+  at 2026-11-22T21:41:10-05:00.
+  The winner of the link unlinks every lower attempt of the same GUID,
+  a reader takes the highest attempt and ignores a lower one,
+  a killed winner's two files are cleared by the next winner and printed by `doctor`,
+  and the folder is one file per clone the pass can sweep.
+  The claim of the next attempt is not synced (V18),
+  and the helper syncs only its own outcome.
+  V17's ranking is corrected to A > C > B on its own cons,
+  and the no-wait rule is named as this design's.
+  The failed spawn is silent,
+  the entry a wait writes has the outcome `waiting`,
+  the six places that said "the next attempt" now name the attempt's own outcome,
+  the helper drops an absent-intent entry only once it is older than the wait's deadline (L23),
+  and a helper that never returns is stated (L24).
+  A14 assumes two requests on one clone do not overlap.
+  The cost requirement is named as the coordinator's wherever it appears,
+  the further answer's two not-chosen options are listed,
+  and the claim's sync choice is V18.
+  The sibling statements cite it by heading at `12ff579a2c` without line numbers,
+  and the heading,
+  the Status and the veto introduction are corrected for the fourth answer and V14's retirement.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
