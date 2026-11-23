@@ -4450,6 +4450,55 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   the revision entry for this round,
   with the build-step section's correction.
   The commits that touch only this list are the ones `git log` reports for this path after `86444eef51`.
+- `cca16e0464`,
+  2026-11-22T21:28:22-05:00:
+  the fifth round,
+  which answers the third check and builds to the seven answers.
+  Its findings and where each is fixed:
+  - Item 1,
+    the answers:
+    "The seven answers the project gave" replaces "Questions only the project can answer",
+    the look runs in the five worktree commands with its place in each ("Where in each command the look runs"),
+    "What the look prints" defines a reason and its change,
+    and "When the route's gate refuses" applies the same rule to the gate.
+  - Y1:
+    "The add that fails and destroys what it made" gains its four cases and the refused-destroy rule,
+    and "V15 A refused snapshot destroy after a failed add" lists the choice once.
+  - Y4:
+    a plan whose head is not `gone` is left by the pass and resumed by the next removal.
+  - Y5:
+    the finisher paragraph quotes the binding design's own sentence and drops the add and the reader.
+  - Y7:
+    F25 and the mapping paragraph and the stale-statement subsection are rewritten at the plan design's
+    `1921adf393` and the binding design's `07858070bb`.
+  - Y9:
+    the `zfs-promote(8)` range is `:53` to `:54`.
+  - Y10:
+    a kill inside 13 names both outcomes.
+  - Y11:
+    the kill list gains inside 11,
+    the holder that surfaces at the head destroy,
+    and the head that answers `refused` or `unknown`;
+    the capital after a semicolon is gone.
+  - Y16:
+    T10 has four arms across the boundary and G6 a third promote arm that must not be refused.
+  - The lock record:
+    step 11 writes a lost lock again and says so,
+    and the pass does the same.
+  - The forced removal's later answers:
+    the kill point between 2 and 3 carries the two halves of the authority.
+  - The veto merge:
+    "V1 The home and the folder's name" carries the inner-name choice and V12 is gone.
+  - Also corrected:
+    the build-step section's stale amendment and its call sites.
+  Text the check found sound that a fix forced to change:
+  the carrier and gate sections (item 1),
+  the questions section (the seven answers replace it),
+  the add subsection (Y1),
+  the finisher paragraph (Y5),
+  and the kill list (Y4 and Y10 and Y11).
+  Nothing else the check found sound was changed.
+- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `cca16e0464`.
 
 ## References
 
