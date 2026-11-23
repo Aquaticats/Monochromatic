@@ -567,22 +567,40 @@ because the guest round is its test.
 The cancelled removal's round closed its one medium
 (it no longer refuses a kept receiver the forced arm does not refuse);
 the coordinator read its diff.
-Being read against its logs by the design's reviewer,
-resumed as agent `abfa3e9e26276b294`,
-who also drafts the confirmation question
-(`review-guest-probe-arms.md` in that review's `keep/`):
-`pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
-a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
-Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
-and it writes its results as a new section of
+The guest round `pi-zfs-forced-removal-first-probe-arms-in-a-guest` scripted and ran Tier 0 from the design at `b62601213f`
+on kernel 6.8 with hand-made mounts,
+and wrote the results as a section of
 `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`
-on the branch `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`.
-The fixture's guest has kernel 6.8,
-and the machine runs 7.3.
+on `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`
+(folder `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`).
+The design's reviewer read it against the logs
+(`review-guest-probe-arms.md` in that review's `keep/`):
+every result follows from its log,
+every arm started fresh,
+and the direction holds there,
+with five mediums:
+way 3's unmount half shows nothing,
+one variant of T0-3 shows nothing of its own,
+no arm starts from the production shape where the host mounts the clone,
+T0-5c gives two answers to whether way 8 is taken,
+and way 7 end to end never ran.
+Nothing is shown on kernel 7.3 or on ZFS.
+The design places the confirmation after Tier 0,
+Tier 1 (ZFS, no route) and Tier 2 (step 17's code);
+the reviewer drafted the question with every slot the guest could not fill left empty.
+Running:
+`pi-zfs-forced-removal-probe-arms-gaps-kernel-7-and-tier-1`,
+on the mediums' arms,
+Tier 0 on kernel 7.3 (a guest of 6.19 or newer, or a rootless container on this machine's kernel),
+and Tier 1;
+and the design writer's round on the text edits the read asks for,
+G4's policy among them
+(`continuation-guest-read-edits.md` in `~/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/`).
 
 Next:
-read the guest round's results against its logs;
-then the confirmation question with those results;
+a read of both against the logs;
+then the confirmation question for the direction,
+since Tier 2 needs step 17's code;
 then the acceptance question.
 
 #### Accepted designs that wait for their build steps
@@ -893,12 +911,7 @@ under `sorter-lines-<first>-to-<last>/keep/` in that folder:
   in 307 items.
   The coordinator's check script passed its coverage,
   and one stretch read by hand agreed with it.
-  A second check lists the quoted passages inside its `delete` items that stand nowhere else in the repository:
-  66 of 85,
-  among them answers of the owner's such as "Per command (Recommended)".
-  That figure is an upper bound,
-  because the check matches the first forty characters as written and has had no positive control.
-  Its `delete` items are not applied until each such quotation is moved or shown to be held.
+  Its `delete` items are not applied until each quotation inside them that stands nowhere else is moved or shown to be held.
 - lines 46,714 to 49,499,
   in 151 items,
   after the same lesson was sent to it:
@@ -917,12 +930,35 @@ the picks and the working rules
 (40,844 to 41,469 and 49,500 to 49,707)
 have ended too,
 the second with 78 items covering its 834 lines exactly.
+
+The check of quotations inside `delete` items first matched a passage's first forty characters;
+a control set showed it wrong both ways,
+the unsafe way being a sentence taken as held because another opens alike
+(`keep/quotation-check-controls-2026-11-23.md`).
+Its replacement,
+`list-whole-quotations-a-ledger-would-delete.ts`,
+matches whole passages with whitespace read as one space,
+and got all three control items right.
+Over the four ended ledgers it finds 208 quoted passages in `delete` items,
+159 of them held nowhere else:
+76 in lines 41,470 to 44,767,
+65 in 44,768 to 46,713,
+17 in 46,714 to 49,499,
+and one in the findings,
+picks and working rules.
+
 Running:
 the sorter of the open work (34,867 to 40,843),
-briefed by `brief-sorter-open-work.md` in that folder.
+briefed by `brief-sorter-open-work.md` in that folder;
+and a Sonnet audit that tells each of the 159 as the owner's words with a target record,
+held in another form,
+or not the owner's
+(`brief-quotations-the-ended-ledgers-would-delete.md`).
 
-Next,
-in this order:
+Next:
+apply that audit's `owner` moves to their records,
+then the ledgers by script;
+the ranges in this order:
 the owner's decisions (lines 41,470 to 49,499 of the old file),
 the open review findings and the picks made under delegation (40,844 to 41,469),
 the open work (34,867 to 40,843),
