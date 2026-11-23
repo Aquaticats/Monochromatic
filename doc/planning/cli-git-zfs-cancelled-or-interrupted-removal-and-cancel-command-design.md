@@ -1088,6 +1088,10 @@ and in what the report says was lost.
 ### The arm blocked before the move
 
 The unmount request's own scan sees a holder before the handler moves the clone (point 5).
+This arm exists while the forced arm's pre-move scan stands (its V4);
+where that choice is vetoed,
+the earliest scan is the one after the unmount,
+which is the arm blocked by a scan.
 Nothing was destroyed,
 and the clone is still mounted at its slot,
 so there is nothing to move back and nothing to attach.
@@ -3447,6 +3451,6 @@ oldest first.
   adds M11 and limits L11 and L12,
   reads the forced arm at `1931987673` and cites it by section with `caller-protected-holds`,
   and corrects the citation slips that pass lists.
-- The commit that carries this entry,
-  written 2026-11-22T19:14:06-05:00:
-  adds the entries for `2fb7caea17` and `710f386f17`.
+- The commits that carry this entry,
+  written from 2026-11-22T19:14:06-05:00:
+  add the entries for `2fb7caea17` and `710f386f17`.
