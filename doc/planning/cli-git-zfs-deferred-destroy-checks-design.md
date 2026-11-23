@@ -3788,9 +3788,17 @@ nothing here claims their behaviour.
   committed `2026-11-22T20:00:07-05:00`:
   the metadata-only commit that recorded `dfc6e64739`'s time,
   and the entry above it was "the commit that writes this line" until this commit.
+- `1800f0cb51`,
+  committed `2026-11-22T20:00:54-05:00`:
+  the commit that cited the reversal rule the refused causes rest on,
+  and the entry above it was "the commit that writes this line" until this commit.
+- `fd00d54dd2`,
+  committed `2026-11-22T20:49:03-05:00`:
+  the version that answers the diff check of the answers round,
+  with the changes the sixth part of "What this revision rewrote" lists.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  cite the reversal rule the refused causes rest on":
+  list the check round's commits":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
