@@ -300,6 +300,31 @@ fn a_row_in_a_container_this_run_does_not_use_is_several() {
     assert!(refusal.message().contains("will not choose between them"), "{}", refusal.message());
 }
 
+/// The success of a file that names only the checkout path on a real file,
+/// which the integration pass found the branch had lost.
+#[test]
+fn a_file_naming_only_the_checkout_path_is_read_through_the_table() {
+    let fixture: Fixture = Fixture::new("path-only");
+    let file: PathBuf = fixture.write(format!(r#"{{ "{CLONE_MOUNTS_KEY}": {{ "{CHECKOUT_KEY}": "{CHECKOUT}" }} }}"#).as_str());
+    let configuration: SweepConfiguration =
+        read_configuration(file.as_path(), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET))).expect("the table names the dataset the path is on");
+    assert_eq!(configuration.checkout, PathBuf::from(CHECKOUT));
+    assert_eq!(configuration.checkout_dataset, CHECKOUT_DATASET);
+    assert_eq!(configuration.parent_dataset, PARENT);
+}
+
+/// A commented document holding a trailing comma answers both probe keys,
+/// which the integration pass found the branch had lost as a host control.
+#[test]
+fn a_commented_document_with_a_trailing_comma_answers_both_probe_keys() {
+    let commented: String = format!(
+        "// written by the setup run\n{{\n  \"{PROBE_OBJECT_KEY}\": {{ \"{CHECKOUT_KEY}\": \"{CHECKOUT}\", \"dataset\": \"zpcachyos/nosnap/git-worktree-probe\", }},\n}}\n"
+    );
+    let configuration: SweepConfiguration = parse_configuration(commented.as_str(), Path::new(CONFIGURATION), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET)))
+        .expect("a commented document with a trailing comma parses");
+    assert_eq!(configuration.checkout, PathBuf::from(CHECKOUT));
+}
+
 /// A file that names a dataset the table mounts once wins over the design's own
 /// leaf name the table also holds.
 #[test]

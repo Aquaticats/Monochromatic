@@ -155,6 +155,26 @@ fn a_clone_row_in_the_container_the_file_names_is_ignored() {
     assert_eq!(one.dataset, CHECKOUT_DATASET);
 }
 
+/// A snapshot's automounted directory is a row whose source carries `@name`,
+/// so its last name component is never the checkout's leaf,
+/// which is what keeps the route from taking 300 account-triggered rows for
+/// checkouts.
+#[test]
+fn an_automounted_snapshot_row_is_no_instance_of_the_checkout() {
+    let snapshot_source: String = format!("{CHECKOUT_DATASET}@account-origin");
+    let rows: Vec<String> = vec![
+        row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET),
+        row(41, 1, "/", "/home/user/Monochromatic/.zfs/snapshot/account-origin", "zfs", snapshot_source.as_str()),
+    ];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let one: MountedDatasetInstance = the_one_mounted_checkout(&table, None).expect("a snapshot's directory is no checkout");
+    assert_eq!(one.dataset, CHECKOUT_DATASET);
+    let snapshot: MountedDatasetInstance =
+        MountedDatasetInstance { dataset: snapshot_source, mount_point: PathBuf::from("/home/user/Monochromatic/.zfs/snapshot/account-origin"), root: PathBuf::from("/") };
+    assert_eq!(snapshot.last_name_component(), "monochromatic-git-checkout@account-origin");
+    assert_ne!(snapshot.last_name_component(), "monochromatic-git-checkout");
+}
+
 /// A row inside a container this run does not use still counts,
 /// which is the cost the project accepted with the first answer.
 #[test]
