@@ -631,17 +631,30 @@ function m7Scan(chosen: Options): void {
     'pkill --signal KILL --full "^/sbin/mount.zfs" || true',
     'wait || true',
     'mkdir --parents /root/m7-late',
-    // The late mount must land after the probe's own attach and before its first scan, so the arm waits for the
-    // probe's mount to appear in a namespace instead of sleeping a fixed time: the hold after the exclusive create
-    // then keeps the window open for 700 ms, which is what the fixed 0.2 s sleep used to race against.
-    'CLI_GIT_TEST_ONLY_START_PROBE=hold-attach-exclusive-create CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $H start-probe > /root/m7-late-run.log 2>&1 & probe=$!',
+    // The late mount must land after the probe has mounted its source and before its first scan. The exclusive create
+    // makes no row, so the arm waits for the probe's own child to show the source in its namespace and then releases a
+    // mounter that has been waiting ready in its own namespace. The whole-table scan the other arms use takes about
+    // two seconds in this guest (242 namespaces), longer than the hold, so both waits read the one namespace they are
+    // about.
+    'rm --force /root/m7-go',
+    `unshare --mount sh -c 'while test ! -f /root/m7-go; do sleep 0.01; done; mount -t zfs ${PROBE_DATASET}@ready /root/m7-late; exec sleep 30' > /dev/null 2>&1 & late=$!`,
+    'CLI_GIT_TEST_ONLY_START_PROBE=hold-attach-place CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS=900000 $H start-probe > /root/m7-late-run.log 2>&1 & probe=$!',
     'attached=false',
     'for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do',
-    '  if test "$(leaks)" != "leaks=0"; then attached=true; break; fi',
-    '  sleep 0.05',
+    '  for child in $(cat /proc/$probe/task/$probe/children 2>/dev/null); do',
+    `    if nsenter --mount="/proc/$child/ns/mnt" cat /proc/self/mountinfo 2>/dev/null | grep -q "git-worktree-probe@ready"; then attached=true; break; fi`,
+    '  done',
+    '  test "$attached" = true && break',
+    '  sleep 0.02',
     'done',
-    'test "$attached" = true || { echo "M7 the probe never attached"; cat /root/m7-late-run.log; exit 1; }',
-    `unshare --mount sh -c "mount -t zfs ${PROBE_DATASET}@ready /root/m7-late; exec sleep 30" > /dev/null 2>&1 & late=$!`,
+    'test "$attached" = true || { echo "M7 the probe never attached"; cat /root/m7-late-run.log; kill -KILL $late 2>/dev/null || true; exit 1; }',
+    'touch /root/m7-go',
+    'landed=false',
+    'for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do',
+    `  if nsenter --mount="/proc/$late/ns/mnt" cat /proc/self/mountinfo 2>/dev/null | grep -q "git-worktree-probe@ready"; then landed=true; break; fi`,
+    '  sleep 0.02',
+    'done',
+    'test "$landed" = true || { echo "M7 the late mount never landed"; cat /root/m7-late-run.log; kill -KILL $late 2>/dev/null || true; exit 1; }',
     'wait $probe || true',
     'kill -KILL $late 2>/dev/null || true',
     'wait $late 2>/dev/null || true',
