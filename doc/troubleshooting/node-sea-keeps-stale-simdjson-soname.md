@@ -1,9 +1,9 @@
 # Node 26.13.1 SEA key-helper fails at login after the simdjson SONAME changes
 
-## Status at 2026-11-23T06:00:23-05:00
+## Status at 2026-11-23T06:06:22-05:00
 
-Codex diagnosed the CachyOS boot and verified the recovery in an isolated fixture.
-Owner review and a live Ctrl+F4 check remain open.
+Codex diagnosed the CachyOS boot, verified the recovery in an isolated fixture, and restored the live daemon.
+Owner review and a physical Ctrl+F4 check remain open.
 
 ## Symptom
 
@@ -94,12 +94,15 @@ A test `ydotool` recorded the arguments. The fixture had an empty `/dev/input` a
 Repackage the existing JS bundle against current Node. The `sea` task replaces the on-disk artifact atomically.
 It embeds the existing bundle as-is. Use the package's `binary` task instead if the bundle also needs rebuilding.
 On this installation the current-session start command targets the unit generated from the existing desktop entry.
-The repackaging was verified on the private bus. Starting the unit and pressing the shortcut on the desktop remain open.
 
 ```sh
 mise run //package/kwin/key-helper:sea
 systemctl --user start 'app-key\x2dhelper\x2dservice@autostart.service'
 ```
+
+After running both commands, `ldd` resolved `.37` for the installed executable.
+At `06:06:16 EST` the unit became active and the journal recorded `D-Bus service registered: org.monochromatic.KeyHelper`.
+Live D-Bus introspection returned `SendKeys` and `SendNvimKeys`. The Helium shortcut was exercised in the private fixture.
 
 ## What does not work
 
