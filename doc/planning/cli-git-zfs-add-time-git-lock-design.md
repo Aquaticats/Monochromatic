@@ -3520,6 +3520,24 @@ with each committer time from `git log --format=%cI`:
   2026-11-22T19:23:38-05:00:
   the binding design's `registered` write quoted at its current tip,
   with no blockquote of an earlier revision left.
+- `144622019a`,
+  2026-11-22T20:00:09-05:00:
+  main merged with `--no-ff`,
+  bringing the decision of 2026-11-22 on the fallback,
+  the proof's window and the slot's copied `.git`.
+- `6f0c2bdb23`,
+  2026-11-22T20:08:42-05:00:
+  the answer to the diff check:
+  the settle names the binding's recipe and states no order of its own,
+  the slot's pointer is in that order,
+  the finder is cited instead of restated,
+  the failure path's row corrected,
+  the fallback's lock release stated,
+  the fill window no longer rests the lock,
+  the tests filed by step,
+  the assumptions relabelled AS,
+  and V3,
+  V9 and V10 rewritten.
 
 Any commit after those carries this list;
 the round's report names every commit with its committer time.
