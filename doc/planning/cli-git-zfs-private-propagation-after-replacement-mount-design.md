@@ -3266,6 +3266,15 @@ with its committer time from `git log --format=%cI`:
   the man-page line,
   the `doctor` namespace note and the `statmount` callers are fixed;
   and every sibling citation is re-pointed at `88f6a15194`.
+- `3b57582319`,
+  2026-11-22T19:55:48-05:00:
+  this list gained the commit that recorded this round.
+- `a7409f59d6`,
+  2026-11-22T19:56:12-05:00:
+  the three references that still named the rename arm for a second mount now name the second-mount arm,
+  the last review label left the list,
+  and one stale section name was corrected.
+  Its message names only the first of those changes.
 
 ## Links
 
