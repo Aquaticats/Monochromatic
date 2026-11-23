@@ -3163,6 +3163,12 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   the extended matcher,
   the script refusal,
   and F47 to F54.
+- `1ddc60f0d3`,
+  2026-11-22T21:18:23-05:00:
+  this round's revision-list entries.
+- `09b6365c6f`,
+  2026-11-22T21:18:32-05:00:
+  the line breaks those entries needed.
 
 The record's answers are built in:
 "Who ends each kind of holder" is the chosen channel,
