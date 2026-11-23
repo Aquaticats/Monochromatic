@@ -388,6 +388,20 @@ fn zfs_unmount_guest_kill_points() {
     let _wall: std::path::PathBuf = std::path::PathBuf::from("/home/ubuntu/.cache");
     let cache: std::fs::File = git_policy_cli::worktree_clone_unmount::user_cache_pin::open_cache(Path::new("/home/ubuntu")).expect("the cache opens");
     let boot: String = LiveStagingCalls.boot().expect("this boot is read");
+    // Every staging folder an earlier run left: its bind keeps the folder from being removed, so each folder's mounts go
+    // first and the folder with them.
+    if let Ok(entries) = std::fs::read_dir("/home/ubuntu/.cache") {
+        for entry in entries.flatten() {
+            let path: PathBuf = entry.path();
+            if !path.file_name().is_some_and(|name| return name.to_string_lossy().starts_with("monochromatic-git-policy-cli-staging-")) {
+                continue;
+            }
+            for _attempt in 0..3 {
+                let _ = Command::new("umount").arg(path.as_path()).status();
+            }
+            let _ = std::fs::remove_dir_all(path.as_path());
+        }
+    }
     for (label, slot) in [("staged", "five"), ("between-unmounts", "six"), ("bind-over-slot", "seven"), ("none", "eight")] {
         let clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), slot, format!("nine-{slot}").as_str(), Some(mount_request(NONCE).as_str()));
         make_the_slot(checkout.as_path(), slot);
