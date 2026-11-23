@@ -2349,7 +2349,7 @@ the peer case is T0-4 and M2;
 the sandbox's lost later mount is T0-12;
 the job's end is M1.
 The first group has run in a `6.8` guest,
-and the arms above it names are the first run's:
+and the Tier 0 arms named above are that run's:
 it shows the in-place unmount and the receiver closure,
 a receiver with no mount at the slot,
 a covering mount,
