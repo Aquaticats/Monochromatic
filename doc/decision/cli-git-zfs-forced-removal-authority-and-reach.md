@@ -117,12 +117,131 @@ a forced removal launched as a service unit is refused.
   and the session with its ancestors but no refusal for a service unit,
   for who is spared.
 
+## Four further answers
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T19:52:06-05:00,
+after both designs were rewritten to the first four answers and reviewed again
+(`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-after-the-owners-answers.md`,
+section "The questions as I would put them",
+questions S12,
+S4,
+S6 and S7).
+
+### A holder in a namespace whose mounts are shared
+
+Asked:
+the review measured that a systemd service with mount sandboxing,
+started while the worktree existed,
+holds its copy of the clone in a namespace where every mount is shared;
+the kernel does not move a mount out of a shared parent,
+and the design changed no other unit's mount setup,
+so under the third answer of this record a forced removal refused for the commonest namespace holder.
+The project chose "B:
+design an unmount there":
+the design finds a way to unmount the copy inside such a namespace,
+for example by making its parent mount private first,
+so that the service keeps running and the removal finishes.
+The recommended option was to refuse and name the unit;
+the project did not take it.
+
+The cost the question stated with this option,
+in its words:
+"it changes what a running service's namespace receives from the host,
+which the accepted design does not authorise today;
+one more design round and a guest measurement before you can confirm."
+So it is a direction like the third answer:
+a design round,
+then a guest measurement,
+then the project confirms.
+
+Correction of 2026-11-22T20:34:39-05:00:
+this section first added that the answer "is that authorisation,
+for a forced removal's unmount of the clone's own copy and nothing wider",
+and cited a line of the proposal for it.
+The option said neither,
+its own example changes a mount other than the clone's copy,
+and the cited line is about a path unmount.
+How far the change may reach is for the design round to propose
+and for the project to confirm after the measurement.
+The forced-arm design's round of that evening and its review were briefed with the withdrawn sentence.
+
+### The signal
+
+Asked:
+may a forced ending first give the process a chance to save and exit.
+The project chose "A:
+ask,
+wait,
+then kill (Recommended)":
+`SIGTERM`,
+a wait for the process to exit,
+then `SIGKILL` if it has not.
+The length of the wait ships as no number until the project decides one or a measurement sizes it.
+
+### How long a forced request's authority lasts
+
+The project chose "A:
+only while the command lives (Recommended)":
+the handler ends processes only while the very command that asked is still running,
+checked by its process identity before every signal and every unmount.
+Afterwards the standing request may still cause mount work that ends nothing.
+
+### A cancellation after part of the history is gone
+
+Asked:
+a holder no scan saw can surface at the head destroy,
+after some of the clone's own snapshots were destroyed,
+and the removal then cancels itself.
+The project chose "A:
+mount again and report (Recommended)":
+the wrapper attaches the clone at its slot again,
+with nobody present,
+and reports each snapshot that was destroyed.
+
+### Not chosen among these four
+
+- Refusing and naming the unit,
+  withdrawing the unmount inside other namespaces,
+  and ending every task of such a namespace.
+- `SIGKILL` alone,
+  and `SIGTERM` alone.
+- Authority while the nonce matches and the session exists,
+  and authority for a fixed time.
+- Leaving the clone unmounted after a loss.
+
+## One more answer: a unit whose main process is a script
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:21:19-05:00
+(the same review,
+question S13).
+
+Asked:
+by the fourth answer of this record a forced removal spares the processes that led to the command
+and refuses when the command was started directly by the service manager.
+A unit whose main process is a script that then runs the removal is missed:
+the command's parent is the script,
+so the removal goes ahead,
+and whoever started the unit is not on the spared chain.
+
+The project chose "B:
+refuse that too (Recommended)":
+a forced removal is refused also when the command's session was started directly by the service manager,
+not only when the command itself was.
+Commands that agents run stay allowed,
+since their sessions are started by the agent.
+
+Not chosen:
+the first wording alone,
+which refuses only when the command's own parent is the service manager.
+
 ## What this record does not decide
 
-The signal a forced ending sends and any grace before it,
-how long a forced request's authority lasts,
-whether a cancelled removal's reattach covers a fresh attach after history was destroyed,
-how long the record of a cancelled removal's loss lives,
-whether a forced removal may be cancelled by the command,
-and whether a forced ending leaves a durable record beyond the journal
-are the same review's questions S4 and S6 to S11 and are still open.
+How long the record of a cancelled removal's loss lives,
+and whether a forced ending leaves a durable record beyond the journal,
+are the reviews' questions S8 and S11 and are still open.
+That the cancel command may reverse a forced removal,
+and that a cancellation's loss is no standing notice,
+are the designs' own choices inside the accepted answers,
+listed for the project's veto.

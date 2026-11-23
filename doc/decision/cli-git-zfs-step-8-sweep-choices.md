@@ -89,12 +89,38 @@ build it in step 8 now":
 step 8 builds the `first-attach` writer and the call the start-probe design gives it,
 in the claim order that design states.
 
+## The bound of 4,096 children stays
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:21:19-05:00,
+on the integration pass of the step 8 follow-up
+(`~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
+the section whose heading starts "Owner item 2").
+
+Asked with that pass's figures:
+the only count on record is the owner's "Up to 64" worktrees at once;
+with 1,024 mounted clones one steady sweep took about 3.4 s (2.8 to 4.5 s) in the pass's guest;
+the fix round's single reading at 4,096 was 20 to 22 s,
+two thirds of the provisional 30 s a waiting command is to allow,
+and no command waits on a receipt yet.
+
+The project chose "A:
+keep 4,096 (Recommended)":
+the bound does not change,
+and the comment beside `MAXIMUM_CHILDREN` is corrected to cite only measurements whose raw lines are kept.
+
+Not chosen:
+lowering the bound to 1,024,
+and keeping the count while adding a time limit per sweep.
+
 ## Adopted with the project's veto open
 
 These were not asked;
 the integration pass ranked one option first for each and the coordinator adopted it:
 
-- the 4096-child bound is measured in the guest and its numbers are written beside the constant;
+- the 4096-child bound is measured in the guest and its numbers are written beside the constant
+  (the bound itself has since been decided:
+  section "The bound of 4,096 children stays");
 - the claim's window between its directory proof and its path-based calls stays documented and open;
 - readiness is published `running` before the sweep and `finished` or `failed` after it,
   and the plan's paragraph is reworded to say so.
