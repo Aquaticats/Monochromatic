@@ -892,6 +892,23 @@ Each of these is a question with the measurement that answers it.
     Measure:
     run one gate alone with the guests stopped,
     reading `memory.swap.current` per cgroup and zram's DATA before and after.
+    Partly answered on 2026-11-23:
+    a gate's fixture file system is one `tmpfs` per suite container,
+    mounted `rw,size=768m,mode=1777`
+    (`package/git-policy/cli/bin/native-gate-fixture-root.ts`,
+    whose own comment says its pages count against the container's memory),
+    so one gate's fixtures hold at most 768 MiB,
+    resident or swapped.
+    One reading of a whole gate on `main` (run `native-RxZa1T`,
+    at test 9,320 of 9,957,
+    other sessions' guests and rounds running)
+    found the suite container's cgroup at 277 MiB,
+    77 MiB of it swapped and 76 MiB of it `shmem`
+    (`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/gate-container-memory-native-RxZa1T-reading-1.jsonl`,
+    read by `read-a-gate-runs-container-memory.ts` beside it).
+    That is one reading late in a run,
+    not the gate's peak,
+    and how many gates ran at the freeze is not recorded here.
 5.  Where did `min_ttl_ms = 100` come from?
     Measure:
     search every source that can set it (`/usr/lib` and `/etc` `tmpfiles.d`,
