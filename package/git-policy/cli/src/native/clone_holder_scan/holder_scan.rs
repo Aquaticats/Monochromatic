@@ -1,12 +1,10 @@
 //! What:
 //!  The root handler's all-namespace holder scan:
-//!  group the live tasks by mount namespace,
+//!  group the live threads by mount namespace,
 //!  read one mount table per distinct namespace,
 //!  match the ZFS filesystem type and the exact dataset source,
-//!  set aside the clone's own managed attach while its intent stands at
-//!  `unmount`,
-//!  and answer the holders and every read it could not complete,
-//!  bound to one nonce and to the dataset's GUID.
+//!  and answer every holder and every read it could not complete,
+//!  bound to the dataset's GUID and to a nonce of its own.
 //! Why:
 //!  "Unmounted" means absent in every mount namespace holding the clone's ZFS
 //!  source,
@@ -21,14 +19,24 @@
 //!  mounts or records anything:
 //!  it reads `/proc` and answers a value,
 //!  and the steps that act on holders are later ones.
+//!  It sets nothing aside:
+//!  the managed attach at a slot is a holder like any other while it stands,
+//!  which is what the staging design asks ("the removal refuses because that
+//!  mount is present,
+//!  not because a new attach appeared"),
+//!  and the exclusion of a new managed attach is the attaching sweep's
+//!  refusal under a standing `unmount` intent,
+//!  not a rule here.
 //!  The grouping,
 //!  the one table per namespace and the source match are
 //!  `crate::mount_namespace_scan`'s,
 //!  which the start probe's arm reads as well,
 //!  so the two cannot disagree about what a mount of one dataset is.
 //!  A clear answer is never a proof:
-//!  a namespace held open by a handle and no task is in no file the scan reads,
-//!  and a task that mounts the clone after the scan is not in it either,
+//!  a namespace held open by a handle and no thread is in no file the scan
+//!  reads,
+//!  a mount detached while a working directory pins it is in no table,
+//!  and a thread that mounts the clone after the scan is not in it either,
 //!  which is the residual the project's destroy-anyway decision accepts.
 //!
 //! In TS you'd write (pseudocode):
@@ -40,8 +48,8 @@
 use crate::clone_holder_scan::held_mounts::HeldMount;
 use crate::clone_holder_scan::incomplete_reads::IncompleteRead;
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
-use crate::clone_holder_scan::standing_unmount::StandingUnmount;
-use crate::mount_namespace_scan::{MountNamespaceTasks, TaskTableAttempt, mounts_of_source, read_one_namespace, tasks_by_mount_namespace};
+use crate::mount_namespace_scan::mount_namespace_tasks::{NamespaceListing, NamespaceRoot, RootIdentity};
+use crate::mount_namespace_scan::{ListingRequest, MountNamespaceTasks, TaskTableAttempt, mounts_of_source, read_one_namespace, threads_by_mount_namespace};
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use std::path::{Path, PathBuf};
@@ -57,6 +65,11 @@ use std::path::{Path, PathBuf};
 ///  (`package/git-policy/cli/doc/holder-scan-across-mount-namespaces-2026-11-22.md`).
 ///  A scan that stops here is not clear:
 ///  the namespaces it did not read are one incomplete read.
+///  An account can make more namespaces than this at will,
+///  which the
+///  integration pass measured (1,112 live namespaces from 1,100 processes),
+///  and the incomplete read it causes is the destroy-anyway decision's own
+///  residual.
 pub const MAXIMUM_MOUNT_NAMESPACES: usize = 1024;
 
 /// How many findings one result lists before the scan stops listing and
@@ -90,16 +103,17 @@ pub const MAXIMUM_REASON_BYTES: usize = 256;
 /// What:
 ///  The one dataset a scan reports on,
 ///  where it reads,
-///  which namespace is the reader's own,
-///  and the intent that may set the managed attach aside.
+///  which namespace and root are the reader's own,
+///  and the nonce the answer is bound to.
 /// Why:
 ///  The dataset is named by its GUID and by the source a mount table carries,
-///  and both travel with the nonce,
+///  the reader's own namespace and root are what say which rows are its own,
+///  and the nonce travels with the answer,
 ///  so a result cannot be read as another dataset's or another request's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HolderScanRequest = { procRoot; source; ownNamespace?; standingUnmount?; dataset; nonce; time };
+/// type HolderScanRequest = { procRoot; source; ownNamespace?; readersRoot?; dataset; nonce; time };
 /// ```
 pub struct HolderScanRequest<'a> {
     /// The `/proc` root to read,
@@ -111,12 +125,13 @@ pub struct HolderScanRequest<'a> {
     /// or nothing when it could not be read,
     /// which reports every namespace as a holder.
     pub own_namespace: Option<&'a str>,
-    /// The exclusion a standing `unmount` intent makes,
-    /// or nothing when no intent stands there.
-    pub standing_unmount: Option<&'a StandingUnmount>,
+    /// The reader's own root,
+    /// or nothing when it could not be read,
+    /// which stops the scan preferring a thread at that root.
+    pub readers_root: Option<RootIdentity>,
     /// The dataset's GUID.
     pub dataset: DatasetGuid,
-    /// The request nonce the result answers under.
+    /// The nonce this scan answers under.
     pub nonce: &'a RequestNonce,
     /// When the scan ran,
     /// as ISO 8601 with offset.
@@ -127,9 +142,8 @@ pub struct HolderScanRequest<'a> {
 ///  What one scan found:
 ///  its own namespace's mounts,
 ///  the namespaces that hold the dataset,
-///  the managed attaches it set aside,
 ///  and every read it could not complete,
-///  under the dataset's GUID and the request's nonce.
+///  under the dataset's GUID and the scan's own nonce.
 /// Why:
 ///  A reader decides from this value alone:
 ///  `is_clear` is the removal-ready report,
@@ -142,7 +156,7 @@ pub struct HolderScanRequest<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HolderScan = { dataset; nonce; source; ownNamespace; namespacesScanned; ownMounts; holders; excluded; incomplete; time };
+/// type HolderScan = { dataset; nonce; source; ownNamespace; namespacesScanned; ownMounts; holders; incomplete; time };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HolderScan {
@@ -150,21 +164,19 @@ pub struct HolderScan {
     pub dataset: DatasetGuid,
     /// The exact dataset name the mounts were matched against.
     pub source: String,
-    /// The request nonce the result answers under.
+    /// The nonce this scan answers under.
     pub nonce: RequestNonce,
     /// The reader's own namespace identity,
     /// or nothing when it could not be read.
     pub own_namespace: Option<String>,
     /// How many namespaces the scan listed and tried to read a table of,
-    /// whether or not one of their tasks answered.
+    /// whether or not one of their threads answered.
     pub namespaces_scanned: usize,
     /// The mounts of the dataset in the reader's own namespace,
     /// which is what a local unmount is about.
     pub own_mounts: Vec<HeldMount>,
     /// The namespaces other than the reader's own that hold the dataset.
     pub holders: Vec<NamespaceHolder>,
-    /// The managed attaches set aside under a standing `unmount` intent.
-    pub excluded: Vec<NamespaceHolder>,
     /// Every read the scan could not complete.
     pub incomplete: Vec<IncompleteRead>,
     /// When the scan ran,
@@ -242,7 +254,7 @@ impl DetailBudget {
 /// Why:
 ///  The bound keeps one path from deciding the result's size,
 ///  and a person reading the result has to know the sentence was cut.
-fn bounded_reason(reason: &str) -> String {
+pub(super) fn bounded_reason(reason: &str) -> String {
     if reason.len() <= MAXIMUM_REASON_BYTES {
         return String::from(reason);
     }
@@ -259,9 +271,8 @@ fn bounded_reason(reason: &str) -> String {
 
 /// What:
 ///  Read every namespace of one `/proc` root,
-///  and answer the dataset's holders,
-///  the managed attach a standing `unmount` intent is taking down,
-///  and every read that could not be completed.
+///  and answer the dataset's holders and every read that could not be
+///  completed.
 /// Why:
 ///  One value answers the whole question a removal asks,
 ///  so a caller cannot read the holders of one scan with the incompletes of
@@ -285,79 +296,27 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
         namespaces_scanned: 0,
         own_mounts: Vec::new(),
         holders: Vec::new(),
-        excluded: Vec::new(),
         incomplete: Vec::new(),
         time: request.time.clone(),
     };
-    let groups: Vec<MountNamespaceTasks> = match tasks_by_mount_namespace(request.proc_root) {
-        Ok(groups) => groups,
+    let listing: NamespaceListing = match threads_by_mount_namespace(&ListingRequest { proc_root: request.proc_root, readers_root: request.readers_root }) {
+        Ok(listing) => listing,
         Err(refusal) => {
             scan.incomplete.push(IncompleteRead::Listing { proc_root: refusal.path, reason: bounded_reason(refusal.reason.as_str()) });
             return scan;
         }
     };
-    let more_namespaces_than_the_bound: bool = groups.len() > MAXIMUM_MOUNT_NAMESPACES;
     let mut budget: DetailBudget = DetailBudget::new(MAXIMUM_DETAIL_LINES);
-    for group in groups.into_iter().take(MAXIMUM_MOUNT_NAMESPACES) {
-        scan.namespaces_scanned += 1;
-        let read = read_one_namespace(&group);
-        let namespace: String = read.namespace.clone();
-        let causes: Vec<IncompleteRead> = causes_of(&read, namespace.as_str());
-        let mut stopped: bool = false;
-        for cause in causes {
-            if !budget.take() {
-                stopped = true;
-                break;
-            }
-            scan.incomplete.push(cause);
-        }
-        if stopped {
+    for link in &listing.unreadable {
+        if !budget.take() {
             break;
         }
-        let Some((task, mounts)) = read.table() else {
-            continue;
-        };
-        let matching: Vec<&crate::fs_mount_options::MountFacts> = mounts_of_source(mounts, request.source);
-        if matching.is_empty() {
-            continue;
-        }
-        let mut kept: Vec<HeldMount> = Vec::with_capacity(matching.len());
-        let mut set_aside: Vec<HeldMount> = Vec::new();
-        let mut ran_out: bool = false;
-        let mut listed_here: usize = 0;
-        let mut past_the_namespace_bound: bool = false;
-        for facts in matching {
-            if listed_here == MAXIMUM_MOUNTS_PER_NAMESPACE {
-                past_the_namespace_bound = true;
-                break;
-            }
-            if !budget.take() {
-                ran_out = true;
-                break;
-            }
-            listed_here += 1;
-            let held: HeldMount = HeldMount::of(facts);
-            let aside: bool = request.standing_unmount.is_some_and(|standing| return standing.sets_aside(&held));
-            if aside {
-                set_aside.push(held);
-            } else {
-                kept.push(held);
-            }
-        }
-        let task_path: PathBuf = PathBuf::from(task);
-        let is_own: bool = request.own_namespace == Some(namespace.as_str());
-        if is_own {
-            scan.own_mounts.extend(kept);
-        } else if !kept.is_empty() {
-            scan.holders.push(NamespaceHolder { namespace: namespace.clone(), task: task_path.clone(), mounts: kept });
-        }
-        if !set_aside.is_empty() {
-            scan.excluded.push(NamespaceHolder { namespace: namespace.clone(), task: task_path, mounts: set_aside });
-        }
-        if past_the_namespace_bound {
-            scan.incomplete.push(IncompleteRead::MountsPastTheBound { namespace, bound: MAXIMUM_MOUNTS_PER_NAMESPACE });
-        }
-        if ran_out {
+        scan.incomplete.push(IncompleteRead::NamespaceLinkUnreadable { thread: link.thread.clone(), reason: bounded_reason(link.reason.as_str()) });
+    }
+    let more_namespaces_than_the_bound: bool = listing.namespaces.len() > MAXIMUM_MOUNT_NAMESPACES;
+    for group in listing.namespaces.iter().take(MAXIMUM_MOUNT_NAMESPACES) {
+        scan.namespaces_scanned += 1;
+        if scan_one_namespace(&mut scan, group, request, &mut budget) {
             break;
         }
     }
@@ -371,9 +330,65 @@ pub fn scan_holders(request: &HolderScanRequest<'_>) -> HolderScan {
 }
 
 /// What:
+///  Add one namespace's holders and causes to a scan.
+/// Why:
+///  The namespace's own rules are four:
+///  a namespace whose threads all ended is unknown,
+///  a table it could not open is unknown,
+///  a namespace whose tasks disagree about their root cannot be shown clear,
+///  and up to the mount bound of its mounts are reported.
+///  A budget that runs out mid-listing keeps the mounts it already read,
+///  because a holder found before the budget ended is still a holder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanOneNamespace(scan, group, request, budget);
+/// ```
+fn scan_one_namespace(scan: &mut HolderScan, group: &MountNamespaceTasks, request: &HolderScanRequest<'_>, budget: &mut DetailBudget) -> bool {
+    let read = read_one_namespace(group, request.readers_root);
+    let namespace: String = read.namespace.clone();
+    for cause in causes_of(&read, namespace.as_str()) {
+        if !budget.take() {
+            return true;
+        }
+        scan.incomplete.push(cause);
+    }
+    let Some((thread_path, mounts)) = read.table() else {
+        return false;
+    };
+    if group.namespace_root(request.readers_root) == NamespaceRoot::Unknown {
+        if !budget.take() {
+            return true;
+        }
+        scan.incomplete.push(IncompleteRead::NoTaskAtTheNamespaceRoot { namespace: namespace.clone() });
+    }
+    let mut kept: Vec<HeldMount> = Vec::new();
+    let mut stopped: bool = false;
+    for (listed, facts) in mounts_of_source(mounts, request.source).into_iter().enumerate() {
+        if listed == MAXIMUM_MOUNTS_PER_NAMESPACE {
+            scan.incomplete.push(IncompleteRead::MountsPastTheBound { namespace: namespace.clone(), bound: MAXIMUM_MOUNTS_PER_NAMESPACE });
+            break;
+        }
+        if !budget.take() {
+            stopped = true;
+            break;
+        }
+        kept.push(HeldMount::of(facts));
+    }
+    let task_path: PathBuf = PathBuf::from(thread_path);
+    let is_own: bool = request.own_namespace == Some(namespace.as_str());
+    if is_own {
+        scan.own_mounts.extend(kept);
+    } else if !kept.is_empty() {
+        scan.holders.push(NamespaceHolder { namespace, task: task_path, mounts: kept });
+    }
+    return stopped;
+}
+
+/// What:
 ///  The reads one namespace's attempt left incomplete.
 /// Why:
-///  A namespace that answered a table names every task that ended or could not
+///  A namespace that answered a table names every thread that ended or could not
 ///  be read before the answering one,
 ///  because that churn is what a report shows.
 ///  A namespace that answered no table names one cause rather than two:
@@ -390,7 +405,7 @@ fn causes_of(read: &crate::mount_namespace_scan::NamespaceTableRead, namespace: 
             }
             return causes;
         }
-        let reason: &str = read.attempts.last().and_then(|attempt| return attempt.reason()).unwrap_or("no task of it was tried");
+        let reason: &str = read.attempts.last().and_then(|attempt| return attempt.reason()).unwrap_or("no thread of it was tried");
         causes.push(IncompleteRead::NoLiveMember { namespace: String::from(namespace), tasks_tried: read.attempts.len(), reason: bounded_reason(reason) });
         return causes;
     }
@@ -406,8 +421,8 @@ fn causes_of(read: &crate::mount_namespace_scan::NamespaceTableRead, namespace: 
 fn cause_of(attempt: &TaskTableAttempt, namespace: &str) -> Option<IncompleteRead> {
     return match attempt {
         TaskTableAttempt::Read { .. } => None,
-        TaskTableAttempt::Ended { task, reason } => Some(IncompleteRead::TaskEnded { namespace: String::from(namespace), task: task.clone(), reason: bounded_reason(reason) }),
-        TaskTableAttempt::Unreadable { task, reason } => Some(IncompleteRead::TableUnreadable { namespace: String::from(namespace), task: task.clone(), reason: bounded_reason(reason) }),
+        TaskTableAttempt::Ended { thread, reason } => Some(IncompleteRead::TaskEnded { namespace: String::from(namespace), task: thread.clone(), reason: bounded_reason(reason) }),
+        TaskTableAttempt::Unreadable { thread, reason } => Some(IncompleteRead::TableUnreadable { namespace: String::from(namespace), task: thread.clone(), reason: bounded_reason(reason) }),
     };
 }
 

@@ -41,7 +41,6 @@ fn read_back() -> HolderScan {
         namespaces_scanned: 1,
         own_mounts: Vec::new(),
         holders: Vec::new(),
-        excluded: Vec::new(),
         incomplete: Vec::new(),
         time: String::from("2026-11-22T16:00:00-05:00"),
     };

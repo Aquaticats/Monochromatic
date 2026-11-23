@@ -1,7 +1,7 @@
 //! What:
 //!  The `holder-scan` mode:
-//!  read one dataset's GUID and durable intent,
-//!  run the all-namespace holder scan of it,
+//!  read one dataset's GUID,
+//!  run the all-namespace holder scan of it under a nonce of its own,
 //!  and answer the result's own text and one line that counts what it found.
 //! Why:
 //!  Plan step 9 builds the scan and its result,
@@ -12,11 +12,20 @@
 //!  step 9;
 //!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Mounts held by other namespaces").
+//!  The project decided on 2026-11-23 that the wrapper asks root for a fresh
+//!  scan before each destroy and names the holders itself,
+//!  so every scan answers under a nonce of its own:
+//!  a nonce the caller names,
+//!  which the wrapper's request will carry,
+//!  or a fresh one,
+//!  and never the clone's request nonce,
+//!  which two scans of one removal would share
+//!  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`).
 //!  A guest arm and a later step need one way in that needs no library caller,
 //!  so the mode is that door,
 //!  and it is the same door the other modes are:
 //!  one word,
-//!  two options that name the dataset and the checkout the slot hangs below,
+//!  one required option naming the dataset and one optional nonce,
 //!  and no path,
 //!  dataset or flag taken from an intent.
 //!  The mode only reads:
@@ -24,11 +33,6 @@
 //!  unmounts,
 //!  destroys and records nothing,
 //!  so running it before a decision changes no state the decision reads.
-//!  The nonce is the clone's own request's when it carries one,
-//!  so a later reader can match this answer with the request that asked for it,
-//!  and a fresh one otherwise,
-//!  so even a mode invoked by hand answers under a value no earlier result
-//!  carries.
 //!  The result is written where every other mode's answer is written and not on
 //!  the program's standard output:
 //!  step 17 owns how a finding reaches the wrapper,
@@ -37,26 +41,23 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const answer = run({ dataset: '…/clones/one', checkout: '/home/user/Monochromatic' }); // the result's text and the counts
+//! const answer = run({ dataset: '…/clones/one', nonce: '…' }); // the result's text and the counts
 //! ```
 
 use super::handler_mode_arguments::HolderScanInvocation;
-use super::sweep_dataset_facts::facts_of;
 use super::sweep_dataset_reader::{DatasetReader, ZfsDatasetReader};
 use crate::clone_holder_scan::holder_scan::{HolderScan, HolderScanRequest, scan_holders};
-use crate::clone_holder_scan::standing_unmount::StandingUnmount;
 use crate::foundation::iso_time::now_iso;
-use crate::mount_namespace_scan::mount_namespace_of;
-use crate::worktree_clone_mount::{WORKTREES_PARENT_NAMES, slot_name_refusal};
-use crate::worktree_clone_mount_protocol::clone_mount_intent::{IntentReading, MountIntent, read_intent};
+use crate::mount_namespace_scan::mount_namespace_tasks::RootIdentity;
+use crate::mount_namespace_scan::namespace_target;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// The `/proc` root a live scan reads.
 pub const PROC_ROOT: &str = "/proc";
 
-/// The task whose namespace is the handler's own.
+/// The task whose namespace and root are the handler's own.
 pub const SELF_TASK: &str = "/proc/self";
 
 /// What:
@@ -81,73 +82,52 @@ fn guid_of(identity: &monochromatic_zfs_request_to_openzfs_kernel_device::Datase
 }
 
 /// What:
-///  The path the clone's managed attach stands at,
-///  or nothing when its name gives no slot.
+///  The nonce this scan answers under,
+///  and where it came from in the words the summary repeats.
 /// Why:
-///  The exclusion a standing `unmount` intent makes compares a mount's point
-///  with this path,
-///  and a name that is no slot name means the dataset is not one this route
-///  attaches,
-///  so nothing is set aside and every mount stays a holder.
-fn slot_path_of(invocation: &HolderScanInvocation) -> Option<PathBuf> {
-    let slot: &str = invocation.dataset.rsplit('/').next()?;
-    if slot_name_refusal(slot).is_some() {
-        return None;
-    }
-    return Some(invocation.checkout.join(WORKTREES_PARENT_NAMES[0]).join(WORKTREES_PARENT_NAMES[1]).join(slot));
-}
-
-/// What:
-///  Which nonce the answer carries and where it came from,
-///  in the words the summary repeats.
-/// Why:
-///  A result answers one request,
-///  and a person reading the mode's line has to know which request that was.
-fn nonce_of(intent: &IntentReading) -> Result<(RequestNonce, &'static str), String> {
-    if let IntentReading::Request(request) = intent {
-        return Ok((request.nonce.clone(), "from the clone's own request"));
+///  Every destroy request asks for its own fresh answer,
+///  so a result is bound to the scan and never to the removal's request:
+///  the caller's own nonce when it named one,
+///  and a fresh one otherwise.
+fn nonce_of(invocation: &HolderScanInvocation) -> Result<(RequestNonce, &'static str), String> {
+    if let Some(named) = &invocation.nonce {
+        return Ok((named.clone(), "named by the caller"));
     }
     let fresh: RequestNonce = RequestNonce::fresh().map_err(|refusal| return refusal.message())?;
-    return Ok((fresh, "fresh, because the clone carries no request this build reads"));
-}
-
-/// What:
-///  What the exclusion did,
-///  in one sentence of the summary.
-/// Why:
-///  A reader that sees no holder has to be able to tell a clone whose managed
-///  attach was set aside from one that carried no intent at all.
-fn exclusion_sentence(intent: &IntentReading, standing: Option<&StandingUnmount>, slot: Option<&Path>) -> String {
-    if let Some(known) = standing {
-        return format!("the clone's standing unmount intent set aside any managed attach at {}", known.slot().display());
-    }
-    return match (intent, slot) {
-        (IntentReading::Refused(refusal), _) => format!("nothing was set aside: the clone's intent could not be read ({})", refusal.message()),
-        (IntentReading::Request(request), _) => format!("nothing was set aside: the clone asks for `{}` rather than an unmount", request.operation.word()),
-        (IntentReading::Inherited { from }, _) => format!("nothing was set aside: the clone's intent is inherited from {from} and authorizes nothing"),
-        (IntentReading::Absent, None) => String::from("nothing was set aside: the clone carries no intent and its name gives no slot"),
-        (IntentReading::Absent, Some(_slot)) => String::from("nothing was set aside: the clone carries no intent"),
-    };
+    return Ok((fresh, "fresh, because the caller named none"));
 }
 
 /// What:
 ///  The line that counts what one scan found.
 /// Why:
 ///  The result's own text says which namespaces hold the dataset,
-///  and this line says how much was read and what was set aside,
+///  and this line says how much was read,
 ///  which is what a person and a guest arm read first.
-fn summary_of(scan: &HolderScan, dataset: &str, nonce_source: &str, exclusion: &str) -> String {
+fn summary_of(scan: &HolderScan, dataset: &str, nonce_source: &str) -> String {
     return format!(
-        "the holder scan of {dataset} (GUID {}, nonce {} {nonce_source}) read {} mount namespaces: {} mount(s) of it in the handler's own namespace, {} holder namespace(s) holding {} mount(s), {} managed attach(es) set aside and {} incomplete read(s); it mounted, unmounted and recorded nothing. {exclusion}",
+        "the holder scan of {dataset} (GUID {}, nonce {} {nonce_source}) read {} mount namespaces: {} mount(s) of it in the handler's own namespace, {} holder namespace(s) holding {} mount(s) and {} incomplete read(s); it mounted, unmounted and recorded nothing, and it sets nothing aside.",
         scan.dataset.file_name(),
         scan.nonce.as_str(),
         scan.namespaces_scanned,
         scan.own_mounts.len(),
         scan.holder_namespaces(),
         scan.holder_mounts(),
-        scan.excluded.iter().map(|holder| return holder.mount_count()).sum::<usize>(),
         scan.incomplete_reads(),
     );
+}
+
+/// What:
+///  The reader's own namespace and root,
+///  as the kernel names them.
+/// Why:
+///  The namespace says which rows are the reader's own,
+///  and the root is the one a namespace made after the reader's inherits,
+///  so the scan reads each namespace's table through a task at its own root
+///  (`crate::mount_namespace_scan::mount_namespace_tasks::NamespaceRoot`).
+fn readers_place(self_task: &Path) -> (Option<String>, Option<RootIdentity>) {
+    let namespace: Option<String> = namespace_target(self_task.join("ns").join("mnt").as_path());
+    let root: Option<RootIdentity> = RootIdentity::of(self_task.join("root").as_path());
+    return (namespace, root);
 }
 
 /// What:
@@ -162,7 +142,7 @@ fn summary_of(scan: &HolderScan, dataset: &str, nonce_source: &str, exclusion: &
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answer = run({ dataset, checkout });
+/// const answer = run({ dataset, nonce });
 /// ```
 pub fn run(invocation: &HolderScanInvocation) -> Result<String, String> {
     let reader: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| {
@@ -188,15 +168,9 @@ pub fn run(invocation: &HolderScanInvocation) -> Result<String, String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const answer = runWith({ dataset, checkout }, scriptedPool, fixtureProc, '/proc/self');
+/// const answer = runWith({ dataset, nonce }, scriptedPool, fixtureProc, '/proc/self');
 /// ```
 pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, proc_root: &Path, self_task: &Path) -> Result<String, String> {
-    if !invocation.checkout.is_absolute() {
-        return Err(format!(
-            "`{}` is not an absolute path, and the checkout a slot hangs below is one. Nothing was scanned. Ways forward: give `--checkout` the absolute path the wrapper works from, as `--checkout /home/user/Monochromatic`.",
-            invocation.checkout.display()
-        ));
-    }
     let identity = reader.identity(invocation.dataset.as_str()).map_err(|failure| {
         return format!(
             "the holder scan of `{}` could not read the dataset ({failure}). Nothing was scanned. Ways forward: name a dataset this machine holds, and check that the pool is imported.",
@@ -204,26 +178,18 @@ pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, p
         );
     })?;
     let dataset: DatasetGuid = guid_of(&identity, invocation.dataset.as_str())?;
-    let facts = facts_of(invocation.dataset.as_str(), &identity);
-    let slot: Option<PathBuf> = slot_path_of(invocation);
-    let intent: IntentReading = read_intent(Some(&facts.properties), invocation.dataset.as_str());
-    let request: Option<&MountIntent> = match &intent {
-        IntentReading::Request(request) => Some(request),
-        IntentReading::Absent | IntentReading::Inherited { .. } | IntentReading::Refused(_) => None,
-    };
-    let standing: Option<StandingUnmount> = StandingUnmount::of(request, slot.as_deref());
-    let (nonce, nonce_source): (RequestNonce, &str) = nonce_of(&intent)?;
-    let own_namespace: Option<String> = mount_namespace_of(self_task);
+    let (own_namespace, readers_root): (Option<String>, Option<RootIdentity>) = readers_place(self_task);
+    let (nonce, nonce_source): (RequestNonce, &str) = nonce_of(invocation)?;
     let scan: HolderScan = scan_holders(&HolderScanRequest {
         proc_root,
         source: invocation.dataset.as_str(),
         own_namespace: own_namespace.as_deref(),
-        standing_unmount: standing.as_ref(),
+        readers_root,
         dataset,
         nonce: &nonce,
         time: now_iso(),
     });
-    return Ok(answer_of(&scan, invocation.dataset.as_str(), nonce_source, exclusion_sentence(&intent, standing.as_ref(), slot.as_deref()).as_str()));
+    return Ok(answer_of(&scan, invocation.dataset.as_str(), nonce_source));
 }
 
 /// What:
@@ -233,8 +199,8 @@ pub fn run_with(invocation: &HolderScanInvocation, reader: &dyn DatasetReader, p
 ///  and a person reads the last line;
 ///  both come from one value,
 ///  so the counts and the findings cannot disagree.
-fn answer_of(scan: &HolderScan, dataset: &str, nonce_source: &str, exclusion: &str) -> String {
-    return format!("{}\n{}", scan.text().trim_end(), summary_of(scan, dataset, nonce_source, exclusion));
+fn answer_of(scan: &HolderScan, dataset: &str, nonce_source: &str) -> String {
+    return format!("{}\n{}", scan.text().trim_end(), summary_of(scan, dataset, nonce_source));
 }
 
 /// Controls stay out of the release executable.

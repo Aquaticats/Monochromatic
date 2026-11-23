@@ -2,7 +2,6 @@
 //!  The root handler's answer to "who holds this ZFS clone":
 //!  the all-namespace scan,
 //!  the holders it found,
-//!  the managed attach a standing `unmount` intent is taking down,
 //!  every read it could not complete,
 //!  and the result that carries those under the dataset's GUID and the
 //!  request's nonce,
@@ -25,6 +24,12 @@
 //!  unmount,
 //!  destroy or record happens here,
 //!  so a scan can run before any decision without changing what it decides.
+//!  It sets nothing aside:
+//!  the project decided on 2026-11-23 that the scan names every namespace that
+//!  holds the clone under every intent,
+//!  and that the wrapper names the holders
+//!  before each destroy
+//!  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`).
 //!  The grouping,
 //!  the one table per namespace and the exact source match are
 //!  `crate::mount_namespace_scan`'s,
@@ -39,9 +44,6 @@
 //!   one namespace and the mounts of the dataset it holds.
 //! - `incomplete_reads.rs`:
 //!   every read the scan could not complete and what each cause means.
-//! - `standing_unmount.rs`:
-//!   the one managed attach a standing `unmount` intent sets aside,
-//!   and the narrow rule that decides it.
 //! - `holder_scan.rs`:
 //!   the scan itself,
 //!   its two bounds and the value it answers.
@@ -57,7 +59,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const scan = scanHolders({ procRoot: '/proc', source: clone, ownNamespace, standingUnmount, dataset, nonce, time });
+//! const scan = scanHolders({ procRoot: '/proc', source: clone, ownNamespace, readersRoot, dataset, nonce, time });
 //! const read = parseHolderScan(scan.text()); read.accept({ dataset, nonce });
 //! ```
 
@@ -69,9 +71,6 @@ pub mod namespace_holder;
 
 /// Every read the scan could not complete.
 pub mod incomplete_reads;
-
-/// The managed attach a standing `unmount` intent sets aside.
-pub mod standing_unmount;
 
 /// The scan,
 /// its bounds and the value it answers.
@@ -95,8 +94,6 @@ pub use held_mounts::HeldMount;
 pub use namespace_holder::NamespaceHolder;
 /// Every read the scan could not complete.
 pub use incomplete_reads::IncompleteRead;
-/// The managed attach a standing `unmount` intent sets aside.
-pub use standing_unmount::StandingUnmount;
 /// The scan,
 /// its request,
 /// its bounds and its value.

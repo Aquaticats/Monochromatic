@@ -41,7 +41,6 @@ fn one_scan() -> HolderScan {
             task: PathBuf::from("/proc/21"),
             mounts: vec![HeldMount { mount_id: 42, root: PathBuf::from("/"), mount_point: PathBuf::from("/srv/holder") }],
         }],
-        excluded: Vec::new(),
         incomplete: Vec::new(),
         time: String::from(TIME),
     };
@@ -95,6 +94,5 @@ fn a_result_fits_the_bound_its_reader_checks() {
     assert!(text.len() <= MAXIMUM_RESULT_BYTES, "{} > {MAXIMUM_RESULT_BYTES}", text.len());
     assert_eq!(text.lines().next(), Some(RESULT_VERSION));
     assert!(text.contains(format!("kind {RESULT_KIND}").as_str()));
-    assert!(text.contains("excluded-namespaces 0"), "{text}");
     assert!(text.trim_end().ends_with(format!("{TIME_KEY} {TIME}").as_str()), "{text}");
 }

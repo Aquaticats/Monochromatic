@@ -11,8 +11,8 @@
 //!  a truncated,
 //!  reordered,
 //!  padded or foreign file is refused,
-//!  and the GUID and nonce are read so a caller can compare them with its own
-//!  request
+//!  and the GUID and the scan's nonce are read so a caller can compare them
+//!  with the scan it asked for
 //!  (`crate::clone_holder_scan::holder_scan_acceptance`).
 //!  The bound comes first so a huge file is refused without being split into
 //!  lines.
@@ -26,11 +26,12 @@ use crate::clone_holder_scan::held_mounts::HeldMount;
 use crate::clone_holder_scan::holder_scan::HolderScan;
 use crate::clone_holder_scan::holder_scan_refusals::HolderScanRefusal;
 use crate::clone_holder_scan::holder_scan_text::{
-    ABSENT_WORD, EXCLUDED_KEY, HOLDER_KEY, INCOMPLETE_KEY, MAXIMUM_NAMESPACE_BYTES, MAXIMUM_RESULT_BYTES, MAXIMUM_SOURCE_BYTES, OWN_MOUNT_KEY, RESULT_KIND, RESULT_KEYS, TIME_KEY, VERSION_KEY,
-    is_a_result_time, unescape_path, unescape_text,
+    ABSENT_WORD, HOLDER_KEY, INCOMPLETE_KEY, MAXIMUM_NAMESPACE_BYTES, MAXIMUM_RESULT_BYTES, MAXIMUM_SOURCE_BYTES, OWN_MOUNT_KEY, RESULT_KIND, RESULT_KEYS, TIME_KEY, VERSION_KEY, is_a_result_time,
+    unescape_path, unescape_text,
 };
 use crate::clone_holder_scan::incomplete_reads::{
-    DETAILS_PAST_THE_BOUND_WORD, IncompleteRead, LISTING_WORD, MOUNTS_PAST_THE_BOUND_WORD, NAMESPACES_PAST_THE_BOUND_WORD, NO_LIVE_MEMBER_WORD, TABLE_UNREADABLE_WORD, TASK_ENDED_WORD,
+    DETAILS_PAST_THE_BOUND_WORD, IncompleteRead, LISTING_WORD, MOUNTS_PAST_THE_BOUND_WORD, NAMESPACES_PAST_THE_BOUND_WORD, NAMESPACE_LINK_UNREADABLE_WORD, NO_LIVE_MEMBER_WORD,
+    NO_TASK_AT_THE_NAMESPACE_ROOT_WORD, TABLE_UNREADABLE_WORD, TASK_ENDED_WORD,
 };
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -128,7 +129,7 @@ fn mount_after_the_key(key: &'static str, value: &str) -> Result<HeldMount, Hold
 
 /// What one holder line names:
 /// its namespace,
-/// its task and every mount of the clone that namespace holds.
+/// its thread and every mount of the clone that namespace holds.
 fn holder_fields(key: &'static str, value: &str) -> Result<NamespaceHolder, HolderScanRefusal> {
     let parts: Vec<&str> = value.split(' ').collect();
     let [namespace, task, mounts @ ..] = parts.as_slice() else {
@@ -152,11 +153,11 @@ fn holder_fields(key: &'static str, value: &str) -> Result<NamespaceHolder, Hold
 
 /// One section of holder lines,
 /// one line per namespace.
-fn holder_section(cursor: &mut Cursor<'_>, count_key: &'static str, line_key: &'static str) -> Result<Vec<NamespaceHolder>, HolderScanRefusal> {
+fn holder_section(cursor: &mut Cursor<'_>, count_key: &'static str) -> Result<Vec<NamespaceHolder>, HolderScanRefusal> {
     let count: usize = cursor.section_count(count_key)?;
     let mut holders: Vec<NamespaceHolder> = Vec::with_capacity(count);
     for _line in 0..count {
-        holders.push(holder_fields(line_key, cursor.keyed(line_key)?)?);
+        holders.push(holder_fields(HOLDER_KEY, cursor.keyed(HOLDER_KEY)?)?);
     }
     return Ok(holders);
 }
@@ -190,6 +191,12 @@ fn incomplete_of(value: &str) -> Result<IncompleteRead, HolderScanRefusal> {
             };
             Ok(IncompleteRead::Listing { proc_root: unescape_path(proc_root), reason: String::from(reason) })
         }
+        NAMESPACE_LINK_UNREADABLE_WORD => {
+            let Some((thread, reason)) = rest.split_once(' ') else {
+                return Err(incomplete_refusal(value));
+            };
+            Ok(IncompleteRead::NamespaceLinkUnreadable { thread: unescape_path(thread), reason: String::from(reason) })
+        }
         TASK_ENDED_WORD | TABLE_UNREADABLE_WORD => {
             let parts: Vec<&str> = rest.splitn(3, ' ').collect();
             let [namespace, task, reason] = parts.as_slice() else {
@@ -211,6 +218,7 @@ fn incomplete_of(value: &str) -> Result<IncompleteRead, HolderScanRefusal> {
             };
             Ok(IncompleteRead::NoLiveMember { namespace: unescape_text(namespace), tasks_tried: tried, reason: String::from(*reason) })
         }
+        NO_TASK_AT_THE_NAMESPACE_ROOT_WORD => Ok(IncompleteRead::NoTaskAtTheNamespaceRoot { namespace: unescape_text(rest) }),
         NAMESPACES_PAST_THE_BOUND_WORD => Ok(IncompleteRead::NamespacesPastTheBound { bound: decimal_count(INCOMPLETE_KEY, rest)? }),
         DETAILS_PAST_THE_BOUND_WORD => Ok(IncompleteRead::DetailsPastTheBound { bound: decimal_count(INCOMPLETE_KEY, rest)? }),
         MOUNTS_PAST_THE_BOUND_WORD => {
@@ -225,7 +233,7 @@ fn incomplete_of(value: &str) -> Result<IncompleteRead, HolderScanRefusal> {
 
 /// One section of the reads the scan could not complete.
 fn incomplete_section(cursor: &mut Cursor<'_>) -> Result<Vec<IncompleteRead>, HolderScanRefusal> {
-    let count: usize = cursor.section_count(RESULT_KEYS[9])?;
+    let count: usize = cursor.section_count(RESULT_KEYS[8])?;
     let mut reads: Vec<IncompleteRead> = Vec::with_capacity(count);
     for _line in 0..count {
         reads.push(incomplete_of(cursor.keyed(INCOMPLETE_KEY)?)?);
@@ -274,8 +282,7 @@ pub fn parse_holder_scan(text: &str) -> Result<HolderScan, HolderScanRefusal> {
     }
     let namespaces_scanned: usize = cursor.bare_count(RESULT_KEYS[5])?;
     let own_mounts: Vec<HeldMount> = own_mount_section(&mut cursor)?;
-    let holders: Vec<NamespaceHolder> = holder_section(&mut cursor, RESULT_KEYS[7], HOLDER_KEY)?;
-    let excluded: Vec<NamespaceHolder> = holder_section(&mut cursor, RESULT_KEYS[8], EXCLUDED_KEY)?;
+    let holders: Vec<NamespaceHolder> = holder_section(&mut cursor, RESULT_KEYS[7])?;
     let incomplete: Vec<IncompleteRead> = incomplete_section(&mut cursor)?;
     let time: &str = cursor.keyed(TIME_KEY)?;
     if !is_a_result_time(time) {
@@ -290,7 +297,6 @@ pub fn parse_holder_scan(text: &str) -> Result<HolderScan, HolderScanRefusal> {
         namespaces_scanned,
         own_mounts,
         holders,
-        excluded,
         incomplete,
         time: String::from(time),
     });

@@ -632,7 +632,7 @@ fn time_a_scan(clone: &str, rounds: usize) -> Duration {
             proc_root: Path::new("/proc"),
             source: clone,
             own_namespace: None,
-            standing_unmount: None,
+            readers_root: None,
             dataset,
             nonce: &nonce,
             time: now_iso(),

@@ -30,6 +30,7 @@
 //! ```
 
 use crate::start_probe::probe_source_name::check_dataset_name;
+use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_mount_handler::handler_install_paths::{SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
@@ -57,6 +58,9 @@ pub const INODE_OPTION: &str = "--inode";
 /// The option that names the dataset a holder scan reads.
 pub const DATASET_OPTION: &str = "--dataset";
 
+/// The option that carries the nonce one holder scan answers under.
+pub const NONCE_OPTION: &str = "--nonce";
+
 /// What:
 ///  The administrator's identification of the replacement folder an adoption judges.
 /// Why:
@@ -79,25 +83,27 @@ pub struct AdoptRequest {
 }
 
 /// What:
-///  The dataset and the checkout one `holder-scan` invocation names.
+///  The dataset one `holder-scan` invocation reads,
+///  and the nonce it answers under when the caller names one.
 /// Why:
-///   The scan is about one dataset's mounts,
-///  and the slot its managed attach stands at hangs below the checkout,
-///  so both are named and neither is guessed;
-///  a mode that guessed either would set aside another folder's mount as this
-///  clone's managed attach or refuse a right one.
+///   The scan is about one dataset's mounts and nothing else:
+///  it names every namespace that holds it and sets nothing aside,
+///  so no path is read and none is guessed.
+///  The nonce is the caller's when it names one,
+///  because the wrapper asks for a fresh scan before each destroy and matches
+///  the answer by the nonce it chose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HolderScan = { dataset: 'zpcachyos/…/clones/one', checkout: '/home/user/Monochromatic' };
+/// type HolderScan = { dataset: 'zpcachyos/…/clones/one', nonce: '…' | undefined };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HolderScanInvocation {
     /// The dataset whose holders the scan reports.
     pub dataset: String,
-    /// The checkout the slot hangs below,
-    /// as an absolute path.
-    pub checkout: PathBuf,
+    /// The nonce the answer is bound to,
+    /// or nothing when the scan makes its own.
+    pub nonce: Option<RequestNonce>,
 }
 
 /// What:
@@ -178,6 +184,11 @@ pub enum ArgumentRefusal {
         /// The option.
         option: &'static str,
     },
+    /// The nonce is not one this route carries.
+    Nonce {
+        /// What the parse answered.
+        reason: String,
+    },
     /// The dataset a holder scan names is no dataset name this route reads.
     DatasetName {
         /// The name as typed.
@@ -219,7 +230,10 @@ impl ArgumentRefusal {
                 "`{option}` was given more than once, and two values would compete. Nothing was done. Ways forward: give `{option}` once, then run the command again."
             ),
             ArgumentRefusal::MissingOption { option } => format!(
-                "this invocation needs `{option}`, and it was not given. Nothing was done. Ways forward: run `mount-git-worktree-clone-datasets --help` for the options the mode takes and give every one of them; `adopt-worktree-parent` takes `--checkout <path> --device <count> --inode <count>`, and `holder-scan` takes `--dataset <name> --checkout <path>`."
+                "this invocation needs `{option}`, and it was not given. Nothing was done. Ways forward: run `mount-git-worktree-clone-datasets --help` for the options the mode takes and give every one of them; `adopt-worktree-parent` takes `--checkout <path> --device <count> --inode <count>`, and `holder-scan` takes `--dataset <name>` and, only when the caller names one, `--nonce <32 hex digits>`."
+            ),
+            ArgumentRefusal::Nonce { reason } => format!(
+                "the nonce is not one this route carries: {reason}. Nothing was done. Ways forward: give `--nonce` exactly {} lowercase hexadecimal digits, as the wrapper's own request carries them, or leave the option out and the scan makes its own.", crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS
             ),
             ArgumentRefusal::DatasetName { name, reason } => format!(
                 "`{name}` is not a dataset name this route reads: {reason}. Nothing was done. Ways forward: give `--dataset` the clone's full dataset name, as `zfs list -H -o name` prints it, with no snapshot part."
@@ -255,7 +269,7 @@ pub fn usage() -> String {
         String::from("  boot-reconcile       reconcile clone mounts after boot; the boot unit's ExecStart"),
         String::from("  start-probe          run the start probe's arms and write this boot's result"),
         String::from("  shutdown-unmount     unmount the verified clone mounts at shutdown; the boot unit's ExecStopPost"),
-        String::from("  holder-scan --dataset <name> --checkout <path>"),
+        String::from("  holder-scan --dataset <name> [--nonce <32 hex digits>]"),
         String::from("                       report which mount namespaces hold that clone, and every read the scan could not complete"),
         String::from("  adopt-worktree-parent --checkout <path> --device <count> --inode <count>"),
         String::from("                       record an administrator-identified replacement .claude/worktrees folder"),
@@ -427,53 +441,50 @@ fn parse_adoption(words: &[&str]) -> Result<AdoptRequest, ArgumentRefusal> {
 }
 
 /// What:
-///  Read a holder scan's two options,
-///  each given once and in any order.
+///  Read a holder scan's dataset and its optional nonce,
+///  each option given once and in any order.
 /// Why:
-///   The dataset names the clone and the checkout places the slot its managed
-///  attach stands at,
+///   The dataset names the clone the scan reports on,
+///  and the nonce names the request this answer belongs to,
 ///  so a repeated option would leave which one was meant to be read,
-///  and a name the kernel would refuse is refused here rather than read as no
-///  clone.
+///  and a name the kernel would refuse or a nonce that is not 32 lowercase
+///  hexadecimal digits is refused here rather than read as another value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const invocation = parseHolderScan(['--dataset', 'zpcachyos/…/clones/one', '--checkout', '/repo']);
+/// const invocation = parseHolderScan(['--dataset', 'zpcachyos/…/clones/one', '--nonce', digits]);
 /// ```
 fn parse_holder_scan(words: &[&str]) -> Result<HolderScanInvocation, ArgumentRefusal> {
     let mut dataset: Option<String> = None;
-    let mut checkout: Option<PathBuf> = None;
+    let mut nonce: Option<RequestNonce> = None;
     let mut index: usize = 0;
     while index < words.len() {
-        let (name, is_dataset): (&'static str, bool) = match words[index] {
-            DATASET_OPTION => (DATASET_OPTION, true),
-            CHECKOUT_OPTION => (CHECKOUT_OPTION, false),
+        let option: &str = match words[index] {
+            DATASET_OPTION => DATASET_OPTION,
+            NONCE_OPTION => NONCE_OPTION,
             other => return Err(ArgumentRefusal::UnexpectedArgument { word: other.to_string() }),
         };
         let Some(value) = words.get(index + 1).copied() else {
-            return Err(ArgumentRefusal::MissingValue { option: name });
+            return Err(ArgumentRefusal::MissingValue { option });
         };
-        if is_dataset {
+        if option == DATASET_OPTION {
             if dataset.is_some() {
-                return Err(ArgumentRefusal::RepeatedOption { option: name });
+                return Err(ArgumentRefusal::RepeatedOption { option });
             }
             check_dataset_name(value).map_err(|refusal| return ArgumentRefusal::DatasetName { name: String::from(value), reason: refusal.message() })?;
             dataset = Some(String::from(value));
         } else {
-            if checkout.is_some() {
-                return Err(ArgumentRefusal::RepeatedOption { option: name });
+            if nonce.is_some() {
+                return Err(ArgumentRefusal::RepeatedOption { option });
             }
-            checkout = Some(PathBuf::from(value));
+            nonce = Some(RequestNonce::parse(value).map_err(|refusal| return ArgumentRefusal::Nonce { reason: refusal.message() })?);
         }
         index += 2;
     }
     let Some(given_dataset) = dataset else {
         return Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION });
     };
-    let Some(given_checkout) = checkout else {
-        return Err(ArgumentRefusal::MissingOption { option: CHECKOUT_OPTION });
-    };
-    return Ok(HolderScanInvocation { dataset: given_dataset, checkout: given_checkout });
+    return Ok(HolderScanInvocation { dataset: given_dataset, nonce });
 }
 
 /// What:

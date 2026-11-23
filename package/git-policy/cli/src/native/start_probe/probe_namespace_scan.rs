@@ -29,7 +29,7 @@
 //! ```
 
 use crate::fs_mount_options::MountFacts;
-use crate::mount_namespace_scan::{MOUNT_TABLE_FILE, MountNamespaceTasks, TaskTableAttempt, is_of_source, read_one_namespace, tasks_by_mount_namespace};
+use crate::mount_namespace_scan::{ListingRequest, MOUNT_TABLE_FILE, MountNamespaceTasks, TaskTableAttempt, is_of_source, read_one_namespace, threads_by_mount_namespace};
 use std::path::{Path, PathBuf};
 
 /// The bound one representative mount table is read within,
@@ -183,9 +183,9 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 /// What:
 ///  One representative table per live mount namespace.
 /// Why:
-///   A task that ends between the listing and the read answers `ENOENT`,
+///   A thread that ends between the listing and the read answers `ENOENT`,
 ///  `ESRCH` or `EINVAL` for its table,
-///  and the scan then tries the namespace's next task,
+///  and the scan then tries the namespace's next thread,
 ///  which answers the same mounts.
 /// A namespace whose every task ended is skipped whole,
 ///  because a namespace no live task holds is invisible,
@@ -195,19 +195,27 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 ///
 /// # Errors
 /// The listing could not be read,
-///  or a live task's table answered an error other than its own ending.
+///  or a live thread's table answered an error other than its own ending.
+///  A link the probe may not read refuses its arm for the same reason:
+///  the
+///  namespace that thread is in is unknown,
+///  and an arm that compared a set it could not read would compare nothing.
 pub fn namespaces_outside(proc_root: &Path) -> Result<Vec<NamespaceTable>, ScanRefusal> {
-    let groups: Vec<MountNamespaceTasks> = tasks_by_mount_namespace(proc_root)
+    let listing = threads_by_mount_namespace(&ListingRequest { proc_root, readers_root: None })
         .map_err(|refusal| return ScanRefusal::Proc { path: refusal.path, reason: refusal.reason })?;
+    if let Some(link) = listing.unreadable.first() {
+        return Err(ScanRefusal::Table { path: link.thread.clone(), reason: link.reason.clone() });
+    }
+    let groups: Vec<MountNamespaceTasks> = listing.namespaces;
     let mut tables: Vec<NamespaceTable> = Vec::with_capacity(groups.len());
     for group in groups {
-        let read = read_one_namespace(&group);
+        let read = read_one_namespace(&group, None);
         for attempt in &read.attempts {
-            if let TaskTableAttempt::Unreadable { task, reason } = attempt {
-                return Err(ScanRefusal::Table { path: task.join(MOUNT_TABLE_FILE), reason: reason.clone() });
+            if let TaskTableAttempt::Unreadable { thread, reason } = attempt {
+                return Err(ScanRefusal::Table { path: thread.join(MOUNT_TABLE_FILE), reason: reason.clone() });
             }
         }
-        if let Some((_task, mounts)) = read.table() {
+        if let Some((_thread, mounts)) = read.table() {
             let copied: Vec<MountFacts> = mounts.to_vec();
             tables.push(NamespaceTable { namespace: read.namespace, mounts: copied });
         }

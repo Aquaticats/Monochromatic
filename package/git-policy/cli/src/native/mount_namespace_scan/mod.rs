@@ -26,8 +26,9 @@
 //! each using only files listed before it:
 //!
 //! - `mount_namespace_tasks.rs`:
-//!   one `/proc` root's live tasks grouped by `ns/mnt`,
-//!   the identity read of one task and the listing's refusal.
+//!   one `/proc` root's live threads grouped by `ns/mnt`,
+//!   each thread's root,
+//!   the links it may not read and the listing's refusal.
 //! - `namespace_table_reads.rs`:
 //!   one namespace's table read,
 //!   one task at a time,
@@ -37,13 +38,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const groups = tasksByMountNamespace('/proc');
-//! const read = readOneNamespace(groups[0]);
+//! const listing = threadsByMountNamespace({ procRoot: '/proc' });
+//! const read = readOneNamespace(listing.namespaces[0], undefined);
 //! const held = mountsOfSource(read.table()?.mounts ?? [], source);
 //! ```
 
-/// The live tasks of one `/proc` root,
-/// grouped by mount namespace.
+/// The live threads of one `/proc` root,
+/// grouped by mount namespace,
+/// with their roots and the links this reader may not read.
 pub mod mount_namespace_tasks;
 
 /// One namespace's table read and the attempts it took.
@@ -52,9 +54,12 @@ pub mod namespace_table_reads;
 /// The exact ZFS source match.
 pub mod zfs_source_mounts;
 
-/// The task grouping,
-/// its identity read and its refusal.
-pub use mount_namespace_tasks::{ListingRefusal, MountNamespaceTasks, mount_namespace_of, tasks_by_mount_namespace};
+/// The thread grouping,
+/// its identity and root reads and its refusal.
+pub use mount_namespace_tasks::{
+    ListingRefusal, ListingRequest, MountNamespaceTasks, NamespaceListing, ROOT_LINK, RootAt, RootIdentity, THREADS_FOLDER, TaskLink, ThreadAt, UnreadableLink, is_a_thread_that_ended, namespace_target,
+    task_link, threads_by_mount_namespace,
+};
 /// One namespace's table read and what each attempt answered.
 pub use namespace_table_reads::{MOUNT_TABLE_FILE, MOUNT_TABLE_LIMIT, NamespaceTableRead, TaskTableAttempt, read_one_namespace};
 /// The exact source match.

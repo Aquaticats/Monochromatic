@@ -2,11 +2,10 @@
 //!  The text one holder scan's result is written as:
 //!  a version line,
 //!  the dataset's GUID,
-//!  the request's nonce,
+//!  the scan's own nonce,
 //!  the source,
 //!  the reader's own namespace and its mounts,
-//!  one line per mount of every holder namespace,
-//!  the managed attaches set aside,
+//!  one line per holder namespace,
 //!  every incomplete read,
 //!  and the time,
 //!  plus the bound that text is read back within.
@@ -22,11 +21,13 @@
 //!  never in its name,
 //!  so a reader compares them with the request it made and refuses a stale or
 //!  foreign answer.
-//!  A path is escaped the way the kernel's own mount table escapes one
+//!  A path is escaped the way the kernel's own mount table escapes it
 //!  (`\040` for a space and so on),
-//!  so one mount point is one field however the folder was named,
-//!  and a failure's sentence is written with every byte outside printable
-//!  ASCII escaped,
+//!  and every control byte is escaped too,
+//!  so a mount point an account names cannot carry a terminal escape sequence
+//!  or a line break into the text a later step prints.
+//!  A failure's sentence is written with every byte outside printable ASCII
+//!  escaped,
 //!  so one reason is one line.
 //!  A path that is not UTF-8 is carried lossily,
 //!  which can only make a mount point compare unequal to a slot and so report
@@ -37,7 +38,7 @@
 //! const text = scan.text(); // 'v1\nkind clone-holder-scan\ndataset 42\n…'
 //! ```
 
-use crate::clone_holder_scan::holder_scan::HolderScan;
+use crate::clone_holder_scan::holder_scan::{HolderScan, MAXIMUM_DETAIL_LINES, MAXIMUM_MOUNTS_PER_NAMESPACE, MAXIMUM_MOUNT_NAMESPACES};
 use crate::clone_holder_scan::incomplete_reads::IncompleteRead;
 use crate::clone_holder_scan::namespace_holder::NamespaceHolder;
 use crate::foundation::iso_time::instant_of_iso;
@@ -50,6 +51,10 @@ use std::path::{Path, PathBuf};
 /// which every reader checks first.
 pub const RESULT_VERSION: &str = "v1";
 
+/// The version line's key,
+/// which is the version itself and carries no value.
+pub const VERSION_KEY: &str = "v1";
+
 /// The result's kind,
 /// which tells it from a receipt or a readiness record.
 pub const RESULT_KIND: &str = "clone-holder-scan";
@@ -57,13 +62,9 @@ pub const RESULT_KIND: &str = "clone-holder-scan";
 /// The word a field with nothing in it carries.
 pub const ABSENT_WORD: &str = "none";
 
-/// The version line's key,
-/// which is the version itself and carries no value.
-pub const VERSION_KEY: &str = "v1";
-
 /// The keys before the findings,
 /// in the order the file holds them.
-pub const RESULT_KEYS: [&str; 10] = ["kind", "dataset", "nonce", "source", "own-namespace", "namespaces-scanned", "own-mounts", "holder-namespaces", "excluded-namespaces", "incomplete-reads"];
+pub const RESULT_KEYS: [&str; 9] = ["kind", "dataset", "nonce", "source", "own-namespace", "namespaces-scanned", "own-mounts", "holder-namespaces", "incomplete-reads"];
 
 /// The key of the result's last line.
 pub const TIME_KEY: &str = "time";
@@ -73,9 +74,6 @@ pub const OWN_MOUNT_KEY: &str = "own-mount";
 
 /// The key of one mount of a holder namespace.
 pub const HOLDER_KEY: &str = "holder";
-
-/// The key of one mount set aside under a standing `unmount` intent.
-pub const EXCLUDED_KEY: &str = "excluded";
 
 /// The key of one read the scan could not complete.
 pub const INCOMPLETE_KEY: &str = "incomplete";
@@ -117,24 +115,22 @@ const fn line_bytes(key: &str, bound: usize) -> usize {
     return key.len() + 1 + bound;
 }
 
-/// The most bytes one own-mount line takes:
-/// its key,
-/// the mount id and the two paths.
-const fn own_mount_line_bytes() -> usize {
-    return line_bytes(OWN_MOUNT_KEY, mount_bytes());
-}
-
 /// The most bytes one mount's three fields take.
 const fn mount_bytes() -> usize {
     return MAXIMUM_DECIMAL_DIGITS + 1 + MAXIMUM_PATH_BYTES + 1 + MAXIMUM_PATH_BYTES;
 }
 
-/// The most bytes one holder or excluded line takes:
+/// The most bytes one holder line takes:
 /// its key,
 /// the namespace,
 /// the task and as many mounts as one namespace's line may carry.
 const fn held_line_bytes() -> usize {
-    return line_bytes(EXCLUDED_KEY, MAXIMUM_NAMESPACE_BYTES + 1 + MAXIMUM_PATH_BYTES + crate::clone_holder_scan::holder_scan::MAXIMUM_MOUNTS_PER_NAMESPACE * (1 + mount_bytes()));
+    return line_bytes(HOLDER_KEY, MAXIMUM_NAMESPACE_BYTES + 1 + MAXIMUM_PATH_BYTES + MAXIMUM_MOUNTS_PER_NAMESPACE * (1 + mount_bytes()));
+}
+
+/// The most bytes one own-mount line takes.
+const fn own_mount_line_bytes() -> usize {
+    return line_bytes(OWN_MOUNT_KEY, mount_bytes());
 }
 
 /// The most bytes one incomplete read's line takes.
@@ -156,7 +152,6 @@ const fn header_bytes() -> usize {
         + line_bytes(RESULT_KEYS[6], MAXIMUM_DECIMAL_DIGITS)
         + line_bytes(RESULT_KEYS[7], MAXIMUM_DECIMAL_DIGITS)
         + line_bytes(RESULT_KEYS[8], MAXIMUM_DECIMAL_DIGITS)
-        + line_bytes(RESULT_KEYS[9], MAXIMUM_DECIMAL_DIGITS)
         + line_bytes(TIME_KEY, MAXIMUM_TIME_BYTES)
         + RESULT_KEYS.len()
         + 1;
@@ -164,8 +159,8 @@ const fn header_bytes() -> usize {
 
 /// What:
 ///  The largest result a reader accepts,
-///  derived from the scan's own detail bound and the bound of every field the
-///  writer fills.
+///  derived from the scan's own bounds and the bound of every field the writer
+///  fills.
 /// Why:
 ///   A file bound typed in beside the scan's own limits can fall below what the
 ///  scan writes,
@@ -173,18 +168,25 @@ const fn header_bytes() -> usize {
 ///  Derived this way every result the writer builds fits,
 ///  and a control proves a result round-trips.
 pub const MAXIMUM_RESULT_BYTES: usize = header_bytes()
-    + crate::clone_holder_scan::holder_scan::MAXIMUM_DETAIL_LINES * held_line_bytes()
-    + (crate::clone_holder_scan::holder_scan::MAXIMUM_DETAIL_LINES + crate::clone_holder_scan::holder_scan::MAXIMUM_MOUNT_NAMESPACES + 2) * incomplete_line_bytes()
+    + MAXIMUM_DETAIL_LINES * held_line_bytes()
+    + (MAXIMUM_DETAIL_LINES + MAXIMUM_MOUNT_NAMESPACES + 2) * incomplete_line_bytes()
     + 2 * own_mount_line_bytes();
 
 /// What:
-///  One path as a field with no spaces in it,
+///  One path as a field with no spaces or control bytes in it,
 ///  escaped the way the kernel's own mount table escapes one.
 /// Why:
 ///   One mount point is one field,
 ///  so a line's fields can be split on a space,
 ///  and a reader that wants the path back decodes it exactly as it decodes
 ///  `mountinfo`'s.
+///  A control byte is escaped too,
+///  because an account names its own mount points and a terminal reads what is
+///  printed at it:
+///  an escape sequence on the mode's output is the account's,
+///  not the
+///  handler's,
+///  and never reaches the writer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,16 +218,20 @@ pub fn unescape_text(text: &str) -> String {
     return String::from_utf8_lossy(crate::fs_mount_options::unmangle_octal(text.as_bytes()).as_slice()).into_owned();
 }
 
-/// One byte string with the four bytes a line cannot carry escaped.
+/// One byte string with every byte a line cannot carry escaped:
+/// a space as `\040`,
+/// a backslash as `\134`,
+/// and every control byte,
+/// the terminal's escape among them,
+/// as its three-digit octal escape.
 fn escape_field(bytes: &[u8]) -> String {
     let text: String = String::from_utf8_lossy(bytes).into_owned();
     let mut escaped: String = String::with_capacity(text.len());
     for byte in text.bytes() {
         match byte {
             b' ' => escaped.push_str("\\040"),
-            b'\t' => escaped.push_str("\\011"),
-            b'\n' => escaped.push_str("\\012"),
             b'\\' => escaped.push_str("\\134"),
+            control if control < 0x20 || control == 0x7f => escaped.push_str(format!("\\{control:03o}").as_str()),
             other => escaped.push(char::from(other)),
         }
     }
@@ -258,8 +264,8 @@ fn mount_fields(mount: &crate::clone_holder_scan::held_mounts::HeldMount) -> Str
 
 /// One namespace's mounts as one line:
 /// the namespace,
-/// the task its table came from and the mount's own three fields for each mount
-/// it holds.
+/// the thread its table came from and the mount's own three fields for each
+/// mount it holds.
 /// Why:
 ///  One namespace is one holder however many mounts of the clone it holds,
 ///  so one line per namespace keeps the count on the line above it the number
@@ -288,10 +294,14 @@ fn incomplete_line(read: &IncompleteRead) -> String {
         IncompleteRead::Listing { proc_root, reason } => {
             format!("{INCOMPLETE_KEY} {kind} {} {}", escape_path(proc_root.as_path()), printable_reason(reason.as_str()))
         }
+        IncompleteRead::NamespaceLinkUnreadable { thread, reason } => {
+            format!("{INCOMPLETE_KEY} {kind} {} {}", escape_path(thread.as_path()), printable_reason(reason.as_str()))
+        }
         IncompleteRead::TaskEnded { reason, .. } | IncompleteRead::TableUnreadable { reason, .. } => {
             format!("{INCOMPLETE_KEY} {kind} {namespace} {task} {}", printable_reason(reason.as_str()))
         }
         IncompleteRead::NoLiveMember { tasks_tried, reason, .. } => format!("{INCOMPLETE_KEY} {kind} {namespace} {tasks_tried} {}", printable_reason(reason.as_str())),
+        IncompleteRead::NoTaskAtTheNamespaceRoot { .. } => format!("{INCOMPLETE_KEY} {kind} {namespace}"),
         IncompleteRead::NamespacesPastTheBound { bound } | IncompleteRead::DetailsPastTheBound { bound } => format!("{INCOMPLETE_KEY} {kind} {bound}"),
         IncompleteRead::MountsPastTheBound { bound, .. } => format!("{INCOMPLETE_KEY} {kind} {namespace} {bound}"),
     };
@@ -327,10 +337,6 @@ impl HolderScan {
         lines.push(format!("holder-namespaces {}", self.holders.len()));
         for holder in &self.holders {
             lines.push(namespace_line(holder, HOLDER_KEY));
-        }
-        lines.push(format!("excluded-namespaces {}", self.excluded.len()));
-        for holder in &self.excluded {
-            lines.push(namespace_line(holder, EXCLUDED_KEY));
         }
         lines.push(format!("incomplete-reads {}", self.incomplete.len()));
         for read in &self.incomplete {
