@@ -38,12 +38,14 @@ parsed by the same `parse_holder_scan` a later step reads it with.
 
 ## The arms and the lines they printed
 
-    SCAN baseline own=1 holders=0 incomplete=0 guid=5356164594517442549
-    SCAN HOLDER other-namespace=1 namespace=mnt:[4026532405] mount=/root/holder-scan-checkout/.claude/worktrees/one
-    SCAN confined-consumer=held holders=2 namespace=mnt:[4026532407]
+    SCAN baseline own=1 holders=0 incomplete=0 guid=12937390079315674186
+    SCAN HOLDER other-namespace=1 namespace=mnt:[4026532403] mount=/root/holder-scan-checkout/.claude/worktrees/one
+    SCAN confined-consumer=held holders=2 namespace=mnt:[4026532405]
     SCAN churn scans=20 holder-kept=20 task-ended-named=0
-    MEASUREMENT holder-scan-ms=small=3 large=5 tasks-small=213 tasks-large=412
+    MEASUREMENT holder-scan-ms=small=2 large=4 tasks-small=212 tasks-large=412
     SCAN pinned-namespace invisible=true holders=0 incomplete=0 note=the-scan-cannot-see-a-namespace-no-task-holds
+    SCAN divergent-root=unavailable reason=this-guest-refused-a-task-under-another-process-root
+    SCAN done
 
 - The baseline line is the scan of the handler's own namespace:
   one mount of the clone,
@@ -95,7 +97,7 @@ which is the resolution this guest's clock reports for an average of five
 rounds,
 and no run-to-run spread was recorded for either arm,
 so the pair is context and not a slope,
-and the round that read 3 against 5 ran while no other job of this session did.
+and the round that read 2 against 4 ran while no other job of this session did.
 
 The slope this record does own is measured on fixture `/proc` roots on the host,
 which read no process of it:
