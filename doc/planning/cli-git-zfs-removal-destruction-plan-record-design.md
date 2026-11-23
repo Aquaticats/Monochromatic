@@ -3865,4 +3865,27 @@ release at step 13,
   the finish pass takes the claim (X3),
   the first write no longer checks a ceiling (N2),
   and the path field is hex alone where the wrapper's convention allows two forms (N4).
+- `c3e94386a7`,
+  committer time `2026-11-22T20:31:36-05:00`:
+  the revision the diff check and the evening's three decisions asked for.
+  It follows the origin cleanup record's fourteen-step list at `8cc31f59a4`,
+  names the binding design's "The record's end" for the order of its three files and its "The condition a finisher
+meets" for the pass's binding condition,
+  and states what a cancellation leaves in the plan in each state,
+  adds Choice 13 for a kept plan's lifetime,
+  gives the first and second deferred-destroy refusals their separate plan states,
+  keeps `head=refused` for the head request alone,
+  makes the early mark look a no-plan refusal,
+  records `unmountMountId=none` for a forced receipt over several namespaces,
+  and says an add which fails writes no plan.
+  It carries the origin cleanup design's four questions as they stand and adds only question five,
+  whether the plan records who a forced removal ended,
+  and corrects the two statements about the origin cleanup record that its round fixed,
+  the reuse case that printed a line on every command (Z5),
+  and the format width that bounds a count (Z8).
+  It changed the parts the earlier passes found sound only where a fix forced it:
+  the plan's step numbers moved with the origin cleanup list,
+  the pass's binding condition became the binding design's (Z1),
+  the reuse rule became the pass's (Z5),
+  and the count sentence became a format width (Z8).
   A later commit that only adds or corrects this list is not listed.
