@@ -117,12 +117,98 @@ a forced removal launched as a service unit is refused.
   and the session with its ancestors but no refusal for a service unit,
   for who is spared.
 
+## Four further answers
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T19:52:06-05:00,
+after both designs were rewritten to the first four answers and reviewed again
+(`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-after-the-owners-answers.md`,
+section "The questions as I would put them",
+questions S12,
+S4,
+S6 and S7).
+
+### A holder in a namespace whose mounts are shared
+
+Asked:
+the review measured that a systemd service with mount sandboxing,
+started while the worktree existed,
+holds its copy of the clone in a namespace where every mount is shared;
+the kernel does not move a mount out of a shared parent,
+and the design changed no other unit's mount setup,
+so under the third answer of this record a forced removal refused for the commonest namespace holder.
+The project chose "B:
+design an unmount there":
+the design finds a way to unmount the copy inside such a namespace,
+for example by making its parent mount private first,
+so that the service keeps running and the removal finishes.
+The recommended option was to refuse and name the unit;
+the project did not take it.
+
+The cost the question stated with this option:
+it changes what a running service's namespace receives from the host,
+which the accepted design does not authorise today
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+line 732);
+this answer is that authorisation,
+for a forced removal's unmount of the clone's own copy and nothing wider.
+It is a direction like the third answer:
+one more design round,
+then a guest measurement,
+then the project confirms.
+
+### The signal
+
+Asked:
+may a forced ending first give the process a chance to save and exit.
+The project chose "A:
+ask,
+wait,
+then kill (Recommended)":
+`SIGTERM`,
+a wait for the process to exit,
+then `SIGKILL` if it has not.
+The length of the wait ships as no number until the project decides one or a measurement sizes it.
+
+### How long a forced request's authority lasts
+
+The project chose "A:
+only while the command lives (Recommended)":
+the handler ends processes only while the very command that asked is still running,
+checked by its process identity before every signal and every unmount.
+Afterwards the standing request may still cause mount work that ends nothing.
+
+### A cancellation after part of the history is gone
+
+Asked:
+a holder no scan saw can surface at the head destroy,
+after some of the clone's own snapshots were destroyed,
+and the removal then cancels itself.
+The project chose "A:
+mount again and report (Recommended)":
+the wrapper attaches the clone at its slot again,
+with nobody present,
+and reports each snapshot that was destroyed.
+
+### Not chosen among these four
+
+- Refusing and naming the unit,
+  withdrawing the unmount inside other namespaces,
+  and ending every task of such a namespace.
+- `SIGKILL` alone,
+  and `SIGTERM` alone.
+- Authority while the nonce matches and the session exists,
+  and authority for a fixed time.
+- Leaving the clone unmounted after a loss.
+
 ## What this record does not decide
 
-The signal a forced ending sends and any grace before it,
-how long a forced request's authority lasts,
-whether a cancelled removal's reattach covers a fresh attach after history was destroyed,
-how long the record of a cancelled removal's loss lives,
-whether a forced removal may be cancelled by the command,
-and whether a forced ending leaves a durable record beyond the journal
-are the same review's questions S4 and S6 to S11 and are still open.
+How long the record of a cancelled removal's loss lives,
+whether a forced ending leaves a durable record beyond the journal,
+and whether the service-manager refusal also covers a unit whose main process is a script
+are the reviews' questions S8,
+S11 and S13 and are still open.
+That the cancel command may reverse a forced removal,
+and that a cancellation's loss is no standing notice,
+are the designs' own choices inside the accepted answers,
+listed for the project's veto.
