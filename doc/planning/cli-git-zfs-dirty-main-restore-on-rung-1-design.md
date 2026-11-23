@@ -537,7 +537,7 @@ only a busy refusal was withdrawn.
 Fixed:
 the add withdraws on every outcome other than `done`,
 a missing receipt included,
-re-reads the mount after the write-back,
+reads the mount before it writes anything back and withdraws only a clone that still stands,
 and the text says what the re-read found.
 - X6,
 the claim that no command treats the pending folder as a worktree was unbacked.
@@ -1897,28 +1897,28 @@ it appends to the binding `phase=settling` and `settleReason=<the kind>`,
 which the binding design owns,
 before the first destroy and before the unmount request,
 so a busy pending add leaves a binding that says `settling` and no kill leaves a binding naming a clone that no longer answers;
-- it re-proves from the binding the clone's and the snapshot's identities;
+- A21:
+it asks the handler for that clone's unmount and verifies the receipt,
+which is the intent the account writes on the clone and the receipt the handler publishes (proposal `:554` to `:579`);
+a `done` receipt continues,
+and every other outcome is "When the add cannot unmount its own clone",
+which leaves no origin cleanup record at all;
+- it re-proves from the binding the clone's and the snapshot's identities,
+the dataset GUID and `createtxg` of each,
+which the capture record does not hold (Y7);
 - it publishes the origin cleanup record with the binding's identities,
 which the origin cleanup design states as its own rule for an add (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
 "The add that fails and destroys what it made"),
 after the unmount is verified and the identities re-proved,
 and before the clone's destroy,
-which is that design's moment for the record and the binding's A23's "from before A22";
-a refused unmount never reaches it,
-so the busy pending state leaves no such record (W3);
-- A21:
-it asks the handler for that clone's unmount and verifies the receipt,
-which is the intent the account writes on the clone and the receipt the handler publishes (proposal `:554` to `:579`);
-a `done` receipt continues,
-and every other outcome is "When the add cannot unmount its own clone";
-- A22 follows with the identities re-proved,
-the clone's dataset GUID and `createtxg` and the origin snapshot's GUID and `createtxg`,
-which the capture record does not hold (Y7);
+which is that design's moment for the record and the binding's A23's "from before A22",
+so "before destroying anything" holds and the busy pending state holds no record (W3);
 - A22:
 it destroys that clone with one delegated `zfs destroy` without `-R`,
 which refuses a name that holds anything the record does not;
 a refusal here is a failed settle,
-and the clone may still stand,
+and the clone still stands,
+unmounted,
 which the person's text says;
 - A23:
 it destroys the origin snapshot,
@@ -4022,6 +4022,31 @@ the manifest's device across a remount,
 the pending text's warning clause,
 and the sibling statements,
 which are corrected there.
+
+- `9760814eee` at `2026-11-22T22:03:31-05:00`:
+`main` merged with `--no-ff`,
+bringing the record's "The merge bar is waived for an add above the warning's count".
+- `e039824135` at `2026-11-22T22:04:05-05:00`:
+the sixth-pass revision.
+The pending message's template gains "do not run Git in it until it is removed",
+and the busy subsection reads the mount before writing anything back and treats an already-unmounted clone as `done`,
+with the state texts split for a mounted clone,
+an unmounted clone and a clone gone;
+the origin cleanup record is published after the unmount receipt and the identities are re-proved,
+before the clone's destroy;
+the settle's sibling bullets are rewritten by heading and label at `07858070bb` and `7d0dcdd875`,
+the binding's requirement is quoted in that design's words,
+and the lock and cancelled bullets say what those designs now state;
+T5's kill points gain the settle's,
+step 11 lists T8 to T15,
+T15 joins the guest list,
+the "nothing made" row clears an earlier attempt's records,
+the resume window's two residuals and the manifest's device are stated,
+the warning's count comes from a bracketed M4,
+the merge-bar waiver is stated with what it does not waive,
+V16 lists when the warning prints,
+T16 tests it,
+and the "Answers" claims the sixth pass found absent are now made or corrected.
 
 ## Sources read
 
