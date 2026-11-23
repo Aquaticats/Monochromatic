@@ -2,12 +2,16 @@
 
 ## Status
 
-Non-final and unapproved design proposal by an agent.
+Design by an agent,
+accepted by the project as written on 2026-11-23
+([the decision record][answers],
+"The design is accepted").
 The project answered three questions on 2026-11-22
-([the decision record][answers]),
-and a fourth on how long a lost request is nudged later that day;
-it has not read this whole design;
-only the project declares a design accepted.
+and a fourth on how long a lost request is nudged later that day.
+The acceptance was given on a list of its seventeen choices,
+not on a reading of the whole text,
+and nothing in it has been built or run:
+its measurements are owed when it is built.
 "Revisions" lists the commits and what each changed,
 including the findings each answered.
 

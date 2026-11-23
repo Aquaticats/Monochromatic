@@ -50,9 +50,8 @@ where the corrected words go,
 is the ordinary procedure and was followed:
 a fix round on the branch,
 then a third pass.
-The other is not asked yet:
+The other,
 what a removal whose wake missed should do
-(issue 6354).
-The pass ranks saying in the warning which commands finish the removal first,
-documenting it as a limit second,
-and waking the service from commands a person reads third.
+(issue 6354),
+was answered later the same day:
+`cli-git-worktree-removal-not-woken-warning-names-the-way-out.md` beside this record.
