@@ -4107,3 +4107,31 @@ oldest first.
 - The commits that carry this entry,
   written from 2026-11-22T21:26:24-05:00:
   add the entries for `db028cb9be` and `7b8f23c746`.
+- `f9c2d811f7`,
+  2026-11-22T21:58:11-05:00:
+  merges `main` into this branch so that the records and the siblings as they now stand are read here.
+  It changes nothing in this document.
+- `a959d0427c`,
+  2026-11-22T22:03:58-05:00:
+  answers the fourth review.
+  It rewrites the retry after a cancel state by state
+  (no plan kept;
+  an empty plan a killed cancellation left;
+  a plan with some destroyed;
+  a plan with an `unknown` outcome),
+  re-points the answer to the deferred design's wording at `d0ff7604b7`,
+  and asks the plan design at `3cd520b6a0` what settles an `unknown` tuple while the head stands;
+  takes the plan design's one rule for the all-`planned` plan in both actors;
+  splits a forced removal's refusals into preflight,
+  structural stage and after an act,
+  with the word each names,
+  what the holders' namespaces are left with,
+  and the leftover directory this command takes or names;
+  cites the forced arm's "The act's liveness" and says what this design's actors do when the wrapper dies during
+  the act;
+  replaces every citation into the forced-removal record after its correction with a section name;
+  corrects the pending-add step's claim order and its marker;
+  and changes the plan's "under the same key" to "keeping every tuple and outcome".
+- The commits that carry this entry,
+  written from 2026-11-22T22:04:03-05:00:
+  add the entries for `f9c2d811f7` and `a959d0427c`.
