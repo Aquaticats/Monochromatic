@@ -586,9 +586,7 @@ fn an_unmount_request_is_answered_by_the_step_that_builds_it() {
     let outcome: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
     assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == "slot-identity"), "{outcome:?}");
     assert_eq!(attach.asked.get(), 0, "an unmount request attaches nothing");
-    let filed: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the unmount turn files its refusal for the waiter");
-    assert_eq!(filed.outcome, ReceiptOutcome::Refused);
-    assert_eq!(filed.operation.word(), "unmount");
+    assert!(receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).unwrap_or_default().is_none(), "an unmount refusal files no receipt under step 8's decision");
 }
 
 /// What:
@@ -861,9 +859,10 @@ fn a_request_that_arrives_while_the_claim_is_held_is_read_after_the_release() {
     assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step != "intent"), "the second turn answers the request that arrived: {outcome:?}");
     assert_eq!(attach.asked.get(), 1, "the first turn attached once and the second turn attached nothing");
     assert_eq!(reader.reads.get(), 4, "the sweep reads the clone under the claim and once after the release, then turns once more");
-    let filed: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the unmount turn answers the nonce it was asked under");
-    assert_eq!(filed.outcome, ReceiptOutcome::Refused, "the unmount turn's refusal answers the request that arrived");
-    assert_eq!(filed.operation.word(), "unmount");
+    let filed: CloneMountReceipt = receipts.read(DatasetGuid::parse(GUID.to_string().as_str()).expect("canonical")).expect("the folder reads").expect("the turn that attached answered the nonce it mounted");
+    assert_eq!(filed.outcome, ReceiptOutcome::Done, "the mount the first turn made is answered before the turn reads the intent again");
+    assert_eq!(filed.nonce.as_str(), MOUNT_NONCE);
+    assert_eq!(filed.operation.word(), "mount");
 }
 
 /// What:

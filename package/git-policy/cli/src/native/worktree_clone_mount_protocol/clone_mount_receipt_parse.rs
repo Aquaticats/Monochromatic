@@ -253,7 +253,7 @@ fn text_of(key: &'static str, word: &str, bound: usize) -> Result<String, Receip
 /// ```
 fn check_outcome_words(outcome: ReceiptOutcome, failed_step: &Option<String>, errno: &Option<String>) -> Result<(), ReceiptRefusal> {
     return match outcome {
-        ReceiptOutcome::Done | ReceiptOutcome::Reattached => {
+        ReceiptOutcome::Done => {
             if failed_step.is_some() {
                 return Err(ReceiptRefusal::Value { key: RECEIPT_KEYS[11], shown: String::from("a step on a done result") });
             }

@@ -109,6 +109,8 @@ pub enum UnmountOutcome {
         slot: PathBuf,
         /// Whether the bind was unbound too.
         bind_gone: bool,
+        /// Why the mount was moved back.
+        cause: ReattachCause,
     },
     /// A mount stays where a step left it.
     Retained {
@@ -135,6 +137,36 @@ pub enum UnmountOutcome {
         /// The row when one was read.
         mount: Option<MountFacts>,
     },
+}
+
+/// What:
+///  Why a mount was moved back to its slot.
+/// Why:
+///  The accepted decision gives one of the two a refusal receipt and no other,
+///  so the caller must be able to tell them apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ReattachCause = 'misplaced-rolled-back' | 'busy';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReattachCause {
+    /// The move landed on a mount the account stacked,
+    /// so the rollback moved it back.
+    MisplacedRolledBack,
+    /// The unmount answered `EBUSY`,
+    /// so the checked reattach moved it back.
+    Busy,
+}
+
+impl ReattachCause {
+    /// The word a report carries.
+    pub fn word(self) -> &'static str {
+        return match self {
+            ReattachCause::MisplacedRolledBack => "misplaced-rolled-back",
+            ReattachCause::Busy => "busy-reattached",
+        };
+    }
 }
 
 impl UnmountOutcome {
@@ -221,6 +253,9 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
         Ok(bind_id) => bind_id,
         Err(refusal) => return UnmountOutcome::Retained { step: String::from("mount-id"), errno: refusal.errno, said: refusal.message("the bind's own mount could not be read"), mount: None },
     };
+    // The bind's descriptor would hold the bind busy, so it is released before the unmount; the staging folder's
+    // descriptor, taken before the bind, is the one the two calls act through.
+    drop(bind);
     let topmost: (std::fs::File, u64, MountFacts) = match topmost_at(request.calls, request.cache, name.as_str()) {
         Ok(topmost) => topmost,
         Err(refusal) => return UnmountOutcome::Retained { step: String::from(refusal.call.word()), errno: refusal.errno, said: refusal.message("the move's placement could not be read"), mount: None },
@@ -238,14 +273,14 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
         let moved_back: ReattachResult = reattach(request, staged);
         return match moved_back {
             ReattachResult::Reattached { mount_id, slot } => {
-                let bind_gone: bool = unbind_if_empty(request.calls, request.cache, name.as_str(), &bind, bind_id);
+                let bind_gone: bool = unbind_if_empty(request.calls, request.cache, name.as_str(), &staging, bind_id);
                 log_rolled_back(request, mount_id);
-                UnmountOutcome::Reattached { mount_id, slot, bind_gone }
+                UnmountOutcome::Reattached { mount_id, slot, bind_gone, cause: ReattachCause::MisplacedRolledBack }
             }
             ReattachResult::Refused { step, said } => UnmountOutcome::Retained { step, errno: 0, said, mount: Some(topmost.2) },
         };
     }
-    return unmount_the_pair(request, &bind, bind_id, name.as_str(), topmost.0);
+    return unmount_the_pair(request, &staging, bind_id, name.as_str(), topmost.0);
 }
 
 /// Record the bind before it is made,
@@ -312,22 +347,28 @@ fn topmost_at(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str) -> Re
 ///  A mount the account stacks between a check and its call is the one the call
 ///  takes down,
 ///  and the transition check is what catches it.
-fn unmount_the_pair(request: &UnmountRequest<'_>, bind: &std::fs::File, bind_id: u64, name: &str, staged: std::fs::File) -> UnmountOutcome {
-    let call: Result<(), StagingCallRefusal> = request.calls.unmount_top(bind);
+fn unmount_the_pair(request: &UnmountRequest<'_>, held: &std::fs::File, bind_id: u64, name: &str, staged: std::fs::File) -> UnmountOutcome {
+    // A descriptor on the clone would hold it busy; the reattach path reopens the folder by name after the kernel says
+    // EBUSY, so nothing needs to keep this one alive.
+    drop(staged);
+    let call: Result<(), StagingCallRefusal> = request.calls.unmount_top(held);
     if let Err(refusal) = call {
         if refusal.errno == libc::EBUSY {
-            return match reattach(request, &staged) {
+            let reopened: std::fs::File = match request.calls.open_by_name(request.cache, std::ffi::OsStr::new(name)) {
+                Ok(reopened) => reopened,
+                Err(open) => return UnmountOutcome::Retained { step: String::from(open.call.word()), errno: open.errno, said: open.message("the busy clone could not be reopened for its reattach"), mount: None },
+            };
+            return match reattach(request, &reopened) {
                 ReattachResult::Reattached { mount_id, slot } => {
-                    let bind_gone: bool = unbind_if_empty(request.calls, request.cache, name, bind, bind_id);
+                    let bind_gone: bool = unbind_if_empty(request.calls, request.cache, name, held, bind_id);
                     log_rolled_back(request, mount_id);
-                    UnmountOutcome::Reattached { mount_id, slot, bind_gone }
+                    UnmountOutcome::Reattached { mount_id, slot, bind_gone, cause: ReattachCause::Busy }
                 }
                 ReattachResult::Refused { step, said } => UnmountOutcome::Retained { step, errno: 0, said, mount: None },
             };
         }
         return UnmountOutcome::Retained { step: String::from("unmount"), errno: refusal.errno, said: refusal.message("the clone's unmount refused"), mount: None };
     }
-    drop(staged);
     let after: (std::fs::File, u64, MountFacts) = match topmost_at(request.calls, request.cache, name) {
         Ok(after) => after,
         Err(refusal) => return UnmountOutcome::Retained { step: String::from(refusal.call.word()), errno: refusal.errno, said: refusal.message("the clone's unmount could not be followed by a read of the bind"), mount: None },
@@ -341,7 +382,7 @@ fn unmount_the_pair(request: &UnmountRequest<'_>, bind: &std::fs::File, bind_id:
         };
     }
     drop(after.0);
-    if let Err(refusal) = request.calls.unmount_top(bind) {
+    if let Err(refusal) = request.calls.unmount_top(held) {
         return UnmountOutcome::Retained { step: String::from("unbind"), errno: refusal.errno, said: refusal.message("the bind's unmount refused"), mount: None };
     }
     return UnmountOutcome::Unmounted { mount_id: request.expected.mount_id, slot: request.expected.canonical_slot.clone(), bind_gone: true };
@@ -364,7 +405,7 @@ fn reattach(request: &UnmountRequest<'_>, staged: &std::fs::File) -> ReattachRes
 }
 
 /// Unbind the bind when the topmost mount is the recorded bind.
-fn unbind_if_empty(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str, bind: &std::fs::File, bind_id: u64) -> bool {
+fn unbind_if_empty(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str, held: &std::fs::File, bind_id: u64) -> bool {
     let Ok((folder, mount_id, _facts)) = topmost_at(calls, cache, name) else {
         return false;
     };
@@ -372,7 +413,7 @@ fn unbind_if_empty(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str, 
         return false;
     }
     drop(folder);
-    return calls.unmount_top(bind).is_ok();
+    return calls.unmount_top(held).is_ok();
 }
 
 /// A debug line for a move back,

@@ -35,7 +35,7 @@ use crate::worktree_clone_unmount::slot_walk_calls::{DatasetGuids, LiveSlotWalk}
 use crate::worktree_clone_unmount::staged_folder_identity::StagedFolderIdentity;
 use crate::worktree_clone_unmount::staging_calls::LiveStagingCalls;
 use crate::worktree_clone_unmount::unmount_checks::ExpectedMount;
-use crate::worktree_clone_unmount::unmount_turn::{unmount_the_clone, UnmountOutcome, UnmountRequest};
+use crate::worktree_clone_unmount::unmount_turn::{unmount_the_clone, ReattachCause, UnmountOutcome, UnmountRequest};
 use crate::worktree_clone_unmount::user_cache_pin::{open_cache, passwd_home_of, read_pin, UserCachePin, USER_CACHE_PIN_PATH};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -197,16 +197,31 @@ impl DatasetGuids for HandlerDatasetGuids<'_> {
     }
 }
 
-/// File the receipt of one unmount outcome and answer the clone's line.
+/// What:
+///  Answer one unmount outcome,
+///  filing only the receipts the accepted decisions give.
+/// Why:
+///  Step 8's decision files no receipt for a refusal but an unavailable key's,
+///  and the staging record gives one unmount outcome a receipt:
+///  the successful rollback.
+///  A done unmount files its `done` receipt because the wrapper's cleanup reads it,
+///  and every other refusal is left to the sweep's line and the journal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = answerTheUnmount(context, verified, request, turnOutcome);
+/// ```
 fn answer_the_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent, outcome: UnmountOutcome) -> CloneOutcome {
-    let (receipt_outcome, failed_step, errno): (ReceiptOutcome, Option<String>, Option<String>) = match &outcome {
-        UnmountOutcome::Unmounted { .. } => (ReceiptOutcome::Done, None, None),
-        UnmountOutcome::Reattached { .. } => (ReceiptOutcome::Reattached, None, None),
-        UnmountOutcome::Retained { step, errno, .. } => (ReceiptOutcome::Failed, Some(step.clone()), if *errno == 0 { None } else { Some(errno.to_string()) }),
-        UnmountOutcome::Refused { step, errno, .. } => (ReceiptOutcome::Refused, Some(step.clone()), if *errno == 0 { None } else { Some(errno.to_string()) }),
+    let receipt: Option<CloneMountReceipt> = match &outcome {
+        UnmountOutcome::Unmounted { .. } => Some(receipt_of(context, verified, request, ReceiptOutcome::Done, None, None, None)),
+        UnmountOutcome::Reattached { cause: ReattachCause::MisplacedRolledBack, .. } => {
+            Some(receipt_of(context, verified, request, ReceiptOutcome::Refused, None, Some("misplaced-rolled-back"), None))
+        }
+        UnmountOutcome::Reattached { cause: ReattachCause::Busy, .. } | UnmountOutcome::Retained { .. } | UnmountOutcome::Refused { .. } => None,
     };
-    let receipt: CloneMountReceipt = receipt_of(context, verified, request, receipt_outcome, None, failed_step.as_deref(), errno);
-    if let Err(filed) = context.receipts.publish(&receipt) {
+    if let Some(filed_receipt) = receipt
+        && let Err(filed) = context.receipts.publish(&filed_receipt)
+    {
         return CloneOutcome::Failed { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(RECEIPT_STEP), said: format!("the unmount's receipt could not be filed: {}", filed.message()) };
     }
     return match outcome {
@@ -217,13 +232,9 @@ fn answer_the_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, requ
     };
 }
 
-/// File the refusal that stops an unmount before its turn can build a request,
-/// and answer the clone's line.
-fn refuse_an_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent, step: &str, said: String) -> CloneOutcome {
-    let receipt = receipt_of(context, verified, request, ReceiptOutcome::Refused, None, Some(step), None);
-    if let Err(filed) = context.receipts.publish(&receipt) {
-        return CloneOutcome::Failed { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(RECEIPT_STEP), said: format!("{said} The receipt could not be filed either: {}", filed.message()) };
-    }
+/// Answer a refusal that stopped the unmount before its turn could build a request.
+fn refuse_an_unmount(_context: &SweepContext<'_>, verified: &VerifiedClone, _request: &MountIntent, step: &str, said: String) -> CloneOutcome {
+    warn(TAG, format!("slot `{}` refused the unmount at {step}: {said}", verified.slot).as_str());
     return CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(step), said };
 }
 
