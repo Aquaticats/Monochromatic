@@ -6430,12 +6430,23 @@ The rule this build keeps is entry by entry:
 - a bind mount of a subtree shows a deeper root and is no instance,
   while a bind mount of the dataset's own root and a second mount of the
   dataset are instances;
-- a row whose dataset's parent carries the container's leaf name is a managed
-  clone the route attaches at a slot and never the checkout,
+- a dataset mounted directly inside the clone container this run uses is a
+  managed clone the route attaches at a slot and never the checkout,
   because the design's delegation lets the account create a dataset of the
   checkout's leaf name there,
   and the checkout dataset is a sibling of the container and never a child of
-  it;
+  it.
+  The project decided this on 2026-11-22 in its first answer
+  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+  "Four further answers on the look-up with no configuration file"),
+  quoted:
+  "Ignore a dataset mounted directly inside whichever clone container this run
+  uses:
+  the designed one,
+  or the one root's file names."
+  So the container is `cloneMounts.parent` when a file holds one and the
+  designed sibling otherwise,
+  and a row inside a container this run does not use still counts;
 - with neither the path nor the dataset named,
   the one instance of `monochromatic-git-checkout` is both:
   its source is the checkout dataset and its mount point is the checkout path;
@@ -20811,6 +20822,21 @@ in this order:
   and the dataset is `nosnap/git-worktree-probe` in the pool that holds it,
   which is the checkout dataset's first component,
   with the snapshot `ready`.
+  The probe reads the sweep's `cloneMounts.parent` as well,
+  so that a clone the account makes inside the container this run uses is no
+  second instance of the checkout for it either;
+  that one key is the cost the first answer above states.
+  When the probe meets none or several it prints every mounted dataset it found
+  with its path,
+  as the sweep does,
+  which is the project's second answer of 2026-11-22 in the same section,
+  quoted:
+  "When the probe meets none or several,
+  it prints each mounted dataset it found with its path."
+  The mode recomputes the look-up in its own process,
+  which is in the host mount namespace,
+  and prints the refusal's own words;
+  the record keeps its closed word and its format.
   A file that is absent,
   or that holds no `startProbe` object,
   is therefore no refusal:
@@ -20818,9 +20844,16 @@ in this order:
   `configuration-missing`,
   and now it leaves a probe that runs.
   A file that is there and unreadable or unparsable,
+  a file that is there and empty,
   and a value of the wrong type,
   are still refusals,
   because such a file won a precedence it cannot fill.
+  The empty file is the project's fourth answer of 2026-11-22:
+  "An empty file is refused,
+  and the message says an empty file is not the same as no file."
+  The probe's record carries the word `configuration-empty` for it,
+  and the sweep's own message says the same and names removing the file as the
+  way out.
   The dataset is checked as a name:
   each component holds alphanumerics and `_ - . :`,
   the dataset and its `@ready` suffix together are at most 255 bytes,
@@ -20946,6 +20979,14 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
+A probe with no configuration file reads this process's mount table once more
+than one whose file names every entry,
+and the integration pass of 2026-11-22 measured it about 25 milliseconds
+(1.14 times) slower in three runs,
+once per boot;
+that read happens inside the worker phase the deadline bounds,
+whose margin is the 231 milliseconds below,
+so it is about a tenth of that margin and is stated here rather than sized.
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to
