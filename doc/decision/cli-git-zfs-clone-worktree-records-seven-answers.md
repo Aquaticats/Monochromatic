@@ -131,6 +131,40 @@ and the removal's own record does not show it.
   a count in the plan record,
   and a record of its own.
 
+## A further answer: the settling command and a plan a cancellation kept
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T22:03:25-05:00,
+on the one question the fourth check of the three record designs left for the project
+(`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fourth-check.md`,
+"Question:
+may the settling command also remove a plan the clone's next removal would have ended?").
+
+Asked:
+two answers of this record meet in a case neither covers.
+A plan a cancellation keeps stays until that clone's next removal;
+a slot whose clone is gone gets the settling command;
+and when the clone is gone no next removal can come.
+The example put:
+a removal of `fix-flaky-test` destroyed one snapshot,
+was cancelled and kept its plan;
+later someone destroys the clone by hand with `zfs destroy -r`,
+and the settling command is run on that slot.
+
+The project chose "A:
+remove it,
+printing what it held (Recommended)":
+"After you confirm,
+the command prints the snapshot names the plan recorded as destroyed,
+then removes the plan with the other records and frees the slot."
+The cost stated with it:
+the only durable record of what the cancelled removal destroyed is deleted by one confirmed command.
+
+Not chosen:
+freeing the slot and leaving the plan,
+named by `doctor`;
+and refusing while a plan stands.
+
 ## What this record does not decide
 
 The settling command's name,
