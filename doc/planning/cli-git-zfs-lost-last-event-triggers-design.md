@@ -406,6 +406,19 @@ lines 70 to 76;
 "The sweep,
 and the boot it reconciles",
 lines 6272 to 6387).
+That is the attaching sweep's rule and it stays.
+Since 2026-11-23 an `unmount` request whose unmount stops short is answered at once:
+the handler files an answer carrying the clone's place and the bind's state,
+in an extended format whose fourth outcome word (such as `cancelled`) and fields are plan step 9's build to propose
+([staging decision][staging],
+"The answer a stopped unmount files,
+answered 2026-11-23",
+recorded 2026-11-23T04:06:17-05:00).
+The extension changes plan step 7's answer and every reader of it,
+this design's readers included:
+the wait,
+the command that removes an answered entry,
+and `doctor`.
 
 The boot unit is `Type=oneshot` with `RemainAfterExit=yes`,
 `Requires=` and `After=` the checkout provider,
@@ -692,9 +705,11 @@ not an exhaustive list:
     `systemd.kill(5)`,
     lines 99 to 103 at tag `v262`).
 4.  The event reached ZED and the handler ran,
-    but the pass refused or was held back,
+    but the attaching pass refused or was held back,
     so no receipt answers the
-    request.
+    request;
+    an `unmount` request whose unmount stops short is not this case,
+    because it is answered at once ("The records that bind this design").
 5.  The kernel dropped the post,
     the fork failed,
     or the zedlet was not in ZED's scanned set.
@@ -1389,8 +1404,10 @@ The third answer changes the taker's budget step.
 Before it decides,
 the taker reads the one clone the event names:
 its intent and the receipt under its clone's GUID (facts F24 and F25).
-A request without an answering receipt passes without the budget being read further,
-and an event that names no clone,
+A request without an answering receipt passes without the budget being read further;
+a stopped-short unmount is answered at once,
+so its event is an idle one and the budget can hold it.
+An event that names no clone,
 which is a parent event the filter accepts,
 is decided by the budget alone.
 The read is the cost the record's answer waits for,
@@ -1417,6 +1434,17 @@ the same receipt latency that gives `G0`:
 the smallest delay that leaves a wait answered promptly alone.
 So a lost event costs a caller one extra event only when its wait has produced no receipt by `D`,
 and the next command recovers the clone if that event is lost too.
+A removal's unmount wait is not one of these when the unmount stops short:
+the handler answers it at once with the fourth outcome word,
+so it never reaches `D`,
+writes no nudge,
+and its entry in the folder is removed by that answer like any other answered request.
+No trigger,
+cost case,
+lever,
+test or measurement changes:
+the answer is read by the same receipt read,
+and the cost rule's exception sees an answered request.
 V16 lists keeping it and not keeping it,
 with their costs.
 
@@ -1442,7 +1470,9 @@ whether the receipt answers it,
 and,
 for an entry whose clone is gone or whose staging name was left,
 the one line that removes it,
-and both attempts of a clone whose last claim was never recorded.
+and every attempt of a clone whose last claim was never recorded,
+each with its number,
+with a count line and the one line that removes them all when there are more than two.
 Its lost-event block gains a `nudge` line naming the folder and the entries,
 and its list of next triggers gains "the next Git command in this repository".
 A folder it cannot read is reported as unknown,
@@ -2196,6 +2226,8 @@ The exception is the project's
 "The cost rule holds only passes with no unanswered request"):
 a pass whose event names a clone with no receipt answering its intent always runs,
 and only a pass whose event names no such clone is held.
+A stopped-short unmount is answered at once ("The records that bind this design"),
+so an event naming that request is idle and holdable like any other answered one.
 The taker reads the one clone the event names before it reads the budget
 ("The cost rule with a pending request"),
 and an event that names no clone is decided by the budget alone.
@@ -2351,6 +2383,9 @@ it says so in one line and prints the levers of T5.
   that it answers an earlier request and is stale,
   or that
   there is no receipt (fact F25).
+  The fourth outcome word a stopped-short unmount files,
+  with the clone's place and the bind's state,
+  is read as any other outcome and its fields are reported with it.
 - This boot's readiness record,
   if any:
   its boot,
@@ -2408,7 +2443,9 @@ it says so in one line and prints the levers of T5.
   and,
   for an entry whose clone is gone or whose staging name was left,
   the one line that removes it,
-  and both attempts of a clone whose last claim was never recorded.
+  and every attempt of a clone whose last claim was never recorded,
+  each with its number,
+  with a count line and the one line that removes them all when there are more than two.
   A folder it cannot read is reported as unknown,
   not as absence.
 
@@ -2740,10 +2777,13 @@ fact F22).
     no spawn and no output,
     and a leftover staging name of a killed writer does not block a later command.
     After a burst exactly one attempt file per GUID is left;
-    after a helper killed before it records two are left,
+    after a helper killed before it records,
+    that clone is left with two attempts,
+    its lower readable one and the killed claim;
     a reader takes the highest readable attempt and skips an empty one,
     and the next recorded outcome leaves one;
-    `doctor` prints both.
+    a chain of killed helpers adds one per kill,
+    and `doctor` prints each.
     A planted empty `<guid>.<n + 1>` beside a readable `<guid>.<n>`:
     the next due command links `<guid>.<n + 2>`,
     spawns one helper,
@@ -4998,7 +5038,7 @@ which is that design's answer.
   L24 and the cost cases now say plainly;
   no cap is proposed,
   and M8's decides list takes the transaction-group age a cap would need.
-  The doctor lists now carry both attempts of a clone whose last claim was never recorded,
+  The doctor lists now carry every attempt of a clone whose last claim was never recorded,
   the answered removal and its cost case say every attempt of the clone,
   D10 names the binding record design at `7d041d773b` and quotes its V9,
   the folder's bound names F28 as the pass's enumeration bound,
