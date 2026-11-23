@@ -449,7 +449,9 @@ and the set not ready for two things in the binding
 ("Step 10's designs").
 Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
 each with the words that should replace it.
-No round on the two records' lows is started.
+Running:
+`pi-zfs-origin-cleanup-record-design-seventh-read-lows` (H9)
+and `pi-zfs-removal-destruction-plan-record-design-seventh-read-lows` (H10).
 
 Next:
 a round on each record's lows;
@@ -657,15 +659,24 @@ and causes N and G are rewritten.
 Its gate had one failure that is on no list,
 `fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout`.
 
+Its third Sonnet pass
+(`~/temp/agent/integration-third-pass-worktree-removal-held-commit-control-2026-11-23/keep/review.md`)
+found it not fit as it stands:
+the fourth control passes on `main`'s wait too,
+so it guards nothing,
+and the troubleshooting text says things the runs contradict.
+The wait and the fixture's drop are sound,
+and its gate was void under the missing AppArmor rules.
+That failure is filed as issue 6397,
+and the pass drafted the comment for issue 6345 at the merge (its report,
+`keep/report-from-the-agents-last-message.md` beside the review).
 Running:
-its third Sonnet pass,
-which also judges that failure,
-on the integration branch `integrate/git-policy-cli-worktree-removal-held-commit-control-third-pass`.
-Its brief is `brief-third-pass-issue-6345-worktree-removal-control.md` in the launch folder.
+`pi-worktree-removal-control-third-pass-findings`.
 
 Next:
-merge,
-or a fix round.
+read its diff;
+one whole gate when gates may run;
+then merge and post the comment.
 The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
 Issue 6354 is decided
@@ -695,8 +706,13 @@ Running:
 `apparmor-shakedown-gate-on-main-20261123`,
 one whole gate on `main` started before the second batch,
 with its output under `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
-The kernel's audit backlog is 64 and drops records in bursts;
-that is the owner's to change and is not asked yet.
+A third batch since covers the wrapper's own `/proc` and cgroup reads,
+and `systemd-run --scope` of the account's own programs.
+The kernel's audit backlog dropped 69,301 records at its default of 64;
+the owner chose 8192,
+kept across reboots,
+which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.rules`.
+That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
 
 Next:
 read the gate's denials and failures;
