@@ -294,6 +294,55 @@ and only the owner accepts one.
   provisional until a guest measures it;
   the repair acts on shared and reports other states;
   and it changes the checkout's mount alone.
+  The record first said a mount that is shared and slave is left alone,
+  which the owner was not asked;
+  it now says that reading is open,
+  and it is to be asked.
+- Forced removal,
+  five further answers,
+  in `doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md` under
+  "Four further answers" and "One more answer":
+  the design finds a way to unmount inside a namespace whose mounts are shared too
+  (the owner chose this over the recommended refusal;
+  a direction,
+  final after a design round and a guest measurement);
+  `SIGTERM`,
+  a wait,
+  then `SIGKILL`;
+  authority only while the command that asked is running;
+  a reattach after a cancellation that already lost snapshots;
+  and a refusal also when the command's session was started directly by the service manager.
+- The add-time lock,
+  in `doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`:
+  a wrapped command that holds the slot and has proved the registration writes a lost lock again and says so.
+- The dirty-main restore,
+  one further answer in its record:
+  an add whose own unmount is refused as busy withdraws its request,
+  and the clone stays mounted and pending.
+- Step 8's bound of 4,096 children stays,
+  in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`.
+- A checkout that is shared and slave counts as shared,
+  in the propagation record's section "A mount that is shared and slave at once".
+- A check of these records against what the owner chose,
+  made at 2026-11-22T20:43:13-05:00:
+  every paragraph that quotes a chosen option was put beside that option's own text
+  (`decision-records-beside-the-chosen-options.txt` in the launch folder,
+  made by `pair-each-decision-record-paragraph-with-the-option-the-owner-chose.ts` there).
+  Two sentences were the coordinator's and not the owner's,
+  and are withdrawn in the records:
+  that a shared and slave checkout is left alone,
+  and that the answer on a shared namespace authorised "the clone's own copy and nothing wider".
+  One requirement in the lost-event record,
+  a cheap negative and a measurement before the nudge ships,
+  is now labelled as the coordinator's.
+  The rest match.
+  A record quotes the option and adds nothing the owner was not shown;
+  a consequence the coordinator draws is labelled as such.
+- The size read's reviewed branch merges now and its measured step cost is fixed next:
+  "A:
+  merge now,
+  fix next (Recommended)",
+  recorded in the size read's entry under "Build and diagnosis runs".
 
 #### Step 10's two designs: the add-time lock and the binding record
 
@@ -323,14 +372,86 @@ and only the owner accepts one.
   ended at `86f122c2b1`
   (report `keep/report-second-pass-findings.md` in its folder;
   it read the binding at `c144499eb9`).
+- The diff check of both (`review-diff-check.md` beside its other reviews):
+  each "fit after the listed fixes";
+  step 10 still not buildable without asking,
+  with what is left the writers' to fix and none of it the owner's.
+  The high one:
+  the cleanup of a half-made registration cannot work as written
+  (three of the states a kill inside Git's add leaves hold `gitdir` and `commondir`,
+  so the directory cannot be removed after the lock is unlinked,
+  and two leave a `.git` pointer in the slot that nothing removes).
+  Also:
+  the scan's name rule can match another slot's directory,
+  and the binding says two things about a `filled` binding whose clone is gone.
+- The binding's round on both diff checks ended at `ec2b0b14f3`
+  (report `keep/report-diff-check-findings.md` in its folder):
+  a table of the ten states Git's source can leave,
+  one order of removals
+  (the slot's pointer first,
+  the lock last),
+  one rule for a `filled` binding whose clone is gone
+  (the add refuses and names the finisher),
+  and a finder with Git's own naming and matching rules.
+  That finder is the scan's matching,
+  which the split had given to the lock design;
+  the lock design's round is told to keep one statement,
+  citing the binding's finder and keeping what is the lock's.
+- The lock design's round on the diff check ended at `c263e76f48`
+  (report `keep/report-diff-check-findings.md` in its folder).
+- The owner answered the first of the four questions:
+  the wrapper writes a lost lock again and says so
+  (`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`),
+  so the second does not arise.
+  Neither document holds that answer yet.
+  The third and fourth,
+  on a record that cannot be read and a clone gone with its absence unprovable,
+  go to the owner with the record designs' questions.
 - Going:
-  one diff check of both by the same reviewer,
-  to `review-diff-check.md` beside its other reviews,
+  the reviewer's third check of both,
+  to `review-third-check.md` beside its other reviews,
   asked again whether step 10 can be built.
-  If its verdict on step 10 is yes,
-  or what is left is the owner's to answer,
-  ask the owner at once and brief step 10's build;
-  the four questions it would put do not block the build.
+  The lock design's last round also took on who removes the lock when an add falls back to Git's own checkout,
+  which is step 11's;
+  a finding there does not hold step 10,
+  which the owner said ships first.
+  A reviewer's "buildable" is not the owner's acceptance:
+  before step 10's build is briefed,
+  put the two designs to the owner for acceptance with their veto lists,
+  as was done for the designs of steps 6 to 9,
+  and write the record.
+  The build also waits for the no-configuration and partial-clone branches to land.
+  The edits for the lock answer run one after the other,
+  the binding first and the lock design second.
+- The third check (`review-third-check.md`):
+  each design "fit after listed fixes",
+  nothing high,
+  the table of states Git's add can leave right about every state it names;
+  step 10 still not buildable without asking.
+  Mediums:
+  the recipe cannot empty a real registration,
+  since a finished add holds `logs/HEAD`
+  (measured in the gate image)
+  and `logs/` is removed before what stands in it;
+  the refusal for a foreign entry has no scope,
+  so one slot's resume could remove another slot's fresh directory;
+  and the binding's fill order still discards the copied `.git`,
+  against the decision to exchange it at the end.
+  Outside both documents:
+  the frozen-content comparison and the exchange are specified only in the dirty-main design,
+  which gives both to step 10,
+  and the account companion's check code,
+  the start-probe design's,
+  was not built in step 6,
+  so step 10 must build it.
+- Running:
+  `pi-zfs-add-binding-record-design-third-check-findings`,
+  on `continuation-third-check-findings.md`,
+  with the removal-side reviewer's findings for the binding sent to its inbox
+  (`note-removal-side-third-check-findings.md` in its folder).
+  Then the lock design's round
+  (its X4, X6, X10 to X13 and the lock answer),
+  on a continuation still to be written.
 - Questions the reviewer would put,
   none of which blocks step 10:
   reinstalling a lost lock unasked;
@@ -373,11 +494,83 @@ and only the owner accepts one.
   ended at `b4dc758a76`
   (report `keep/report-second-pass-findings.md` in its folder;
   it cites the origin cleanup document's list at `0973f2fc2a`).
+- The diff check of the three (`review-diff-check.md` beside its other reviews):
+  the plan and origin cleanup designs each "fit after the listed fixes",
+  the set "not yet",
+  for one short round of edits and no question for the owner.
+  The three now agree on the origin record's moment,
+  the freed slot,
+  the claim,
+  the flush rule and the tail's order.
+  The high one:
+  the binding removes itself only when the origin record can be confirmed,
+  and after the ordinary path that record is already gone,
+  so a finisher after a kill near the end keeps the binding and blocks the slot.
+  Also:
+  the origin design's promote guard misses a promote of another clone,
+  nothing orders the removal of the binding's three files,
+  and stale statements remain in all three.
+  The review lists what each must change for the evening's three removal decisions.
+- The origin cleanup design's round on the diff check ended at `8cc31f59a4`
+  (report `keep/report-diff-check-findings.md` in its folder).
+  The binding's round named under step 10 ended at `ec2b0b14f3`,
+  with the plan design's finish pass named as the tail's finisher
+  and an order for the removal of its three files.
+- The plan design's round,
+  last of the three so that it cites both,
+  ended at `1921adf393`
+  (report `keep/report-diff-check-findings.md` in its folder;
+  its finish pass against the other two;
+  what a cancellation does to the plan;
+  and two things the step 17 review left with the plan:
+  how long a plan kept after a cancellation lives,
+  and whether it records who a forced removal ended).
 - Going:
-  one diff check of the three by the same reviewer,
-  to `review-diff-check.md` beside its other reviews.
-  None of the three was written to the evening's three removal decisions;
-  the reviewer is asked to list what each must change for them.
+  the reviewer's third check of the three,
+  to `review-third-check.md` beside its other reviews,
+  asked for the one set of questions across the three with the binding's two merged in.
+- The third check of the three (`review-third-check.md`):
+  the plan and origin cleanup designs each "fit after listed fixes",
+  the set "not yet".
+  The three now name one finisher of the tail,
+  and the promote guard by `createtxg` is sound.
+  The high one:
+  an add that fails and finishes with Git's own checkout has no end in the binding design,
+  so nothing among the three removes its binding and claim.
+  It went to the binding's running round through its inbox.
+  Mediums:
+  the plan design says in one section that a cancel deletes no plan and in another that it removes one;
+  the origin and plan designs disagree on whether the finish pass finishes a plan whose head is not yet gone.
+- The owner answered the reviewer's seven questions,
+  recorded in `doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`:
+  only `git worktree` commands destroy a leftover origin snapshot;
+  the removal's printed report is the only trace;
+  a pending cleanup speaks on a change only;
+  an unreadable record is refused and named;
+  a slot whose clone is gone and cannot be proved gone gets a settling command a person confirms
+  (the owner chose this over the recommended blocked slot);
+  a plan kept by a cancellation stays until that clone's next removal;
+  and a forced removal's journal alone records who it ended.
+  The sixth and seventh are also the step 17 designs' S8 and S11,
+  now closed.
+  The two that are the binding's went to its running round through its inbox
+  (`note-the-projects-seven-answers.md` in its folder).
+- Next,
+  when the binding's round ends:
+  the origin cleanup design's round,
+  on `continuation-third-check-and-the-seven-answers.md` in its folder
+  (written,
+  not started),
+  started with
+  `node run-a-gate-findings-round.ts zfs-origin-cleanup-record-design continuation-third-check-and-the-seven-answers.md third-check-and-the-seven-answers`
+  in the launch folder;
+  then the plan design's round
+  (its Y3,
+  Y4,
+  Y6,
+  the lows and the answers),
+  on a continuation still to be written;
+  then the reviewer once more on the set.
 - The reviewer's single set of four questions for the owner,
   carried by the origin cleanup document:
   who may destroy a leftover origin snapshot;
@@ -413,10 +606,53 @@ and only the owner accepts one.
   The first answer needs an unmount and a destroy that an add can call,
   which no sibling design offers yet;
   the round was told to state it as a requirement on the designs that own them.
-- Going:
-  the one review of the revision,
-  by the same reviewer,
-  to `review-after-the-owners-answers.md` beside its other reviews.
+- The review of the revision (`review-after-the-owners-answers.md` beside its other reviews):
+  "fit to put to the owner after the listed fixes",
+  nothing high,
+  the three answers built in as recorded.
+  Mediums:
+  the last step's content check cannot be made by content for the paths the fence converts
+  (about 1,578 of 24,426 here);
+  the destroy an add makes of its own clone is owned by no design,
+  and the text contradicts the siblings' current branches;
+  the trash entry the exchange leaves does not follow the trash's rules;
+  two resume rows disagree with the kill states.
+- The round on that review ended at `099fa2ed30`
+  (report `keep/report-review-after-the-answers.md` in its folder).
+- The owner then answered whether an add may cancel its own unmount request:
+  yes,
+  it withdraws it
+  (the same decision record,
+  section "A further answer").
+- The round on that answer ended at `4dadc5fd27`
+  (report `keep/report-further-answer.md` in its folder).
+  It ended before a note with the siblings' newer tips could reach it,
+  so it cites the deferred-destroy design one round behind.
+- The review of both rounds (`review-after-the-further-answer.md` beside its other reviews):
+  "fit to put to the owner after listed fixes",
+  with one high finding.
+  The records a pending add leaves (`<slot>.capture`,
+  `<slot>.capture.passed`,
+  `<slot>.settle`) carry nothing tying them to one add and have no remover,
+  so the same add run again can meet stale ones and skip the frozen proof.
+  Mediums:
+  the pending text names a removal command that exists nowhere
+  (the person's removal is `git worktree remove <path>`);
+  the add's destroy path has four partial owners;
+  the unmount request reuses the binding's nonce;
+  only a busy refusal is withdrawn;
+  nothing tests the busy path.
+- Running:
+  `pi-zfs-dirty-main-restore-on-rung-1-design-review-after-the-further-answer`,
+  on `continuation-review-after-the-further-answer.md`.
+  Then one review.
+- Two new questions for the owner from that review,
+  which the round is told to put in the document with options and a ranking:
+  who owns the state "clone gone, snapshot standing" after a failed add,
+  and whether the pending text tells the person not to run Git in the pending folder.
+- Left for the owner:
+  whether rung 1 may decline a very dirty main checkout,
+  which waits for a measurement.
 
 #### Step 16: the deferred-destroy checks
 
@@ -439,10 +675,44 @@ and only the owner accepts one.
 - The round on the answers ended at `1f7a0800fa`
   (report `keep/report-the-projects-three-answers.md` in its folder);
   it also designed the look before the unmount.
-- Going:
-  the one review of the whole document,
-  by the same reviewer,
-  to `review-after-the-owners-answers.md` beside its other reviews.
+- The review of the whole document (`review-after-the-owners-answers.md` beside its other reviews):
+  "fit after the listed fixes".
+  The high one:
+  the look before the unmount is written for a first run only,
+  and the accepted order proves lineage again before the first snapshot request,
+  before every chunk and on a resume,
+  where the look's text would be false and would hide the statement of what was already destroyed.
+- The round on that review ended at `1800f0cb51`
+  (report `keep/report-review-after-the-answers.md` in its folder;
+  the look runs once,
+  in the first proof;
+  each refusal text says only what its check read).
+- The reviewer's diff check (`review-diff-check-after-the-answers.md` beside its other reviews):
+  "fit after the listed fixes",
+  nothing high;
+  the look runs once and the rerun is refused by the right check with the right history.
+  Mediums:
+  the gate on the look ("no intent and no plan") narrows the owner's answer and is on no veto list;
+  one guest arm and one control name the first check where the head check refuses;
+  and the text a person reads promises more than any record gives for a clone destroyed outside the wrapper.
+  Two of the three came from wrong pointers in the earlier review and brief.
+- The round on that check ended at `946578a8e5`
+  (report `keep/report-diff-check-after-the-answers.md` in its folder).
+  The design rests there:
+  its last two reviews found nothing high.
+  Owed before the owner is asked to accept it:
+  one read of that round's diff.
+- Two gaps that review leaves with other designs,
+  for their next rounds:
+  what a retry after a cancel does
+  (the plan record's two rules and the cancelled design's open question give three readings);
+  and what a removal does when the plan says the head is present and the clone is gone
+  because a person destroyed it
+  (the plan record states no rule).
+- For the owner afterwards,
+  as veto entries and not questions:
+  the gate on the look,
+  and whether the first check runs even when no snapshot request is sent.
 
 #### Step 17: the forced arm and the cancelled or interrupted removal
 
@@ -482,10 +752,82 @@ and only the owner accepts one.
   before that design's round had pushed.
   The forced arm's round ended at `cdc89927c9`
   (report `keep/report-second-pass-findings.md` in its folder).
+- The review of both (`review-after-the-owners-answers.md` beside its other reviews,
+  with `private-mounts-unit-mountinfo.txt`):
+  each "fit after the listed fixes",
+  nothing high;
+  the unmount inside a namespace "not yet ready for the owner to confirm as written",
+  because it refused every default systemd-sandboxed unit:
+  all 47 rows of a `PrivateMounts=yes` unit's mount table carry `shared:`,
+  and the kernel does not move a mount out of a shared parent.
+  Also:
+  a forced removal that refuses may already have ended processes
+  (no preflight over every holder namespace),
+  and the blocker search misses a running binary,
+  a mapped library and a process root in the clone.
+- The owner then gave four further answers,
+  in the same decision record under "Four further answers":
+  design an unmount inside a shared namespace too
+  (chosen over the recommended refusal;
+  a direction, final after a design round and a guest measurement);
+  `SIGTERM`,
+  a wait,
+  then `SIGKILL`;
+  authority only while the command that asked is running;
+  and a reattach after a cancellation that already lost snapshots.
+- Both rounds on those answers ended:
+  the forced arm at `aa1233b331`,
+  the cancelled removal at `2c70b9203c`
+  (reports `keep/report-further-answers.md` in each folder).
+- The owner then answered one more,
+  in the same record under "One more answer":
+  a forced removal is refused also when the command's session was started directly by the service manager.
+  Neither document holds that answer yet.
 - Going:
-  one review of both by the same reviewer,
-  to `review-after-the-owners-answers.md` beside its other reviews,
-  asked also whether the unmount inside a namespace is designed enough for the owner to confirm that direction.
+  one review of both,
+  to `review-after-the-further-answers.md` beside its other reviews,
+  asked first whether the unmount inside a shared namespace is ready for the owner to confirm as a direction to measure.
+- A coordinator's error to weigh when that review returns:
+  the decision record first said the owner's answer on a shared namespace authorised
+  "a forced removal's unmount of the clone's own copy and nothing wider".
+  The option said neither,
+  and its own example,
+  making the parent mount private,
+  changes a mount other than the copy.
+  The sentence is withdrawn in the record (`91581ad63a`),
+  but the forced arm's round and this review were briefed with it.
+  Judge any finding that a way is "wider than authorised" against the option's text,
+  and tell the next round that how far the change may reach is the design's to propose.
+- The edits for the answer on a unit's script run one after the other,
+  the forced arm first and the cancelled removal second;
+  the two rounds that ran side by side went stale against each other again.
+- The review after the further answers (`review-after-the-further-answers.md`):
+  each design "fit after listed fixes";
+  the unmount inside a holder's namespace not ready for the owner to confirm as written.
+  The high one,
+  in the forced arm:
+  the kernel decides which mounts receive an unmount from the parent mount's peers and slaves,
+  not from the copy's own type,
+  so the design has two ways' propagation the wrong way round,
+  understates the cost to the service,
+  and misses two narrower ways
+  (the parent made a slave;
+  an unmount in place by a descriptor,
+  with no propagation change).
+  Mediums:
+  a blocker that ignores `SIGTERM` is never sent `SIGKILL` as written;
+  the guest probe cannot decide the direction;
+  the preflight still lets some refusals come after processes were ended.
+- Running:
+  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-review-after-the-further-answers`,
+  on `continuation-review-after-the-further-answers.md`,
+  which carries the record's correction and the answer on a unit's script.
+  Then the cancelled removal's round
+  (its one medium,
+  the unit's script,
+  and the dirty-main record's second case of a withdrawn request),
+  on a continuation still to be written;
+  then one review of both.
   Still open for the owner,
   in the review's numbering:
   the signal and any grace (S4),
@@ -531,57 +873,252 @@ and only the owner accepts one.
   the propagation design's.
 - Both designs' questions are answered
   (see "The owner's answers of 2026-11-22 on these designs").
+- The lost-event design's round on the answers ended at `88f6a15194`
+  (report `keep/report-the-projects-three-answers.md` in its folder);
+  it designed the nudge on Git commands around a record in the repository's Git common directory,
+  so that a command pays one `stat` when no request is unanswered.
+  Its review (`review-after-the-owners-answers.md` beside its other reviews):
+  "fit after the listed fixes",
+  with one high finding in the nudge:
+  an answered request is never taken out of the record,
+  so after the first lost request every wrapped command pays a whole nudge about once per gap.
+  Also:
+  ordinary Git use would make root run a pass per command for a request nothing can answer;
+  the nudge's cost leaves out the compatibility gate and a wait for a transaction group;
+  the record is one file rewritten whole by many writers.
+- The round on that review ended at `b6855dce15`
+  (report `keep/report-review-after-the-answers.md` in its folder).
+  The reviewer's diff check (`review-diff-check-after-the-answers.md` beside its other reviews):
+  "fit after listed fixes",
+  nothing high;
+  the answered-entry hole is closed
+  (one file per clone named by its GUID,
+  the receipt read first)
+  and a doubling gap replaces the fixed one.
+  Mediums,
+  all short:
+  one fixed staging name that a killed writer leaves wedges that clone's nudges;
+  the text names two owners for the link that claims an attempt;
+  superseded and orphaned entries are nudged for ever;
+  the detached helper process is offered as no choice.
+  The reviewer asked that one veto entry go to the owner as a question,
+  and the owner answered it:
+  a request nothing can answer keeps being nudged for as long as it stands,
+  never more often than the longest gap
+  (the lost-event record's section "A further answer").
+- The lost-event design's round on that check and the answer ended at `6d820735cd`
+  (report `keep/report-diff-check-after-the-answers.md` in its folder).
+  The design rests there:
+  its last two reviews found nothing high.
+  Owed before the owner is asked to accept it:
+  one read of that round's diff.
+- The propagation design's round on its four answers,
+  started when the lost-event round ended,
+  ended at `c7708953c0`
+  (report `keep/report-the-projects-four-answers.md` in its folder).
+  Its review (`review-after-the-owners-answers.md` beside its other reviews):
+  "fit after the listed fixes",
+  nothing high.
+  Mediums:
+  nothing reports a shared mount beneath the checkout,
+  which the fourth answer asks for;
+  a slave or unbindable checkout has no outcome word and would be refused at the verify step,
+  against the third answer;
+  the guest arm cannot decide whether the provisional trigger stays.
+  And one reading that was the owner's:
+  the design sets a mount that is shared and slave private,
+  the decision record first said a combination is left alone,
+  and the option the owner chose said neither.
+  The owner then chose that such a mount counts as shared
+  (the record's section "A mount that is shared and slave at once").
+- The propagation design's round on that review ended at `037bcee2e5`
+  (report `keep/report-review-after-the-answers.md` in its folder;
+  it cites the lost-event document at `b6855dce15`).
+  The reviewer's diff check (`review-diff-check-after-the-answers.md` beside its other reviews):
+  "fit after the listed fixes",
+  with one high finding:
+  the round rewrote what systemd does for a boot unit without `ExecReload=` the wrong way.
+  `reload-or-restart` there is a restart,
+  which stops the unit and unmounts every clone,
+  as the owner's lost-event record says
+  (systemd `v262`,
+  `src/core/dbus-manager.c` 788 to 790 and `src/core/unit.c` 7192 to 7197);
+  the design now says it is refused and calls the record unsupported.
+  Mediums:
+  a count of shared mounts beneath the checkout reads `0` for a run that never looked;
+  a cap of four paths the writer chose;
+  a guest recipe that cannot produce a shared mount beneath.
+- The round on that check ended at `12ff579a2c`
+  (report `keep/report-diff-check-after-the-answers.md` in its folder).
+  Going:
+  the reviewer's short check of the high finding's fix,
+  to `review-check-of-the-high-finding.md` beside its other reviews.
+
+#### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
+
+- The owner reported the machine stuck for about five minutes at about 20:51 to 20:56.
+  Measured:
+  memory pressure "full" 45.76% over those five minutes,
+  load average 208,
+  35.7 GiB of the 61.7 GiB zram swap in use,
+  and the kernel reporting two guests' disk flushes blocked over 123 seconds in ZFS's intent log.
+  Running then,
+  all this session's:
+  six guests,
+  three to four whole gates,
+  Rust builds,
+  seven Pi rounds and nine Sonnet passes.
+  Every figure,
+  with its command,
+  is in `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/findings-measured-by-the-coordinator.md`.
+- The coordinator first proposed limiting how many guests and gates run at once.
+  The owner did not take that:
+  "I am confident we have enough memory.
+  We have 64G of physical RAM.
+  There's no way that isn't enough.
+  We might have to change our swap or zram or whatever conf."
+  So no limit on runs is in force.
+- The owner then decided,
+  in the question tool:
+  "Apply both now, and 2 also make some disk act as additional swap.
+  If you think 2 is a bad idea because of zfs, then ask again."
+  Applied with `sudo` and read back at 21:07:36:
+  `vm.watermark_scale_factor` from 10 to 125,
+  and `/sys/kernel/mm/lru_gen/min_ttl_ms` from 100 to 1000.
+  Both are runtime values and are gone at a reboot;
+  the counters from just before are in `counters-before-the-two-settings.txt` in that `keep/` folder.
+- Disk swap was asked again and the owner chose "A:
+  no disk swap for now (Recommended)":
+  the fast drive is all ZFS pool,
+  a ZFS volume as swap is the deadlock risk OpenZFS's FAQ names,
+  and the old drives stay under the owner's hold.
+  Planned for when an old drive is released:
+  a raw swap partition there,
+  with zram writing idle pages back to it.
 - Running:
-  `pi-zfs-lost-last-event-triggers-design-the-projects-three-answers`,
-  on `continuation-the-projects-three-answers.md`,
-  which also designs the nudge on Git commands.
-- Next:
-  when that ends,
-  the propagation design's round on `continuation-the-projects-four-answers.md` in its folder
-  (written,
-  not started:
-  it cites the lost-event document,
-  so it runs after it),
-  started with
-  `node run-a-gate-findings-round.ts zfs-private-propagation-after-replacement-mount-design continuation-the-projects-four-answers.md the-projects-four-answers`;
-  then one review of each.
+  `pi-desktop-freeze-under-agent-runs-troubleshooting-doc`,
+  which writes `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
+  on branch `docs/troubleshooting-desktop-freezes-while-agent-runs-thrash-zram-swap`
+  from that findings file
+  (brief `prompt.md` in the same scratch folder).
+  When it ends:
+  read it,
+  merge it,
+  and move this entry's durable facts there.
+- Owed:
+  compare the same counters after a comparable load,
+  as rates,
+  and tell the owner whether the two settings helped;
+  if they did,
+  give the owner the persistent drop-in files to review and apply
+  (the document drafts them);
+  measure how much memory one whole gate holds in its fixture file system,
+  since about 27 GiB of swapped shared memory was guests and gates together;
+  and record this night in `doc/handover/agents-at-once-on-this-machine.md` as a measured point.
 
 #### Build and diagnosis runs
 
 - Step 8's follow-up
   (`fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `d97a683346`):
-  its Sonnet pass is going,
-  to `~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`.
-  A steady sweep went from 7,361 ms to 2,737 ms at 1,024 clones and from 32,286 ms to 6,113 ms at 2,048;
-  unexplained by the round:
-  a cold sweep at 1,024 measured slower after the change,
-  and the cost per child still rises at 4,096.
-  The figures and the bound of 4096 go to the owner with the pass's verdict.
-- The no-configuration branch
-  (`pi-zfs-sweep-and-start-probe-need-no-configuration-file`,
-  started 14:29:17-05:00):
-  running again after its stuck script was ended.
-- The partial clone's fix round
-  (`pi-clone-rung-partial-clone-clean-source-file-size-rule`,
-  started 13:26:59-05:00):
-  running a gate at 18:44-05:00.
+  its Sonnet pass said not fit,
+  for one finding
+  (`~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `36bc90736c`).
+  The gain is real:
+  at 1,024 mounted clones a steady sweep takes 0.30 to 0.47 of `main`'s time,
+  against a same-binary control of 0.71 to 1.23;
+  cold sweeps are level,
+  and the slower cold sweep the round saw is not this change.
+  The finding:
+  the sweep answers "is this mount standing" from one read of the mount table at its start,
+  and when a mount was changed mid-sweep
+  (its `nosuid` and `nodev` removed,
+  or replaced by a `tmpfs`,
+  which got the old mount's number and device number)
+  `main` refused and the branch attached.
+  The merge bar rules that out as built.
+  Running:
+  `pi-zfs-step-8-sweep-cost-integration-pass-findings`,
+  on `continuation-integration-pass-findings.md` in the round's folder,
+  started with `resume-a-build-round.ts` in the launch folder:
+  keep the table's descriptor open and `poll` it before each answer,
+  the reviewer's first-ranked fix,
+  with controls from the reviewer's two plants.
+  Then a second pass.
+  The owner decided the bound stays 4,096
+  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+  section "The bound of 4,096 children stays").
+- The no-configuration branch's round ended after 454 turns at `d8a94d1222`
+  on `feat/git-policy-cli-zfs-sweep-and-start-probe-need-no-configuration-file`
+  (report `keep/report-from-summary.md` in its folder).
+  It reports the owner's delegation question answered by a guest run:
+  the account can clone a dataset named like the checkout,
+  cannot mount it into the host's namespace,
+  so it is never the only match,
+  and a check the branch adds stops it being a second.
+  Its Sonnet pass is going,
+  to `~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-zfs-sweep-and-start-probe-need-no-configuration-file`;
+  it is asked whether this branch and step 8's follow-up conflict and which lands first.
+- The partial clone's fix round ended after 570 turns at `45499c3154`
+  on `feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source`
+  (report `keep/report-from-summary.md` in its folder).
+  Its Sonnet recheck is going,
+  to `~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source-recheck`.
+  Passes started from now on are briefed with
+  `rules-for-an-integration-pass.md` in the launch folder plus what is particular to the branch.
 - Step 9:
   `pi-zfs-step-9-holder-scan-across-mount-namespaces` and
   `pi-zfs-step-9-unmount-staging-and-reattach-guest-arms`,
   both in guest arms at 18:50-05:00.
   Each then gets a Sonnet pass;
   the second to merge takes `main` first.
-- The object reader's follow-up
-  (`pi-object-reader-recheck-findings-the-commit-refusal-comes-out`,
-  run folder `run-2`,
-  whose `resumed-session.jsonl` must be kept when it ends):
-  running.
-  Then a third Sonnet recheck.
+- The object reader's follow-up ended at `5ddb3c79a2`
+  on `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows`
+  (report `keep/report-recheck-findings.md` in its folder,
+  its session kept beside it).
+  Its third Sonnet recheck is going,
+  to `~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-object-reader-the-commit-refusal-is-out`.
 - The size read
   (`feat/git-policy-cli-fence-size-read-beside-source-check` at `f752fe3cab`):
-  the round ended;
-  its Sonnet recheck is going,
-  to `~/temp/agent/integration-recheck-fence-size-read-never-fetches-2026-11-22/keep/review.md`.
+  its Sonnet recheck found nothing high and no add slower
+  (`~/temp/agent/integration-recheck-fence-size-read-never-fetches-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-fence-size-read-never-fetches-and-abandon-sticks` at `9a6fb83af0`,
+  made on `main` at `f4746ec6a0`,
+  before issue 6344's merge).
+  It called the branch fit if one cost is accepted:
+  on a declined add the step that chooses the rung takes 5.91 ms against `main`'s 0.67 ms,
+  about half of it the adding thread freeing a map of 24,634 entries,
+  with the add's total not slower.
+  The owner chose "A:
+  merge now,
+  fix next (Recommended)" in the question tool on 2026-11-22,
+  worded as a merge after a build and the touched tests pass on the merged result.
+  The same reviewer merged `main` into that integration branch (`568f9ff721`),
+  ran the build,
+  both clippy tasks,
+  `lint:types` and the touched modules' host tests,
+  whose failures are the same 29 names as before
+  (the btrfs controls and cause A),
+  and wrote `keep/reverify-on-current-main.md` beside its review:
+  fit by the owner's wording.
+  Merged into `main` as `e37566df9c` at 2026-11-22T20:46:57-05:00;
+  the wrapper handed the integration worktree's removal to the commit service.
+  `native:check` on `main` after the merge ended with status 0
+  (unit `check-main-after-the-size-read-merge`,
+  56 s).
+  The follow-up is running meanwhile:
+  `pi-fence-size-read-recheck-findings-declined-add-step-cost`,
+  on `continuation-recheck-findings.md` in
+  `~/temp/agent/fence-size-read-never-fetches-and-abandon-sticks-2026-11-22/`
+  (the step's cost found whole and removed,
+  the release text corrected,
+  the two reaped-id windows closed or reworded,
+  the recheck's six new controls taken in).
+  Then a recheck of the follow-up alone,
+  on a new integration branch.
 - Issue 6342
   (`fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `c40f1cece6`):
   its Sonnet pass said not fit
@@ -591,15 +1128,19 @@ and only the owner accepts one.
   and the guarantee it ships is false for a program that rewrites its PID file in place
   (the reviewer read that in `gitbutlerapp/grit`'s source);
   on this host's ZFS two quick rewrites had identical stamps in 957 of 1000 pairs.
-  Running:
-  `pi-lock-control-freed-name-integration-pass-findings`,
-  on `continuation-integration-pass-findings.md`,
-  run folder `run-2`,
-  in a worktree made again at the same path:
+  The round on those findings ended after 141 turns at `cdf3b3d6fd`
+  (report `keep/report-integration-pass-findings.md` in its folder,
+  its session kept beside it):
   one control per compared term,
   the bytes comparison the owner chose,
-  the words corrected.
-  Then a second Sonnet pass.
+  the words corrected,
+  and a test-only arm in product source (`src/native/lock/lock_metadata_arm.rs`) that answers the removal's reads.
+  Its second Sonnet pass is going
+  (the harness takes ten subagents at once and refused it once;
+  it started when a reviewer ended),
+  on `brief-second-pass-issue-6342-lock-control-pid-file.md` in the launch folder,
+  to `~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-lock-control-freed-name-pid-file-second-pass`.
   The pass left an orphaned cargo build folder,
   `~/.cargo/build/68/a5e436cd0c0598` (770 MB),
   and its gate met a third test that failed once and passes alone,
@@ -617,25 +1158,75 @@ and only the owner accepts one.
   (`fix/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` at `8314ca7a6f`):
   the round found the control asserted the worktree gone when the merge returned,
   though the merge only hands the removal to the commit service.
-  Sonnet pass going,
-  to `~/temp/agent/integration-pass-landed-removal-control-waits-2026-11-22/keep/review.md`.
-  The round also found,
-  and did not fix,
-  that a second hand-over of one removal would write a second record;
-  the pass is asked for an issue's text.
+  Its Sonnet pass said the code is sound and the branch not fit as it stands,
+  for its text
+  (`~/temp/agent/integration-pass-landed-removal-control-waits-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` at `3bd9f691dc`).
+  It found a defect in the test support that about 376 call sites use:
+  the queue wait `settle_service_work` reads `pending`,
+  then `claimed`,
+  then `recovering`,
+  while a record moves `pending` to `recovering` to `claimed`,
+  so the wait can return while a record is being claimed
+  (shown with widened windows;
+  not shown that either gate hit it).
+  Whether it explains any other test that failed once in a whole gate is the coordinator's guess,
+  unchecked:
+  the round's brief asks which failing tests use the wait.
+  And cause N's text contradicts the pass's runs in several places,
+  and cause G was never shortened as the round reported.
+  Running:
+  `pi-worktree-removal-held-commit-control-integration-pass-findings`,
+  on `continuation-integration-pass-findings.md` in the round's folder
+  (the wait read in the order of the record's flow,
+  with a control from the pass's plants;
+  causes N and G rewritten;
+  the fixture stops its services before it removes its tree).
+  Then a second pass.
+  The pass's text for the issue on a second record for one removal is in its review;
+  not filed yet.
 - Issue 6346
   (`fix/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` at `bf3bc322c4`):
   the round found the control's build window began a route's length too early.
-  Sonnet pass going,
-  to `~/temp/agent/integration-pass-commit-timing-control-window-2026-11-22/keep/review.md`.
+  Its Sonnet pass confirmed the cause and said not fit
+  (`~/temp/agent/integration-pass-commit-timing-control-window-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` at `913078b414`):
+  the allowance the round derived from the count of figures rose from 12 ms to 16 and 19,
+  so a planted step stating 20 ms too much goes red on `main` and passes the branch;
+  every figure is truncated,
+  so the sound bound is 1 ms.
+  The round on those findings ended after 103 turns at `963d51627e`
+  (report `keep/report-pi-commit-timing-control-integration-pass-findings.md` in the round's folder).
+  Its second Sonnet pass is going,
+  to `~/temp/agent/integration-second-pass-commit-timing-control-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-commit-timing-control-second-pass`;
+  its brief asks it to run one heavy thing at a time and no guest,
+  after the freeze.
+  Commit `c4cdf11ffa` on the branch says `Closes #6346` and cannot be amended,
+  so the merge will close the issue,
+  with the second failure's cause shown and the first only inferred
+  (its journal line was not kept).
+  The coordinator's choice,
+  open to the owner's veto:
+  let it close,
+  post a comment on the issue at the merge saying what was shown and what was inferred,
+  and reopen it if the control fails again.
 - Issue 6347 was filed for the one case the object reader's refusal was right about;
   it is not ZFS work and waits under the owner's hold.
-- Two tests each failed once in a round's whole gate and pass alone;
-  neither is filed yet.
-  Their journal text is kept in `~/temp/agent/gate-incidents-seen-in-rounds-of-2026-11-22/keep/`:
-  `package_filling_guard::a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure`
-  and `start_probe::probe_processes::tests::a_process_group_is_made_and_its_kill_is_a_signal`.
-- The scratch root measured 11,916 MiB at 2026-11-22T18:34-05:00.
+- Three tests each failed once in a whole gate and pass alone.
+  They are filed,
+  undiagnosed,
+  as issues 6348
+  (`package_filling_guard::a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure`),
+  6349
+  (`start_probe::probe_processes::tests::a_process_group_is_made_and_its_kill_is_a_signal`)
+  and 6350
+  (`push::push_wait_tests::a_wait_ends_when_the_connection_closes_and_the_stall_window_runs_again`).
+  Their bodies and the kept journal text are in
+  `~/temp/agent/gate-incidents-seen-in-rounds-of-2026-11-22/keep/`.
+- The scratch root measured 11,466 MiB at 2026-11-22T20:05-05:00;
+  its largest folders were the propagation design's review folder (1,272 MiB)
+  and the forced-removal design's round folder (1,188 MiB).
 
 ### Crate vet down to one survivor, bench reviews all back (2026-11-18T18:25:00-05:00)
 
