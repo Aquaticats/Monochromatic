@@ -1526,7 +1526,8 @@ Nothing was destroyed.
 
 A holder first seen after the first snapshot delete is met at the next scan,
 and the refusal then reports what was already destroyed;
-that state is the sibling's, under its stop points.
+that state is the sibling's,
+under its stop points.
 What the forced arm leaves:
 no snapshot delete and no head destroy after the refusal point,
 and the restored state,
