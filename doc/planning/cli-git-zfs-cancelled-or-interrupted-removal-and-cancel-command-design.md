@@ -5,11 +5,19 @@ unapproved design proposal by an agent.
 The project has not reviewed it,
 no other agent or model has reviewed it,
 and nothing in it is final.
-A gate review by a reviewer from another vendor than the author read it whole and found it fit after the fixes this
-revision applies;
-that review is a finding,
+A gate review by a reviewer from another vendor than the author read this text twice:
+the second pass gave "fit after the listed fixes,
+with one high that must be fixed first (N1)",
+and this revision applies that high,
+N6,
+the lows and the citation fixes.
+That review is a finding,
 not an approval,
 and only the project declares work complete.
+The high was the reading of a sentence the project answered on 2026-11-22:
+a holder the scan sees stops the destruction,
+so the removal cancels before any delete rather than going on.
+The record is [the forced-removal record][forced-record].
 It designs three open items of the accepted ZFS worktree design that describe one thing,
 the state a removal leaves when it does not finish and the way back from it:
 "What a cancelled removal restores",
@@ -180,16 +188,41 @@ lines 587 to 595):
 > and the handler answers under that same nonce,
 > so a receipt always names the scan that produced it and no receipt is reused for a later one.
 
-A holder a scan sees does not stop the destruction,
-because the project decided "Destroy anyway",
-whose words are that "the scan that refuses the holders it sees stays,
-then the clone's snapshots and the head are destroyed" ([proposal][proposal],
+A holder a scan sees stops the destruction.
+The project decided that on 2026-11-22,
+fixing the reading of the earlier sentence ([record][forced-record],
+"What a removal without `--force` does when its scan sees a holder",
+lines 47 to 56):
+
+> The project chose "A:
+> cancel,
+> delete nothing (Recommended)":
+> the removal stops before any snapshot is deleted,
+> attaches the clone at its slot again,
+> and reports the holder.
+
+> This fixes the reading of the earlier sentence:
+> a holder the scan sees stops the destruction.
+
+The earlier sentence,
+that "the scan that refuses the holders it sees stays,
+then the clone's snapshots and the head are destroyed",
+is read with the record's own sentence ([proposal][proposal],
 "Removal when the namespace exclusion cannot be shown",
-lines 1306 to 1308).
-What stops a removal is a busy unmount,
-which "blocks destruction even when the slot is clear",
-and a head destroy a holder outlasts ([proposal][proposal],
-lines 890 to 892 and 1321 to 1323).
+lines 1306 to 1307):
+the scan refuses the holders it sees,
+so the destructive step it opens does not run,
+and the destruction the sentence goes on to describe is what happens where the scan sees no holder.
+That reading is the one the same paragraph's later sentences support,
+where "a busy unmount still blocks destruction even when the slot is clear" and without `--force` "the blocked
+removal cancels itself" ([proposal][proposal],
+lines 1323 to 1328).
+What the "Destroy anyway" decision still settles is the case its own paragraph calls unmeasured:
+a holder the kept scan missed,
+and one that attached after a clean scan,
+whose head destroy then refuses `dataset is busy` after the batch is gone ([proposal][proposal],
+lines 1319 to 1321,
+and F18).
 When the verified set exceeds the request budget the batch is split by the largest fitting prefix,
 and each chunk carries a fresh proof,
 a fresh all-namespace verification and a fresh deferred-destroy check ([plan][plan],
@@ -367,7 +400,7 @@ its signals and the ending of holders are plan step 19's and the forced-arm item
 A request that goes through the system manager is what can raise a password dialog on the desktop of the person using
 the machine and wait on that person;
 a plain signal to another account's process does not,
-and fails `EPERM` instead (F21).
+and fails `EPERM` instead (F20).
 The incident of 2026-11-22T17:24:06-05:00,
 where one design run asked the system manager to kill a system unit,
 is the record of the first case,
@@ -558,6 +591,12 @@ and the line numbers are those of the tree it names.
   item 15,
   lines 610 to 666).
   The scan saw both holders as live representative tasks.
+  The probe ran its destroy with no gate in the way,
+  which is what the removal's scan now is:
+  the project answered that a holder the scan sees cancels the removal before the first delete
+  ([forced-record][forced-record],
+  lines 55 to 56),
+  so the probe's destroyed snapshot is the behaviour that answer forbids and not what the route does.
   The case was not a race-free proof of absence,
   and it did not test a namespace reference with no visible task.
 - F19.
@@ -635,7 +674,7 @@ and the line numbers are those of the tree it names.
 - A8.
   The forced arm's request property carries the pid and start time of the process that wrote it,
   and the handler honours the force word only while that process is alive.
-  That is a question the project answers (Q4 of the merged list),
+  That is a question the project answers (S6 of the gate review's set),
   and this design's states assume its first option.
 - A9.
   The deferred-destroy design keeps the intent and the plan on every refusal,
@@ -702,6 +741,18 @@ and the line numbers are those of the tree it names.
   No number here is measured.
   The wait this design uses is the removal deadline step 9 introduces and step 22 sizes,
   and this design ships no new constant.
+- L11.
+  The pre-move scan at point 5 is the forced arm's V4,
+  a writer's choice on that branch,
+  and this design's earliest cancellation point depends on it.
+  Where that choice is vetoed,
+  the earliest scan is the one after the unmount,
+  which is point 8.
+- L12.
+  The scan's coverage of a namespace with no visible task is unmeasured (F18's own limit),
+  and the project's answer of 2026-11-22 makes a seen holder cancel.
+  The routes that can still destroy history before a cancellation therefore rest on what the scan cannot see,
+  which M11 owes.
 
 ## The stop points
 
@@ -742,6 +793,15 @@ which is the same rule the cancel command's proof follows.
     no plan.
     The registration and its lock stand as the add left them.
     A kill or a deadline here leaves nothing that acts on the clone.
+    A `--force` removal whose command's parent is the service manager is refused here,
+    before anything is written,
+    and the words tell the person to run the removal as a child of the process that wants it
+    ([forced-record][forced-record],
+    lines 99 to 100).
+    A protected task that holds the clone is refused at the scan before any move,
+    which is point 5,
+    so the clone,
+    its snapshots and its registration are as they were when either refusal is read.
 2.  The removal claim taken.
     A claim file names a live process or a dead one,
     and the proof that decides is read again under it.
@@ -770,20 +830,36 @@ which is the same rule the cancel command's proof follows.
     The clone is still mounted at its slot;
     nothing was destroyed;
     the folder may hold the handler's bind.
-    With `--force`,
-    a holder that is not in the caller's session is ended and the request goes on,
-    which is the forced arm's design;
-    without `--force`,
-    a holder that is not in the caller's session blocks the unmount and the removal cancels itself,
-    which is the first cancellation arm under "What a removal that cancels itself restores".
-    A holder in the caller's session is a refusal and not a cancellation,
+    The scan before the move is the forced arm's own addition,
+    adopted there as
+    "every scan under the force word" ([forced][forced],
+    "V4.
+    When the forced arm acts"),
+    so this point exists only while that choice stands.
+    A holder in the protected set is a refusal and not a cancellation,
     which the never-end set decides,
-    and its state is the same restore the arm makes.
-    A forced removal that cannot end a holder outside the caller's session refuses,
-    and the forced failure path restores it as that section states.
+    and it is the forced arm's refusal `caller-protected-holds` ([forced-record][forced-record],
+    "Which processes a forced removal never ends",
+    lines 92 to 100).
+    With `--force`,
+    a holder outside that set is met by the decided reach:
+    the handler unmounts the clone inside the holder's namespace and ends only the tasks that block that unmount
+    ([forced-record][forced-record],
+    "How much a forced removal ends in another mount namespace",
+    lines 66 to 76),
+    and the request goes on;
+    a namespace it cannot enter,
+    an unmount it is refused,
+    or a blocker it cannot end makes the forced removal refuse before the first delete,
+    and the forced failure path restores that.
+    Without `--force`,
+    a holder the scan sees stops the destruction,
+    so the removal cancels itself here with nothing destroyed,
+    which is the first cancellation arm under "What a removal that cancels itself restores".
 6.  The handler bound the folder and moved the clone onto it,
-    and the unmount refused `EBUSY`.
-    The clone was staged at the folder and the accepted busy-unmount answer moves it back to its slot;
+    and either its scan sees a holder or the unmount refused `EBUSY`.
+    The clone was staged at the folder,
+    and both answers move it back to its slot;
     nothing was destroyed;
     the handler files the cancelled-removal receipt.
     This is the second cancellation arm.
@@ -794,6 +870,26 @@ which is the same rule the cancel command's proof follows.
     the record names the folder's handle and identity.
     A kill here leaves a bind a later sweep unbinds and then files a clear receipt for.
 8.  The unmount and unbind done,
+    the all-namespace scan sees a holder,
+    and no receipt is filed yet.
+    The clone is mounted nowhere in this namespace,
+    a copy stands in another,
+    and nothing was destroyed.
+    This is the scan the proposal calls the removal-ready unmount report,
+    which runs after the host's unmount ([proposal][proposal],
+    "Requests,
+    results and ordering",
+    lines 587 to 595),
+    and [VM item 15][vm-15] is the case it measured (F18).
+    Without `--force` the removal cancels here,
+    with nothing destroyed,
+    and the clone is attached again at its slot,
+    which is the arm blocked by a scan under "What a removal that cancels itself restores".
+    With `--force` the forced arm acts on the holder,
+    and a namespace it cannot enter,
+    an unmount it is refused,
+    or a blocker it cannot end makes the removal refuse before the first delete.
+9.  The unmount and unbind done,
     the clear receipt filed,
     the wrapper not yet its reader.
     The clone is mounted nowhere;
@@ -801,7 +897,7 @@ which is the same rule the cancel command's proof follows.
     the receipt names the clone absent in every namespace and the bind gone;
     no plan.
     A kill here leaves a state a later removal's staging sweep settles on the receipt.
-9.  The wrapper read the receipt,
+10. The wrapper read the receipt,
     removed the folder,
     unlinked the record and released the staging claim.
     The clone is mounted nowhere;
@@ -811,32 +907,35 @@ which is the same rule the cancel command's proof follows.
     A kill here leaves an `unmount` intent with no folder,
     which the handler answers as a scan rather than acting on,
     because the clone is mounted nowhere (A7).
-10. The plan's first write,
+11. The plan's first write,
     with `head=present` and no tuples.
     The clone is mounted nowhere and its snapshots are all present;
     the removal claim is held.
     A kill here leaves a plan a later removal resumes from and a cancel may reverse,
     since nothing was destroyed.
-11. The scan before the first snapshot delete finds a holder,
-    without `--force`.
+12. The scan before the first snapshot delete finds a holder.
     The clone is mounted nowhere,
     the holder is in a namespace the host's own unmount did not reach,
     and nothing was destroyed yet.
-    This is the case [VM item 15][vm-15] measured (F18).
-    The project's "Destroy anyway" decision keeps the scan and goes on,
-    so this point does not cancel:
-    the removal reports the holder and continues to the batch ([proposal][proposal],
-    lines 1306 to 1308).
-    With `--force` the holder is ended here,
-    and a forced removal that cannot end it refuses and takes the forced failure path.
-12. The deferred-origin check before the first delete refused.
+    This is the case [VM item 15][vm-15] measured (F18),
+    and the project's answer is that a holder the scan sees stops the destruction ([forced-record][forced-record],
+    lines 55 to 56).
+    Without `--force` the removal cancels here,
+    with nothing destroyed and the clone attached again at its slot,
+    which is the arm blocked by a scan under "What a removal that cancels itself restores".
+    With `--force` the forced arm acts on the holder at this scan,
+    and a namespace it cannot enter,
+    an unmount it is refused,
+    or a blocker it cannot end makes the removal refuse before this delete,
+    which the forced failure path restores.
+13. The deferred-origin check before the first delete refused.
     Nothing was deleted;
     the intent and the plan are kept,
     because the deferred-destroy design keeps them on every refusal ([deferred][deferred],
     "What a refusal leaves").
     The removal neither cancels nor finishes here,
     and the cancel command is the way back.
-13. A chunk submitted,
+14. A chunk submitted,
     its per-name outcomes not recorded.
     The clone is mounted nowhere and its head is present;
     the plan holds that chunk's tuples as `requested`,
@@ -844,20 +943,23 @@ which is the same rule the cancel command's proof follows.
     and every earlier chunk's outcomes.
     A kill here leaves an outcome only per-name presence settles (F7,
     F8).
-14. A chunk's outcomes recorded,
-    and the next chunk's scan and deferred check about to run.
+15. A chunk's outcomes recorded,
+    and the next chunk's scan,
+    or the scan before the head destroy,
+    about to run.
     The earlier tuples carry their outcomes;
-    a scan that sees a holder is point 11 again,
-    and a deferred refusal is point 12 again.
+    a scan that sees a holder is point 12 again,
+    with that chunk's or the batch's destroyed tuples reported,
+    and a deferred refusal is point 13 again.
     The plan is rewritten before each chunk and after it,
     so a kill leaves either the request's tuples or their outcomes.
-15. The check before the head destroy refused.
+16. The check before the head destroy refused.
     The head is present and the batch's destroyed tuples are gone;
     the intent and the plan are kept,
     by the deferred-destroy design's rule.
     This is not a cancellation:
     the removal refuses and the cancel command is the way back.
-16. The head destroy submitted,
+17. The head destroy submitted,
     its answer not recorded.
     The head may be gone and the clone with it;
     the plan holds `head=requested`.
@@ -865,19 +967,22 @@ which is the same rule the cancel command's proof follows.
     and a settlement proves the head by its name's absence and by no child of the pinned parent carrying its recorded
     GUID ([proposal][proposal],
     lines 964 to 965).
-17. The head destroy refused `dataset is busy`,
+18. The head destroy refused `dataset is busy`,
     with the clone's own live snapshot list empty.
     The clone is mounted nowhere,
     the batch's snapshots are gone,
     and the head,
     the registration and the plan stand.
-    A holder outlasted the batch.
+    This is the case a scan cannot catch:
+    a holder the kept scan missed,
+    or one that attached between the last scan and the destroy ([proposal][proposal],
+    lines 1319 to 1321).
     Without `--force` the removal cancels itself,
     which is the third cancellation arm,
     and the restored state is a fresh attach with the destroyed set reported.
     With `--force` this is the forced failure path,
     because the answer's own promise was that the holders would be ended.
-18. The head destroy proven gone.
+19. The head destroy proven gone.
     The clone is gone,
     and the intent went with it,
     because it was a property of that dataset.
@@ -887,30 +992,37 @@ which is the same rule the cancel command's proof follows.
     the plan's tuples are settled.
     Nothing here can be reversed,
     and the cancel command refuses.
-19. The registration settled and the underlay removed.
+20. The registration settled and the underlay removed.
     Nothing of the removal is left but the released claim and the plan's record.
     A cancel command finds no removal to reverse.
 
-From points 1 to 17 the Git registration and its lock stand unchanged,
+From points 1 to 19 the Git registration and its lock stand unchanged,
 because settling them belongs to the step after the head's destroy,
 and the lock is what keeps `git worktree prune` away from a registration whose clone may stand unmounted for a while
 (F3).
 The slot identity store's record and the underlay pointer stand unchanged for the same reason,
 and the intent and the plan are the only records that change inside a removal.
 
-Three points are where a removal stops by cancelling itself,
-and each is a blocked unmount or a refused head destroy:
-the blocked unmount before the move (point 5),
+Five points are where a removal stops by cancelling itself,
+and each is a scan that sees a holder,
+a blocked unmount,
+or a head destroy a holder outlasts:
+the scan before the move (point 5,
+where the forced arm's pre-move scan is adopted),
 the blocked unmount in staging (point 6),
-and the head destroy a holder outlasts (point 17).
-A holder in the caller's session is a refusal at each of them,
+the scan after the unmount (point 8),
+the scan before a delete (points 12 and 15),
+and the head destroy a holder outlasts (point 18).
+A holder in the protected set is a refusal at each of them,
 not a cancellation,
-because the removal never ends the caller or its session;
+because the removal never ends the caller,
+its session or its ancestors;
 its state is the same restore,
 with different words.
-A scan that merely sees a holder does not cancel,
-which is the "Destroy anyway" decision,
-and the deferred-destroy refusals do not cancel either,
+A scan that sees a holder cancels because the project decided that it stops the destruction
+([forced-record][forced-record],
+lines 55 to 56),
+and the deferred-destroy refusals do not cancel,
 which is that design's rule.
 Every other point refuses and keeps its records,
 which is the proposal's rule for a proof,
@@ -967,7 +1079,10 @@ which asks for the state it is in and therefore cannot move anything.
 
 Each cancellation arm below ends with the clone usable at its slot and the removal ended.
 They differ in what was destroyed before the block,
-and therefore in whether the clone's mount is moved back or made again,
+in what the clone's mount needs,
+whether nothing at all,
+a move back,
+or a fresh attach,
 and in what the report says was lost.
 
 ### The arm blocked before the move
@@ -998,9 +1113,11 @@ because there is none.
 
 ### The arm blocked in staging
 
-The holder keeps the staged clone busy and the handler's unmount refuses `EBUSY` (F11).
-The handler's answer is the busy-unmount answer the project accepted:
-it revalidates and moves the same mount back to the slot,
+The holder keeps the staged clone busy.
+Two answers reach the same restore:
+the scan before the unmount calls sees it and refuses,
+and the unmount itself refuses `EBUSY` (F11).
+Either way the handler revalidates and moves the same mount back to the slot,
 unbinds its bind where its own topmost check still finds the recorded bind,
 and files the receipt the staging design calls the cancelled removal's ([staging-design][staging-design],
 A5).
@@ -1013,6 +1130,47 @@ the receipt already names the clone at its slot and the bind gone,
 so the intent write is the wrapper's first act and the folder's settlement follows the receipt.
 It releases the removal claim and prints the report.
 
+### The arm blocked by a scan
+
+A scan that sees a holder is where the project's answer of 2026-11-22 bites,
+and it can be met at three points,
+all with the clone mounted nowhere in this namespace and a copy in another:
+
+the scan after the unmount (point 8),
+the scan before the first snapshot delete (point 12),
+and the scan before a later chunk or before the head destroy (point 15).
+
+The holder is a copy in a namespace the host's own unmount did not reach,
+which is the case [VM item 15][vm-15] measured (F18),
+and the handler files a refusal naming it rather than a clear receipt.
+Nothing was destroyed at points 8 and 12;
+at point 15 the earlier chunks' tuples are gone and the plan records them.
+The wrapper,
+still holding the removal claim:
+
+1.  writes `v1:<fresh nonce>:mount` on the clone,
+    which is its first act,
+    because the refusal is already in hand and the standing `unmount` request must not be acted on again;
+2.  waits for the answer under that nonce,
+    for the removal deadline.
+    There is no mount to move back,
+    so the answer is a fresh attach of the clone at its slot (A5);
+3.  settles the staged state on the receipt,
+    which says the bind is gone because the handler unbinds before it scans;
+    where the bind survives,
+    the folder,
+    record and claim are retained and reported;
+4.  releases the removal claim and prints the report,
+    which names the holder,
+    says that the removal cancelled itself because a scan saw a holder,
+    and says what was destroyed:
+    nothing at points 8 and 12,
+    and the earlier chunks' names at point 15.
+
+No plan is written by this arm.
+At point 15 the plan already records the earlier chunks,
+and a cancellation writes nothing to it.
+
 ### The arm refused at the head destroy
 
 The batch's snapshots are gone,
@@ -1024,7 +1182,8 @@ Two causes reach that errno and the design tells them apart by the live list:
   The live list is not empty.
   This is not a holder and not a cancellation.
   The removal's own amendment rule applies,
-  which the proposal states as a rerun of every check with the amended plan recorded and no prompt ([proposal][proposal],
+  which the proposal states as a rerun of every check with the amended plan recorded and no prompt
+  ([proposal][proposal],
   "Removal and recovery",
   step 3).
 - Holders keep the dataset busy.
@@ -1044,44 +1203,179 @@ and the report names each one.
 The plan already records them as destroyed,
 and a cancellation writes nothing to it.
 
+### When a cancellation can report destroyed history
+
+With a scan that sees a holder cancelling before any delete,
+an automatic cancellation can report destroyed history only through a holder the scans did not see,
+or one that appeared after the scan that would have seen it.
+There are four routes,
+and each names the point it ends at:
+
+- The holder attached after the scan before the first delete,
+  so the first chunk ran,
+  and the scan before a later chunk or before the head destroy sees it.
+  The cancellation is point 15's,
+  and the report names the earlier chunks' tuples.
+- The holder is invisible to every scan:
+  a pinned namespace with no visible task,
+  a namespace the scan does not reach,
+  or a task change racing the scan.
+  The proposal calls these unmeasured for its own scan ([proposal][proposal],
+  lines 1319 to 1321),
+  and F18's item did not test them.
+  Every chunk runs,
+  the head destroy refuses `dataset is busy`,
+  and the cancellation is point 18's with the whole batch reported.
+- The holder attached between the scan before the head destroy and the destroy itself,
+  which is the window the proposal keeps when it keeps the scan rather than making the destroy atomic with it.
+  The same point 18 and the same loss.
+- The removal died or ran past its deadline after a chunk,
+  so no cancellation of its own ran at all.
+  The whole batch's tuples are in the plan,
+  and a person's cancel command,
+  or a resumed removal,
+  reports them (C4).
+
+Two other endings report destroyed history without being cancellations:
+the deferred-origin refusal after a batch (points 13 and 16),
+which keeps the intent and the plan and is reversible by the command,
+and the forced failure path at points 15 and 18,
+which reports the batch's tuples as a cancellation does.
+
+So the loss the open item names survives only where a scan's view and the destroy's moment part:
+a seen holder before the first delete costs no history at all,
+and every route above needs a holder the scan could not see or one that arrived after its last look.
+That is why S7 and S8 under "Questions only the project can answer" are about a state the project's answer makes rare,
+not impossible,
+and why the scan's coverage is the measurement M11 owes.
+
 ### The forced arm's failure path
 
-A removal run with `--force` ends the holders instead of cancelling,
-once the owed measurement shows that works.
-Two cases remain the forced arm's to report and this design's to restore:
+A removal run with `--force` ends holders instead of cancelling.
+Its reach is the project's own answer of 2026-11-22:
 
-- a holder in the caller's session,
-  which the removal never ends in either arm ([record][decision],
-  lines 49 to 54),
-  so it is a refusal and not a failure of the forced promise;
-- a holder that cannot be ended,
-  such as a task in uninterruptible sleep or one whose authority the wrapper does not have,
-  which is the case the answer's promise has nothing behind.
-Either case can be met at the pre-move scan (point 5),
-at a scan before a snapshot chunk (points 11 and 14),
-or at the unmount itself (point 6).
-What is restored is the cancellation state of the arm the case was met in,
-with one difference in the words and one in the exit:
+> the handler unmounts the clone inside the holder's namespace and ends only the tasks that block that unmount,
+> and when the namespace cannot be entered or the unmount is refused,
+> the forced removal refuses and names the holder.
+> It never falls back to ending every task of the namespace.
 
-- the intent is reversed to `mount` under a fresh nonce,
+([forced-record][forced-record],
+"How much a forced removal ends in another mount namespace",
+lines 69 to 72),
+and the record's own conclusion is that "a forced removal can therefore still refuse" (line 76).
+Three failures reach that refusal,
+and each leaves a state this design restores:
+
+1.  The holder's namespace cannot be entered.
+    Nothing in that namespace is unmounted or ended,
+    and holders ended in an earlier namespace stay ended.
+    The report names the namespace,
+    the call that refused and its errno,
+    and every holder this run already ended.
+2.  The unmount inside the namespace is refused.
+    The causes are a child mount under the clone,
+    which no signal clears,
+    a peer group the arm may not force or detach,
+    or a blocker it could not end.
+    The report names which,
+    with the namespace and the errno,
+    and the holders this run ended.
+3.  A blocker cannot be ended.
+    A task of another account the handler's authority does not reach,
+    or one in uninterruptible sleep.
+    The tasks this run ended before it stay ended,
+    the unmount did not happen,
+    and the report names the blocker and the ended set separately.
+
+Each is met at point 5,
+8,
+12,
+15 or 18,
+whichever ran first,
+and what is left is:
+
+- the clone where the removal met it:
+  mounted at its slot before the move,
+  staged or back at its slot after a blocked unmount,
+  and mounted nowhere once a chunk ran;
+- nothing destroyed where the failure is met before the first delete,
+  and only the earlier chunks' tuples destroyed where it is met at point 15 or 18,
+  with those names in the report and in the plan;
+- the intent reversed to `mount` under a fresh nonce,
   exactly as a cancellation reverses it;
-- the clone is moved back or attached again by the same two paths,
-  and nothing the removal already destroyed is restored;
-- the report says the holder could not be ended,
-  names it where the forced arm's scan names it,
-  and says that `--force` did not do what it promised;
-- the removal exits `1`.
+- the staging folder,
+  record and claim settled on the receipt,
+  or retained and reported where the bind survives;
+- the plan left as the removal wrote it,
+  the registration,
+  its lock,
+  the slot record and the underlay untouched;
+- the removal claim released and the removal exiting `1`.
+
+Three example reports,
+with the fixture's names.
+A namespace the arm could not enter:
+
+```text
+removal of `.claude/worktrees/one` was asked to end the holders other than your protected set and could not:
+the namespace mnt:[4026532397] holds the clone, and entering it refused `EPERM`. Nothing was unmounted, nothing was
+ended and nothing was destroyed. The clone is at its slot and the intent asks for a mount.
+Ways forward: this needs an administrator, or the owner of that namespace ending its unit, then run the removal again.
+```
+
+An unmount the arm was refused:
+
+```text
+removal of `.claude/worktrees/one` was asked to end the holders other than your protected set and could not:
+the unmount inside mnt:[4026532397] refused `EBUSY` because a mount stands under the clone at `/tmp/build`, which no
+signal clears. Nothing was ended and nothing was destroyed. The clone is at its slot.
+Ways forward: unmount or stop the job that keeps that child mount, then run the removal again.
+```
+
+A blocker the arm could not end:
+
+```text
+removal of `.claude/worktrees/one` was asked to end the holders other than your protected set and could not:
+the blocker is pid 51233 (build-worker) in mnt:[4026532397], in uninterruptible sleep, and this removal did not end it.
+Two other holders were ended: pid 51240 and pid 51241. Nothing was destroyed. The clone is at its slot.
+Ways forward: wait for pid 51233 to leave its sleep and run the removal again, or ask an administrator to end it.
+```
+
+Two refusals are not failures of that promise and restore the same states.
+A holder in the protected set is refused as `caller-protected-holds` ([forced-record][forced-record],
+"Which processes a forced removal never ends",
+lines 92 to 100),
+which is the never-end set's own refusal and not a failure of the forced promise;
+its state is point 5's or point 6's,
+according to where it is met,
+with nothing moved,
+ended or destroyed.
+A `--force` removal whose command's parent is the service manager is refused outright ([forced-record][forced-record],
+lines 99 to 100),
+and that refusal is decided before anything is touched:
+it leaves the state point 1 describes,
+with no claim,
+no folder,
+no intent and no plan written,
+and the words tell the person to run the removal as a child of the process that wants it.
+The protected-set refusal is decided at the scan,
+before any move,
+so the clone,
+its snapshots and its registration are as they were when the person reads it.
 
 The reversal is this design's,
 because it is the state a removal leaves when it does not finish.
 The ending of holders,
-the refusal before it,
-and the words it prints are the forced arm's,
-and this design needs three things from that design:
+the failures' refusals,
+the protected-set refusal,
+the service-manager refusal and the words they print are the forced arm's,
+and this design needs four things from that design:
 the pid and start time of the writer in its force property,
 so a request that outlives its wrapper ends nobody (see "What a timed-out or killed removal leaves");
-its refusal kinds,
-so the two failures above are told apart in the report;
+its refusal kinds and their words,
+so the three failures and the protected-set refusal are told apart in the report;
+its record of which holders it ended,
+so the report can name them;
 and that it never rewrites the intent itself,
 so one place writes the one reversing request.
 
@@ -1113,7 +1407,7 @@ The design's answer is that the records a removal leaves have four different fat
   its lock,
   the slot identity store's record and the underlay pointer are untouched.
   The clone still exists and is still registered,
-  so nothing of the registration was due to be settled at any point before the head's destroy (points 1 to 17).
+  so nothing of the registration was due to be settled at any point before the head's destroy (points 1 to 18).
   The lock matters here for a reason outside this design's own record:
   it is what keeps `git worktree prune` from deleting the registration of a clone that stands unmounted for a while
   (F3),
@@ -1146,11 +1440,26 @@ what was destroyed,
 that it cannot be restored,
 the mount state,
 and the way forward.
-Three examples,
-with the fixture's names:
+Four examples,
+with the fixture's names.
+The case the project's answer of 2026-11-22 created,
+a scan that sees a holder before a delete:
 
 ```text
-removal of `.claude/worktrees/one` cancelled itself: the clone's unmount is blocked by a holder in another session,
+removal of `.claude/worktrees/one` cancelled itself: the all-namespace scan before the first snapshot delete saw a
+holder in mnt:[4026532396], so nothing was destroyed and every snapshot survives. The clone is attached again at its
+slot.
+The scan answers the `unmount` request under nonce 3f2a...; the removal wrote a `mount` request under nonce 9c41...
+and the handler answered it.
+The holder is a process in another session reading through the clone; this removal ends no holder without `--force`.
+Ways forward: end that job, or run the removal with `--force`, and run the removal again.
+```
+
+The unmount blocked in staging,
+where a holder keeps the staged clone busy:
+
+```text
+removal of `.claude/worktrees/one` cancelled itself: the clone's unmount was blocked by a holder in another session,
 so nothing was destroyed and every snapshot survives. The clone is at its slot.
 The request that was blocked is `unmount` under nonce 3f2a...; the removal wrote a `mount` request under
 nonce 9c41... and the clone is mounted at its slot.
@@ -1159,30 +1468,33 @@ without `--force`. Ways forward: end that job, or run the removal with `--force`
 session, and run the removal again.
 ```
 
+The loss the open item names,
+which only a holder no scan saw reaches:
+
 ```text
 removal of `.claude/worktrees/one` cancelled itself after destroying snapshots that cannot be restored:
 `zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/one@sanoid-hourly-2026-11-22_03`,
 `zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/one@sanoid-hourly-2026-11-22_04`.
-The head destroy refused `EBUSY` with the clone's own snapshot list empty, which means holders in another mount
-namespace keep the dataset busy. The clone is mounted at its slot again without those two snapshots, and its files
-are unchanged. `git monochromatic-git-policy-cli doctor` reports the same loss and the kept plan.
-Ways forward: identify and release the holder, then run the removal again.
+The head destroy refused `EBUSY` with the clone's own snapshot list empty: a holder the scan could not see, or one
+that attached after its last scan, keeps the dataset busy. The clone is mounted at its slot again without those two
+snapshots, and its files are unchanged. `git monochromatic-git-policy-cli doctor` reports the same loss and the kept
+plan. Ways forward: identify and release the holder, then run the removal again.
 ```
 
-```text
-removal of `.claude/worktrees/one` was asked to end the holders other than your session and could not:
-the scan found a root task in uninterruptible sleep that holds the clone in mnt:[4026532397], and this removal does
-not have the authority to end it. Nothing was destroyed. The clone is at its slot.
-Ways forward: read `git monochromatic-git-policy-cli doctor`, release or wait for that task, then run the removal
-again.
-```
+A forced removal that could not do what it promised reports under "The forced arm's failure path",
+with its own three examples.
 
-A holder in the caller's session is the case a person meets most,
+A holder in the protected set is the case a person meets most,
 and the decision's own words for it are a refusal,
 "the removal refuses and says to leave the folder and run the command again" ([record][decision],
 lines 49 to 54),
 not a cancellation.
-In state the refusal is the same restore as the first arm above:
+The set is the caller's session and every ancestor of the command up to the first process,
+which the project decided on 2026-11-22 ([forced-record][forced-record],
+"Which processes a forced removal never ends",
+lines 92 to 100),
+and the forced arm files that refusal as `caller-protected-holds`.
+In state the refusal is the same restore as the arm blocked before the move:
 if the clone was never moved,
 its mount never left the slot,
 and if a later stage refused,
@@ -1198,12 +1510,12 @@ The report names that case in its own words rather than offering the working-dir
 
 ```text
 removal of `.claude/worktrees/one` refused: a process holds the clone, and this removal never ends the caller or the
-processes of its session. The holder is a process of this account in this command's own session,
+processes of its session or its ancestors. The holder is a process of this account in this command's own session,
 `zpcachyos/ROOT/cos/home/...` is held in mnt:[4026532299].
 Nothing was destroyed. The clone is at its slot.
 Ways forward: leave the folder and run the command again from another checkout; where the holder is a unit of your
 session with its own mount namespace, end that unit, because leaving the folder releases nothing while the namespace's
-last task lives. Run the removal with `--force` only where the holder is not in your session.
+last task lives. Run the removal with `--force` only where the holder is not in your protected set.
 ```
 
 ### What `doctor` prints
@@ -1260,18 +1572,20 @@ A removal that is killed or runs past its deadline leaves the intent standing,
 and the handler keeps acting on it at its next trigger.
 Whether the action can move the clone depends on the wrapper's staging folder:
 
-- Where no folder stands (point 9,
+- Where no folder stands (point 10,
   and any request whose folder was never made),
   the handler cannot bind,
   so a clone that is mounted is refused rather than unmounted,
   and a clone that is mounted nowhere is answered as absent (A7).
   Nothing moves.
-- Where a folder stands (points 3 to 8),
+- Where a folder stands (points 3 to 9),
   the handler acts:
   it binds the folder,
   moves the clone onto it,
-  tries the unmount,
-  and either completes the unmount and the unbind or refuses `EBUSY` and moves the mount back.
+  and then either the scan sees a holder or the unmount does its work.
+  A scan that sees a holder refuses and the handler moves the clone back,
+  which is the cancellation point 6 records;
+  otherwise the unmount either completes with the unbind or refuses `EBUSY` and the handler moves the clone back.
 
 So a killed removal whose holder stays does not come to rest.
 Each trigger repeats the move out and back,
@@ -1292,7 +1606,7 @@ M10).
 
 A forced request that outlives its wrapper is the same state with one more hazard:
 the force word could end holders that attached after the person gave up.
-The bound is the forced arm's (A8 and Q4 of the merged list):
+The bound is the forced arm's (A8 and S6 of the gate review's set):
 the request carries the writer's pid and start time,
 and the handler honours the force word only while that process lives;
 a trigger that finds a dead owner answers the request without the force word and says so in its receipt.
@@ -1385,7 +1699,7 @@ and each names the state it needs:
 - Run `cancel-worktree-removal <slot>` after a deferred-destroy refusal.
   That refusal keeps the intent and the plan ([deferred][deferred],
   "What a refusal leaves"),
-  so the state is one of points 12 and 15 and the command's proof accepts it:
+  so the state is one of points 13 and 16 and the command's proof accepts it:
   it rewrites the intent,
   attaches,
   and reports that nothing was destroyed or which tuples were.
@@ -1787,7 +2101,9 @@ of the repository's own generation claim kind (F16):
 - its prefix is `<guid>.removal`,
   which is the clone's canonical dataset GUID,
   so a person and `doctor` can match the claim to a clone without reading its record,
-  and the handler never reads it at all;
+  and the handler never reads it at all,
+  which is this design's own statement by analogy with the accepted staging claim,
+  not an accepted record;
 - its generations are the shared claim's,
   and its record is the shared record:
   the owner's process id,
@@ -1863,7 +2179,7 @@ which is the kind of change the receipt's own derivation exists to absorb (F13).
 The forced arm adds no key:
 its refusals use the free `failed-step` word,
 which already fits the receipt's 64-byte bound,
-and a `caller-session-holds` step is one such word.
+and a `caller-protected-holds` step is one such word.
 The two changes are compatible,
 because the free word and the new key are different fields,
 and the step 7 receipt contract is what must accept both.
@@ -2200,20 +2516,24 @@ they are under "Questions only the project can answer".
 These are values,
 authority and cost,
 and no measurement settles them.
-Four are this document's.
-The merged gate review's Q1 to Q6 and Q11 are the forced arm's and the destruction plan's:
+The gate review that read this document and its sibling gave one set,
+S1 to S11,
+so this design's four use its numbers and no question is numbered with one the sibling uses.
+S1 to S6 and S11 are the forced arm's and the destruction plan's:
 by what authority a holder is ended,
-how much a forced removal ends,
+what a scan that sees a holder does (decided on 2026-11-22),
+how much a forced removal ends (decided the same day),
 what signal it sends,
+what the caller's protection covers (decided the same day),
 how long a forced request's authority lasts,
-what a forced removal does when a holder cannot be ended,
-what the caller's protection covers,
 and whether a forced ending leaves a durable record.
-This design assumes Q4's first option (the force word lasts while its writer lives,
-which is A8) and Q5's first
-option (a forced removal that cannot end a holder refuses before the first delete).
+This design assumes S6's first option (the force word lasts while its writer lives,
+which is A8),
+and the project decided the forced half of S2 on 2026-11-22:
+a forced removal that cannot end a holder refuses before the first delete.
+Each question below says what the project's answers change about it.
 
-### Q7. Whether the checked reattach also covers a fresh attach after history was destroyed
+### S7. Whether the checked reattach also covers a fresh attach after history was destroyed
 
 Options:
 
@@ -2241,7 +2561,20 @@ Ranking (a) > (b):
 and the accepted default's own cost line already calls its exception a race the default exists to avoid,
 which is the project's risk to take rather than a writer's.
 
-### Q8. How long the record of a cancelled removal's loss lives
+The project's answers of 2026-11-22 change when this arises,
+not the options or the ranking:
+a seen holder now cancels before any delete,
+so the fresh attach after a loss happens only on the four routes under "When a cancellation can report destroyed
+history".
+The fresh attach with nothing destroyed,
+which the scans at points 8 and 12 make,
+is not this question's case at all:
+the accepted exception already covers it,
+and the design makes it without asking.
+This question therefore stays open for a much rarer state,
+and the ranking above stands for it.
+
+### S8. How long the record of a cancelled removal's loss lives
 
 Options:
 
@@ -2267,7 +2600,15 @@ Ranking (a) > (b) > (c):
 (b) over (c) because (b) keeps the report until somebody decides,
 while (c) decides on a number nobody measured.
 
-### Q9. Whether a `--force` removal may be cancelled by the command
+The project's answers make this record rarer and leave the ranking alone:
+with a seen holder cancelling before any delete,
+the destroyed set a cancellation records comes only from the routes under "When a cancellation can report destroyed
+history",
+so (a)'s cost of a record read only by `doctor` falls.
+The gate review adds that the record is the destruction plan's,
+so this is that design's question first and this document's only if it leaves the lifetime open.
+
+### S9. Whether a `--force` removal may be cancelled by the command
 
 Options:
 
@@ -2295,9 +2636,18 @@ and a killed forced removal can then only be finished or left.
 Ranking (a) > (b):
 (a) over (b) because the flag changes how holders end,
 not whether a person may stop a removal,
-and read with Q4 the killed removal has no live force left to undo.
+and read with S6 the killed removal has no live force left to undo.
 
-### Q10. Whether a cancellation's loss also becomes a standing notice
+The project's answers leave the options and the ranking as they are.
+A forced removal can now refuse before the first delete (the forced half of S2),
+which makes a killed or refused forced removal more common and the command's way back more useful,
+and the force word dies with its writer (S6's first option,
+which A8 assumes),
+so what the command reverses is a state and not a live forced request.
+The gate review reads this as a writer's veto rather than an owner question,
+and this design would take either answer without amending an accepted sentence.
+
+### S10. Whether a cancellation's loss also becomes a standing notice
 
 Options:
 
@@ -2320,6 +2670,13 @@ Ranking (a) > (b):
 (a) over (b) because a durable record and a place for it exist,
 while a standing notice needs a clearing rule that would be invented here;
 a veto that wants the notice is a new item.
+
+The project's answers leave the options and the ranking as they are and lower (b)'s value:
+the loss becomes rarer along the routes under "When a cancellation can report destroyed history",
+and the record (a) keeps is the plan's destroyed tuples.
+The gate review reads this as a writer's veto too,
+and this design would take either answer without amending an accepted sentence.
+
 ## Which plan step builds which part
 
 - Step 9 builds the busy unmount's reattach and the cancelled-removal receipt,
@@ -2332,7 +2689,7 @@ a veto that wants the notice is a new item.
   and it repeats every deciding read under the claim.
 - Step 15 keeps the intent and the plan on every refusal ([deferred][deferred],
   "What a refusal leaves"),
-  which is what points 12 and 15 record,
+  which is what points 13 and 16 record,
   and this design's cancel command treats such a state as reversible,
   with nothing destroyed or with the batch's destroyed set.
 - Step 16 builds the fresh all-namespace scan before each chunk and before the head destroy,
@@ -2341,7 +2698,7 @@ a veto that wants the notice is a new item.
   and the head destroy's two causes.
   It writes no cancellation state,
   because a cancellation leaves the plan as the removal wrote it.
-- Step 17 builds the three cancellation arms,
+- Step 17 builds the four cancellation arms,
   the forced failure path's restored state,
   the intent write that reverses the removal,
   the cancel command,
@@ -2407,7 +2764,7 @@ using the stand-in device and the seams the route already has.
   each asserted whole,
   because each is text a person acts on,
   including the two the reports above give for an unknown outcome and a gone head.
-- `doctor`'s lines over fixtures of every stop point 3 to 19 and of C1 to C4,
+- `doctor`'s lines over fixtures of every stop point 3 to 20 and of C1 to C4,
   with each line's fields asserted.
 
 ### Guest tests, with the kill points named
@@ -2435,28 +2792,79 @@ as the plan's own arms do.
   every snapshot survives,
   and the holder still runs.
 - The namespace-holder arm,
-  which is the case [VM item 15][vm-15] measured and the state of points 11 and 17.
+  which is the case [VM item 15][vm-15] measured and the state of points 8,
+  12 and 18.
   Create a reader namespace and a `PrivateMounts=yes` unit after the clone is attached,
   move and unmount the clone from the host namespace,
-  destroy the batch's snapshots while both readers live,
-  and assert the head destroy refuses `dataset is busy`;
-  then assert the removal cancels,
+  and run the removal without `--force` so that its scan before the first snapshot delete sees both readers.
+  Assert the removal cancels at that scan,
+  before any delete:
+  every snapshot survives,
+  the plan holds no destroyed tuple,
   the fresh attach puts the clone at its slot,
-  the report names exactly the destroyed snapshots,
+  the report names the holder,
   and both readers still run.
-  The control is the same removal with no reader,
-  whose head destroy succeeds.
+  Two controls.
+  The first is the same removal with no reader,
+  whose batch and head destroy succeed.
+  The second is the missed-holder control,
+  a reader the scan cannot see (a namespace pinned by a descriptor with no task) or one attached after the scan,
+  where the batch runs and the head destroy refuses `dataset is busy`:
+  that arm asserts the cancellation at point 18,
+  the destroyed set reported exactly,
+  and the fresh attach,
+  so an arm that cancels before the delete and an arm that cannot reach it both fail if they do the other.
+- The arm blocked by the scan after the unmount (point 8),
+  which the accepted order reaches before any plan exists.
+  Hold a copy in a second namespace,
+  unmount and unbind the clone in the host namespace,
+  and assert the scan's refusal,
+  the cancellation with no plan written,
+  the fresh attach,
+  the folder settled on the receipt,
+  and every snapshot alive.
+  The control is the same state with no holder,
+  whose clear receipt lets the removal go on to its plan.
 - The forced failure arm,
-  which is the state "The forced arm's failure path" describes.
-  Hold the clone from the caller's own session and run with `--force`;
-  assert the removal refuses before the first delete,
-  nothing was destroyed,
-  the intent is reversed under a fresh nonce,
-  the clone is at its slot,
-  the caller's session and its jobs live,
-  and the exit is `1`.
+  which is the state "The forced arm's failure path" describes,
+  and it is now three arms rather than one.
+  (a) The protected set:
+  hold the clone from the caller's own session and run with `--force`;
+  assert the refusal `caller-protected-holds`,
+  nothing moved,
+  ended or destroyed,
+  and the caller's session and its jobs live.
+  (b) A namespace the reach cannot enter:
+  hold a copy in a namespace whose handle the handler's child may not open,
+  run with `--force`,
+  and assert the refusal before the first delete,
+  nothing ended,
+  nothing destroyed,
+  the intent reversed under a fresh nonce,
+  and the report naming the namespace and the errno.
+  (c) A blocker it cannot end:
+  hold a copy with a task in uninterruptible sleep,
+  run with `--force`,
+  and assert the refusal,
+  the tasks it did end still ended and named,
+  the blocker named,
+  nothing destroyed,
+  and the exit `1`.
+  Each control is the same state under a task the arm can end,
+  whose removal goes on to the batch.
+- The service-manager parent arm:
+  run `--force` from a command whose parent is the account's service manager
+  (a `systemd-run --user --unit` child,
+  with the unit the arm starts and stops itself);
+  assert the refusal before the first durable write,
+  with no claim,
+  no folder,
+  no intent and no plan written,
+  and the words telling the person to run the removal as a child of the process that wants it.
+  The control is the same command run as a child of a shell,
+  which proceeds.
 - The deferred refusal arm,
-  which is points 12 and 15.
+  which is points 13 and 16.
   Mark the origin and run the removal;
   assert it refuses before the first delete with the intent and the plan kept,
   that `cancel-worktree-removal` accepts that state,
@@ -2472,7 +2880,8 @@ as the plan's own arms do.
   7,
   8,
   9,
-  11 and 16,
+  10,
+  12 and 17,
   and the cancelling states C1,
   C2 and C3.
   Each arm asserts the command's proof,
@@ -2614,6 +3023,24 @@ and none is run here.
   The control is the same request for a mounted clone,
   which moves it.
   This is the arm A7 needs.
+- M11.
+  The scan's coverage of a mount namespace with no visible task.
+  In the throwaway guest,
+  pin a mount namespace with an open namespace file handle and no task in it,
+  mount a copy of a mounted clone inside it,
+  and run the removal's scan.
+  Assert what the scan reports:
+  the namespace,
+  nothing,
+  or a refusal.
+  The control is a namespace with a live representative task,
+  which F18's item saw named.
+  Record the answer beside the code that reads the scan,
+  because the project's answer makes a seen holder cancel,
+  and the destroyed-set routes under "When a cancellation can report destroyed history" depend on what the scan cannot
+  see.
+  This is not probed on the host:
+  it mounts inside a namespace of its own in the guest.
 ## Dependencies on the sibling designs
 
 Each dependency is stated with the assumption this design made,
@@ -2646,21 +3073,31 @@ nothing below adopts a sibling's answer as decided.
   this design's unmounted window between a kill and the next command relies on that lock keeping `git worktree prune`
   from deleting the registration (F3).
   If that lock is not written before the removal can run,
-  this design's points 7 to 17 have an unprotected window and the cancel command must report it.
+  this design's points 8 to 18 have an unprotected window and the cancel command must report it.
 - The deferred-destroy checks (A9):
   that design keeps the intent and the plan on every refusal and rewrites neither,
-  so points 12 and 15 are its states and this design's command is the way back from them.
+  so points 13 and 16 are its states and this design's command is the way back from them.
   This design does not decide whether such a refusal should cancel instead;
   it states what its own states do with the kept refusal,
   which is to leave it reversible.
 - The forced arm:
   with `--force` the removal ends holders instead of cancelling,
   and this design's automatic arms do not run for a forced removal.
+  The project decided the reach and the protection on 2026-11-22 ([forced-record][forced-record]):
+  the handler unmounts the clone inside the holder's namespace and ends only what blocks that unmount,
+  a namespace it cannot enter or an unmount it is refused makes the removal refuse,
+  the protected set is the caller's session plus its ancestors,
+  and a `--force` removal whose parent is the service manager is refused.
   The failure path under "What a removal that cancels itself restores" is this design's,
-  and it needs three things from the forced arm:
+  and it needs four things from the forced arm:
   the pid and start time of the writer in its force property (A8),
   its refusal kinds and their words,
+  `caller-protected-holds` among them,
+  its record of which holders it ended,
   and that it never rewrites the intent itself.
+  The scan before the move at point 5 is that design's V4,
+  a writer's choice there,
+  and the earliest cancellation this design states depends on it.
 - The lost-last-event triggers:
   the events this design's reconciliation relies on are that design's,
   and this design adds none.
@@ -2677,37 +3114,45 @@ This revision makes the split explicit,
 and this section is where a later pass reconciles them.
 
 - The reversing request's nonce.
-  The forced arm's text reads as the removal's own nonce
-  ("the wrapper reverses the intent to `v1:<nonce>:mount`",
-  its refusal section);
-  this design writes a fresh nonce (the first veto entry).
+  The forced arm's refusal section asks this document for "a fresh nonce for the reversing request"
+  ([forced][forced],
+  "The refusal,
+  and what it leaves"),
+  and this design writes one (the second veto entry).
   The proposal decides it:
-  its sentence is that each scan is asked for "by writing a new `v1:<nonce>:unmount` intent ... so a receipt always
-  names the scan that produced it and no receipt is reused for a later one" ([proposal][proposal],
+  each scan is asked for "by writing a new `v1:<nonce>:unmount` intent ... so a receipt always names the scan that
+  produced it and no receipt is reused for a later one" ([proposal][proposal],
   lines 587 to 595).
-  A build that follows the proposal writes a fresh nonce,
-  and the forced arm's sentence is the text to correct.
+  The two documents agree,
+  and the forced arm's earlier text,
+  which read the reversal as the removal's own nonce,
+  is gone from the tip this design read.
 - The forced removal's failure path.
-  The forced arm's D2 says it assumes "a refusal rewrites the intent to `mount` and reports any snapshot already lost,
-  and that the sibling settles the removal record's fate";
-  this design owns that restored state,
-  the reversal and the record,
+  The forced arm's D2 asks this document for "a forced stop point (`caller-protected-holds` and a holder that cannot be
+  ended),
+  the restored state,
+  and a fresh nonce"
+  ([forced][forced],
+  "Dependencies on sibling designs"),
+  and this design now gives all three:
+  point 5 and point 6 for the protected-set refusal,
+  "The forced arm's failure path" for the three ways a forced reach fails,
+  and the reversing request for the nonce.
+  The split is the ownership the two documents were given:
+  this design owns the restored state and the record,
   and the forced arm owns the ending of holders,
-  the refusal and its words.
-  No record decides the split;
-  the ownership the two documents were given does,
-  and this design states what it needs from the other side.
+  the refusals and their words.
 - A forced request that outlives its wrapper.
   The forced arm bounds the force word by its caller property and the removal's deadline;
   this design bounds the whole request by the claim's owner and the plan's owner,
   and by the intent that a cancellation rewrites.
   The two are compatible only with the forced arm's fix:
   the property carries the writer's pid and start time and the handler honours the force word only while it lives
-  (A8 and Q4).
+  (A8 and S6).
   This design's states assume it,
   and without it a later trigger could end holders with nobody waiting.
 - The receipt contract.
-  The forced arm adds a `caller-session-holds` failed step,
+  The forced arm adds a `caller-protected-holds` failed step,
   which fits the receipt's existing 64-byte word bound;
   this design adds one `bind` key,
   last.
@@ -2717,9 +3162,10 @@ and this section is where a later pass reconciles them.
   This design's veto list carries its key;
   the forced arm's word is its own.
 - The pre-move scan.
-  The forced arm's V5 adds a scan before the handler's move;
+  The forced arm's V4 adds a scan before the handler's move,
+  adopted there as "every scan under the force word";
   this design's point 5 is that state,
-  so the two now agree and this design needed no new transport for it.
+  so the two agree and this design needed no new transport for it.
 - The duplicate guest arm.
   The forced arm's M8 and this design's M9 are the same arm,
   what an unprivileged signal answers.
@@ -2764,6 +3210,13 @@ None is dropped here.
   its scan,
   its refusal,
   its signal and its record of who was ended.
+- The forced reach's mechanics inside a holder's namespace:
+  how the mount to unmount is named there,
+  what is checked before and after the call,
+  and what a peer group and a child mount do,
+  which the forced arm's design and the measurement it owes carry ([forced-record][forced-record],
+  "How much a forced removal ends in another mount namespace",
+  lines 78 to 83).
 - The deferred-destroy checks' design,
   and whether their refusals should cancel rather than keep the records.
 - The add's binding record,
@@ -2796,6 +3249,14 @@ In this repository:
   whole.
 - `doc/decision/cli-output-and-exit-codes.md`,
   whole.
+- `doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
+  whole,
+  merged from `main` at `0b7a48def4`.
+- The gate review of the two step 17 designs,
+  both passes,
+  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review.md`
+  and `review-second-pass.md`,
+  with the material kept beside them.
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   the sections this file quotes and the whole of "Removal and recovery",
   "Cancelling a blocked removal",
@@ -2835,8 +3296,8 @@ At a branch tip,
 with `git show <branch>:<path>`:
 
 - `cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design`,
-  whole enough to state the split and the
-  disagreements.
+  read at `1931987673`,
+  whole enough to state the split and the disagreements.
 - `cli-git-zfs-deferred-destroy-checks-design`,
   "What a refusal leaves",
   "How a person finishes a refused removal",
@@ -2881,6 +3342,8 @@ and the local rules under `/etc/polkit-1/rules.d` are unreadable from this accou
 ## Links
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
+[forced-record]: ../decision/cli-git-zfs-forced-removal-authority-and-reach.md
+[forced]: cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md
 [proposal]: cli-git-zfs-worktree-design-proposal.md
 [plan]: cli-git-zfs-worktree-implementation-plan.md
 [staging-design]: cli-git-zfs-staging-under-cache-design.md
