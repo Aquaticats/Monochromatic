@@ -1050,11 +1050,20 @@ and none is a measurement of behaviour.
   (systemd `v262`,
   `src/core/job.c:505` to `:510`),
   and a reload needs an `ExecReload=` to be applicable (`service_can_reload`,
-  `src/core/service.c:3778` to `:3786`).
-  Without that line the request is a plain restart,
-  which systemd mangles the job type to
+  `src/core/service.c:3778` to `:3786`):
+  on an active unit that lacks the line the request is refused as "Job type reload is not applicable"
+  (`unit_job_is_applicable`,
+  `src/core/unit.c:3037` to `:3069`;
+  `src/core/transaction.c:1088` to `:1090`),
+  and the only job type v262 mangles is a restart,
+  which becomes `reload-or-start` where the unit can reload
   (`unit_queue_job_check_and_mangle_type`,
-  `src/core/unit.c:7192` to `:7197`).
+  `src/core/unit.c:7190` to `:7196`).
+  The lost-event record states that the same request restarts the unit and runs its stop pass
+  ([record][lost-record],
+  "Which trigger runs after the checkout becomes ready"),
+  and nothing in v262's source shows that;
+  the design keeps its install guard either way and records the disagreement beside it (M11).
   A start job merges into one already installed on the unit (`job_install`,
   `src/core/job.c:240` to `:279`),
   and a start is refused `-EALREADY` when the unit is already active or reloading and `-EAGAIN` when it is
@@ -1247,7 +1256,9 @@ and none is a measurement of behaviour.
   [record][lost-record]).
   On a machine whose boot unit lacks that line,
   which is an older install and not one this design provisions,
-  the same command on an active unit is a restart whose stop pass unmounts every clone,
+  the request cannot reload an active unit (F39),
+  and the lost-event record states it restarts one and runs its stop pass,
+  which M11 settles;
   so the printed command there is `start` for a stopped or failed unit and nothing for an active one,
   and the propagation service is not installed at all ("The propagation service and its drop-in").
 - L12.
@@ -2790,6 +2801,28 @@ They are additions to the record the build already owes ([measurements][measurem
   "What it reports beneath the checkout",
   the record's `beneath` bounds,
   and test 23.
+- M11.
+  What the root command does on a boot unit that has no `ExecReload=`.
+  In one guest,
+  with the boot unit `Type=oneshot` and `RemainAfterExit=yes`,
+  active,
+  and carrying no `ExecReload=` line,
+  run `systemctl --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service`
+  and record its exit status and message;
+  then read `systemctl --no-ask-password show --property=ActiveState,Result,ReloadResult` for the unit,
+  its journal for a run of `shutdown-unmount`,
+  and `findmnt` for the managed clones' slots.
+  Would show:
+  whether the request is refused as "Job type reload is not applicable",
+  which is what v262's source shows (F39),
+  or whether the unit restarts and its stop pass runs,
+  which is what the lost-event record states.
+  Would change:
+  F39's disagreement sentence,
+  the reason the pair is installed only beside the line,
+  L11,
+  and the lost-event record's own sentence,
+  which is the record's to correct and not this design's.
 
 ### The acceptance arm step 19 owes
 
@@ -2942,8 +2975,12 @@ and an enabled unit would run at a boot whose checkout may not be mounted at all
 The pair is installed only on a boot unit that carries the `ExecReload=` line,
 which the lost-event record accepts ([record][lost-record],
 "Which trigger runs after the checkout becomes ready"),
-because without that line the same request is a plain restart (F39),
-and a restart of the boot unit runs `ExecStopPost=shutdown-unmount` and unmounts every attached clone.
+because without that line the same request cannot reload the unit (F39):
+the lost-event record states that it restarts the boot unit and runs `ExecStopPost=shutdown-unmount`,
+so the pair could unmount every attached clone on each replacement,
+while v262's source shows a refusal as not applicable,
+and M11 is what decides between the two.
+Either way the pair must not be installed without the line.
 Two checks keep that order:
 the setup runbook writes the line with the boot unit it belongs to,
 before the pair,
