@@ -1422,14 +1422,22 @@ Step 18 will find the folder,
 record and claim under the names the SPEC section states,
 and the record's boot id and namespace pair for its print.
 
+Guest arms run on the design's dataset layout in a throwaway guest on 2026-11-22:
+the plain unmount by a handler that did not attach,
+its `done` receipt,
+the clone's destroy after it,
+a holder's `EBUSY` and the checked reattach back to the slot,
+the same clone's unmount after the holder ended,
+and two removals at once.
+The arm's output is in the round's keep folder.
 Still owed by this step:
 the all-namespace holder scan is another round's,
 built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
-the guest arms for the design's ZFS layout,
+the stacked-mount rollback in the guest,
+a reboot with a staged record,
 the repeat of VM items 3,
-4 and 15 with the built code,
-and M1 to M9 were not run to completion in this round,
-so every one of them stays owed;
+4 and 15,
+and M1's stacking arms and M3 to M9 stay owed;
 the unmount's own deadline is unsized here and remains step 22's.
 The `user-cache` pin is read from
 `/var/lib/monochromatic-git-policy-cli/user-cache-pin`,
