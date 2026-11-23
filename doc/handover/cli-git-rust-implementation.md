@@ -533,15 +533,38 @@ so that the owner's words pass through no model.
 
 ## Held work
 
-The wrapper and driver backlog waits under the owner's hold of 2026-11-18.
-Its list is in the old file under "Open work",
-and in the task list this session carried until 2026-11-23,
-saved as `keep/open-tasks-before-the-rebuild.md` in the housekeeping folder named under
-"The handover holds only open work".
-Each entry is being checked against `main` and GitHub and filed as an issue,
-or dropped where it has landed.
-Until that is done,
-that saved list is the only complete record of the backlog.
+The wrapper and driver backlog waits under the owner's hold of 2026-11-18,
+and other packages' work waits for the owner to name it.
+It lives on GitHub.
+The held,
+paused and future entries the coordinating session's task list carried until 2026-11-23 were each checked against `main`
+and GitHub that day:
+those still to do are issues now,
+those GitHub already tracked got a comment where the entry knew more,
+and those that had landed or were no piece of work were dropped.
+Which entry went where is `backlog-to-github-issues/keep/ledger.jsonl`,
+with the links in `filed.jsonl` beside it,
+in the housekeeping folder named under "The handover holds only open work".
+No label was put on the new issues:
+the tracker has none for held work,
+and which to use is a question for the owner.
+
+About thirty wrapper and driver branches that wait for a review are listed in the old file under "Open work";
+that section is not sorted yet.
+
+What that check could not put on a public tracker,
+or that is no issue:
+
+- When the held queue is drained,
+  the coordinating session re-reviews the whole wrapper effort once.
+- Nothing of the WireGuard tools (`package/wg`) is deployed.
+  Deploying is the owner's act,
+  it takes a live connection down and up,
+  and its steps were written for the owner on 2026-11-11 in a scratch digest,
+  not in the repository.
+- A scan on 2026-11-14 found secret values in the saved sessions of six Pi runs.
+  Those sessions are never resumed or opened,
+  and rotating the values is the owner's.
 
 ## Things a new session would not find elsewhere
 
