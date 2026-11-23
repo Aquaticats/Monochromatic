@@ -201,13 +201,37 @@ and reports each snapshot that was destroyed.
   and authority for a fixed time.
 - Leaving the clone unmounted after a loss.
 
+## One more answer: a unit whose main process is a script
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:21:19-05:00
+(the same review,
+question S13).
+
+Asked:
+by the fourth answer of this record a forced removal spares the processes that led to the command
+and refuses when the command was started directly by the service manager.
+A unit whose main process is a script that then runs the removal is missed:
+the command's parent is the script,
+so the removal goes ahead,
+and whoever started the unit is not on the spared chain.
+
+The project chose "B:
+refuse that too (Recommended)":
+a forced removal is refused also when the command's session was started directly by the service manager,
+not only when the command itself was.
+Commands that agents run stay allowed,
+since their sessions are started by the agent.
+
+Not chosen:
+the first wording alone,
+which refuses only when the command's own parent is the service manager.
+
 ## What this record does not decide
 
 How long the record of a cancelled removal's loss lives,
-whether a forced ending leaves a durable record beyond the journal,
-and whether the service-manager refusal also covers a unit whose main process is a script
-are the reviews' questions S8,
-S11 and S13 and are still open.
+and whether a forced ending leaves a durable record beyond the journal,
+are the reviews' questions S8 and S11 and are still open.
 That the cancel command may reverse a forced removal,
 and that a cancellation's loss is no standing notice,
 are the designs' own choices inside the accepted answers,

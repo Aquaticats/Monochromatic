@@ -58,11 +58,23 @@ never an agent's.
 The project chose "A:
 act on shared,
 report the rest (Recommended)":
-the repair sets the mount private only when it is shared;
-a mount that is slave,
-unbindable or a combination is left as it is,
-the route goes on,
-and the state is reported.
+in the option's own words,
+"Set the mount private only when it is shared;
+for any other state,
+leave it,
+go on,
+and report what was found."
+
+Correction of 2026-11-22T20:21:19-05:00:
+this section first said that "a combination is left as it is",
+which the option did not say and the project was not asked.
+A mount can be shared and slave at once.
+Whether that mount counts as shared here,
+so that the repair sets it private and it stops receiving its master's mounts,
+is open and is being asked;
+the design acts on it,
+and its review (`review-after-the-owners-answers.md` beside the review this record cites,
+finding R5) names the difference.
 
 ### How far the setting reaches
 
