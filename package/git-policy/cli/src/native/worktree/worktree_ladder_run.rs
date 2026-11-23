@@ -77,7 +77,10 @@ pub(crate) enum Rung {
     /// so
     ///  an interrupted one is removed by the next command,
     /// and the fence answers beside the copies of the files it reads.
-    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, CloneFence),
+    /// The index entries the limits already read are shared with the copies,
+    /// so neither parses the index twice,
+    /// and nothing there is an index the rung reads again.
+    Clone(Box<SnapshotSource>, Option<CreatedSubvolume>, StageClaim, CloneFence, Option<Vec<crate::worktree_clean::StatEntry>>),
     /// A snapshot of the source,
     /// Git running without a checkout first,
     ///  with the conversion fence decided before the snapshot.
@@ -369,8 +372,38 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     } else {
         debug(TAG, format!("no snapshot for {} ({:?})", plan.destination.display(), snapshot_blocked).as_str());
     }
-    // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
-    if clone_refusal.is_none() && source.dirty.is_none() {
+    // Clones copy the tracked files of a source the checks proved: every path of a clean source, and of a source with
+    //  uncommitted changes every path the proof still settles, with Git writing the rest (the partial clone rung).
+    if clone_refusal.is_none() {
+        // What:
+        //  The rung's provisional limits are asked here,
+        //  before its fence, its claim on a stage name and its first copy:
+        //  a source with changes of too few tracked bytes for a clone to win,
+        //  a clean source whose mean tracked file is too small for one,
+        //  and a source whose changed paths exceed the cut.
+        // Why:
+        //  They decide between this rung and Git's own checkout,
+        //  so asking them later makes a declined add pay the reads, the claim and the copies it was declined for;
+        //  each limit's value, its measurement and why it sits at that edge are beside it
+        //  (`worktree_clone_rung_limits`), and all send the add to Git's own checkout, which is the baseline they were
+        //  measured against.
+        //  The index is parsed once here and shared with the rung's own copies,
+        //  so the limits cost no parse of their own and the rung no second one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const entries = trackedEntries(source);
+        // const limit = entries && declineBeforeCloning(source, entries);
+        // if (limit) return { rung: git, slow: explainDecline(limit) };
+        // ```
+        let entries_entered: bool = begin_step("trackedEntries");
+        let entries: Option<Vec<crate::worktree_clean::StatEntry>> = crate::worktree_clone_rung_limits::tracked_entries(&source);
+        end_step(entries_entered);
+        let limit: Option<String> = entries.as_deref().and_then(|read| { return crate::worktree_clone_rung_limits::decline_before_cloning(&source, read); });
+        if let Some(reason) = limit {
+            log_git_checkout(plan, reason.as_str(), &snapshot_refusal, &clone_refusal);
+            return (Rung::Git(prepare_subvolume_destination(plan)), Some(explain_decline(reason.as_str())));
+        }
         // What:
         //  The fence decides here,
         //  before the add's record is claimed and before real Git runs:
@@ -441,7 +474,7 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         };
         end_step(claim_stage_again_entered);
         match claim_stage_again_outcome {
-            Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim, fence), slow),
+            Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim, fence, entries), slow),
             Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
         }
     }
@@ -480,6 +513,7 @@ pub fn begin_ladder_holding(plan: Option<&AddPlan>, held: &mut Option<StageClaim
     let (rung, slow) = choose_rung(planned, context, identity, held, &mut sizes_beside);
     let chosen: &str = match &rung {
         Rung::Git(_) => "Git's checkout",
+        Rung::Clone(source, ..) if source.dirty.is_some() => "a partial clone",
         Rung::Clone(..) => "clones",
         Rung::Snapshot(source, _claim, _fence) if source.dirty.is_some() => "a snapshot with a restore",
         Rung::Snapshot(..) => "a snapshot",
@@ -599,7 +633,7 @@ impl Ladder {
     /// ```
     pub fn destination_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
         return match &self.rung {
-            Rung::Git(Some(made)) | Rung::Clone(_, Some(made), _, _) => made.identity,
+            Rung::Git(Some(made)) | Rung::Clone(_, Some(made), _, _, _) => made.identity,
             _ => None,
         };
     }

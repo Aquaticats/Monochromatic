@@ -96,7 +96,11 @@ fn attribute_files(tree: &[FlatEntry]) -> Vec<(&[u8], &[u8])> {
 /// ```
 fn attributes_agree(database: &ObjectDatabase, from: &[u8], to: &[u8], format: ObjectFormat) -> Result<(), String> {
     let (Some(old), Some(new)) = (flatten_tree(database, from, format), flatten_tree(database, to, format)) else { return Err(String::from("a tree is unreadable")) };
-    return if attribute_files(old.as_slice()) == attribute_files(new.as_slice()) { Ok(()) } else { Err(String::from("the .gitattributes files differ between the source and the new HEAD")) };
+    return if attribute_files(old.as_slice()) == attribute_files(new.as_slice()) {
+        Ok(())
+    } else {
+        Err(String::from("the .gitattributes files differ between the source and the commit the worktree is made at, so the rules the add read are not the rules Git writes with; commit the source's .gitattributes change, and the next add clones"))
+    };
 }
 
 /// The configuration keys,

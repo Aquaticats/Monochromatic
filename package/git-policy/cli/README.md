@@ -923,8 +923,9 @@ Read-only commands,
      a file you write into an ignored directory between the snapshot and the swap is not in the new
      worktree,
      and the source keeps it.
-  2. Clones (`FICLONE`) of every tracked file of a clean worktree,
-     with its index,
+  2. Clones (`FICLONE`) of every tracked file the source's proof settles,
+     with the index the rung builds from the tree of the source's `HEAD`,
+     while Git writes the paths a change or the conversion fence reaches,
      on btrfs,
      XFS with reflink,
      overlayfs and ZFS.
@@ -935,6 +936,20 @@ Read-only commands,
      a slot a mounted clone already occupies,
      a mounted clone used as the source of a slot in the checkout's dataset,
      and any slot on another dataset than the source get Git's own checkout instead.
+     A source with uncommitted changes is cloned the same way:
+     every tracked path its proof settles is a clone,
+     and only the paths a change or a conversion rule reaches are Git's.
+     Three provisional limit rules send an add to Git's own checkout instead:
+     a source with changes whose tracked files sum to fewer than 762,000,000 bytes,
+     a source with more changed tracked files than a quarter of its tracked paths,
+     and a clean source whose mean tracked file is under its filesystem's measured edge,
+     which is 2,600 bytes on ZFS and the same value on a filesystem nobody measured.
+     btrfs has no mean rule:
+     a clean btrfs source clones as `main` does,
+     whatever its files average.
+     All are pinned in `src/native/worktree/worktree_clone_rung_limits.rs` with the measurements they rest on,
+     and all are open to the project's veto,
+     and the edge an unmeasured filesystem takes is itself open to the project's veto.
      It shares disk,
      and it is measured:
      on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to
@@ -1006,7 +1021,7 @@ Read-only commands,
      and more than a thousand of them,
      is declined before anything is copied,
      and the line on standard error is the fence's own count and rule in place of
-     `the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+     `the add ended after it had read the source (<reason>), so Git's own checkout wrote the worktree.`
   3. Git's own checkout,
      then the ignored-state copy.
   The `git read-tree` of a rung and the fallback `git reset --hard` are Git steps the wrapper starts itself,
@@ -1157,6 +1172,10 @@ Read-only commands,
      with the fields `CLI_GIT_WORKTREE`,
    `CLI_GIT_SLOW_CAUSE` and `CLI_GIT_SLOW_DETAIL`.
      On a filesystem that is not btrfs it says nothing.
+  A rung that declines before it copies anything says which checkout wrote the worktree instead of saying the add
+   took longer:
+     its line starts with `monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because ` and names
+   the input and the numbers the limit was decided on.
   The ladder does not read `--force`,
      `--no-checkout`,
      `-B`,
