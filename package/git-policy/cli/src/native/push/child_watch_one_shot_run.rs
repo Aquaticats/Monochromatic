@@ -273,12 +273,14 @@ pub fn output_watched_within_for_a_stop(
         StepBound::EndAt(_) => match pipes {
             Some(open) => {
                 let ended: std::io::Result<Output> = open.read_until_the_child_ends(child, waiting_for, carried);
-                // The child is reaped when its pipes end, and this clear comes within the time the runner takes to
-                //  finish reading them; before it the cell can still name an id no process has, and an abandon then
-                //  signals that id, which is the window the integration recheck's Low 3 of 2026-11-22 names. The
+                // The child has exited by now, and its pipes are read for up to `OUTPUT_DRAIN_AFTER_EXIT` longer;
+                //  before this clear the cell can still name an id no process has, and an abandon then signals that
+                //  id, which is one of the two windows the integration recheck's Low 3 of 2026-11-22 names. The
                 //  caller parses nothing before this line, which closed the wider window of Low 1. The value is
                 //  cleared only when it is still this child's: an abandon that came earlier wrote `ABANDONED_CHILD`,
                 //  and a store would erase that marker (latent today, because `git ls-tree` is not rerunnable).
+                #[cfg(test)]
+                hold_the_clear_where_a_control_asked();
                 if let (Some(cell), Some(published)) = (started_child, published_child) {
                     let _ = cell.compare_exchange(published, 0, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst);
                 }
@@ -308,4 +310,86 @@ pub fn output_watched_within_for_a_stop(
         Some(error) => Err(error),
         None => output,
     };
+}
+
+#[cfg(test)]
+static THE_CLEAR_IS_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+static THE_CLEAR_WAS_REACHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+static THE_HELD_CLEAR: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+static THE_HELD_CLEAR_LETS_GO: std::sync::Condvar = std::sync::Condvar::new();
+
+/// What:
+///  Hold the runner between the child's end and the clear of the cell that published it.
+/// Why:
+///   A control has to stand in that window to show that an abandon which comes there
+///  is not erased by the clear;
+/// no fixture can make a real `git ls-tree` end at a chosen moment inside the runner.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (THE_CLEAR_IS_HELD) await new Promise(() => {}); // the runner waits here until a control lets go
+/// ```
+#[cfg(test)]
+fn hold_the_clear_where_a_control_asked() {
+    if !THE_CLEAR_IS_HELD.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    THE_CLEAR_WAS_REACHED.store(true, std::sync::atomic::Ordering::SeqCst);
+    let held = THE_HELD_CLEAR.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _lets_go = THE_HELD_CLEAR_LETS_GO.wait_timeout(held, std::time::Duration::from_secs(30)).unwrap_or_else(std::sync::PoisonError::into_inner);
+}
+
+/// What:
+///  A control that holds the runner before its clear,
+///  with the hold's own start of it.
+/// Why:
+///   See `hold_the_clear_where_a_control_asked`;
+/// nextest gives every control its own process,
+/// so one control never reaches another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hold = aControlHoldsTheClear(); // the runner waits there until hold is dropped
+/// ```
+#[cfg(test)]
+pub(crate) fn a_control_holds_the_clear() -> TheHeldClearForTheControl {
+    THE_CLEAR_WAS_REACHED.store(false, std::sync::atomic::Ordering::SeqCst);
+    THE_CLEAR_IS_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
+    return TheHeldClearForTheControl;
+}
+
+/// The hold of `a_control_holds_the_clear`,
+/// released when it is dropped.
+#[cfg(test)]
+pub(crate) struct TheHeldClearForTheControl;
+
+/// Lets the held runner go.
+#[cfg(test)]
+impl Drop for TheHeldClearForTheControl {
+    fn drop(&mut self) {
+        THE_CLEAR_IS_HELD.store(false, std::sync::atomic::Ordering::SeqCst);
+        THE_HELD_CLEAR_LETS_GO.notify_all();
+    }
+}
+
+/// What:
+///  Whether the held runner has reached the seam before its clear,
+/// so a control can abandon the read exactly there.
+/// Why:
+///   The window is between the child's end and the clear;
+/// a control that looked at any other moment would see the cell already cleared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reached = () => THE_CLEAR_WAS_REACHED;
+/// ```
+#[cfg(test)]
+pub(crate) fn the_clear_hold_was_reached() -> bool {
+    return THE_CLEAR_WAS_REACHED.load(std::sync::atomic::Ordering::SeqCst);
 }

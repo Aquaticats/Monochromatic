@@ -476,7 +476,7 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
 /// with no wait of the adding thread.
 #[test]
 fn a_read_that_already_answered_is_stated_as_work() {
-    let record: String = settle_with(Some((Duration::from_millis(7), Ok(Vec::new()))));
+    let record: String = settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
     assert!(the_record_states(record.as_str(), WORK), "the read's own cost is the record's work: {record}");
     assert!(record.contains("\"calls\":1"), "the work is one entry: {record}");
     assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the settle entered no wait: {record}");
@@ -1037,6 +1037,64 @@ fn an_abandon_after_the_child_ended_names_no_child() {
     assert_eq!(started.published_child_for_a_control(), 0, "the cell names no reaped child, so an abandon here signals nothing");
     drop(hold);
     drop(started);
+    remove(root.as_path());
+}
+
+/// An abandon of a read that already answered frees its map off the adding thread, and frees it at all.
+#[test]
+fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
+    let root: PathBuf = fixture("freed-beside-the-add");
+    let repo: PathBuf = a_clean_source(root.as_path(), "freed-beside-the-add");
+    let fake: PathBuf = root.join("git-whose-size-read-ends");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_ends_at_once(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    // The control abandons a read that has answered, so the abandon takes the map rather than stating a read still running.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !the_answer_was_sent_for_a_control() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(the_answer_was_sent_for_a_control(), "the read answered before the abandon");
+    let before: (usize, usize) = answered_maps_freed_for_a_control();
+    started.abandon();
+    // The free runs on a thread of its own, so the control waits for it rather than reading the counters at once.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut after: (usize, usize) = answered_maps_freed_for_a_control();
+    while after.0 == before.0 && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+        after = answered_maps_freed_for_a_control();
+    }
+    assert_eq!(after.0, before.0 + 1, "the abandoned answer was freed, not leaked");
+    assert_eq!(after.1, before.1, "the adding thread freed no answered map of its own");
+    remove(root.as_path());
+}
+
+/// An abandon that comes between the child's end and the runner's clear is not erased by that clear.
+#[test]
+fn the_clear_keeps_an_abandon_that_comes_before_it() {
+    let root: PathBuf = fixture("clear-keeps-the-abandon");
+    let repo: PathBuf = a_clean_source(root.as_path(), "clear-keeps-the-abandon");
+    let fake: PathBuf = root.join("git-whose-size-read-ends");
+    let wrote: PathBuf = root.join("size-read-started");
+    std::fs::write(fake.as_path(), a_git_whose_size_read_ends_at_once(wrote.as_path())).expect("the fake Git");
+    std::fs::set_permissions(fake.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("an executable");
+    let hold = crate::child_watch_one_shot_run::a_control_holds_the_clear();
+    let started: SizeReadBesideTheCheck = start_beside_the_check(&a_context_whose_git_holds_the_read(fake.as_path()), &main_identity(repo.as_path())).expect("a read starts");
+    let cell: std::sync::Arc<std::sync::atomic::AtomicI32> = started.child_cell_for_a_control();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !crate::child_watch_one_shot_run::the_clear_hold_was_reached() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(crate::child_watch_one_shot_run::the_clear_hold_was_reached(), "the runner reached the seam before its clear");
+    let published: i32 = cell.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(published > 0, "the cell names the child the runner published: {published}");
+    // The abandon comes in the window the clear leaves, and must survive that clear.
+    started.abandon();
+    assert_eq!(cell.load(std::sync::atomic::Ordering::SeqCst), crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, "the abandon wrote its marker while the runner was held");
+    drop(hold);
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(cell.load(std::sync::atomic::Ordering::SeqCst), crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, "the runner's clear left the abandon marker alone");
     remove(root.as_path());
 }
 

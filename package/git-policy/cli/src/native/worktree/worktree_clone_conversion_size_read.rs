@@ -66,6 +66,12 @@ const WORK: &str = "fenceSizesBesideTheCheck";
 /// not a new limit.
 const THE_JOIN_DEADLINE: Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING.saturating_add(crate::wait_ceilings::SHORT_EXTRA_WAIT);
 
+/// The name the thread that frees an abandoned answer carries in the process.
+/// Why:
+///   A diagnostic that lists threads names it for what it does.
+///  It lives a few milliseconds and holds one map (3.1 MB on this crate's fixture).
+const FREEING_THREAD: &str = "clone-size-read-freed-map";
+
 /// The name the read's thread carries in the process.
 /// Why:
 ///   The read is the one step of an add that runs on a thread of its own,
@@ -116,12 +122,14 @@ const NO_LAZY_FETCH: &str = "GIT_NO_LAZY_FETCH";
 
 /// What the read's job answers:
 /// how long it took,
-/// and the `ls-tree` output or the reason it cannot be read.
+/// and the map or the reason it cannot be read.
 /// Why:
-///   The output is parsed by the add that uses it,
-/// never by a read a declined add abandons:
-/// a declined add then frees one buffer rather than a map of 24,634 entries on its waiting path.
-type ReadAnswer = (Duration, Result<Vec<u8>, String>);
+///   The map is parsed on the read's own thread,
+/// where `main` parsed it,
+/// so the parse stays off the adding thread of every add that uses the answer
+/// (the integration pass's Medium 1 of 2026-11-23);
+/// an add that abandons the read frees the answer beside the add (`free_the_answered_map_beside_the_add`).
+type ReadAnswer = (Duration, Result<BlobSizes, String>);
 
 /// What:
 ///  What the join got:
@@ -134,7 +142,7 @@ type ReadAnswer = (Duration, Result<Vec<u8>, String>);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Joined = { spent: number; outcome: Result<Map<string, number>, string> } | { silent: string };
+/// type Joined = { spent: number; outcome: Result<BlobSizes, string> } | { silent: string };
 /// ```
 enum Joined {
     /// The read answered,
@@ -144,7 +152,7 @@ enum Joined {
         spent: Duration,
         /// The map,
         /// or the reason it could not be read.
-        outcome: Result<Vec<u8>, String>,
+        outcome: Result<BlobSizes, String>,
     },
     /// The read answered nothing,
     /// in the words a failed run of the fence gives.
@@ -245,7 +253,7 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// Why:
 ///   The thread owns what it reads,
 /// so it takes the context,
-///  the worktree root and the commit by value and answers both the cost and the `ls-tree` output;
+///  the worktree root and the commit by value and answers both the cost and the map;
 /// a send nobody waits for any more is dropped,
 ///  because the add moved past its deadline.
 ///
@@ -255,11 +263,68 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// ```
 fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
     let began: Instant = Instant::now();
-    let sizes: Result<Vec<u8>, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
-    // The runner cleared this cell when it reaped the child, before anything was parsed (`child_watch_one_shot_run.rs`,
-    //  the `StepBound::EndAt` arm), so an abandon after this line cannot signal a reused process id.
-    child.store(0, std::sync::atomic::Ordering::SeqCst);
+    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
+    // The cell is not cleared here: the runner clears it with a compare-exchange when the child it published is
+    //  gone (`child_watch_one_shot_run.rs`, the `StepBound::EndAt` arm), so a store here would erase an abandon
+    //  marker for nothing, and it can name no process the runner has not already dealt with.
+    #[cfg(test)]
+    THE_ANSWER_WAS_SENT.store(true, std::sync::atomic::Ordering::SeqCst);
     let _sent: Result<(), std::sync::mpsc::SendError<ReadAnswer>> = sender.send((began.elapsed(), sizes));
+}
+
+/// What:
+///  Free the answer of a read this add will not use
+///  on a thread of its own,
+///  so the adding thread pays neither the map's free nor its later allocations.
+/// Why:
+///   The read parses on its own thread, as `main` does,
+///  because an add that uses the answer must not parse it on its waiting path
+///  (the integration pass's Medium 1 of 2026-11-23);
+///  and an add that declines has that map on its waiting path when the abandon takes it,
+///  where dropping 24,634 entries cost 1.8 to 3.2 ms and leaving them resident cost more
+///  (the integration recheck's Medium 1 of 2026-11-22).
+/// The map travels into the closure, so nothing is copied, and the thread ends as soon as it has freed it.
+/// A thread the system refuses loses only the free's place:
+///  `spawn_named` consumes the closure, so the map is freed here,
+///  which is what the fence did before the free moved, and the add pays those milliseconds.
+/// The map stays resident for the few milliseconds the freeing thread takes, not to the end of the add;
+///  one listing is the whole of it (3.1 MB for 24,634 paths, about 128 bytes a path).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// freeBesideTheAdd(answered) // a thread of its own drops it; the adding thread only starts that thread
+/// ```
+fn free_the_answered_map_beside_the_add(answered: Option<BlobSizes>) {
+    let Some(sizes) = answered else { return };
+    #[cfg(test)]
+    THE_ABANDONING_THREAD.with(|held| held.set(Some(std::thread::current().id())));
+    let freeing = move || { drop(TheAnsweredMap(Some(sizes))); };
+    let _started: std::io::Result<std::thread::JoinHandle<()>> = spawn_named(FREEING_THREAD, freeing);
+    #[cfg(test)]
+    THE_ABANDONING_THREAD.with(|held| held.set(None));
+}
+
+/// What:
+///  The answered map on its way to a thread that frees it,
+///  which counts, in a test build, the thread that paid the free.
+/// Why:
+///   A control has to show that the adding thread of a declined add frees no map,
+///  and a plain `drop` of the map inside `abandon` would be a free on that thread;
+/// one wrapper answers which thread dropped it without changing the shipped path,
+///  because its `Drop` only drops the map.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheAnsweredMap { constructor(readonly sizes: BlobSizes) {} } // dropped wherever it ends up
+/// ```
+struct TheAnsweredMap(Option<BlobSizes>);
+
+impl Drop for TheAnsweredMap {
+    fn drop(&mut self) {
+        #[cfg(test)]
+        note_an_answered_map_was_freed();
+        let _freed = self.0.take();
+    }
 }
 
 /// What:
@@ -299,17 +364,19 @@ fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
 /// run where a partial clone does not fetch.
 /// Why:
 ///   This is the early read's own run;
-/// its output is parsed by the same `parse_sizes` the fence's serial read uses,
+/// its output is parsed here with the same `parse_sizes` the fence's serial read uses,
+///  on this thread and off the adding thread,
 ///  and a run that fails says what the fence's own read says.
-/// The runner clears the published child's cell when it reaps that child,
-///  before this function parses anything,
-/// so an abandon after the wait cannot signal a reused process id.
+/// The runner clears the published child's cell with a compare-exchange once the child is gone,
+///  before this function parses anything;
+/// the abandon can still signal an id no process has in the window that clear leaves,
+///  and the `abandon` doc says which.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): Map<string, number>;
+/// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): BlobSizes;
 /// ```
-fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<Vec<u8>, String> {
+fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
     #[cfg(test)]
     hold_the_read_where_a_control_asked();
     #[cfg(test)]
@@ -318,11 +385,11 @@ fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Pat
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
-    // This seam sits where the old code still named the reaped child, after the wait and before the add
-    //  parses anything, so a control can show that the cell is cleared before any parse starts.
+    // This seam sits after the wait and before this thread parses anything: an abandon here must find the cell
+    //  clear, so a control can show that the parse starts only after the runner let go of the child.
     #[cfg(test)]
     hold_the_sizes_after_the_wait_where_a_control_asked();
-    return Ok(output.stdout);
+    return Ok(parse_sizes(output.stdout.as_slice()));
 }
 
 /// What:
@@ -446,7 +513,7 @@ impl SizeReadBesideTheCheck {
             Joined::Answered { spent, outcome } => {
                 note_work(WORK, spent);
                 match outcome {
-                    Ok(bytes) => Ok(parse_sizes(bytes.as_slice())),
+                    Ok(sizes) => Ok(sizes),
                     Err(reason) => Err(reason),
                 }
             }
@@ -532,11 +599,11 @@ impl SizeReadBesideTheCheck {
     /// ```
     pub fn abandon(self) {
         let take_entered: bool = begin_step("abandonTakeTheAnswer");
-        let answered: Option<Vec<u8>> = match self.answer.try_recv() {
+        let answered: Option<BlobSizes> = match self.answer.try_recv() {
             Ok((spent, outcome)) => {
                 note_work(WORK, spent);
                 match outcome {
-                    Ok(bytes) => Some(bytes),
+                    Ok(sizes) => Some(sizes),
                     Err(reason) => {
                         debug(TAG, format!("the size read started beside the check answers {reason}, and the add no longer waits for it").as_str());
                         None
@@ -548,10 +615,7 @@ impl SizeReadBesideTheCheck {
                 None
             }
         };
-        // The answered output is one buffer, not a map of 24,634 entries: a declined add leaves it to the
-        //  kernel, where the map it used to hold cost 1.8 to 3.2 ms to free and its late allocations cost more
-        //  (the integration recheck's Medium 1 of 2026-11-22). The add's process ends after it.
-        std::mem::forget(answered);
+        free_the_answered_map_beside_the_add(answered);
         end_step(take_entered);
         let child_entered: bool = begin_step("abandonEndTheChild");
         let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);
@@ -604,6 +668,89 @@ impl SizeReadBesideTheCheck {
     pub(crate) fn published_child_for_a_control(&self) -> i32 {
         return self.child.load(std::sync::atomic::Ordering::SeqCst);
     }
+
+    /// What:
+    ///  A handle on the cell that holds the read's child,
+    /// for a control that reads it after `abandon` took the read.
+    /// Why:
+    ///   `abandon` consumes the read,
+    /// and a control of the cell's value needs the cell itself.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// childCellForAControl() { return this.child; }
+    /// ```
+    #[cfg(test)]
+    pub(crate) fn child_cell_for_a_control(&self) -> std::sync::Arc<std::sync::atomic::AtomicI32> {
+        return self.child.clone();
+    }
+}
+
+#[cfg(test)]
+static THE_ANSWER_WAS_SENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What:
+///  Whether the read's thread has sent its answer,
+/// for a control that abandons a read which already answered.
+/// Why:
+///   An abandon of a read that has not answered states it as started and not joined and frees no map,
+/// so a control of the free has to look after the send.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = () => THE_ANSWER_WAS_SENT;
+/// ```
+#[cfg(test)]
+pub(crate) fn the_answer_was_sent_for_a_control() -> bool {
+    return THE_ANSWER_WAS_SENT.load(std::sync::atomic::Ordering::SeqCst);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The thread that abandoned a read, while it is in `abandon`,
+    /// so a control can tell whether the answered map was freed there.
+    static THE_ABANDONING_THREAD: std::cell::Cell<Option<std::thread::ThreadId>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+static ANSWERED_MAPS_FREED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(test)]
+static ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// What:
+///  Count a freed answered map, and whether the adding thread paid it.
+/// Why:
+///   A control shows the free happens,
+/// and that it does not happen on the thread that abandoned the read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function noteAnAnsweredMapWasFreed() { freed += 1; if (thread.current === abandoning) freedHere += 1; }
+/// ```
+#[cfg(test)]
+fn note_an_answered_map_was_freed() {
+    let _counted = ANSWERED_MAPS_FREED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let abandoning: Option<std::thread::ThreadId> = THE_ABANDONING_THREAD.with(std::cell::Cell::get);
+    if abandoning == Some(std::thread::current().id()) {
+        let _here = ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// What:
+///  How many answered maps were freed, and how many of them on the thread that abandoned the read,
+///  for a control that waits for the free and shows where it happened.
+/// Why:
+///   The free runs on a thread of its own,
+/// so a control reads the counters after the free rather than at the abandon.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answeredMapsFreed = () => [freed, freedHere];
+/// ```
+#[cfg(test)]
+pub(crate) fn answered_maps_freed_for_a_control() -> (usize, usize) {
+    return (ANSWERED_MAPS_FREED.load(std::sync::atomic::Ordering::SeqCst), ANSWERED_MAPS_FREED_ON_THE_ADDING_THREAD.load(std::sync::atomic::Ordering::SeqCst));
 }
 
 #[cfg(test)]
