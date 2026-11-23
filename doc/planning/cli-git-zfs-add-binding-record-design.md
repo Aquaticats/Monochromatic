@@ -2407,13 +2407,14 @@ so its own read of the slot is that one.
 One list,
 stated once,
 and the printing rule,
-the fallback's own list,
+the list after A20 in "The add's own fallback",
 "A resumed add",
 "`doctor`",
 R3,
 "What a record whose clone is gone means" and the removal's rule cite it and say nothing of their own.
-"Cannot be proved" is defined under this list,
-a binding at `phase=settling` never has a plan,
+"Cannot be proved" is defined above,
+at "Cannot be proved" in "The add's own fallback";
+a binding at `phase=settling` never has a plan;
 and a reused name is a refusal and not a state (G9).
 
 For a binding at `phase=settling` that holds a `cloneGuid=`:
