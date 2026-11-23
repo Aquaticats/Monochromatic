@@ -485,7 +485,7 @@ so a printed command is printed and never run by a step,
 and it carries `--no-ask-password` so that no shell of a script waits on the agent
 ([sibling propagation][sibprop],
 its fact F22,
-read at `467d05e307`).
+read on `main`).
 That is why this design prints levers and runs none.
 
 Concurrency is lock-free first,
@@ -1053,7 +1053,7 @@ fact F38).
 The folder is the account's,
 made by the wrapper on the first entry,
 and it lives in the repository's Git common directory,
-which this design assumes is on a ZFS dataset for the repositories it serves.
+which the crash ordering below needs to be on a ZFS dataset for the repositories this route serves (A15).
 
 Inside it,
 one file per clone with an unanswered request,
@@ -1090,7 +1090,9 @@ synced,
 and `link`ed to `<guid>.<attempt>`,
 and the writer removes its staging name after the link,
 leaving it to `doctor` only when it was killed.
-A command or a wait that claims the next attempt writes its staging file and links it without a sync (V18).
+A command or a wait that claims the next attempt writes its staging file and links it without a sync (V18),
+and it takes the number one past the highest attempt name present,
+empty or readable.
 A crash can leave the new attempt empty:
 an fsync of another file in the same dataset commits the claim's create,
 link and remove records
@@ -1117,7 +1119,8 @@ a later attempt):
 the recreate is transient,
 because the next receipt read removes an answered entry,
 the next recorded outcome unlinks it as a lower attempt,
-and `doctor` prints it.
+`doctor` prints it,
+and for a clone the removal has settled it heals through the helper whose write finds the clone gone.
 The staging name is unique per writer,
 `.` and 32 lowercase hexadecimal digits as the slot store's own staging names are
 (`slot_identity_store_records.rs`,
@@ -1136,16 +1139,29 @@ so the next gap runs from the helper's outcome for an attempt the helper recorde
 and from the claim for one it did not.
 The helper unlinks every lower attempt of the same GUID once it has recorded its synced outcome,
 so a clone holds one file at rest.
-While an attempt is claimed and unrecorded it holds one extra,
-and a run of killed helpers leaves one per kill,
-which the next recorded outcome unlinks and `doctor` prints.
 A reader reads the highest attempt of a GUID,
 treats an attempt that is empty or unreadable as absent,
 and uses the highest readable lower attempt,
 which is at most one gap behind.
-The child bound is the route's ceiling on the clones (F28),
-not a bound on the folder's files,
-and the folder holds at most one file per clone plus one per unrecorded claim.
+A claim takes the number one past the highest attempt name present,
+empty or readable,
+and the gap is read from the highest readable attempt;
+that is what keeps a claim possible after a crash left an empty file above the readable one.
+While an attempt is claimed and unrecorded it holds one extra.
+Where a helper never records its outcome,
+a sandbox that kills it or a property write that never returns (L24),
+each later claim keeps the previous attempt and adds one,
+so the folder gains one file per `Gmax` for as long as the request stands and Git is used in that repository,
+and every command's `read_dir` grows with it until a recorded outcome,
+another trigger answering the request,
+or the removal clears it.
+The pass's enumeration bound (F28) is a ceiling on the clones only if every clone is a child of the clone parent,
+and it is no bound on the folder's files.
+No cap is proposed:
+a winner that unlinked lower attempts itself must still keep every attempt that a crash inside one transaction-group
+window could leave empty,
+and that window is an age M8 would have to size first;
+a cap is therefore the measurement's to give.
 
 The entry is read the way the pending check reads a Git pointer file:
 opened as a plain file without following a link,
@@ -1175,7 +1191,8 @@ proving only that they name the same clone's GUID,
 because the clone's durable intent carries one nonce and an older one can never be answered.
 An entry is removed:
 
-- by the command that reads the receipt and finds it answering the entry's nonce;
+- by the command that reads the receipt and finds it answering the entry's nonce,
+  which removes every attempt of that clone;
 - by the helper,
   after it reads the clone's intent with the device open,
   when the entry's `written-at` is older than the spec's mount-request deadline,
@@ -1208,7 +1225,9 @@ and a folder left behind by a racing creator costs one `read_dir` that finds not
 
 A folder holds one file per clone at rest ("The record:
 one file per clone"),
-so the cases below read one entry and not a growing list.
+so the cases below read one entry at rest;
+a folder whose helpers never record grows one file per `Gmax`,
+which V18's con states and M8 measures.
 The command reads the receipt before it spends anything else.
 The entry carries the clone's GUID,
 receipts are named by GUID,
@@ -1422,7 +1441,8 @@ when its attempt ran and what its outcome was,
 whether the receipt answers it,
 and,
 for an entry whose clone is gone or whose staging name was left,
-the one line that removes it.
+the one line that removes it,
+and both attempts of a clone whose last claim was never recorded.
 Its lost-event block gains a `nudge` line naming the folder and the entries,
 and its list of next triggers gains "the next Git command in this repository".
 A folder it cannot read is reported as unknown,
@@ -1439,7 +1459,7 @@ in these cases:
 - a folder whose entry the receipt answers:
   the `stat`,
   the `read_dir`,
-  the receipt read and the `unlink`,
+  the receipt read and the `unlink` of every attempt of the clone,
   with no device and no gate;
 - a folder whose entry is unanswered and inside its gap:
   the `stat`,
@@ -1796,7 +1816,7 @@ keeping one short note for a machine that lacks it
 "The project's four answers,
 and what this design does with each",
 its fifth bullet,
-read at `467d05e307`,
+read on `main`,
 2026-11-22T21:16:54-05:00).
 So one `ExecReload=` serves two consumers here:
 the hook's job request and the project's printed lever,
@@ -1813,7 +1833,7 @@ whose `ExecStart=` is the same `systemctl --no-block --no-ask-password reload-or
 "The trigger the route adds,
 and what it must show"
 and "The propagation service and its drop-in",
-read at `467d05e307`;
+read on `main`;
 fact F42).
 The project took it provisionally:
 it is dropped if the guest measurement shows that it misses a replacement typed by hand or that it loops.
@@ -1966,7 +1986,7 @@ The order inside either mode is the propagation sibling's and not this design's
 "Where it runs,
 as whom,
 and in what order",
-read at `467d05e307`):
+read on `main`):
 read the configuration and resolve the checkout,
 its propagation step,
 the start probe's record,
@@ -2000,7 +2020,7 @@ does this in order:
     "Where it runs,
     as whom,
     and in what order",
-    read at `467d05e307`).
+    read on `main`).
     A prerequisite that refuses exits 2,
     and it records no start and removes no mark,
     because nothing will be enumerated and no claim was taken.
@@ -2720,10 +2740,15 @@ fact F22).
     no spawn and no output,
     and a leftover staging name of a killed writer does not block a later command.
     After a burst exactly one attempt file per GUID is left;
-    after a winner killed between its link and its recorded outcome two are left,
+    after a helper killed before it records two are left,
     a reader takes the highest readable attempt and skips an empty one,
     and the next recorded outcome leaves one;
     `doctor` prints both.
+    A planted empty `<guid>.<n + 1>` beside a readable `<guid>.<n>`:
+    the next due command links `<guid>.<n + 2>`,
+    spawns one helper,
+    that helper's recorded outcome unlinks `<n>` and the empty `<n + 1>`,
+    and a second claim then links `<n + 3>`.
     A wait and a command that find the entry due together write one nudge (V16's first option).
 17. The entry's life on a wait,
     host:
@@ -2731,8 +2756,8 @@ fact F22).
     an answered wait removes it,
     and a killed wait leaves it (V15's first option);
     a second request on the same clone removes the older entries it supersedes;
-    an add that fails before its intent write leaves an entry the helper drops once the entry is older than the wait's
-    deadline,
+    an add that fails before its intent write leaves an entry the helper drops once the entry's `written-at` is older
+    than the spec's mount-request deadline (F20),
     because the clone's intent is then absent;
     an add whose intent write is still uncommitted leaves its entry alone,
     which the deadline condition protects;
@@ -2899,7 +2924,7 @@ None ran.
   - a folder whose entry the receipt answers,
     which is the `stat`,
     the `read_dir`,
-    the receipt read and the `unlink`,
+    the receipt read and the `unlink` of every attempt of the clone,
     with no device and no gate;
   - a folder whose entry is unanswered and inside its gap;
   - a folder whose entry is due,
@@ -2929,7 +2954,10 @@ None ran.
   the first gap `G0`,
   the cap `Gmax`,
   and the wait's delay `D`,
-  from the receipt latency the wait measures (F30).
+  from the receipt latency the wait measures (F30),
+  and,
+    if a cap on unrecorded claims is wanted,
+    the transaction-group age it would need.
 
 ## Counts and numbers this design does not ship
 
@@ -3362,7 +3390,7 @@ Nothing here is new measurement on this host.
   "The trigger the route adds,
   and what it must show"
   and "The propagation service and its drop-in",
-  read at `467d05e307`).
+  read on `main`).
 - F43.
   The wrapper's intent writer runs the compatibility gate before it opens the device:
   `CloneIntentWriter::open` calls `gate.verdict()` and then `ZfsDevice::open`
@@ -3476,6 +3504,12 @@ Nothing here is new measurement on this host.
   the helper then drops that entry as naming another nonce,
   and the live request loses its trigger until the next wait writes a new entry;
   `doctor` reports the clone without a receipt.
+- A15.
+  The Git common directory of a repository this route serves is on a ZFS dataset,
+  which is what makes the crash ordering in "The record:
+  one file per clone" apply;
+  the reader's fallback to an empty attempt may also help on another filesystem,
+  and nothing here measured that.
 
 ## Limitations
 
@@ -3619,9 +3653,13 @@ Nothing here is new measurement on this host.
   and the add's own wait re-links the entry at `D` while it lives.
 - L24.
   A helper whose property write never returns is not bounded:
-  a later command links the next attempt and spawns another each `Gmax`.
+  a later command links the next attempt and spawns another each `Gmax`,
+  and because no outcome is recorded,
+  the folder gains one file per `Gmax` for as long as the request stands,
+  with every command's `read_dir` growing with it (V18's con).
   The case needs a pool whose writes hang,
-  and nothing here measures it.
+  nothing here measures it,
+  and no cap is proposed because a safe one needs an age M8 would first size.
 
 ## Choices this design marks for the project's veto
 
@@ -3855,20 +3893,33 @@ so V17 and V18 sit beside the entries they belong with.
   can leave `<guid>.<n + 1>` empty,
   and `<guid>.<n>` is still there because the winner kept it;
   the next command skips the empty attempt,
-  uses `<guid>.<n>` and claims again.
+  reads `<guid>.<n>`,
+  and claims `<guid>.<n + 2>`,
+  the number one past the highest name present.
   Pro:
   the command's path holds no sync,
   which is the one wait a sync would add there,
   and the lower attempt keeps the request's trigger through the crash.
   Con:
   a crash can leave the new attempt empty and the request's trigger resting on the lower attempt,
-  so the next command pays one more read and a repeated nudge,
-  and a run of kills leaves a short chain of attempts until a recorded outcome unlinks them.
+  so the next command pays one more read and a repeated nudge;
+  where a helper never records its outcome (a sandbox kills it,
+  or its property write never returns),
+  each later claim keeps the previous attempt and adds one,
+  so the folder gains one file per `Gmax` for as long as the request stands and Git is used in that repository,
+  and every command's `read_dir` grows with it until a recorded outcome,
+  another trigger answering the request,
+  or the removal clears it.
+  No cap is proposed:
+  a safe one needs a transaction-group age M8 would first size,
+  so a cap is the measurement's to give.
 - B,
   the claim is synced.
   Example:
   the same command syncs its staging file before the link;
-  a crash after the link keeps the attempt.
+  the staging file's data and its create are durable,
+  so a crash cannot leave the attempt empty,
+  though it can still lose the link and leave the lower attempt.
   Pro:
   an attempt that was linked is never empty after a crash.
   Con:
@@ -4391,8 +4442,10 @@ so V17 and V18 sit beside the entries they belong with.
 
 - D1.
   The propagation sibling ([sibling propagation][sibprop]),
-  read at `467d05e307`
-  (2026-11-22T22:11:20-05:00),
+  read on `main`
+  (accepted 2026-11-23,
+  recorded 2026-11-23T04:16:11-05:00,
+  its text equal to `467d05e307` apart from its status block),
   and its record ([repair record][repair],
   accepted 2026-11-22T19:23:30-05:00,
   with its further answer on a shared and slave mount recorded 2026-11-22T20:37:32-05:00).
@@ -4539,10 +4592,19 @@ so V17 and V18 sit beside the entries they belong with.
 - D10.
   Siblings that state no dependency on this design and gain none from it:
   the add-time Git lock,
-  the add binding record (which says the two "share no fact"),
   the dirty-main restore (which "adds no trigger of its own"),
   the deferred-destroy checks (no mention),
   and the removal plan record.
+  The add binding record ([sibling binding][sibbinding],
+  read at `7d041d773b`,
+  unapproved)
+  owns the one claim per slot that A14 rests on:
+  its V9 "The removal takes the same claim as the add" says "Both the add and the removal take this claim"
+  and "a removal that runs while an add holds the claim is refused by the claim",
+  which is the sentence A14 cites;
+  it says nothing of triggers or nudges,
+  and this design's entry written with the intent changes the nudge's side of that,
+  not its claim.
   The add-time lock at `a7902e293b` says nothing about triggers at all;
   its earlier note that the trigger design would "gain one action,
   not one trigger" if that design's Q1 is A
@@ -4642,12 +4704,15 @@ which is that design's answer.
   the two `[[bin]]` entries and the handler's installed name.
 - Sibling design documents,
   with `git show <branch>:<path>`:
-  the private propagation document at `467d05e307`,
+  the private propagation document on `main`
+  (accepted 2026-11-23,
+  recorded 2026-11-23T04:16:11-05:00,
+  its text equal to `467d05e307` apart from its status block),
+  the add binding record at `7d041d773b`,
   then the forced removal,
   cancelled or
   interrupted removal,
-  add-time lock,
-  add binding record and dirty-main restore documents.
+  add-time lock and dirty-main restore documents.
 - OpenZFS at `zfs-2.4.4`:
   `cmd/zed/zed.c`,
   `cmd/zed/zed_event.c`,
@@ -4931,5 +4996,6 @@ which is that design's answer.
 [probedesign]: cli-git-zfs-start-probe-design.md
 [probdecision]: ../decision/cli-git-zfs-start-probe.md
 [sibprop]: cli-git-zfs-private-propagation-after-replacement-mount-design.md
+[sibbinding]: cli-git-zfs-add-binding-record-design.md
 [sibforced]: cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md
 [sibcancelled]: cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md
