@@ -3392,8 +3392,13 @@ with each committer time from `git log --format=%cI`:
   one Git-alone arm restored and two added,
   the stale citations corrected,
   and the questions reduced to the review's two.
-- The commit that carries this list is the one after `cf555b1a9f` on this branch,
-  and `git log` reports its hash and time.
+- `ec7055ba25`,
+  2026-11-22T19:23:38-05:00:
+  the binding design's `registered` write quoted at its current tip,
+  with no blockquote of an earlier revision left.
+
+Any commit after those carries this list;
+the round's report names every commit with its committer time.
 
 ## Links
 
