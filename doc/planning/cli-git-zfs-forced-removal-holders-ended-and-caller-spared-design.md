@@ -4214,6 +4214,19 @@ the questions section is the decided record.
   controls and new arms T0-11 and T0-12,
   the claim map,
   and the stopped-unmount answer cited.
+- `c110eff15b`,
+  2026-11-23T04:55:29-05:00:
+  the merge of `main`.
+- `28613ce6c5`,
+  2026-11-23T04:57:41-05:00:
+  the seventh read's N1 to N6:
+  the common start and the mount-namespace isolation,
+  the unshare modes,
+  each Tier 0 arm's missing line,
+  a positive control for every arm whose result is nothing happening,
+  the non-shared closure branch,
+  the doubled preflight lines,
+  the sibling tip and the plain Decides lines.
 
 ## What this revision left as it was
 
