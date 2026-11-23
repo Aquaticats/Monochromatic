@@ -2360,11 +2360,21 @@ and the command for each state after A20 is:
 - the clone is gone,
   the binding says `settling`,
   it holds a `cloneGuid=`,
-  and its absence is proved (the pinned parent's children carry neither the GUID nor the name):
+  its absence is proved (the pinned parent's children carry neither the GUID nor the name),
+  and its registration stands:
   the add's own re-run,
   which continues at A20,
   finishes the checkout,
   and closes at A26 and A27;
+- the clone is gone,
+  the binding says `settling`,
+  it holds a `cloneGuid=`,
+  its absence is proved,
+  and its registration is gone (a kill inside the settling command,
+  run again once the pool answers):
+  the settling command,
+  which takes the binding for either listing answer and removes the records (U16 of the seventh add-side
+  read);
 - the clone is gone,
   the binding says `settling`,
   it holds a `cloneGuid=`,
