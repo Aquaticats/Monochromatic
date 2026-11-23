@@ -2938,9 +2938,12 @@ nothing here claims their behaviour.
   committed `2026-11-22T19:02:32-05:00`:
   the version that answers the diff check,
   with the changes the third part of "What this revision rewrote" lists.
+- `9ee117c04d`,
+  committed `2026-11-22T19:02:49-05:00`:
+  the metadata-only commit that listed the two above with their times.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  list the diff check round's commits":
+  record the diff check round's metadata commit":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
