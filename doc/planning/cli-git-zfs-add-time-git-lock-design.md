@@ -3745,7 +3745,8 @@ with each committer time from `git log --format=%cI`:
 - `f06e272178`,
   2026-11-23T04:41:49-05:00:
   main merged with `--no-ff`.
-- The commit after `f06e272178` that carries this list:
+- `7c3f8517d6`,
+  2026-11-23T04:45:00-05:00:
   the sixth read's lows:
   the grammar quoted by heading and label at `c077bdb1e1`,
   V10's example aligned with its ranking,
