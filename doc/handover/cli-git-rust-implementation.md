@@ -962,9 +962,18 @@ and only the owner accepts one.
   a guest recipe that cannot produce a shared mount beneath.
 - The round on that check ended at `12ff579a2c`
   (report `keep/report-diff-check-after-the-answers.md` in its folder).
-  Going:
-  the reviewer's short check of the high finding's fix,
-  to `review-check-of-the-high-finding.md` beside its other reviews.
+  The reviewer's short check (`review-check-of-the-high-finding.md` beside its other reviews):
+  the high finding is closed in every place,
+  the writer withdrew its reading and its ten citations hold against systemd `v262`,
+  and "the design may go to the owner now".
+  The design rests at `12ff579a2c`.
+  Left for its next edit,
+  none needing the owner:
+  one medium
+  (the guest arm's last step mounts five datasets under a checkout already made private,
+  so they come up private and the arm cannot show them;
+  make the checkout shared again first)
+  and seven lows.
 
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
 
