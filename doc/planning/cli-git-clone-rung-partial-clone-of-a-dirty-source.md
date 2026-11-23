@@ -380,6 +380,46 @@ in
 `keep/slower-git-call-on-clean-declines.md`,
 and no code changed for it.
 
+### The checks and the gate of 2026-11-23
+
+- `native:check`,
+  `native:clippy`,
+  `native:clippy:measurement` and `lint:types`:
+  exit 0.
+- The touched modules on the host:
+  200 run,
+  199 passed;
+  the one failure is
+  `worktree::worktree_clone_conversion_size_read::tests::a_process_that_ends_with_a_running_read_leaves_no_child_behind`,
+  whose file is byte-identical to `main`'s and which fails on `main` under the AppArmor enforcement too (the main gate's
+  own list of ten).
+- The binary controls named `worktree_clone_conversion` and `worktree_clone_zfs` on the host:
+  28 run,
+  28 passed with both
+  absent-fixture acknowledgements the gate sets;
+  the real run is the ZFS guest's,
+  27 of 28.
+- The repository linter over the round's changed files:
+  no finding.
+- One whole container gate ran before the project's 19:20 note stopped gates being a merge condition,
+  as unit
+  `clone-rung-mean-edge-gate-20261123.service` on `eacdc8cca6` with its own image tag:
+  `Summary [1161.141s] 9950 tests run: 9942 passed (8 slow), 8 failed, 36 skipped`,
+  and its Clippy container ended
+  `Finished dev profile ... in 4m 26s` with no warning.
+  Six of the eight failures are named in the unit's journal and every one is in `main`'s own ten under enforcement:
+  `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`,
+  `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing`,
+  `stale_ref_lock::a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them`,
+  `stale_ref_lock::a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_command`,
+  `stale_ref_lock::another_command_gets_no_notice_and_clears_nothing` and
+  `worktree::worktree_clone_conversion_size_read::tests::a_process_that_ends_with_a_running_read_leaves_no_child_behind`.
+  The other two are not named anywhere in that journal:
+  it kept 8,931 of the 9,950 test positions,
+  so about 1,019 lines
+  were lost under the run's own load,
+  and those two failures stay unaccounted rather than attributed either way.
+
 ### The measured clean-source mean-file edge
 
 The measurements below are this round's and stand as taken.
