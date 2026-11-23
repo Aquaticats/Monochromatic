@@ -99,8 +99,12 @@ const HOLDER_FOLDER: &str = "/mnt/holder-scan-holder";
 /// The folder a confined consumer binds the clone's root at.
 const CONFINED_FOLDER: &str = "/mnt/holder-scan-confined";
 
-/// The folder a holder with a divergent root attaches the clone at.
-const ROOTED_FOLDER: &str = "/mnt/holder-scan-rooted";
+/// The folder the guest's root is bound at for the divergent-root task,
+/// which is the root that task runs under.
+const ROOTED_BIND: &str = "/root/holder-scan-rootfs";
+
+/// The path the clone is mounted at inside that task's own root.
+const ROOTED_FOLDER: &str = "/mnt/holder-scan-rooted-in-root";
 
 /// How many live tasks the large half of the timing arm adds.
 const CHURN_TASKS: usize = 200;
@@ -546,21 +550,7 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         large.as_millis()
     );
 
-    // Arm 6: a task with a divergent process root still names its namespace's mount of the clone.
-    let mut rooted: Task = divergent_root(sbin.as_str(), clone.as_str())
-        .unwrap_or_else(|| panic!("the divergent-root task's mount namespace could not be made; see the arm's log for the refusal"));
-    assert!(wait_for_the_task_table_to_mention(&rooted, ROOTED_FOLDER), "the divergent-root task's own table shows its mount at {ROOTED_FOLDER}");
-    let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-    assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
-    let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
-    let named: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = rooted_scan.holders.iter().find(|found| return found.namespace() == rooted.namespace);
-    let rooted_holder: &git_policy_cli::clone_holder_scan::NamespaceHolder = named
-        .unwrap_or_else(|| panic!("a holder read through a divergent root is a holder under its own namespace {}: {:?}", rooted.namespace, rooted_scan.holders));
-    let observed: String = rooted_holder.mounts.iter().map(|mount| return mount.mount_point.display().to_string()).collect::<Vec<String>>().join(",");
-    println!("SCAN divergent-root holders={} namespace={} mount-points={observed}", rooted_scan.holder_namespaces(), rooted.namespace);
-    end(&mut rooted);
-
-    // Arm 7: a namespace pinned by a handle and no task is invisible,
+    // Arm 6: a namespace pinned by a handle and no task is invisible,
     // which is the residual the destroy-anyway decision accepts rather than hides.
     let held_pid: u32 = holder.pid;
     let held_namespace: String = holder.namespace.clone();
@@ -578,6 +568,28 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         pinned_result.incomplete_reads()
     );
     stop(&mut pinned);
+
+    // Arm 7: a task with a divergent process root still names its namespace's mount of the clone.
+    let mut rooted: Task = divergent_root(sbin.as_str(), clone.as_str())
+        .unwrap_or_else(|| panic!("the divergent-root task's mount namespace could not be made; see the arm's log for the refusal"));
+    if !wait_for_the_task_table_to_mention(&rooted, ROOTED_FOLDER) {
+        let table: String = std::fs::read_to_string(format!("/proc/{}/mountinfo", rooted.pid)).unwrap_or_else(|error| return format!("unreadable: {error}"));
+        println!(
+            "SCAN divergent-root=unavailable pid={} alive={} mount-table={table}",
+            rooted.pid,
+            Path::new(format!("/proc/{}", rooted.pid).as_str()).exists()
+        );
+    }
+    assert!(wait_for_the_task_table_to_mention(&rooted, ROOTED_FOLDER), "the divergent-root task's own table shows its mount at {ROOTED_FOLDER}");
+    let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
+    assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
+    let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
+    let named: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = rooted_scan.holders.iter().find(|found| return found.namespace() == rooted.namespace);
+    let rooted_holder: &git_policy_cli::clone_holder_scan::NamespaceHolder = named
+        .unwrap_or_else(|| panic!("a holder read through a divergent root is a holder under its own namespace {}: {:?}", rooted.namespace, rooted_scan.holders));
+    let observed: String = rooted_holder.mounts.iter().map(|mount| return mount.mount_point.display().to_string()).collect::<Vec<String>>().join(",");
+    println!("SCAN divergent-root holders={} namespace={} mount-points={observed}", rooted_scan.holder_namespaces(), rooted.namespace);
+    end(&mut rooted);
 
     // Cleanup this arm owns: its own holders are gone, and the clone is left for the guest's own destruction.
     if mounted(clone.as_str()) {
@@ -640,9 +652,11 @@ fn start_churn() -> Child {
 /// and the task then chroots into that bind,
 /// so its mount table's paths are rendered from another root.
 fn divergent_root(sbin: &str, clone: &str) -> Option<Task> {
-    std::fs::create_dir_all(ROOTED_FOLDER).expect("the divergent root's folder is made");
-    // The clone's own root is empty, so the bind target inside it is made after the mount and before the bind.
-    let script: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && mkdir --parents {ROOTED_FOLDER}/rootfs && mount --bind / {ROOTED_FOLDER}/rootfs && exec chroot {ROOTED_FOLDER}/rootfs /bin/sleep {HOLDER_SECONDS}");
+    std::fs::create_dir_all(ROOTED_BIND).expect("the divergent root's folder is made");
+    // The task's root becomes a bind of the guest's root, so every path its mount table renders is rendered from
+    // that root, and the clone is mounted inside it so the mount itself is a mount of that root's tree.
+    let inner: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && exec sleep {HOLDER_SECONDS}");
+    let script: String = format!("mount --bind / {ROOTED_BIND} && exec chroot {ROOTED_BIND} sh -c '{inner}'");
     return start_task(script.as_str(), "/root/holder-scan-rooted.pid", sbin, &[]);
 }
 
