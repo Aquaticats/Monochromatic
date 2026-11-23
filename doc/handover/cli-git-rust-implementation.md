@@ -706,8 +706,9 @@ and only the owner accepts one.
   (report `keep/report-diff-check-after-the-answers.md` in its folder).
   The design rests there:
   its last two reviews found nothing high.
-  Owed before the owner is asked to accept it:
-  one read of that round's diff.
+  Going:
+  the reviewer's check of that round's diff before the owner is asked to accept the design,
+  to `review-check-before-acceptance.md` beside its other reviews.
 - Two gaps that review leaves with other designs,
   for their next rounds:
   what a retry after a cancel does
@@ -922,8 +923,9 @@ and only the owner accepts one.
   (report `keep/report-diff-check-after-the-answers.md` in its folder).
   The design rests there:
   its last two reviews found nothing high.
-  Owed before the owner is asked to accept it:
-  one read of that round's diff.
+  Going:
+  the reviewer's check of that round's diff before the owner is asked to accept the design,
+  to `review-check-before-acceptance.md` beside its other reviews.
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`
