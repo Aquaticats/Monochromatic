@@ -4396,3 +4396,36 @@ oldest first.
 - The commits that carry this entry,
   written from 2026-11-23T04:04:46-05:00:
   add the entries for `b45b46183e` and `3b50c17d8d`.
+- `f884b640eb`,
+  2026-11-23T04:37:03-05:00:
+  merges `main` into this branch so that the accepted lost-event design and the other records are read here.
+  It changes nothing in this document.
+- `d0680d57bf`,
+  2026-11-23T04:42:47-05:00:
+  answers the sixth read.
+  It takes the forced arm's five refusal words at `cf9a0e44b8` (`holder-structural` and `holder-blind` included)
+  in every place,
+  and scopes `holder-unseen` to the unmount inside a holder's namespace;
+  states the empty plan's unlink in "What the removal record does,
+  part by part",
+  in C4 for both a plan that witnessed nothing and one that records a loss,
+  in C5 and a new C6 for the two kill points,
+  and in retry sub-arm (d),
+  which now runs the cancel command before the retry;
+  states the answer a stopped unmount files:
+  the cancelled-removal receipt and it are one thing,
+  the project's decision settles a fourth outcome word rather than an existing one told apart by its fields,
+  the word,
+  its bound and its fields are step 9's to propose,
+  and the fourth word never answers a `mount` request;
+  updates the deadline report's example,
+  the standing-request paragraph,
+  F13's bound,
+  the `attached` and `bind` veto
+  entries,
+  the step 9 build bullet and the step 9 assumptions;
+  and takes the plan design at `2a333a511e` (its ordering answer and "no command is named") and the accepted deferred
+  design's wording.
+- The commits that carry this entry,
+  written from 2026-11-23T04:42:57-05:00:
+  add the entries for `f884b640eb` and `d0680d57bf`.
