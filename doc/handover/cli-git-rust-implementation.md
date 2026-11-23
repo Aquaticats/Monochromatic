@@ -964,9 +964,25 @@ and only the owner accepts one.
   (report `keep/report-diff-check-after-the-answers.md` in its folder).
   The design rests there:
   its last two reviews found nothing high.
-  Going:
-  the reviewer's check of that round's diff before the owner is asked to accept the design,
-  to `review-check-before-acceptance.md` beside its other reviews.
+  The reviewer's check before acceptance
+  (`review-check-before-acceptance.md` beside its other reviews):
+  nothing high,
+  its four earlier mediums and the nudging answer built in,
+  and three new mediums of a few lines each to fix first.
+  The older attempt file is never removed,
+  so with a request nudged for as long as it stands the folder grows by one file per longest gap;
+  the helper-process veto entry's ranking contradicts its own text
+  (the reviewer reads A > C > B);
+  and the command's claim is synced on the Git command's path,
+  against the design's own sentence that no nudge makes a command wait for a sync.
+  Running:
+  `pi-zfs-lost-last-event-triggers-design-check-before-acceptance`,
+  on `continuation-check-before-acceptance.md` in its folder.
+  Then the propagation design's short round on its own check
+  (one medium in a guest arm and seven lows),
+  citing this design's new tip,
+  on a continuation still to be written;
+  then both are put to the owner for acceptance with their veto lists.
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`
