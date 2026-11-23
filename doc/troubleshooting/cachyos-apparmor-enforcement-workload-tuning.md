@@ -25,7 +25,8 @@ Default enforcement exposed independent workload failures:
 - Git could not create source-audit directories beneath `/home/user/temp/agent`.
 - Helium was denied `/etc/os-release` and initially used Chromium's configuration and cache
   directory names. Its crashpad child was denied the real `net.imput.helium/Crash Reports` paths.
-- The existing KeePassXC 2.8.0 process repeatedly failed to read `/home/user/Plain/main.kdbx`.
+- The existing KeePassXC 2.8.0 process repeatedly failed to read `/home/user/Plain/main.kdbx`, and
+  its file picker later could not enter `/home/user/Plain` itself.
 
 These are separate AVCs and workloads. A successful parent unit, a loaded profile name, or an empty
 later denial query does not prove that any of them succeeded.
@@ -246,8 +247,9 @@ bool Database::performSave(const QString& filePath, SaveAction action, const QSt
 ```
 
 The current local rule covers the database basename and same-basename save or temporary suffixes.
-Real database reads are proven. A save and rename at that path has not been exercised against a
-disposable database, so this remains an explicit verification limit.
+Real database reads are proven. A later AVC named the directory `/home/user/Plain/` itself, so the
+picker also needs directory-only read access. A save and rename at that path has not been exercised
+against a disposable database, so this remains an explicit verification limit.
 
 ### Helium and Git require deployment-specific boundaries
 
@@ -400,8 +402,9 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
 - The strengthened Incus workload proved the exact outer enforcing profile, namespace presence
   during the workload, nonzero host UID/GID mappings, payload readback, and namespace and profile
   removal afterward.
-- KeePassXC PID 4210 remained enforcing and produced audited successful opens of its existing
-  database.
+- KeePassXC remained enforcing and produced audited successful opens of its existing database. After
+  the later directory denial, PID 4823 opened `/home/user/Plain/` with paired `SYSCALL success=yes`
+  and a returned directory descriptor.
 - Fresh Helium rendered Example Domain with renderer seccomp filtering and no unexpected unconfined
   helper. Audited events proved its OS-release read, existing crash-report reads, settings
   read/write opens, and lock-file operations. It did not create a new crash dump.
@@ -466,12 +469,13 @@ creation and cleanup independently.
 
 ```text
 # /etc/apparmor.d/local/keepassxc
+audit owner "@{HOME}/Plain/" r,
 audit owner "@{HOME}/Plain/main.kdbx*" rwl,
 ```
 
-Tradeoff: this covers one selected database basename and same-basename suffixes, not the containing
-directory. It does not prove backup paths or an actual save. Do not replace it with broad
-`/home/user/Plain` access.
+Tradeoff: this covers one selected database basename and same-basename suffixes plus directory-only
+reads needed by the picker. It does not grant unrelated file contents, prove backup paths, or prove
+an actual save. Do not replace it with read/write access to every file under `/home/user/Plain`.
 
 ### Helium and Git
 
@@ -554,8 +558,9 @@ unconfined outside these specific profile boundaries.
   manually supplied fake session runtime paths bypass the workload instead of repairing it.
 - A global Go abstraction grant exposes every Go profile to scope quota files. The measured helpers
   need only profile-local reads.
-- Broad KeePassXC access to all of `/home/user/Plain` is unnecessary for the observed single
-  database.
+- Read/write access to every file under `/home/user/Plain` is unnecessary for the observed database
+  and directory picker. Directory-only read access is separate from the selected database-file
+  grant.
 - Disabling commit signing, granting all of `/tmp`, or using `pux` would hide the Git buffer and
   exec mismatches. The exact buffer and `.sig` names plus the existing enforcing `ssh-keygen`
   profile are sufficient; the separate literal-key temporary file is not needed for this configured

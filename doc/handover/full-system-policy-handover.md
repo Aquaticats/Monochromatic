@@ -1,10 +1,11 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-23T14:50:49-05:00
+## Status at 2026-11-23T15:36:00-05:00
 
 Incomplete and unapproved. Default enforcement and current-boot workload verification are in place.
-A genuinely new enforcement cold boot and explicit owner review remain required. Do not describe
-this as owner-approved or universally enforcing.
+The first enforcement cold boot exposed and measured a missing full-config `setpci` capability,
+which is now repaired and cached. Final cold-boot workload verification and explicit owner review
+remain required. Do not describe this as owner-approved or universally enforcing.
 
 The owner selected the broad `apparmor.d` collection for network-facing and local threats. The
 required development, terminal, Podman, and Incus access to `/home/user` and
@@ -56,31 +57,39 @@ blocks every unprofiled executable. Unprofiled development processes remain a re
   `/home/user/temp` browser grant was added.
 - `/etc/apparmor.d/abstractions/app/chromium_crashpad_handler.d` audits the pre-existing
   crash-report path and permissions without adding a path or permission.
-- `/etc/apparmor.d/local/keepassxc` currently audits owner-matched `rwl` access to
-  `/home/user/Plain/main.kdbx*`. The real enforcing process now reads its existing database
-  successfully. Save and rename behavior is source-traced but has not been exercised against a
-  disposable database at that path.
+- `/etc/apparmor.d/local/keepassxc` currently audits owner-matched directory-only `r` access to
+  `/home/user/Plain/` and `rwl` access to `/home/user/Plain/main.kdbx*`. The real enforcing process
+  now reads its existing database and opens the directory successfully. Save and rename behavior is
+  source-traced but has not been exercised against a disposable database at that path.
+- `/etc/apparmor.d/local/setpci` grants only `capability sys_admin`, which the kernel requires for
+  full PCI config-space reads. This repairs the Intel NVMe Gen3 workaround without unconfining
+  `setpci` or granting `/dev/mem` access.
 - `/etc/apparmor.d/local/checkupdates` allows the five-character `arch-update` runtime database
   directory and its `local` symlink. It does not broaden other runtime paths. Pacman remains in
   complain mode.
 
 ## Current-boot evidence
 
-The recorded boot is `2035a996-2f6f-45e8-a409-7712c793864b`. It is not the final enforcement cold
-boot.
+The current boot is `5b86b6ae-d743-4c00-82eb-7011241cfbbc`, a real enforcement cold boot. Earlier
+boot `2035a996-2f6f-45e8-a409-7712c793864b` is the pre-reboot tuning baseline. The latest selected
+cache must still receive a complete final verification pass and owner review.
 
 - The early loader previously reported
   `Successfully loaded all binary profiles from AppArmor early policy cache (/etc/apparmor/earlypolicy/48da56f3.0).`
   before `apparmor.service`.
 - `verification-pre-cold-boot-local-tuning-runtime.json` verifies current source modes, loaded
   kernel modes, and zero managed drift.
-- `verified-selected-final-cache-with-gh-2026-11-23T14-50-00-0500.json` verifies all 809 cache
-  profiles, including custom `gh`, source-only compilation, live feature bytes, cache hits,
-  successful loader reload, and rollback preservation. Earlier current-boot Podman and strengthened
-  Incus workloads also passed after the 808-profile selection. No new denials occurred at or after
-  2026-11-23T19:20:00Z in
-  `current-boot-avc-after-enforcement-2035a996-2f6f-45e8-a409-7712c793864b-2026-11-23T19-21-18.355Z.json`;
-  older denials and later measured Git repair denials remain in scope.
+- `verified-selected-setpci-keepass-folder-2026-11-23T15-36-00-0500.json` verifies all 809 cache
+  profiles, including custom `gh` and the `setpci` capability, source-only compilation, live feature
+  bytes, cache hits, successful loader reload, and rollback preservation. Earlier Podman and
+  strengthened Incus workloads also passed after the 808-profile selection.
+- `zfs-nvme-gen3.service` initially failed because `setpci` was denied `sys_admin`; the kernel then
+  exposed only 64 config bytes. After the narrow grant, the service reached 8.0 GT/s x4 and
+  `Result=success`. The installed script now aborts on a failed speed-cap write instead of resetting
+  blindly. See `doc/troubleshooting/cachyos-setpci-full-config-space-sys-admin.md`.
+- KeePassXC PID 4823 opened `/home/user/Plain/` after the directory-only grant, with paired
+  `SYSCALL success=yes` and a returned directory descriptor. Earlier database reads were also
+  positively audited. There are currently no failed units.
 - `positive-enforcement-control-2035a996-2f6f-45e8-a409-7712c793864b-before-cold-boot-2026-11-23T16-05-41-295Z-103181.json`
   verifies an allowed read, an exact denied PID and AVC, and removal of the temporary source, kernel
   profile, and cache artifact.
@@ -144,10 +153,10 @@ residual risk.
 
 ## Cache and recovery
 
-The active cache includes the latest Sanoid, KeePassXC, checkupdates, Git signing, own-hook, and
-custom `gh` changes. `build-verify-and-select-tuned-early-policy-cache.ts` compiled source without
-reading old cache, checked all 809 expected profile artifacts and live feature bytes, verified cache
-hits, preserved prior runtime policy, and reloaded the real loader.
+The active cache includes the latest Sanoid, KeePassXC, checkupdates, Git signing, own-hook, custom
+`gh`, and `setpci` changes. `build-verify-and-select-tuned-early-policy-cache.ts` compiled source
+without reading old cache, checked all 809 expected profile artifacts and live feature bytes,
+verified cache hits, preserved prior runtime policy, and reloaded the real loader.
 
 Original recovery cache: `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
@@ -160,16 +169,15 @@ and remove `apparmor,` from `lsm=`.
 
 ## Remaining work
 
-1.  Commit only the intended troubleshooting and handover documents. Preserve the four unrelated
-    repository modifications and include them in the pre-reboot backup without committing them.
-2.  Reboot into enforcement, require a new boot ID, and run `capture-enforcement-cold-boot.ts` with
-    `enforcement-policy-cold-boot`.
-3.  Repeat the positive control with `cold-boot`, early-cache and service/session checks, host and
-    Konsole workloads, both Podman roles, the strengthened Incus workload, and enforced Helium with
-    phase `cold-boot`.
-4.  Inspect the next real scheduled Sanoid run after that boot without manufacturing snapshots.
-    Remove temporary audit qualifiers only after their positive evidence is captured and no further
-    cold-boot observation needs them.
+1.  Finish document rendering and citation checks, commit only the intended troubleshooting and
+    handover documents, and preserve the four unrelated repository modifications separately.
+2.  Run `capture-enforcement-cold-boot.ts` and the isolated positive control on this boot, then
+    repeat host and Konsole workloads, both Podman roles, the strengthened Incus workload, and
+    enforced Helium with phase `cold-boot` against the latest selected cache.
+3.  Review all current-boot AppArmor records, inspect the next real scheduled Sanoid run without
+    manufacturing snapshots, and verify `zfs-nvme-gen3.service` and KeePassXC's directory again.
+4.  Back up policy, cache, boot settings, and unrelated working-tree changes, then perform the final
+    cold boot of the repaired cache and repeat the service/session and required workload checks.
 5.  Update `/etc/apparmor/full-system-policy.md`, finish native cleanup, and request explicit owner
     review. The exact LTS recovery entry remains untested.
 
