@@ -39,7 +39,7 @@
 use crate::diagnostic_log::debug;
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput};
 use crate::worktree_clean::{StatEntry, stored_stats};
 use crate::worktree_clone_conversion_rules::{ConversionRules, FenceVerdict, PathAttributes, apply_attribute, checkout_converts, conversion_rules_from_config, decide, needs_blob_size};
 use crate::worktree_ladder_target::{checkout_environment, checkout_environment_with_index};
@@ -53,8 +53,9 @@ pub use crate::worktree_change_a_rung_cannot_serve::{ChangeNotServed, WhyNotServ
 /// re-exported so every caller of this fence names them here.
 pub use crate::worktree_clone_conversion_decline::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR, converting_paths, declines};
 use crate::worktree_clone_conversion_decline::{MODE_SYMLINK, MODE_TYPE_MASK};
+use crate::worktree_clone_conversion_git_reads::{BlobSizes, blob_sizes, run_in, run_reason, words};
 use std::collections::{HashMap, HashSet};
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
@@ -84,59 +85,6 @@ pub struct Fence {
     pub git_writes: Vec<Vec<u8>>,
     /// How many tracked paths the clones may carry.
     pub carried: usize,
-}
-
-/// What:
-///  One Git run's failure as the reason the rung ends,
-/// with Git's own words.
-/// Why:
-///   The rung's answer is a reason string,
-/// and a run that cannot start or that fails says which run and what Git said.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reason = (what, output) => `${what} ended with ${output.code} (${output.stderr.trim()})`;
-/// ```
-fn run_reason(what: &str, output: &GitOutput) -> String {
-    return format!("{what} ended with {:?} ({})", output.code, String::from_utf8_lossy(output.stderr.as_slice()).trim());
-}
-
-/// What:
-///  Run one Git command of the fence,
-/// with optional standard input and environment,
-/// and give its output.
-/// Why:
-///   Every read of the fence is one step of the add's own record,
-/// and a run that cannot start answers a reason rather than a panic.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function runIn(context, cwd, arguments, input, environment): GitOutput;
-/// ```
-fn run_in(context: &GitContext, cwd: &Path, arguments: &[OsString], input: Option<Vec<u8>>, environment: Vec<(OsString, OsString)>) -> Result<GitOutput, String> {
-    let request: GitRequest = GitRequest {
-        cwd: cwd.to_path_buf(),
-        arguments: arguments.to_vec(),
-        without_prefix: true,
-        environment,
-        input,
-        ..GitRequest::default()
-    };
-    return run_git(context, &request).map_err(|error| return format!("a Git run of the fence could not start ({error})"));
-}
-
-/// What:
-///  A command line's words as the owned strings a request carries.
-/// Why:
-///   One request takes an owned argument a caller built (`--prefix`),
-/// so every request of the fence is built the same way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const words = (list: string[]) => list.map((word) => word);
-/// ```
-fn words(list: &[&str]) -> Vec<OsString> {
-    return list.iter().map(|word| return OsString::from(word)).collect();
 }
 
 /// What:
@@ -257,35 +205,6 @@ fn attributes_of(context: &GitContext, root: &Path, entries: &[StatEntry]) -> Re
 }
 
 /// What:
-///  The blob size of every path of the commit's tree,
-/// as one `git ls-tree -r -l -z` reports them.
-/// Why:
-///   The size is what proves that a file whose line-ending rule only strips carriage returns still holds its blob's bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function blobSizes(context, root, commit): Map<string, number>;
-/// ```
-fn blob_sizes(context: &GitContext, root: &Path, commit: &str) -> Result<HashMap<Vec<u8>, u64>, String> {
-    let output: GitOutput = run_in(context, root, &words(&["ls-tree", "-r", "-l", "-z", commit]), None, Vec::new())?;
-    if output.code != Some(0) {
-        return Err(format!("the sizes of the committed blobs cannot be read: {}", run_reason("`git ls-tree`", &output)));
-    }
-    let mut sizes: HashMap<Vec<u8>, u64> = HashMap::new();
-    for record in output.stdout.split(|byte| return *byte == 0) {
-        // `mode SP type SP object SP size TAB path`
-        let Some(tab) = record.iter().position(|byte| return *byte == b'\t') else { continue };
-        // The size is right-aligned, so the words between the spaces hold empty ones that are not fields.
-        let mut fields = record[..tab].split(|byte| return *byte == b' ').filter(|word| return !word.is_empty());
-        let (Some(_mode), Some(_kind), Some(_object), Some(size)) = (fields.next(), fields.next(), fields.next(), fields.next()) else { continue };
-        let Ok(size_text) = std::str::from_utf8(size) else { continue };
-        let Ok(size_value) = size_text.parse::<u64>() else { continue };
-        sizes.insert(record[tab + 1..].to_vec(), size_value);
-    }
-    return Ok(sizes);
-}
-
-/// What:
 ///  Refuse a source with an untracked or ignored `.gitattributes` above a tracked path,
 ///  with the reason the rung cannot be proven.
 /// Why:
@@ -363,6 +282,26 @@ impl AttributeFence {
     /// ```
     pub fn a_changed_path_could_matter(&self) -> bool {
         return self.a_changed_path_could_matter;
+    }
+
+    /// What:
+    ///  Whether any tracked path's decision needs a blob size at all.
+    /// Why:
+    ///   The sizes are one `git ls-tree`,
+    /// the dear read of this fence,
+    ///  and a source whose paths no rule reaches
+    ///  (`core.autocrlf` off and no attributes file setting one) is decided from the attributes and the stat data alone,
+    ///  so the read is not paid and a read started earlier is not waited for.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const needsSizes = (read) => read.entries.some((entry) => !isLink(entry) && needsBlobSize(read.attributes.get(entry.path), read.rules));
+    /// ```
+    pub fn needs_sizes(&self) -> bool {
+        return self.entries.iter().any(|entry| {
+            let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+            return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &self.rules);
+        });
     }
 
     /// What:
@@ -461,24 +400,41 @@ pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Re
 /// so it runs where the copies are,
 /// and a control can price it apart from
 ///  the reads the decline needed.
+/// `sizes` lets a caller that already has the map hand it in
+///  (`decide_the_paths_with_sizes`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function decideThePaths(source, context, read): Fence; // throws the reason the rung cannot be proven
 /// ```
 pub fn decide_the_paths(source: &SnapshotSource, context: &GitContext, read: AttributeFence) -> Result<Fence, String> {
-    let AttributeFence { entries, attributes, rules, a_changed_path_could_matter: _matters }: AttributeFence = read;
     // One `git ls-tree` for every path whose checkout can write the blob unchanged, which is every path this fence may
     // carry: the blob's size is the proof the file holds it, and a file can hold another rule's form even when today it
     // has no rule at all (an unset `core.autocrlf`, a tracked attributes file a later commit deleted).
-    let sizes: Option<HashMap<Vec<u8>, u64>> = if entries.iter().any(|entry| {
-        let held: PathAttributes = attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
-        return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &rules);
-    }) {
-        Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?)
-    } else {
-        None
+    let sizes: Option<BlobSizes> = match read.needs_sizes() {
+        true => Some(blob_sizes(context, source.root.as_path(), source.clean.head_commit.as_str())?),
+        false => None,
     };
+    return decide_the_paths_with_sizes(read, sizes);
+}
+
+/// What:
+///  `decide_the_paths` with the sizes already answered,
+///  for a rung that started the read before its source check.
+/// Why:
+///   The sizes may come from a read that ran beside the check
+/// (`worktree_clone_conversion_size_read.rs`),
+///  so this half takes the map rather than running Git for it,
+///  and it needs nothing else from the source:
+/// `None` means no path needed one,
+/// which is `needs_sizes`'s own answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function decideThePathsWithSizes(read, sizes): Fence;
+/// ```
+pub fn decide_the_paths_with_sizes(read: AttributeFence, sizes: Option<BlobSizes>) -> Result<Fence, String> {
+    let AttributeFence { entries, attributes, rules, a_changed_path_could_matter: _matters }: AttributeFence = read;
     let mut git_writes: Vec<Vec<u8>> = Vec::new();
     let mut carried: usize = 0;
     for entry in &entries {
