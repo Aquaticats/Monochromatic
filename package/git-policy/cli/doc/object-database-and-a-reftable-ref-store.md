@@ -614,6 +614,35 @@ Read on this branch:
   `worktree::worktree_clean_content::safety_tests::a_content_proof_answers_under_each_variable_a_command_names`,
   which forces `check_clean_by_content` under each of the four variables in a child that sets it after the repository
   exists.
+- The worktree-add path had two reader opens,
+  and both declined under those variables where `main`'s reader answered:
+  the snapshot rung's source proof (`worktree_snapshot_source.rs`,
+  `clean_check_of_source` calling `check_clean`) and the ladder target's own open
+  (`worktree_ladder_target.rs`,
+  `prepare_target`).
+  A refused source made the add a copy where `main` made a snapshot,
+  and its words said the main checkout could not be read to prove it unchanged.
+  Both now read the repository's own store (`ObjectDatabase::open_of_the_repository_alone`),
+  as `main`'s reader read it,
+  and so does every proof of this worktree's own state:
+  the objects they ask for are this repository's,
+  and their names are their bytes,
+  so a store or a base a command names cannot change the answer,
+  and where the repository's own store lacks them the proof refuses as `main` refused.
+  The controls are one per variable
+  (`worktree_add_source_proof::a_worktree_add_proves_its_source_under_the_object_store_a_command_names`,
+  `..._under_the_alternate_directories_a_command_names` and
+  `..._under_the_replacement_base_a_command_names`),
+  each counting the routes one add states,
+  and red together with the environment-aware open planted again.
+  In a btrfs guest of this round,
+  five adds an arm:
+  `main` made five snapshots,
+  this branch before the change made two
+  (the three it did not being exactly `GIT_OBJECT_DIRECTORY`,
+  `GIT_ALTERNATE_OBJECT_DIRECTORIES` and
+  `GIT_REPLACE_REF_BASE`),
+  and this branch after the change five.
 
 ### The two doors
 
@@ -951,8 +980,9 @@ Git resolves them.
   `GIT_ALTERNATE_OBJECT_DIRECTORIES` and `GIT_REPLACE_REF_BASE`,
   and `GIT_REFERENCE_BACKEND=files`),
   the worktree and its registration gone and the volume of the person's own left in place.
-  A later round added the same guest run for a `git worktree add` under those variables,
-  which makes a snapshot on `main` and on this branch alike.
+  The add under the same variables has its own guest run in this round
+  (see "The clean check and the ladder target"),
+  and it makes a snapshot on `main` and on this branch alike.
 - The `files://` payload store given to the service alone is not claimed to work:
   its payload must hold the branch as well as the replacement,
   and the wrapper's own push then fails to read the commit there.
