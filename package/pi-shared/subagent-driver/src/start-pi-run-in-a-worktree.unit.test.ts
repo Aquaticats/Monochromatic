@@ -1317,5 +1317,38 @@ await describe({
         expect(answered.stderr,).not.toContain('takes no new run',);
       },
     },),
+    it({
+      name: 'refuses a run that names a pool when the pool limits setting cannot be read, before the worktree or a unit, naming the setting and its fault',
+      fn: async () => {
+        /**
+         A setting this command cannot read: a limit that is no whole number.
+         */
+        const unreadable = `${OPENCODE_GO.name}=twenty`;
+        const answered = await launchThroughTheStandIns({
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+          environment: { [POOL_LIMITS_VARIABLE]: unreadable, },
+        },);
+        expect(answered.code,).toBe(1,);
+        expect(answered.stderr,).toContain(POOL_LIMITS_VARIABLE,);
+        expect(answered.stderr,).toContain(unreadable,);
+        expect(answered.stderr,).not.toContain('\n    at ',);
+        expect(answered.unitWasReached,).toBe(false,);
+        expect(answered.runsFolderHolds,).toEqual([],);
+        expect(answered.checkoutHolds,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'takes a run that belongs to no pool even when the pool limits setting cannot be read',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          provider: 'synthetic',
+          model: 'moonshotai/Kimi-K3.1-Pro',
+          environment: { [POOL_LIMITS_VARIABLE]: 'not-a-pool=3', },
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.stderr,).not.toContain(POOL_LIMITS_VARIABLE,);
+      },
+    },),
   ],
 },);

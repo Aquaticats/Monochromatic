@@ -122,6 +122,11 @@ function refusalTextOf({
  on a pool the owner closed. The pool is read from the table with the limits `PI_RUNS_POOL_LIMITS` sets applied, so a pool
  reopened that way takes runs again, and a provider and model that belong to no pool are left to run.
 
+ The setting is read only for a run that names a pool at all, and then every pair of it is read or none is: a run outside every
+ pool is refused by nothing a broken setting says, and a run inside one is refused rather than counted against a table the caller
+ may have meant to change. A caller who meant to close one pool with a pair this command cannot read has said nothing it can act
+ on.
+
  @param provider - the provider the run names
 
  @param model - the model the run names
@@ -133,7 +138,8 @@ function refusalTextOf({
 
  @throws ClosedPoolRefusalError when the provider and model name a pool that takes no new run
 
- @throws PoolLimitsError when `PI_RUNS_POOL_LIMITS` names no pool or holds anything but a whole number
+ @throws PoolLimitsError when the run names a pool and `PI_RUNS_POOL_LIMITS` names no pool or holds anything but a whole number,
+ which the caller answers by naming the setting and its fault and starting nothing
 
  @example
  ```ts
@@ -152,21 +158,23 @@ export function refuseARunOnAClosedPool({
   readonly namesItsOwnPool?: boolean;
 },): void {
   /**
-   The pools with the limits this command's caller set, which is where a pool reopened through the variable takes runs again.
-   */
-  const pools = poolsWithTheseLimits({
-    limits: limitsIn({ listed: environment[POOL_LIMITS_VARIABLE] ?? '', },),
-  },);
-  /**
    The pool this run's provider and model share, or that no pool holds them.
    */
   const membership = poolNamed({
     provider,
     model,
   },);
+  // A run outside every pool reads no limit at all: the setting can neither close the pool it names nor reopen one, so a value
+  // this command cannot read refuses nothing here.
   if (membership.holds !== 'a-pool') {
     return;
   }
+  /**
+   The pools with the limits this command's caller set, which is where a pool reopened through the variable takes runs again.
+   */
+  const pools = poolsWithTheseLimits({
+    limits: limitsIn({ listed: environment[POOL_LIMITS_VARIABLE] ?? '', },),
+  },);
   /**
    The pool the run names, as the table with the caller's limits holds it.
    */

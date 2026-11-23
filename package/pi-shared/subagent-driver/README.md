@@ -231,6 +231,10 @@ so a pool reopened through it takes runs again for that one command.
 The launcher gives it to the unit the run starts as,
 because a unit inherits nothing from the shell that asked for it,
 so the driver inside the unit reads the same setting the launcher did.
+A setting one of these commands cannot read, such as a pair naming no pool of the table or a limit that is no whole number,
+refuses the runs it could have touched and names the setting and its fault;
+the pool gate refuses every run that way, because it counts every pool,
+while a run whose provider and model belong to no pool is left alone.
 
 ```sh
 # close OpenCode Go when its week is spent
