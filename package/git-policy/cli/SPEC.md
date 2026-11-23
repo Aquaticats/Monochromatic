@@ -6575,10 +6575,12 @@ The scan sees what a live task's namespace file names:
   the tasks it listed and the tables it read are read at different moments;
 - a namespace is read through one of its tasks,
   so a task that ended is a retry and not a second look;
-- a process whose root is not `/` has its mount points rendered from that root,
-  so the paths a holder reports may differ from the slot's spelling while the
-  mount is the same one,
-  and the match on the filesystem type and the source is what still finds it.
+- a task whose process root is not this namespace's answers `EINVAL` for its
+  mount table when that table is read from here,
+  so its namespace is one read the scan could not complete:
+  the guest arm that chroots a task shows that answer,
+  and the scan reports the namespace as unread rather than as a holder or as
+  empty.
 
 The project's destroy-anyway decision accepts that residual rather than
 hiding it.

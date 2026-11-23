@@ -569,26 +569,36 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     );
     stop(&mut pinned);
 
-    // Arm 7: a task with a divergent process root still names its namespace's mount of the clone.
+    // Arm 7: a task whose process root is not `/`.
+    // The kernel answers EINVAL for that task's mount table read from this namespace, so the scan cannot see what
+    // the namespace holds and reports the namespace as a read it could not complete.
     let mut rooted: Task = divergent_root(sbin.as_str(), clone.as_str())
         .unwrap_or_else(|| panic!("the divergent-root task's mount namespace could not be made; see the arm's log for the refusal"));
-    if !wait_for_the_task_table_to_mention(&rooted, ROOTED_FOLDER) {
-        let table: String = std::fs::read_to_string(format!("/proc/{}/mountinfo", rooted.pid)).unwrap_or_else(|error| return format!("unreadable: {error}"));
-        println!(
-            "SCAN divergent-root=unavailable pid={} alive={} mount-table={table}",
-            rooted.pid,
-            Path::new(format!("/proc/{}", rooted.pid).as_str()).exists()
-        );
+    let rooted_namespace: String = rooted.namespace.clone();
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    let mut rooted_scan: Option<HolderScan> = None;
+    while Instant::now() < deadline {
+        let (_run, scanned): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
+        let named: bool = scanned.as_ref().is_some_and(|answer| return answer.incomplete.iter().any(|read| return read.namespace() == Some(rooted_namespace.as_str())));
+        rooted_scan = scanned;
+        if named {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
     }
-    assert!(wait_for_the_task_table_to_mention(&rooted, ROOTED_FOLDER), "the divergent-root task's own table shows its mount at {ROOTED_FOLDER}");
-    let (rooted_run, root_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-    assert_eq!(rooted_run.status, Some(0), "the mode answers: {}", rooted_run.said);
-    let rooted_scan: HolderScan = root_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", rooted_run.said));
-    let named: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = rooted_scan.holders.iter().find(|found| return found.namespace() == rooted.namespace);
-    let rooted_holder: &git_policy_cli::clone_holder_scan::NamespaceHolder = named
-        .unwrap_or_else(|| panic!("a holder read through a divergent root is a holder under its own namespace {}: {:?}", rooted.namespace, rooted_scan.holders));
-    let observed: String = rooted_holder.mounts.iter().map(|mount| return mount.mount_point.display().to_string()).collect::<Vec<String>>().join(",");
-    println!("SCAN divergent-root holders={} namespace={} mount-points={observed}", rooted_scan.holder_namespaces(), rooted.namespace);
+    let rooted_result: HolderScan = rooted_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses"));
+    let found_read: Option<&git_policy_cli::clone_holder_scan::IncompleteRead> = rooted_result.incomplete.iter().find(|read| return read.namespace() == Some(rooted_namespace.as_str()));
+    let unread: &git_policy_cli::clone_holder_scan::IncompleteRead =
+        found_read.unwrap_or_else(|| panic!("a task whose root is not this namespace's makes its namespace one unread table: {:?}", rooted_result.incomplete));
+    assert!(matches!(unread, git_policy_cli::clone_holder_scan::IncompleteRead::TableUnreadable { .. }), "the cause names the table it could not read: {unread:?}");
+    assert!(rooted_result.holders.iter().all(|found| return found.namespace() != rooted_namespace), "a namespace nobody read is never reported as a holder: {:?}", rooted_result.holders);
+    assert!(!rooted_result.is_clear(), "a namespace nobody read is never a clear result");
+    println!(
+        "SCAN divergent-root incomplete=true namespace={rooted_namespace} cause={} holders={} clear={}",
+        unread.kind(),
+        rooted_result.holder_namespaces(),
+        rooted_result.is_clear()
+    );
     end(&mut rooted);
 
     // Cleanup this arm owns: its own holders are gone, and the clone is left for the guest's own destruction.
