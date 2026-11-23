@@ -3236,7 +3236,10 @@ read at `5dd8883a60`:
 `doc/decision/cli-git-zfs-slot-identity-store-format.md`;
 `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`;
 `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`;
-`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md` (read at `46ed57af59` on `main`);
+`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md` (read whole again at `4272699232`,
+with its "A further answer" section);
+`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`;
+`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`;
 `doc/planning/cli-git-zfs-worktree-design-proposal.md`;
 `doc/planning/cli-git-zfs-worktree-implementation-plan.md`;
 `doc/planning/cli-git-zfs-staging-under-cache-design.md`;
