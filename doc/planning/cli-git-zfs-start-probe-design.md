@@ -890,6 +890,12 @@ design, and the plan's steps 18 to 20 build the commands and configuration that 
     proves the root itself opens and reads no entry there.
     The checkout it opens is `startProbe.checkout` when the configuration names it,
     and otherwise the one mounted checkout dataset [The source](#the-source-the-probe-dataset)'s amendment finds;
+    that look-up also reads the sweep's `cloneMounts.parent`,
+    so a dataset mounted directly inside the clone container this run uses is no
+    instance of the checkout,
+    which is the project's first answer of 2026-11-22
+    (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+    "Four further answers on the look-up with no configuration file");
     a checkout that cannot be found leaves this arm not exercised with its own reason word and runs every arm after it,
     so the attach arm's evidence does not depend on a folder this run could not open.
 3.  Source,

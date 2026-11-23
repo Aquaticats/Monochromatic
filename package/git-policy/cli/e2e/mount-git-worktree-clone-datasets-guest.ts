@@ -107,6 +107,7 @@ const EXPECTED_SWEEP_MARKERS = [
   'PROBE listing several names-every-row=true container=git-policy-cli-store/account-clones',
   'PROBE listing none names-what-was-found=true',
   'STOPPAGE cleanup done container=git-policy-cli-store/account-clones',
+  'SNAPDIR-REPLY local-visible=1 inherited-disabled=2 default=absent',
   'SWEEP done',
 ] as const;
 
@@ -506,7 +507,7 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
     'zfs allow -l -u "$ACCOUNT" snapshot "$CHECKOUT_DS"',
     'zfs allow -d -u "$ACCOUNT" clone,destroy,mount "$CHECKOUT_DS"',
     'zfs allow -l -u "$ACCOUNT" create,mount "$CONTAINER"',
-    'zfs allow -d -u "$ACCOUNT" destroy,userprop "$CONTAINER"',
+    'zfs allow -d -u "$ACCOUNT" mount,destroy,userprop "$CONTAINER"',
     'echo "DELEGATION grants:"; zfs allow "$CHECKOUT_DS"; zfs allow "$CONTAINER"',
     // A: create under the container, which `create` on it allows.
     'if as_account create "$CONTAINER/plain" > /root/delegation-create.log 2>&1; then say create-under-container allowed; else say create-under-container refused; sed "s/^/  /" /root/delegation-create.log; fi',

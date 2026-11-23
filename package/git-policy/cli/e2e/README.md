@@ -988,6 +988,25 @@ and reads the mount table afterwards.
 Every attempt prints one `DELEGATION` line with its rows,
 and the driver fails a run whose pulled log lacks one.
 
+### The `snapdir` step
+
+`snapdir` shows what each value of the property does,
+which the project's third answer of 2026-11-22 asked for before the setup sets
+it.
+For each of the property's three values it reads the value back,
+lists the checkout's `.zfs` directory as the guest's account under the design's
+grants,
+enters a snapshot's directory by name,
+and counts the kernel's snapshot rows before and after,
+each from a fresh mount because a control directory the kernel already resolved
+stays reachable until the dataset is mounted again.
+It then shows that the account cannot set the property back,
+and that this guest's OpenZFS accepts `disabled`.
+Its lines are the `SNAPDIR` markers,
+and the sweep guest arm reads a locally set value,
+an inherited one and the default through the route's own dataset-stats request
+(`SNAPDIR-REPLY`).
+
 The arm does not test the distro's mount generator:
 the integration pass ran that question with its own positive control,
 found a unit for the checkout dataset and none for a clone-container child,
@@ -1045,6 +1064,11 @@ the probe needs no configuration file"):
 
 Its lines are the `NO-CONFIGURATION` markers,
 and the driver fails a run whose pulled log lacks one.
+Two of the driver's controls wait on a record rather than on a fixed sleep,
+because a sleep races the probe's own start-up:
+the killed-worker control of `green` waits for the started record,
+and `m7-scan`'s late-mount control waits for the probe's own mount to appear in a
+namespace before it mounts the source a second time.
 The start-probe measurements of steps 6 and 10 run from the same driver's other
 steps;
 this section covers only what the no-configuration answer added.
