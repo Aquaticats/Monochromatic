@@ -515,6 +515,13 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
 ///  The creation's stretches are the ones a slow build must name,
 ///  and they are only reached when Git builds the commit.
 ///  A configuration key the service does not embed asks for that.
+/// What it does not catch,
+/// on this file as on `main`'s control,
+///  a stretch noted twice while what it adds stays under the build's uncovered time plus
+///  `WINDOW_ORIGIN_ROUNDING_MS`,
+///  and an understated `buildMs` smaller than the same slack.
+///  An overlap of the stretches and an understatement of 8 ms are caught,
+///  and a 20 ms overstatement of the step is caught where `main`'s fixed 12 ms let it pass.
 #[test]
 fn the_record_names_every_stretch_of_the_build_phase() {
     let fixture: Fixture = fixture("timing-build-parts");
@@ -572,6 +579,13 @@ const STOP_CEILING_SECONDS: &str = "2";
 /// while its shadow's steps began 70 s after its preparation had ended.
 ///  The stop's words and the exit code are the ones the ceiling's control states;
 /// what this one adds is what the record says about the time.
+/// What it does not catch,
+/// on this file as on `main`'s control,
+///  a Git child split by a build seam,
+///  because the build's children are a few milliseconds and the tail such a split leaves is under the slack;
+///  and an understated `buildMs` smaller than that slack,
+///  where a larger one trips the part-inside-the-phase assertion before this accounting.
+///  An overlap of the stretches and a 20 ms overstatement of the step are caught.
 #[test]
 fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     let fixture: Fixture = fixture("timing-build-stopped");
@@ -606,7 +620,8 @@ fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     assert_eq!(number(record, "attempts"), 1, "one build states one window: {record}");
     let steps: Vec<&serde_json::Value> = steps_inside_the_build(record);
     // A frame that moved would empty the window, and an empty selection passes the sum below by adding nothing.
-    assert!(steps.iter().any(|step| { return step["name"].as_str() == Some("git commit"); }), "the window holds the scratch commit the build ran: {record}");
+    let names: Vec<&str> = steps.iter().map(|step| { return step["name"].as_str().unwrap_or_default(); }).collect();
+    assert_eq!(names, ["git commit"], "the window holds the scratch commit the build ran and no step before it: {record}");
     let steps_in_build: u64 = steps_ms(steps.as_slice());
     let stated: u64 = parts.values().map(|figure| { return number(figure, "ms"); }).sum();
     assert!(
