@@ -1228,61 +1228,597 @@ without naming a container
 A container carrying another run's label is another session's gate,
 and is never stopped.
 
-## Cause K: a commit timing record 13 ms past its stop ceiling, once
+## Cause K: a commit-timing control counted the preparation's last steps inside the build (issue 6346)
 
-`commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time` failed once,
-in the second gate of the round that built the per-slot slot identity store
-(branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files` at `2b3e13f439`,
-2026-11-21),
+### The symptom
+
+Two whole container gates failed
+`commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`
 on the assertion at
-`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs:611`:
-the stretches the record states plus the steps whose offsets lie inside the build's window
-must fit that window plus `ROUNDING_MS`,
-which is 12 ms (`:711`).
-The excess was 13 ms,
-so the record's own parts summed to 25 ms more than its `buildMs`.
-The control passed alone in the same round,
-and passed in the whole gate of that branch's integration pass of 2026-11-21 on the same test binaries.
+`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs:611`,
+and the control passed alone in both rounds.
+The assertion asks the build's stretches plus the Git steps that began inside its window
+to fit the window plus the rounding of the figures summed.
 
-What is known:
+The first failure was the second gate of the round that built the per-slot slot identity store
+(branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files` at `2b3e13f439`,
+2026-11-21).
+Its journal line was not kept;
+what this document recorded then was an excess of 13 ms over the allowed rounding,
+so the record's figures passed its `buildMs` by 25 ms.
+Nothing can be quoted from that failure,
+and this rewrite does not pretend to.
 
-- one failure in three gates
-  (the first of them on the commit before that tip),
-  and two passes of the same binary:
-  the control run alone in that round (2.317 s)
-  and the integration pass's whole gate;
-- nothing in the branch's changed modules is on this control's path:
-  the store,
-  the walk,
-  the adoption and the two foundation modules are called from `lib.rs`,
-  the mount binary,
-  one source-guard test and the guest tests,
-  and not from the commit,
-  landing or worktree-add code the control drives;
-- the assertion is an accounting one over numbers the record carries,
-  each measured on its own and each rounded on its own;
-- one more gate at the merged tip did not reproduce it:
-  this round's gate on `integ-store-findings-72d8dbeb`
-  ran 9752 tests,
-  and this control passed there in the same run as the standing cause-H pair.
+The second was the gate of
+`feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach` at `2120f75dff`,
+2026-11-22T17:35:47-05:00,
+with 9945 tests run and 9942 passed,
+the other two failures the standing cause-H pair.
+Its lines,
+the journal's own prefix stripped and every other byte as the journal wrote it
+(unit `gpc-gate-native-nma30Q-suite[970970]`):
 
-What is not known:
+```text
+thread 'commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time' (175418) panicked at src/native/binary/binary_commit_timing_tests.rs:611:5:
+the stretches and steps lie inside the stopped build (34 + 2071 of 2086): {"schemaVersion":1,"time":"2026-11-22T22:35:47.650Z","level":"warn","startMillis":1795386945351,"pid":175566,"release":"0.6.1-alpha.44","instance":"3abd20d1f0f99caa5fa0b83d90e14f6e","gitDir":"/work/package/git-policy/cli/target/gate-fixtures/native-binary-175408-timing-build-stopped/repo/.git","requestId":"a3b14421-1af0-434e-9406-2c420ba30c92","branch":"refs/heads/main","outcome":"stopped","exitCode":1,"stop":{"kind":"git-step","step":"git commit"},"totalMs":2299,"routeMs":101,"prepareMs":111,"attempts":1,"prepareSpans":[{"name":"index read","calls":1,"totalMs":0,"longestMs":0},{"name":"index copy","calls":2,"totalMs":0,"longestMs":0},{"name":"index seed","calls":1,"totalMs":0,"longestMs":0},{"name":"index equals base","calls":1,"totalMs":2,"longestMs":2},{"name":"index stat check","calls":1,"totalMs":2,"longestMs":2},{"name":"policy require-root at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"policy linked-worktree-only at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"policy branch-worktree-only at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"policy add-explicit at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"candidates prepared","calls":1,"totalMs":52,"longestMs":52},{"name":"policy final-newline at pre-forward","calls":1,"totalMs":66,"longestMs":66}],"prepareSpansDropped":0,"indexBuilds":[{"kind":"first","statDataKept":true}],"scratchSteps":[{"ceilingMs":2000,"armed":true,"stoppedAfterMs":2007,"heldAfterCeilingMs":null,"stallCeilingMs":null,"noticeMs":0,"wroteMs":0,"linesDropped":0,"looks":9,"looksFound":9,"below":[{"name":"git","seenMs":2006},{"name":"sleep","seenMs":1755}],"belowCpuMs":0,"belowUnlisted":false,"belowUnended":0,"blindLooks":0,"blockedLooks":0}],"buildMs":2086,"buildParts":{"branch":{"ms":0,"calls":1,"childrenMs":0},"message":{"ms":0,"calls":1,"childrenMs":0},"amend tree":{"ms":0,"calls":1,"childrenMs":0},"fitting request":{"ms":0,"calls":1,"childrenMs":0},"request":{"ms":0,"calls":1,"childrenMs":0},"shadow":{"ms":0,"calls":1,"childrenMs":0},"shadow hand-out":{"ms":8,"calls":1,"childrenMs":0},"shadow pool":{"ms":2,"calls":1,"childrenMs":0},"shadow skeleton":{"ms":6,"calls":1,"childrenMs":0},"shadow config":{"ms":3,"calls":1,"childrenMs":0},"shadow links":{"ms":6,"calls":1,"childrenMs":0},"shadow conclusion":{"ms":3,"calls":1,"childrenMs":0},"shadow refs":{"ms":5,"calls":1,"childrenMs":0},"client build":{"ms":1,"calls":1,"childrenMs":2023}},"buildPartsDropped":0,"provisionMs":0,"submitMs":0,"sends":0,"reachMs":0,"connectTries":0,"refusedConnects":0,"startWaitMs":0,"updateRounds":0,"releasesSeen":[],"answeredByRelease":null,"answerWaitMs":0,"positions":[],"waitingNotices":0,"lockHolderKind":null,"reconnects":0,"afterLandingMs":0,"gateMs":0,"handoffMs":0,"closingMs":0,"otherMs":0,"scratchRemovalMs":24,"removalsThatDidNotFinish":0,"stderrMs":0,"prepareParts":{"layout":{"ms":4,"calls":1,"childrenMs":0},"unmergedBefore":{"ms":0,"calls":1,"childrenMs":0},"capture":{"ms":2,"calls":1,"childrenMs":0},"scratch":{"ms":0,"calls":1,"childrenMs":0},"stagedDeletions":{"ms":3,"calls":1,"childrenMs":0},"index":{"ms":11,"calls":1,"childrenMs":12},"interactive":{"ms":0,"calls":1,"childrenMs":0},"conclusionState":{"ms":0,"calls":1,"childrenMs":0},"unmergedFiles":{"ms":2,"calls":1,"childrenMs":0},"changedPaths":{"ms":6,"calls":1,"childrenMs":0},"policies":{"ms":29,"calls":1,"childrenMs":36},"worktreeRecords":{"ms":0,"calls":1,"childrenMs":0},"treeCheck":{"ms":0,"calls":1,"childrenMs":0},"changes":{"ms":1,"calls":1,"childrenMs":0}},"preparePartsDropped":0,"longestQuietMs":54.802,"quietMs":{"/work/package/git-policy/cli/target/gate-fixtures/native-binary-175408-timing-build-stopped/slow-commit-bin/git rev-parse":29.83,"git add":8.997,"git cat-file --batch":11.755,"git version":54.802},"steps":[{"name":"git version","offsetMs":4,"durationMs":86},{"name":"git add","offsetMs":120,"durationMs":12},{"name":"git rev-parse","offsetMs":153,"durationMs":36},{"name":"git commit","offsetMs":250,"durationMs":2023}],"stepsDropped":0,"landing":null}
+```
 
-- whether the 25 ms came from the steps' own rounding accumulating,
-  from a step whose `offsetMs` fell inside the build's window while its time fell outside,
-  or from a real gap between the build's window and the parts it states;
-- whether anything about this host changes it.
-  Host load is not recorded as a cause here (rule `NQH`),
-  and one failure and two passes cannot separate a busy host from a defect.
+Its record's figures:
+`routeMs` 101,
+`prepareMs` 111,
+`buildMs` 2086,
+`totalMs` 2299,
+`otherMs` 0,
+`attempts` 1;
+`git version` at 4 ms for 86,
+`git add` at 120 for 12,
+`git rev-parse` at 153 for 36,
+`git commit` at 250 for 2023;
+14 `buildParts` whose `ms` sum 34,
+with `client build`'s `childrenMs` 2023;
+`prepareParts` `index`'s `childrenMs` 12 and `policies`' `childrenMs` 36.
 
-So the incident stands on its own name and is not put down to load,
-not to this branch,
-and not to cause G.
-A later failure of it should read which numbers the assertion printed:
-the record's `stated` sum,
-the `steps_in_build` sum and its `buildMs`,
-and the `steps` array,
-before anything here is reopened.
+### The cause
+
+The record was right and the control's window was wrong.
+That is shown for the second failure,
+whose record is quoted here;
+the first failure's journal line was never kept,
+so its cause is inferred from the same control and not shown.
+
+`offsetMs` counts from the command's start
+(`package/git-policy/cli/src/native/transaction/transaction_step_durations.rs`,
+`figure_of`;
+`package/git-policy/cli/SPEC.md`,
+"offsetMs from the command's start"),
+and the two phases before the build are the route and the preparation
+(`CommitTiming::other`,
+`package/git-policy/cli/src/native/commit/commit_timing.rs`;
+`note_route` at `package/git-policy/cli/src/native/landing/service_commit.rs:181`,
+`begin_build` at `:205`).
+The build therefore begins at `routeMs + prepareMs`,
+here 212 ms,
+and the assertion began it at `prepareMs`,
+111 ms:
+a band as wide as the route,
+holding every step that began in the preparation's last `routeMs` milliseconds.
+`git add` began 19 ms into the preparation and `git rev-parse` 52 ms into it,
+both inside that band and outside the build,
+and `prepareParts` already states their 12 and 36 ms as the `childrenMs` of `index` and `policies`.
+The assertion counted 48 ms twice.
+The build's parts state 34 of its 2086 ms with 2023 under `client build`,
+so 29 ms of the build is in no part;
+48 - 29 = 19,
+and 19 - 12 = 7,
+the failure's excess exactly.
+Read from 212,
+the window holds `git commit` alone,
+and 34 + 2023 = 2057 fits 2086,
+and so fits 2086 + 1 as well.
+
+The record is right on both sides:
+58 + 48 = 106 <= 111 in the preparation,
+34 + 2023 = 2057 <= 2086 in the build,
+and 101 + 111 + 2086 = 2298 of 2299 with `otherMs` 0.
+Nothing of the stopped `git commit`'s 2023 ms lies outside the build either:
+`client build` states `childrenMs` 2023,
+the step's whole duration,
+so its stretch is at least as long as the step,
+and the 16 ms between the notice's `stoppedAfterMs` 2007 and the step's 2023
+is time the step ran past the ceiling,
+consistent with its own end and reap on this host,
+where the 17 clean stopped records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+show natural `git commit` steps lasting 2013 to 2091 ms against a 2000 ms ceiling,
+and inside `buildMs`,
+which is closed after the step's time is read
+(`note_step(step, began, began.elapsed())` at
+`package/git-policy/cli/src/native/commit/commit_preparation.rs:281`,
+after `run_guarded_child` at `:275`;
+`close_an_open_build` at `package/git-policy/cli/src/native/commit/commit_command.rs:418`).
+No stretch is stated twice:
+14 parts,
+`calls` 1 each,
+2057 under 2086.
+No Git child spans a build seam:
+the build's one child is stated wholly in one part.
+
+Rounding is not it either,
+and neither is counting the figures.
+Every figure the accounting sums is a duration cut to whole milliseconds on its own
+(`package/git-policy/cli/src/native/commit/commit_prepare_part_durations.rs:180-182`,
+`package/git-policy/cli/src/native/transaction/transaction_step_durations.rs:264-265`,
+`package/git-policy/cli/src/native/commit/commit_timing.rs:613`),
+and a cut never raises a sum:
+a stretch's `ms` and `childrenMs` are two cuts of one duration,
+and `floor(a) + floor(b) <= floor(a + b)`,
+so a right record states the build's parts and the steps that began in them at `buildMs` or under it.
+The one cut that can add is the window's origin,
+`routeMs + prepareMs`,
+two cuts that can begin the window up to two whole milliseconds early;
+the step such a band admits is one the preparation had awaited,
+so it ended before the preparation did,
+ran in under those two milliseconds,
+and states at most one whole one.
+The controls hold that one whole millisecond (`WINDOW_ORIGIN_ROUNDING_MS`),
+and the failure's 2105 passes 2086 + 1 = 2087 by 18,
+so no cut decides it.
+In the 34 clean records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+the excess was -12 to -3 ms
+(stopped control -12 to -3,
+landing control -5 to -3),
+so the bound leaves 4 to 13 ms of headroom,
+and never less than 4.
+The fixed 12 ms allowance was larger than any right record needs,
+so a step stating 10 or 14 ms too much passed it,
+and a count of figures is larger still:
+the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+read the count as 16 on the stopped control and 19 on the landing one,
+where a planted step stating 20 ms more than it ran passed both.
+
+Every other way this could be false was checked and excluded:
+the build's own figure by `otherMs` 0 and 101 + 111 + 2086 = 2298 of 2299,
+a record of several builds by `attempts` 1,
+a step list cut short by `stepsDropped` 0,
+and the window's own origin,
+which can admit only a step that began in the two milliseconds before the build and ran in less than those two,
+by the two preparation steps beginning 92 ms and 59 ms before it.
+A step that began in the build's last `routeMs` was not counted at all,
+so the same off-by-a-route could also hide a defect at the window's end;
+the window now ends where the build does.
+
+Why the control passes alone:
+the band is as wide as `routeMs`,
+and a preparation step it takes in ran only until the preparation ended,
+so it adds at most its own few milliseconds to a sum the build leaves 3 to 5 ms uncovered.
+The 17 clean stopped records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+read `routeMs` as 3 to 7 ms and stayed green.
+The gate's record states 101 ms,
+and the band took in both preparation steps,
+which had run 12 and 36 ms.
+Host load is no cause here (rule `NQH`);
+what load changes is how much of the preparation falls inside the band,
+because the band is as wide as the route the load stretched.
+
+### The reproduction
+
+The fixture's stand-in Git was made to sleep 400 ms on `version`,
+a step of the route,
+and 200 ms on `add`,
+a step of the preparation.
+Neither sleep adds a window:
+the route is already before the preparation,
+and the band is already as wide as the route.
+The control then failed on this host,
+at the same assertion:
+
+```text
+    thread 'commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time' (3702717) panicked at src/native/binary/binary_commit_timing_tests.rs:611:5:
+    the stretches and steps lie inside the stopped build (11 + 2243 of 2045): {...}
+```
+
+That record states `routeMs` 436,
+`prepareMs` 275 and `buildMs` 2045,
+with `git add` at 477 ms for 208,
+`git rev-parse` at 693 for 6 and `git commit` at 722 for 2029,
+and `prepareParts` states the two preparation steps' time as
+`index`'s `childrenMs` 208 and `policies`' `childrenMs` 6.
+Read from `prepareMs` 275,
+the window selects all three steps,
+2243 ms,
+and 11 + 2243 passes 2045 + 12 by 197 ms
+(and 2045 + 1 by 208).
+Read from 711 it selects `git commit` alone,
+and 11 + 2029 = 2040 fits 2045,
+and so fits 2045 + 1 as well.
+
+No whole-suite rerun was used to wait for this failure:
+the delay was planted in the stand-in and one run of the control showed it.
+
+### The fix
+
+`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs`:
+
+- `build_window` states the window from `routeMs + prepareMs` to
+  `routeMs + prepareMs + buildMs`,
+  and both controls assert `attempts` 1,
+  because a record of several builds is several windows and no single pair states their union;
+- `WINDOW_ORIGIN_ROUNDING_MS` is the bound:
+  one whole millisecond,
+  because every figure summed is a cut that cannot raise a sum,
+  and the window's origin,
+  two cuts,
+  can admit only a preparation step that ran in under two milliseconds;
+- both controls assert that the window holds the scratch `git commit`,
+  so a frame that moved cannot leave an empty selection that passes by adding nothing;
+- `a_preparations_last_steps_are_not_counted_inside_the_build` holds this gate's own record:
+  it derives the window,
+  the selected step,
+  and the sums from that record,
+  and asserts that the old reading's 2071 ms passes even the origin's bound.
+  With `steps_inside_the_build` reading its window from `prepareMs`,
+  the control fails at its step list:
+  `left: ["git add", "git rev-parse", "git commit"]` against `right: ["git commit"]`,
+  and those three steps state 2071 ms against the record's 2086 ms build,
+  the sum the gate printed as `34 + 2071 of 2086`.
+  With the window read from the route and the preparation it passes.
+
+`package/git-policy/cli/SPEC.md` now says what the build's window is,
+so a later reader does not derive it again.
+
+Nothing in the record changed for the second failure,
+whose record is quoted here and was right;
+the first failure's record was never kept.
+
+## Cause L: a control wrote over the PID file it had judged, within one millisecond (issue 6342)
+
+### The symptom the gate reader saw
+
+`lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone`
+failed as test 3457 of 9768,
+after 0.018 s,
+in the whole container gate `native-0g2PJW`
+(unit `odb-declined-gate-final-20261122`,
+2026-11-22T02:02:25-05:00)
+of the object-reader round on `fix/git-policy-cli-object-database-reftable-replace-refs`,
+a branch that changes nothing under `src/native/lock/`:
+
+```text
+thread 'lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone' (…) panicked at src/native/lock/abandoned_lock_proving_tests.rs:655:5:
+the new holder keeps its own PID file
+```
+
+The same branch's next gate (`native-b9mIYV`) passed it,
+and every other gate on record did.
+That unit's user journal has since left retention:
+`journalctl --user --user-unit=odb-declined-gate-final-20261122.service` answers `-- No entries --`,
+so the run's own numbers are the issue's and the reproduction's measured in section The reproduction and what it measured,
+and not a kept log.
+
+### What the assertion needed
+
+`a_git_directory` makes the fixture,
+`plant` writes the `index.lock`,
+the PID file beside it and the record of a dead holder,
+and the control arms the fault point `UNLINKED_THE_LOCK`
+(`src/native/lock/abandoned_lock_proving.rs`,
+`reach`)
+with code that acts as a Git that takes the freed name:
+it writes `index.lock` and then writes `pid <new holder>` over the file at `index~pid.lock`.
+The assertion at `:655` needs a regular file at `index~pid.lock` once `clear_one` has reported a clearance.
+
+`clear_one` unlinks a PID file in one place only:
+the block under `reach(UNLINKED_THE_LOCK)`,
+and only when what is read there equals what was read before the lock's unlink:
+the same device,
+the same inode,
+the same `ctime_ms`,
+and,
+since this round,
+the same number the file names
+(section The fix says why and what it costs).
+So the file could be gone in one of these ways:
+
+- the removal unlinked it.
+  That is the only code in the tree that removes this name,
+  and it needs the hook's write to leave the judged inode where it was and the change time in the judged millisecond.
+  `std::fs::write` opens the existing file with `O_TRUNC`,
+  so the inode and the device stay the judged ones,
+  and `read_lock_metadata` floors the change time to whole milliseconds
+  (`src/native/lock/index_lock_evidence.rs`,
+  `metadata.ctime() * 1000 + metadata.ctime_nsec() / 1_000_000`),
+  so a write that close behind the plant is not told apart from it;
+- the hook wrote nothing.
+  It cannot have:
+  the assertion before it (`lock.exists()`,
+  `:654`) passed,
+  and the lock exists again only once the hook wrote it,
+  and a failed second write inside the hook would have panicked with the hook's own message;
+- another process removed it.
+  Nothing else names this fixture:
+  the fixture root is per test process (`src/native/testing/test_support.rs`,
+  `process-<pid>`),
+  the directory is named for the test,
+  `nextest` gives each test a process of its own,
+  the fault hooks are thread-local (`src/native/service/service_fault_hooks_test_support.rs`,
+  `HOOK`),
+  and no other control makes a fixture called `taken-name`;
+- the removal reported nothing,
+  or reported before the hook.
+  Then `:653` would have failed on a lock that is still there.
+
+The first is the one the assertion took.
+
+### The cause
+
+Four facts make it,
+and the first is the control's:
+
+- The hook wrote the new holder's PID file with `std::fs::write`,
+  which truncates the very file the removal had judged.
+  What stood at that name after the hook was the judged file with other bytes,
+  not a file of the new holder's own,
+  and the inode and device the removal compared were the judged ones.
+- Git never puts a PID file of its own at a name that is taken.
+  `create_lock_pid_file` opens `<name>~pid.lock` with `O_WRONLY | O_CREAT | O_EXCL`,
+  and writes nothing when that is refused
+  (`lockfile.c`,
+  Git 2.56.1,
+  the release the gate's image reports as `git version 2.56.1`),
+  and `lock_file` calls it only after the lock itself was taken.
+  A live Git that takes the freed `index.lock` therefore writes no PID file at all,
+  and has nothing there to lose.
+  That is the control's own account,
+  and the integration pass confirmed it in the source.
+- Another program does write its own number over that file,
+  through the same inode,
+  and the pass found it:
+  `gitbutlerapp/grit` writes Git's sidecar with an open that creates and truncates
+  (`grit-lib/src/lockfile.rs`,
+  `write_lock_pid_file`,
+  lines 631 to 640 at `d1637255d9`,
+  read here in a shallow clone,
+  not run),
+  after it has taken the lock with an exclusive create
+  (`grit-lib/src/index/core.rs`,
+  `IndexLockFile::acquire`,
+  lines 4215 to 4231),
+  and it takes `core.lockfilePid` as on when it is unset
+  (`grit-lib/src/lockfile.rs`,
+  `grit_lockfile_pid_enabled`,
+  lines 602 to 605).
+  A grit that takes the freed `index.lock` there truncates the judged `index~pid.lock`:
+  same device,
+  same inode,
+  and only its change time and its bytes to tell it from the judged file.
+- The removal's last look compared `device`,
+  `inode` and `ctime_ms`,
+  and `ctime_ms` is floored to whole milliseconds,
+  so a write over the judged file left one millisecond to decide with.
+
+So the control planted a real program's state and the removal could not tell it apart,
+which is at once the control's defect and a route in the product.
+The branch's first fix treated only the first:
+it made the control write a file of its own and said in `SPEC.md`,
+in a comment and in this section that a program which wants its own file there removes the judged one first,
+which the inode shows.
+The pass showed that sentence false with grit,
+and the route that follows from it is the product's.
+
+### The reproduction and what it measured
+
+The runs of this round are the one control in a process of its own,
+started from the host's build of this crate,
+with `CLI_GIT_TEST_ROOT` on a tmpfs this round made under `/dev/shm`,
+which the round's own rules forbade for scratch and which changed no number:
+the same file system type is the gate's fixture root.
+The build is the tree at the incident with a print of the judged and the later metadata beside the removal,
+and nothing else changed.
+
+- The control as it stood,
+  200 runs:
+  0 failures and no pair in one millisecond.
+  The measured `ctime_ms` differences were 1 ms in 91 runs,
+  2 ms in 98,
+  3 ms in 4,
+  4 ms in 3,
+  5 ms in 2,
+  6 ms in 1 and 30 ms in 1.
+- 120 more runs with the two change times printed in nanoseconds:
+  0 failures and no pair.
+  The differences were 1 ms in 50 runs,
+  2 ms in 60,
+  3 ms in 9 and 30 ms in 1.
+- The same control with the plant's own bytes written into the PID file again immediately before the call,
+  100 runs:
+  10 failures,
+  and they were exactly the 10 runs whose two change times shared a millisecond.
+  The file,
+  the number,
+  the birth and the bytes were the judged state's;
+  only the change time the removal compares moved to a moment just before the call,
+  which is the distance a plant on a fast machine leaves.
+  One recorded failure:
+
+```text
+PROBE6342 judged ctime=1795382115.181238873 still ctime=1795382115.181937201 delta=0 tie=true
+
+thread 'lock::abandoned_lock_proving_tests::the_pid_file_of_a_git_that_takes_the_freed_name_is_left_alone' (1163160) panicked at src/native/lock/abandoned_lock_proving_tests.rs:659:5:
+the new holder keeps its own PID file
+```
+
+  The two are 698 µs apart and in one millisecond,
+  and their nanoseconds differ,
+  which the earlier sentences of this section read as one tick of a coarse clock.
+  That reading was wrong:
+  every value ending in `…060000` ns is what a stamp taken with no read between two writes looks like,
+  and the pair that failed has nanosecond values of its own.
+
+What this host's clocks and file systems really give,
+measured by the integration pass of 2026-11-22 with a probe of 1000 rounds of write,
+read and rewrite in place
+(the pass's numbers,
+`kernel 7.3.5-1-cachyos`,
+`CONFIG_HZ=1000`):
+
+- On this host's ZFS,
+  where every worktree and the scratch of that pass sat,
+  the rewrite's change time equalled the judged one to the nanosecond in 957 of 1000 pairs and was later in 43:
+  ZFS stamps a change to a jiffy.
+  After a remove and a create the inode number came back in 0 of 1000.
+- On the gate's fixture tmpfs,
+  inside the gate's own base image,
+  the rewrite's change time was strictly later in nanoseconds in 1000 of 1000 pairs and in the same whole millisecond in
+  967,
+  and the inode number came back in 0 of 1000.
+- So a finer comparison,
+  in nanoseconds,
+  closes nothing on this host's ZFS and something on the gate's tmpfs,
+  and a comparison of the bytes closes it on both.
+  That is the pass's finding,
+  and this section's earlier claim that a millisecond of the clock is a window the control enters rarely holds only
+  because the untouched control puts one to two milliseconds between the plant and the write after the unlink.
+
+### What the comparison is now, and why
+
+The last look at the PID file compares its device,
+its inode,
+its change time in whole milliseconds,
+and the number it names,
+which is read again there
+(`pid_named_by`,
+`abandoned_lock_proving.rs`,
+the block under `reach(UNLINKED_THE_LOCK)`).
+A program that wrote its own number over the judged file is told apart by that number at every clock granularity and on
+every file system,
+which the metadata alone could not promise.
+
+The project chose this on 2026-11-22,
+in the question tool,
+as "B:
+also compare bytes (Recommended)",
+over correcting these words alone and leaving the route open.
+
+What it costs,
+from the code:
+
+- one more read of the PID file at the removal's last look:
+  `pid_named_by` opens the name without following a link and without blocking,
+  and reads at most `PID_FILE_LIMIT`,
+  which is 4096 bytes
+  (`stopped_git_locks.rs`,
+  `PID_FILE_LIMIT`),
+  of a file that holds `pid <number>` and a newline;
+- it sits on the abandoned lock's removal,
+  not on a commit's waiting path:
+  `clear_one` is reached from `clear_abandoned_locks`,
+  which the invocation's entry runs when it meets lock files of the working directory
+  (`invocation/entry.rs`,
+  `meet_the_locks_of_the_working_directory`)
+  and the landing runs when it takes the index lock
+  (`landing/service_land_take_index_lock.rs`),
+  and it runs only once the proof has already decided to unlink the lock;
+  the waits a commit makes for a live holder are in `index_lock_wait.rs` and `index_holder_wait.rs`,
+  which this does not touch.
+
+Two states stay open,
+and both are recorded here so the next reader does not have to find them:
+
+- a program that writes the judged number back,
+  whether over the file or into a new one,
+  is not told apart:
+  the file goes,
+  and what it costs is that program's PID file,
+  which named a process this boot has not.
+  Its lock stands,
+  because the lock was unlinked before this look;
+- the instant between the read and the unlink is not closed:
+  no system call unlinks a name only when it still names a given file
+  (`service_index_unheld_removal.rs` says the same of the lock's own removal).
+
+### The fix
+
+`src/native/lock/abandoned_lock_proving.rs` is the file whose comparison changed,
+with `src/native/lock/abandoned_lock_proving_tests.rs`,
+the new test-only `src/native/lock/lock_metadata_arm.rs`,
+and the bullet in `SPEC.md` that had said what the control and the product had wrong.
+
+The arm answers the removal's two reads of one path,
+so each term of the comparison can be made to differ on its own:
+a device number a fixture cannot present,
+a change time this host's ZFS hands out in jiffies,
+and an inode number a file system may hand back to the next file are all armed there,
+while the bytes of the file are always the file's own.
+
+- `a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone`
+  holds grit's state:
+  the hook writes the new lock and then writes its own number over the judged PID file,
+  through the same inode,
+  with the arm reporting one inode for every file and one tick holding both writes.
+  The file stands and names the new holder,
+  so the bytes are the term that kept it.
+- `a_pid_file_of_another_inode_is_left_alone`
+  has the hook remove the judged file and write the judged number again,
+  a new file with the same bytes,
+  under the same coarse tick:
+  the inode is the only term that differs.
+- `a_pid_file_of_another_change_time_is_left_alone`
+  arms the later read with a change time one millisecond back and touches nothing else.
+- `a_pid_file_of_another_device_is_left_alone`
+  arms the later read with the next device number and touches nothing else.
+- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
+  holds the state the bytes comparison does not close:
+  the same number written back over the judged file inside one armed tick and under one armed inode,
+  where all four facts equal the judged ones.
+  The removal takes the file,
+  and the control says so and says what that costs.
+
+`/src/native/lock/abandoned_lock_proving.rs` was run with one term of the last look left out at a time,
+and with the unlink itself planted away,
+and each run failed one control at its own assertion:
+
+```text
+term left out: device      a_pid_file_of_another_device_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:881:5: a PID file of another device is left alone
+term left out: inode       a_pid_file_of_another_inode_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:818:5: a PID file of another inode is left alone
+term left out: change time a_pid_file_of_another_change_time_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:851:5: a PID file whose change time reads another millisecond is left alone
+term left out: bytes       a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:785:5: a PID file another program wrote over the judged one is left alone
+unlink planted away      a_pid_file_that_still_names_the_judged_number_goes_with_the_lock
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:936:5: a PID file that still names the judged number goes with the lock it belongs to
+```
+
+Each run exited 100 with `1 test run: 0 passed, 1 failed, 8619 skipped`,
+and the term was put back before the next one.
+- `a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock`
+  holds what a Git does at that instant:
+  its exclusive create is refused,
+  its lock stands,
+  and the abandoned holder's file goes with the abandoned lock.
+
+### What the product guarantees here
+
+The removal unlinks the PID file beside a lock it cleared only when that file is still the one it judged,
+as its device,
+its inode,
+its change time in whole milliseconds and the number it names show.
+For a Git,
+nothing else can be at that name while the judged file stands,
+because Git creates its PID file with `O_EXCL` and silently writes none when the name is taken,
+so a live Git that takes the freed name has no PID file there to lose.
+For a program that writes its own number over the judged file,
+the number is the proof that the file is not the judged one,
+whatever its inode number is and whatever the clock says.
+What is not promised is the state where the same number is written back,
+and the instant between the last read and the unlink;
+both are named above,
+and neither is a lock.
+
 
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
 
