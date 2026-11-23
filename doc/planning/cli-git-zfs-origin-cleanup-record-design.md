@@ -4499,7 +4499,7 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
     and "When the route's gate refuses" applies the same rule to the gate.
   - Y1:
     "The add that fails and destroys what it made" gains its four cases and the refused-destroy rule,
-    and "V15 A refused snapshot destroy after a failed add" lists the choice once.
+    and the refused-destroy entry for a failed add lists its choice once.
   - Y4:
     a plan whose head is not `gone` is left by the pass and resumed by the next removal.
   - Y5:
@@ -4538,6 +4538,54 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   2026-11-22T21:29:04-05:00:
   this revision entry.
   The commits that touch only this list are the ones `git log` reports for this path after `b0f6b9e676`.
+- `52b2e7ccea`,
+  2026-11-22T22:11:12-05:00:
+  the sixth round,
+  which answers the fourth check,
+  after merging `main` at `4ccd98b565` with `git merge --no-ff` into `e20e68b889`,
+  which brought the dirty-main record's "Three further answers" and the settling command's plan answer.
+  Its findings and where each is fixed:
+  - Item 1,
+    the add as second writer:
+    "The add that fails and destroys what it made" states who writes,
+    when,
+    with which identities,
+    what the next worktree command does,
+    and that the dirty-main design takes this order.
+  - W9:
+    `cloneGuid` is absent for an add that made no clone,
+    `cloneDataset` is then the proposed name and the reader says so,
+    the record's removal-only start key becomes `startedAt` for both writers,
+    and the moment is "before the add's first destroy".
+  - W13:
+    the binding design's bound is 43,027 wherever this document quotes it,
+    and its F24 and the fourteen-point section say so.
+  - W14:
+    F24 is rewritten at `7d041d773b`,
+    with A20 to A27 and "The settling command".
+  - W16:
+    the step mapping is rewritten to the binding design's own five-step list,
+    and the sentence that all three numbered the same steps is corrected.
+  - V15:
+    it leaves the veto list,
+    the dirty-main record's first further answer is quoted in the add's section,
+    and its unchosen option is listed once with the seven answers' unchosen options.
+  - The settling command:
+    its plan answer and its comparison of this record are stated where this document describes it,
+    citing the record and the binding design.
+  Text the check found sound that a fix forced to change:
+  F24,
+  the fields,
+  the bound (13,368),
+  T2's width,
+  the example's `startedAt`,
+  the fourteen-point bound,
+  the step mapping,
+  the add subsection,
+  the two settling-command sections,
+  and Sources read.
+  Nothing else the check found sound was changed.
+- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `52b2e7ccea`.
 
 ## References
 
