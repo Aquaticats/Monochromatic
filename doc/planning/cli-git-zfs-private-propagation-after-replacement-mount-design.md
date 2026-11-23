@@ -3569,6 +3569,15 @@ with its committer time from `git log --format=%cI`:
   the man-page line,
   the `doctor` namespace note and the `statmount` callers are fixed;
   and every sibling citation is re-pointed at the sibling's then-current tip.
+- `3b57582319`,
+  2026-11-22T19:55:48-05:00:
+  this list gained the commit that recorded this round.
+- `a7409f59d6`,
+  2026-11-22T19:56:12-05:00:
+  the three references that still named the rename arm for a second mount now name the second-mount arm,
+  the last review label left the list,
+  and one stale section name was corrected.
+  Its message names only the first of those changes.
 - `4156ef6cdf`,
   2026-11-22T20:44:41-05:00,
   on the merge of `main` at `249da7f102`:
@@ -3604,15 +3613,7 @@ with its committer time from `git log --format=%cI`:
   and M11 is added as the arm that settles it.
   Its commit message is `docs(planning): state what a boot unit without ExecReload answers, from the source,
   and measure it`.
-- `3b57582319`,
-  2026-11-22T19:55:48-05:00:
-  this list gained the commit that recorded this round.
-- `a7409f59d6`,
-  2026-11-22T19:56:12-05:00:
-  the three references that still named the rename arm for a second mount now name the second-mount arm,
-  the last review label left the list,
-  and one stale section name was corrected.
-  Its message names only the first of those changes.
+
 
 ## Links
 
