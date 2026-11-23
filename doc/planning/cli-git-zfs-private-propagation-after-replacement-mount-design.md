@@ -3594,6 +3594,16 @@ with its committer time from `git log --format=%cI`:
 - `16aa54b55c`,
   2026-11-22T20:44:53-05:00:
   this list gained the commit that recorded this round.
+- `4d53b96b12`,
+  2026-11-22T20:47:30-05:00:
+  F39's sentence about a boot unit without `ExecReload=` is corrected from source:
+  v262 refuses the reload as not applicable and mangles only a restart,
+  where the lost-event record states that the request restarts the unit;
+  the disagreement is recorded beside the install guard,
+  L11 is corrected to match,
+  and M11 is added as the arm that settles it.
+  Its commit message is `docs(planning): state what a boot unit without ExecReload answers, from the source,
+  and measure it`.
 - `3b57582319`,
   2026-11-22T19:55:48-05:00:
   this list gained the commit that recorded this round.
