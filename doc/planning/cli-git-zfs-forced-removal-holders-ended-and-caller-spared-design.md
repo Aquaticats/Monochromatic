@@ -3150,9 +3150,13 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   the merge of `main` with the corrected reach record and the script-unit answer.
 - `7e0f31ed9e`,
   2026-11-22T21:18:03-05:00:
-  this revision: the ways and ranking corrected to the kernel's propagation rule,
+  this revision:
+  the ways and ranking corrected to the kernel's propagation rule,
   ways 7 and 8,
-  the preflight's endability, socket, room, parent and receiver reads,
+  the preflight's endability,
+  socket,
+  room,
+  parent and receiver reads,
   the all-namespace order,
   the wait constant,
   the destination's directory,
