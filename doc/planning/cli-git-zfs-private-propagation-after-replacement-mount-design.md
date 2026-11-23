@@ -3613,7 +3613,13 @@ with its committer time from `git log --format=%cI`:
   and M11 is added as the arm that settles it.
   Its commit message is `docs(planning): state what a boot unit without ExecReload answers, from the source,
   and measure it`.
-
+- `236c5f5a3f`,
+  2026-11-22T20:47:38-05:00:
+  this list gained the correction commit.
+- `9c71c18764`,
+  2026-11-22T20:48:03-05:00:
+  the list is put back in commit order,
+  which the correction's insertion had broken.
 
 ## Links
 
