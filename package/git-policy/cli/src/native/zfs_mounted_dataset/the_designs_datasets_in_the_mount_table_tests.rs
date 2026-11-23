@@ -41,6 +41,9 @@ const PROBE_DATASET: &str = "zpcachyos/nosnap/git-worktree-probe";
 /// The checkout the controls name.
 const CHECKOUT: &str = "/home/user/Monochromatic";
 
+/// The dataset the account's `create` delegation on the container let it make in the guest of 2026-11-22.
+const CLONE_UNDER_THE_CONTAINER: &str = "zpcachyos/ROOT/cos/home/monochromatic-git-worktree-clone-datasets/monochromatic-git-checkout";
+
 /// The one mounted instance of the design's leaf name is the checkout dataset,
 /// and its mount point is the checkout path.
 #[test]
@@ -117,6 +120,32 @@ fn an_unreadable_table_is_refused_as_unreadable() {
     let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("an unread table names nothing");
     assert_eq!(refusal.word(), "mount-table-unreadable");
     assert!(refusal.message(Path::new("/etc/config")).contains("permission denied"), "{}", refusal.message(Path::new("/etc/config")));
+}
+
+/// A dataset inside the clone container carries the design's leaf name too,
+/// because the account's `create` delegation on the container lets it make one;
+/// it is a clone the route attaches at a slot and never the checkout,
+/// so the one mounted checkout is still the checkout.
+#[test]
+fn a_clone_inside_the_container_is_no_candidate_for_the_checkout() {
+    let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", CLONE_UNDER_THE_CONTAINER)];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let one: MountedDatasetInstance = the_one_mounted_checkout(&table).expect("a clone is no second instance");
+    assert_eq!(one.dataset, CHECKOUT_DATASET);
+    assert!(super::is_a_managed_clone(&MountedDatasetInstance { dataset: String::from(CLONE_UNDER_THE_CONTAINER), mount_point: PathBuf::from("/home/user/x"), root: PathBuf::from("/") }));
+    assert!(!super::is_a_managed_clone(&MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: PathBuf::from(CHECKOUT), root: PathBuf::from("/") }));
+}
+
+/// A table whose only row under the leaf name is such a clone is refused,
+/// and the refusal lists the clone and says why it is none.
+#[test]
+fn a_table_whose_only_leaf_row_is_a_clone_is_refused_and_the_clone_is_listed() {
+    let rows: Vec<String> = vec![row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", CLONE_UNDER_THE_CONTAINER)];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("a clone is no checkout");
+    let said: String = refusal.message(Path::new("/etc/config"));
+    assert!(said.contains(CLONE_UNDER_THE_CONTAINER), "the refusal lists the clone: {said}");
+    assert!(said.contains("managed clone"), "the refusal says why it is none: {said}");
 }
 
 /// The one mount of a dataset a file names is that dataset's mount point.

@@ -1764,7 +1764,10 @@ A file that is present wins entry by entry,
 and plan step 19's setup still writes the two dataset names into it.
 A name that matches no mounted dataset,
 or several,
-is a refusal that lists what the mount table held rather than a guess.
+is a refusal that lists what the mount table held rather than a guess,
+and a mounted dataset inside the clone container is a managed clone and never
+the checkout,
+so a name the account can create with its own delegation adds no instance.
 Only the wrapper is linked,
  and not as the installed file's own name:
 link it as `git` in a directory that comes before the real Git on `PATH`:

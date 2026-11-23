@@ -6308,6 +6308,12 @@ The rule this build keeps is entry by entry:
 - a bind mount of a subtree shows a deeper root and is no instance,
   while a bind mount of the dataset's own root and a second mount of the
   dataset are instances;
+- a row whose dataset's parent carries the container's leaf name is a managed
+  clone the route attaches at a slot and never the checkout,
+  because the design's delegation lets the account create a dataset of the
+  checkout's leaf name there,
+  and the checkout dataset is a sibling of the container and never a child of
+  it;
 - with neither the path nor the dataset named,
   the one instance of `monochromatic-git-checkout` is both:
   its source is the checkout dataset and its mount point is the checkout path;

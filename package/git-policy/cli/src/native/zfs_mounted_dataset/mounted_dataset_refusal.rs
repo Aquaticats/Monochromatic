@@ -47,9 +47,9 @@ pub enum MountedDatasetRefusal {
     NoneMounted {
         /// The leaf name looked for.
         leaf: &'static str,
-        /// The rows whose source carried it,
-        /// which are bind mounts of subtrees rather than instances.
-        bind_mounts: Vec<String>,
+        /// The rows whose source carried it and that are no instance,
+        /// each with the reason it is none.
+        ignored: Vec<String>,
     },
     /// More than one mounted instance of the checkout dataset exists,
     /// and this route never picks one of several.
@@ -136,9 +136,9 @@ impl MountedDatasetRefusal {
             MountedDatasetRefusal::TableUnreadable { said } => format!(
                 "this process's own mount table could not be read ({said}), and no configuration names the checkout or the checkout dataset, so nothing here says which dataset the route acts on"
             ),
-            MountedDatasetRefusal::NoneMounted { leaf, bind_mounts } => format!(
-                "no mount in this process's own mount table is a ZFS mount of a dataset whose last name component is `{leaf}`, and the configuration names neither `cloneMounts.checkout` nor `cloneMounts.checkoutDataset`. The table's ZFS rows whose source carried that leaf name are {}",
-                listed_or_nothing(bind_mounts.as_slice())
+            MountedDatasetRefusal::NoneMounted { leaf, ignored } => format!(
+                "no mount in this process's own mount table is an instance of the checkout dataset, whose last name component is `{leaf}`, and the configuration names neither `cloneMounts.checkout` nor `cloneMounts.checkoutDataset`. A row counts only when its root within the dataset is `/`, and a dataset whose parent's last component is `{DESIGN_CONTAINER_DATASET_NAME}` is a managed clone the route attaches at a slot, never the checkout. The table's ZFS rows whose source carried that leaf name are {}",
+                listed_or_nothing(ignored.as_slice())
             ),
             MountedDatasetRefusal::SeveralMounted { leaf, found } => format!(
                 "two or more mounts in this process's own mount table are instances of the dataset whose last name component is `{leaf}`, so this run will not choose between them; two pools that hold that leaf name, one dataset mounted at two paths, and a bind mount of the dataset's own root outside it all look like this. The instances are {}",
@@ -207,5 +207,5 @@ impl MountedDatasetRefusal {
 /// One list in words,
 /// or a phrase saying it held nothing.
 fn listed_or_nothing(items: &[String]) -> String {
-    return if items.is_empty() { String::from("none, so no row's source carried it") } else { items.join(", ") };
+    return if items.is_empty() { String::from("none, so no row's source carried it") } else { items.join("; ") };
 }

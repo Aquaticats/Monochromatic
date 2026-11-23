@@ -53,6 +53,58 @@ fn leaf_of(dataset: &str) -> &str {
 }
 
 /// What:
+///  Whether a row's dataset is a managed clone of the container,
+///  which is never the checkout dataset.
+/// Why:
+///  The design puts the checkout dataset and the container beside each other,
+///  and gives the account `create` on the container alone
+///  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+///  "Scoped delegation"),
+///  so an account can create a dataset there whose last name component is the
+///  checkout's leaf name;
+///  a guest run of 2026-11-22 made exactly that clone.
+///  The design's dataset is a sibling of the container and never a child of it,
+///  so a row inside one is a clone the route itself attaches at a slot,
+///  and it is no candidate for the checkout:
+///  without this rule an account's clone would add a second instance and make
+///  the sweep refuse, and with it the sweep finds the checkout it should.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const clone = row.dataset.split('/').slice(0, -1).at(-1) === 'monochromatic-git-worktree-clone-datasets';
+/// ```
+pub fn is_a_managed_clone(row: &MountedDatasetInstance) -> bool {
+    let Some((parent, _leaf)) = row.dataset.rsplit_once('/') else {
+        return false;
+    };
+    return leaf_of(parent) == DESIGN_CONTAINER_DATASET_NAME;
+}
+
+/// What:
+///  Why one row the table held under the leaf name is no candidate for the
+///  checkout.
+/// Why:
+///  A person reading the refusal has to see which row was found and why nothing
+///  was done with it,
+///  because "no dataset" sends them to the setup while a row that is there and
+///  ignored sends them to the mount.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const why = !row.ownRoot ? 'a bind tree' : 'a managed clone';
+/// ```
+fn why_ignored(row: &MountedDatasetInstance) -> String {
+    let mut reasons: Vec<&'static str> = Vec::new();
+    if !row.shows_the_datasets_own_root() {
+        reasons.push("a bind mount of a subtree, which shows no dataset's own root");
+    }
+    if is_a_managed_clone(row) {
+        reasons.push("a managed clone inside the clone container, which is never the checkout");
+    }
+    return reasons.join(" and ");
+}
+
+/// What:
 ///  The rows of the table that are instances of one dataset name.
 /// Why:
 ///  An instance means the dataset's own root,
@@ -87,12 +139,20 @@ pub fn instances_of(dataset: &str, rows: &[MountedDatasetInstance]) -> Vec<Mount
 pub fn the_one_mounted_checkout(mounts: &dyn MountedDatasets) -> Result<MountedDatasetInstance, MountedDatasetRefusal> {
     let rows: Vec<MountedDatasetInstance> = mounts.mounted_datasets().map_err(|said| return MountedDatasetRefusal::TableUnreadable { said })?;
     let carrying_the_leaf: Vec<MountedDatasetInstance> = rows.into_iter().filter(|row| return row.last_name_component() == DESIGN_CHECKOUT_DATASET_NAME).collect();
-    let instances: Vec<MountedDatasetInstance> = carrying_the_leaf.iter().filter(|row| return row.shows_the_datasets_own_root()).cloned().collect();
-    let bind_mounts: Vec<String> = carrying_the_leaf.iter().filter(|row| return !row.shows_the_datasets_own_root()).map(|row| return row.described()).collect();
+    let instances: Vec<MountedDatasetInstance> = carrying_the_leaf
+        .iter()
+        .filter(|row| return row.shows_the_datasets_own_root() && !is_a_managed_clone(row))
+        .cloned()
+        .collect();
+    let ignored: Vec<String> = carrying_the_leaf
+        .iter()
+        .filter(|row| return !(row.shows_the_datasets_own_root() && !is_a_managed_clone(row)))
+        .map(|row| return format!("{} ({})", row.described(), why_ignored(row)))
+        .collect();
     return match instances.as_slice() {
         [] => Err(MountedDatasetRefusal::NoneMounted {
             leaf: DESIGN_CHECKOUT_DATASET_NAME,
-            bind_mounts,
+            ignored,
         }),
         [one] => Ok(one.clone()),
         several => Err(MountedDatasetRefusal::SeveralMounted { leaf: DESIGN_CHECKOUT_DATASET_NAME, found: several.iter().map(|row| return row.described()).collect() }),
