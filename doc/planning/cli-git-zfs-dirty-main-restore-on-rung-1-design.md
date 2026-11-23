@@ -23,6 +23,10 @@ finding by finding,
 what changed and where,
 and "The project's answers of 2026-11-22" quotes the three answers.
 
+This revision answers the third gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-owners-answers.md`,
+tip `610e5da52e`),
+whose findings and their fixes "Answers to the third gate pass" records.
+
 What it read:
 the decision record `doc/decision/cli-git-zfs-worktree-design.md`,
 the accepted design `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
@@ -52,7 +56,8 @@ all on this host and all read-only or confined to a scratch folder:
 `gh api` for five Linux files at `v7.3`,
 `git log` and `git show` for the sibling branches at their current tips,
 the citation check the "Citations" section describes,
-and three probes of this revision:
+OpenZFS's `zfs_vnops_os.c` from a fresh clone at `zfs-2.4.4` for the exchange's transaction and log lines,
+and three probes of the revision before this one:
 `clock_getres(CLOCK_REALTIME_COARSE)`,
 a read of the main checkout's index and `ls-files --debug` times that counted the racy set,
 and a read of the checkout's administration for the worktree registrations,
