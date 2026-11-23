@@ -275,6 +275,25 @@ and only the owner accepts one.
   "B:
   also compare bytes (Recommended)",
   so the removal unlinks a PID file only when its bytes too are what it judged.
+- Lost events,
+  three answers,
+  recorded in `doc/decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`:
+  the readiness hook asks the boot unit,
+  which gains an `ExecReload=`;
+  any wrapped Git command in a repository with an unanswered request writes that clone's nudge
+  (the owner chose this over the recommended unbounded wait,
+  so the design owes a cheap way for a command to know there is none,
+  and a measurement);
+  and the cost rule holds only passes whose event names a clone with nothing pending.
+- The checkout's propagation,
+  four answers,
+  recorded in `doc/decision/cli-git-zfs-checkout-propagation-repair.md`:
+  every run of the root handler may set it;
+  one added trigger,
+  the unit on the checkout's mount,
+  provisional until a guest measures it;
+  the repair acts on shared and reports other states;
+  and it changes the checkout's mount alone.
 
 #### Step 10's two designs: the add-time lock and the binding record
 
@@ -299,16 +318,19 @@ and only the owner accepts one.
 - The binding record's second round ended at `c144499eb9`
   (report `keep/report-second-pass-findings.md` in its folder);
   it also took the record designs' second pass.
-- Running:
-  `pi-zfs-add-time-git-lock-design-second-pass-findings`,
-  started when the binding's ended
-  (delete its own order and name its moments by the binding's step labels;
-  the composer,
-  the recompose-and-compare and the scan move to step 10;
-  the scan that finds a registration by its lock sentence stays its own).
-- Next:
+- The lock design's second round,
+  started when the binding's ended,
+  ended at `86f122c2b1`
+  (report `keep/report-second-pass-findings.md` in its folder;
+  it read the binding at `c144499eb9`).
+- Going:
   one diff check of both by the same reviewer,
+  to `review-diff-check.md` beside its other reviews,
   asked again whether step 10 can be built.
+  If its verdict on step 10 is yes,
+  or what is left is the owner's to answer,
+  ask the owner at once and brief step 10's build;
+  the four questions it would put do not block the build.
 - Questions the reviewer would put,
   none of which blocks step 10:
   reinstalling a lost lock unasked;
@@ -346,15 +368,16 @@ and only the owner accepts one.
   (the binding removed before the plan,
   the claim released last),
   for the other two to cite.
-- Running:
-  `pi-zfs-removal-destruction-plan-record-design-second-pass-findings`,
-  started when that ended
-  (cite the list,
-  the finish pass,
-  drop the placeholder,
-  re-read both siblings).
-- Next:
-  one diff check of the three.
+- The plan design's second round,
+  started when that ended,
+  ended at `b4dc758a76`
+  (report `keep/report-second-pass-findings.md` in its folder;
+  it cites the origin cleanup document's list at `0973f2fc2a`).
+- Going:
+  one diff check of the three by the same reviewer,
+  to `review-diff-check.md` beside its other reviews.
+  None of the three was written to the evening's three removal decisions;
+  the reviewer is asked to list what each must change for them.
 - The reviewer's single set of four questions for the owner,
   carried by the origin cleanup document:
   who may destroy a leftover origin snapshot;
@@ -384,14 +407,16 @@ and only the owner accepts one.
 - Three of its four questions are answered
   (see "The owner's answers of 2026-11-22 on these designs");
   whether rung 1 may decline a very dirty main checkout waits for the measurement that would size the cut.
-- Running:
-  `pi-zfs-dirty-main-restore-on-rung-1-design-second-pass-findings`,
-  with the answers sent to its inbox.
+- The round ended at `610e5da52e`
+  (report `keep/report-second-pass-findings.md` in its folder),
+  with the answers sent to its inbox while it ran.
   The first answer needs an unmount and a destroy that an add can call,
   which no sibling design offers yet;
-  the round is told to state it as a requirement on the designs that own them.
-- Next:
-  one review of the revision.
+  the round was told to state it as a requirement on the designs that own them.
+- Going:
+  the one review of the revision,
+  by the same reviewer,
+  to `review-after-the-owners-answers.md` beside its other reviews.
 
 #### Step 16: the deferred-destroy checks
 
@@ -411,12 +436,13 @@ and only the owner accepts one.
 - By the rule under "How the rounds are run" it got no fourth review;
   its three questions are answered
   (see "The owner's answers of 2026-11-22 on these designs").
-- Running:
-  `pi-zfs-deferred-destroy-checks-design-the-projects-three-answers`,
-  on `continuation-the-projects-three-answers.md`,
-  which also designs the look before the unmount.
-- Next:
-  one review of the whole document.
+- The round on the answers ended at `1f7a0800fa`
+  (report `keep/report-the-projects-three-answers.md` in its folder);
+  it also designed the look before the unmount.
+- Going:
+  the one review of the whole document,
+  by the same reviewer,
+  to `review-after-the-owners-answers.md` beside its other reviews.
 
 #### Step 17: the forced arm and the cancelled or interrupted removal
 
@@ -454,8 +480,12 @@ and only the owner accepts one.
   and what each refusal of a forced removal leaves is stated.
   It read the forced arm at `1931987673`,
   before that design's round had pushed.
-- Next:
-  one diff check of both when the forced arm's round has ended.
+  The forced arm's round ended at `cdc89927c9`
+  (report `keep/report-second-pass-findings.md` in its folder).
+- Going:
+  one review of both by the same reviewer,
+  to `review-after-the-owners-answers.md` beside its other reviews,
+  asked also whether the unmount inside a namespace is designed enough for the owner to confirm that direction.
   Still open for the owner,
   in the review's numbering:
   the signal and any grace (S4),
@@ -499,12 +529,22 @@ and only the owner accepts one.
   one `ExecReload=` on the boot unit,
   and one order inside an entry point,
   the propagation design's.
+- Both designs' questions are answered
+  (see "The owner's answers of 2026-11-22 on these designs").
+- Running:
+  `pi-zfs-lost-last-event-triggers-design-the-projects-three-answers`,
+  on `continuation-the-projects-three-answers.md`,
+  which also designs the nudge on Git commands.
 - Next:
-  the lost-event design's three questions to the owner
-  (which trigger runs after the checkout becomes ready;
-  whether "moot" accepts waiting for the next trigger;
-  whether the cost rule may hold a pass while a caller waits);
-  the propagation design's questions after its diff check.
+  when that ends,
+  the propagation design's round on `continuation-the-projects-four-answers.md` in its folder
+  (written,
+  not started:
+  it cites the lost-event document,
+  so it runs after it),
+  started with
+  `node run-a-gate-findings-round.ts zfs-private-propagation-after-replacement-mount-design continuation-the-projects-four-answers.md the-projects-four-answers`;
+  then one review of each.
 
 #### Build and diagnosis runs
 
