@@ -3161,6 +3161,28 @@ at `ec2b0b14f3` for the binding record and `c7708953c0` for the private propagat
 - `eae362d6b6` at `2026-11-22T19:58:59-05:00`:
 the status paragraphs at the top brought to the third pass,
 and "What it ran" naming the OpenZFS clone this revision read for the exchange's transaction and log lines.
+- `9036369b08` at `2026-11-22T20:28:37-05:00`:
+`main` merged with `--no-ff`,
+bringing the further answer (an add withdraws a refused unmount),
+the lock put-back record,
+and the forced-removal authority and reach record.
+- `aee198e92a` at `2026-11-22T20:33:11-05:00`:
+the busy-unmount answer applied.
+The question Q-R5 leaves the question list for "The further answer",
+the settle gains "When the add cannot unmount its own clone" with the property and the receipt at each point,
+the kill states,
+what a resume and the removal then do,
+what the pending folder holds,
+the text a person reads and the `doctor` line;
+the resume rows and the `doctor` report follow it;
+the accepted design's one exception becomes two in "How the accepted sentences are met";
+the lock bullet is read at `c263e76f48`,
+which now names the add's fallback as the lock's releaser,
+with the four differences its next round must close,
+and the binding bullet lists the three its next round must add;
+the cancelled-removal bullet states the second exception it must carry,
+and the forced-arm bullet cites what the person's removal of a pending add meets;
+the build steps place the settle in step 11 and its two primitives in steps 9 and 13.
 
 ## Sources read
 
