@@ -2157,7 +2157,8 @@ In every other state it:
 6.  releases the removal claim on every path out,
     including the paths that refuse.
 
-Where the plan design settles that an all-`planned`, `head=present` plan is removed at a cancellation
+Where the plan design settles that an all-`planned`,
+`head=present` plan is removed at a cancellation
 ([plan-record][plan-record],
 "A cancellation,
 and the plan it leaves"),
@@ -3892,3 +3893,31 @@ oldest first.
 - The commits that carry this entry,
   written from 2026-11-22T19:58:38-05:00:
   add the entries for `1fee10f2ce` and `04dd250d24`.
+- `db028cb9be`,
+  2026-11-22T21:20:16-05:00:
+  merges `main` into this branch so that the two records of 2026-11-22 are read here.
+  It changes nothing in this document.
+- `7b8f23c746`,
+  2026-11-22T21:26:19-05:00:
+  answers the gate review after the further answers.
+  It follows the forced arm at `80780ff9c2`:
+  a shared copy or parent is no longer a refusal,
+  the refusals are split by what its preflight can see (three words,
+  `holder-unseen` included),
+  and its session case and the add's withdrawal are stated.
+  It makes the kept plan a decided section,
+  with what the removal and the cancel command do to it in each state,
+  what the clone's next removal does,
+  the deferred design's answer in its words,
+  and the plan design's two sections named for it to settle;
+  removes S8 and S13 from the questions,
+  so none of this document's questions remains;
+  adds the dirty-main record's second case to the defaults' heading and text;
+  says what the cancel command does when it meets a pending add,
+  and asks the add design to confirm the nonce of its withdrawal;
+  says what a refused fresh attach leaves;
+  corrects the unenterable-namespace arm and the outdented line;
+  and updates the record citations and the sources list.
+- The commits that carry this entry,
+  written from 2026-11-22T21:26:24-05:00:
+  add the entries for `db028cb9be` and `7b8f23c746`.
