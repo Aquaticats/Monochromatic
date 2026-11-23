@@ -3829,6 +3829,22 @@ with its committer time from `git log --format=%cI`:
 - `d44521782c`,
   2026-11-22T21:49:13-05:00:
   this list gained the two commits it was short of the tip and this round's own.
+- `bda620c3ff`,
+  2026-11-22T21:49:19-05:00:
+  the list gained the commit that brought it up to the tip.
+- `099defa83e`,
+  2026-11-22T22:10:47-05:00:
+  the last read's two mediums and four lows are fixed:
+  V7's reason says the number is the writer's choice and what it leaves room for,
+  V2 and this list say `unread` is the word for the count of shared mounts beneath when the table was never
+  read,
+  and `none` is every other field a refusal never reached,
+  the scan section writes `beneath unread` with no path line,
+  M10's wait is one deadline the guest round sizes,
+  its setup is named as three steps,
+  and F31 cites the sibling's heading whole.
+  The searches that prove each are
+  `~/temp/agent/zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/proof-of-the-last-fixes.md`.
 
 ## Links
 
