@@ -243,9 +243,8 @@ together with the binding record they share states with.
 
 State:
 the plan record is on `docs/planning-cli-git-zfs-removal-destruction-plan-record-design` at `28c590b4c4`,
-after its round on the sixth read,
-and the origin cleanup record on `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
-which was at `f17455b786` before its round.
+and the origin cleanup record on `docs/planning-cli-git-zfs-origin-cleanup-record-design` at `77410b209a`,
+each after a round on the reviewer's sixth read.
 The reviewer's sixth read
 (`review-sixth-read-before-acceptance.md` in
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`)
@@ -253,11 +252,11 @@ found each fit after listed fixes and the set not yet ready,
 for two things in the binding its round has since been given.
 It holds the three veto lists in plain words.
 Running:
-`pi-zfs-origin-cleanup-record-design-sixth-read-lows`.
+the same reviewer's read of the three last diffs,
+to `review-seventh-read-before-acceptance.md` beside it.
 
 Next:
-the same reviewer's read of the three last diffs;
-then the acceptance question for the three.
+the acceptance question for the three.
 
 The plan record's one rule for a kept plan with an `unknown` outcome leaves sentences of two accepted designs untrue:
 four in `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
@@ -278,17 +277,24 @@ the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and
 the cancelled removal on
 `docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design` at `4fe792a697`,
 each after a round on the reviewer's sixth read.
-The reviewer's sixth read
-(`review-sixth-read.md` in
+The reviewer's seventh read
+(`review-seventh-read.md` in
 `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`)
-found each fit after listed fixes,
-and the first group of the forced arm's probe arms not ready to be scripted as written.
+found each fit after listed fixes and nothing high.
+Of the forced arm's first group of probe arms it found two ready to be scripted as written:
+no arm starts in a fresh private mount namespace,
+and none builds the peer group its rows assume.
 It holds both veto lists and the confirmation question's wording.
 Running:
-the same reviewer's read of both last diffs,
-to `review-seventh-read.md` beside it.
+`pi-zfs-forced-removal-holders-ended-and-caller-spared-design-seventh-read`,
+on those arms.
+No review follows that round:
+the guest round is its test.
 
 Next:
+a round on the cancelled removal's one medium
+(it still refuses a kept receiver the forced arm no longer refuses),
+citing the forced arm's new commit;
 a Pi round with one guest that scripts and runs the first group of arms,
 on the fixture's guest,
 whose kernel is 6.8,
@@ -424,17 +430,26 @@ since it changes test code.
 #### Issue 6345: the worktree-removal control
 
 State:
-branch `fix/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` at `ef0bbe214f`.
+branch `fix/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` at `1b68b52819`.
 Its second pass found the code sound and the wording wrong,
 and one case the test wait misses
 (`~/temp/agent/integration-second-pass-worktree-removal-held-commit-control-2026-11-22/keep/review.md`).
 The owner chose a third look for the wait
 (`doc/decision/cli-git-test-support-wait-for-an-idle-commit-service-takes-a-third-look.md`).
-Running:
-`pi-worktree-removal-held-commit-control-second-pass-findings`.
+The round on both has ended:
+the wait asks for three empty samples in the order a record moves,
+with a control for each,
+and causes N and G are rewritten.
+Its gate had one failure that is on no list,
+`fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout`.
 
 Next:
-a third Sonnet pass.
+a third Sonnet pass,
+which also judges that failure.
+Its brief is `brief-third-pass-issue-6345-worktree-removal-control.md` in the launch folder.
+It is not started:
+the harness runs ten subagents at once and refused it,
+so it starts when one ends.
 The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
 Issue 6354 is decided
@@ -492,6 +507,12 @@ writing to `sorter-lines-<first>-to-<last>/keep/` in that folder;
 and one Sonnet agent that checks the held backlog's entries against `main` and GitHub
 and drafts their issues under `backlog-to-github-issues/keep/`,
 creating nothing on GitHub.
+A fourth sorter,
+for the open review findings,
+the picks and the working rules,
+has its brief ready (`brief-sorter-findings-picks-and-working-rules.md` in that folder)
+and was refused twice at the harness's limit of ten subagents;
+it starts when one ends.
 
 Next,
 in this order:
