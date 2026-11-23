@@ -4279,6 +4279,11 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   question one's scene and wording (Z9);
   and the doctor section's unaccounted line (the dirty-main decision).
   Nothing else the check found sound was changed.
+- `86444eef51`,
+  2026-11-22T20:00:55-05:00:
+  the revision entry for this round,
+  with the build-step section's correction.
+  The commit that adds this line is the one `git log --format=%cI` reports for this path after `86444eef51`.
 
 ## References
 
