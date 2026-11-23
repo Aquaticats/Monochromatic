@@ -1878,9 +1878,11 @@ It selects by where a mount sits,
 not by its path:
 the scan walks the rows whose parent chain reaches the checkout's own `mnt_id_old`,
 because a mount hidden under the checkout keeps the id of the mount that was there before it,
-and a path comparison would count it (the parser's own comment says so),
+and a path comparison would count it
+(`src/native/subvolume/fs_mount_options.rs:55` to `:57`,
+which says so),
 and the bytes are the ones step 5 read,
-parsed with the reader's `parse_mount_table` and not with `read_mount_facts`,
+parsed with the reader's `parse_mount_table` (`:222`) and not with `read_mount_facts`,
 which answers one row.
 It reports and does not change:
 a mount beneath the checkout whose set carries `MS_SHARED` is counted,
@@ -2300,7 +2302,8 @@ in this order:
   carrying the mount point exactly as `/proc/self/mountinfo` spells it,
   which escapes a space,
   a tab,
-  a newline and a backslash,
+  a newline and a backslash (Linux `v7.3`,
+  `fs/proc_namespace.c:151`),
   so no path can break the line (rule `SYB`).
   The key is repeated once per path and is absent when there are none.
   `beneath` is `0` when the table was read and found none,
