@@ -823,6 +823,68 @@ and only the owner accepts one.
   the reviewer's diff check,
   to `review-diff-check-after-the-answers.md` beside its other reviews.
 
+#### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
+
+- The owner reported the machine stuck for about five minutes at about 20:51 to 20:56.
+  Measured:
+  memory pressure "full" 45.76% over those five minutes,
+  load average 208,
+  35.7 GiB of the 61.7 GiB zram swap in use,
+  and the kernel reporting two guests' disk flushes blocked over 123 seconds in ZFS's intent log.
+  Running then,
+  all this session's:
+  six guests,
+  three to four whole gates,
+  Rust builds,
+  seven Pi rounds and nine Sonnet passes.
+  Every figure,
+  with its command,
+  is in `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/findings-measured-by-the-coordinator.md`.
+- The coordinator first proposed limiting how many guests and gates run at once.
+  The owner did not take that:
+  "I am confident we have enough memory.
+  We have 64G of physical RAM.
+  There's no way that isn't enough.
+  We might have to change our swap or zram or whatever conf."
+  So no limit on runs is in force.
+- The owner then decided,
+  in the question tool:
+  "Apply both now, and 2 also make some disk act as additional swap.
+  If you think 2 is a bad idea because of zfs, then ask again."
+  Applied with `sudo` and read back at 21:07:36:
+  `vm.watermark_scale_factor` from 10 to 125,
+  and `/sys/kernel/mm/lru_gen/min_ttl_ms` from 100 to 1000.
+  Both are runtime values and are gone at a reboot;
+  the counters from just before are in `counters-before-the-two-settings.txt` in that `keep/` folder.
+- Disk swap was asked again and the owner chose "A:
+  no disk swap for now (Recommended)":
+  the fast drive is all ZFS pool,
+  a ZFS volume as swap is the deadlock risk OpenZFS's FAQ names,
+  and the old drives stay under the owner's hold.
+  Planned for when an old drive is released:
+  a raw swap partition there,
+  with zram writing idle pages back to it.
+- Running:
+  `pi-desktop-freeze-under-agent-runs-troubleshooting-doc`,
+  which writes `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
+  on branch `docs/troubleshooting-desktop-freezes-while-agent-runs-thrash-zram-swap`
+  from that findings file
+  (brief `prompt.md` in the same scratch folder).
+  When it ends:
+  read it,
+  merge it,
+  and move this entry's durable facts there.
+- Owed:
+  compare the same counters after a comparable load,
+  as rates,
+  and tell the owner whether the two settings helped;
+  if they did,
+  give the owner the persistent drop-in files to review and apply
+  (the document drafts them);
+  measure how much memory one whole gate holds in its fixture file system,
+  since about 27 GiB of swapped shared memory was guests and gates together;
+  and record this night in `doc/handover/agents-at-once-on-this-machine.md` as a measured point.
+
 #### Build and diagnosis runs
 
 - Step 8's follow-up
