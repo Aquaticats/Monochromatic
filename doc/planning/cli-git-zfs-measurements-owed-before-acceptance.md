@@ -1092,10 +1092,9 @@ which is not this branch.
 The guest was `zfs-tier0-mount-probe-20261123`,
 made with `mvm --backend libvirt create` from the cached template `template-ubuntu.qcow2` and nothing
 downloaded.
-It reports kernel `6.8.0-147-generic`,
-`Ubuntu 24.04.5 LTS`,
-`mount`,
-`unmount` and `findmnt` from util-linux `2.39.3`,
+It reports kernel `6.8.0-147-generic` and `Ubuntu 24.04.5 LTS`,
+with `mount`,
+`unshare` and `findmnt` all reporting util-linux `2.39.3`,
 and the root filesystem is ext4 on `/dev/vda1` (`dev=253:1` in every row quoted here).
 The host this record was written on runs `7.3.5-1-cachyos`;
 every row in this section is a row on `6.8.0-147-generic`,
