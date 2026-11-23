@@ -227,6 +227,32 @@ fn sweep() -> Run {
     };
 }
 
+/// Run the built handler's `start-probe` mode,
+/// which writes this boot's record.
+fn start_probe() -> Run {
+    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let started: Instant = Instant::now();
+    let output: Output = Command::new(binary).arg("start-probe").output().expect("the probe mode starts");
+    return Run {
+        status: output.status.code(),
+        said: format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice())),
+        elapsed: started.elapsed(),
+    };
+}
+
+/// The probe's record for this boot,
+/// as the file it publishes holds it.
+fn probe_record() -> String {
+    return std::fs::read_to_string(Path::new(PROBE_RECORD_DIRECTORY).join("result")).expect("the probe wrote its record");
+}
+
+/// One line of the probe's record,
+/// or nothing when it holds none.
+fn record_line<'a>(record: &'a str, key: &str) -> Option<&'a str> {
+    let prefix: String = format!("{key} ");
+    return record.lines().find(|line| return line.starts_with(prefix.as_str())).map(|line| return &line[prefix.len()..]);
+}
+
 /// The line the sweep printed about one dataset,
 /// or nothing when it printed none.
 fn line_about<'a>(said: &'a str, dataset: &str) -> Option<&'a str> {
@@ -639,6 +665,90 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let refused_foreign: &str = line_about(foreign_run.said.as_str(), foreign.as_str()).unwrap_or_else(|| panic!("the sweep printed no line about {foreign}: {}", foreign_run.said));
     assert!(refused_foreign.starts_with("refused ") && refused_foreign.contains("step=clone-origin"), "a clone of another checkout dataset is refused: {refused_foreign}");
     println!("SWEEP refusal item=2 step=clone-origin-foreign");
+
+    // The pass's stoppage: root's file names another container and leaves out the checkout entries, the account makes its
+    // clone inside that container and asks for its mount, and the route mounts it. The next sweep and the probe pass,
+    // because a row inside the container this run uses is no instance of the checkout
+    // (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`, "Four further answers on the look-up with no configuration
+    // file", the first answer).
+    let named_container: String = format!("{pool}/account-clones");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", named_container.as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", named_container.as_str()]);
+    // The design's own grants, as "Scoped delegation" names them: snapshot local to the checkout, clone/destroy/mount on
+    // its descendants, create and mount on the container, destroy and userprop on its descendants.
+    zfs_ok(sbin.as_str(), &["allow", "-l", "-u", "ubuntu", "snapshot", checkout_dataset.as_str()]);
+    zfs_ok(sbin.as_str(), &["allow", "-d", "-u", "ubuntu", "clone,destroy,mount", checkout_dataset.as_str()]);
+    zfs_ok(sbin.as_str(), &["allow", "-l", "-u", "ubuntu", "create,mount", named_container.as_str()]);
+    zfs_ok(sbin.as_str(), &["allow", "-d", "-u", "ubuntu", "destroy,userprop", named_container.as_str()]);
+    let as_account = |arguments: &[&str]| -> (bool, String, String) {
+        let mut prefixed: Vec<String> = vec![String::from("-u"), String::from("ubuntu"), String::from("--"), format!("{sbin}/zfs")];
+        prefixed.extend(arguments.iter().map(|one| return String::from(*one)));
+        let borrowed: Vec<&str> = prefixed.iter().map(|one| return one.as_str()).collect();
+        return zfs(sbin.as_str(), "runuser", borrowed.as_slice(), None);
+    };
+    let in_use_nonce: &str = "00112233445566778899aabbccddee04";
+    let account_snapshot: String = format!("{checkout_dataset}@{ORIGIN_PREFIX}{in_use_nonce}");
+    let snapshot_allowed: (bool, String, String) = as_account(&["snapshot", account_snapshot.as_str()]);
+    assert!(snapshot_allowed.0, "the account may snapshot the checkout under the route's own origin prefix: {}", snapshot_allowed.2);
+    let account_clone: String = format!("{named_container}/{CHECKOUT_LEAF}");
+    let clone_allowed: (bool, String, String) = as_account(&["clone", account_snapshot.as_str(), account_clone.as_str()]);
+    assert!(clone_allowed.0, "the account may clone into the container root's file names: {}", clone_allowed.2);
+    let intent_written: (bool, String, String) = as_account(&["set", format!("{DESIRED_STATE}={}", mount_request(in_use_nonce)).as_str(), account_clone.as_str()]);
+    assert!(intent_written.0, "the account may write the mount request on its own clone: {}", intent_written.2);
+    make_the_slot(checkout.as_path(), CHECKOUT_LEAF);
+    write_document(&format!(r#"{{ "cloneMounts": {{ "parent": "{named_container}" }} }}"#));
+    let attached_account: Run = sweep();
+    assert_eq!(attached_account.status, Some(0), "the sweep reaches its end with the account's clone in the named container: {}", attached_account.said);
+    let account_line: &str = line_about(attached_account.said.as_str(), account_clone.as_str())
+        .unwrap_or_else(|| panic!("the sweep printed no line about {account_clone}: {}", attached_account.said));
+    assert!(account_line.starts_with("attached "), "the route mounts the clone the account asked for: {account_line}");
+    println!("STOPPAGE account-clone attached slot={CHECKOUT_LEAF} container={named_container}");
+    let after_attach = mount_row(checkout.join(".claude").join("worktrees").join(CHECKOUT_LEAF).as_path());
+    assert!(after_attach.is_some(), "the account's clone stands at its slot: {}", attached_account.said);
+
+    // The probe, with that row standing: it reads the same container key, so the clone is no second instance and the
+    // record passes. This is the pass's B1 and B2 stopped.
+    let probe_with_the_rule: Run = start_probe();
+    let record: String = probe_record();
+    assert_eq!(record_line(record.as_str(), "verdict"), Some("passed"), "the probe passes with the account's clone mounted: {}\n{}", record, probe_with_the_rule.said);
+    assert_eq!(probe_with_the_rule.status, Some(0), "a probe that records a verdict exits successfully: {}", probe_with_the_rule.said);
+    println!("STOPPAGE probe passed container={named_container}");
+
+    // Without the key, the same table is several for the probe, and it prints every row it found with its path (the
+    // project's second answer of 2026-11-22).
+    remove_configuration();
+    let probe_without_the_key: Run = start_probe();
+    let several_record: String = probe_record();
+    assert_eq!(record_line(several_record.as_str(), "verdict"), Some("blocked"), "the probe blocks on several without the key: {several_record}");
+    assert_eq!(record_line(several_record.as_str(), "source-refusal"), Some("several-mounted-checkouts"), "{several_record}");
+    for named in [checkout_dataset.as_str(), account_clone.as_str()] {
+        assert!(probe_without_the_key.said.contains(named), "the printed listing names {named} with its path: {}", probe_without_the_key.said);
+    }
+    println!("PROBE listing several names-every-row=true container={named_container}");
+
+    // With nothing mounted under the leaf name, the probe prints the none listing.
+    unmount_at(checkout.join(".claude").join("worktrees").join(CHECKOUT_LEAF).as_path());
+    zfs_ok(sbin.as_str(), &["unmount", checkout_dataset.as_str()]);
+    let probe_with_nothing: Run = start_probe();
+    let none_record: String = probe_record();
+    assert_eq!(record_line(none_record.as_str(), "verdict"), Some("blocked"), "the probe blocks when nothing carries the leaf name: {none_record}");
+    assert_eq!(record_line(none_record.as_str(), "source-refusal"), Some("no-mounted-checkout"), "{none_record}");
+    assert!(
+        probe_with_nothing.said.contains("no row's source carried it") || probe_with_nothing.said.contains("is an instance of the checkout dataset"),
+        "the printed listing says what the table held: {}",
+        probe_with_nothing.said
+    );
+    println!("PROBE listing none names-what-was-found=true");
+    let remounted: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["mount", checkout_dataset.as_str()], None);
+    assert!(remounted.0, "the checkout dataset is mounted again for the arms after this one: {}", remounted.2);
+    command_ok("mount", &["--make-private", checkout.display().to_string().as_str()]);
+
+    // The account's clone, its snapshot and the container go away, so no later arm meets a second leaf row.
+    zfs_ok(sbin.as_str(), &["destroy", "-r", "-f", named_container.as_str()]);
+    let _snapshot_gone: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["destroy", account_snapshot.as_str()], None);
+    let _in_use_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(CHECKOUT_LEAF));
+    let _in_use_slot_cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.join(".claude").join("worktrees").join(CHECKOUT_LEAF));
+    println!("STOPPAGE cleanup done container={named_container}");
 
     // The descriptor unmount a rollback makes: the mount a held descriptor placed stands at the moved path while a
     // holder remains, the unmount answers EBUSY and takes nothing down, and the same call succeeds after the holder

@@ -57,6 +57,16 @@ const EXPECTED_MARKERS = [
   'STORE killed-writer staging-removed=true',
 ] as const;
 
+/** The lines a run must find in the guest's `snapdir` log, one per value of the property. */
+const EXPECTED_SNAPDIR_MARKERS = [
+  'SNAPDIR visible listed=true entered=true mounts-grown=true',
+  'SNAPDIR hidden listed=false entered=true mounts-grown=true',
+  'SNAPDIR disabled listed=false entered=false mounts-grown=false',
+  'SNAPDIR account-cannot-set-it-back=true',
+  'SNAPDIR release has-disabled=true',
+  'SNAPDIR done',
+] as const;
+
 /** The lines a run must find in the guest's delegation log, one per attempt the design's grants allow or refuse. */
 const EXPECTED_DELEGATION_MARKERS = [
   'DELEGATION create-under-container=allowed',
@@ -70,6 +80,8 @@ const EXPECTED_DELEGATION_MARKERS = [
   'DELEGATION create-pool-as-account=refused',
   'DELEGATION import-pool-as-account=refused',
   'DELEGATION root-mount-a=mounted-nothing-of-the-accounts',
+  'DELEGATION generator checkout-unit=true',
+  'DELEGATION generator clone-unit=false',
   'DELEGATION done',
 ] as const;
 
@@ -92,6 +104,11 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP no-configuration shape=only-start-probe attached slot=one',
   'SWEEP no-configuration shape=dataset-names attached slot=one',
   'SWEEP no-configuration several=two-pools refused slot=one mounted=false',
+  'STOPPAGE account-clone attached slot=monochromatic-git-checkout container=git-policy-cli-store/account-clones',
+  'STOPPAGE probe passed container=git-policy-cli-store/account-clones',
+  'PROBE listing several names-every-row=true container=git-policy-cli-store/account-clones',
+  'PROBE listing none names-what-was-found=true',
+  'STOPPAGE cleanup done container=git-policy-cli-store/account-clones',
   'SWEEP done',
 ] as const;
 
@@ -466,6 +483,7 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
     'CHECKOUT_DS="$HOME_DS/monochromatic-git-checkout"',
     'CONTAINER="$HOME_DS/monochromatic-git-worktree-clone-datasets"',
     `as_account() { runuser -u "$ACCOUNT" -- env LD_LIBRARY_PATH=${library} ${sbin}/zfs "$@"; }`,
+    'as_account_ls() { runuser -u "$ACCOUNT" -- ls -a "$1"; }',
     `as_account_zpool() { runuser -u "$ACCOUNT" -- env LD_LIBRARY_PATH=${library} ${sbin}/zpool "$@"; }`,
     'rows() { findmnt --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings monochromatic-git | sort | tr "\\n" ";"; }',
     'say() { echo "DELEGATION $1=$2 rows=$(rows)"; }',
@@ -480,11 +498,13 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
     'zfs create -o mountpoint="$CHECKOUT" "$CHECKOUT_DS"',
     'mount --make-private "$CHECKOUT"',
     'zfs create -o mountpoint=legacy -o canmount=off -o setuid=off -o devices=off "$CONTAINER"',
-    'zfs allow -u "$ACCOUNT" snapshot "$CHECKOUT_DS"',
-    'zfs allow -u "$ACCOUNT" clone "$CHECKOUT_DS"',
-    'zfs allow -u "$ACCOUNT" create,mount "$CONTAINER"',
-    'zfs allow -u "$ACCOUNT" mount,userprop "$CONTAINER"',
-    'zfs allow -u "$ACCOUNT" mount,destroy "$CHECKOUT_DS"',
+    // The design's grants exactly as "Scoped delegation" names them: local where it says local, descendants where it
+    // says descendants. The integration pass found this arm's earlier form granted everything to descendants, which is
+    // wider than the design.
+    'zfs allow -l -u "$ACCOUNT" snapshot "$CHECKOUT_DS"',
+    'zfs allow -d -u "$ACCOUNT" clone,destroy,mount "$CHECKOUT_DS"',
+    'zfs allow -l -u "$ACCOUNT" create,mount "$CONTAINER"',
+    'zfs allow -d -u "$ACCOUNT" destroy,userprop "$CONTAINER"',
     'echo "DELEGATION grants:"; zfs allow "$CHECKOUT_DS"; zfs allow "$CONTAINER"',
     // A: create under the container, which `create` on it allows.
     'if as_account create "$CONTAINER/plain" > /root/delegation-create.log 2>&1; then say create-under-container allowed; else say create-under-container refused; sed "s/^/  /" /root/delegation-create.log; fi',
@@ -520,6 +540,21 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
     'zfs mount -a',
     'if rows | grep --quiet --fixed-strings "/home/account"; then say root-mount-a mounted-the-accounts; else say root-mount-a mounted-nothing-of-the-accounts; fi',
     'zfs list -H -o name,mountpoint,canmount -r "$POOL" | sed "s/^/  /"',
+    // The distro generator, given the list cache the event daemon's cacher writes, must write a unit for the ordinary
+    // checkout dataset (the positive control) and none for any child of a clone container.
+    'CACHE=/opt/openzfs-2.4.4/etc/zfs/zfs-list.cache',
+    'mkdir --parents "$CACHE"',
+    'zfs list -H -p -o name,used,avail,refer,mountpoint -t filesystem -r "$POOL" > "$CACHE/$POOL"',
+    'rm -rf /tmp/generator-normal /tmp/generator-early /tmp/generator-late',
+    'mkdir --parents /tmp/generator-normal',
+    'if test -x /usr/lib/systemd/system-generators/zfs-mount-generator; then',
+    '  /usr/lib/systemd/system-generators/zfs-mount-generator /tmp/generator-normal /tmp/generator-early /tmp/generator-late || true',
+    '  units=$(cat /tmp/generator-normal/* 2>/dev/null | tr "\\n" " ")',
+    '  if printf "%s" "$units" | grep --quiet --fixed-strings "monochromatic-git-checkout.mount"; then echo "DELEGATION generator checkout-unit=true"; else echo "DELEGATION generator checkout-unit=false"; fi',
+    '  if printf "%s" "$units" | grep --quiet --fixed-strings "monochromatic-git-worktree-clone-datasets"; then echo "DELEGATION generator clone-unit=true"; else echo "DELEGATION generator clone-unit=false"; fi',
+    'else',
+    '  echo "DELEGATION generator absent"',
+    'fi',
     'findmnt --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings monochromatic-git | sed "s/^/  row /" || true',
     // The layout goes away, so no later arm meets a second pool's dataset of the leaf name.
     'zpool destroy -f "$POOL"',
@@ -534,12 +569,95 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
   }
 }
 
+
+/**
+ Show what each value of the `snapdir` property does, which the project's third
+ answer of 2026-11-22 asked for before any code relies on it.
+
+ For each of `visible`, `hidden` and `disabled`, as the unprivileged account and
+ under the design's own grants, the arm lists the checkout's `.zfs` directory,
+ tries to enter a snapshot's directory by name, and reads the host's mount table
+ before and after.
+ Then it reads whether the account may set the property back,
+ and which values this guest's OpenZFS release and the one the route's guests run
+ accept.
+
+ Nothing is set on the host: the pool is this guest's file-backed one.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function snapdirMatrix({ chosen, }: { readonly chosen: Options; }): void {
+  const sbin = '/opt/openzfs-2.4.4/sbin';
+  const library = '/opt/openzfs-2.4.4/lib';
+  const script = [
+    'set -eu',
+    `export PATH=${OPENZFS_PATH}`,
+    `export LD_LIBRARY_PATH=${library}`,
+    'ACCOUNT=ubuntu',
+    `POOL=${DELEGATION_POOL}`,
+    'IMAGE=/home/snapdir-matrix.img',
+    'CHECKOUT=/home/snapdir-checkout',
+    'DS="$POOL/ROOT/cos/home/monochromatic-git-checkout"',
+    `as_account() { runuser -u "$ACCOUNT" -- env LD_LIBRARY_PATH=${library} ${sbin}/zfs "$@"; }`,
+    'as_account_ls() { runuser -u "$ACCOUNT" -- ls -a "$1"; }',
+    'snapshot_rows() { findmnt --noheadings --output SOURCE --type zfs | grep --count "@" || true; }',
+    'leaf_rows() { findmnt --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings "monochromatic-git-checkout" | tr "\\n" ";"; }',
+    'zpool destroy -f "$POOL" > /dev/null 2>&1 || true',
+    'rm --force "$IMAGE"',
+    'truncate --size 512M "$IMAGE"',
+    'zpool create -f -O mountpoint=none "$POOL" "$IMAGE"',
+    'zfs create -o mountpoint=none "$POOL/ROOT"',
+    'zfs create -o mountpoint=none "$POOL/ROOT/cos"',
+    'zfs create -o mountpoint=none "$POOL/ROOT/cos/home"',
+    'zfs create -o mountpoint="$CHECKOUT" "$DS"',
+    'mount --make-private "$CHECKOUT"',
+    'zfs snapshot "$DS@account-origin"',
+    'zfs allow -l -u "$ACCOUNT" snapshot "$DS"',
+    'zfs allow -d -u "$ACCOUNT" clone,destroy,mount "$DS"',
+    // The guest's own release accepts which values?
+    'if zfs set snapdir=disabled "$DS" > /root/snapdir-disabled-set.log 2>&1; then echo "SNAPDIR release has-disabled=true"; else echo "SNAPDIR release has-disabled=false"; cat /root/snapdir-disabled-set.log; exit 1; fi',
+    'zfs inherit snapdir "$DS"',
+    'for value in visible hidden disabled; do',
+    '  zfs set "snapdir=$value" "$DS"',
+    '  read_value=$(zfs get -H -o value snapdir "$DS")',
+    '  test "$read_value" = "$value"',
+    '  if as_account_ls "$CHECKOUT" > /root/snapdir-list.log 2>&1 && grep --quiet "^\.zfs$" /root/snapdir-list.log; then listed=true; else listed=false; fi',
+    '  before=$(snapshot_rows)',
+    '  if as_account_ls "$CHECKOUT/.zfs/snapshot/account-origin" > /root/snapdir-enter.log 2>&1; then entered=true; else entered=false; fi',
+    '  after=$(snapshot_rows)',
+    '  if test "$after" -gt "$before"; then grown=true; else grown=false; fi',
+    '  echo "SNAPDIR $value listed=$listed entered=$entered mounts-grown=$grown rows=$(leaf_rows) enter-answer=$(head --lines=1 /root/snapdir-enter.log 2>/dev/null || true)"',
+    '  test "$entered" = "$grown" || { echo "SNAPDIR $value entered-without-a-mount"; exit 1; }',
+    // A row the kernel mounted for the account is taken down again, by root.
+    '  findmnt --noheadings --output TARGET --type zfs | grep --fixed-strings "@account-origin" | xargs --no-run-if-empty umount || true',
+    '  zfs unmount "$DS@account-origin" > /dev/null 2>&1 || true',
+    'done',
+    // The account cannot set the property back: the route's grants do not name it.
+    'if as_account set snapdir=visible "$DS" > /root/snapdir-account-set.log 2>&1; then echo "SNAPDIR account-cannot-set-it-back=false"; else echo "SNAPDIR account-cannot-set-it-back=true"; sed "s/^/  /" /root/snapdir-account-set.log; fi',
+    'zfs get -H -o property,value snapdir "$DS"',
+    // What the route's other release does: the distro module in this guest, if it is installed.
+    'if test -f /usr/sbin/zfs; then /usr/sbin/zfs --version || true; else echo "SNAPDIR distro-userspace absent"; fi',
+    'zpool destroy -f "$POOL"',
+    'rm --force "$IMAGE"',
+    'echo "SNAPDIR done"',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-snapdir.log', timeout: ARM_TIMEOUT_MS, });
+  const pulled = readFileSync(join(chosen.logDir, 'guest-snapdir.log'), 'utf8');
+  for (const marker of EXPECTED_SNAPDIR_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the snapdir log lacks ${marker}; the guest ran the arm without proving it`);
+  }
+}
+
 /** The steps by name, and the whole run. */
 const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
   create: (chosen) => recipe({ chosen, step: 'create', }),
   prepare: (chosen) => recipe({ chosen, step: 'prepare', }),
   run,
   delegation: (chosen) => delegation({ chosen, }),
+  snapdir: (chosen) => snapdirMatrix({ chosen, }),
   destroy: (chosen) => recipe({ chosen, step: 'destroy', }),
   all: async (chosen: Options): Promise<void> => {
     let failure: unknown = null;
