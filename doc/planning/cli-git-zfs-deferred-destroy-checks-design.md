@@ -3198,9 +3198,12 @@ nothing here claims their behaviour.
   committed `2026-11-22T19:21:28-05:00`:
   the version that writes the design to the three answers,
   with the changes the fourth part of "What this revision rewrote" lists.
+- `0e816c603b`,
+  committed `2026-11-22T19:21:43-05:00`:
+  the metadata-only commit that listed the three above with their times.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  list the answers round's commits":
+  record the answers round's metadata commit":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
