@@ -1168,9 +1168,10 @@ A clone's dataset name is not the key and holds `/`,
 so a design that keeps the clone's dataset name in a field
 named for the slot must derive `<slot>` from the last component of the path its `targetHex` holds and compare
 `slot=` with that whole path.
-The destruction plan design's field called `slotName` holds a dataset name and is not this key:
-its round is told to rename it and to derive the key this way,
-which is the third removal-side check's Y6.
+The destruction plan design's field `slotName` holds the clone's dataset name and is not this key:
+at `3cd520b6a0` that design renames it `cloneDataset` and derives `<slot>` from `targetHex`,
+which is the rule below,
+so both documents state one rule (Y6).
 
 The key that proves anything is the triple the proposal names:
 the repository's identity,
@@ -1372,7 +1373,11 @@ and the other two rounds are told to line up with this section or list the diffe
   and `doctor` at plan step 18 removes the known forms.
   Where a writer holds a claim across a long step,
   `doctor` removes a staging name only when the folder holds no live claim (V8).
-  The destruction plan removes one only when a plan with that GUID stands and its `owner` is gone (its Choice 12),
+  The destruction plan removes one only when a plan with that GUID stands and its `owner` is gone,
+  which its own entry for staging names states (cited by its subject,
+  not its number,
+  because its entries were
+  renumbered),
   and the origin cleanup record removes none and reports them (its V8,
   read at `8cc31f59a4`),
   which is one convention with each record's own evidence;
@@ -1714,6 +1719,10 @@ and each line and each fixed part is bounded from a kernel constant:
     `settleReason=`,
     the widest kind word `checkout` and the newline,
     written only beside `phase=settling`.
+  The two removal-side designs quote 34,797,
+  which was this record's sum before `request=` (8,208 bytes) and `settleReason=` (22 bytes) were added;
+  43,027 is the current sum,
+  and a sibling that quotes 34,797 is one revision behind (W13 of the fourth removal-side check).
   The terms sum to 43,027 bytes,
     and a scratch script printed that sum from the wide strings this section names (`keep/bound.ts`,
     this round).
@@ -2118,15 +2127,27 @@ in which a kill after a destroy leaves a binding naming a clone that no longer a
 
 A21.
 The unmount requested and its receipt verified,
-when the entry phase has a mounted clone.
+when the entry phase has a mounted clone,
+or the request withdrawn when the handler refuses it as busy.
+The further answer of 2026-11-22 decides the busy arm:
+the add writes its request back to the mounted state,
+nothing having been unmounted,
+leaves `phase=settling` with the clone mounted,
+prints that the worktree is pending and the command that removes it,
+with the clause "do not run Git in this folder until it is removed",
+and changes nothing else
+(`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"A further answer:
+an add whose own unmount is refused as busy",
+recorded 2026-11-22T20:21:19-05:00).
 Owner:
-the restoring design,
+the restoring design for the withdrawal and the text,
 with the staging design's add-side use of the handler.
 Lock moment:
 D6's successor while the clone stands.
-A kill leaves the request standing;
-the handler may still unmount,
-and the resume reads the receipt.
+A kill leaves the request standing,
+or the withdrawn state and a mounted clone,
+and the resume reads the receipt and the mount live.
 
 A22.
 The clone destroyed from the identities A9 recorded,
@@ -2141,9 +2162,10 @@ Skipped when the entry phase is `snapshotted`.
 A23.
 The origin snapshot destroyed from the identities A8 recorded,
 with `ENOENT` counted as done.
-The origin cleanup record stands from before A22,
+The origin cleanup record stands before A22,
+or before A23 when A22 is skipped because the add made no clone,
 written by the restoring design's call on the origin cleanup design's writer,
-and it carries the snapshot if this destroy is refused.
+and it carries the snapshot if this destroy is refused (W9 of the fourth removal-side check).
 Owner:
 the origin cleanup design for the record and its attempt;
 the restoring design for the add's call.
@@ -2264,7 +2286,9 @@ the add records the snapshot as owed cleanup (the same record a removal uses)"
 (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
 "Who records what when the add undoes what it made",
 recorded 2026-11-22T21:37:01-05:00),
-so the origin cleanup record stands from before A22 and says `owed`,
+so the origin cleanup record stands before A22,
+or before A23 when A22 is skipped,
+and says `owed`,
 the add goes on at A24 to A27,
 one line says the snapshot stays for now,
 and the next `git worktree` command destroys it once the hold is gone.
@@ -3076,7 +3100,18 @@ and reports:
 - each slot with a binding and no clone,
   each clone with a binding and no registration,
   and each registration with no binding,
-  naming the fields that disagree;
+  naming the fields that disagree,
+  with one exception for the registration line (W7):
+  a registration whose slot holds no clone mount and whose `.git` names that registration is the add's own
+  fallback's finished worktree,
+  so `doctor` reports it as Git's own worktree and not as a missing binding,
+  and a later removal finds no binding and no clone dataset under the pinned parent,
+  so it takes the wrapper's own worktree route and not the clone route,
+  and that route's selection is the wrapper's existing code,
+  which this design does not change;
+- for a binding at `phase=settling`:
+  "run the add again at `<slot>`" when its clone is gone,
+  and the removal command when its clone still stands;
 - each record whose identity no longer matches the live folder,
   naming the identity and the dataset GUID it compared;
 - each inventory whose `entries=` disagrees with its lines,
@@ -3113,7 +3148,14 @@ with the wrapper's copy-journal pass as the alternative shape.
 A removal writes nothing into this binding.
 Its own plan is another record,
 whose home is the destruction plan design's,
-and the binding's phase stays at `filled` for the whole removal.
+and the binding's phase is no precondition for the removal:
+a removal accepts a binding at any phase whose clone still stands,
+`phase=settling` included,
+read the live clone's identity from the binding and the pool,
+and proves lineage from it as from any clone;
+the phase stays where the add or the fallback left it for the whole removal,
+and a removal that finds a clone already gone and a `settling` binding refuses and names the add's own re-run
+instead (W4 of the fourth removal-side check).
 What the removal does with this binding is read it,
 confirm its origin fields,
 and remove it where the route's one removal order places it.
@@ -3158,9 +3200,10 @@ in this record's terms:
    `originSnapshot=`,
    `originSnapshotGuid=` and `originSnapshotCreatetxg=`.
    It writes nothing there:
-   that record's writer is the removal command,
-   and its own design publishes it at its step 6 (its V4,
-   read at `8cc31f59a4`).
+   the removal command writes that record at its step 6 (its V4,
+   read at `22be706b09`),
+   and the add's own fallback is its second writer (A23),
+   so the record has two writers and one grammar.
    A removal that finds no such record,
    or one whose fields differ,
    refuses before its first delete,
@@ -3204,9 +3247,10 @@ A removal meets step 5's condition itself,
 because it made the confirmation at step 2.
 A finisher meets it after a kill,
 and its condition cannot be "the origin cleanup record stands":
-on the ordinary path that record is gone at step 9,
+on the ordinary path that record is gone at its step 10,
 before the settle,
-so a finisher after a kill between 10 and 11 would keep every binding of an ordinary removal and block the slot
+so a finisher after a kill between its steps 11 and 12 would keep every binding of an ordinary removal and block
+the slot
 (Z1 of the third removal-side check).
 The condition is therefore either of these:
 
@@ -3267,7 +3311,7 @@ and the order is what tells them apart.
   because V20 puts the plan's removal after this binding's,
   a kill after the settle and before step 5 leaves the plan standing beside this binding.
   `doctor` prints the plan's standing intent and this record's origin names,
-  and the finisher above finishes step 11:
+  and the finisher above finishes its step 12:
   the pass before the next forwarded command,
   or the next removal,
   meeting the plan's arm of the condition.
@@ -3362,9 +3406,10 @@ in order:
    for `cloneGuid=`,
    by GUID and by name.
    A successful listing that finds either refuses;
-   a listing the pool refuses is not a refusal,
+   a listing the pool refuses or returns only part of is not a refusal,
    because the state this command exists for is precisely the one where the absence cannot be proved,
-   and the refusal is kept and printed as the evidence the person confirms.
+   and the refusal or the partial answer is kept and printed,
+   and is named in the text the person confirms (W3 of the fourth removal-side check).
 4. The slot:
    a `.git` at the slot,
    the registration it names,
@@ -3376,13 +3421,18 @@ in order:
 5. The origin cleanup record,
    when one stands,
    compared with this binding's five origin fields.
-   A standing record is not a refusal:
-   the command prints it and leaves it,
+   It is compared and never removed or rewritten:
+   the command prints it,
+   refuses only when its fields disagree with the binding's,
    and the origin's cleanup stays the origin look's business.
 6. The plan folder,
    for a plan whose `cloneGuid=` is this clone's.
-   One refuses:
-   that is the removal's tail and has its own finisher.
+   A plan whose `head` is `gone` refuses:
+   that is the finish pass's,
+   and it removes the plan itself.
+   Any other plan is printed and removed after the confirmation;
+   it is a cancellation's kept plan whose clone was destroyed outside the wrapper,
+   and no next removal will ever come to end it (W2 of the fourth removal-side check).
 
 What it refuses,
 changing nothing:
@@ -3396,7 +3446,7 @@ changing nothing:
   or one whose name is `cloneDataset=` while another GUID stands there;
 - a mount at the slot;
 - a `.git` at the slot that names another registration;
-- a standing plan for `cloneGuid=`;
+- a plan for `cloneGuid=` whose `head` is `gone`;
 - a binding at `phase=settling`,
   which is the add's own path and is continued at A20 instead;
 - two records that both answer the two names.
@@ -3439,6 +3489,16 @@ which is the recipe's:
 5. its claim,
    released after the removal,
    which leaves the newest generation file as a released claim.
+
+And the plan:
+the command removes the plan it printed,
+after the confirmation and before the two inventories,
+and prints what the plan held (the snapshot names it recorded as destroyed),
+so the plan is gone before the binding is,
+which keeps the binding the witness a killed run reads (W2).
+That adopts option A of the question the fourth removal-side check puts to the project,
+with the veto open (V23);
+the plan design's sentence that the command places the plan after the binding's files changes with it.
 
 What a kill leaves:
 
@@ -4238,7 +4298,7 @@ and "The route's record convention" is where this design answers it.
 - The destruction plan's finish pass takes the claim,
   proves the clone's absence,
   settles the registration,
-  finishes step 11 for the binding that names the plan's clone and removes the plan
+  finishes its step 12 for the binding that names the plan's clone and removes the plan
   (its "The finish pass that settles a registration",
   read at `1921adf393`).
   This design's V20 keeps the same order among the binding's three files and the same condition for a finisher,
@@ -5073,6 +5133,63 @@ and what step 10 does before it exists.
   then B.
   A beats B because the decision names step 13's build as the installer's and step 10 as not waiting,
   and B would give one write two owners.
+
+V23.
+What the settling command does with a kept plan whose clone is gone.
+
+- A,
+  remove it (adopted,
+  and what the plan design states):
+  the command refuses only a plan whose `head` is `gone` (the finish pass's),
+  and removes any other after the
+  confirmation and before the inventories,
+  printing the snapshot names the plan recorded as destroyed.
+  Example:
+  a removal destroyed `@earliest`,
+  a holder surfaced and the clone was attached again with the plan kept at
+  `head=present`;
+  the clone is destroyed outside the wrapper a week later,
+  and `git monochromatic-git-policy-cli settle-worktree-clone-record fix-flaky-test --confirm-removal-of
+  fix-flaky-test --confirm-clone-guid <digits>` removes the registration,
+  the plan (printing `@earliest`),
+  the inventories,
+  the binding,
+  and releases the claim.
+  Pros:
+  the slot is freed and the loss is on the person's screen;
+  no folder stands for ever.
+  Cons:
+  the only durable record of what the cancelled removal destroyed is deleted by one confirmed command.
+- B,
+  refuse while any plan stands,
+  which this design's earlier revision did.
+  Example:
+  the person is told a plan stands and has no way forward but deleting its file by hand under
+  `clone-destruction-plans/`.
+  Pros:
+  the command erases nothing it was not asked about.
+  Cons:
+  it is the blocked slot the project declined in answer five,
+  and the way out is the same erasure without the printed names.
+- C,
+  remove the binding and leave the plan,
+  named by `doctor`.
+  Example:
+  the slot is free and `doctor` keeps naming `@earliest` as lost beside a clone that no longer exists.
+  Pros:
+  the loss record stays.
+  Cons:
+  every forwarded command lists and reads that folder for ever,
+  and no rule can end the plan because its clone never returns.
+- Ranking:
+  A,
+  then C,
+  then B.
+  A beats C because the project's rule ends a plan only at its clone's next removal,
+  which cannot come,
+  so C keeps a record nobody can use and taxes every command.
+  C beats B because C frees the slot the project asked to free,
+  and B leaves it blocked with no command.
 
 ## Questions only the project can answer
 
