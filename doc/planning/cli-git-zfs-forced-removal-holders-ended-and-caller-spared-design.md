@@ -2502,6 +2502,16 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   S6 and S11,
   the veto list extended to V6,
   and F8 and F10 corrected.
+- `ade3af0d49`,
+  2026-11-22T19:16:21-05:00:
+  this revision list's entry for the round.
+- `8f31beacc0`,
+  2026-11-22T19:17:00-05:00:
+  the refusal's sentence about a holder first seen after the first delete,
+  and the revision note that cites the sibling by section.
+- `60f69b93a1`,
+  2026-11-22T19:17:09-05:00:
+  the line break that sentence needed.
 
 The four answers are built in:
 "Who ends each kind of holder" is the chosen channel,
