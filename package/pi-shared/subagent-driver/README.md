@@ -121,7 +121,8 @@ A pool is how many runs one provider account answers at once,
 which is not the work a run does.
 Every limit sits in `src/pool-limits.ts` beside the owner's words or the measured refusal it came from,
 and the commands read them from there.
-In the table's order, which is also the order the counts print them in
+In the table's order,
+which is also the order the counts print them in
 and the order a run that names no model of its own takes the pools that accept one:
 
 - `qwen-plan-deepseek`:
@@ -131,13 +132,16 @@ and the order a run that names no model of its own takes the pools that accept o
   The owner reopened it on 2026-11-18:
   "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
   and
-  "Orderings: qwen individual token plan first."
+  "Orderings:
+  qwen individual token plan first."
   Those words supersede the removal of 2026-11-13
   ("Remove Qwen hosted Deepseek from the pool."),
   which had closed it at limit 0 for five days.
-  The short, frequent reviews name it first.
+  The short,
+  frequent reviews name it first.
   It is not a pool a run that names no model of its own takes:
-  such a run still goes to `opencode-go` first, then `neuralwatt-flex`.
+  such a run still goes to `opencode-go` first,
+  then `neuralwatt-flex`.
   Its 5 is taken from `qwen-token-plan` on the same plan rather than measured on this model,
   with that pool's reasoning below.
 - `opencode-go`:
@@ -208,10 +212,13 @@ A closed pool takes no new run at all,
 and keeps its place in the table,
 so the count prints it at zero room (`neuralwatt-kimi-flex 0/0`) and the runs already on it are still counted where they are.
 `drive-pi-subagent` and `start-pi-run-in-a-worktree` refuse a run whose `--provider` and `--model` name a closed pool,
-before Pi starts and before a worktree, a run folder or a unit is made,
+before Pi starts and before a worktree,
+a run folder or a unit is made,
 and exit `5` rather than run it.
-The refusal names the pool, the reason its `closed` field gives,
-and the open pools a run that names no model of its own may take instead, in the table's order.
+The refusal names the pool,
+the reason its `closed` field gives,
+and the open pools a run that names no model of its own may take instead,
+in the table's order.
 A provider and model that belong to no pool are not refused:
 a stand-in and an audit's account are outside every pool.
 Every pool's limit can be set for one command without a code change,
@@ -362,7 +369,8 @@ and before any question is put to the session,
 with the status `5`:
 the refusal names the pool,
 the reason its `closed` field gives,
-and the open pools a run that names no model of its own may take instead, in the table's order.
+and the open pools a run that names no model of its own may take instead,
+in the table's order.
 A command line naming no provider takes `neuralwatt` on `deepseek-v4.1-flash`,
 which is the pool the owner replaced,
 so it is refused as well;
@@ -1004,7 +1012,8 @@ each written as `--name=value`:
   and the driver exits `5`.
   The refusal names the pool,
   the reason its `closed` field gives,
-  and the open pools a run that names no model of its own may take instead, in the table's order,
+  and the open pools a run that names no model of its own may take instead,
+  in the table's order,
   and `PI_RUNS_POOL_LIMITS` gives a closed pool room again for one command.
   A provider and model that belong to no pool are not refused:
   a stand-in and an audit's account are outside every pool.
