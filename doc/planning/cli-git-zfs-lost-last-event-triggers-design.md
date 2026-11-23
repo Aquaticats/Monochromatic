@@ -3762,6 +3762,25 @@ which is that design's answer.
   because V13's first option is a pass-time budget and a duration is known only when a pass ends;
   the second pass had not flagged V6,
   and this change is forced by the budget's kind.
+- 2026-11-22T19:03:19-05:00:
+  the diff check's answer.
+  The hook is stated as two whole files with their section headers,
+  and the section itself states the request,
+  the verb per unit state,
+  the provider's `-` prefix and the root command.
+  The taker runs the sibling's entry order before it takes the claim,
+  so the steps are renumbered and step 8's reference follows the mark's new step.
+  The sibling statements cite the propagation design at `30274435f3` and its current coordinates,
+  and D1 no longer says its sentences assume the earlier direct hook.
+  D8 drops the step 18 dependency edit and says steps 19 and 22 update the readings they create.
+  The lows:
+  a charge after an expired window opens a new one (V13,
+  L15 and the taker's step 5),
+  the tumbling window as V13's second choice,
+  the reload arm's reason,
+  the nudge's switch as V12's second choice with the refusal text and the D9 edit it needs,
+  doctor's `start` command without `ExecReload=` and the `not built yet` reading,
+  and the blank line before "What this design does not cover".
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
