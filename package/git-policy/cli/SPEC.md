@@ -20295,7 +20295,7 @@ with more than one attempt `prepareMs` and `buildMs` are sums over attempts,
 written once before the first preparation
 (`note_route` at `package/git-policy/cli/src/native/landing/service_commit.rs:181`,
 whose call site runs only while `attempt == 0`,
-and `package/git-policy/cli/src/native/commit/commit_timing.rs:441`,
+and `package/git-policy/cli/src/native/commit/commit_timing.rs:441-443`,
 which writes the field only while it is zero),
 and no single pair of offsets states where each build began.
 `buildParts` states the Git steps that began inside the build,
