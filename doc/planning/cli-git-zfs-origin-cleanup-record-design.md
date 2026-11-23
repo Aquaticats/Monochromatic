@@ -3998,7 +3998,12 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   and F24 and F25,
   which X4 rewrites at the commits named.
   Nothing else the second pass found sound was changed.
-- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `b1166908fe`.
+- `65a6c4c008`,
+  2026-11-22T19:08:38-05:00:
+  this revision entry,
+  with the findings and the statement of what changed above.
+  A later commit that touches only this list is the one `git log --format=%cI` reports for this path after
+  `65a6c4c008`.
 
 ## References
 
