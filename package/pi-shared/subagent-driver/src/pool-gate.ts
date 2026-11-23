@@ -25,6 +25,7 @@ import {
   PROVIDER_OF_A_RUN_NAMING_NONE,
   type ProviderPool,
   poolNamed,
+  poolOfThatNameIn,
   poolTakesNoNewRun,
 } from './pool-limits.ts';
 import {
@@ -100,9 +101,9 @@ export function poolChoiceFor({
    The pool the run names, as the table being counted holds it, so a limit a caller set applies to a run naming that pool's own
    model as much as to a run that names none.
    */
-  const pool = countedPool({
+  const pool = poolOfThatNameIn({
     pool: requested.pool,
-    tallies,
+    pools: tallies.pools,
   },);
   if (pool.takesDefaultRuns
     && ((!resumes) || poolTakesNoNewRun({ pool, },))) {
@@ -128,41 +129,6 @@ export function poolChoiceFor({
       movesTheRun: false,
     }
     : { destination: 'no-room', };
-}
-
-/**
- Reads one pool as the table being counted holds it.
-
- A count is taken against the pools a caller handed over, which carry the limits a caller set; the pool a run's own words name
- comes from the shipped table, which knows neither that limit nor a closing. Reading the room off the shipped pool is how a
- pool closed through the variable still took runs that named its model.
-
- @param pool - the pool the run's own words name
-
- @param tallies - the pools that were counted, with the limits they were given
-
- @returns the counted pool of that name, or the one given when the table being counted does not hold it
-
- @example
- ```ts
- const counted = countedPool({ pool: QWEN_PLAN_QWEN4_MAX_PREVIEW, tallies },);
- ```
- */
-function countedPool({
-  pool,
-  tallies,
-}: {
-  readonly pool: ProviderPool;
-  readonly tallies: PoolTallies;
-},): ProviderPool {
-  /**
-   The counted pool of that name, when the table being counted holds one.
-   */
-  const counted = tallies.pools
-    .find(function isTheSamePool(held,) {
-      return held.name === pool.name;
-    },);
-  return counted ?? pool;
 }
 
 /**
