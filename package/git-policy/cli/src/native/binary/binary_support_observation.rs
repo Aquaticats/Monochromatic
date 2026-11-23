@@ -535,17 +535,26 @@ pub fn settle_service_work(directory: &Path) {
     };
     let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
     let began: std::time::Instant = std::time::Instant::now();
-    // Two samples, because the flow order alone closes only the moves that go forward.
-    // Every move a record makes is one rename inside these three folders:
-    // `take_entry` moves it `pending` to `recovering` and then into `claimed`,
-    // the same function moves a record it could not publish back into `pending`,
-    // a recovery of an expired claim moves a `claimed` record back into `recovering` and then into `pending` or `failed`,
-    // and a settle moves a `claimed` record into `done` or `failed`.
-    // A forward move is caught by the flow order, so the second sample is what closes the backward ones:
-    // a record that left a folder this sample had read already stands in a folder the next sample reads.
-    // A record can be missed by both samples only by moving during each,
-    // and the only move that comes that fast is `take_entry`'s pair of renames, which the flow order catches.
-    while a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) {
+    // The flow order alone closes the moves that go forward, and the second sample the ones that go back;
+    // the third closes a recovery whose two renames straddle two samples.
+    // Every move a record makes between these folders, from the code:
+    // `take_entry` (`work_item.rs`) moves `pending` into `recovering` and then into `claimed`,
+    // and moves a record it could not publish from `recovering` back into `pending`,
+    // takes a `claimed` record of a later release back into `pending`, and settles one in `failed`;
+    // `quarantine_pending` moves `pending` into `failed`;
+    // `settle_named` moves a claim into `done` or `failed`, and `renew_claim` renames a claim inside `claimed`;
+    // `recover` (`work_item_recovery.rs`) moves a `claimed` or `recovering` record into `failed` or, under a new name,
+    // into `recovering`, and from there into `pending` or `failed`;
+    // `service_handoff` moves a held or a pending record into `done`,
+    // `promote` moves a held record into `pending`, and `requeue_after_giving_up` moves a failed one into `pending`.
+    // Arrivals into `pending` from outside are written by commands (`enqueue_all`), never by a service round,
+    // and a record in `held` is not waited for.
+    // What three samples do not close, measured by the second integration pass over schedules of one record's moves
+    // placed among the wait's reads (`keep/probes/wait-every-schedule.txt` of its folder):
+    // they closed all 3350 schedules of up to three moves, and all but 4 of 18365 of up to four.
+    // So a chain of four or more moves that a thread's stall stretches across every sample of this wait is still missed,
+    // and so is a record renamed inside one folder while that folder is read.
+    while a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) {
         assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
         std::thread::sleep(SAMPLE_PAUSE);
     }
