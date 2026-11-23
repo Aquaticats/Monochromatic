@@ -5301,6 +5301,29 @@ and any test suite.
   `:555 to :566`,
   `:601 to :603`,
   and the sanitiser's ranges at `refs.c`).
+- 2026-11-22T21:19:32-05:00:
+  answered the two third checks and the project's two answers:
+  X1 (the recipe empties `refs/` and `logs/` file by file,
+  `logs/HEAD` first,
+  and row 6 and T20 carry it),
+  X2 (the scoped refusal,
+  the definition of "owns",
+  and the `topic`/`topic1` walk),
+  X3 (A10b keeps the copy and A11 exchanges it,
+  D6 is A10 alone),
+  X5,
+  X7 to X10 and X13 to X16,
+  Y1 (A20 to A27,
+  "The add's own fallback",
+  and T29 to T33),
+  Y2 (the origin list at `8cc31f59a4` and its fourteen numbers),
+  Y5 ("Who may finish that step"),
+  Y6 (the key rule),
+  Y12 (the condition's second arm),
+  Q7 as "A record that cannot be read",
+  Q8 as "The settling command" with V21,
+  and the lock answer in the decisions,
+  A6 and "The record's end" step 4.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
