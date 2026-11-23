@@ -228,6 +228,9 @@ a limit of zero closes the pool,
 and any number above zero is the room it takes again.
 The two commands read that variable too,
 so a pool reopened through it takes runs again for that one command.
+The launcher gives it to the unit the run starts as,
+because a unit inherits nothing from the shell that asked for it,
+so the driver inside the unit reads the same setting the launcher did.
 
 ```sh
 # close OpenCode Go when its week is spent

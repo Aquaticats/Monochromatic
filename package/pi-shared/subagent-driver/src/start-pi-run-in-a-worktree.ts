@@ -36,6 +36,7 @@ import {
   parseWorktreeLauncherOptions,
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
+import { POOL_LIMITS_VARIABLE, } from './pool-limits.ts';
 import {
   CLOSED_POOL_EXIT_STATUS,
   ClosedPoolRefusalError,
@@ -309,6 +310,10 @@ const unit = unitCommandOf({
   wallSeconds: options.wallSeconds,
   pathOfMiseEnvironment: sessionPath,
   home: env.HOME ?? '',
+  // The unit inherits nothing, so a pool this command reopened through the variable is reopened for the driver inside the unit
+  // only by this word. Without it the driver reads the shipped table, finds the pool closed and refuses the run the launcher let
+  // through, telling its reader to set the variable they already set.
+  ...((env[POOL_LIMITS_VARIABLE] === undefined) ? {} : { poolLimits: env[POOL_LIMITS_VARIABLE] }),
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
     command: 'mise',
