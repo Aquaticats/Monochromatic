@@ -195,7 +195,7 @@ Fixed:
 no interpolated number,
 a clean-add arm,
 a test-only build instead of a shipped switch,
-the rung 1 bar moved to Q-B,
+the rung 1 warning's count left to [M4][m4],
 and the rule code corrected.
 - L1 to L8 are fixed in the sections they name:
 one failure sentence,
@@ -3346,8 +3346,10 @@ and (b)'s coverage is a millisecond window the last read already describes.
 None is left.
 The second pass's four,
 the third pass's Q-R5,
-and the fourth pass's Q-O,
-Q-S and Q-B are all answered,
+and the fourth pass's three,
+taken as Q-O,
+Q-S and Q-B,
+are all answered,
 and each answer is recorded in "The project's answers of 2026-11-22" and applied in the sections it names.
 
 ## Dependencies on the sibling designs
@@ -3878,6 +3880,26 @@ so it took longer,
 because ",
 rather than one adapted from it,
 which is Y6.
+
+- `fb92dda66d` at `2026-11-22T21:39:06-05:00`:
+`main` merged with `--no-ff`,
+bringing the three further answers and the seven answers on clone worktree records.
+- `c79a6b832f` at `2026-11-22T21:43:11-05:00`:
+the fifth-pass revision.
+The settle runs in the binding's A20 to A27 order,
+label for label,
+with `phase=settling` before the unmount request and the sentence printed before the records go;
+each pending or failed state prints the command true for it,
+the removal while the clone stands,
+the add's own re-run after the clone is gone,
+and the settling command when its absence cannot be proved;
+the three further answers and the seven answers are cited and applied,
+V13 to V15 list the choices they leave,
+the claim is named as the proof that a record is not a live add's,
+the "nothing made" row clears an earlier attempt's records,
+T5 gains the settle's kill points and step 11's list gains T12 to T15,
+the resume window's two residuals and the trash manifest's device across a remount are stated,
+and the sibling bullets are read at `07858070bb` for the binding and `7d0dcdc875` for the lock.
 
 ## Sources read
 
