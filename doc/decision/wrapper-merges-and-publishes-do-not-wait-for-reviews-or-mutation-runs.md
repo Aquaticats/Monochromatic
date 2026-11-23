@@ -35,6 +35,61 @@ and the coordinating session then held merges on gates and passes it should not 
   and a merge whose branch is shown to answer worse than `main` waits for its fix round,
   because the owner's merge bar is that a branch may not make anything `main` does well worse.
 
+## What runs after a merge, answered 2026-11-23
+
+Asked in the question tool on 2026-11-23,
+after four branches had merged under the rule above.
+
+Passes.
+The project chose "B:
+pass only at a release":
+"No pass per branch;
+one Sonnet pass over everything merged since the last release,
+before it ships.
+Pros:
+far fewer tokens.
+Cons:
+a defect sits on main longer,
+and one pass over many branches reads each less closely."
+Not chosen:
+"A:
+pass after each merge",
+and "C:
+no passes".
+The passes running on three merged branches were stopped early,
+each writing what it had found.
+
+Gates.
+The project chose "A:
+one gate on main per batch (Recommended)":
+"After a batch of merges,
+one whole gate on main's tip;
+a failure outside main's known baseline starts a fix round.
+Pros:
+one gate covers several branches;
+a breakage shows within the hour.
+Cons:
+a failure has to be traced to one branch of the batch."
+Not chosen:
+"B:
+gate only at a release",
+and "C:
+no gates".
+A round runs no whole gate of its own;
+it runs the host checks of the modules it touched.
+
+Designs.
+The project chose "A:
+merge designs as proposals (Recommended)":
+"A design branch merges when its round ends;
+its status line says proposed,
+and acceptance is recorded in doc/decision as now."
+Not chosen:
+"B:
+designs wait for acceptance".
+Design reads before acceptance are not passes on code,
+and go on as before.
+
 ## The owner's words of 2026-11-04 and before
 
 - Standing authorization (2026-10-13):
