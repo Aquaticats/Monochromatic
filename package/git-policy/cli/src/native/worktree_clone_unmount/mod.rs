@@ -59,6 +59,8 @@
 //!   the identity comparisons before any move.
 //! - `reattach.rs`:
 //!   the checked move back to the slot.
+//! - `unmount_record.rs`:
+//!   the pre-bind shape checks and the record's write.
 //! - `unmount_turn.rs`:
 //!   the record,
 //!   bind,
@@ -104,6 +106,9 @@ pub mod unmount_checks;
 
 /// The checked move of a staged clone back to its slot.
 pub mod reattach;
+
+/// The record a removal writes before its first bind.
+pub mod unmount_record;
 
 /// One removal's unmount turn.
 pub mod unmount_turn;

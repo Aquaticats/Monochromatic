@@ -262,7 +262,8 @@ fn zfs_unmount_guest() {
     println!("UNMOUNT done");
 }
 
-/// A fixture folder under `/root`, cleared first.
+/// A fixture folder under `/root`,
+/// cleared first.
 fn folder(name: &str) -> PathBuf {
     let path: PathBuf = Path::new("/root").join(name);
     let _ = std::fs::remove_dir_all(path.as_path());
@@ -327,7 +328,8 @@ fn zfs_unmount_guest_handle_round_trip() {
 }
 
 /// The child half of the handle round trip:
-///  it reads only the record, the cache descriptor and the boot.
+///  it reads only the record,
+/// the cache descriptor and the boot.
 #[test]
 fn zfs_unmount_guest_handle_child() {
     let Ok(cache_path) = std::env::var("STEP9_HANDLE_CACHE") else {

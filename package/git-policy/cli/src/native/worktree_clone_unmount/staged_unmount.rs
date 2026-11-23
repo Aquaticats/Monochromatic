@@ -196,7 +196,8 @@ pub struct StagedSweep<'a> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RecoveryOutcome {
-    /// The clone is gone and the bind is gone; a `done` receipt is owed.
+    /// The clone is gone and the bind is gone;
+    /// a `done` receipt is owed.
     Finished {
         /// The clone's mount number when it was still there,
         /// or zero when the run only found the bind.

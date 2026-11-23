@@ -267,7 +267,8 @@ fn a_cancelled_unmount_without_a_mount_round_trips() {
     assert_eq!(parse_receipt(text.as_str()).expect("the route's own cancelled text parses"), cancelled);
 }
 
-/// An unknown outcome word is refused, and a word one byte over the bound with it.
+/// An unknown outcome word is refused,
+/// and a word one byte over the bound with it.
 #[test]
 fn an_unknown_or_oversized_outcome_word_is_refused() {
     for word in ["cancelledx", "finished"] {
@@ -287,7 +288,8 @@ fn a_partly_filled_mount_on_a_cancelled_answer_is_refused() {
     assert!(matches!(parse_receipt(text.as_str()), Err(ReceiptRefusal::MountField { .. })));
 }
 
-/// A missing field, a newline inside a field and a NUL are refused.
+/// A missing field,
+/// a newline inside a field and a NUL are refused.
 #[test]
 fn a_missing_field_a_newline_and_a_nul_are_refused() {
     let text: String = done().text();

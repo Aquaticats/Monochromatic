@@ -31,15 +31,12 @@
 use super::reattach::{roll_back_to_slot, ReattachRequest, ReattachResult};
 use super::slot_walk_calls::{DatasetGuids, SlotWalk};
 use super::staged_folder_identity::StagedFolderIdentity;
-use super::staged_folder_record::{write_record, StagedFolderRecord};
-use super::staged_record_reading::{read_staged_record, BindingDecision, RecordReading};
 use super::staging_calls::{StagingCallRefusal, StagingCalls};
 use super::staging_folder_name::staging_folder_name;
 use super::unmount_checks::{verify_the_slot, CheckedSlot, ExpectedMount, SlotRefusal};
 use super::user_cache_pin::{check_live_pin, UserCachePin};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
-use std::os::unix::fs::MetadataExt;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -196,12 +193,12 @@ impl UnmountOutcome {
 }
 
 /// One refused read as a refused outcome.
-fn refused(step: &str, said: String) -> UnmountOutcome {
+pub(super) fn refused(step: &str, said: String) -> UnmountOutcome {
     return UnmountOutcome::Refused { step: String::from(step), errno: 0, said, mount: None };
 }
 
 /// One call's refusal as a refused outcome.
-fn call_refused(step: &str, refusal: StagingCallRefusal, mount: Option<MountFacts>) -> UnmountOutcome {
+pub(super) fn call_refused(step: &str, refusal: StagingCallRefusal, mount: Option<MountFacts>) -> UnmountOutcome {
     return UnmountOutcome::Refused { step: String::from(step), errno: refusal.errno, said: refusal.message(step), mount };
 }
 
@@ -238,7 +235,7 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
     if let Err(pin) = check_live_pin(request.cache, request.pin) {
         return refused("user-cache-pin", pin.message());
     }
-    if let Err(outcome) = record_the_bind(request, &staging, name.as_str()) {
+    if let Err(outcome) = super::unmount_record::record_the_bind(request, &staging, name.as_str()) {
         return outcome;
     }
     let bind: std::fs::File = match request.calls.bind_the_folder(&staging, request.cache, OsStr::new(name.as_str())) {
@@ -291,73 +288,6 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
 /// Record the bind before it is made,
 /// replacing an absent,
 /// unrecorded or void record and refusing a current record whose identity moved.
-#[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
-fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
-    let folder_facts: std::fs::Metadata = match staging.metadata() {
-        Ok(facts) => facts,
-        Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be read: {error}"))),
-    };
-    let cache_facts: std::fs::Metadata = match request.cache.metadata() {
-        Ok(facts) => facts,
-        Err(error) => return Err(refused("staging-folder", format!("the cache folder could not be read: {error}"))),
-    };
-    let entry_count: usize = match crate::entries_of_one_open_folder::entry_names(staging) {
-        Ok(names) => names.len(),
-        Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be listed: {error}"))),
-    };
-    if folder_facts.uid() != cache_facts.uid() {
-        return Err(refused("staging-folder", format!("the staging folder {name} is owned by {}, and the account's cache by {}", folder_facts.uid(), cache_facts.uid())));
-    }
-    if folder_facts.mode() & 0o7777 != 0o700 {
-        return Err(refused("staging-folder", format!("the staging folder {name} has mode {:04o}, and the route records 0700", folder_facts.mode() & 0o7777)));
-    }
-    if entry_count != 0 {
-        return Err(refused("staging-folder", format!("the staging folder {name} holds {entry_count} entries, and a staging folder is empty before its bind")));
-    }
-    let reading: RecordReading = read_staged_record(request.cache, request.expected.guid, request.boot, request.cache_path.join(name).as_path(), request.calls);
-    let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
-        Ok(identity) => identity,
-        Err(refusal) => return Err(refused("staged-record", refusal.message())),
-    };
-    if let RecordReading::Current { record, .. } = &reading {
-        let moved = identity.differences(&record.identity);
-        if !moved.is_empty() {
-            return Err(refused(
-                "staged-record",
-                format!("the folder the record describes differs from the folder this invocation opened in the {}, so the record is kept and the bind refused", StagedFolderIdentity::field_names(moved.as_slice())),
-            ));
-        }
-    }
-    if BindingDecision::of(&reading) == BindingDecision::Refuse {
-        let said: String = match reading {
-            RecordReading::Refused { step, said } => format!("the staged record refused at its {step} step: {said}"),
-            _ => String::from("the staged record refused"),
-        };
-        return Err(refused("staged-record", said));
-    }
-    let (handle_type, handle): (i32, Vec<u8>) = match request.calls.name_handle(staging) {
-        Ok(handle) => handle,
-        Err(refusal) => return Err(call_refused("name-handle", refusal, None)),
-    };
-    let (namespace_device, namespace_inode): (u64, u64) = match request.calls.namespace_pair() {
-        Ok(pair) => pair,
-        Err(refusal) => return Err(call_refused("namespace", refusal, None)),
-    };
-    let record: StagedFolderRecord = StagedFolderRecord {
-        component: String::from(name),
-        dataset: request.expected.source.clone(),
-        guid: request.expected.guid,
-        identity,
-        handle_type,
-        handle,
-        nonce: String::from(request.nonce),
-        namespace_device,
-        namespace_inode,
-        boot: String::from(request.boot),
-    };
-    return write_record(request.cache, &record).map_err(|refusal| return refused("staged-record", refusal.message()));
-}
-
 /// One topmost mount at the staging name.
 fn topmost_at(calls: &dyn StagingCalls, cache: &std::fs::File, name: &str) -> Result<(std::fs::File, u64, MountFacts), StagingCallRefusal> {
     let folder: std::fs::File = calls.open_by_name(cache, OsStr::new(name))?;

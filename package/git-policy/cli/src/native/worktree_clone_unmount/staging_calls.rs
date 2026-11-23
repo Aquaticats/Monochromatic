@@ -196,9 +196,11 @@ pub trait StagingCalls {
 /// ```
 #[repr(C)]
 struct FileHandle {
-    /// The bytes the handle holds, and the buffer's size on entry.
+    /// The bytes the handle holds,
+    /// and the buffer's size on entry.
     handle_bytes: libc::c_uint,
-    /// The handle's type, which the kernel reports.
+    /// The handle's type,
+    /// which the kernel reports.
     handle_type: libc::c_int,
     /// The handle's bytes.
     f_handle: [libc::c_uchar; super::staged_folder_record::MAXIMUM_HANDLE_BYTES],
