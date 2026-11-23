@@ -335,17 +335,28 @@ and only the owner accepts one.
   Also:
   the scan's name rule can match another slot's directory,
   and the binding says two things about a `filled` binding whose clone is gone.
+- The binding's round on both diff checks ended at `ec2b0b14f3`
+  (report `keep/report-diff-check-findings.md` in its folder):
+  a table of the ten states Git's source can leave,
+  one order of removals
+  (the slot's pointer first,
+  the lock last),
+  one rule for a `filled` binding whose clone is gone
+  (the add refuses and names the finisher),
+  and a finder with Git's own naming and matching rules.
+  That finder is the scan's matching,
+  which the split had given to the lock design;
+  the lock design's round is told to keep one statement,
+  citing the binding's finder and keeping what is the lock's.
 - Running:
-  `pi-zfs-add-binding-record-design-diff-check-findings`,
+  `pi-zfs-add-time-git-lock-design-diff-check-findings`,
   on `continuation-diff-check-findings.md`
-  (one row per state Git's add can leave,
-  with the order of removals that clears it;
-  and the record trio's findings that are the binding's).
+  (its settle names the binding's order;
+  the scan cites the finder;
+  and who removes the lock when an add falls back to Git's own checkout,
+  by the dirty-main decision).
 - Next:
-  the lock design's round when it ends
-  (the scan's matching;
-  the settle's order gains the removal of the slot's pointer),
-  then the reviewer once more on step 10 alone.
+  the reviewer once more on step 10 alone.
   The four questions it would put do not block the build.
 - Questions the reviewer would put,
   none of which blocks step 10:
@@ -407,8 +418,10 @@ and only the owner accepts one.
   and stale statements remain in all three.
   The review lists what each must change for the evening's three removal decisions.
 - Running:
-  `pi-zfs-origin-cleanup-record-design-diff-check-findings`
-  and the binding's round named under step 10.
+  `pi-zfs-origin-cleanup-record-design-diff-check-findings`.
+  The binding's round named under step 10 has ended at `ec2b0b14f3`,
+  with the plan design's finish pass named as the tail's finisher
+  and an order for the removal of its three files.
 - Next:
   the plan design's round when both have ended
   (its two stale statements,
@@ -626,11 +639,14 @@ and only the owner accepts one.
   Going:
   its one review,
   to `review-after-the-owners-answers.md` beside its other reviews.
-- Running:
-  `pi-zfs-private-propagation-after-replacement-mount-design-the-projects-four-answers`,
-  on `continuation-the-projects-four-answers.md`,
-  started when the lost-event round ended.
-  Then its one review.
+- The propagation design's round on its four answers,
+  started when the lost-event round ended,
+  ended at `c7708953c0`
+  (report `keep/report-the-projects-four-answers.md` in its folder).
+  Going:
+  its one review,
+  to `review-after-the-owners-answers.md` beside its other reviews,
+  read against the lost-event document at `88f6a15194`.
 
 #### Build and diagnosis runs
 
