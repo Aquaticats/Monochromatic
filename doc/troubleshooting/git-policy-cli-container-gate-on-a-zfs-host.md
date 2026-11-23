@@ -1676,6 +1676,23 @@ and the instant between the last read and the unlink,
 which no system call closes for a name.
 
 
+The whole container gate then ran the same tree,
+in run `native-a5XyIb` of image
+`localhost/git-policy-native-test:gpc-6342-lows-20261122T2350`,
+on commit `1e52bbd00b`:
+
+```text
+Summary [1220.043s] 9918 tests run: 9916 passed (9 slow), 2 failed, 36 skipped
+FAIL [   0.939s] (9484/9918) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.377s] (9602/9918) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Both failures are the cause-H pair,
+and every control of this section passed in that run.
+Its Clippy step finished clean
+(``Finished `dev` profile [unoptimized] target(s) in 4m 53s``),
+and the unit ended `Failed with result 'exit-code'`,
+which is the cause-H pair's status and not this section's control.
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
 
 This is neither cause G nor cause H.
