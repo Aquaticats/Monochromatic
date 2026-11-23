@@ -93,6 +93,17 @@ the references to the retired origin questions,
 the binding's bound and its finisher condition's second arm.
 "Revisions" lists each commit and what it changed.
 
+This revision also answers the fifth diff read at
+`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fifth-diff-read.md`
+(its ids N3 for this design and N4,
+with N8 and N9),
+which read this text at `8ae3f1d6e6`.
+It states the answer to the accepted deferred-destroy design's request under its own heading,
+settles an `unknown` tuple by the head-present arm before the adoption rule,
+has the reused-name cell agree with the binding design's refusal at `3b4b073f0e`,
+and corrects the origin record's bound and the two missing cells.
+"Revisions" lists each commit and what it changed.
+
 It wrote this one file and no other,
 ran no ZFS command that changes anything,
 started no guest,
@@ -150,7 +161,7 @@ What it read:
   each read with `git show` at the commit named here:
   "The record that carries origin cleanup" at `f17455b786`,
   and "Where the add's durable binding record lives,
-  and its format" at `7d041d773b`;
+  and its format" at `3b4b073f0e`;
 - the code the wrapper keeps its records and its claims with,
   and the Git and OpenZFS sources named in F1 to F16.
 
@@ -329,7 +340,7 @@ and marks the choice for the project's veto with the alternatives it weighed.
   `doc/planning/cli-git-zfs-worktree-design-proposal.md` lines 909 to 910:
   "A per-slot claim only serializes cooperating wrapper operations."
   The claim itself is the add's binding design's,
-  read at `7d041d773b`,
+  read at `3b4b073f0e`,
   and this design only takes it (F15,
   A2).
 - Lock-free first,
@@ -437,7 +448,7 @@ must use hex,
   (`worktree_removal_interrupted_destroy.rs:276` and `:278`),
   which is two forms in one record and the reason this one keeps one.
 - The per-slot claim is the add's binding record's (`<slot>.claim.<generation>`,
-  read at `7d041d773b`,
+  read at `3b4b073f0e`,
   and `lock/single_owner_claim.rs`),
   taken by both an add and a removal for one slot (F15).
 - The mount intent and its receipts fix two more precedents:
@@ -597,7 +608,7 @@ so each can be checked alone.
   a second command is refused with the live owner's process id.
   Read in `lock/single_owner_claim.rs:1 to 40`,
   `:245 to 285` and `:362 to 404`,
-  and in the binding record's design at `7d041d773b`,
+  and in the binding record's design at `3b4b073f0e`,
   whose use of the claim for removals is that document's proposal and not a project decision.
 - F16.
   The crate has a measurement-only feature,
@@ -611,7 +622,7 @@ so each can be checked alone.
 - A1.
   The add's durable binding record is found by `<slot>`,
   the last path component of the path `targetHex` holds,
-  as the binding design defines the key in its "What the key is made of at each moment" at `7d041d773b`.
+  as the binding design defines the key in its "What the key is made of at each moment" at `3b4b073f0e`.
   Its home and key are that design's,
   not this one's;
   this design reads it by `<slot>`,
@@ -1611,7 +1622,7 @@ so each check compares an object's own identity:
 A tuple whose outcome stays `unknown` after both arms is retained and the run stops;
 nothing is regenerated from the names that are left.
 
-### What a later run does
+### Which resume path a removal takes
 
 The removal reads the plan and then the live pinned parent,
 and that is how it chooses its path;
@@ -1620,35 +1631,51 @@ no other fact decides it.
 - The recorded clone GUID is present under the pinned parent,
   whatever the name:
   the clone stands,
-  and the removal takes the head-present path.
+  and the removal takes the head-present path below.
 - The recorded clone GUID and name are absent,
   and the head word is `requested` or `unknown`:
-  the removal takes the head-gone path with no confirmation,
+  the removal takes the head-gone path below with no confirmation,
   using the proof the proposal states at lines 963 to 967
   (the name is absent and no child of the pinned parent carries the recorded GUID).
   This is the ordinary kill inside the head's destroy.
-- The recorded clone GUID is absent and the name is absent or carries another GUID,
+- The recorded clone GUID and name are absent,
+  and the head word is `gone`:
+  the plan's own record says the head went,
+  and the removal takes the head-gone path below.
+- The recorded clone GUID is absent and the name is absent,
   and the head word is `present` or `refused`:
   the clone was destroyed outside this removal,
   so the removal refuses and names the settling command (section 7).
   A head that was never requested,
   or whose request was refused,
   cannot have been destroyed by this run.
+- The recorded clone GUID is absent and the name carries another GUID:
+  the name was reused,
+  and nothing proves the recorded clone's absence under a fresh object,
+  so the removal refuses and names the reuse;
+  no command settles this,
+  because the binding design's command refuses a reused name too.
 - The pool cannot prove the absence,
   by an unreadable or a partial listing:
   the removal refuses,
   changes nothing,
-  and names the plan and the failed read.
+  and names the plan,
+  the failed read and the settling command,
+  which section 7 calls the route for an unprovable absence.
 
 An accepted design asks this question in its "How a person finishes a refused removal",
 in words it can quote:
 "state which resume path a removal takes when the plan says the head is present and the clone does not answer,
 and confirm it uses the proof at proposal `:963` to `:967`".
-This rule answers it:
+This heading answers it:
 the head word `present` or `refused` is the outside destroy and the removal refuses,
 naming the settling command,
 and the head word `requested` or `unknown` takes the head-gone path,
 which uses exactly that proof.
+
+### What a later run does
+
+The two paths below follow from the rule above.
 
 **The head-present path.**
 
@@ -2218,11 +2245,12 @@ and its `unmountNonce` names the request it was verified under.
 When the plan's nonce and the live property's nonce differ,
 on the head-present path only:
 
-- if the plan has no `unknown` outcome and its identities still match live,
+- if its identities still match live,
+  once any `unknown` tuple has been settled by the head-present arm,
   the run re-proves everything and rewrites the plan with the new nonce,
   keeping every tuple and outcome;
-- otherwise it refuses,
-  and the cancel command is the way forward.
+- it refuses only when the head-present arm cannot settle an `unknown` tuple,
+  naming that tuple and the read that failed.
 
 A plan with no live intent while the head still stands is refused by the removal,
 because nothing then proves the unmount it claims;
@@ -2243,11 +2271,17 @@ the retry is a fresh removal and the look runs as on any first run.
 An `unknown` tuple of a plan whose head stands and whose clone is present has its settling step here:
 the head-present arm of the absence rule settles it against the live inventory,
 a live snapshot carrying its GUID makes it `intact`,
-and a GUID that is absent makes it `destroyed`;
-only a live snapshot carrying the GUID with another `createtxg`,
+and a GUID that is absent makes it `destroyed`,
+and the adoption rule above then rewrites the plan with the new nonce.
+Only a live snapshot carrying the GUID with another `createtxg`,
 or a pool that cannot be read,
-refuses,
-and until it is settled the run prints the tuple's name and GUID and that it stopped.
+leaves it unsettled:
+the run refuses,
+prints the tuple's name and GUID and that it stopped,
+and names the read that failed.
+No command is named for that refusal:
+the cancel command removes and rewrites nothing for a kept plan,
+and the settling command's case is a clone that is gone.
 A plan's `owner` may name a process that has ended,
 and no reader of this design refuses on that field;
 only `doctor`'s staging rule reads it.
@@ -2318,11 +2352,17 @@ in words that design can quote:
   the command refuses it,
   because the pass finishes it.
 - A plan with any other head,
-  when the command's own read finds no child carrying the clone's GUID and the name absent or carrying another
-  GUID,
+  when the command's own read finds no child carrying the clone's GUID and the name absent,
   is printed and removed after the person's confirmation,
   before the two inventories and the binding,
   and the command prints the snapshot names the plan recorded as destroyed.
+  The order is the binding design's "The settling command":
+  a lost lock written again,
+  then the registration,
+  then the plan,
+  then the two inventories,
+  then the binding,
+  then the claim.
   The seven answers decide it
   (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
   "A further answer:
@@ -2338,10 +2378,14 @@ in words that design can quote:
   and a person who runs the command instead gets the same printed names.
 - A plan whose record cannot be read,
   or whose `cloneGuid` and names disagree with the live facts,
-  is the seven answers' unreadable case:
+  is the seven answers' unreadable case,
+  and the binding design's "The settling command" refuses it too:
   change nothing,
   name the file,
   wait for a person.
+- A reused name is a refusal and never a state to settle:
+  both the removal (section 4) and the binding design's command refuse it and name the reuse,
+  because a live dataset holds the recorded clone's name.
 
 What a kill inside the command leaves,
 and what finishes it:
@@ -2349,7 +2393,8 @@ the command is its own finisher until the plan is gone.
 A kill after the confirmation and before the plan's removal leaves the plan,
 and the next run of the command removes it,
 because the pass leaves any head that is not `gone`.
-A kill after the plan and before the inventories leaves the binding and the inventories,
+A kill after the plan and before the first inventory leaves the binding and both inventories,
+which is the state the binding design's "The settling command" also names,
 and the next run of the command removes them;
 no next removal of that slot can run there,
 because the command removed the registration before the plan.
@@ -2594,12 +2639,17 @@ for the plan:
   a `requested` or `unknown` plan is taken by a removal on the head-gone path
   with no confirmation,
   and the removal settles its tuples and ends the plan at step 13;
-- with the clone's GUID absent,
+- with the clone's GUID absent and the name absent,
   a `present` or `refused` plan is refused by a removal,
   which names the settling
   command,
   and the command (its own control is the binding design's) prints the snapshot names and removes it
   before the inventories;
+- with the clone's GUID absent and the name carrying another GUID,
+  a removal refuses for each head word and names the reuse,
+  and names no command;
+- with the clone's GUID and name absent and the head word `gone`,
+  a removal takes the head-gone path;
 - a binding already gone with the plan standing (a kill between 12 and 13):
   the pass removes the plan and touches nothing else;
 - a kill of the pass between the two inventories and the binding:
@@ -2825,7 +2875,7 @@ so a person who deletes the repository deletes it.
 
 Option B,
 the binding design's folder inside the same parent,
-`monochromatic-git-policy-cli/worktree-clones/v1/<slot>.plan` (at `7d041d773b`).
+`monochromatic-git-policy-cli/worktree-clones/v1/<slot>.plan` (at `3b4b073f0e`).
 
 Example:
 the same removal records at
@@ -3533,7 +3583,7 @@ if any,
 decides it.
 The siblings are read at their branch tips,
 the origin cleanup record at `f17455b786`
-and the binding record at `7d041d773b`,
+and the binding record at `3b4b073f0e`,
 and both are other rounds' documents,
 reviewed by the third pass and not final:
 nothing below adopts a sibling's answer as decided,
@@ -3686,7 +3736,7 @@ with the same numbers as the points below.
     section 2,
     Choice 10).
     The binding record's bound is the exact 43,027 bytes its current text states;
-    the origin cleanup record's is the exact 13,375.
+    the origin cleanup record's is the exact 13,368.
     All three derive their bounds from named terms without rounding,
     as the accepted store did
     (`doc/decision/cli-git-zfs-slot-identity-store-format.md` lines 140 to 141).
@@ -3695,13 +3745,22 @@ with the same numbers as the points below.
 
 ### What this design needs from the two sibling documents
 
-B's earlier requirements are answered in its text:
+Every requirement this design put on the binding record is met in its text at `3b4b073f0e`.
 "The record's end" states the order among its three files and cites the fourteen-step list under O's two headings,
 and "The condition a finisher meets" states the condition the pass uses and names the pass among the finishers.
-Its "The settling command" also refuses only a plan whose head is `gone`,
+Its "The settling command" refuses only a plan whose head is `gone`,
 removes any other plan after the confirmation and before the two inventories,
-and prints what it held,
-which is section 7's order,
+prints what it held,
+states the order as one sentence a sibling can quote (a lost lock,
+then the registration,
+then the plan,
+then the
+two inventories,
+then the binding,
+then the claim),
+states the kill after the plan and before the first inventory,
+refuses a plan it cannot read or whose identities disagree,
+and refuses a reused name,
 so no requirement remains on B.
 The requirements this design still has are on the cancelled-removal design:
 its "writes nothing" about a self-cancelling removal must keep meaning that no outcome is written,
@@ -3716,7 +3775,7 @@ section 7 and the finish pass move with it.
 ## Dependencies on sibling designs
 
 - The add's durable binding record (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-  read at `7d041d773b`).
+  read at `3b4b073f0e`).
   This design reads it by `<slot>`,
   the last component of the path `targetHex` holds,
   and compares its `slot=`,
@@ -3916,14 +3975,11 @@ Each item names the probe that would settle it and the step that owes it.
 ## This round
 
 This round ran no probe on any pool and started no guest.
-It merged `main` for the seven answers' further answer,
-the dirty-main record's "Three further answers"
-and the accepted deferred-destroy design,
-read each whole,
-read the two sibling documents at their tips (`f17455b786` and `7d041d773b`)
-and the cancelled-removal design at `3035d29766`,
+It merged `main` for the fifth diff read's decisions and the accepted deferred-destroy design,
+read it,
+read the binding design at `3b4b073f0e` and the origin cleanup design at `f17455b786`,
 checked every path-and-line citation in the changed text,
-and recorded a search for each of the fourth check's items in `keep/fourth-check-searches.md`.
+and recorded a search for each of the fifth diff read's items in `keep/fifth-diff-searches.md`.
 
 What ran:
 
