@@ -6284,6 +6284,30 @@ and any test suite.
 - 2026-11-23T17:40:16-05:00 (`5be6220648`):
   pointed the one list's citers at the right headings,
   the definition of "cannot be proved" and the sentence in "The add's own fallback" that names the section.
+- 2026-11-23T18:05:00-05:00 (this round;
+  the two commits and their real times are the ones `git log` names for
+`246d302e24` and `7969d55b6b`):
+  answered the two ninth reads:
+  K5 and U34 (the false premise that a `settling` binding never has a plan is gone;
+  "Which command is true for a state" now has a plan row for a binding of any phase,
+  citing the plan design's "Which resume path a removal takes" and its finish pass instead of restating them,
+  and the add refuses while a plan stands),
+  K2 (the removal's rule keeps the scope "and a `settling` binding,
+  and for which no plan stands to resume",
+  and the copy offered to the accepted design carries the same scope),
+  K1 (the coarse closing paragraph is gone,
+  and `doctor`,
+  R3 and the add's refusal cite the plan design for a standing plan),
+  K3 (T35's begun-checkout arm,
+  its `filled` arms,
+  and T30's arm for a plan beside a `settling` binding),
+  K4 and U35 (the `snapshotted` line,
+  T29's sentence,
+  A22's pointer,
+  and the section's own name for the recovery),
+  K6 (the 8- and 16-space continuations normalized),
+  and U38 (the tips sentence names `db69df972a` and `ea271e9e1d`,
+  and the live "read at" cites are refreshed).
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
