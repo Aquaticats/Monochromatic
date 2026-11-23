@@ -116,8 +116,11 @@ const NO_LAZY_FETCH: &str = "GIT_NO_LAZY_FETCH";
 
 /// What the read's job answers:
 /// how long it took,
-/// and the map or the reason it cannot be read.
-type ReadAnswer = (Duration, Result<BlobSizes, String>);
+/// and the `ls-tree` output or the reason it cannot be read.
+/// Why:
+///   The output is parsed by the add that uses it, never by a read a declined add abandons:
+/// a declined add then frees one buffer rather than a map of 24,634 entries on its waiting path.
+type ReadAnswer = (Duration, Result<Vec<u8>, String>);
 
 /// What:
 ///  What the join got:
@@ -140,7 +143,7 @@ enum Joined {
         spent: Duration,
         /// The map,
         /// or the reason it could not be read.
-        outcome: Result<BlobSizes, String>,
+        outcome: Result<Vec<u8>, String>,
     },
     /// The read answered nothing,
     /// in the words a failed run of the fence gives.
@@ -251,7 +254,7 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// ```
 fn read_the_sizes_where_nothing_is_fetched((context, root, commit, sender, child): (GitContext, PathBuf, String, Sender<ReadAnswer>, std::sync::Arc<std::sync::atomic::AtomicI32>)) {
     let began: Instant = Instant::now();
-    let sizes: Result<BlobSizes, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
+    let sizes: Result<Vec<u8>, String> = sizes_of_the_commit_where_nothing_is_fetched(&context, root.as_path(), commit.as_str(), &child);
     // The runner cleared this cell when it reaped the child, before anything was parsed (`child_watch_one_shot_run.rs`,
     //  the `StepBound::EndAt` arm), so an abandon after this line cannot signal a reused process id.
     child.store(0, std::sync::atomic::Ordering::SeqCst);
@@ -305,7 +308,7 @@ fn the_early_read_request(root: &Path, commit: &str) -> GitRequest {
 /// ```ts
 /// function sizesOfTheCommitWhereNothingIsFetched(context, root, commit): Map<string, number>;
 /// ```
-fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<BlobSizes, String> {
+fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Path, commit: &str, child: &std::sync::Arc<std::sync::atomic::AtomicI32>) -> Result<Vec<u8>, String> {
     #[cfg(test)]
     hold_the_read_where_a_control_asked();
     #[cfg(test)]
@@ -314,11 +317,11 @@ fn sizes_of_the_commit_where_nothing_is_fetched(context: &GitContext, root: &Pat
     if output.code != Some(0) {
         return Err(unreadable_sizes(&output));
     }
-    // This seam sits where the old code still named the reaped child, after the whole output was parsed,
-    //  so a control can show that the cell is cleared before parsing starts.
+    // This seam sits where the old code still named the reaped child, after the wait and before the add
+    //  parses anything, so a control can show that the cell is cleared before any parse starts.
     #[cfg(test)]
     hold_the_sizes_after_the_wait_where_a_control_asked();
-    return Ok(parse_sizes(output.stdout.as_slice()));
+    return Ok(output.stdout);
 }
 
 /// What:
@@ -442,7 +445,7 @@ impl SizeReadBesideTheCheck {
             Joined::Answered { spent, outcome } => {
                 note_work(WORK, spent);
                 match outcome {
-                    Ok(sizes) => Ok(sizes),
+                    Ok(bytes) => Ok(parse_sizes(bytes.as_slice())),
                     Err(reason) => Err(reason),
                 }
             }
@@ -528,11 +531,11 @@ impl SizeReadBesideTheCheck {
     /// ```
     pub fn abandon(self) {
         let take_entered: bool = begin_step("abandonTakeTheAnswer");
-        let answered: Option<BlobSizes> = match self.answer.try_recv() {
+        let answered: Option<Vec<u8>> = match self.answer.try_recv() {
             Ok((spent, outcome)) => {
                 note_work(WORK, spent);
                 match outcome {
-                    Ok(sizes) => Some(sizes),
+                    Ok(bytes) => Some(bytes),
                     Err(reason) => {
                         debug(TAG, format!("the size read started beside the check answers {reason}, and the add no longer waits for it").as_str());
                         None
@@ -544,11 +547,10 @@ impl SizeReadBesideTheCheck {
                 None
             }
         };
-        // The answered map is freed off the adding thread: dropping 24,634 entries costs 1.8 to 3.2 ms
-        //  (the integration recheck's Medium 1 of 2026-11-22), and an add that declines has that map on
-        //  its waiting path right here. The add's process ends after it, so the forgotten map is memory
-        //  the kernel reclaims then.
-        std::mem::forget(answered);
+        // The answered output is one buffer, not a map of 24,634 entries: a declined add frees it here
+        //  in microseconds, where the map it used to hold cost 1.8 to 3.2 ms to free
+        //  (the integration recheck's Medium 1 of 2026-11-22).
+        drop(answered);
         end_step(take_entered);
         let child_entered: bool = begin_step("abandonEndTheChild");
         let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);

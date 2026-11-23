@@ -476,7 +476,7 @@ fn settle_with(answer: Option<ReadAnswer>) -> String {
 /// with no wait of the adding thread.
 #[test]
 fn a_read_that_already_answered_is_stated_as_work() {
-    let record: String = settle_with(Some((Duration::from_millis(7), Ok(BlobSizes::default()))));
+    let record: String = settle_with(Some((Duration::from_millis(7), Ok(Vec::new()))));
     assert!(the_record_states(record.as_str(), WORK), "the read's own cost is the record's work: {record}");
     assert!(record.contains("\"calls\":1"), "the work is one entry: {record}");
     assert!(!the_record_states(record.as_str(), "fenceSizesWaitingForTheRead"), "the settle entered no wait: {record}");
