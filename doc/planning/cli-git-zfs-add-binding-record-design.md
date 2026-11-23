@@ -3243,8 +3243,7 @@ What `doctor` removes.
   and the folder is listed to find out (F19).
 - B,
   the two forms unconditionally,
-  as the store's doctor does,
-  and as the origin cleanup sibling's doctor does.
+  as the store's doctor does.
   Pros:
   simpler,
   and the store's own decided rule.
@@ -3252,6 +3251,9 @@ What `doctor` removes.
   removing a live writer's staging file makes its publication fail,
   and a ZFS add holds a claim across a snapshot and a clone,
   where the store's writer holds nothing.
+  The origin cleanup record removes none and reports them (read at `987a3ba886`),
+  so neither sibling takes this option today,
+  and it stays listed for the store's precedent alone.
 - Ranking:
   A,
   then B.
@@ -3283,8 +3285,7 @@ The removal takes the same claim as the add.
   and rule `NLK`'s "one owner per item" is exactly that.
 
 V10.
-The record's end,
-and whether a blocked origin keeps the slot.
+The record's end.
 
 - A,
   removed once the origin cleanup record is confirmed,
@@ -3301,18 +3302,6 @@ and whether a blocked origin keeps the slot.
   the binding's origin fields must be compared with that record before anything is destroyed,
   so the removal depends on a record it does not own.
 - B,
-  kept until the origin cleanup finishes,
-  as the earlier revision had it.
-  Example:
-  the record stands,
-  `owed`,
-  and the slot refuses the next add until the snapshot is destroyed.
-  Pros:
-  this record alone proves the origin for the whole pending period.
-  Cons:
-  the proposal's two sentences are contradicted,
-  and a blocked cleanup blocks a slot that nothing about the pending snapshot needs.
-- C,
   never removed,
   with a `settled` phase.
   Pros:
@@ -3322,10 +3311,12 @@ and whether a blocked origin keeps the slot.
   and a slot's reuse must distinguish a settled record from a standing one.
 - Ranking:
   A,
-  then B,
-  then C.
-  A beats B because the proposal's own sentences decide it and the second review's X2 showed B contradicts them.
-  B beats C because C turns every slot into permanent state that `doctor` must explain.
+  then B.
+  A beats B because the proposal's own sentences decide the moment,
+  and B turns every slot into permanent state that `doctor` must explain.
+  The earlier revision's option "kept until the origin cleanup finishes" is gone:
+  the proposal decides that settling does not wait for the origin,
+  so it was an option no reader could adopt.
 
 V11.
 Where the managed lock's ownership is proved (the review's first question,
