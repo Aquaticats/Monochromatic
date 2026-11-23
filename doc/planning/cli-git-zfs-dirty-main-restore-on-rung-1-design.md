@@ -15,6 +15,14 @@ This revision answers the gate review at `~/temp/agent/gate-review-zfs-dirty-mai
 finding by finding,
 what changed and where.
 
+This revision also answers the second gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-second-pass.md`,
+tip `c342dd1a06`,
+with `probe-logs-second-pass.md` beside it) and the project's answers of 2026-11-22 to three of its four questions (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`).
+"Answers to the second gate pass" records,
+finding by finding,
+what changed and where,
+and "The project's answers of 2026-11-22" quotes the three answers.
+
 What it read:
 the decision record `doc/decision/cli-git-zfs-worktree-design.md`,
 the accepted design `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
@@ -28,6 +36,8 @@ the measurement record `doc/planning/cli-git-zfs-measurements-owed-before-accept
 the code under `package/git-policy/cli/src/native/`,
 `package/git-policy/cli/doc/slot-identity-store-write-cost.md` and `package/git-policy/cli/doc/object-database-and-a-reftable-ref-store.md`,
 the gate review and its probe logs,
+the second gate pass and its probe logs,
+the decision record of 2026-11-22,
 and the sibling designs named under "Dependencies on the sibling designs",
 each at the commit named there.
 Every outside fact is read at a named tag:
@@ -40,12 +50,17 @@ all on this host and all read-only or confined to a scratch folder:
 `stat`,
 `du`,
 `gh api` for five Linux files at `v7.3`,
-`git log` and `git show` for the sibling branches,
-and the citation check the "Citations" section describes.
-The only measurements quoted here were taken in this round's first text,
+`git log` and `git show` for the sibling branches at their current tips,
+the citation check the "Citations" section describes,
+and three probes of this revision:
+`clock_getres(CLOCK_REALTIME_COARSE)`,
+a read of the main checkout's index and `ls-files --debug` times that counted the racy set,
+and a read of the checkout's administration for the worktree registrations,
+remotes and hooks (F38 to F40).
+The measurements quoted here were taken in this round's first text,
 by the reviewer,
-or by the records named beside them;
-none was taken by this revision.
+by this revision,
+or by the records named beside them.
 
 What it did not run:
 no clone was created,
@@ -80,7 +95,7 @@ Fixed by writing the captured index under a private name and publishing it and t
 See "The restore" steps 5 to 8,
 "What a resume finds",
 T10,
-and Q-D.
+and the project's answer on what the slot holds.
 - M1,
 the change time's tick on ZFS and Git's second.
 Fixed by replacing the false claim with the sources and the reviewer's probes:
@@ -99,19 +114,21 @@ V4 and T3.
 the refusals never applied to the capture.
 Fixed:
 the whole dirty refusal set is re-run against the frozen capture,
-and the departure from the plan's wording is listed under "Where the records differ" and put to the project as Q-C.
+and the departure from the plan's wording is listed under "Where the records differ",
+where the record of 2026-11-22 amends that sentence.
 - M3,
 the fallback against the accepted rule.
 Fixed:
 proposal lines 427 to 431 are quoted,
-V5 and Q1 are merged into Q-A,
-the design refuses with the pending state until the project answers,
-and the settlement is marked as depending on a callable unmount-and-destroy no sibling offers.
+the settlement is marked as depending on a callable unmount-and-destroy no sibling offers,
+and the project's answer of 2026-11-22 then decided it:
+the add settles and finishes by itself,
+which this revision applies.
 - M4,
 the resume list and its tests.
 Fixed:
-the restore is idempotent,
-the record carries the proof's phase,
+the restore is idempotent once its waiting index and lock are cleared,
+a marker file carries the proof's phase,
 and the states are keyed to evidence each step leaves.
 See "What a resume finds" and T5.
 - M5,
@@ -138,7 +155,7 @@ the F13 sentence is corrected.
 - M8,
 the build allocation.
 Fixed:
-D1 to D3 are the proof of every rung 1 add,
+D1 to D4 are the proof of every rung 1 add,
 clean ones included,
 and belong to step 10;
 step 11 is the dirty restore and the fallback;
@@ -172,6 +189,141 @@ the files-read list completed,
 and the index's churn noted in F25.
 - The seven wrong citations and the two loose ones are corrected,
 and every other citation was re-checked by the script "Citations" describes.
+
+## Answers to the second gate pass
+
+The reviewer of the second pass read this document at `c342dd1a06` (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-second-pass.md`,
+with `probe-logs-second-pass.md` beside it) and ranked it "fit to put to the owner after the listed fixes".
+Each finding,
+and where its fix lives:
+
+- N1,
+step 8's cross-dataset rename and the span in which the slot holds no `.git`.
+Fixed:
+the pointer is written inside the clone's root and exchanged with the copied `.git` in one exchanging rename (F36,
+F37),
+so no moment and no kill leaves the slot without a `.git`,
+and step 8 says what a kill before,
+at and after the exchange leaves.
+- N2,
+`restore_dirty`'s three sites that name the real index.
+Fixed:
+"What it reuses,
+and where ZFS differs" names all three (F41),
+and T6b is the control that goes red if any of them reads the real name.
+- N3,
+the resume's idempotence and its rows.
+Fixed:
+"What a resume finds" clears the waiting index and its lock with the wrapper's own step (F42),
+splits the rows by the real-name index and by the exchange,
+names the one state the design's own steps cannot leave,
+and makes the proof's phase a marker file instead of a rewrite of the capture.
+- N4,
+the pre-mount fallback decided without a question.
+Fixed,
+and now decided:
+the project's answer is that the add always finishes by itself ("The project's answers of 2026-11-22"),
+so every failure after the claim takes one route.
+- N5,
+T3 and T3b.
+Fixed:
+both force their precondition by observed state,
+with a bounded retry until two stamps are equal and a `utimensat` on the index file that puts an entry in the racy set,
+and T3b states that its expected byte flips when V4's adopted rule lands.
+- N6,
+what a command run through the copied `.git` can reach.
+Fixed:
+stated as a limit (F40),
+with the post-restore content check as the closure of the tree half,
+and the inert copy put to the project and not chosen,
+with its cost recorded under "Limitations".
+- N7,
+the tick's source and V4's ranking.
+Fixed:
+the tick is `clock_getres(CLOCK_REALTIME_COARSE)` (F38),
+L4's events are corrected,
+and the settle's racy rule is the design's default (V4),
+with the racy set's measured size beside it (F39).
+- N8 to N12 are fixed in the sections they name:
+the clean rule's application in step 6,
+the plan's step 10 text and V6's clarification,
+the three stale phrases,
+step 5's seed as the bytes D1 compared,
+and the five sibling commits re-read at their tips.
+- The citation findings are corrected:
+F14's `sa.c` range,
+F31's predicate,
+and V4's reference to the racy rewrite.
+- H1's remaining narrow line and M2's two small faults are fixed too:
+the seed's `with_zeroed_stat` is named in step 5,
+the untracked listing is written as the specification writes it,
+and the second untracked listing is one of M1's timed steps.
+- Three findings the pass called sound needed a sentence each when these fixes touched them,
+and each is marked where it changed:
+M6's low refinement,
+so a split or sparse index is refused at the capture rather than after the mount;
+L3,
+so V7's example moved out from under `.claude`,
+which the checkout ignores;
+and L4,
+so V2's ranking sentence no longer says two options rest on the same unmeasured sharing.
+
+## The project's answers of 2026-11-22
+
+The project answered three of the second pass's four questions,
+recorded in `doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md` (accepted 2026-11-22,
+recorded 2026-11-22T19:11:12-05:00).
+The answers,
+in the record's words:
+
+- A failed add finishes by itself:
+"A:
+always finish itself (Recommended)",
+under which "at every step,
+the add destroys only what this add made and recorded (the clone,
+then its snapshot),
+runs Git's own checkout at the same slot,
+and says which route made the worktree and why the first was abandoned" (`:35` to `:42`).
+The record states what this changes:
+"This amends the accepted sentence for this route:
+the fallback is not silent,
+since the add reports it,
+and it finishes only after the mount and the add's own intents are settled by the add itself" (`:50` to `:53`).
+- The frozen proof's window:
+"A:
+from just before snapshot (Recommended)",
+with "the add records the state immediately before the snapshot,
+runs every dirty-source refusal again on that record,
+and refuses any write after it.
+A write made before that record is part of what the snapshot holds and is restored away like any other uncommitted edit" (`:62` to `:67`).
+"This amends the plan's sentence in both places" (`:69`),
+which are the plan's `:1457` and `:1615`.
+- What the slot holds:
+"A2:
+keep copy,
+swap at end (Recommended)":
+"the copied `.git` stays until the last step,
+and the pointer and the copy then change places in one exchanging rename,
+so that no moment and no kill leaves the folder without a `.git`" (`:77` to `:82`).
+The record keeps the costs and the owed run:
+"a Git command run in the folder during the fill acts through the copy,
+which can write files into the tree being restored and which names the main repository's other worktree folders,
+its remotes and its hooks;
+and the exchanging rename is read from OpenZFS's source and has not been run" (`:84` to `:89`),
+and "Still owed:
+a guest run of the exchange,
+with what a kill before,
+at and after it leaves" (`:91` to `:94`).
+It also records that making the copy inert was not chosen (`:104` to `:107`).
+
+Where each answer acts:
+the fallback in "What happens when the proof fails or the restore cannot finish";
+the proof's window in "What the captured source is" and "Where the records differ";
+the slot in "The restore" step 8 and "Limitations".
+The fourth question,
+whether rung 1 may decline a very dirty main checkout,
+is not decided (`:109` to `:113`) and stays as Q-B,
+waiting for the measurement that sizes the cut.
 
 ## The open item and the words it carries
 
@@ -314,6 +466,15 @@ which is neither the linked registration nor a success signal."
 - The preflight capture:
 the same file `:370`,
 "capture the index/tree verification inputs".
+- The three answers of 2026-11-22,
+and what the record says each amends:
+`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+its section "Whether a failed add may finish with Git's own checkout by itself" (`:21` to `:53`),
+"Which writes the frozen proof refuses" (`:55` to `:69`) and "What the slot holds while the add fills it" (`:71` to `:94`),
+and its "What was not chosen" (`:96` to `:107`).
+Its fourth question,
+whether rung 1 may decline a very dirty checkout,
+is left open (`:109` to `:113`).
 - No configuration:
 `doc/decision/cli-git-zfs-step-8-sweep-choices.md:19` to `:45`,
 the project "first answered that everything must work by default with no configuration",
@@ -368,15 +529,17 @@ and the answer this design serves requires a proof that refuses such a write.
 The btrfs rung's sentence stays true of the btrfs rung,
 rung 1 refuses what its own proof catches,
 and neither claims to defend against a write after the snapshot's transaction group (L3).
-- The plan's acceptance wording is narrower than this design:
+- The plan's acceptance wording was narrower than this design:
 "Cover recognized and rejected forms,
 dirty sources and a tracked write between preflight and snapshot that the frozen proof refuses" (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:1456` to `:1459`,
 repeated at `:1614` to `:1617`).
-This design takes its frozen capture immediately before the snapshot and re-runs every refusal against it,
-so a write between preflight and that capture is handled by the restore rather than refused by the proof.
-That is a departure from the plan's sentence,
-and Q-C puts it to the project;
-taking Q-C's option (c) would remove the departure.
+The project's answer of 2026-11-22 settles it the way this design works:
+the capture is taken immediately before the snapshot,
+every refusal is re-run against it,
+any write after it refuses,
+and a write before it "is part of what the snapshot holds and is restored away like any other uncommitted edit" (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md:62` to `:67`).
+The record amends the plan's sentence in both places (`:69`),
+and V6 lists that edit with the allocation.
 - "The clone rung,
 which is only for clean sources" (`SPEC.md:1281` to `:1282`) is the ladder's rung 2,
 the same-dataset reflink,
@@ -387,7 +550,7 @@ the clean check's stat proof,
 the rung 2 proof that a source matches its commit,
 the fence's size proof,
 and this document's comparison of a clone with a capture.
-"Frozen proof" here means D1 to D3 and nothing else.
+"Frozen proof" here means D1 to D4 and nothing else.
 - Issue 6323 is the conversion defect (`SPEC.md:2736` to `:2738`,
 "a clone keeps the source's bytes where the checkout would convert line endings or `ident`"),
 and the handover records that it "closes with" the fence's merge (`doc/handover/cli-git-rust-implementation.md:41374`),
@@ -474,6 +637,9 @@ whose comment says "This is the moment the worktree starts vouching for its file
 before it,
 no index exists there at all") and `subvolume_index_install_into_new_worktree.rs:190` to `:210` (`publish_index_under_a_name`,
 one rename that replaces nothing).
+The write refuses an existing private name and refuses when a real `index` appears (`:150` to `:162`),
+and the clone rung's seed passes through `with_zeroed_stat` before it is written (`worktree_clone_conversion_beside_the_clone.rs:189` to `:196`,
+`seed_without_stat`).
 - F9.
 The restore's own Git runs name their Git directory and work tree through the environment,
 and take an index file when one is named:
@@ -507,7 +673,7 @@ one named snapshot has a dependent clone").
 The ZPL keeps each of the access,
 modification and change times as a sixteen-byte value,
 seconds and nanoseconds:
-`module/zfs/sa.c:1704` to `:1706`.
+`module/zfs/sa.c:1702` to `:1704`.
 The nanoseconds are the coarse clock's,
 not the write's own (F15).
 - F15.
@@ -630,6 +796,10 @@ The wrapper's settle does not read a file whose recorded stat data is its own to
 `:248`).
 - F31.
 `paths_whose_content_differs` is defined at `worktree_clean_tree_walk.rs:223` and re-exported at `worktree_clean.rs:49`.
+Its content test is `matches_stored_exactly` (`:248`),
+which C3 needs:
+an entry whose recorded fields are the file's own to the nanosecond is vouched for,
+and every other entry is read and compared with its blob.
 - F32.
 The btrfs rung hands the copied `.git` to a trash inside the copy in one rename and lets the disposal empty it after the command returns:
 `worktree_snapshot.rs:284` with `hand_over.take_entry`.
@@ -645,6 +815,55 @@ so an index that carries one cannot be installed.
 - F35.
 The copy journal's folder sweep reads only the names that end in its journal suffix (`worktree_copy_journal.rs:604`),
 so a record in another folder is not read by it.
+- F36.
+The wrapper has the exchanging rename twice:
+`exchange_paths` (`package/git-policy/cli/src/native/subvolume/fs_clone_exchange.rs:66` to `:85`,
+`renameat2(AT_FDCWD, …)` with `RENAME_EXCHANGE`) and `exchange_at` (`fs_beneath.rs:348` to `:355`,
+the same call from one open folder).
+Their own comments state the property the design needs:
+"After the call `first` names what `second` named and the other way round,
+with no moment at which either path is missing",
+and "Both paths must exist and be on one filesystem".
+- F37.
+OpenZFS `zfs-2.4.4` and Linux `v7.3` allow a directory and a regular file to exchange:
+`module/os/linux/zfs/zfs_vnops_os.c:2818` to `:2824` accepts `RENAME_EXCHANGE` and only one of the three flags,
+`:3034` to `:3046` skips the same-type requirement "unless exchanging",
+and `:3052` to `:3055` requires the target to exist;
+`fs/namei.c:6103` to `:6108` and `:6127` to `:6131` judge the exchanged target by its own type,
+and `:6182` to `:6185` guards the mixed pair's link counts.
+Not run:
+[M9][m9]'s guest run is owed.
+- F38.
+The kernel reports its coarse clock's resolution as one millisecond on this host:
+`clock_getres(CLOCK_REALTIME_COARSE)` printed `0.001` at 2026-11-22T19:03:31-05:00 in a scratch command,
+which sizes C4's tick and the settle's racy rule.
+- F39.
+The racy set held one entry of 24,689 at 2026-11-22T19:03:31-05:00:
+a scratch script read the main checkout's index mtime and its `ls-files --debug` times and found `doc/handover/cli-git-rust-implementation.md` within one tick of it,
+with 36 recorded times carrying a zero sub-second part,
+which agrees with the reviewer's P5.
+- F40.
+A copy of the main checkout's `.git` names places outside a clone of it:
+`<common>/worktrees` held 187 registrations whose `gitdir` files spell absolute paths (the reviewer read 188;
+the count churns;
+the first was `/var/home/user/Monochromatic/.claude/worktrees/add-explains-slow-route/.git`),
+one remote named `origin`,
+and the repository's four hooks (`post-checkout`,
+`post-commit`,
+`post-merge`,
+`pre-push`);
+it holds no alternates file and sets no `core.worktree`.
+Read on 2026-11-22T19:03:31-05:00;
+the reviewer's P7 read the same shape.
+- F41.
+`restore_dirty` names the real index in three places and nowhere else:
+`ask` builds `checkout_environment(target.admin, work_tree)` for the proof's runs and the ignored listing (`worktree_dirty_restore.rs:185` to `:195`),
+`restore_dirty` builds its own environment for the clean and the reset (`:470` to `:473`),
+and `remove_the_files_the_reset_cannot_see` reads `target.admin.join("index")` and takes the settle's index seconds from that file's mtime (`:415` to `:417`).
+- F42.
+The wrapper already clears a waiting index and its lock:
+`clear_the_waiting_index` (`worktree_copying/worktree_copy_interrupted_add_settlement.rs:366` to `:372`) removes `index.pending` and `index.pending.lock`,
+and the settlement calls it at `:562` and `:597`.
 
 ## Assumptions
 
@@ -702,26 +921,31 @@ the design does not catch it,
 which is the risk `SPEC.md:1396` to `:1399` accepts for every rung.
 - L4.
 The proof's detection rests on a one-millisecond tick (F15,
-F22) and on Git's seconds (F2,
+F22,
+F38) and on Git's seconds (F2,
 F23).
-A tracked write that lands in the same tick as the file's own last write leaves every compared field equal;
-the design refuses it by digesting the racy set (C4),
-and the residual is the same coincidence before the capture,
-which the settle cannot see on ZFS as it can on btrfs (F21,
-F30,
-V4).
-The exposure needs the index write,
-the file's last write,
-this add's `lstat` and the other session's write inside one millisecond;
-its size is not measured.
+For a write before the capture,
+three events must share one tick:
+the file's own last write,
+the index write that recorded its stat,
+and the second write.
+This add's `lstat` is not one of them;
+a write after the capture's read is refused by C4 and D4.
+The design's adopted settle rule reads by content the entries in the racy set,
+which is every entry such a coincidence can hide in (V4,
+F39),
+so the residual is closed unless the project vetoes that rule.
+The exposure's size is the racy set's,
+one entry of 24,689 at one moment (F39);
+[M7][m7] counts it over a day.
 - L5.
 The capture's cost figures come from scratch scripts and from another round's record (F25,
 A5);
 neither is the rung's own timer.
 - L6.
 The proof needs the clone's copied `.git/index`,
-or the record's proof phase.
-A resume that finds the copied index gone and no proof phase cannot prove the frozen clone from the capture alone,
+or the proof's phase marker.
+A resume that finds the copied index gone and no marker cannot prove the frozen clone from the capture alone,
 because the capture holds the index's digest and the files' facts,
 not the files.
 - L7.
@@ -730,6 +954,27 @@ The capture's size is an estimate:
 so about 2.5 MB for this repository's 24,685 paths,
 larger than the first text's 2.2 MB because it now carries the kind,
 the execute bit and an absent row per deleted path.
+- L8.
+A command run in the slot through the copied `.git` before the exchange can reach three places (F40):
+the tree being restored,
+where `git restore .`,
+`git checkout .`,
+`git stash` and `git reset --hard` write the copy's HEAD bytes and the writes stay because the tree is the future worktree;
+the main repository's other worktree folders,
+where `git worktree remove` acts on the absolute paths the copy names;
+and the remote,
+where `git push` sends whatever the copy's branch holds.
+It never writes the main checkout's own files,
+its index or its references,
+because the copy sets no `core.worktree` and has no alternates.
+The post-restore content check and the project's answer on the slot are what close the tree half;
+the other two are stated and not closed.
+- L9.
+The exchanging rename is read from OpenZFS and Linux sources (F37) and has not been run;
+[M9][m9]'s guest run is owed,
+with what a kill before,
+at and after the exchange leaves.
+The inert copy the project did not choose is costed from F40's counts and not measured.
 
 ## The parts that need a design
 
@@ -768,9 +1013,13 @@ judged by the wrapper's existing predicate (F31).
 - C4.
 A SHA-256 of the content of every path in the racy set:
 the entries whose recorded modification time or change time is not at least one tick older than C1's index modification time.
+The tick is `clock_getres(CLOCK_REALTIME_COARSE)`'s answer (F38),
+one millisecond on this host,
+and an answer the wrapper cannot read treats every entry as racy,
+which is the safe direction.
 On this host's ZFS that is the set a same-tick write can hide in (L4).
-The set is small on the checkout as it commonly stands;
-[M7][m7] counts it.
+The set held one entry of 24,689 at one moment (F39),
+and [M7][m7] counts it over a day.
 - C5.
 The commit the caller's add checks out,
 read from the new worktree's `HEAD` file and the ref it names after Git's registration,
@@ -779,6 +1028,8 @@ The source's own `HEAD` is recorded beside it,
 because the fence's tree reads were made against it,
 and a ref moved in the window is reported rather than refused:
 the commit the restore writes is the one Git registered.
+- A split or sparse index is refused from C1's extension signatures (F34),
+so the rung ends before anything is written rather than after the mount.
 - The refusal set of `SPEC.md:1264` to `:1282` is re-run against these bytes and against the source immediately before the capture is written:
 the index-entry kinds from C1's bytes,
 an operation in progress or a held `index.lock`,
@@ -821,9 +1072,7 @@ the index's size,
 modification time and digest,
 the captured source `HEAD`,
 the checkout's Git-directory identity,
-the entry count,
-and a phase word (`captured`,
-or `proof=passed`);
+and the entry count;
 then one line per entry,
 the path as lowercase hexadecimal and its kind,
 size,
@@ -833,6 +1082,12 @@ then one line per digest of C3 and C4.
 A reader refuses an unknown version,
 a line it cannot parse,
 or a count that disagrees with the lines.
+- The proof's phase:
+a marker file `<slot>.capture.passed` beside the record,
+made with an exclusive staging name and one link to its real name that replaces nothing,
+so a phase flip costs a small file and never a rewrite of 2.5 MB,
+and a resume reads the marker rather than the record.
+The marker is removed with the record.
 - Publication:
 an exclusive staging name `<slot>.capture.pending`,
 the whole file written,
@@ -924,7 +1179,8 @@ but the replacement's change time and often its size differ,
 and a replacement inside the same tick is D4's case too;
 - a staged change or a commit in the window moves the index,
 which D1 catches before D2 runs;
-- a write whose bytes and every compared field are equal after the capture is D4's case for the racy set and is either a write before the capture (L4's residual) or nothing to catch.
+- a write whose bytes and every compared field are equal after the capture is D4's case for the racy set,
+and one before the capture that leaves every field equal is the settle's case under V4's adopted rule (L4).
 
 The proof is not a claim about ignored files or untracked files.
 Those are carried exactly as the snapshot carried them,
@@ -941,7 +1197,7 @@ nothing under a real name is published before the finished tree is proven.
 1. Verify the mount and the caller's visibility,
 which is the add's step 4 and not this design's.
 2. Read the clone's own index bytes with `read_own_index` (F28) and run D1 to D4 before any write (see "The frozen proof").
-3. Write the proof's phase into the capture record (`proof=passed`),
+3. Publish the proof's phase marker `<slot>.capture.passed` beside the record,
 so a resume after the first write does not have to prove a tree that has already been written (L6,
 "What a resume finds").
 4. Remove the clone-local leave-outs with the btrfs rung's own rule:
@@ -969,7 +1225,14 @@ the `UNTR` and `FSMN` extensions dropped;
 and a recomputed checksum.
 No field is taken from any file,
 which is `SPEC.md:1289` to `:1293` and the reason H1 was raised.
+The seed is the bytes step 2 read and D1 compared,
+not a second read of the copied index (N11),
+and it passes through `with_zeroed_stat` with the fence's paths before the write,
+as `seed_without_stat` does (F8).
 No index exists under the worktree's own name yet.
+The entries of the paths the reset or the fence's write rewrite are Git's own records once those runs have written them,
+because Git writes an entry's stat data when it writes the file;
+the fields above are what the private write holds before them.
 If [M2][m2] shows that a clone's inode numbers are not the snapshot's,
 the install would need a field mask the wrapper does not have:
 a rewrite that writes the clone's own device and inode into an entry only when its recorded size,
@@ -978,30 +1241,75 @@ which the proof established,
 and never its change time.
 That is a change to the shared rewrite,
 and [M2][m2]'s answer is what would put it to the project.
-6. Run the btrfs rung's own `restore_dirty` with the clone's root as its stage and with `GIT_DIR`,
-`GIT_WORK_TREE` and `GIT_INDEX_FILE` naming the private index (F9):
+6. Run the btrfs rung's own `restore_dirty` with the clone's root as its stage and with the private index:
 list the ignored paths,
 run `git clean --force -d` (untracked files that no ignore rule covers go,
 ignored files stay),
-settle by content the entries the installed index cannot vouch for,
+settle by content the entries the private index cannot vouch for,
 run `git read-tree --reset -u <the commit the caller asked for>`,
 and prove the result with `prove_restored`.
-`restore_dirty`'s request environment gains the index parameter that `checkout_environment_with_index` already builds;
-that is a change to a shared function,
-named in "What it reuses,
-and where ZFS differs".
+Three sites in that function name the real index and each changes to the private one (F41):
+`ask`'s `checkout_environment`,
+which the proof's runs and the ignored listing use;
+`restore_dirty`'s own environment for the clean and the reset;
+and `remove_the_files_the_reset_cannot_see`'s read of `<admin>/index` and its mtime,
+which is the settle's index seconds.
+Changing the environment alone leaves two of the three reading a name that does not exist,
+which is what N2 found.
+The clean at the clone's root meets the walk-and-clean record's sentence:
+the clone holds no mount other than itself,
+a nested dataset's copy is an empty directory or the underlay's plain files (F18),
+the wrapper's trash place and `.claude` under it are ignored so the clean never enters them,
+step 4 has removed the nested worktree stubs,
+and a stub it could not remove ended the rung before the clean.
 7. Write the fence's paths through Git with `git checkout-index --force -u --stdin` (F5) against the same private index,
 so no path is recorded clean while it holds the source's unconverted bytes.
-8. Publish,
-in this order:
-move the copied `.git` into the clone-local trash in one rename (F32);
+8. Compare by content every path the reset or the fence's write wrote,
+against the private index,
+and refuse if one holds other bytes than its entry names:
+a command run in the slot through the copied `.git` can write into the tree while these steps run (L8,
+F40),
+and Git's own check would not see a same-second rewrite of the same length.
+Then publish,
+and the slot never lacks a `.git` at any instant:
 publish the private index under the real name with one rename that replaces nothing (F8);
-write the pointer through a private name in the administrative directory and one rename into `<clone>/.git`,
-so the slot lacks a `.git` for the gap between two renames.
+write the saved pointer bytes to a private name inside the clone's own trash place,
+`<clone>/.claude/cli-git-trash/<nonce>/copied-administration`,
+which the wrapper's exclude line already keeps out of the index;
+exchange that name with `<clone>/.git` in one `renameat2(RENAME_EXCHANGE)` (F36,
+F37),
+so the pointer takes `.git`'s name and the copied administration lands at the trash name in the same instant;
+and leave the copied administration there,
+because the trash's manifest names it and the disposal empties it after the add returns (F32,
+A4).
 Then verify the worktree root,
 the common directory,
 the reciprocal registration,
 the mount identity and the checked-out state.
+
+What a kill leaves at each point of step 8:
+before the private name is written,
+the slot holds the copied `.git` and the published index,
+and a resume writes the name and exchanges;
+after the private name is written and before the exchange,
+the slot holds the copied `.git` and the trash name holds a small file of pointer bytes,
+which a resume overwrites because the trash is the wrapper's own;
+at the exchange,
+one system call leaves one of the two states and never a mix,
+so the slot holds either the copied directory or the saved pointer;
+after the exchange,
+the slot holds the saved pointer with the published index,
+and the copied administration is inside the trash and named by its manifest,
+which a resume leaves to the disposal.
+A slot with no `.git` at all is not a state these steps leave,
+and a resume that finds one takes the fallback,
+unless the clone's identity can no longer be proven,
+and then it leaves the pending state (L6).
+Publishing the index first is what makes every state after the exchange a worktree whose index is whole,
+and a resume publishes the private index only while `index.pending` stands:
+the private name's absence with the real name present means the rename happened,
+because nothing else removes the private name.
+
 9. Mark the binding usable,
 queue the dependency repair,
 hand the trash to the disposal,
@@ -1010,17 +1318,30 @@ and print Git's line,
 the line about the left-out changes,
 and nothing else.
 
-Why this order,
-and what a command run in the slot sees at each moment,
-is Q-D's subject.
+Why this order:
+nothing under a real name is published before the finished tree is proven (H2),
+and the slot never lacks a `.git` ("The project's answers of 2026-11-22").
 Until step 8 the slot holds the copied `.git` directory,
-so a `git status` run there answers from a mirror of the main checkout,
-and a mutating command acts on that copy and is lost with it.
-From the first rename of step 8 to the second the slot holds no `.git`,
-so a Git run there finds the main checkout's repository above it.
-Either is a state without the bad property H2 named,
-a valid pointer over an unrestored tree;
-the third option Q-D lists is that state and is refused.
+so a `git status` there answers from a mirror of the main checkout at the snapshot,
+and a mutating command acts through the copy (L8):
+`git add -A` and `git commit --all` land in the copy's index and refs and are lost with it;
+`git restore .`,
+`git checkout .`,
+`git stash` and `git reset --hard` write the copy's HEAD bytes into the tree being restored and the writes stay,
+which the content check at the head of step 8 refuses;
+`git worktree remove` acts on the 187 worktree folders the copy names,
+and `git push` reaches the remote,
+neither of which the design closes.
+None of them writes the main checkout's own files,
+its index or its references.
+At the exchange the slot holds either the copied directory or the saved pointer,
+never neither,
+and after it the slot is a registered worktree with the finished index.
+The state the first text had,
+a valid pointer over an unrestored tree,
+does not exist at any step.
+Making the copy inert was put to the project and not chosen;
+"Limitations" states what it would have cost.
 
 What the restore guarantees,
 and its exceptions,
@@ -1039,11 +1360,11 @@ its content settle and its proof (`restore_dirty`,
 F27);
 - the copy's own index read (`read_own_index`,
 F28);
-- the leave-out rule and the trash hand-over of the snapshot rung (`prune_snapshot`,
+- the leave-out rule and the trash of the snapshot rung (`prune_snapshot`,
 `remove_stub`,
-`replace_git_pointer`,
 F32),
-and the disposal that empties a trash after the command returns;
+and the disposal that empties a trash after the command returns,
+with the exchange (F36) taking the place `replace_git_pointer` has there;
 - the conversion fence,
 decided before the snapshot and written through Git after the reset,
 with the index's zeroed stat data for the fenced paths (F5,
@@ -1053,9 +1374,21 @@ F28);
 
 Changed rather than reused:
 
-- `restore_dirty`'s Git runs gain `GIT_INDEX_FILE`,
-a parameter `checkout_environment_with_index` already carries (F9),
-and the rung calls the runs with the clone's root as their work tree.
+- `restore_dirty`'s three real-name index sites take the private index (F41):
+`ask`'s environment,
+which the proof's runs and the ignored listing use,
+and which `checkout_environment_with_index` already builds (F9);
+`restore_dirty`'s own environment for the clean and the reset;
+and the settle's read of `<admin>/index` and its mtime.
+A `Target` that carries the index path is what all three read,
+and T6b is the control that goes red if any of them reads the real name.
+- The resume clears the waiting index and its lock with `clear_the_waiting_index` (F42),
+before step 5 is re-run,
+because `write_index_under_a_name` refuses an existing private name and a Git run killed against it leaves `index.pending.lock` beside it (F8,
+F42).
+- The pointer's install is `exchange_paths` or `exchange_at` (F36),
+not `replace_git_pointer`'s in-place write,
+because the slot must never lack a `.git` and the two names are on one dataset.
 - The index install is `write_index_under_a_name` (F8) and not `install_index`,
 because the private name is what H2 needs.
 The rule the dirty form already follows (every entry keeps the fields its own index recorded,
@@ -1069,13 +1402,13 @@ and "Choices this design marks for the project's veto" carries the contingency.
 Where ZFS differs,
 and what the design does about each:
 
-- There is no stage and no exchange,
+- There is no stage,
 so the fill is visible while it runs and the binding,
 not the mount,
-says whether the worktree is usable.
-Q-D asks what the slot may look like meanwhile.
+says whether the worktree is usable;
+the project's answer of 2026-11-22 keeps the copy and swaps it at the end ("The project's answers of 2026-11-22").
 - The copied administration is on another dataset from the source's trash,
-so the hand-over is a rename inside the clone and the disposal reaches it through the published worktree path.
+so the exchange and the trash name are inside the clone's own dataset and the disposal reaches the copy through the published worktree path.
 - The inode numbers are shared with the snapshot (F10,
 F12) and the device is not;
 the proof does not compare the device,
@@ -1099,64 +1432,87 @@ as in the btrfs snapshot rung.
 
 ### What happens when the proof fails or the restore cannot finish
 
-The accepted rule this section answers is quoted whole in "Decisions and records that bind this design" (`doc/planning/cli-git-zfs-worktree-design-proposal.md:427` to `:431`):
-"No silent fallback over an unresolved managed state.
-An explicitly recovered Git-only add may finish at the same slot only after the mount and all outstanding intents are settled."
-Its literal reading is that an add whose clone is mounted and refused leaves the state and a person recovers it,
-and that is what this design does until the project answers Q-A.
-Q-A offers the settlement as its first-ranked option and says what the design becomes if it is taken.
+The project's answer of 2026-11-22 settles this section:
+"at every step,
+the add destroys only what this add made and recorded (the clone,
+then its snapshot),
+runs Git's own checkout at the same slot,
+and says which route made the worktree and why the first was abandoned" (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md:35` to `:42`).
+The record states what it amends:
+the fallback "is not silent,
+since the add reports it,
+and it finishes only after the mount and the add's own intents are settled by the add itself" (`:50` to `:53`).
+So there is one route from every failure after the claim,
+and a failure before the claim has nothing to settle.
 
-Before the clone is mounted,
-a failure destroys only what this invocation made,
-whose identity it recorded,
-and Git's own checkout completes the worktree at the same slot in the same invocation:
+What the add does,
+in order:
 
-- a refusal before the snapshot (a refusal the btrfs rung already makes,
-a refused kind,
-a fence that cannot decide) leaves no managed object,
-and the rung ends as the btrfs rung's does;
-- a refused or failed snapshot or clone request (including `ENOSPC`) keeps the claim,
-destroys the clone if it exists and the snapshot after it,
-because a snapshot with a dependent clone cannot be destroyed first (F13),
-releases the slot and lets Git's own checkout finish it;
-- an identity that cannot be proven,
-or a mount that does not arrive within its bound,
-leaves the clone and its snapshot in place and refuses,
-as the `ENOSPC` clause requires:
-destroying an object whose identity was not proven is what the removal proof forbids.
-`doctor`'s unaccounted origin line reports a snapshot left this way,
-and a removal settles it.
+- it stops writing and reads the state it must settle:
+the clone and the origin snapshot its record names,
+the mount,
+and its own outstanding intents;
+- it asks the handler for that clone's unmount and waits for the receipt within the step's bound,
+which is the staged-unmount interface the unmount design owns;
+- it destroys that clone with the delegated `destroy` the route already relies on,
+and only then the origin snapshot,
+because a snapshot with a dependent clone refuses `EEXIST` (F13);
+a plan is written before the first destruction,
+as the destruction-plan design requires;
+- it releases the slot and settles the registration through the same step the removal uses;
+- it runs Git's own checkout at the same slot,
+which is `git reset --hard --no-recurse-submodules` under the verified binding (F33);
+- it prints one sentence naming the route that made the worktree and why the first was abandoned,
+with the proof's reason in it,
+and removes the capture record and its marker.
 
-After the clone is mounted,
-a failure of the proof or of a restore step leaves the pending state:
+A refusal the preflight makes leaves no managed object,
+and the rung ends as the btrfs rung's does.
 
-- the add writes its record's pending state,
-keeps the capture record,
-prints the failure sentence with the reason and the removal command from the wrapper's existing unfinished-worktree report,
-and changes nothing about the clone or its snapshot;
-- the person leaves the folder,
-runs the removal command,
-and adds again,
-which then takes whatever rung the ladder chooses;
-- the design does not retry:
-Q-A's option (c) is the one that would.
+What the add calls,
+and the requirement this places on the designs that own those steps:
+
+- the handler's unmount request and its receipt (the staging and unmount designs),
+for the one clone the record identifies by dataset GUID and `createtxg`;
+- the delegated `destroy` of that clone and then of that snapshot (the removal's identity proof and the destruction-plan design);
+- the registration's settle (the removal's Git settle).
+No sibling design offers these as a call an add may make today,
+and "Dependencies on the sibling designs" says which and what each would have to expose;
+until they do,
+the add takes the pending state below.
+
+When the settle itself fails,
+the add keeps what it made,
+writes its record's pending state,
+prints the failure sentence with the removal command from the wrapper's existing unfinished-worktree report,
+and changes nothing else;
+a person leaves the folder,
+runs the removal,
+and adds again.
+
+A clone or snapshot whose identity cannot be re-proven is not destroyed by the add,
+because destroying an object whose identity was not proven is what the removal proof forbids;
+`doctor`'s unaccounted origin line reports a snapshot left that way,
+and the removal settles it.
 
 The lines the person reads,
 in the wrapper's voice,
 and what the journal keeps:
 
-- the clone rung's existing sentence,
-with the proof's reason in it:
-`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.` for a failure before the mount,
-and the same reason inside the unfinished worktree's sentence for one after it;
+- one sentence for both routes,
+which is the clone rung's existing sentence with the route named:
+`monochromatic-git-policy-cli: the clone rung could not finish (<reason>); the worktree at <slot> was made by Git's own checkout.`;
 - the reason's own words name the path and the field,
 for example `the frozen proof refused AGENTS.md: its change time changed in the main checkout while the add read it`;
+- for a settle that failed,
+the unfinished worktree's sentence with the removal command;
 - on success,
 the line Git's own checkout prints and the line about the left-out changes (F33),
 and nothing about the proof.
 
 The journal keeps one entry with the destination,
 the rung,
+the route that made the worktree,
 the kind of refusal,
 the path,
 the field and the capture record's name,
@@ -1174,9 +1530,13 @@ the leave-out removes what is there,
 the settle reads and removes,
 `git read-tree --reset -u` rewrites what differs,
 and the fence's write rewrites.
+Two names are not idempotent by themselves and a resume clears them first:
+`index.pending` and `index.pending.lock`,
+with the wrapper's own `clear_the_waiting_index` (F42),
+because `write_index_under_a_name` refuses an existing private name (F8) and a Git run killed against that name leaves its lock beside it.
 So a resume re-runs the restore whole rather than tracking a step,
-and the only fact it needs is the proof's phase,
-which step 3 writes.
+and the only fact it needs beyond that is the proof's phase marker,
+which step 3 publishes.
 Each state is told from evidence on disk and from the record:
 
 - a claim and no registration:
@@ -1193,20 +1553,30 @@ the clone's identity is checked against the binding and the mount is requested a
 the proof runs after the mount arrives,
 from the capture record,
 so a source that moved since the snapshot does not fail it;
-- a mounted clone with the copied `.git` and no `proof=passed` phase:
+- a mounted clone with the copied `.git` and no phase marker:
 the proof runs from the capture record and the restore then runs whole;
-- a mounted clone with the copied `.git` and `proof=passed`:
-the restore runs whole without the proof,
+- a mounted clone with the copied `.git` and the phase marker:
+the waiting index and its lock are cleared,
+and the restore runs whole without the proof,
 because the tree may already hold written bytes and a second proof would refuse the add's own work;
-- a mounted clone with no copied `.git`,
-no pointer and `proof=passed`:
-the restore had reached step 8;
-it publishes the index and the pointer and verifies the worktree;
-- a mounted clone with no copied `.git`,
-no pointer and no proof phase:
-the clone cannot be proven and the tree may hold the other sessions' bytes.
-The add refuses and leaves the pending state (L6);
-nothing is destroyed;
+- a mounted clone with the saved pointer in `.git`,
+the copied administration in the clone's trash and the phase marker:
+step 8 happened;
+the index under the real name is present,
+or the private name stands and is published,
+and the resume verifies the worktree and finishes step 9;
+- a mounted clone with the saved pointer in `.git` and no real-name index and no private name:
+the exchange happened and the publication did not,
+which step 8's order cannot leave;
+the resume treats it as damage and takes the fallback,
+which settles the clone and finishes with Git's own checkout;
+- a slot with no `.git` at all:
+no step of this design leaves it,
+so the resume takes the fallback too;
+- a clone whose identity the record no longer proves,
+or whose unmount and destruction cannot be confirmed:
+the add does not destroy what it cannot prove,
+so it leaves the pending state and names the removal (L6);
 - an index under the real name and a pointer,
 with the binding not usable:
 step 8's verification runs again,
@@ -1217,7 +1587,10 @@ it is a worktree.
 
 The capture record's end follows the states:
 it stays while any row above is still reachable,
-and it is removed on the success of step 9 or when the add leaves a state in which the proof can no longer pass and the clone is settled.
+and it is removed on the success of step 9,
+when the add's fallback finishes the worktree with Git's own checkout,
+or when the add leaves a state in which the proof can no longer pass and the clone is settled.
+Its phase marker is removed with it.
 A `doctor` line reports a record whose add left none of those states,
 and a staging name a killed writer left.
 
@@ -1237,6 +1610,10 @@ built with the crate's existing `measurement-routes` feature and run after the t
 keeps the capture and skips the proof,
 so the proof's own share is visible;
 it is never a shipped switch.
+Each add's own step timers report the capture,
+the walk,
+the digests,
+the compare and the two untracked listings separately.
 It reports each arm's median and range and the ratio of the dirty arm to the clean arm and of both to the control.
 No figure is quoted here:
 the only numbers in hand are F25's script timings and the rung 2 record's walk (A5),
@@ -1253,13 +1630,16 @@ alternating arms with an identical-binary control,
 and reports the ratio to Git's own checkout at each shape.
 Whether rung 1 should decline a very dirty source as rung 2 does is Q-B and not a bar this design sets.
 - The fallback after a refused proof.
-The shipped design has no fallback after the mount (Q-A's interim),
-so the only arm is [M5][m5]'s:
-an add that refuses and leaves the pending state,
-timed to the point it prints,
-against the same add on a build that never takes rung 1.
-If Q-A is answered with the settlement,
-the same probe measures the settlement's path too.
+[M5][m5] measures the settled add the project's answer names:
+an add whose proof is forced to refuse at T1's seam,
+timed from the command's start to the end of Git's own checkout at the same slot,
+against the same fixture added on a build that never takes rung 1,
+with its separate arm for a settle that fails and leaves the pending state.
+- The exchange.
+[M9][m9] is the guest run the record owes:
+the exchange with what a kill before,
+at and after it leaves,
+and the exchange's own cost against the two-rename sequence the first text had.
 - The refusal rate on a busy checkout.
 [M6][m6] measures how often a proof refuses when other sessions write the checkout during the add,
 at the window this design leaves,
@@ -1296,21 +1676,34 @@ and the restore does not run.
 Its no-write control is T1's.
 - T3.
 `a_write_in_the_file's_own_tick_is_refused_by_the_racy_set`.
-The seam's control advances the clock's tick deterministically,
-by reading the file's change time until it moves and only then writing,
-which is a bounded wait on state and not a sleep;
+Two things are forced,
+both on observed state and neither by a sleep.
+The entry is put in the racy set on purpose:
+the fixture `utimensat`s the index file's modification time to a moment inside one tick after the file's recorded time,
+which is what C4's rule reads.
+The window write is put in the file's own tick by a bounded retry:
+the control writes the file,
+reads its change time and the index's recorded one,
+and repeats a fixed small number of times until the two stamps are equal,
+declaring the case inconclusive rather than sleeping;
 it writes the same length.
-Assert D4 refuses through C4's digest.
-The control that must pass:
-a write after the tick moved is refused by D2 and not by D4,
-so the two arms tell the two refusals apart.
+Assert D4 refuses through C4's digest and names the path.
+The arm that must be told apart from it:
+a write after the tick moved is refused by D2 and not by D4.
+The no-write control is T1's.
 - T3b.
-`a_same_tick_rewrite_of_a_vouched_path_before_the_capture_is_not_refused`.
-The seam's control writes a path twice inside one tick before the capture takes its facts,
-and the test asserts the add proceeds and the clone carries that write,
-which is exactly L4's residual.
-It is the case V4's option (b) closes,
-and it is stated rather than left to be discovered.
+`a_same_tick_rewrite_of_a_vouched_path_before_the_capture_is_settled_by_content`.
+The same two forcings,
+with the second write made before the capture takes its facts,
+so the capture reads the rewritten bytes and D4 cannot help.
+With V4's adopted rule the settle reads the entry by content,
+finds bytes its own index entry does not name,
+and the reset writes the target commit's bytes,
+which the test asserts.
+Before that rule the same fixture asserts the opposite,
+that the clone carries the second write's bytes,
+and the test states both so the flip is never silent (L4,
+V4).
 - T4.
 `the_capture_digests_only_the_unvouched_and_racy_entries`.
 A fixture with one edited path,
@@ -1329,10 +1722,13 @@ the registration,
 the snapshot,
 the clone,
 the mount,
-the proof's phase,
+the phase marker,
 each restore step,
-the trash rename,
-the index's publication and the pointer's.
+the waiting index,
+the index's publication,
+the pointer's private name,
+the exchange,
+and the trash's leftover.
 - T6.
 `the_index_the_clone_installs_takes_no_field_from_a_file`.
 After step 5,
@@ -1344,6 +1740,18 @@ not the file's;
 and that a same-size edit whose modification time was put back is still rewritten by the reset.
 The test is red if the install copies a change time,
 which is H1's control.
+- T6b.
+`the_restore_reads_the_private_index_and_never_the_real_name`.
+Three arms,
+one per site of F41:
+no index under the real name at all,
+a decoy index under the real name whose entries name other blobs,
+and a real-name index whose modification time differs from the private one's by more than a tick.
+Each asserts the restore's verdict is the private index's,
+and the test goes red if `ask`'s environment,
+`restore_dirty`'s environment or the settle's read names the real file.
+Its control is the ordinary restore,
+which passes all three.
 - T7.
 `an_untracked_repository_in_the_source_is_refused_before_the_snapshot`.
 A fixture whose source holds an untracked,
@@ -1378,19 +1786,27 @@ and one tracked path whose kind is refused.
 Assert the served tree equals Git's own checkout plus the ignored file,
 and the person reads the left-out line with the count.
 - T10.
-`no_state_with_a_valid_pointer_over_an_unrestored_tree_exists`,
-in the guest:
-kill at each of step 8's two renames and at the index's publication,
-and assert for each leftover that the slot either holds no `.git` or holds one whose index is the finished one,
+`no_moment_or_kill_leaves_the_slot_without_a_dot_git`,
+in the guest,
+because the exchange is the filesystem's:
+kill before the pointer's private name,
+after it,
+at the exchange and after the exchange before the trash is left,
+and assert for each leftover that `<clone>/.git` is either the copied directory or the saved pointer,
+that a slot with no `.git` at all never appears,
 and that the next add's verdict matches T5's rows.
+The exchange's own arm is [M9][m9].
 - T11.
-`a_refused_proof_leaves_the_pending_state_and_the_removal_completes_the_add`,
+`a_refused_proof_settles_the_add_and_gits_own_checkout_makes_the_worktree`,
 in the guest:
 the T1 refusal at the mount,
-the printed command,
-the removal,
-and the same add again served by Git's own checkout.
-Its control is the same fixture whose proof passes.
+the unmount,
+the clone's destruction and then the snapshot's,
+the printed sentence naming the route,
+and Git's own checkout at the same slot.
+Its control is the same fixture whose proof passes;
+its second control forces the settle to fail and asserts the pending state,
+the removal command and nothing destroyed.
 
 One control is run beside T1 to T4,
 `the_unchanged_window_passes_the_proof`,
@@ -1400,9 +1816,12 @@ Which need a guest:
 T8,
 T9,
 T10,
-T11 and the mount-dependent half of T5.
+T11 and the mount-dependent half of T5,
+and the exchange control inside T10,
+which is [M9][m9].
 T1 to T4,
-T6 and T7 run on the host,
+T6,
+T6b and T7 run on the host,
 over the fixture tree itself.
 
 ### Where the result differs from Git's own checkout
@@ -1429,11 +1848,14 @@ The bytes are equal.
 - The ignored state is the snapshot's instant (`SPEC.md:1518`),
 so a path the target commit stops ignoring is carried and listed as untracked (`SPEC.md:1335` to `:1342`).
 The proof counts it as carried.
-- A tracked file whose recorded stat data the settle believes can keep the source's bytes if the source was written in the same tick as the entry (L4,
+- A tracked file whose recorded stat data is the entry's own to the nanosecond can keep the source's bytes if the source was written in the same tick as the entry (L4,
 F30).
-The design names this as its one silent-byte residual and offers the settle's racy rule as V4.
+V4's adopted rule reads it by content and prevents that,
+and a veto of V4 restores the residual,
+which the design then states as its one silent byte.
 - A split or sparse index cannot be installed at all (F34),
-which ends the restore after the mount.
+so the capture refuses it from its extension signatures before anything is written,
+and the add takes Git's own checkout with no managed object.
 - Issue 6323's conversion class is the fence's,
 and the fence applies to rung 1;
 T8's guest controls are what a dirty restore to a non-`HEAD` commit owes.
@@ -1447,25 +1869,28 @@ clean ones included:
 C1,
 C2 and C5's commit,
 D1 to D4,
-the private-name index write,
-the discard and the pointer install in this design's order,
+the private write of the index and its publication,
+the copy's exchange with the pointer,
 and the resume states.
 For a clean source C3 and C4 are empty or nearly so,
 and "neither route accepts an unproved source" is met by the same proof.
-This is a change to the plan's allocation and is veto entry V6.
+This clarifies the plan's two step notes and needs its test sentence amended,
+which is veto entry V6.
 - Plan step 11 builds the dirty half:
 the full refusal set re-run against the frozen capture,
 C3 and C4's digests,
-the restore's wiring to `restore_dirty` with `GIT_INDEX_FILE`,
-the nodes' hand-over of the clone's index,
-the pending state,
-T1 to T7 and the guest tests T8 to T11.
-- The settlement a refused proof makes after the mount,
-if Q-A is answered with it,
-belongs to the removal's build (steps 14 to 17),
-because it is an unmount,
-a destruction and a Git settle,
-and no sibling design offers it to an add.
+the restore's wiring to `restore_dirty` at its three index sites (F41,
+T6b),
+the settle's racy rule (V4),
+the fallback and its pending state,
+T1 to T7,
+T6b and the guest tests T8 to T11.
+- The steps a failed add calls to settle itself,
+the unmount,
+the two destructions and the Git settle,
+belong to the removal's build (steps 14 to 17),
+because no sibling design offers them to an add,
+and "Dependencies on the sibling designs" states the requirement each of those designs must meet.
 - `SPEC.md` gains,
 under the add section and beside the btrfs rung's dirty paragraph:
 what a clone of a dirty main checkout restores,
@@ -1541,14 +1966,13 @@ ten rounds a shape;
 report the ratio for each shape with its range.
 A shape where rung 1 is slower than rung 3 is material for Q-B.
 - M5.
-The pending state's cost.
+The fallback's cost.
 In the guest:
 an add whose proof is forced to refuse at the T1 seam,
 timed from the command's start to its end,
 against the same fixture added on a build that never takes rung 1.
 Report the ratio and the range,
-and the same measurement for the settlement,
-if Q-A takes it.
+with a second arm for a settle that fails and leaves the pending state.
 - M6.
 The refusal rate on a busy checkout.
 On this host:
@@ -1568,8 +1992,8 @@ at ten moments of a working day:
 read the main checkout's index,
 list the entries whose recorded modification time or change time is not at least one tick older than the index's own modification time,
 and report the count and the sizes of those entries.
-This is the cost C4 adds,
-and it is the number that decides V4's ranking if it is large.
+This is the cost C4 adds and the cost V4's adopted rule pays in reads,
+and it is the number that decides that rule's veto if it is large.
 - M8.
 The settle's exposure on ZFS.
 In the guest:
@@ -1578,7 +2002,31 @@ with the index written before the second write;
 assert whether the btrfs rung's settle believes the file and publishes the second write's bytes.
 The positive control writes in a later tick,
 which the settle must read.
-This is what decides whether the ZFS rung's "comparable to Btrfs" needs V4's rule.
+This is the positive control for V4's adopted rule:
+with it,
+the settle reads the file and the served tree holds the target commit's bytes;
+without it,
+the served tree holds the second write's.
+- M9.
+The exchange,
+in the guest,
+on a file-backed pool:
+snapshot,
+clone,
+mount,
+write the pointer's private name inside the clone's trash place,
+exchange it with `<clone>/.git` (F36,
+F37),
+and report that `<clone>/.git` is the saved pointer,
+that the copied administration stands at the trash name,
+and that the disposal empties it.
+Kill before the private name,
+after it,
+at the exchange and after it,
+and report what each kill leaves in the slot,
+which is the run the project's answer of 2026-11-22 says is still owed (`:91` to `:94`).
+Also time the exchange against the two-rename sequence the first text had,
+alternating arms on one fixture.
 
 ## Choices this design marks for the project's veto
 
@@ -1646,18 +2094,18 @@ a session that rewrites a file,
 keeps its length and restores its modification time is carried into the clone,
 because the change time is not compared.
   - Pros and cons:
-(a) rests on the times the kernel sets,
+(a) rests on the times the kernel sets and compares no field whose sharing is a measurement,
 and its equal-times case is the tick (L4),
-covered by C4;
-(b) adds a field that F12 and [M2][m2] say is shared,
+covered by C4 and by V4's rule;
+(b) adds a field whose sharing F12 and [M2][m2] make a measurement rather than a fact,
 and it adds no protection against a same-tick write,
-which only C4 catches;
-(c) drops the one field a write cannot hide below a tick.
+which only C4 and V4's rule catch;
+(c) drops the compared field that catches a write in a later tick.
   - Ranking:
 a > b > c,
-because a needs no unmeasured sharing and adds nothing a write can hide,
-b rests on the same unmeasured sharing as a for no gain against the tick,
-and c loses the compared field that catches a write in a later tick.
+because a needs no unmeasured sharing,
+b depends on a sharing only [M2][m2] settles and buys nothing against the tick,
+and c loses the field the kernel moves on every write.
 
 - V3.
 Where the frozen capture lives.
@@ -1674,7 +2122,7 @@ though the sweep reads only its own suffix (F35).
   - Option (c),
 memory only:
 the same resume cannot prove the clone,
-so it refuses and leaves the pending state (L6).
+so it settles it and finishes with Git's own checkout (L6).
   - Pros and cons:
 (a) buys the resume,
 follows the wrapper's own record convention for one family per folder,
@@ -1689,33 +2137,44 @@ and c throws away the clone (a) proves.
 
 - V4.
 The settle's racy rule on ZFS.
-The design leaves the btrfs settle as it is,
-so a tracked file whose recorded stat data is its own to the nanosecond is believed,
-even on ZFS where the tick can hide a write before the capture (L4,
-F30).
-  - Option (a),
-this one:
-the residual is stated with its size and [M8][m8] measures whether it can land;
-nothing in the shared settle changes,
-and a same-tick write before the capture can publish that session's byte as clean.
-  - Option (b),
+The design adopts the rule its own ranking puts first:
 the settle judges by content the entries in the racy set,
-as Git's own racy rule does at second granularity (`subvolume_index.rs:520` to `:537`),
-so a same-tick write before the capture is rewritten;
-it changes code the btrfs rung shares and costs a read of [M7][m7]'s count of files.
+at the tick `clock_getres(CLOCK_REALTIME_COARSE)` reports (F38),
+so a same-tick write before the capture is rewritten rather than believed.
+The wrapper's rewrite already names the same idea at Git's second granularity (F29,
+`subvolume_index.rs:520` to `:537`,
+"an entry recorded in the same second as the new index"),
+and this rule is that idea at the tick.
+The racy set held one entry of 24,689 at one moment (F39),
+which is this rule's cost on this repository,
+and [M7][m7] counts it over a day.
+  - Option (a),
+adopted,
+with the veto open:
+the settle reads by content the racy entries and rewrites a same-tick write before the capture.
+  - Option (b),
+the first text's choice,
+vetoed in effect:
+nothing in the shared settle changes,
+the residual L4 states stays,
+and a same-tick write before the capture can publish that session's byte as clean,
+which the decision's own words,
+"neither route accepts an unproved source",
+weigh against.
   - Option (c),
 the capture digests every path and the settle judges by content every path it doubts:
-the same closure for the settle at F25's 4.9 to 9.4 s.
+the same closure at F25's 4.9 to 9.4 s.
   - Pros and cons:
-(a) is free and leaves a silent wrong byte if a millisecond coincidence lands;
-(b) closes it at a measured count of files and a change to shared code;
+(a) closes the silent byte at a measured count of files and a change to shared code;
+(b) is free and leaves a byte no one can see;
 (c) closes it at the add's whole time.
   - Ranking:
-b > a > c,
-because b closes the silent byte at a cost [M7][m7] measures,
-a states the residual and keeps the shared code,
-and c pays nine seconds for what b buys with a handful of reads.
-[M8][m8]'s guest case is what decides whether b must land before the build.
+a > c > b,
+because a closes the silent byte at a handful of reads,
+c closes it at nine seconds,
+and b leaves it.
+A veto of (a) returns the residual to L4 and the shared settle to what it is,
+and [M8][m8] measures what the residual can land.
 
 - V5.
 How the copied administration is discarded.
@@ -1738,23 +2197,35 @@ because the btrfs rung already chose one rename over a deletion on the add's pat
 and the same account holds every byte of the copy.
 
 - V6.
-The plan's allocation of the work.
+The plan's allocation of the work,
+and its test sentence.
 This design assigns the frozen proof to step 10,
 because it is the proof of every rung 1 add,
 and leaves step 11 the dirty restore and the fallback.
+The plan is ambiguous rather than contrary:
+step 10 already lists "the frozen-content comparison inside the clone,
+the omission of the boundaries the design names,
+and the discarded copied Git administration;
+the pointer install,
+the verified fill" (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:1417` to `:1421`),
+while step 11 speaks of "the frozen proof that the clone matches the captured source before fill" (`:1592`).
+The project's answer of 2026-11-22 also amends the plan's test sentence in both places,
+"a tracked write between preflight and snapshot that the frozen proof refuses" (`:1457` and `:1615`),
+to a tracked write after the frozen capture.
   - Option (a),
 this one:
 a clean add on rung 1 is proved from the first build,
+the plan's two steps keep their words except the amended test sentence,
 and step 11 changes only the capture's dirty facts,
-the restore and the pending state.
+the restore and the fallback.
   - Option (b),
-the plan as written:
+the plan's step 11 note read as the whole proof's home:
 step 10 ships clean adds on rung 1 unproved,
 and step 11 adds the proof for both,
 which leaves "neither route accepts an unproved source" unmet between the two builds.
   - Pros and cons:
-(a) meets the decision from the first build and edits the plan's text;
-(b) keeps the plan's words and leaves a window in which an unproved clone route is shipped.
+(a) meets the decision from the first build and needs two sentences of the plan changed;
+(b) keeps both of the plan's step notes as they stand and leaves a window in which an unproved clone route is shipped.
   - Ranking:
 a > b,
 because the decision forbids an unproved source at any release and no record says step 10 may ship one.
@@ -1766,15 +2237,19 @@ from the untracked listing it already makes,
 and takes rung 3.
   - Option (a),
 this one:
-a source holding `.claude/odd-project/.git` is refused before anything is written,
+a source holding `package/odd-project/.git` is refused before anything is written,
 and the person gets Git's own checkout,
 which keeps the directory as it is.
+A path under `.claude` would not serve as the example,
+because the checkout ignores `.claude` and the listing never names it (F26).
   - Option (b),
 let the restore meet it:
 `git clean --force -d` keeps the directory (F4),
 the proof names it,
-and the add leaves the pending state after paying the snapshot,
-the clone and the mount.
+and the add pays the snapshot,
+the clone,
+the mount and the settle,
+then finishes with Git's own checkout.
   - Option (c),
 give the clone the `clean`'s second `--force`:
 the directory goes,
@@ -1795,7 +2270,7 @@ D1 compares the clone's copied index with C1 as bytes.
   - Option (a),
 this one:
 a `git status` in the main checkout that refreshes one entry's stat data refuses the add,
-which leaves the pending state;
+which settles and finishes it with Git's own checkout;
 [M6][m6] counts how often.
   - Option (b),
 comparing only the entries that matter,
@@ -1814,62 +2289,17 @@ and b's tolerance buys a reader whose misses would be silent.
 
 ## Questions only the project can answer
 
-- Q-A.
-When the clone is mounted and the proof refuses or the restore fails,
-what may the add do?
-The accepted design says (`doc/planning/cli-git-zfs-worktree-design-proposal.md:430` to `:431`):
-"No silent fallback over an unresolved managed state.
-An explicitly recovered Git-only add may finish at the same slot only after the mount and all outstanding intents are settled."
-  - Case:
-another session saves `AGENTS.md` while the add runs,
-so the proof names `AGENTS.md` and its change time.
-  - Option (a),
-settle and finish:
-the add requests the unmount,
-waits for its receipt within the step's bound,
-destroys the clone and then its snapshot (F13),
-releases the slot,
-and finishes with Git's own checkout,
-printing the failure sentence.
-The person gets the worktree they asked for.
-  - Option (b),
-refuse and leave:
-the add prints the failure sentence and the removal command,
-keeps the pending state,
-and the person runs the removal and adds again,
-which then takes whatever rung the ladder chooses.
-  - Option (c),
-settle or retry once first:
-as (a),
-but a fresh capture and snapshot are taken once before settling,
-so one stray save still ends in a served clone.
-  - Pros and cons:
-(a) delivers the decision's purpose and adds a destructive step to an add,
-automating what the record calls explicitly recovered;
-(b) is the record's literal reading and the cheapest,
-and leaves the person without a worktree after a failure that was not theirs;
-(c) turns one stray save into a success and doubles the waste of a refusal on a checkout that is written constantly,
-at a rate [M6][m6] measures.
-  - Ranking:
-a > b > c,
-because a keeps the command's promise at the cost [M5][m5] measures,
-b keeps the record's words and gives up the promise,
-and c spends a second snapshot on a refusal rate nobody has measured,
-which can become b's or a's once [M6][m6] reports it.
-If the owner reads "explicitly recovered" strictly,
-the order is b > a > c.
-  - Dependency:
-no sibling design gives an add a callable unmount-and-destroy;
-the origin cleanup design reports a killed add's snapshot and destroys nothing,
-and the four removal designs are written for removals.
-Option (a) therefore needs an answer from a removal design,
-and option (b) needs none.
+One question is left.
+The other three the second pass put to the project are answered,
+and their answers are recorded in ""The project's answers of 2026-11-22"" and applied in the sections it names.
+
 - Q-B.
 May rung 1 decline a very dirty main checkout in favour of Git's own checkout,
 as rung 2 does?
 The partial-clone decision cuts rung 2 at a changed-file count and states "no add is slower than Git's own checkout" (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
 "What was decided");
-no record says it of rung 1.
+no record says it of rung 1,
+and the decision record of 2026-11-22 leaves this question open (`:109` to `:113`).
   - Case:
 a main checkout with 6,000 changed tracked files,
 where [M4][m4] would show rung 1 slower than rung 3.
@@ -1879,136 +2309,75 @@ with rung 2's bar.
   - Option (b),
 always take rung 1 for a dirty main.
   - Pros and cons:
-(a) never slower than Git's own checkout,
+(a) is never slower than Git's own checkout,
 and gives up the clone's gain above the cut;
 (b) keeps one route and the clone's disk saving,
 and can be slower than Git's checkout on a very dirty source.
   - Ranking:
 a > b,
 because the owner's own rung 2 answer chose "no add slower than Git's own checkout" for a dirty source,
-and rung 1's advantage is speed.
+and rung 1's stated advantage is speed.
 The cut itself is a measurement,
 not a question.
-- Q-C.
-Which writes must the frozen proof refuse?
-Plan steps 10 and 11 read "a tracked write between preflight and snapshot that the frozen proof refuses" (`doc/planning/cli-git-zfs-worktree-implementation-plan.md:1456` to `:1459`,
-`:1614` to `:1617`).
-  - Case:
-a session stages a new file shortly after the add starts,
-while Git registers the worktree.
-  - Option (a),
-this design:
-the capture is taken immediately before the snapshot and the whole refusal set is re-run against it,
-so the staged file is captured with the rest and the add proceeds.
-  - Option (b),
-capture at preflight only,
-as the accepted text reads:
-the staged file refuses the add if its entry kind is one no reset can undo,
-and a tracked write between the two readings is not refused by the proof.
-  - Option (c),
-capture at both points and refuse when the two readings differ:
-the plan's wording holds,
-the window is narrow,
-and a legitimate staged file refuses the add and leaves the pending state.
-  - Pros and cons:
-(a) loses no safety,
-refuses rarely,
-and departs from the plan's sentence;
-(b) matches the plan,
-leaves the longest window,
-and can carry an entry kind the refusals never judged;
-(c) satisfies both and turns a handled write into a pending state,
-for one more walk.
-  - Ranking:
-a > c > b,
-because a refuses nothing the restore would have handled and judges the index it restores from,
-c at least narrows the span at the cost of refusing a staged file,
-and b can restore from an index no refusal read.
-If the owner wants the plan's sentence kept literally,
-c is first.
-- Q-D.
-What may the slot look like to a command run in it while the restore is filling it?
-  - Case:
-a session runs `git status` and then `git commit -a` in `.claude/worktrees/new` while the add is still restoring.
-The wrapper's own policies for `commit` and `clean` may stop some of these commands.
-  - Option (A),
-this design:
-the copied `.git` stays until step 8,
-the restore runs on the registered administrative directory through the environment,
-and the real-name index and the pointer come last.
-The session sees a mirror of the main checkout's status,
-and a `git commit -a` lands in the copy and is lost with it.
-  - Option (B),
-discard first as step 4 says literally,
-and write no pointer and no real-name index until the end:
-the session finds no `.git` in the slot,
-so Git walks up to the main checkout;
-a `git status` shows the main checkout,
-and a `git commit -a` commits the main checkout's tracked changes under its branch.
-  - Option (C),
-the order the first text had,
-pointer and real-name index first:
-the session sees a registered worktree whose changes are the other sessions' edits,
-and a kill leaves an index that can vouch for the copied bytes.
-  - Pros and cons:
-(A) keeps what the accepted design already accepts and no mutating command can reach the main checkout;
-(B) follows step 4's words and makes the slot a plain directory of the main repository for the span;
-(C) attributes foreign edits to a valid worktree and publishes an index that can vouch for the wrong bytes after a kill.
-  - Ranking:
-A > B > C,
-because A leaves a mutating command confined to a copy that is thrown away,
-B sends one to the main checkout,
-and C publishes a worktree whose changes are another person's.
-If the owner holds step 4's sentence literally,
-B is first.
-  - Sibling note:
-the add-time lock design's D6 describes a slot with no `.git` after the copied administration is discarded,
-which is B's state;
-it does not decide the order and this design's A leaves no such span to describe.
 
 ## Dependencies on the sibling designs
 
-Each is a place where this design answers with an assumption a later pass reconciles,
-read at the commit named.
+Each is a place where this design answers with an assumption,
+or states a requirement,
+at the commit this revision read.
 
-- The durable binding record (branch `docs/planning-cli-git-zfs-add-binding-record-design`,
-read at `428040d45d`):
-this design writes the capture in a family folder of its own (V3a),
-and the binding design says the content proof "and where it lives across a kill" is not covered by it,
+- The add's fallback needs three steps from designs that own them,
+and it states them as a requirement rather than assuming them:
+the handler's unmount request and receipt (the staging design as accepted and the cancelled-removal design,
+`70a863eeb5`),
+the delegated `destroy` of the clone and then of its snapshot with a plan written before the first (the removal's identity proof and the destruction plan,
+`76849b8d9b`),
+and the registration's settle (the removal's Git settle).
+The deferred-destroy checks (`fda838910a`) answer this design directly:
+"Whether an add may call the removal's unmount and destruction is the removal's and the add's design to settle,
+which this design neither grants nor withholds" (`:2618` to `:2619`).
+So the project's answer of 2026-11-22 cannot be built until the removal's steps are callable by an add,
+and the design's own interim for a settle that fails is the pending state.
+What the check does say is that it might refuse the origin snapshot an add made:
+"a same-account mark on the origin snapshot an add made is the accepted residual" (`:2620` to `:2622`),
+which would make the add's destroy of that snapshot fail and leave the pending state.
+The forced arm (`ade3af0d49`) lists "the dirty-main restore" among what it does not cover (`:2379`),
+and the cancelled removal's "one answer covers an add's retry" (`:2323`) is about a mount's boundary refusal,
+not about an add calling the removal's steps.
+- The origin cleanup record (`0973f2fc2a`):
+its unaccounted-snapshot line says of a snapshot nothing accounts for that it "destroys nothing and names the command a person may run" (`:2141`),
+and "a snapshot with a live binding is an add and not litter" (`:2129`),
+which is what an add in flight looks like.
+This design's settled fallback destroys its own snapshot before a record could be unaccounted,
+and a pending state leaves the line for `doctor`,
 so the two agree.
-Its record convention gives the parent folder `<common>/monochromatic-git-policy-cli/` and one family folder per record,
-which this design follows;
-its list of five name forms is for its own family and does not bind this one.
+- The durable binding record (branch `docs/planning-cli-git-zfs-add-binding-record-design`,
+read at `c144499eb9`):
+it now says the content proof is not its own:
+"The content proof of the clone's fill (the frozen index and tree comparison) and where it lives across a kill.
+A resumed add whose proof is gone refuses rather than comparing against nothing,
+because a comparison that has lost its reference is not a proof;
+the proof's own home is the dirty-main restore design's" (`:3842` to `:3845`).
+So the two agree on the home,
+and this design's resume takes the project's decided fallback (settle and finish) where that sentence says "refuses";
+the refusal stands only for the clone whose identity can no longer be proven.
+Its record convention gives the parent folder `<common>/monochromatic-git-policy-cli/` and one family folder per record (`:932`,
+`:1157` to `:1162`),
+which this design follows with `add-capture/v1/`;
+its own family is `worktree-clones/v1/` and its five name forms do not bind this one.
 Its files stay out of the copy journal's folder,
 and so do this design's.
 - The add-time lock (branch `docs/planning-cli-git-zfs-add-time-git-lock-design`,
 read at `a7902e293b`):
 the frozen capture is written and the proof runs while the add holds its claim and its managed lock.
 Its D6 describes the slot after the discard and before the pointer as holding no `.git`;
-Q-D's option A leaves the copied `.git` until step 8,
-so that state is Q-D's B and not A.
-Nothing in the lock design depends on which the project takes,
-and its lock's lifetime covers this design's step 9.
-- The removal designs,
-for Q-A's option (a):
-the cancelled or interrupted removal (`42f01440f3`),
-the forced arm (`d191e5b257`),
-the deferred-destroy checks (`3e34817184`),
-the origin cleanup record (`4daa6c66ce`) and the destruction plan (`a7823980b9`).
-None says an add may call its unmount,
-destruction or settle.
-The origin cleanup design's unaccounted-snapshot line covers a killed add between the snapshot and the clone and "destroys nothing and names the command a person may run";
-this design's pre-mount failures settle within the live invocation,
-which is a different scene,
-and the boundary between them is that the add is still running.
-- The persisted destruction plan (`a7823980b9`):
-if Q-A takes settlement,
-a plan is written before the first of the two destructions,
-as that design requires.
-Until then this design writes no plan.
-- The private propagation after a replacement mount (`5e6a2ff9dc`) and the lost-last-event triggers (`80a874b773`):
+this design's exchange never passes through that state ("The project's answers of 2026-11-22"),
+so D6's row is not a state this route leaves,
+and the lock's lifetime covers this design's step 9.
+- The private propagation after a replacement mount (`30274435f3`) and the lost-last-event triggers (`cefc8bb362`):
 this design's step 1 assumes the mount of a fresh clone is verified in the caller's namespace by the add's step 4,
-and adds no trigger of its own.
+and adds no trigger of its own,
+which the lost-last-event design's D10 records at `:3583`.
 - The start probe and the ABI gate (step 6):
 nothing here reads the kernel's layout;
 the proof reads files and `stat` only.
@@ -2028,7 +2397,8 @@ and the guest probe [M8][m8].
 - "neither route accepts an unproved source":
 the proof is D1 to D4 for every rung 1 add,
 clean ones included (V6),
-and a refusal leaves the pending state rather than a served worktree.
+and a refusal serves the worktree from Git's own checkout and says so,
+or leaves the pending state when its own settle fails.
 - "capture the index/tree verification inputs" (design step 1):
 C1 to C5,
 taken at preflight for the cheap refusals and again as the frozen capture before the snapshot,
@@ -2039,15 +2409,19 @@ The in-snapshot check proves the bytes" (design step 4):
 D1 to D4,
 run before any write and before any Git run inside the clone.
 - "Discard copied Git administration before running Git inside the clone" (design step 4):
-no Git run is given the copied administration,
-and its discard is step 8's first rename;
-Q-D puts the literal order to the project.
+no Git run of the restore is given the copied administration,
+which stays until step 8's exchange,
+as the project's answer of 2026-11-22 chose,
+and it is discarded in the same instant the pointer takes its name.
 - "Install the saved Git pointer inside the clone.
 Use the verified index and the existing conversion checks and tree difference in the new worktree context" (design step 5):
 the private-name index of step 5 and the fence's write of step 7.
 - "No silent fallback over an unresolved managed state":
-the design refuses and leaves the pending state after the mount until Q-A says otherwise,
-and its pre-mount failures settle only objects whose creation and identity this invocation proved.
+the fallback is not silent,
+because the add prints the route that made the worktree and the reason the first was abandoned,
+and it finishes only after the add's own mount and intents are settled by the add itself,
+which is what the project's answer of 2026-11-22 records as the amendment of that sentence.
+A settle that fails leaves the pending state and the removal command.
 - "No configuration":
 nothing here has a setting;
 every threshold it needs is a measurement it names.
@@ -2095,10 +2469,14 @@ of which this machine has none.
 It stays,
 labelled as such.
 - Refusing to end a holder that keeps the clone,
-and refusing to retry.
-They survive:
-the add has no authority to end another process and seeks none,
-which is why Q-A's options do not include it.
+which is what makes a settle fail into the pending state rather than a forced unmount.
+It survives:
+the add has no authority to end another process and seeks none.
+- The content check at the head of step 8.
+It survives:
+it exists because Git's own check cannot see a same-second rewrite (F2,
+F23),
+which is an accident of two sessions on one tree before it is an attack.
 - `doctor` reporting a staging name or a record an add left.
 It survives as tidiness.
 
@@ -2106,34 +2484,55 @@ It survives as tidiness.
 
 - The proof detects a window write and cannot prevent one,
 and its detection rests on a millisecond tick (F15,
-F22) and on Git's seconds (F2,
+F22,
+F38) and on Git's seconds (F2,
 F23).
-- A tracked write in the same tick as the file's own last write,
-before the capture,
-can leave every compared field equal,
-and on ZFS the settle then believes the file (F30):
-the design states this as L4 and offers the settle's racy rule as V4.
-The exposure needs the index write,
-the file's last write,
-this add's `lstat` and the other session's write inside one millisecond,
-and it is not measured.
+- A tracked write in the same tick as the file's own last write before the capture can leave every compared field equal,
+and on ZFS the settle would believe the file (F30).
+L4 states the case,
+V4's adopted rule closes it for the racy set,
+and the set is one entry of 24,689 at one moment (F39).
+A veto of V4 returns it,
+its size unmeasured over a day.
 - The clone's fill is visible and writable before it is proven,
-and Q-D asks what the slot may look like meanwhile;
-in the adopted order the slot holds a copy of the main checkout's administration until step 8,
-so a command run there acts on that copy and is lost with it.
+and the project's answer keeps the copied administration in the slot until step 8 ("The project's answers of 2026-11-22").
+So a command run there acts through the copy and can reach three places (L8):
+the tree being restored,
+which the content check at the head of step 8 refuses;
+the 187 other worktree folders the copy names,
+which no step of this design closes;
+and the remote,
+which no step of this design closes either.
+It never writes the main checkout's own files,
+index or references.
+- Making the copy inert was put to the project and not chosen (`doc/decision/cli-git-zfs-dirty-main-restore-fallback- proof-window-and-slot.md:104` to `:107`).
+Its cost,
+were it taken,
+is one read of the copy's `worktrees` folder,
+187 removals of registration directories,
+one rewrite of the copy's configuration without its remote section,
+and four hook removals (F40),
+which no measurement sizes.
 - The ignored state the clone carries is the ignored state of the snapshot's instant (`SPEC.md:1518`),
 and a path the target commit stops ignoring is carried and listed as untracked.
 - A tracked file under a nested dataset's mount location:
 the capture reads the source's mounted content and the clone holds the snapshot's underlay,
-so the proof refuses such a path and the add leaves the pending state if such a path is tracked.
+so the proof refuses such a path,
+and the add settles and finishes with Git's own checkout.
 Refusing before the snapshot would need a check of the source's mount table against the tracked paths,
 which this design does not build.
+- A split or sparse index is refused at the capture,
+from its extension signatures,
+before anything is written,
+because the rewrite cannot install one (F34).
 - The copied administration lives inside the new worktree until the disposal empties it (V5),
 so a `du` of the new worktree reports it,
 and a person who deletes it deletes only a copy.
 - The clone shares its blocks with the origin snapshot,
 so the origin cannot be destroyed while the clone lives (F13),
-which fixes the order of every cleanup.
+which fixes the order of every cleanup and of the fallback.
+- The exchange is read from the sources (F37) and not run;
+a guest run is owed ([M9][m9]).
 - Nothing here measures a real clone,
 a mount,
 a restore inside one or a fallback;
@@ -2191,6 +2590,18 @@ and `SPEC.md:4408` to `:4410` for the record sentence (the first text cited the 
 The script's output,
 printing every citation beside the lines it names,
 is kept at `~/temp/agent/zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/citations-2026-11-22.md`.
+
+The second pass's citation findings are corrected in this revision:
+F14 now cites `sa.c:1702` to `:1704`,
+the access and modification times,
+where it had the change time and the creation time;
+F31 now names `matches_stored_exactly` at `worktree_clean_tree_walk.rs:248` as the predicate C3 uses,
+rather than the walk that contains it;
+and V4 no longer offers the wrapper's own racy rewrite as Git's rule,
+naming it as the same idea at Git's second granularity instead.
+The citations this revision adds,
+F36 to F42 and those under "The project's answers of 2026-11-22",
+were read at the lines they name before they were written.
 
 ## Revisions
 
@@ -2253,12 +2664,16 @@ cloned into this round's scratch folder from `openzfs/zfs` at tag `zfs-2.4.4`:
 `include/sys/zfs_znode.h`.
 
 Linux `v7.3`,
-five files fetched with `gh api` at tag `v7.3`:
+six files read at tag `v7.3`:
 `fs/attr.c`,
 `fs/utimes.c`,
 `fs/inode.c`,
 `mm/filemap.c`,
+`fs/namei.c` (this revision,
+for the exchange's type rules),
 `fs/btrfs/super.c`.
+The first round fetched five of them with `gh api`;
+this revision cloned the tag into its scratch folder for the sixth.
 
 This repository,
 read at `5dd8883a60`:
@@ -2269,6 +2684,7 @@ read at `5dd8883a60`:
 `doc/decision/cli-git-zfs-slot-identity-store-format.md`;
 `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`;
 `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`;
+`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md` (read at `46ed57af59` on `main`);
 `doc/planning/cli-git-zfs-worktree-design-proposal.md`;
 `doc/planning/cli-git-zfs-worktree-implementation-plan.md`;
 `doc/planning/cli-git-zfs-staging-under-cache-design.md`;
@@ -2288,15 +2704,21 @@ read at `5dd8883a60`:
 `worktree_clean_tree_walk.rs`,
 `worktree_clean_stat_verdicts.rs`,
 `worktree_clone_index.rs`,
+`worktree_clone_conversion_beside_the_clone.rs`,
 `worktree_clone_conversion_fence.rs`,
 `worktree_copy_journal.rs`,
+`worktree_copying/worktree_copy_interrupted_add_settlement.rs`,
 `subvolume/subvolume_index.rs`,
 `subvolume/subvolume_index_install_into_new_worktree.rs`,
-`subvolume/subvolume_index_files.rs`;
+`subvolume/subvolume_index_files.rs`,
+`subvolume/fs_beneath.rs`,
+`subvolume/fs_clone_exchange.rs`;
 `package/git-policy/cli/doc/slot-identity-store-write-cost.md` and `package/git-policy/cli/doc/object-database-and-a-reftable-ref-store.md`.
 
 The gate review and its probe logs at `~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review.md` and `probe-logs.md`,
-and the sibling designs at the commits named under "Dependencies on the sibling designs".
+the second gate pass and its probe logs at `review-second-pass.md` and `probe-logs-second-pass.md` beside them,
+and the sibling designs at the commits named under "Dependencies on the sibling designs",
+the forced arm and the cancelled removal read last.
 
 ## Links
 
