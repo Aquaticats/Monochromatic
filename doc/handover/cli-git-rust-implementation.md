@@ -545,9 +545,16 @@ and those that had landed or were no piece of work were dropped.
 Which entry went where is `backlog-to-github-issues/keep/ledger.jsonl`,
 with the links in `filed.jsonl` beside it,
 in the housekeeping folder named under "The handover holds only open work".
-No label was put on the new issues:
-the tracker has none for held work,
-and which to use is a question for the owner.
+An issue that waits on something carries a `blockedBy:<specific>` label,
+by the owner's standing instruction of 2026-11-23
+(`doc/agent/triage-labels.md`,
+"Blocked work").
+The new issues and the older ones the backlog pointed at carry theirs:
+most wait for the ZFS route (`blockedBy:zfs-route`),
+some for a decision of the owner's (`blockedBy:owner-decision`),
+some for the owner to name work outside the wrapper (`blockedBy:wrapper-focus`),
+and a few for another issue,
+by its number.
 
 About thirty wrapper and driver branches that wait for a review are listed in the old file under "Open work";
 that section is not sorted yet.
