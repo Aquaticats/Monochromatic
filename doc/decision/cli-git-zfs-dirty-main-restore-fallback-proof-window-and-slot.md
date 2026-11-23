@@ -12,6 +12,10 @@ questions Q1,
 Q3 and Q4),
 about the open item "Dirty-main restore on rung 1" of `doc/planning/cli-git-zfs-worktree-design-proposal.md`
 and plan step 11 of `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
+The fourth,
+Q2,
+is answered in the section "Three further answers",
+with two questions a later review put.
 The design it binds is still unapproved:
 `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 on its own branch.
@@ -212,6 +216,150 @@ The count comes from a measurement and is not decided here.
 Not chosen:
 declining above the count,
 and no warning at all.
+
+## The merge bar is waived for an add above the warning's count
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T22:00:52-05:00,
+on a finding of the review of the design's next round
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-before-acceptance.md`,
+"What Q-B costs that the document does not say").
+
+Asked:
+the project's merge bar says a branch may make nothing `main` does well worse.
+On `main`,
+as far as the records say,
+an add from a dirty main checkout on ZFS ends in Git's own checkout.
+Once plan step 11 lands,
+an add above the warning's count clones and restores every changed file instead,
+and is slower than `main` by an amount not yet measured.
+An integration pass would refuse that branch unless a record waives the bar for this case,
+as `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md` once did for the clone rung.
+
+The project chose "B:
+waive for good":
+"Taking this route above the count is the intended behaviour and the bar never applies to it."
+The cost stated with it:
+it ships without anyone having shown the project how slow a very dirty add gets.
+
+Not chosen:
+a waiver that ends when the slowdown is measured,
+which was the option recommended;
+and no waiver,
+with the add declining above the count after all.
+
+What the question did not cover,
+and this record therefore does not waive:
+an add below the count,
+and an add that fails its proof and finishes with Git's own checkout.
+Each still owes its measured time against `main`.
+
+## The design is accepted
+
+Accepted in the question tool,
+the question put on 2026-11-22 and answered on 2026-11-23,
+recorded 2026-11-23T03:48:32-05:00.
+The design is `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`
+as it stood at commit `23a2afe0bd` on its own branch,
+for plan step 11 of `doc/planning/cli-git-zfs-worktree-implementation-plan.md`
+and for the proof plan step 10 builds.
+
+The project chose "A:
+accept as written (Recommended)":
+"All sixteen choices stand."
+The sixteen choices,
+as the project was shown them,
+each with the alternative shown beside it where one was shown,
+under the design's own numbers V1 to V16 in the same order:
+
+1.  The state record holds the Git index,
+    every tracked file's facts,
+    and the content only of files those facts cannot vouch for.
+    Not taken:
+    hash every file,
+    5 to 9 s per add.
+2.  Facts compared:
+    kind,
+    size,
+    both times,
+    execute bit.
+    Not the inode number.
+    Not taken:
+    also the inode.
+3.  The record lives in a folder of its own under the wrapper's records in `.git`.
+    Not taken:
+    memory only,
+    which allows no resume.
+4.  A file changed in the same clock tick as the record is re-read by content,
+    not trusted.
+    Not taken:
+    trust it,
+    which is free and can pass off another session's edit as clean.
+5.  The copied `.git` goes to a hidden trash in the new worktree,
+    emptied after the add returns.
+    Not taken:
+    delete it before returning,
+    a slower add.
+6.  The proof is built in step 10 for every fast add,
+    clean ones too;
+    two plan sentences change.
+    Not taken:
+    only in step 11.
+7.  A main checkout with an untracked nested Git repository is refused up front and gets Git's own checkout.
+    Not taken:
+    run and fail late.
+8.  The copied index must match byte for byte,
+    so a `git status` in main during the add can send it to Git's own checkout.
+    Not taken:
+    compare only the entries that matter.
+9.  The undo of a failed add is built in step 11,
+    inside the add.
+    Not taken:
+    in the removal's steps.
+10. Three small records per add,
+    each tied to that add.
+11. After the restore,
+    file facts are compared to the nanosecond;
+    content only in a narrow band.
+    Not taken:
+    a full content check.
+12. A pending folder keeps a live copy of main's `.git` until removed
+    (the project chose the warning,
+    not making it inert).
+13. Another add's leftover record that cannot be read is cleared.
+    Not taken:
+    refuse and name it.
+14. The add withdraws its unmount request on every outcome but success.
+    Not taken:
+    only on "busy".
+15. Before writing the request back it checks whether the clone is already unmounted,
+    and if so goes on with the undo instead of remounting.
+    Not taken:
+    write back first.
+16. The slow-add warning prints after the add has finished.
+    Not taken:
+    before it starts.
+
+The design's own entries name further alternatives the question did not show
+(for the first three and the fourth,
+a third option each);
+the design is the fuller statement of each.
+
+What the project was told with the question:
+the design had seven reviews,
+the last four finding nothing high;
+the coordinator,
+and no reviewer,
+checked the last fixes against the diff;
+nothing in it has been run,
+nine measurements being owed by the build,
+among them the count for the warning and the timing of the adds the waiver does not cover;
+and two orderings still differed from the binding record design,
+to be settled by edits there.
+
+Not chosen:
+accepting with a veto,
+and not accepting yet.
 
 ## What this record does not decide
 
