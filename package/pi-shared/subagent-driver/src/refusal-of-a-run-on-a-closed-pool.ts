@@ -74,12 +74,20 @@ function refusalTextOf({
   readonly namesItsOwnPool: boolean;
 },): string {
   /**
+   The owner's closing of the pool, when it carries one.
+   */
+  const { closed, } = pool;
+  /**
+   Why the pool takes no new run: the reason its `closed` field gives, or its limit when nothing else was said.
+   */
+  const reason = (closed === undefined)
+    ? `its limit is ${String(CLOSED_POOL_LIMIT,)}`
+    : closed.reason;
+  /**
    What a run that names this pool is refused with, one line per thing the reader needs.
    */
   const lines: string[] = [
-    `--provider=${provider} --model=${model} names the ${pool.name} pool, which takes no new run: ${
-      pool.closed?.reason ?? `its limit is ${String(CLOSED_POOL_LIMIT,)}`
-    }.`,
+    `--provider=${provider} --model=${model} names the ${pool.name} pool, which takes no new run: ${reason}.`,
   ];
   if (!namesItsOwnPool) {
     lines.push(
@@ -140,7 +148,7 @@ export function refuseARunOnAClosedPool({
 }: {
   readonly provider: string;
   readonly model: string;
-  readonly environment: NodeJS.ProcessEnv;
+  readonly environment: Readonly<NodeJS.ProcessEnv>;
   readonly namesItsOwnPool?: boolean;
 },): void {
   /**
