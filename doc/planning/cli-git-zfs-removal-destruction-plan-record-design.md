@@ -4134,4 +4134,20 @@ meets" for the pass's binding condition,
   section 4's path choice (W1),
   the command's order (W2),
   and the two sentences about the add (W8).
+- `419cf15e41`,
+  committer time `2026-11-23T03:59:47-05:00`:
+  the revision the fifth diff read asked for.
+  It puts the removal's path rule under "Which resume path a removal takes" and answers the accepted
+  deferred-destroy design's request there,
+  settles an `unknown` tuple by the head-present arm before the adoption rule and names no command when the arm
+  cannot settle it,
+  makes the reused-name cell a refusal in both records,
+  states that every requirement on the binding record is met at `3b4b073f0e`,
+  and corrects the origin record's bound at 13,368 and the two missing cells.
+  It changed only the parts the check named:
+  the path rule's heading and two cells (N3,
+  N9),
+  the adoption rule (N4),
+  the origin record's bound (N8),
+  and the requirements paragraph.
   A later commit that only adds or corrects this list is not listed.
