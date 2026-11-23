@@ -316,7 +316,10 @@ a linked worktree of a reftable repository and a files payload are left to Git,
   "The call sites,
   driven through their callers".
 
-Each was run failing before its fix was in place:
+Each was run failing before its fix was in place,
+and every entry below was re-run after the integration recheck with its own guard removed and nothing else:
+each red run printed a `panicked at` line and the assertion it failed on,
+and none was a build that did not compile.
 
 - the configuration control failed with
   `a ref store the configuration names outside the common directory is outside what this reader
