@@ -209,7 +209,7 @@ What it did not run:
 The evidence is in
 `~/temp/agent/zfs-removal-destruction-plan-record-design-2026-11-22/keep/`,
 and the scripts that ran are in the sibling `scratch/` folder.
-The citations this document newly writes or corrects this round were checked for existence and range by
+The citations it writes were checked for existence and range by
 `scratch/citation-check.ts`,
 and the sample the second pass opened matched.
 
@@ -687,7 +687,7 @@ so each can be checked alone.
   No record states it;
   M6 is the check that would.
 
-## Limits of this round
+## Limits
 
 - L1.
   Nothing about a pool,
@@ -697,7 +697,7 @@ so each can be checked alone.
 - L2.
   The one-rename publication and the `O_EXCL` staging file are the repository's own primitives,
   read here as code and as its own record of them (F13).
-  They were not re-read in a kernel at a tag this round.
+  They were not re-read in a kernel at a tag for this document.
 - L3.
   The traps F7 and F12 measure were run in disposable repositories with plain `git`;
   they say nothing about a ZFS clone,
@@ -2139,7 +2139,9 @@ per entry:
 - its state:
   `head`,
   the tuples' outcomes,
-  and the tuples that are not proven;
+  and the tuples that are not proven,
+  each such tuple printed with its name,
+  its GUID and its group;
 - its owner and the folder's owner and mode,
   with a line when they differ from the common directory's;
 - a plan whose registration is gone,
@@ -2300,13 +2302,37 @@ and the removal is run again.
 A live snapshot carrying the GUID with another `createtxg` is a permanent refusal:
 the run names the tuple,
 its recorded GUID and group and the live snapshot's,
-`doctor` prints the same,
-nothing rewrites the tuple,
-and no command settles it,
-because the cancel command removes and rewrites nothing for a kept plan and the settling command's case is a
-clone that is gone;
-the plan stays as the evidence of what was destroyed,
-and a person decides.
+and nothing rewrites the tuple.
+`doctor` prints that tuple's name,
+GUID and group and that it is unsettled;
+it reads no pool of its own for it,
+so the live identity is the run's to name and a person's to read.
+No wrapper command settles it:
+no reader of this design may replace an outcome with a guess,
+the cancel command removes and rewrites nothing for a kept plan,
+and the settling command's case is a clone that is gone.
+Two actions are a person's,
+and the design can name no third.
+The first is a read:
+compare the two identities,
+with `zfs get -H -p -o value guid,createtxg` of the snapshot `doctor` names,
+beside the plan's recorded GUID and group that `doctor` prints
+(the form is the one [VM item 13](cli-git-zfs-measurements-owed-before-acceptance.md) read a clone's own group
+with).
+The second is a decision,
+and this design accounts for both ends of it:
+
+- The tuple is accepted as describing an object the pool no longer holds,
+  and the person ends that snapshot with the pool's own `zfs destroy <name>`,
+  as the proposal already leaves a refused bookmark to a person's `zfs destroy` (lines 1632 to 1634).
+  The next removal finds no live snapshot carrying the recorded GUID,
+  settles the tuple `destroyed` by the absence rule,
+  and finishes.
+- The history is kept,
+  and the plan stands as the evidence of what was destroyed.
+  `doctor` names it on every run,
+  the removal stays refused at that tuple,
+  and nothing in this design ends that state by itself.
 A plan's `owner` may name a process that has ended,
 and no reader of this design refuses on that field;
 only `doctor`'s staging rule reads it.
@@ -3858,7 +3884,7 @@ section 7 and the finish pass move with it.
 
 ## Measurements owed
 
-No guest ran this round.
+No guest has run for this document.
 Each item names the probe that would settle it and the step that owes it.
 
 - M1,
@@ -3998,43 +4024,60 @@ Each item names the probe that would settle it and the step that owes it.
 - The sibling record designs,
   read at the commits named in "Where this design and the sibling records differ":
   the origin cleanup record and the add's binding record.
-- The gate reviews this round answers,
+- The gate reviews this document answers,
   at
   `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`,
   `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`
   and
   `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`.
 - OpenZFS at tag `zfs-2.4.4` (commit `71a9f95`) and Git at `v2.56.1`,
-  read in shallow clones this round kept in its scratch folder.
+  read in shallow clones checked out in a scratch folder.
 
-## This round
+## What supports this document, and what has never been run
 
-This round ran no probe on any pool and started no guest.
-It merged `main` for the fifth diff read's decisions and the accepted deferred-destroy design,
-read it,
-read the binding design at `c077bdb1e1` and the origin cleanup design at `f17455b786`,
-checked every path-and-line citation in the changed text,
-and recorded a search for each of the fifth diff read's items in `keep/fifth-diff-searches.md`.
+Its claims rest on three kinds of source,
+and each is named where it is used:
 
-What ran:
+- repository records:
+  the accepted decision,
+  the proposal,
+  the implementation plan,
+  the measurements record,
+  the wrapper's `SPEC.md`,
+  the decisions on `main`,
+  and the sibling designs,
+  each read at the commit the sentence cites;
+- source at a tag:
+  OpenZFS `zfs-2.4.4` (commit `71a9f95`) and Git `v2.56.1`,
+  read in shallow clones whose push URLs were set to `DISABLED`;
+- three runs of its own,
+  each with its log in `keep/`:
+  the registration-name probe (F12,
+  `keep/worktree-registration-id-probe.json`),
+  the registration-inside-file probe (F10,
+  `keep/registration-inside-file-probe.json`),
+  and the byte arithmetic (F11,
+  `keep/plan-byte-arithmetic-revised.json`).
+  Git ran as plain `git`,
+  in disposable repositories with their own `HOME` and `XDG_RUNTIME_DIR`,
+  under a capped `systemd-run --user --scope`.
 
-- `git merge --no-ff main`,
-  for the seven answers;
-- `git show` of the two sibling documents at their tips;
-- the citation check over this document's path-and-line citations,
-  whose output is `scratch/citation-check.txt`;
-- the linter named in the round's brief,
-  until it reported nothing.
+The checks behind its answers are recorded beside those logs:
+the citation check over its path-and-line citations,
+and,
+for each review whose findings the text answers,
+one file of searches with the lines each search printed.
 
-What did not run this round:
-
-- no probe,
-  no guest,
-  no ZFS command,
-  no ioctl,
-  no container,
-  no mount or unmount,
-  and no timing.
+What has never been run is the same for every sentence here:
+no probe on a pool,
+no guest,
+no ZFS command that reads or changes anything,
+no ioctl,
+no container,
+no mount or unmount,
+and no timing.
+A sentence that rests on one of those is marked unmeasured where it stands,
+and the probe that would settle it is under "Measurements owed".
 
 The document is unapproved and non-final.
 
