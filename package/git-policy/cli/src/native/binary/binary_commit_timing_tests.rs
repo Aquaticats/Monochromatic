@@ -515,25 +515,29 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
 ///  The creation's stretches are the ones a slow build must name,
 ///  and they are only reached when Git builds the commit.
 ///  A configuration key the service does not embed asks for that.
-/// What it catches,
-/// on this file as on `main`'s control:
-///  an overlap of the stretches;
-///  an overstatement of the scratch step from 6 ms up,
-///  where `main`'s fixed 12 ms let an overstatement of 6 to 14 ms pass and went red only at 20;
+/// What it catches that `main`'s control does not:
+///  an overlap of the stretches (`main`'s control was green in 3 of 3 runs);
+///  an overstatement of the scratch step from 10 ms up,
+///  where `main`'s fixed 12 ms let an overstatement of 6 to 14 ms pass and went red only at 20
+///  (6 ms was red in one of two records);
 ///  and an understatement of `buildMs` big enough to empty the window,
 ///  which the selection assertion catches (8 ms did,
-///  on a build of 8 to 15 ms),
+///  on a build of about 11 ms),
 ///  and the accounting catches once a longer build is planted
 ///  (8 and 12 ms red against a 40 ms stretch,
 ///  3 and 6 ms green).
 /// What it does not catch,
 /// on this file as on `main`'s control:
-///  a Git child split by a build seam while the child is a few milliseconds,
-///  the tail it leaves being under the build's uncovered time plus `WINDOW_ORIGIN_ROUNDING_MS`
-///  (a 3 ms seam passes,
-///  and a child of about 11 ms fails);
+///  a Git child split by a build seam while the child is shorter than the build's uncovered time plus
+///  `WINDOW_ORIGIN_ROUNDING_MS`,
+///  because the stretches after a seam count the child's whole time as their own while the child states it again
+///  (a seam at 3 ms passed in the natural child of about 3 ms,
+///  and failed once the child was about 11 ms);
 ///  and a stretch noted twice at natural size,
 ///  where what it adds stays under that slack (at most 1 ms over in three runs).
+/// The build's uncovered time is `buildMs` less what the record states of it,
+/// 3 to 5 ms in the 17 clean landing records of the second integration pass,
+/// whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00.
 #[test]
 fn the_record_names_every_stretch_of_the_build_phase() {
     let fixture: Fixture = fixture("timing-build-parts");
@@ -591,27 +595,36 @@ const STOP_CEILING_SECONDS: &str = "2";
 /// while its shadow's steps began 70 s after its preparation had ended.
 ///  The stop's words and the exit code are the ones the ceiling's control states;
 /// what this one adds is what the record says about the time.
-/// What it catches,
-/// on this file as on `main`'s control:
-///  an overlap of the stretches;
-///  a Git child split by a build seam,
-///  seams tried at 3 or 10 or 500 ms into its 2 s scratch commit all failing this accounting;
-///  an understatement of `buildMs` from 8 to 30 ms,
+/// What it catches that `main`'s control does not:
+///  an overlap of the stretches (`main`'s control was green in 3 of 3 runs);
+///  an understatement of `buildMs` from 8 to 30 ms
+///  (`main`'s control was green at 8 and 12 ms),
 ///  where 100 ms fails `the stopped build states its time` first;
 ///  and an overstatement of the scratch step from 10 ms up,
 ///  where `main`'s fixed 12 ms let an overstatement of 10 or 14 ms pass and went red only at 20.
+/// What it catches as `main`'s control does:
+///  a Git child split by a build seam,
+///  seams tried at 3 or 10 or 500 ms into its 2 s scratch commit all failing this accounting.
 /// What it does not catch,
 /// on this file as on `main`'s control:
 ///  a stretch noted twice at natural size,
 ///  where what it adds stays under the build's uncovered time plus `WINDOW_ORIGIN_ROUNDING_MS`
-///  (2 ms over once and 1 or -1 ms in the other two runs),
+///  (caught in one of three runs,
+///  at 2 ms over;
+///  1 and -1 ms over passed),
 ///  and an understatement under the same slack (3 ms passed).
+/// The build's uncovered time is `buildMs` less what the record states of it,
+/// 3 to 5 ms in 16 of the 17 clean stopped records of the second integration pass,
+/// whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+/// and 12 ms in the other.
 /// Its selection is asserted exactly,
 /// as `["git commit"]`,
 /// which is stricter than the bound:
 /// a right record in which a preparation step that ran under two milliseconds began inside the origin band
 /// would fail that assertion while the accounting passes it,
-/// and in the pass's 17 clean stopped records the last preparation step began 5 to 11 ms before the window's start.
+/// and in the 17 clean stopped records of the second integration pass,
+/// whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+/// the last preparation step began 5 to 11 ms before the window's start.
 #[test]
 fn a_build_stopped_in_its_scratch_commit_still_states_its_time() {
     let fixture: Fixture = fixture("timing-build-stopped");
@@ -760,7 +773,11 @@ fn a_commit_refused_by_a_policy_states_the_policy() {
 /// so this number decides the wait for a foreign holder,
 /// the phase beside it,
 /// and the stopped control's lower bound on `buildMs`,
-/// where an understatement under it passes as on `main`.
+///  which an understatement passes unless it leaves `buildMs` under that bound
+///  (25 and 30 ms passed it as on `main`,
+///  and 100 ms failed it).
+/// The runs are those of the second integration pass,
+/// whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00.
 const ROUNDING_MS: u64 = 12;
 
 /// What:
