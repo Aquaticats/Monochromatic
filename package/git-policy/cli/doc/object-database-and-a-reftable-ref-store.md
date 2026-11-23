@@ -299,12 +299,19 @@ a linked worktree of a reftable repository and a files payload are left to Git,
   a question whose input file cannot be made,
   or is cut short by a file-size limit in a child process,
   answers that it failed and leaves no part of the file behind.
-- `service_commit::a_setting_only_the_client_sees_refuses_the_commit_plainly` and
-  `a_setting_only_the_service_sees_lands_as_git_reads_it`:
+- `service_commit::a_setting_the_command_or_the_service_holds_still_lands`:
+  the thirteen rows of the integration recheck's environment situations in which `main` lands the right commit,
+  each with a fixture and a commit service of its own,
+  asserting the row lands,
+  that the commit stands on the parents Git reads and that Git finds every object it names.
+- `service_commit::a_graft_file_the_service_names_lands_as_git_reads_it` and
+  `a_replace_ref_keeps_the_amendment_on_the_parents_git_reads`:
+  the landing's two doors,
+  each with a fixture that closes the other.
+- `service_commit::a_setting_only_the_service_sees_lands_as_git_reads_it`:
   the four variables above,
-  each set for one client command and not the service,
-  refuse the commit plainly and name the variable,
-  and each set for the service and not the client land as Git reads them or fail where Git cannot read the base.
+  each set for the service and not the client,
+  landing as Git reads them or failing where Git cannot read the base.
 - The controls that drive each declined question through its caller are listed under
   "The call sites,
   driven through their callers".
@@ -356,15 +363,40 @@ with all four questions made to answer nothing,
   left behind,
   and with the failed question answering `false` instead of nothing the two controls above failed on
   `a question that could not be asked is not an answer`;
-- with the client's refusal removed,
-  `a_setting_only_the_client_sees_refuses_the_commit_plainly` failed on the exit status the command printed;
-- with `GIT_REPLACE_REF_BASE` taken out of the landing's `HISTORY_VARIABLES`,
-  `a_setting_only_the_service_sees_lands_as_git_reads_it` failed on the parents the amended commit stood on;
 - with the layout's proof skipping the replace refs,
-  `a_store_a_layout_proved_still_declines_a_replacement_object` failed on the open it allowed;
+  `a_store_a_layout_proved_still_declines_a_replacement_object` failed on the open it allowed,
+  `the layout proves the ref store, not that no object is replaced`;
 - with the graft file back to one empty line,
   `a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader` failed on its positive control,
-  `the file changes the parents Git reads`.
+  `graft: the file changes the parents Git reads for <name>`;
+- with the reftable folder taken out of the proved open,
+  `a_proof_read_before_a_ref_store_migration_declines_after_it` failed on
+  `the proved open asks the reftable folder again, and declines the migrated store`;
+- with the content proof asking the environment again,
+  `a_content_proof_answers_under_each_variable_a_command_names` failed with
+  `"GIT_OBJECT_DIRECTORY": a proof of this worktree's own files answers under the variable it holds:
+  Err(CleanRefusal { kind: Unreadable, reason: "the object database has a layout the reader does not know" })`;
+- with the commit refusal put back in `run_commit_command` (the code this round removed),
+  `a_setting_the_command_or_the_service_holds_still_lands` failed on its first row,
+  `r01 the object store in use: this row lands on main`,
+  exit 1 against 0;
+- with the graft file's variable taken out of `HISTORY_VARIABLES` alone,
+  `a_graft_file_the_service_names_lands_as_git_reads_it` failed on
+  `the amended commit stands on the parents Git reads under the graft file, which are none`;
+- with the replace-refs check taken out of the reader's decline alone,
+  `a_replace_ref_keeps_the_amendment_on_the_parents_git_reads` failed on
+  `the amended commit stands on the parents Git reads under the replace ref, which are none`;
+- with both doors closed for `GIT_REPLACE_REF_BASE` (its entry in `HISTORY_VARIABLES` and its decline in the reader),
+  `a_setting_only_the_service_sees_lands_as_git_reads_it` failed on
+  `GIT_REPLACE_REF_BASE: the amended commit stands on the parents Git reads under the setting`.
+
+The landing's two doors are redundant for `GIT_REPLACE_REF_BASE`,
+so no red run isolates one of them for that variable:
+with the entry in `HISTORY_VARIABLES` taken out alone the control passes (the reader declines and the question goes to
+Git),
+and with the reader's decline of the variable taken out alone it passes too (the landing leaves the parents to Git).
+Each door has its own control above,
+which closes the other in its fixture.
 
 ## The environment that overrides the configuration
 
@@ -407,7 +439,7 @@ The first arm is the wrong answer of issue 6340 in another spelling:
 the reader would scan the files under the common directory and answer the older commit,
 while Git reads the replacement from the store the environment names.
 `repo_read_odb.rs` therefore declines the database when the variable is set to anything but exactly `files`
-(`environment_names_another_ref_store`),
+(`environment_names_another_read`),
 and its control is
 `repo_read_odb::tests::an_environment_that_moves_the_ref_store_declines_the_database`,
 which runs its body in a child process because the variable belongs to one process.
@@ -505,13 +537,14 @@ For the four variables that move a read this round declines at the reader
 `GIT_ALTERNATE_OBJECT_DIRECTORIES`):
 
 - Set for the client alone,
-  the commit lands as if the variable were unset while the command's own Git reads what it names,
-  in every one of the four shapes the controls build
-  (a `files://` payload store holding a branch and a replacement ref,
-  a `refs/probe/` replacement base,
-  an empty object store,
-  and a base commit moved into a named alternate store).
-  The commit now refuses before anything is prepared (below).
+  a value that changes nothing (the repository's own store,
+  an empty cache directory,
+  a replacement base with nothing
+  under it,
+  a reftable store naming what it is) lands the commit as `main` lands it,
+  and `service_commit::a_setting_the_command_or_the_service_holds_still_lands` holds those rows.
+  An effective setting the command alone holds is the one row that does not land as Git reads it:
+  see "An effective setting the command alone holds" below.
 - Set for the service alone,
   a `refs/probe/` replacement base is read by the service's Git through
   `history_is_plain`,
@@ -560,21 +593,52 @@ Read on this branch:
   so both callers are covered by the reader's decline and by the
   refusal their callers already handle,
   not by a control of their own.
+- A proof that settles a worktree's files by content does not refuse under these variables:
+  `read_state` opens with `ObjectDatabase::open_of_the_repository_alone` when the proof is by content
+  (`check_clean_by_content`,
+  and the conversion inspection's `check_clean_tracked_by_content`),
+  so it reads the repository's own store as `main`'s reader did,
+  and the stat proof keeps its decline.
+  Without it a `git worktree remove` of a tree that holds a foreign volume was refused where `main` proceeds
+  (`worktree_remove.rs` asks the by-content proof when the stat proof cannot vouch for a tree that holds a volume).
+  Control:
+  `worktree::worktree_clean_content::safety_tests::a_content_proof_answers_under_each_variable_a_command_names`,
+  which forces `check_clean_by_content` under each of the four variables in a child that sets it after the repository
+  exists.
 
-The client's refusal is `refuse_a_setting_the_service_cannot_see` in `commit_command.rs`,
-placed beside the refusal of a command line Git itself refuses and before the transaction reads an index.
-It names the variable and says where to set it,
-and it leaves alone a value that changes nothing,
-which is `files`,
-`refs/replace/` and an empty value.
-The controls are
-`service_commit::a_setting_only_the_client_sees_refuses_the_commit_plainly`,
-whose arms take Git's own reading under the setting as the positive control,
-and `service_commit::a_setting_only_the_service_sees_lands_as_git_reads_it`.
-A `files://` payload store given to the service is not one of those arms:
-its store must hold the branch as well,
-and the wrapper's own push then fails to read the commit there,
-which is a separate incident and is not claimed as working.
+### The two doors
+
+Two doors keep the landing's answer right when a variable is set for the service,
+and either alone is enough:
+`history_is_plain` (`service_built_checks.rs`) lists the variables,
+so a landing leaves the parents to Git,
+and the reader declines them,
+so a landing that reads in process asks Git too.
+Each has a control with a fixture that closes the other:
+`service_commit::a_graft_file_the_service_names_lands_as_git_reads_it` moves the history with a graft file the
+repository itself does not hold,
+so the reader opens,
+and is red with `GIT_GRAFT_FILE` taken out of that list alone;
+`service_commit::a_replace_ref_keeps_the_amendment_on_the_parents_git_reads` uses a replace ref,
+which no variable of
+that list names,
+and is red with the replace refs taken out of the reader's decline alone.
+`service_commit::a_setting_only_the_service_sees_lands_as_git_reads_it` covers the pair for the four variables and is
+red only with both doors closed.
+
+### An effective setting the command alone holds
+
+A commit whose own environment names an effective replacement base the service does not hold,
+a no-parent replacement under `GIT_REPLACE_REF_BASE` and then an amend,
+lands on one parent where Git reads none:
+the command's Git reads the replacement and the landing reads the commit's own bytes.
+That is what `main` does,
+so this round leaves it as it is and files it as issue 6347,
+which wants a design of its own.
+The row measured by the integration recheck (`env-situations.ts`,
+`r14` client only) earned it:
+`main` lands one parent,
+Git reads none.
 
 ## What the refusal costs a files-backend repository
 
@@ -630,6 +694,20 @@ which the layout does not make;
 the index reset,
 the LFS plan,
 the push trigger and the query context use it.
+The proof can be stale:
+a command that holds the layout across its own work (a forwarded `merge`,
+`pull`,
+`cherry-pick`,
+`revert` or `am`) can move the store under it with `git refs migrate`,
+and the proved open then read the object's own bytes where Git reads a replacement that now lives in the tables.
+It therefore stats the `reftable` folder of the Git and common directories again;
+the environment and the configuration are not asked again,
+since the layout refused them by default-deny when it was read.
+Control:
+`repo_read_layout::tests::a_proof_read_before_a_ref_store_migration_declines_after_it`,
+which reads a files layout,
+adds a replace ref and runs `git refs migrate --ref-format=reftable`,
+and requires both opens to decline.
 
 Measured on this host on 2026-11-22,
 one release measurement binary of this branch,
@@ -639,20 +717,24 @@ the three arms run once each per round with the order rotated,
 every run in a capped scope (`CPUQuota=300%`),
 with the environment a fixture Git runs in so nothing of this account's configuration reached the reader:
 
-- the open a layout caller makes (the proof shared):
-  median 19,810 ns (17,791 to 21,416);
+- the open a layout caller makes (the proof shared,
+  and the `reftable` folder asked again):
+  median 24,035 ns (21,971 to 25,774);
 - the open that reads the store's proof itself,
   which is the work `main` does on every open:
-  median 28,446 ns (27,002 to 32,145);
+  median 31,254 ns (29,596 to 34,610);
 - a byte-identical copy of the same binary run as the identical-binary control:
-  median 19,822 ns (18,601 to 23,954).
+  median 23,995 ns (21,142 to 25,668).
 
 Per round,
-the shared-proof open over the unproved one is 0.664 (0.637 to 0.750),
-the control over the unproved one 0.696 (0.588 to 0.777),
-and the shared-proof open over the control 0.963 (0.834 to 1.134).
-The effect (about a third of the open,
-8.6 microseconds) is wider than the identical pair's spread,
+the shared-proof open over the unproved one is 0.769 (0.657 to 0.846),
+the control over the unproved one 0.770 (0.658 to 0.867),
+and the shared-proof open over the control 1.000 (0.912 to 1.098).
+Before the folder was asked again the same harness measured 0.664 (0.637 to 0.750) for the shared proof over the
+unproved open;
+asking the folder costs the difference,
+about 4.2 microseconds of the 7.2 the share still saves.
+The effect is wider than the identical pair's spread,
 so it is the finding;
 the absolute counts are this host's under other sessions' load,
 and larger than the 16.5 to 24.0 microseconds the
@@ -705,7 +787,9 @@ those were two
 `git cat-file commit` starts for the same commit;
 the landing keeps the bytes of the first read and the second asks nothing.
 
-The memory belongs to one landing and ends with it.
+The memory belongs to one landing and ends when the next landing begins:
+a service that sits idle up to its three-hour exit still holds the last landing's commits,
+which is bounded and small.
 The service's loop enters the landing's state once,
 so `land_batch_timed` empties the memory as each landing begins
 (`landing_state_carried_by_its_task.rs`,
@@ -837,12 +921,14 @@ Git resolves them.
 - The per-open timing above ran one binary with three arms rather than three binaries in their own worktrees:
   the unproved open is the work `main` does on every open,
   and the identical-binary control bounds the harness.
-- The refused client setting has no control for every value:
-  the four controls use values that move what Git reads,
-  and a value that names the store this repository already uses (`GIT_OBJECT_DIRECTORY` at the repository's own
-  objects directory,
-  an alternate directory that adds nothing) is refused as well,
-  which is the safe direction and is said in the message.
+- The effective replacement base a command alone holds is not built for:
+  it lands on one parent where Git reads none,
+  as it does on `main`,
+  and issue 6347 wants a design of its own ("An effective setting the command alone holds").
+- The end-to-end removal of a worktree that holds a foreign volume was not run:
+  it needs a nested subvolume,
+  which this host may not make without root.
+  The by-content proof that removal reaches is what the control exercises.
 - The `files://` payload store given to the service alone is not claimed to work:
   its payload must hold the branch as well as the replacement,
   and the wrapper's own push then fails to read the commit there.

@@ -5747,18 +5747,13 @@ Differential controls run real Git and the readers over the same command lines
 Set `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment to start Git for every one of these questions,
 for a measurement that compares both paths or to rule the readers out when output differs.
 
-A `git commit` refuses,
-naming the variable,
-when its own environment sets `GIT_REFERENCE_BACKEND` to anything but
-`files`,
-`GIT_REPLACE_REF_BASE` to anything but `refs/replace/`,
-or `GIT_OBJECT_DIRECTORY` or
-`GIT_ALTERNATE_OBJECT_DIRECTORIES` at all:
+A `git commit` is not refused for any of these variables:
 the commit service that lands the commit is another process and reads from its own environment,
-so a store or a replacement base named for one command would be read by that command's Git and by nothing the landing
-asks.
-Set the variable where the service runs,
-or unset it for the commit.
+so a store or a replacement base named for one command is read by that command's Git and by nothing the landing asks,
+and the commit lands as `main` landed it.
+An effective replacement base the command alone holds is the one case that lands wrongly,
+and it is issue 6347 (`doc/object-database-and-a-reftable-ref-store.md`,
+"An effective setting the command alone holds").
 
 ## Operating conditions
 
