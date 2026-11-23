@@ -900,21 +900,19 @@ and T4 is the trigger it chose for a request with nobody waiting
   `src/core/unit.c`,
   lines 2154 to 2156 at `v262`;
   fact F15).
-  Its one condition is the sibling's `ExecReload=`:
+  Its one condition is the `ExecReload=` the record fixes:
   with that line an active unit reloads and nothing unmounts;
   without it,
   the same command on an active unit is a restart,
   which runs `ExecStopPost=shutdown-unmount` and unmounts every clone,
   so the printed lever would be a stop pass over the clones.
-  If the sibling's choice 3 is vetoed,
-  the printed lever is `start` for a failed or inactive unit and none for an active one.
   `start` alone re-runs a failed or inactive unit and does nothing on an active one (fact F15);
   `restart` always runs the stop pass first and unmounts every clone (fact F17).
   Running the handler binary from a person's shell is not recommended,
   because that
   shell's mount namespace is not the host's (fact F18).
 - The account lever:
-  a `zfs set` of a fresh nudge nonce on the clone,
+  the same `zfs set` of a fresh nudge nonce on the clone that T4's command nudge writes,
   which is T1's delivery and therefore ZED-bound:
   while ZED is stopped it recovers nothing.
 - As which user:
