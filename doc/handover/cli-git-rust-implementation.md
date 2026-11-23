@@ -133,9 +133,23 @@ The skill is corrected in `e24cf7d46d`,
 and the launchers now take their pool from `writer-pool-for-a-round.ts` in the launch folder,
 which refuses that pool.
 `drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names;
-the round `pi-driver-refuses-a-run-on-a-closed-pool`,
-on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool`,
-makes it and the worktree launcher refuse one.
+the round `pi-driver-refuses-a-run-on-a-closed-pool`
+made it and the worktree launcher refuse one,
+and reopened the qwen plan's DeepSeek pool for runs that name it,
+on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool` at `c1c1c1a1f8`
+(report:
+`~/temp/agent/pi-driver-refuses-a-run-on-a-closed-pool-2026-11-23/keep/report-pi-driver-refuses-a-run-on-a-closed-pool.md`).
+Its whole unit suite failed a different real-process test on each of three runs,
+each passing alone,
+and its `lint` task cannot run in a fresh worktree (issue 6339).
+Running:
+its Sonnet integration pass,
+to `~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`.
+The repository's tool links folder `.cache/toolchain-bin` is missing,
+so `file-enforcer` and `monochromatic-lint` are not on `PATH`;
+only `toolchain:install` makes it,
+and the owner said it waits for issue 6316:
+"Because we need to make mpm-shadow prefer system package managers on non-atomic distros first."
 A run that ends is still read and recorded here.
 Under each sub-initiative,
 "Running" and "Next" say what was going at that reading and what is started first afterwards.
@@ -415,12 +429,33 @@ and one more state with no command:
 a clone destroyed by hand before any removal ran.
 The binding's round on both reads ended at `86ce40be3c`
 (`continuation-seventh-reads.md` in its round folder is what it was asked);
-its report and diff are unread.
+its report,
+`keep/report-seventh-reads.md`,
+says all eight items are done,
+H1 and H2 among them.
+Both reviewers' eighth reads
+(`review-eighth-read-before-acceptance.md` beside each seventh read;
+the lock reviewer is agent `a162ea896d0a950e2`,
+the record reviewer `a6207db50e3431e04`)
+found the lock design fit to put to the owner as it stands,
+and the binding fit after one narrow round:
+a `settling` binding with no plan is told two different commands
+(the lock reviewer's U26,
+the record reviewer's J1),
+with lows and the unrecorded clone at `snapshotted` (U27).
+The round on both eighth reads ended at `abeb058f63`,
+its report saying every item done,
+with one section,
+"Which command is true for a state",
+that the other rules cite.
+Running:
+each reviewer's ninth read of that diff alone,
+with the acceptance material in plain words
+(`review-ninth-read-before-acceptance.md` beside each eighth read).
 
 Next:
-read that diff against the eight items it was asked;
-then one more read by both reviewers of that diff alone;
-then the acceptance question.
+the acceptance questions,
+step 10's two designs and the three records.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
 step 10's "discarded copied Git administration",
@@ -449,7 +484,16 @@ and the set not ready for two things in the binding
 ("Step 10's designs").
 Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
 each with the words that should replace it.
-No round on the two records' lows is started.
+The rounds on H9 and H10 ended with every low done:
+the origin cleanup record at `ea271e9e1d`,
+the plan record at `db69df972a`.
+The record reviewer's eighth read found the three fit with lows and the set ready to go to the owner with its list of accepted-design sentences
+(now its check 4,
+with entries 2,
+3,
+5,
+12 and 13 changed),
+once the binding's J1 is mended.
 
 Next:
 a round on each record's lows;
@@ -491,8 +535,10 @@ because the guest round is its test.
 The cancelled removal's round closed its one medium
 (it no longer refuses a kept receiver the forced arm does not refuse);
 the coordinator read its diff.
-Ended,
-with its report and results unread:
+Being read against its logs by the design's reviewer,
+resumed as agent `abfa3e9e26276b294`,
+who also drafts the confirmation question
+(`review-guest-probe-arms.md` in that review's `keep/`):
 `pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
 a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
 Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
@@ -562,14 +608,18 @@ rung 1 reads sizes without making a declined add slower.
 State:
 merged as `e37566df9c`.
 Its follow-up is on `feat/git-policy-cli-fence-size-read-beside-source-check` at `9329642a95`.
+Its Sonnet pass
+(`~/temp/agent/integration-pass-fence-size-read-declined-add-step-cost-2026-11-22/keep/review.md`)
+found it not fit:
+the declined add's step cost is gone,
+but the parse moved onto the adding thread,
+so the `conversionFence` step of every served and dirty add is 7.8 to 13.4 ms longer than `main`'s.
 Running:
-its Sonnet pass,
-to `~/temp/agent/integration-pass-fence-size-read-declined-add-step-cost-2026-11-22/keep/review.md`.
-The pass was sent the four partial-clone answers.
+`pi-fence-size-read-integration-pass-findings`,
+which puts the parse back off the adding thread.
 
 Next:
-merge,
-or a fix round.
+a second Sonnet pass.
 
 #### The object reader's declined branches
 
@@ -615,31 +665,35 @@ The merged code compares the number the PID file names,
 and the owner chose that its contents be compared
 (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
 The round that builds the byte comparison and folds in the second pass's lows has ended,
-on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`;
-its report and diff are unread.
+on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`.
+Running:
+its third Sonnet pass,
+the second-pass reviewer resumed as agent `a53733389dde02725`,
+to `review-third-pass.md` in its earlier pass's `keep/`.
 
 Next:
-read its diff;
-then a Sonnet pass,
-since it changes product code.
+merge,
+or a fix round.
 
 #### Issue 6344: the sibling shadow control
 
 State:
 merged as `0b7a48def4`.
+The follow-up round on what its pass left ended on
+`fix/git-policy-cli-shadow-sibling-control-two-timing-windows` at `48346ef6c2`,
+all seven items done,
+its gate (before enforcement) failing only the cause-H pair.
+The guard costs about one second per gate,
+and the owner kept it
+(`doc/decision/cli-git-shadow-sibling-control-guard-costs-a-second-per-gate.md`).
 Running:
-`pi-shadow-sibling-control-follow-ups-after-the-merge`,
-on what its pass left:
-cause M's reasoning,
-and two guards with no committed control.
-The coordinator took the pass's first-ranked option for the guards,
-a committed delay of about a second in each gate run;
-the owner has not been asked.
+its Sonnet pass on the follow-ups,
+the integration pass's reviewer resumed as agent `a8d0bc7335c71001c`,
+to `review-follow-ups.md` in that pass's `keep/`.
 
 Next:
-put that cost to the owner;
-a Sonnet pass,
-since it changes test code.
+merge,
+or a fix round.
 
 #### Issue 6345: the worktree-removal control
 
@@ -657,21 +711,33 @@ and causes N and G are rewritten.
 Its gate had one failure that is on no list,
 `fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout`.
 
+Its third Sonnet pass
+(`~/temp/agent/integration-third-pass-worktree-removal-held-commit-control-2026-11-23/keep/review.md`)
+found it not fit as it stands:
+the fourth control passes on `main`'s wait too,
+so it guards nothing,
+and the troubleshooting text says things the runs contradict.
+The wait and the fixture's drop are sound,
+and its gate was void under the missing AppArmor rules.
+That failure is filed as issue 6397,
+and the pass drafted the comment for issue 6345 at the merge (its report,
+`keep/report-from-the-agents-last-message.md` beside the review).
 Running:
-its third Sonnet pass,
-which also judges that failure,
-on the integration branch `integrate/git-policy-cli-worktree-removal-held-commit-control-third-pass`.
-Its brief is `brief-third-pass-issue-6345-worktree-removal-control.md` in the launch folder.
+`pi-worktree-removal-control-third-pass-findings`.
 
 Next:
-merge,
-or a fix round.
+read its diff;
+one whole gate when gates may run;
+then merge and post the comment.
 The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
 Issue 6354 is decided
 (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`)
-and is built after this branch merges,
-because its round edits the same documents.
+and edits the same documents,
+so it is built on a branch made from this one's tip,
+`fix/git-policy-cli-worktree-removal-not-woken-warning-names-the-way-out`,
+by the round `pi-worktree-removal-not-woken-warning-names-the-way-out`,
+and merged after it.
 
 #### The tests and the gate under AppArmor
 
@@ -695,8 +761,13 @@ Running:
 `apparmor-shakedown-gate-on-main-20261123`,
 one whole gate on `main` started before the second batch,
 with its output under `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
-The kernel's audit backlog is 64 and drops records in bursts;
-that is the owner's to change and is not asked yet.
+A third batch since covers the wrapper's own `/proc` and cgroup reads,
+and `systemd-run --scope` of the account's own programs.
+The kernel's audit backlog dropped 69,301 records at its default of 64;
+the owner chose 8192,
+kept across reboots,
+which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.rules`.
+That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
 
 Next:
 read the gate's denials and failures;
@@ -775,13 +846,15 @@ with contradictions between the old text and current documents and proposals for
 The second sorter's is also in its `keep/state-so-far.md`;
 the first sorter's is only in the session's record until it is copied into its `keep/`.
 
-Running:
-the sorter of lines 41,470 to 44,767,
-and the sorter of the open review findings,
+The sorters of lines 41,470 to 44,767
+and of the open review findings,
 the picks and the working rules
-(40,844 to 41,469 and 49,500 to 49,707).
-Their briefs are `brief-sorter-owner-decisions-first-and-last-parts.md`
-and `brief-sorter-findings-picks-and-working-rules.md` in that folder.
+(40,844 to 41,469 and 49,500 to 49,707)
+have ended too,
+the second with 78 items covering its 834 lines exactly.
+Running:
+the sorter of the open work (34,867 to 40,843),
+briefed by `brief-sorter-open-work.md` in that folder.
 
 Next,
 in this order:

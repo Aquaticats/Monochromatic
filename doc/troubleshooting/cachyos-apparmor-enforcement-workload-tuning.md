@@ -724,6 +724,29 @@ ptrace (read) peer=unconfined,
 ptrace (read) peer=gh,
 @{bin}/{sleep,cat,touch,mkdir,rm,rmdir,mv,cp,ls,echo,printf,true,false,test,head,tail,wc,sort,uniq,grep,sed,awk,date,kill,stat,sync,id,basename,dirname,readlink,realpath,tr,cut,tee,chmod,ln,mktemp,uname,od,diff,cmp,seq,expr,dd} rix,
 @{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/**/cpu.max r,
+# /etc/apparmor.d/local/git, third batch
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/io r,
+@{PROC}/loadavg r,
+@{sys}/fs/cgroup/{,**/}{cpu,memory,pids}.{max,current} r,
+# /etc/apparmor.d/local/git, fourth batch
+owner @{PROC}/@{pid}/task/ r,
+/etc/machine-id r,
+@{sys}/fs/cgroup/{,**/}memory.stat r,
+@{bin}/env rix,
+```
+
+```text
+# /etc/apparmor.d/local/ssh-keygen, fourth batch: signing tests make keys and signatures in their fixtures
+owner @{HOME}/.cargo/build/** rw,
+owner /work/** rw,
+# /etc/apparmor.d/local/gh, fourth batch: its Go runtime's cpu.max
+@{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/**/cpu.max r,
+```
+
+```text
+# /etc/apparmor.d/local/systemd-run (new): a scope runs the account's own programs as the profile runs system ones
+owner @{HOME}/** pux,
 ```
 
 ```text
@@ -766,6 +789,30 @@ owner @{HOME}/temp/agent/**/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
   whoever owns it,
   which is its job;
   those accesses are no longer logged.
+- `systemd-run --scope` may run any program the account owns under its home folder,
+  under that program's own profile or unconfined,
+  as the stock profile already lets it run any system program.
+  Before the rule,
+  a scope of mise's `node`,
+  cargo's binaries or the repository's `node_modules/.bin` tools was refused.
+
+### The audit backlog
+
+The kernel's audit backlog limit was its default of 64:
+no rule under `/etc/audit` set it,
+and `audit-rules.service`,
+which loads `/etc/audit/rules.d` with `augenrules --load`,
+is disabled.
+The owner chose "A:
+8192,
+kept (Recommended)" on 2026-11-23.
+`auditctl -b 8192` set it for the running boot
+(`backlog_limit 8192`,
+with `lost 69301` as the count before),
+and `/etc/audit/rules.d/10-backlog-limit.rules` holds `-b 8192`.
+That file is read at boot only once `audit-rules.service` is enabled,
+which is a change to the system service manager and the owner's to make:
+`sudo systemctl enable audit-rules.service`.
 
 ### Verification so far
 
@@ -782,6 +829,29 @@ owner @{HOME}/temp/agent/**/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
   and the denials that followed could be read.
   The kernel still dropped 484 records in the next minutes,
   with the backlog limit unchanged at 64.
+- After the second batch:
+  no `ssh-keygen` denial was logged.
+- After the `systemd-run` rule:
+  `systemd-run --user --scope` ran the repository's `node_modules/.bin/mvm --help`,
+  which printed its usage.
+- The first whole gate on `main` (run `native-pl935G`) began before the second batch
+  and was stopped after 47 minutes,
+  once its one remaining test,
+  `landing::service_work::push_retry_tests::a_stopped_push_is_still_tried_again_after_the_service_restarts`,
+  had run for over 36 minutes;
+  whole gates took about 29 minutes before enforcement.
+  It had about 42 distinct failures,
+  most of them before the batches that answer them were loaded.
+  It served to find denials,
+  not to judge the rules.
+- Held,
+  not granted:
+  two `capability dac_override` denials for `umount` and one for `git`,
+  apparently root inside a container.
+  A grant to the `git` profile would also let root's `git` on the host pass file permissions,
+  so it waits until a failing test is tied to it.
+- The second whole gate on `main` started with all four batches loaded
+  and the kernel's lost count at 69,301.
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
 
