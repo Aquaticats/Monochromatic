@@ -110,6 +110,29 @@ tell me whenever it is a good time."
 
 So no new round or agent is started until the machine is back.
 That sets aside "its next step started in the same turn" under "Standing directions" for that time.
+The machine is back:
+the current boot began at 2026-11-23T15:12:47-05:00,
+after several restarts from about 05:42,
+and AppArmor enforces on it since (`doc/handover/full-system-policy-handover.md`).
+The owner,
+on the session's return:
+"I'm back.
+apparmor is now on.
+Add rules to unblock whatever you need to do as you go this session."
+Every run that the restarts ended was picked up at 16:31 as "Picking a run up" says,
+and the two Pi rounds go on as
+`pi-zfs-step-9-unmount-after-the-machine-restarted` and `pi-clone-rung-partial-clone-after-the-machine-restarted`,
+on `opencode-go`.
+Writer rounds had run on standard Neuralwatt DeepSeek,
+a pool the owner closed on 2026-11-11,
+because the skill `pi-as-subagent` listed it first and the round launchers named it;
+the owner saw the calls on 2026-11-23:
+"I'm seeing a lot of deepseek-v4.1-flash (standard) calls in neuralwatt which has drained a lot of my quota.
+This shouldn't happen."
+The skill is corrected in `e24cf7d46d`,
+and the launchers now take their pool from `writer-pool-for-a-round.ts` in the launch folder,
+which refuses that pool.
+`drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names.
 A run that ends is still read and recorded here.
 Under each sub-initiative,
 "Running" and "Next" say what was going at that reading and what is started first afterwards.
@@ -162,8 +185,15 @@ and the session already holds its turns.
 A round that ended by itself has `summary.json` in its run folder
 and its report under the round folder's `keep/`.
 
-A Sonnet pass or sorter that the restart ended is started again as a fresh agent with its brief,
-told to read `state-so-far.md` in its `keep/` first.
+A Sonnet pass or sorter that a restart ended is resumed,
+not started again:
+its transcript outlives a restart of Claude Code and of the machine
+(`~/.claude/projects/-home-user-Monochromatic/<session id>/subagents/agent-<id>.jsonl`,
+with its description in the `.meta.json` beside it),
+and SendMessage to its agent ID resumes it from there.
+The six passes and the sorter that a usage-limit refusal stopped at about 05:30 were resumed that way at 2026-11-23T16:31-05:00,
+each told what the restarts ended and to read its `state-so-far.md` first.
+A fresh agent with its brief is the fallback when a transcript is gone.
 The briefs are in the launch folder
 (`brief-*.md`,
 and `rules-for-an-integration-pass.md`,
