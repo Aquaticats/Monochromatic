@@ -655,7 +655,9 @@ fn divergent_root(sbin: &str, clone: &str) -> Option<Task> {
     std::fs::create_dir_all(ROOTED_BIND).expect("the divergent root's folder is made");
     // The task's root becomes a bind of the guest's root, so every path its mount table renders is rendered from
     // that root, and the clone is mounted inside it so the mount itself is a mount of that root's tree.
-    let inner: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && exec sleep {HOLDER_SECONDS}");
+    // `mount` searches its own helper folders and not the path, and this guest's OpenZFS is under /opt, so the task
+    // calls the helper by its own path, which the bind carries into the root it runs in.
+    let inner: String = format!("{sbin}/mount.zfs {clone} {ROOTED_FOLDER} && exec sleep {HOLDER_SECONDS}");
     // The mount point is made inside the bind, because the task that mounts the clone runs there.
     let script: String = format!("mount --bind / {ROOTED_BIND} && mkdir --parents {ROOTED_BIND}{ROOTED_FOLDER} && exec chroot {ROOTED_BIND} sh -c '{inner}'");
     return start_task(script.as_str(), "/root/holder-scan-rooted.pid", sbin, &[]);
