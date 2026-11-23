@@ -127,17 +127,25 @@ impl MountedDatasetRefusal {
         };
     }
 
-    /// The refusal in words,
-    /// naming the names looked for,
-    /// what was found,
-    /// and the configuration entry or setup command that settles it.
-    pub fn message(&self, configuration: &Path) -> String {
-        let cause: String = match self {
+    /// What the table held,
+    /// in words,
+    /// and why none of it is an instance of the dataset looked for,
+    /// with no remedy and no sentence about what the caller did.
+    /// Why:
+    ///  Two programs read this look-up and each has its own remedy:
+    ///  the sweep names `cloneMounts` entries and the start probe names
+    ///  `startProbe.checkout`,
+    ///  so the descriptive half is written once and each caller appends what
+    ///  settles the case for it
+    ///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+    ///  "Four further answers on the look-up with no configuration file").
+    pub fn cause(&self) -> String {
+        return match self {
             MountedDatasetRefusal::TableUnreadable { said } => format!(
-                "this process's own mount table could not be read ({said}), and no configuration names the checkout or the checkout dataset, so nothing here says which dataset the route acts on"
+                "this process's own mount table could not be read ({said}), so nothing here says which dataset the route acts on"
             ),
             MountedDatasetRefusal::NoneMounted { leaf, ignored } => format!(
-                "no mount in this process's own mount table is an instance of the checkout dataset, whose last name component is `{leaf}`, and the configuration names neither `cloneMounts.checkout` nor `cloneMounts.checkoutDataset`. A row counts only when its root within the dataset is `/`, and a dataset whose parent's last component is `{DESIGN_CONTAINER_DATASET_NAME}` is a managed clone the route attaches at a slot, never the checkout. The table's ZFS rows whose source carried that leaf name are {}",
+                "no mount in this process's own mount table is an instance of the checkout dataset, whose last name component is `{leaf}`. A row counts only when its root within the dataset is `/`, and a dataset mounted directly inside the clone container this run uses is a managed clone, never the checkout. The table's ZFS rows whose source carried that leaf name are {}",
                 listed_or_nothing(ignored.as_slice())
             ),
             MountedDatasetRefusal::SeveralMounted { leaf, found } => format!(
@@ -168,8 +176,17 @@ impl MountedDatasetRefusal {
                 path.display()
             ),
         };
+    }
+
+    /// The refusal in words,
+    /// naming the names looked for,
+    /// what was found,
+    /// and the configuration entry or setup command that settles it for the
+    /// sweep.
+    pub fn message(&self, configuration: &Path) -> String {
         return format!(
             "{cause}. Nothing was enumerated, attached or recorded, and every clone's mount intent stands untouched. {remedy}",
+            cause = self.cause(),
             remedy = self.remedy(configuration)
         );
     }

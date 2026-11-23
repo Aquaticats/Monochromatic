@@ -120,9 +120,11 @@ impl SourceRefusal {
                 "the probe's source is not configured: `{key}` names `{name}`, which is not a dataset name the kernel takes ({}). Nothing was attached. Ways forward: give `{key}` the dataset name, with no snapshot, bookmark or path separator a name may not hold.",
                 why.message()
             ),
-            SourceRefusal::Checkout { refusal } => {
-                format!("the probe's dataset is not configured and its design's own name needs the checkout: {}. Nothing was attached. Ways forward: write `{key}` in the root-owned configuration naming the probe dataset, or run plan step 19's setup so the checkout dataset is mounted.", refusal.message(configuration))
-            }
+            SourceRefusal::Checkout { refusal } => format!(
+                "the probe's dataset is not configured and its design's own name needs the checkout: {cause}. Nothing was attached. {remedy}",
+                cause = refusal.cause(),
+                remedy = probe_checkout_remedy(refusal, configuration, format!("{START_PROBE_KEY}.{CHECKOUT_KEY}").as_str())
+            ),
             SourceRefusal::CheckoutNotFound { path } => format!(
                 "the probe's dataset is not configured and no checkout was found to take the pool from, so `nosnap/git-worktree-probe` has no pool to sit in ({} was read). Nothing was attached. Ways forward: write `{key}` in {} naming the probe dataset, or run plan step 19's setup so the checkout dataset is mounted.",
                 path.display(),
@@ -130,6 +132,46 @@ impl SourceRefusal {
             ),
         };
     }
+}
+
+/// What:
+///  What settles a look-up the probe could not answer,
+///  in the probe's own words.
+/// Why:
+///  The sweep's remedy names `cloneMounts.checkout` and
+///  `cloneMounts.checkoutDataset`,
+///  which the probe does not read,
+///  so a person who follows it finds the probe still blocked
+///  (the second pass's finding B2).
+///  The probe's key is `startProbe.checkout`,
+///  and the mount of the checkout dataset is the other way,
+///  so this names those two and nothing the sweep owns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const remedy = probeCheckoutRemedy(refusal, path, 'startProbe.checkout');
+/// ```
+fn probe_checkout_remedy(refusal: &MountedDatasetRefusal, path: &Path, key: &str) -> String {
+    let file = path.display();
+    return match refusal {
+        MountedDatasetRefusal::TableUnreadable { .. } => format!(
+            "Ways forward: run the probe from a process that can read `/proc/self/mountinfo`, or write `{key}` in {file} naming the checkout path."
+        ),
+        MountedDatasetRefusal::SeveralMounted { .. } | MountedDatasetRefusal::DatasetMountedSeveralTimes { .. } => format!(
+            "Ways forward: leave one mounted instance of the checkout dataset and run the probe again, or write `{key}` in {file} naming the checkout path."
+        ),
+        MountedDatasetRefusal::NoPoolForTheProbeDataset { .. } => format!(
+            "Ways forward: write `{START_PROBE_KEY}.{DATASET_KEY}` in {file} naming the probe dataset in full."
+        ),
+        MountedDatasetRefusal::NoParentForTheContainer { .. }
+        | MountedDatasetRefusal::NoneMounted { .. }
+        | MountedDatasetRefusal::DatasetNotMounted { .. }
+        | MountedDatasetRefusal::NoDatasetAtThePath { .. }
+        | MountedDatasetRefusal::LeafNameDiffers { .. }
+        | MountedDatasetRefusal::NotADataset { .. } => format!(
+            "Ways forward: mount the checkout dataset `monochromatic-git-checkout`, which plan step 19's setup does, or write `{key}` in {file} naming the checkout path."
+        ),
+    };
 }
 
 /// What:
@@ -197,9 +239,9 @@ impl CheckoutRefusal {
                 path.display()
             ),
             CheckoutRefusal::NotFound { refusal } => format!(
-                "the probe's checkout could not be told: {}. Ways forward: mount the checkout dataset `monochromatic-git-checkout`, which plan step 19's setup does, or write `{key}` in {} naming the checkout path.",
-                refusal.message(path),
-                path.display()
+                "the probe's checkout could not be told: {cause}. The probe added nothing to the mount table and enables no managed attach. {remedy}",
+                cause = refusal.cause(),
+                remedy = probe_checkout_remedy(refusal, path, key.as_str())
             ),
         };
     }

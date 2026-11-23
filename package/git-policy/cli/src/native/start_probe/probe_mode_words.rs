@@ -26,7 +26,7 @@ use super::probe_record_files::{RecordFileRefusal, RecordPlace};
 use super::probe_errno_names::ErrnoWord;
 use super::probe_report::{ProbeReport, ProbeVerdict};
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The line the mode says about a run it could not start.
 pub fn unstarted(what: &str, errno: i32) -> String {
@@ -97,56 +97,80 @@ fn blocked_hint(report: &ProbeReport) -> String {
 }
 
 /// What:
-///  Whether the report says the checkout could not be told from the mount table,
-///  and which word it used.
+///  The reason word a step that did not run carries,
+///  when that word is one the configuration produced.
 /// Why:
-///  The project's second answer of 2026-11-22 has the probe print every mounted
-///  dataset it found when it meets none or several,
-///  as the sweep does
+///  The record holds closed words and no prose
+///  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+///  "The result record and its fingerprint"),
+///  so the mode has to recognise the words a person needs a sentence for.
+///  The project's second answer of 2026-11-22 asks for the rows when the
+///  look-up finds none or several
 ///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-///  "Four further answers on the look-up with no configuration file").
-///  The worker's line carries only the closed word,
-///  so this is what tells the mode to recompute the look-up and say what it
-///  held.
+///  "Four further answers on the look-up with no configuration file"),
+///  and its fourth asks the empty file's message to say what it is,
+///  which binds the probe as much as the sweep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const word = tableWord(report); // 'no-mounted-checkout' | 'several-mounted-checkouts' | 'mount-table-unreadable' | undefined
+/// const word = refusalWord(report); // 'configuration-empty' | 'several-mounted-checkouts' | ... | undefined
 /// ```
-pub fn table_word(report: &ProbeReport) -> Option<&'static str> {
+pub fn refusal_word(report: &ProbeReport) -> Option<&'static str> {
     return report.lines().iter().find_map(|line| {
-        return match (&line.step, &line.answer) {
-            (_, super::probe_status_line::StepAnswer::NotExercised { reason, .. })
-                if matches!(*reason, "no-mounted-checkout" | "several-mounted-checkouts" | "mount-table-unreadable") =>
-            {
-                Some(*reason)
-            }
+        return match &line.answer {
+            super::probe_status_line::StepAnswer::NotExercised { reason, .. } if is_configuration_word(reason) => Some(*reason),
             _ => None,
         };
     });
 }
 
+/// Whether one reason word is a refusal about the configuration file,
+/// which the mode has a sentence for.
+fn is_configuration_word(word: &str) -> bool {
+    return matches!(
+        word,
+        "configuration-unreadable"
+            | "configuration-empty"
+            | "configuration-unparsable"
+            | "name-not-text"
+            | "name-refused"
+            | "no-mounted-checkout"
+            | "several-mounted-checkouts"
+            | "mount-table-unreadable"
+    );
+}
+
 /// What:
-///  The listing the mode prints when the table told it no single checkout:
-///  the look-up recomputed in this process,
-///  which is in the host mount namespace,
-///  in the words the probe's own refusal already carries.
+///  The sentence the mode prints for the refusal the worker reported,
+///  in the probe's own words.
 /// Why:
-///  The refusal message names every row the table held under the leaf name with
-///  its path,
-///  so the mode needs no second prose and the record keeps its closed words.
-///  A look-up that now succeeds prints nothing:
-///  the table changed between the worker's read and this one.
+///  Each of the probe's file refusals carries prose that names the file,
+///  the key and what settles it,
+///  and the mode prints the one whose reason word the worker wrote.
+///  The look-up is recomputed in this process,
+///  which is in the host mount namespace,
+///  so none or several lists every row the table held with its path.
+///  A refusal that no longer holds prints nothing:
+///  the file or the table changed between the worker's read and this one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const listing = tableListing(configuration, liveMountedDatasets);
+/// const sentence = refusal_sentence('several-mounted-checkouts', configuration, liveMountedDatasets);
 /// ```
-pub fn table_listing(configuration: &Path, mounts: &dyn MountedDatasets) -> Option<String> {
-    let document: Option<String> = super::probe_configuration::read_configuration(configuration).ok().flatten();
-    return match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
-        Ok(_checkout) => None,
-        Err(refusal) => Some(refusal.message(configuration)),
+pub fn refusal_sentence(word: &str, configuration: &Path, mounts: &dyn MountedDatasets) -> Option<String> {
+    let document: Option<String> = match super::probe_configuration::read_configuration(configuration) {
+        Ok(document) => document,
+        Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
+        Err(_) => return None,
+    };
+    let checkout: PathBuf = match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
+        Ok(checkout) => checkout,
+        Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
+        Err(_) => return None,
+    };
+    return match super::probe_configuration::source_name(document.as_deref(), configuration, mounts, Some(checkout.as_path())) {
+        Err(refusal) if refusal.word() == word => Some(refusal.message(configuration)),
+        _ => None,
     };
 }
 
