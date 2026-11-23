@@ -3803,6 +3803,23 @@ with its committer time from `git log --format=%cI`:
 - `5e85c13b8c`,
   2026-11-22T21:16:27-05:00:
   this list gained this round's commits and the correction of the previous entry's claim.
+- `f13237d326`,
+  2026-11-22T21:16:33-05:00:
+  the list gained the commit that recorded that round.
+- `12ff579a2c`,
+  2026-11-22T21:16:54-05:00:
+  the record's path lines are named as the repeated key they are.
+- `f9f0d37dd1`,
+  2026-11-22T21:49:07-05:00,
+  on the merge of `main` at `f699c0d107`:
+  the last check's medium and its lows are answered:
+  M10 makes the checkout shared again before it mounts the five datasets and is stated as a builder can script it,
+  `unread` is written one way,
+  the path line's bound is the escaped one,
+  "no cap on a unit's resources" replaces the wording a reader could take for a cap on units,
+  F39 states what `reload-or-start` becomes on a unit that has the reload line,
+  the sibling is cited by heading at its tip `95d3b2074e`,
+  and the scan says it re-escapes what the parser decoded.
 
 ## Links
 
