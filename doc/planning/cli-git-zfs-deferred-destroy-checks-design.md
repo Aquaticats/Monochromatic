@@ -3955,9 +3955,12 @@ nothing here claims their behaviour.
   committed `2026-11-22T21:44:08-05:00`:
   the version that answers the check before acceptance and the seven answers,
   with the changes the seventh part of "What this revision rewrote" lists.
+- `8f38000259`,
+  committed `2026-11-22T21:44:14-05:00`:
+  the metadata-only commit that listed the three above with their times.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  list the acceptance round's commits":
+  record the acceptance round's metadata commit":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
