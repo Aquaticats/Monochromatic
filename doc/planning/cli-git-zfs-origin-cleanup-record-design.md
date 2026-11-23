@@ -4713,6 +4713,23 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   2026-11-23T04:53:30-05:00:
   this revision entry.
   The commits that touch only this list are the ones `git log` reports for this path after `2befde256d`.
+- `c2773c9ea4`,
+  2026-11-23T17:17:02-05:00:
+  the eighth round,
+  which answers the seventh read's H9 and nothing else.
+  T2's arm for a record missing a required key is mended into the list,
+  and it now says which keys the state requires,
+  so the arm that makes `attemptedAt` required only in a blocked record agrees with it.
+  The kill list's "no state reachable by a kill" now says which kills it covers:
+  the removal's and the finish pass's,
+  and not the settling command's,
+  whose kill the binding design names with its own next run as the finisher.
+  The point on an unreadable record cites each sibling as it stands:
+  the plan design's "What every reader refuses",
+  whose Choice 10 is now the size choice,
+  and the binding design's "The route's record convention",
+  whose Q7 is decided.
+- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `c2773c9ea4`.
 
 ## References
 
@@ -4742,9 +4759,11 @@ the guest measurements this design cites.
 The sibling designs this design reads and does not edit:
 
 - `doc/planning/cli-git-zfs-add-binding-record-design.md`,
-  read at `1e9bc35f1e`.
+  read at `c077bdb1e1`,
+  cited by heading and label.
 - `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-  read at `a7823980b9`.
+  read at `28c590b4c4`,
+  cited by heading and label.
 
 The other sibling designs this design depends on and does not read as decided:
 
