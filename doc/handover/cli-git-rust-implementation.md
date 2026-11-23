@@ -95,6 +95,130 @@ and each stays in force until the owner changes it.
   the skill `pi-as-subagent`,
   section "Who writes and who reviews".
 
+## The restart the owner announced on 2026-11-23
+
+The owner,
+on 2026-11-23,
+shortly before this state was read at 2026-11-23T05:30:24-05:00:
+"I need to restart Claude Code very soon.
+Try to make sure everything can survive that."
+And then:
+"In fact,
+I'd have to restart my whole system soon too.
+Don't abandon anything,
+tell me whenever it is a good time."
+
+So no new round or agent is started until the machine is back.
+That sets aside "its next step started in the same turn" under "Standing directions" for that time.
+A run that ends is still read and recorded here.
+Under each sub-initiative,
+"Running" and "Next" say what was going at that reading and what is started first afterwards.
+
+### What a restart ends
+
+- A restart of Claude Code ends the coordinating session's own agents,
+  which are the Sonnet passes and the sorters,
+  and its waiting shell commands.
+  Units of the account's service manager go on:
+  the Pi rounds,
+  the gates and scopes the passes started,
+  and a guest.
+- A restart of the machine ends those too.
+- Nothing under `~/temp/agent` is counted on to outlast a restart of the machine.
+  "Only in scratch" lists what would be lost with it.
+
+### A good time, by checks
+
+Safe,
+meaning a restart loses no work and costs only what was running:
+
+- this page is on `origin`;
+- `list-what-a-restart-would-lose.ts` in the launch folder prints only the main checkout,
+  whose four changed files are not this session's and are left alone;
+- `git log --branches --not --remotes --oneline` prints nothing;
+- every run still going has a commit of its work on `origin` or a `state-so-far.md` in its `keep/`.
+
+Clean,
+meaning nothing is interrupted:
+no `pi-*` unit,
+gate unit or guest is running,
+no gate container is left,
+and every agent has returned.
+
+### Picking a run up
+
+Every running round and agent was told at 2026-11-23T05:25-05:00 to commit its work at each step,
+a broken state too,
+to keep each commit on `origin`,
+and to keep `state-so-far.md` current in its `keep/` folder.
+
+A Pi round that the restart ended goes on from its own session:
+from the launch folder,
+`node resume-a-build-round.ts <round folder> <worktree name> <branch> <continuation file> <a new unit name>`.
+It starts Pi from the newest session of that worktree and makes the worktree again when it is gone.
+The continuation file is the round's own,
+in its round folder,
+and the session already holds its turns.
+A round that ended by itself has `summary.json` in its run folder
+and its report under the round folder's `keep/`.
+
+A Sonnet pass or sorter that the restart ended is started again as a fresh agent with its brief,
+told to read `state-so-far.md` in its `keep/` first.
+The briefs are in the launch folder
+(`brief-*.md`,
+and `rules-for-an-integration-pass.md`,
+which every pass reads)
+and in the housekeeping folder (`brief-sorter-*.md`).
+The second pass on the no-configuration branch and the fourth recheck of the object reader have no brief file:
+each is briefed again from the rules file,
+the earlier review in its `keep/` folder and its state file.
+
+Units a pass started,
+seen running at that reading and its own to stop:
+`ipass-holder-scan-plants-4`,
+`declined-step-pass-loadlog`,
+`recheck-f4-gate-2-20261123`,
+`ssc2-6344-followups-gate-20261123`,
+and the scope `ipnc2-drivers`.
+After a restart of Claude Code alone,
+a gate unit whose pass is gone is left to end,
+and its containers and image tag are then cleared as the gate rules say.
+
+### Results that are not acted on yet
+
+- Issue 6342's follow-up round ended by itself after 109 turns.
+  Its report,
+  `keep/report-pi-lock-control-second-pass-lows.md` under
+  `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/`,
+  and its diff are unread,
+  and its Sonnet pass is not started.
+- The binding record's round on both seventh reads ended by itself after 62 turns,
+  at `86ce40be3c`.
+  Its report,
+  `keep/report-seventh-reads.md` in its round folder,
+  and its diff are unread.
+- The guest round on the forced removal's first probe arms ended.
+  Its report and its results are unread.
+- The origin cleanup record and the plan record have lows from the record reviewer's seventh read,
+  and no round on them is started.
+- Two sorters' ledgers are complete and neither is applied
+  ("The handover holds only open work").
+
+### Only in scratch
+
+These exist only under `~/temp/agent`,
+and a lost scratch folder would cost redoing them:
+
+- the launch folder's scripts and briefs;
+- each reviewer's files under `gate-review-*/keep/` and `integration-*/keep/`,
+  which hold the findings,
+  the veto lists in plain words and the wording of the questions for the owner;
+- the two finished sorters' ledgers and issue drafts;
+- the backlog's ledger with the links of what was filed and labelled,
+  which GitHub itself also shows.
+
+The owner is asked whether these go onto a branch on `origin` before the restart.
+
 ## Initiatives
 
 ### The ZFS worktree route
@@ -224,12 +348,27 @@ a stale test paragraph,
 and a hazard in the settling command,
 which on a `settling` binding could remove the registration of a worktree Git had already checked out.
 That file holds both veto lists in plain words and the two plan sentences as they would read after the change.
-Running:
-the same reviewer's read of both last diffs,
-to `review-seventh-read-before-acceptance.md` beside it.
+The same reviewer's seventh read,
+`review-seventh-read-before-acceptance.md` beside it,
+found the lock design fit to put to the owner as it stands,
+with two lows that can ride with its next commit,
+and plan step 10 buildable from the two documents and the accepted records.
+It found the binding fit after three mediums,
+all in the settling command and none of them step 10's:
+its two modes overlap on a half-made checkout;
+a settling command that was killed and is run again once the pool answers has no command the text shows to work;
+and the third option of the veto entry V23 sends a person in a circle.
+The record reviewer's seventh read found the same overlap from its side,
+and one more state with no command:
+a clone destroyed by hand before any removal ran.
+The binding's round on both reads ended at `86ce40be3c`
+(`continuation-seventh-reads.md` in its round folder is what it was asked);
+its report and diff are unread.
 
 Next:
-the acceptance question.
+read that diff against the eight items it was asked;
+then one more read by both reviewers of that diff alone;
+then the acceptance question.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
 step 10's "discarded copied Git administration",
@@ -251,12 +390,19 @@ The reviewer's sixth read
 found each fit after listed fixes and the set not yet ready,
 for two things in the binding its round has since been given.
 It holds the three veto lists in plain words.
-Running:
-the same reviewer's read of the three last diffs,
-to `review-seventh-read-before-acceptance.md` beside it.
+The same reviewer's seventh read,
+`review-seventh-read-before-acceptance.md` beside it,
+found the two records fit after lows,
+and the set not ready for two things in the binding
+("Step 10's designs").
+Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
+each with the words that should replace it.
+No round on the two records' lows is started.
 
 Next:
-the acceptance question for the three.
+a round on each record's lows;
+then the acceptance question for the three,
+with that list.
 
 The plan record's one rule for a kept plan with an `unknown` outcome leaves sentences of two accepted designs untrue:
 four in `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
@@ -293,7 +439,8 @@ because the guest round is its test.
 The cancelled removal's round closed its one medium
 (it no longer refuses a kept receiver the forced arm does not refuse);
 the coordinator read its diff.
-Running:
+Ended,
+with its report and results unread:
 `pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
 a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
 Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
@@ -407,12 +554,13 @@ merged as `1ba2fe767d`.
 The merged code compares the number the PID file names,
 and the owner chose that its contents be compared
 (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
-Running:
-`pi-lock-control-second-pass-lows`,
-which builds the byte comparison and folds in the second pass's lows.
+The round that builds the byte comparison and folds in the second pass's lows has ended,
+on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`;
+its report and diff are unread.
 
 Next:
-a Sonnet pass,
+read its diff;
+then a Sonnet pass,
 since it changes product code.
 
 #### Issue 6344: the sibling shadow control
@@ -449,13 +597,15 @@ and causes N and G are rewritten.
 Its gate had one failure that is on no list,
 `fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout`.
 
-Next:
-a third Sonnet pass,
-which also judges that failure.
+Running:
+its third Sonnet pass,
+which also judges that failure,
+on the integration branch `integrate/git-policy-cli-worktree-removal-held-commit-control-third-pass`.
 Its brief is `brief-third-pass-issue-6345-worktree-removal-control.md` in the launch folder.
-It is not started:
-the harness runs ten subagents at once and refused it,
-so it starts when one ends.
+
+Next:
+merge,
+or a fix round.
 The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
 Issue 6354 is decided
@@ -503,22 +653,44 @@ and the old text is frozen in the file named under "Where the rest of this page 
 The sorting's working files,
 and the ledger of which range went where,
 are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
-Ranges sorted so far:
+The held backlog is on GitHub
+("Held work").
+Ranges applied so far:
 none.
+
+Two sorters have ended,
+each with a ledger that covers its range exactly once and with issue drafts,
+under `sorter-lines-<first>-to-<last>/keep/` in that folder:
+
+- lines 44,768 to 46,713,
+  in 307 items.
+  The coordinator's check script passed its coverage,
+  and one stretch read by hand agreed with it.
+  A second check lists the quoted passages inside its `delete` items that stand nowhere else in the repository:
+  66 of 85,
+  among them answers of the owner's such as "Per command (Recommended)".
+  That figure is an upper bound,
+  because the check matches the first forty characters as written and has had no positive control.
+  Its `delete` items are not applied until each such quotation is moved or shown to be held.
+- lines 46,714 to 49,499,
+  in 151 items,
+  after the same lesson was sent to it:
+  it moved the owner's sentences and answer labels out of `delete`.
+  Four of its items are private and get no target.
+  Not yet checked by the coordinator.
+
+Each sorter's report came as its last message,
+with contradictions between the old text and current documents and proposals for rule text.
+The second sorter's is also in its `keep/state-so-far.md`;
+the first sorter's is only in the session's record until it is copied into its `keep/`.
+
 Running:
-three Sonnet sorters on the owner's decisions,
-one each for lines 41,470 to 44,767,
-44,768 to 46,713 and 46,714 to 49,499,
-writing to `sorter-lines-<first>-to-<last>/keep/` in that folder;
-and one Sonnet agent that checks the held backlog's entries against `main` and GitHub
-and drafts their issues under `backlog-to-github-issues/keep/`,
-creating nothing on GitHub.
-A fourth sorter,
-for the open review findings,
-the picks and the working rules,
-has its brief ready (`brief-sorter-findings-picks-and-working-rules.md` in that folder)
-and was refused twice at the harness's limit of ten subagents;
-it starts when one ends.
+the sorter of lines 41,470 to 44,767,
+and the sorter of the open review findings,
+the picks and the working rules
+(40,844 to 41,469 and 49,500 to 49,707).
+Their briefs are `brief-sorter-owner-decisions-first-and-last-parts.md`
+and `brief-sorter-findings-picks-and-working-rules.md` in that folder.
 
 Next,
 in this order:
