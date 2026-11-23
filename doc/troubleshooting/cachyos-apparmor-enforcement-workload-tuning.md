@@ -835,9 +835,17 @@ kept (Recommended)" on 2026-11-23.
 (`backlog_limit 8192`,
 with `lost 69301` as the count before),
 and `/etc/audit/rules.d/10-backlog-limit.rules` holds `-b 8192`.
-That file is read at boot only once `audit-rules.service` is enabled,
-which is a change to the system service manager and the owner's to make:
-`sudo systemctl enable audit-rules.service`.
+That file is read at boot only once `audit-rules.service` is enabled.
+The owner enabled it on 2026-11-23
+(`sudo systemctl enable audit-rules.service`,
+which linked it into `multi-user.target.wants`),
+after the coordinating session had left it to the owner,
+and said:
+"I didn't need to run it myself but I just ran it as a courtesy."
+The rule against acting on the system service manager in the skill `pi-as-subagent` is for the agents a session briefs;
+a change the owner has authorised the session to make,
+as the rules of this page,
+the session makes itself.
 
 ### Verification so far
 

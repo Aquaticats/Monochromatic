@@ -740,21 +740,6 @@ on `fix/git-policy-cli-shadow-sibling-control-follow-ups-cause-m-words`.
 Next:
 merge when it ends.
 
-#### Issue 6354: the "recorded and not woken" warning
-
-State:
-issue 6345's control and its test wait merged as `41e55743cf`,
-the comment is posted and the issue is closed;
-6353 and 6355 are open on GitHub.
-Issue 6354 is decided
-(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`).
-Running:
-`pi-worktree-removal-not-woken-warning-names-the-way-out`,
-on `fix/git-policy-cli-worktree-removal-not-woken-warning-names-the-way-out`,
-made from 6345's tip.
-
-Next:
-merge when it ends.
 
 #### The tests and the gate under AppArmor
 
@@ -819,7 +804,11 @@ The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
 which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.rules`.
-That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
+`audit-rules.service`,
+which loads that file at boot,
+is enabled since 2026-11-23,
+by the owner
+("Things a new session would not find elsewhere" has the owner's words).
 
 Next:
 read the gate on `main` against the baseline and its denials,
@@ -999,6 +988,20 @@ or that is no issue:
 ## Things a new session would not find elsewhere
 
 - Do not run `pnpm install` in a new worktree (issue 6339).
+- The coordinating session makes a host change the owner has authorised itself,
+  with the passwordless `sudo`,
+  and does not hand it back.
+  The owner,
+  2026-11-23,
+  after enabling `audit-rules.service` when the session had left that to the owner:
+  "I didn't need to run it myself but I just ran it as a courtesy."
+  The rule against acting on the system service manager in the skill `pi-as-subagent` binds the agents a session briefs.
+  Applying anything ZFS-related to the host stays the owner's act.
+- No round runs `mise run toolchain:install`,
+  not even for one tool in its own worktree:
+  it waits for issue 6316,
+  in the owner's words "Because we need to make mpm-shadow prefer system package managers on non-atomic distros first."
+  Issue 6354's round ran it for `cargo-nextest` (it installed nothing).
 - An answer from the owner changes the bar for reviewers that are already running.
   Send it to each of them in the turn it is recorded.
 - A question to the owner blocks the coordinator until it is answered.
