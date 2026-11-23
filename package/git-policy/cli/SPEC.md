@@ -2875,7 +2875,9 @@ took 1.30 times Git's own checkout on the fenced rung,
 one of 10,001 files of 26,000 bytes,
 about 260 MB,
 took 1.32 of it in eight balanced rounds,
-and this repository's tree of 763,293,228 bytes took 0.73 to 0.81 of it.
+and this repository's tree of 763,289,228 bytes,
+which that round measured,
+ took 0.73 to 0.81 of it.
 The rung's fence reads cost about the same whatever the tree holds,
 and Git's own checkout grows with the bytes,
 so the rung loses wherever a checkout is shorter than those reads;

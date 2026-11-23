@@ -52,7 +52,9 @@ use std::path::Path;
 /// identical control 1.40,
 /// 8 counted rounds) at 10,001 files of 26,000 bytes (260,000,028 bytes,
 /// measured 2026-11-21 for this pin);
-/// this repository's own tree of 24,648 files and 763,549,750 bytes won at 0.73 to 0.81 of it.
+/// this repository's own tree of 24,621 files and 763,289,228 bytes,
+/// the tree that round measured,
+/// won at 0.73 to 0.81 of it.
 /// The rung's fence reads cost about as much whatever the tree holds
 /// (`git ls-tree` alone is 275 ms at 24,621 paths,
 /// 110 ms at 10,001),
