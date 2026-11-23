@@ -395,6 +395,10 @@ fn zfs_unmount_guest_kill_points() {
         assert!(line_about(attached.said.as_str(), clone.as_str()).is_some_and(|line| return line.starts_with("attached ")), "the {label} clone attaches: {}", attached.said);
         let guid: DatasetGuid = DatasetGuid::parse(guid_of(sbin.as_str(), clone.as_str()).as_str()).expect("the clone GUID parses");
         let folder_path: PathBuf = _wall.join(staging_name(guid.file_name().as_str()));
+        // A folder an earlier run left a bind on cannot be removed, so its mounts go first.
+        for _attempt in 0..3 {
+            let _ = Command::new("umount").arg(folder_path.as_path()).status();
+        }
         let _ = std::fs::remove_dir_all(folder_path.as_path());
         std::fs::create_dir_all(folder_path.as_path()).expect("the staging folder is made");
         std::fs::set_permissions(folder_path.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the staging folder holds 0700");
