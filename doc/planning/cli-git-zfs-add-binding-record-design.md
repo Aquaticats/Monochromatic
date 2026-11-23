@@ -6197,6 +6197,27 @@ and any test suite.
 - 2026-11-23T05:28:52-05:00 (`cc141f5133`):
   named the settling command's own kill state in the after-A20 list,
   which U16 of the seventh add-side read asked for.
+- 2026-11-23T17:39:46-05:00 (`c0962bb28c`):
+  answered the two eighth reads:
+  U26 and J1 ("Which command is true for a state" states every state once,
+  and the printing rule,
+  the fallback's list,
+  "A resumed add",
+  "`doctor`",
+  R3,
+  "What a record whose clone is gone means" and the removal's rule cite it),
+  J2 (the `doctor` removal line),
+  J3 (T33's ten arms,
+  T34's rule,
+  T30's arms),
+  J4 (the `cloneGuid=` carve-out in the add's stop and the removal's rule),
+  J5 (`doctor`'s general bullet),
+  J8 (one wording for the checkout test),
+  U27 (a clone recovered at its proposed name from `snapshotted`,
+  and A22's skip),
+  U33 (the first entry's real time and the tips sentence),
+  and item 7 (the copy of the removal sentence matches "The record's end" word for word).
+  Each was proved by the searches kept in `keep/eighth-reads-searches-2026-11-23.txt`.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
