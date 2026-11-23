@@ -1187,16 +1187,21 @@ and only the owner accepts one.
   the round's brief asks which failing tests use the wait.
   And cause N's text contradicts the pass's runs in several places,
   and cause G was never shortened as the round reported.
-  Running:
-  `pi-worktree-removal-held-commit-control-integration-pass-findings`,
-  on `continuation-integration-pass-findings.md` in the round's folder
-  (the wait read in the order of the record's flow,
+  The round on those findings ended after 93 turns at `ef0bbe214f`
+  (report `keep/report-pi-worktree-removal-held-commit-control-integration-pass-findings.md` in the round's folder:
+  the wait read in the order of the record's flow,
   with a control from the pass's plants;
   causes N and G rewritten;
   the fixture stops its services before it removes its tree).
-  Then a second pass.
-  The pass's text for the issue on a second record for one removal is in its review;
-  not filed yet.
+  Its second Sonnet pass is going,
+  to `~/temp/agent/integration-second-pass-worktree-removal-held-commit-control-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-worktree-removal-held-commit-control-second-pass`.
+  The round's report holds the texts of three issues
+  (a second record for one removal;
+  a missed wake that leaves a worktree standing until a commit;
+  a `failed` record with no notice);
+  the pass is asked to check each and give the text to file.
+  None is filed yet.
 - Issue 6346
   (`fix/git-policy-cli-commit-timing-control-stopped-build-failed-in-two-gates` at `bf3bc322c4`):
   the round found the control's build window began a route's length too early.
