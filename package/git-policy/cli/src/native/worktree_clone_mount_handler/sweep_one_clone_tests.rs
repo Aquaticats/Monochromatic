@@ -1401,12 +1401,25 @@ impl MountTableSource for CloneShapedTable {
     }
 }
 
+/// A source that names the clone's own source for every mount,
+/// which this control supplies because the tmpfs's own source is not a dataset
+/// name;
+/// the flags it is about come from the table the poll refreshes.
+struct SourceSaysTheClone;
+
+impl super::MountSourceByNumber for SourceSaysTheClone {
+    fn source_of(&self, _unique_mount_number: Option<u64>) -> super::MountSourceAnswer {
+        return super::MountSourceAnswer::Source(String::from(CLONE));
+    }
+}
+
 /// What:
 ///  A mount whose enforced flags are removed in place while a sweep runs is
 ///  no longer recognised after the poll.
 /// Why:
-///  The pass showed `main` refusing a clone whose `nosuid` and `nodev` were
-///  cleared mid-run while the snapshot build answered `attached`;
+///  A clone whose `nosuid` and `nodev` were cleared mid-run must be refused,
+///  while a copy of the table taken before the change still answered
+///  `attached`;
 ///  the in-place remount changes the mount's number not at all,
 ///  so only the poll can make the table read again.
 #[test]
@@ -1420,7 +1433,7 @@ fn a_mount_whose_flags_change_in_place_is_read_again_after_the_poll() {
     mount_tmpfs("zfs-step-8-poll-clone", slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
     let _guard: PolledMount = PolledMount { path: slot.clone() };
     let source: CloneShapedTable = CloneShapedTable { live: LiveMountTableSource::open() };
-    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_source(Box::new(source));
+    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_sources(Box::new(source), Box::new(SourceSaysTheClone));
     let checkout: PathBuf = root.join("checkout");
     let request: LookAgainAtSlotRequest<'_> = LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" };
     assert!(standing.standing_mount_of(&request, CLONE).is_some(), "the clone's own mount is recognised first");
@@ -1432,6 +1445,69 @@ fn a_mount_whose_flags_change_in_place_is_read_again_after_the_poll() {
 
 //endregion
 
+
+/// What:
+///  A second turn says what it does:
+///  it does not claim the intent is read again after the claim's release,
+///  because that turn has already read it once more.
+/// Why:
+///  The sentence is what a person reads about a clone whose intent moved under
+///  the claim twice,
+///  and a sentence that promises a re-read this turn cannot make would send them
+///  to wait for something that is not coming.
+#[test]
+fn a_second_turn_says_the_next_trigger_reads_the_intent_again() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_second_turn_says_the_next_trigger_reads_the_intent_again") {
+        return;
+    }
+    /// A pool whose clone answers a new request on every read,
+    /// so the intent moves under the claim and again during the second turn.
+    struct Moving {
+        /// The reply number this read answers.
+        reads: Cell<usize>,
+    }
+
+    impl DatasetReader for Moving {
+        fn identity(&self, _dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+            let read: usize = self.reads.get();
+            self.reads.set(read + 1);
+            let digits: String = format!("{read:032x}");
+            return Ok(DatasetIdentity { stats: stats_of_a_clone(), properties: reply_of_a_clone(Some(mount_request(digits.as_str()).as_str()), CLONE) });
+        }
+
+        fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+            return Ok(None);
+        }
+    }
+
+    let fixture: Fixture = Fixture::build("second-turn-words");
+    let reader: Moving = Moving { reads: Cell::new(0) };
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let outcome: CloneOutcome = sweep_one_clone(
+        &SweepContext {
+            parent_dataset: PARENT,
+            checkout: fixture.checkout.as_path(),
+            checkout_dataset: CHECKOUT_DATASET,
+            store: fixture.store.as_path(),
+            claims: &claims,
+            receipts: &receipts,
+            boot: BOOT,
+            time: &|| return String::from(TIME),
+            reader: &reader,
+            attach: &attach,
+            first_attach: &fixture.first_attach,
+            standing: &fixture.standing,
+        },
+        CLONE,
+    );
+    let said: String = outcome.line();
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == "intent"), "{outcome:?}");
+    assert!(!said.contains("the intent is read again after the claim is released"), "a second turn does not promise a re-read it cannot make: {said}");
+    assert!(said.contains("the next trigger reads it again"), "the sentence names what does read it again: {said}");
+    assert_eq!(attach.asked.get(), 0, "no turn attached anything");
+}
 
 //region The receipt skip and the two remaining releases
 

@@ -68,6 +68,7 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP bound stopped=true',
   'SWEEP stale flags-changed=refused',
   'SWEEP stale replaced=refused',
+  'SWEEP stale swapped=refused',
   'SWEEP done',
 ] as const;
 

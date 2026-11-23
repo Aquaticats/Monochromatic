@@ -594,8 +594,11 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     println!("MEASUREMENT child-bound-listing-ms={} children={} bound={}", bounded.elapsed.as_millis(), children, git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN);
     println!("SWEEP bound stopped=true children={children}");
 
-    // Item P-H1: the pass's two plants at 1,024 mounted clones. The sweep is started, the last child's mount is changed
-    // 400 ms later, and the line about that clone must be a refusal rather than the stale table's attached answer.
+    // Two changes made while a sweep runs, at 1,024 mounted clones: a sweep is started, the last child's mount is changed
+    // 400 ms later, and the line about that clone must be a refusal rather than an attached answer read from a table that
+    // was copied before the change. The first change clears the mount's two enforced flags in place; the second replaces
+    // the mount with another filesystem, which may take the old mount's number, and the third swaps the dataset under the
+    // mount by renaming a mounted legacy dataset away and another clone into its name.
     let stale_count: usize = 1_024;
     let stale_base: String = format!("{pool}/step8-stale");
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", stale_base.as_str()]);
@@ -652,8 +655,36 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let replaced_said: String = format!("{}{}", String::from_utf8_lossy(replaced_output.stdout.as_slice()), String::from_utf8_lossy(replaced_output.stderr.as_slice()));
     let replaced_line: &str = line_about(replaced_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the replaced clone");
     assert!(replaced_line.starts_with("refused "), "the mount replaced under the old number is refused: {replaced_line}");
+    // A refusal proves the answer was read again only where the replacement took the old mount's number: another number is
+    // no mount the copy ever described.
+    assert_eq!(old_mount_id, new_mount_id, "this kernel gave the replacement the old mount's number, which is the case this arm exists for");
     println!("SWEEP stale replaced=refused slot={stale_slot} reused={}", old_mount_id == new_mount_id);
     unmount_at(stale_slot_folder.as_path());
+
+    // The dataset swapped under the mount: root renames a mounted legacy dataset away and another clone into its name, the
+    // sequence of OpenZFS's own Example 1, which raises no mount event at all. The slot then holds the mount of the dataset
+    // that was renamed away, and the source the kernel prints has moved.
+    let swapped_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+    std::thread::sleep(Duration::from_millis(400));
+    let moved_dataset: String = format!("{stale_container}/{stale_slot}-moved-away");
+    let in_its_place: String = format!("{stale_container}/{stale_slot}-in-its-place");
+    zfs_ok(sbin.as_str(), &["rename", stale_clone.as_str(), moved_dataset.as_str()]);
+    let swap_suffix: String = format!("{stale_nonce}swap");
+    let replacement: String =
+        clone_the_checkouts_snapshot(sbin.as_str(), stale_checkout_dataset.as_str(), stale_container.as_str(), format!("{stale_slot}-in-its-place").as_str(), swap_suffix.as_str(), Some(mount_request(stale_nonce).as_str()));
+    zfs_ok(sbin.as_str(), &["rename", replacement.as_str(), stale_clone.as_str()]);
+    let swapped_output: Output = swapped_running.wait_with_output().expect("the stale sweep ends");
+    let swapped_said: String = format!("{}{}", String::from_utf8_lossy(swapped_output.stdout.as_slice()), String::from_utf8_lossy(swapped_output.stderr.as_slice()));
+    let swapped_line: &str = line_about(swapped_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the swapped clone");
+    assert!(swapped_line.starts_with("refused "), "the dataset swapped under the mount is refused: {swapped_line}");
+    let moved_row: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default();
+    assert!(moved_row.contains(moved_dataset.as_str()), "the slot still mounts the dataset that was renamed away: {moved_row}");
+    println!("SWEEP stale swapped=refused slot={stale_slot} source={moved_dataset}");
+    // The clone's name now belongs to a dataset that is not mounted at the slot, so the arm's own cleanup leaves that one to
+    // the pool teardown below; the mount at the slot goes with the dataset the slot still mounts.
+    unmount_at(stale_slot_folder.as_path());
+    let _renamed_back: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["rename", stale_clone.as_str(), in_its_place.as_str()], None);
+    let _mounted_away_back: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["rename", moved_dataset.as_str(), stale_clone.as_str()], None);
 
     println!("SWEEP done pool={pool} layout=design slot={SLOT}");
 }

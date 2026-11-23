@@ -937,10 +937,20 @@ The arms:
   a holder inside it makes the descriptor unmount answer `EBUSY` with the mount
   still standing,
   and the same call succeeds after the holder leaves;
+- three changes made while a sweep runs over 1,024 mounted clones,
+  each 400 ms into its own sweep and each on the clone the run listed last:
+  its `nosuid` and `nodev` cleared in place,
+  its mount replaced by a `tmpfs` that must take the old mount's number,
+  and its dataset renamed away while another clone is renamed into its name
+  (the swap of the OpenZFS manual's own Example 1,
+  which raises no mount event);
+  each sweep must refuse that clone,
+  and the arm fails where the replacement did not take the old number,
+  because another number is no mount an earlier read described;
 - the child bound the listing takes:
   one sweep over one more child than the bound visits stops at the bound,
   says so,
-  and prints the milliseconds it took beside the number in
+  and prints the milliseconds it took beside the constant in
   `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`.
 
 The arms print `MEASUREMENT sweep-attach-ms=` and

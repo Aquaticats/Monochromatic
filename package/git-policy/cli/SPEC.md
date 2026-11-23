@@ -6102,8 +6102,17 @@ mount and keeps the same `done` receipt for the request's nonce,
 instead of walking a slot that stands on another device and refusing it.
 A sweep reads the kernel's mount table once for its own standing-mount
 answers,
-and re-reads it when the namespace's event poll says the table changed;
+re-reads it when the namespace's event poll says the table changed,
+and counts a poll it cannot make as a change;
 the canonical slot is still walked under the claim.
+The dataset the mount at a slot is of is asked of the kernel for that one mount
+by the unique number `statx(2)` reports,
+because renaming a mounted `legacy` dataset moves the source the table prints
+and raises no event at all;
+where the kernel cannot answer (`statmount(2)` before Linux 6.13,
+or a failed call),
+the sweep reads the live table for that mount,
+which is what this route did before it kept a copy.
 A standing clone whose `done` receipt is already the one this request would
 file is answered without writing anything.
 A slot holding another dataset's mount is refused as the walk refuses it.

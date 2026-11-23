@@ -134,6 +134,8 @@ pub struct SweepContext<'a> {
 
 pub use super::sweep_standing_mounts::{LiveStandingMounts, StandingMounts};
 #[cfg(test)]
+pub(crate) use super::sweep_standing_mount_source::{MountSourceAnswer, MountSourceByNumber};
+#[cfg(test)]
 pub(crate) use super::sweep_standing_mounts::{LiveMountTableSource, MountTableSource, is_this_clones_own_mount};
 
 /// What:
@@ -321,8 +323,13 @@ fn mount_the_clone(context: &SweepContext<'_>, name: &str, verified: &VerifiedCl
     };
     if under_the_claim.0.dataset != verified.dataset || under_the_claim.1.nonce != request.nonce || under_the_claim.1.operation != request.operation {
         claim.release();
+        let after_the_release: &str = if may_read_again {
+            "and the intent is read again after the claim is released"
+        } else {
+            "and the next trigger reads it again, because this turn has already read it once more"
+        };
         let said: String = format!(
-            "the clone `{name}` was read as GUID {} asking `{}` under nonce {} before this sweep took slot `{}`, and under the claim it reads as GUID {} asking `{}` under nonce {}. Nothing was attached on the first reading, and the intent is read again after the claim is released",
+            "the clone `{name}` was read as GUID {} asking `{}` under nonce {} before this sweep took slot `{}`, and under the claim it reads as GUID {} asking `{}` under nonce {}. Nothing was attached on the first reading, {after_the_release}",
             verified.dataset.file_name(),
             request.operation.word(),
             request.nonce.as_str(),

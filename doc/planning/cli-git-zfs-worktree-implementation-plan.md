@@ -1174,9 +1174,17 @@ check the slot's Git pointer and record its first-observation identity before
 attach,
 attach through step 4,
 record the first attach's outcome,
+answer the request with its receipt
+(an attach's answer before the claim is released,
+a standing mount's after it),
 release the claim and read the intent once more,
-publish the receipt and the readiness,
+publish the readiness,
 and refuse malformed intent before any filesystem operation on its behalf.
+A standing clone whose `done` receipt already holds the answer this request
+would file is answered without writing it again,
+and the source of the one mount at a slot is asked of the kernel by that
+mount's unique number,
+because a rename of a mounted `legacy` dataset moves it with no mount event.
 A clone's origin is a snapshot of the checkout dataset the configuration names,
 under the `git-worktree-clone-origin-` prefix the design's add route gives it,
 which is the snapshot that route clones
