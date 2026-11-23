@@ -23,8 +23,18 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, porcelain, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
-use super::worktree_snapshot::{commit_all, tracked, tracked_content};
+use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
 use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
+
+/// The most tracked paths a body built on `conversion_fixture` holds,
+/// its own four and the anchor included.
+///
+/// Why:
+///  The anchor is one path of the fixture,
+/// and a derived body adds its own (`older_target_fixture` adds 42),
+///  so an anchor sized for the base alone would leave the derived body's mean under the clone rung's edge and the
+///  control would test Git's checkout instead of the class it names.
+const PATHS_A_CONVERSION_FIXTURE_GROWS_TO: u64 = 64;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -46,6 +56,11 @@ use std::path::{Path, PathBuf};
 /// ```
 fn conversion_fixture(fixture: &Fixture, name: &str, attributes: &[u8], notes: &[u8], after: &dyn Fn(&Path)) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
+    // The anchor sits above the clone rung's mean-file edge on purpose: without it this clean source averages a few
+    // dozen bytes a file, the size limit declines it, and the conversion class these controls are about is never reached.
+    // It is sized for the largest body built on this one, so a derived fixture's own paths cannot pull the mean under
+    // the edge (`older_target_fixture` adds 42).
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", PATHS_A_CONVERSION_FIXTURE_GROWS_TO);
     tracked(repo.as_path(), "dir/file.txt", b"line one\nline two\n");
     tracked(repo.as_path(), "notes.txt", notes);
     tracked(repo.as_path(), "tool.sh", b"#!/bin/sh\necho hi\n");
@@ -352,11 +367,16 @@ fn a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git() {
 /// and a source on each side of one must take the route the rule names.
 fn decline_fixture(fixture: &Fixture, name: &str, converting: usize, other: usize) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
+    // Above the clone rung's mean-file edge on purpose: this clean source of tiny files would otherwise be declined by
+    // its size before the decline share these controls are about is asked, and the served arms would fall to Git.
+    // The anchor is one of the `other` paths, because the controls compute `other` from the tracked count the share is
+    // taken of: a path added beside them would move the share by one and turn a declining fixture into a serving one.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", (converting + other) as u64);
     tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
     for index in 0..converting {
         tracked(repo.as_path(), format!("convert-{index}.txt").as_str(), b"line one\nline two\n");
     }
-    for index in 0..other {
+    for index in 0..other.saturating_sub(1) {
         tracked(repo.as_path(), format!("plain-{index}.dat").as_str(), b"line one\nline two\n");
     }
     commit_all(fixture, repo.as_path(), "fixture");
@@ -535,7 +555,7 @@ fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() 
     let topic: PathBuf = fixture.root.join("topic");
     let reference: PathBuf = fixture.root.join("control");
     assert!(!stderr_of(&created).contains("clones served"), "the tree difference ends the rung: {}", stderr_of(&created));
-    assert!(stderr_of(&created).contains("and Git's own checkout made the worktree"), "{}", stderr_of(&created));
+    assert!(stderr_of(&created).contains("so Git's own checkout wrote the worktree"), "{}", stderr_of(&created));
     assert_eq!(tracked_content(&fixture, topic.as_path()), tracked_content(&fixture, reference.as_path()), "every tracked path is Git's checkout's");
     assert_eq!(porcelain(&fixture, topic.as_path()), "", "the served worktree is clean");
     assert_eq!(paths_below(topic.as_path(), &[".git"]), paths_below(reference.as_path(), &[".git"]), "a path the clones copied and the target tree lacks stays behind");

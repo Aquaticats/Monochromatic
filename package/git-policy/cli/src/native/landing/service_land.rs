@@ -116,6 +116,11 @@ pub fn land_batch_timed(
     announce: &dyn Announcer,
     timing: &mut LandTiming,
 ) -> Result<Vec<Outcome>, FailureCode> {
+    // What this landing remembers ends with the landing before it: the state the service's loop enters once carries the bytes of
+    //  the commits it asked Git for, and a replace ref added to one of them between two landings changes what Git answers for that
+    //  name (an amend then stands on the replaced commit's own parents where Git reads none). Emptying it here also bounds what a
+    //  service holds to one landing's commits (`landing_state_carried_by_its_task.rs`).
+    crate::landing_state_carried_by_its_task::forget_the_commits_read_by_an_earlier_landing();
     // The batch names the worktree it belongs to, and every Git of the landing reads and writes that repository: a Git
     //  directory beside its work tree, or one an environment variable sent elsewhere, is found in this process only when the
     //  landing names it (`repository_selection::of_paths`).

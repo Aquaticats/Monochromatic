@@ -622,16 +622,22 @@ a clean source with its data written out took 0.51 to 1.57 times as long as Git'
 twenty-three interleaved rounds in five runs,
  once the clones ran in slices,
 where one thread took 1.76 to 2.23 times as long.
-A source with uncommitted changes still pays the source checks and then ends in Git's own checkout:
+A source with uncommitted changes paid the source checks and then ended in Git's own checkout:
 0.80 to 1.59 times the same build of `main`,
  medians of 1.25,
  0.93,
  1.24 and 1.17 in its four runs,
- about 0.2 seconds.
-That cost is the check that rung 2 requires and no snapshot can carry out here;
- the measurements,
- the options and
-their costs are with the integration pass that found it.
+ about 0.2 seconds,
+which is the cost the dirty-source waiver recorded
+(`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`).
+That cost ends where the partial clone lands:
+such a source clones every tracked path its proof settles and lets Git write the rest,
+and the two provisional limits that send an add to Git's own checkout instead are pinned,
+with the measurements they rest on,
+in `package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs`
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`).
+A linked worktree with uncommitted changes still pays the source checks and then ends in Git's own checkout,
+and step 11's verified dirty restore is still the snapshot's.
 
 The guest arm was written and run on 2026-11-20,
  and the work is **unapproved and not final**.
@@ -1492,9 +1498,11 @@ holds the whole route back for nothing it protects,
 so the plan takes the design's own order.
 Step 13 then adds `doctor`'s distinction,
 recovery after pointer loss and the release.
-The dirty half stays step 11's,
-with the interim the owner decided on 2026-11-19,
-answering "Ship step 10 first (Recommended)".
+The dirty half's add is served by the partial clone,
+which landed after step 10 with the two provisional limits its decision record names,
+and step 11's verified restore is still rung 1's:
+a snapshot of a dirty subvolume restores the changes afterwards,
+which a clone cannot.
 The binding record's home is a gap this plan names.
 Also blocked by issue 6323,
 found 2026-11-20:
@@ -1577,6 +1585,24 @@ merge now,
 fix it next (Recommended)".
 So step 3 with the fence merges carrying that cost as a limitation,
 and the up-front skip is built and measured against `main` next.
+On 2026-11-21 the project accepted the partial clone of a dirty source
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`):
+rung 2 takes a source with uncommitted changes,
+clones every tracked path its proof still settles,
+lets Git write the changed ones through the fence's one `git checkout-index`,
+and builds the new worktree's index from the tree of the source's `HEAD`.
+Two provisional limits send an add to Git's own checkout instead,
+a whole-tree size threshold and a changed-file cut,
+each pinned with the measurement it rests on in
+`package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs`
+and both open to the project's veto.
+So a dirty add from this checkout is rung 2's,
+where before the partial clone it was Git's own checkout,
+and the whole add is never slower than Git's own checkout on the shapes measured:
+the usual dirty state at 0.73 to 0.77 of it.
+The up-front skip is unchanged by this and still runs before either rung's copies,
+and the class it does not cover is the path the size proof hands to Git,
+which no sample draws (see "Open items").
 
 #### Depends on
 
