@@ -580,21 +580,10 @@ and only the owner accepts one.
   Its brief also carries what two other designs wait on:
   one rule for what a cancellation does to the plan,
   and what a removal does when the plan says the head is present and the clone is gone.
-- Earlier wording of this step,
-  now done:
-  the plan design's round
-  (its Y3,
-  Y4,
-  Y6,
-  the lows and the answers),
-  on a continuation still to be written;
-  then the reviewer once more on the set.
-- The reviewer's single set of four questions for the owner,
-  carried by the origin cleanup document:
-  who may destroy a leftover origin snapshot;
-  what trace of a destruction outlives the removal;
-  when a pending record speaks;
-  what a reader does with a record it cannot read or prove gone.
+- Next,
+  when the plan design's round ends:
+  the reviewer once more on the set of three,
+  to `review-fourth-check.md` beside its other reviews.
 
 #### Step 11: the dirty-main restore on rung 1
 
