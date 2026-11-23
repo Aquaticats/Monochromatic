@@ -2512,6 +2512,13 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
 - `60f69b93a1`,
   2026-11-22T19:17:09-05:00:
   the line break that sentence needed.
+- `61644c7a7e`,
+  2026-11-22T19:17:27-05:00:
+  the three follow-up commits listed.
+- `c50e82f397`,
+  2026-11-22T19:17:44-05:00:
+  the closing note's list of what was kept and added,
+  and D2's current refusal word.
 
 The four answers are built in:
 "Who ends each kind of holder" is the chosen channel,
