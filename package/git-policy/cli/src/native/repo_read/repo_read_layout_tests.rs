@@ -4,8 +4,10 @@
 //!  and every layout it must not guess is declined.
 
 use super::*;
+use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
-use crate::test_support::{fixture, git, git_output, remove, repository};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment `git_output` gives Git:
@@ -265,6 +267,146 @@ fn layouts_that_need_git_are_declined() {
     remove(root.as_path());
 }
 
+/// A reftable repository with one commit.
+fn a_reftable_repository(root: &Path, name: &str) -> PathBuf {
+    let repo: PathBuf = root.join(name);
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    return repo;
+}
+
+/// The ref stores a reftable folder or a payload can name are left to Git,
+/// whether the tables moved away,
+/// the store is a linked worktree's common store,
+/// or a files payload holds the refs.
+/// Why:
+///  `read_layout` answers only for the files backend in the common directory;
+///  a store named elsewhere is one it cannot prove,
+///  so every answer is Git's.
+#[test]
+fn a_ref_store_the_configuration_moves_away_is_left_to_git() {
+    let root: PathBuf = fixture("repo-read-moved-ref-store");
+    let moved: PathBuf = a_reftable_repository(root.as_path(), "moved");
+    let store: PathBuf = root.join("store");
+    std::fs::create_dir(&store).expect("store");
+    // The tables move out of the common directory and the configuration names the new place.
+    std::fs::rename(moved.join(".git/reftable"), store.join("reftable")).expect("move the tables");
+    let named: String = format!("reftable://{}", store.display());
+    git(moved.as_path(), &["config", "--local", "extensions.refstorage", named.as_str()]);
+    assert_eq!(git_output(moved.as_path(), &["rev-parse", "--show-ref-format"]).stdout, b"reftable\n", "the control: Git reads the moved store");
+    declined(root.as_path(), moved.as_path(), "a reftable store the configuration moves away");
+
+    let linked: PathBuf = root.join("linked");
+    let worktree: PathBuf = a_reftable_repository(root.as_path(), "worktree");
+    git(worktree.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("UTF-8"), "--detach"]);
+    assert!(git_output(linked.as_path(), &["rev-parse", "HEAD"]).status.success(), "the control: the linked worktree reads");
+    declined(root.as_path(), linked.as_path(), "a linked worktree of a reftable repository");
+
+    let files: PathBuf = repository(root.as_path(), "files");
+    std::fs::write(files.join("b.txt"), "two\n").expect("b");
+    git(files.as_path(), &["add", "--", "b.txt"]);
+    git(files.as_path(), &["commit", "--quiet", "--message=second"]);
+    let payload: PathBuf = root.join("payload");
+    std::fs::create_dir(&payload).expect("payload");
+    std::fs::rename(files.join(".git/refs"), payload.join("refs")).expect("move the refs");
+    // The files payload is the whole reference directory, HEAD included; the Git directory keeps the stubs its own
+    //  initializer writes, so Git still recognizes it as a Git directory.
+    std::fs::rename(files.join(".git/HEAD"), payload.join("HEAD")).expect("move HEAD");
+    std::fs::write(files.join(".git/HEAD"), "ref: refs/heads/.invalid\n").expect("HEAD stub");
+    std::fs::create_dir_all(files.join(".git/refs")).expect("refs stub");
+    std::fs::write(files.join(".git/refs/heads"), "repository uses alternate refs storage").expect("heads mark");
+    let files_uri: String = format!("files://{}", payload.display());
+    git(files.as_path(), &["config", "--local", "core.repositoryformatversion", "1"]);
+    git(files.as_path(), &["config", "--local", "extensions.refstorage", files_uri.as_str()]);
+    let read_back = git_output(files.as_path(), &["rev-parse", "HEAD~1"]);
+    assert!(read_back.status.success(), "the control: Git reads the history from the files payload: {}", String::from_utf8_lossy(read_back.stderr.as_slice()));
+    declined(root.as_path(), files.as_path(), "a files store the configuration moves away");
+    remove(root.as_path());
+}
+
+/// What:
+///  A shallow file and a graft file each change the history Git reads,
+///  the layout the files backend has stays the same,
+///  and the object reader declines it.
+/// Why:
+///  A fixture whose files change nothing Git answers would prove only that their presence declines the reader;
+///  the positive control compares what Git answers for the same commit before and after the file is written,
+///  so a reader that declared nothing is left to the question these files raise.
+#[test]
+fn a_shallow_or_grafted_history_keeps_the_layout_and_declines_the_reader() {
+    let root: PathBuf = fixture("repo-read-shallow-and-graft");
+    for kind in ["shallow", "graft"] {
+        let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), kind);
+        // The shallow line cuts the older commit from the second one; the graft puts the oldest before the newest.
+        let asked: &str = match kind {
+            "shallow" => commits[1].as_str(),
+            _ => commits[2].as_str(),
+        };
+        let before: String = parents_git_reads(repo.as_path(), asked);
+        if kind == "shallow" {
+            std::fs::write(repo.join(".git/shallow"), format!("{}\n", commits[1])).expect("shallow");
+        } else {
+            std::fs::create_dir_all(repo.join(".git/info")).expect("info");
+            std::fs::write(repo.join(".git/info/grafts"), format!("{} {}\n", commits[2], commits[0])).expect("grafts");
+        }
+        let after: String = parents_git_reads(repo.as_path(), asked);
+        assert_ne!(before, after, "{kind}: the file changes the parents Git reads for {asked}");
+        answered_equal(root.as_path(), repo.as_path(), kind);
+        let opened: Option<ObjectDatabase> = ObjectDatabase::open(repo.join(".git").as_path(), None, ObjectFormat::Sha1);
+        assert!(opened.is_none(), "{kind}: the reader declines a history Git may show differently");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  The layout's proof settles the ref store and nothing else:
+///  an open from that proof still declines a repository holding a replace ref.
+/// Why:
+///  `open_where_the_layout_proved_the_store` skips the reftable folder and the configuration read,
+///  never the replace refs,
+/// the shallow file or the grafts,
+///  which the layout does not look at.
+#[test]
+fn a_store_a_layout_proved_still_declines_a_replacement_object() {
+    let root: PathBuf = fixture("repo-read-layout-proved-replacement");
+    let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), "repo");
+    git(repo.as_path(), &["replace", commits[0].as_str(), commits[2].as_str()]);
+    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "a files store holding a replace ref");
+    assert!(
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_none(),
+        "the layout proves the ref store, not that no object is replaced"
+    );
+    assert!(ObjectDatabase::open(repo.join(".git").as_path(), None, layout.object_format).is_none(), "the unproved open declines it too");
+    remove(root.as_path());
+}
+
+/// A repository of three commits,
+/// each adding one line to `a.txt`,
+/// and their names,
+/// the oldest first.
+fn three_commits(parent: &Path, name: &str) -> (PathBuf, Vec<String>) {
+    let repo: PathBuf = parent.join(name);
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let mut commits: Vec<String> = Vec::new();
+    for text in ["one\n", "two\n", "three\n"] {
+        std::fs::write(repo.join("a.txt"), text).expect("a");
+        git(repo.as_path(), &["add", "--", "a.txt"]);
+        git(repo.as_path(), &["commit", "--quiet", "--message", text.trim()]);
+        commits.push(git_text(repo.as_path(), &["rev-parse", "HEAD"]));
+    }
+    return (repo, commits);
+}
+
+/// The line `git rev-list --parents --max-count=1 <asked>` prints:
+/// the commit and the parents Git reads for it.
+fn parents_git_reads(repo: &Path, asked: &str) -> String {
+    return String::from_utf8_lossy(&git_output(repo, &["rev-list", "--parents", "--max-count=1", asked]).stdout).trim().to_string();
+}
+
 /// The entry limit bounds the walk,
 /// not what plain entries mean:
 /// exactly the limit of plain entries is read and found plain,
@@ -426,5 +568,40 @@ fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
     git(repo.as_path(), arguments.as_slice());
     let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "gitfile naming a directory that is not text");
     assert_eq!(layout.git_dir, std::fs::canonicalize(admin.as_path()).expect("the Git directory"));
+    remove(root.as_path());
+}
+
+/// What:
+///  A layout's proof taken before a ref store migration declines after it.
+/// Why:
+///  `open_where_the_layout_proved_the_store` trusts the layout's proof of the ref store,
+///  and `git refs migrate --ref-format=reftable` inside a command that holds the layout (a forwarded `merge`,
+/// say)
+///  leaves that proof stale:
+///  the proved open must decline as the unproved one does,
+///  or it reads the object's own bytes where Git reads a replacement that now lives in the tables.
+#[test]
+fn a_proof_read_before_a_ref_store_migration_declines_after_it() {
+    let root: PathBuf = fixture("repo-read-proof-before-a-migration");
+    let (repo, commits): (PathBuf, Vec<String>) = three_commits(root.as_path(), "repo");
+    let layout: RepoLayout = answered_equal(root.as_path(), repo.as_path(), "a plain files layout");
+    let common: PathBuf = repo.join(".git");
+    assert!(
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_some(),
+        "the proof opens the files repository it was read from"
+    );
+    // What a forwarded command does while it holds the layout: a replacement ref, then the store moved to the tables.
+    git(repo.as_path(), &["replace", commits[0].as_str(), commits[2].as_str()]);
+    git(repo.as_path(), &["refs", "migrate", "--ref-format=reftable"]);
+    assert!(
+        git_output(repo.as_path(), &["cat-file", "commit", commits[0].as_str()]).stdout
+            != git_output(repo.as_path(), &["--no-replace-objects", "cat-file", "commit", commits[0].as_str()]).stdout,
+        "the positive control: Git reads the replacement from the tables"
+    );
+    assert!(ObjectDatabase::open(common.as_path(), None, layout.object_format).is_none(), "the unproved open declines the migrated store");
+    assert!(
+        ObjectDatabase::open_where_the_layout_proved_the_store(&layout, None).is_none(),
+        "the proved open asks the reftable folder again, and declines the migrated store"
+    );
     remove(root.as_path());
 }

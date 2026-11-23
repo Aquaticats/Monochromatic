@@ -765,6 +765,31 @@ owner @{HOME}/temp/agent/**/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
 @{user_share_dirs}/containers/storage/overlay{,/**} rwlk,
 ```
 
+The fifth batch came from the denials of the second whole gate on `main`,
+each line with the count that gate logged:
+
+```text
+# /etc/apparmor.d/local/git, fifth batch: each thread's stat (38), the container's init (1), the cgroup's swap figures (11)
+owner @{PROC}/@{pid}/task/@{tid}/stat r,
+@{PROC}/1/stat r,
+@{sys}/fs/cgroup/{,**/}memory.swap.{current,max} r,
+# /etc/apparmor.d/local/ssh-keygen, fifth batch: Git's signature verification buffer (2)
+owner @{tmp}/.git_vtag_tmp@{rand6} r,
+owner @{HOME}/temp/agent/**/.git_vtag_tmp@{rand6} r,
+# /etc/apparmor.d/local/sshd (new): the ssh terminal tests' own sshd reads its fixture under /work (3)
+owner /work/** rwlk,
+# /etc/apparmor.d/local/gh, fifth batch: its HTTP cache (55 creates, 55 reads)
+owner @{user_cache_dirs}/gh/{,**} rwlk,
+# /etc/apparmor.d/local/fusermount, fifth batch: Buildah unmounts its build context's overlay (2)
+umount /var/tmp/buildah-context-*/overlay/*/merge/,
+```
+
+Each batch after the fourth is appended,
+and its profiles loaded,
+by `append-a-batch-of-local-rules-and-load.ts` in
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/`,
+which keeps each local file as it was beside the batch in that folder's `keep/`.
+
 ### Tradeoffs
 
 - Git may create,
@@ -850,8 +875,32 @@ which is a change to the system service manager and the owner's to make:
   apparently root inside a container.
   A grant to the `git` profile would also let root's `git` on the host pass file permissions,
   so it waits until a failing test is tied to it.
-- The second whole gate on `main` started with all four batches loaded
-  and the kernel's lost count at 69,301.
+  The second gate logged four more for `umount`,
+  and none for `git`.
+- The second whole gate on `main`
+  (unit `apparmor-second-gate-on-main-20261123`,
+  at `a467a1d22c`)
+  ran with all four batches loaded,
+  in 21 minutes:
+  `Summary [979.117s] 9914 tests run: 9904 passed (8 slow), 10 failed, 36 skipped`.
+  Beside the cause-H pair of
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+  it failed
+  `service_native::an_ssh_signed_commit_lands_through_the_service_and_verifies`,
+  the three `ssh_terminal` controls (about 10 s each,
+  the denied `sshd_config` read),
+  three `stale_ref_lock` controls,
+  and `worktree::worktree_clone_conversion_size_read::tests::a_process_that_ends_with_a_running_read_leaves_no_child_behind`.
+  The fifth batch answers the `sshd` and verification-buffer denials.
+  No denial,
+  and no signal record at all,
+  was logged for the `stale_ref_lock` controls:
+  in `a_fetch_after_a_killed_fetch_keeps_the_locks_and_names_them`
+  the wrapper's fetch after the killed one exited 0
+  (`left: Some(0)` at `binary_stale_ref_lock_tests.rs:197`),
+  so their cause is not shown.
+  The lost count stayed at 69,301 through the gate,
+  so with the backlog at 8192 the kernel dropped no record.
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
 

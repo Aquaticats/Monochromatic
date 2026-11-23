@@ -3,7 +3,7 @@
 ## Status
 
 Answered in the question tool on 2026-11-23,
-recorded 2026-11-23T18:00:00-05:00.
+recorded 2026-11-23T17:47:21-05:00.
 It confirms the option the coordinating session had adopted without asking,
 on the integration pass of issue 6344's fix
 (`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/review.md`,

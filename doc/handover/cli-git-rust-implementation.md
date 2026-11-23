@@ -335,13 +335,25 @@ and the recheck's findings on the merged step 8 are closed.
 
 State:
 branch `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `c87a50a09b`.
+Its second Sonnet pass
+(`~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`)
+found the first pass's two cases closed and the steady sweep at 0.20 to 0.79 of `main`'s time,
+and the branch not fit on P2-H1:
+renaming a mounted `legacy` dataset fires no mount-table event,
+so after a swap by name the sweep answers `attached` and files a false `done` receipt where `main` refuses.
+The owner chose to read a standing mount's source with `statmount(2)` by its mount number,
+falling back to the live table on older kernels,
+and said the question was framed wrong in ranking the easier option first
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"A standing mount's source is read by its mount number";
+the ranking rule is now `AGENTS.md`'s `RBE`).
 Running:
-its second Sonnet pass,
-to `~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`.
+`pi-zfs-step-8-sweep-second-pass-findings`,
+on that and P2-M1 to P2-M3 and the lows.
 
 Next:
-merge,
-or a fix round.
+a Sonnet pass on its diff;
+then merge.
 
 #### Step 9: the holder scan across mount namespaces
 
@@ -448,10 +460,26 @@ its report saying every item done,
 with one section,
 "Which command is true for a state",
 that the other rules cite.
+Both ninth reads
+(`review-ninth-read-before-acceptance.md` beside each eighth read)
+found the lock design fit as it stands,
+and the binding not yet:
+its new section said a `settling` binding never has a plan,
+which is false,
+so a plan a killed removal left could end with no clone,
+no binding and no command
+(the record reviewer's K5,
+blocking),
+and the removal's rule had lost its scope
+(U34 and K2).
+The round on both ended at `64b0ce5a36`,
+every item done by its report (`keep/report-ninth-reads.md`).
+It adds one rule:
+the add refuses while a plan stands.
 Running:
-each reviewer's ninth read of that diff alone,
-with the acceptance material in plain words
-(`review-ninth-read-before-acceptance.md` beside each eighth read).
+each reviewer's tenth read of that diff
+(`review-tenth-read-before-acceptance.md` beside each ninth read),
+with the acceptance material updated to it.
 
 Next:
 the acceptance questions,
@@ -494,9 +522,13 @@ with entries 2,
 5,
 12 and 13 changed),
 once the binding's J1 is mended.
+Its ninth read retracted that set verdict on K5
+("Step 10's designs"),
+and found the two records fit as they stand once the binding takes K5's fix.
 
 Next:
-a round on each record's lows;
+its tenth read
+("Step 10's designs");
 then the acceptance question for the three,
 with that list.
 
@@ -535,22 +567,42 @@ because the guest round is its test.
 The cancelled removal's round closed its one medium
 (it no longer refuses a kept receiver the forced arm does not refuse);
 the coordinator read its diff.
-Being read against its logs by the design's reviewer,
-resumed as agent `abfa3e9e26276b294`,
-who also drafts the confirmation question
-(`review-guest-probe-arms.md` in that review's `keep/`):
-`pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
-a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
-Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
-and it writes its results as a new section of
+The guest round `pi-zfs-forced-removal-first-probe-arms-in-a-guest` scripted and ran Tier 0 from the design at `b62601213f`
+on kernel 6.8 with hand-made mounts,
+and wrote the results as a section of
 `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`
-on the branch `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`.
-The fixture's guest has kernel 6.8,
-and the machine runs 7.3.
+on `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`
+(folder `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`).
+The design's reviewer read it against the logs
+(`review-guest-probe-arms.md` in that review's `keep/`):
+every result follows from its log,
+every arm started fresh,
+and the direction holds there,
+with five mediums:
+way 3's unmount half shows nothing,
+one variant of T0-3 shows nothing of its own,
+no arm starts from the production shape where the host mounts the clone,
+T0-5c gives two answers to whether way 8 is taken,
+and way 7 end to end never ran.
+Nothing is shown on kernel 7.3 or on ZFS.
+The design places the confirmation after Tier 0,
+Tier 1 (ZFS,
+no route) and Tier 2 (step 17's code);
+the reviewer drafted the question with every slot the guest could not fill left empty.
+Running:
+`pi-zfs-forced-removal-probe-arms-gaps-kernel-7-and-tier-1`,
+on the mediums' arms,
+Tier 0 on kernel 7.3 (a guest of 6.19 or newer,
+or a rootless container on this machine's kernel),
+and Tier 1;
+and the design writer's round on the text edits the read asks for,
+G4's policy among them
+(`continuation-guest-read-edits.md` in `~/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/`).
 
 Next:
-read the guest round's results against its logs;
-then the confirmation question with those results;
+a read of both against the logs;
+then the confirmation question for the direction,
+since Tier 2 needs step 17's code;
 then the acceptance question.
 
 #### Accepted designs that wait for their build steps
@@ -636,12 +688,21 @@ the note's reason for a replacement base the command names is false.
 The owner chose to record that case as a limit
 (`doc/decision/cli-git-object-reader-named-replacement-base-is-a-recorded-limit.md`),
 filed as issue 6396.
+The round on that and the recheck's two lows ended at `cd6f2e1185`
+(`~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/keep/report-pi-object-reader-fourth-recheck-findings.md`):
+the false sentence corrected,
+the limit recorded with issue 6396 in the note and the README,
+the ladder target's open held by a control shown red and green,
+and the words made to read alone.
+Its host tests fail the same nine that `main` fails on the same filter.
 Running:
-`pi-object-reader-fourth-recheck-findings`,
-on that and the recheck's two lows.
+one whole gate on its tip,
+`gate-object-reader-declined-branches-20261123`,
+its summary written to `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
 
 Next:
-read its diff;
+read the gate against `main`'s baseline
+("The tests and the gate under AppArmor");
 then merge.
 Issue 6347,
 the one case the reader's refusal was right about,
@@ -722,12 +783,15 @@ and its gate was void under the missing AppArmor rules.
 That failure is filed as issue 6397,
 and the pass drafted the comment for issue 6345 at the merge (its report,
 `keep/report-from-the-agents-last-message.md` beside the review).
+The round on the third pass's findings ended at `04b255e004`.
 Running:
-`pi-worktree-removal-control-third-pass-findings`.
+one whole gate on that tip,
+`gate-worktree-removal-control-6345-20261123`,
+its summary written to `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
 
 Next:
-read its diff;
-one whole gate when gates may run;
+read the gate against `main`'s baseline
+("The tests and the gate under AppArmor");
 then merge and post the comment.
 The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
@@ -755,14 +819,34 @@ gate and helpers under enforcement".
 The owner:
 "No,
 please do rules for everything instead of a dedicated profile that agents would have to remember to use."
-Every running pass and round was told to run no gate until a note says the gate is clean,
-and that a gate result after the restart and before the rules is void.
-Running:
-`apparmor-shakedown-gate-on-main-20261123`,
-one whole gate on `main` started before the second batch,
-with its output under `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
-A third batch since covers the wrapper's own `/proc` and cgroup reads,
-and `systemd-run --scope` of the account's own programs.
+A gate result after the restart and before the rules is void.
+Five batches are in now.
+The second whole gate on `main`
+(`apparmor-second-gate-on-main-20261123`,
+at `a467a1d22c`,
+after the fourth batch)
+gave `9914 tests run: 9904 passed (8 slow), 10 failed, 36 skipped`:
+the cause-H pair,
+the signed-commit control,
+three `ssh_terminal` controls,
+three `stale_ref_lock` controls,
+and the size read's child control.
+Its denials led to the fifth batch,
+for `sshd` and `ssh-keygen` in the gate's fixtures,
+the wrapper's thread reads,
+`gh`'s cache and Buildah's build-context unmount.
+No denial maps to the three `stale_ref_lock` controls
+(their killed fetch's hook leaves its lock and the wrapper's fetch exits 0),
+and no signal denial was logged.
+The audit's lost count stayed at 69,301 through that gate,
+so the raised backlog dropped nothing.
+Gates were released at 2026-11-23T18:20-05:00,
+with those ten as `main`'s baseline that counts against no branch
+(`note-gates-may-run-against-mains-baseline.md` in the rounds' launch folder,
+sent to every running round and pass).
+A gate runs on a branch through `run-one-whole-gate-in-a-worktree.ts` in the AppArmor folder,
+which writes the summary and failures to its `keep/`,
+clears the run's containers by label and removes the tag.
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -770,10 +854,11 @@ which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.r
 That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
 
 Next:
-read the gate's denials and failures;
-add rules for what it still meets;
-one more whole gate on `main`;
-then tell every pass and round that gates may run.
+read each branch gate's denials as it ends,
+and add rules for what it still meets;
+find why the three `stale_ref_lock` controls fail under enforcement,
+by one of them run alone in the gate's image;
+then a whole gate on `main` again to shrink the baseline.
 
 #### Tests that failed once and are not diagnosed
 
@@ -828,12 +913,7 @@ under `sorter-lines-<first>-to-<last>/keep/` in that folder:
   in 307 items.
   The coordinator's check script passed its coverage,
   and one stretch read by hand agreed with it.
-  A second check lists the quoted passages inside its `delete` items that stand nowhere else in the repository:
-  66 of 85,
-  among them answers of the owner's such as "Per command (Recommended)".
-  That figure is an upper bound,
-  because the check matches the first forty characters as written and has had no positive control.
-  Its `delete` items are not applied until each such quotation is moved or shown to be held.
+  Its `delete` items are not applied until each quotation inside them that stands nowhere else is moved or shown to be held.
 - lines 46,714 to 49,499,
   in 151 items,
   after the same lesson was sent to it:
@@ -852,12 +932,35 @@ the picks and the working rules
 (40,844 to 41,469 and 49,500 to 49,707)
 have ended too,
 the second with 78 items covering its 834 lines exactly.
+
+The check of quotations inside `delete` items first matched a passage's first forty characters;
+a control set showed it wrong both ways,
+the unsafe way being a sentence taken as held because another opens alike
+(`keep/quotation-check-controls-2026-11-23.md`).
+Its replacement,
+`list-whole-quotations-a-ledger-would-delete.ts`,
+matches whole passages with whitespace read as one space,
+and got all three control items right.
+Over the four ended ledgers it finds 208 quoted passages in `delete` items,
+159 of them held nowhere else:
+76 in lines 41,470 to 44,767,
+65 in 44,768 to 46,713,
+17 in 46,714 to 49,499,
+and one in the findings,
+picks and working rules.
+
 Running:
 the sorter of the open work (34,867 to 40,843),
-briefed by `brief-sorter-open-work.md` in that folder.
+briefed by `brief-sorter-open-work.md` in that folder;
+and a Sonnet audit that tells each of the 159 as the owner's words with a target record,
+held in another form,
+or not the owner's
+(`brief-quotations-the-ended-ledgers-would-delete.md`).
 
-Next,
-in this order:
+Next:
+apply that audit's `owner` moves to their records,
+then the ledgers by script;
+the ranges in this order:
 the owner's decisions (lines 41,470 to 49,499 of the old file),
 the open review findings and the picks made under delegation (40,844 to 41,469),
 the open work (34,867 to 40,843),

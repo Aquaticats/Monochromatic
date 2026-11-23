@@ -33,6 +33,9 @@ use crate::support_observation_bound::{Ending, LineBound, UNSTATED_BOUND, line_b
 /// the one writer of executable fixture files,
 /// and its removal.
 use crate::support::{Fixture, executable, fixture, remove};
+/// The five folders a record of the after-commit queue stands in,
+/// which the wait's control moves one record through.
+use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, PENDING, RECOVERING};
 /// `process_group` puts a command of a control in a group of its own.
 use std::os::unix::process::CommandExt as _;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -606,4 +609,227 @@ fn a_command_that_writes_more_than_a_pipe_holds_keeps_all_of_it() {
     assert_eq!(seen.code, Some(0), "the command that writes much ends by itself");
     assert_eq!(seen.stdout.len(), written, "every byte the command wrote is in the answer");
     remove(&made);
+}
+
+/// One move a control's step makes before a numbered read of the wait.
+/// Why a table and not a rule:
+///  the wait's window is a record moving between two of its reads,
+/// so a control has to say which read each move comes
+///  before;
+/// the same table then holds for any order the wait reads its folders in and for any number of samples.
+struct AMove {
+    /// The ordinal of the read it comes before,
+    /// counted from one across every sample of one wait.
+    at: usize,
+    /// The folder the record must stand in,
+    /// or the move is not made.
+    from: &'static str,
+    /// The folder it is moved into.
+    to: &'static str,
+}
+
+thread_local! {
+    /// The queue a control's step moves one record in,
+    /// and the record's name,
+    /// which no step of an ordinary run holds.
+    static THE_RECORD_A_STEP_MOVES: std::cell::RefCell<Option<(PathBuf, String)>> = const { std::cell::RefCell::new(None) };
+    /// The moves that control makes,
+    /// by the read they come before.
+    static THE_MOVES: std::cell::RefCell<&'static [AMove]> = const { std::cell::RefCell::new(&[]) };
+    /// How many reads of the wait the control's step has been given,
+    /// counted from one.
+    static THE_READ_ORDINAL: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Whether a read of a sample saw that record in one of the folders it is in flight in,
+    /// which a step that runs immediately before that read knows.
+    static A_READ_SAW_THE_RECORD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What:
+///  Make the control's moves for the read about to happen,
+///  say whether that read is one that sees the record,
+///  and settle the record once a read has seen it.
+/// Why:
+///  `take_entry`,
+/// `recover` and `settle_named` move a record between the three folders the wait reads,
+///  and the wait's own window is a record moving between two of those reads.
+///  A record standing in the folder this step is given is one the read that follows sees,
+///  so `A_READ_SAW_THE_RECORD` is that read's answer;
+///  a record a read has seen is settled before the next read,
+/// so the wait ends rather than holding a record for ever.
+fn make_the_controlled_moves(folder: &str) {
+    let held: Option<(PathBuf, String)> = THE_RECORD_A_STEP_MOVES.with(|step| { return step.borrow().clone(); });
+    let Some((work, name)) = held else {
+        return;
+    };
+    let ordinal: usize = THE_READ_ORDINAL.with(|at| { let now = at.get() + 1; at.set(now); return now; });
+    let moves: &'static [AMove] = THE_MOVES.with(|tabled| { return *tabled.borrow(); });
+    for one in moves.iter().filter(|one| { return one.at == ordinal; }) {
+        let standing: PathBuf = work.join(one.from).join(name.as_str());
+        if !standing.is_file() {
+            continue;
+        }
+        let _moved = std::fs::rename(standing.as_path(), work.join(one.to).join(name.as_str()));
+    }
+    let standing: PathBuf = work.join(folder).join(name.as_str());
+    let seen_before: bool = A_READ_SAW_THE_RECORD.with(std::cell::Cell::get);
+    if standing.is_file() {
+        A_READ_SAW_THE_RECORD.with(|seen| { seen.set(true); });
+    }
+    if seen_before {
+        for from in [PENDING, RECOVERING, CLAIMED] {
+            let path: PathBuf = work.join(from).join(name.as_str());
+            if path.is_file() {
+                let _settled = std::fs::rename(path.as_path(), work.join(DONE).join(name.as_str()));
+                break;
+            }
+        }
+    }
+}
+
+/// What:
+///  Run the wait once over a queue holding one record in `starts_in`,
+/// with `moves` made between its reads,
+///  and answer whether a read saw the record,
+/// with the queue's listing.
+/// Why:
+///  Each control of the wait differs only in where its record starts and which reads its moves come before,
+///  so one driver states the scene once and each control states its own window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { seen, listing } = await waitWith([{ at: 2, from: 'claimed', to: 'recovering' }], 'pending');
+/// ```
+fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str, what: &str) {
+    let made: Fixture = fixture(label);
+    let repository: PathBuf = made.root.join("repo");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
+    let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
+    for state in [PENDING, RECOVERING, CLAIMED, DONE, FAILED] {
+        std::fs::create_dir_all(work.join(state)).expect("a state folder");
+    }
+    let name: String = format!("subvolume-delete-{}", "0".repeat(40));
+    std::fs::write(work.join(starts_in).join(name.as_str()), "a record a control moves\n").expect("the record");
+    THE_RECORD_A_STEP_MOVES.with(|step| { *step.borrow_mut() = Some((work.clone(), name.clone())); });
+    THE_MOVES.with(|held| { *held.borrow_mut() = moves; });
+    THE_READ_ORDINAL.with(|at| { at.set(0); });
+    A_READ_SAW_THE_RECORD.with(|seen| { seen.set(false); });
+    crate::support_observation::run_before_each_folder_read(Some(make_the_controlled_moves));
+    crate::support_observation::settle_service_work(repository.as_path());
+    crate::support_observation::run_before_each_folder_read(None);
+    THE_RECORD_A_STEP_MOVES.with(|step| { *step.borrow_mut() = None; });
+    THE_MOVES.with(|held| { *held.borrow_mut() = &[]; });
+    let seen: bool = A_READ_SAW_THE_RECORD.with(std::cell::Cell::get);
+    let listing: String = crate::support::work_listing(work.as_path());
+    // The control's own sentence comes first, so a red says what the wait missed rather than only that it returned;
+    // the settle check after it says the wait did end, which a wait that never returned would otherwise hide.
+    assert!(seen, "a read of the wait sees the record while {what}, and none did: {listing}");
+    assert!(work.join(DONE).join(name.as_str()).is_file(), "the record the control moves ends where the wait reads it as settled: {listing}");
+    remove(&made);
+}
+
+/// What:
+///  A read in the order a record moves catches a record that a claim and a recovery move on between its reads.
+/// Why:
+///  This is the order's own guard,
+/// and it is a record claimed,
+/// recovered and claimed again across three samples:
+///  the moves come before the first,
+/// third,
+/// fifth,
+/// sixth,
+/// seventh and ninth reads,
+/// so at every read of the old order
+///  (`pending`,
+/// `claimed`,
+/// `recovering`) the record stands in a folder that sample has already read,
+///  and the wait returns with it live in `claimed`.
+///  Read in the order a record moves,
+/// the second read of the first sample meets it in `recovering`.
+///  Put the order back with the three samples kept,
+/// and this control fails while the others pass.
+#[test]
+fn a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads() {
+    wait_with_moves(
+        &[
+            AMove { at: 1, from: PENDING, to: RECOVERING },
+            AMove { at: 3, from: RECOVERING, to: CLAIMED },
+            AMove { at: 5, from: CLAIMED, to: RECOVERING },
+            AMove { at: 6, from: RECOVERING, to: PENDING },
+            AMove { at: 7, from: PENDING, to: RECOVERING },
+            AMove { at: 9, from: RECOVERING, to: CLAIMED },
+        ],
+        PENDING,
+        "observe-wait-the-order-holds-alone",
+        "a claim and a recovery move it between the reads",
+    );
+}
+
+/// What:
+///  A second sample catches what a recovery takes back between two reads of the first one.
+/// Why:
+///  This is the second sample's own guard:
+/// the record leaves `claimed` and comes back into `pending` before the one
+///  read that could have seen it,
+/// so a wait with one sample returns with the record live in `pending`,
+/// and the second
+///  sample reads it there.
+#[test]
+fn a_second_sample_catches_what_a_recovery_takes_back_between_two_reads() {
+    wait_with_moves(
+        &[AMove { at: 3, from: CLAIMED, to: RECOVERING }, AMove { at: 3, from: RECOVERING, to: PENDING }],
+        CLAIMED,
+        "observe-wait-a-second-sample-holds-alone",
+        "a recovery takes it back between two reads",
+    );
+}
+
+/// What:
+///  A third sample catches a recovery whose two renames straddle two samples.
+/// Why:
+///  This is the third sample's own guard,
+/// and it is the window the second integration pass made on the unplanted
+///  code:
+/// `recover` takes an expired claim from `claimed` into `recovering` before the first sample read `claimed`,
+///  and moves it on into `pending` before the second sample read `recovering`,
+/// so two samples return with the record
+///  live in `pending` and the third reads it there.
+#[test]
+fn a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples() {
+    wait_with_moves(
+        &[AMove { at: 3, from: CLAIMED, to: RECOVERING }, AMove { at: 5, from: RECOVERING, to: PENDING }],
+        CLAIMED,
+        "observe-wait-a-third-sample-holds-alone",
+        "a recovery's two renames straddle two samples",
+    );
+}
+
+/// What:
+///  A claim published after the folder it lands in was read is missed by a wait of one sample in the old order.
+/// Why:
+///  This is the pair of halves' guard,
+/// and the second move's read is what makes it one:
+/// the record leaves `pending` before the first read and reaches `claimed` before the third,
+/// so the order `pending`,
+/// `claimed`,
+/// `recovering` reads `pending` after the record left it and `claimed` before it
+/// arrived,
+/// and one sample returns with the record live in `claimed`.
+/// Read in the order a record moves the third read is `claimed` and meets it,
+/// and with that order reverted a second sample meets it in `recovering`,
+/// so neither half alone is enough for this scene (`a_read_in_the_order...` and `a_second_sample...` hold each
+/// half on a scene of its own).
+/// With the second move at the second read instead,
+/// the old order's second read is `claimed` and sees the record
+/// at once,
+/// and this control passes on every wait,
+/// which the third integration pass measured.
+#[test]
+fn a_record_that_moves_between_two_reads_is_not_a_settled_queue() {
+    wait_with_moves(
+        &[AMove { at: 1, from: PENDING, to: RECOVERING }, AMove { at: 3, from: RECOVERING, to: CLAIMED }],
+        PENDING,
+        "observe-wait-a-record-between-reads",
+        "it moves between the folders a claim passes through",
+    );
 }

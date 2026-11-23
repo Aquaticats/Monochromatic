@@ -273,16 +273,35 @@ LFS branch's build, passed on `main`'s) and
 flood control decides a process's ending from a short look; both are the shape that a loaded host
 moves. They are not causes of the gate's failure on this host, and none of them names a mount fact.
 
-One more control has this shape.
+One more control has this shape and an issue of its own:
+`fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout` failed in the gate of 2026-11-23T04:12-05:00 (run `native-uN7Nqs`) after 78.850 s with
+"native Git /usr/bin/timeout --signal=KILL 60 /usr/bin/git rev-list --count --merges HEAD … was ended at its 60 s bound:
+the control was waiting for Git to answer".
+It is issue 6397.
+This document's cause N changes the wait for the commit service's after-commit work,
+and that control never calls it:
+`binary_fault_trace_tests.rs` starts the wrapper under `strace` and asks Git through `support::git`,
+and neither that file nor `binary_fault_run.rs` calls `observe`,
+`run_wrapped` or `settle_service_work`.
+
+One more control had this shape,
+failed twice,
+and has a cause of its own.
 `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`
 failed in the gate of 2026-11-21T13:25:00-05:00,
 whose other new failures were of one binary control file,
-and that control's fixture holds no LFS key,
-and passed in the gate of 2026-11-21T13:55:00-05:00
-and in four filtered runs of that image.
-Its own words say the removal's record was moved by another look of the same service while the worktree
-stayed,
-so the cause is not recorded here either.
+and that control's fixture holds no LFS key.
+It passed in the gate of 2026-11-21T13:55:00-05:00 and in four filtered runs of that image,
+and it failed again in the gate of 2026-11-22T16:51:52-05:00.
+The second failure is cause N's opening quotation.
+The two service lines in that journal are the fixture teardown's,
+not the failure's,
+which cause N's section "The fixture's drop,
+and the journal's two service lines" shows;
+whether the first failure had the same cause is not shown,
+because that gate's journal is not kept.
+Cause N holds the evidence,
+the fix and the controls for the second.
 
 ## Cause H: the two standing failures
 
@@ -1652,7 +1671,7 @@ the new holder keeps its own PID file
 
   The two are 698 µs apart and in one millisecond,
   and their nanoseconds differ,
-  which the earlier sentences of this section read as one tick of a coarse clock.
+  which the account under The reproduction and what it measured read as one tick of a coarse clock.
   That reading was wrong:
   every value ending in `…060000` ns is what a stamp taken with no read between two writes looks like,
   and the pair that failed has nanosecond values of its own.
@@ -1679,7 +1698,7 @@ read and rewrite in place
   closes nothing on this host's ZFS and something on the gate's tmpfs,
   and a comparison of the bytes closes it on both.
   That is the pass's finding,
-  and this section's earlier claim that a millisecond of the clock is a window the control enters rarely holds only
+  and the claim under The reproduction and what it measured that a millisecond of the clock is a window the control enters rarely holds only
   because the untouched control puts one to two milliseconds between the plant and the write after the unlink.
 
 ### What the comparison is now, and why
@@ -1687,26 +1706,42 @@ read and rewrite in place
 The last look at the PID file compares its device,
 its inode,
 its change time in whole milliseconds,
-and the number it names,
-which is read again there
-(`pid_named_by`,
+and its contents,
+which are read again there
+(`pid_file_contents`,
 `abandoned_lock_proving.rs`,
 the block under `reach(UNLINKED_THE_LOCK)`).
-A program that wrote its own number over the judged file is told apart by that number at every clock granularity and on
-every file system,
+A program that wrote anything else over the judged file is told apart by those contents at every clock granularity and
+on every file system,
 which the metadata alone could not promise.
+It compares the file's contents byte for byte with the contents it judged,
+and the one case left open is a program that writes the very same bytes back,
+and the instant between the last read and the unlink.
+
+The number the file names is no longer parsed at that look:
+equal contents entail the judged number,
+so the comparison of the number was strictly weaker than the comparison of the contents,
+and the judged contents are read once before the lock goes and give both the number the proof was already asked for
+and the bytes the look compares.
+The removal therefore reads the file as often as before,
+once at the judged point and once at the last look.
 
 The project chose this on 2026-11-22,
 in the question tool,
 as "B:
 also compare bytes (Recommended)",
+whose words were "Before deleting the PID file,
+read it again and delete only if its contents are also unchanged",
 over correcting these words alone and leaving the route open.
+The limit the owner was shown with that choice is the one case named under What the comparison is now,
+and why:
+a program that rewrote the very same bytes in place would still lose the file.
 
 What it costs,
 from the code:
 
-- one more read of the PID file at the removal's last look:
-  `pid_named_by` opens the name without following a link and without blocking,
+- one bounded read of the PID file at the judged point and one at the last look:
+  `pid_file_contents` opens the name without following a link and without blocking,
   and reads at most `PID_FILE_LIMIT`,
   which is 4096 bytes
   (`stopped_git_locks.rs`,
@@ -1727,7 +1762,7 @@ from the code:
 Two states stay open,
 and both are recorded here so the next reader does not have to find them:
 
-- a program that writes the judged number back,
+- a program that writes the very same bytes back,
   whether over the file or into a new one,
   is not told apart:
   the file goes,
@@ -1735,91 +1770,137 @@ and both are recorded here so the next reader does not have to find them:
   which named a process this boot has not.
   Its lock stands,
   because the lock was unlinked before this look;
-- the instant between the read and the unlink is not closed:
-  no system call unlinks a name only when it still names a given file
+- the instant between the last read and the unlink is not closed:
+  no system call unlinks a name only when it still holds given contents
   (`service_index_unheld_removal.rs` says the same of the lock's own removal).
-
 ### The fix
 
 `src/native/lock/abandoned_lock_proving.rs` is the file whose comparison changed,
 with `src/native/lock/abandoned_lock_proving_tests.rs`,
-the new test-only `src/native/lock/lock_metadata_arm.rs`,
+the test-only `src/native/lock/lock_metadata_arm.rs`,
+`src/native/lock/stopped_git_locks.rs` for the one read that gives the contents,
 and the bullet in `SPEC.md` that had said what the control and the product had wrong.
 
-The arm answers the removal's two reads of one path,
+The arm answers the removal's reads of one path,
 so each term of the comparison can be made to differ on its own:
 a device number a fixture cannot present,
 a change time this host's ZFS hands out in jiffies,
-and an inode number a file system may hand back to the next file are all armed there,
-while the bytes of the file are always the file's own.
+an inode number a file system may hand back to the next file,
+and one change time both reads report,
+so no clock decides what a control holds.
+The contents are always the file's own,
+so a control that writes them writes a state.
 
+- `a_pid_file_whose_number_gained_a_leading_zero_is_left_alone`,
+  `a_pid_file_with_trailing_padding_is_left_alone`,
+  `a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone` and
+  `a_pid_file_with_no_newline_is_left_alone`
+  each have the hook write the judged number in other bytes over the judged file:
+  every one of those parses to the judged number,
+  and none of them is the bytes the removal judged.
+  Each file stands,
+  which is the pin of the comparison of the contents.
+- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
+  has the hook write the very bytes the file was judged with,
+  under one change time for both reads:
+  all four facts equal the judged ones,
+  so the removal takes the file,
+  and the control says so and says what that costs.
+  This is the one case the comparison leaves open.
 - `a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone`
   holds grit's state:
   the hook writes the new lock and then writes its own number over the judged PID file,
   through the same inode,
-  with the arm reporting one inode for every file and one tick holding both writes.
-  The file stands and names the new holder,
-  so the bytes are the term that kept it.
+  with the arm reporting one inode for every file and one change time both reads report.
+  The file stands,
+  and the control says what the real program does.
 - `a_pid_file_of_another_inode_is_left_alone`
   has the hook remove the judged file and write the judged number again,
   a new file with the same bytes,
-  under the same coarse tick:
-  the inode is the only term that differs.
+  and the arm answers the later read with another inode number:
+  the inode is the term that decides,
+  whichever number the file system gives the new file.
 - `a_pid_file_of_another_change_time_is_left_alone`
   arms the later read with a change time one millisecond back and touches nothing else.
 - `a_pid_file_of_another_device_is_left_alone`
   arms the later read with the next device number and touches nothing else.
-- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
-  holds the state the bytes comparison does not close:
-  the same number written back over the judged file inside one armed tick and under one armed inode,
-  where all four facts equal the judged ones.
-  The removal takes the file,
-  and the control says so and says what that costs.
-
-`/src/native/lock/abandoned_lock_proving.rs` was run with one term of the last look left out at a time,
-and with the unlink itself planted away,
-and each run failed one control at its own assertion:
-
-```text
-term left out: device      a_pid_file_of_another_device_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:881:5: a PID file of another device is left alone
-term left out: inode       a_pid_file_of_another_inode_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:818:5: a PID file of another inode is left alone
-term left out: change time a_pid_file_of_another_change_time_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:851:5: a PID file whose change time reads another millisecond is left alone
-term left out: bytes       a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:785:5: a PID file another program wrote over the judged one is left alone
-unlink planted away      a_pid_file_that_still_names_the_judged_number_goes_with_the_lock
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:936:5: a PID file that still names the judged number goes with the lock it belongs to
-```
-
-Each run exited 100 with `1 test run: 0 passed, 1 failed, 8619 skipped`,
-and the term was put back before the next one.
 - `a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock`
   holds what a Git does at that instant:
   its exclusive create is refused,
   its lock stands,
   and the abandoned holder's file goes with the abandoned lock.
+- `an_arm_is_put_back_when_the_control_panics`
+  panics inside the arm's body and finds the arm gone afterwards,
+  which holds the drop guard `with_arm` puts it back with.
+
+Each plant was applied to the committed product file and the whole module run,
+then the file was put back:
+
+```text
+term left out: device            a_pid_file_of_another_device_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1047:5: a PID file of another device is left alone
+term left out: inode             a_pid_file_of_another_inode_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:984:5: a PID file of another inode is left alone
+term left out: change time       a_pid_file_of_another_change_time_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1017:5: a PID file whose change time reads another millisecond is left alone
+contents put back to the number  a_pid_file_whose_number_gained_a_leading_zero_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:871:5: a PID file whose number gained a leading zero is left alone
+contents put back to the number  a_pid_file_with_trailing_padding_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:898:5: a PID file with spaces before its newline is left alone
+contents put back to the number  a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:925:5: a PID file with a carriage return before its newline is left alone
+contents put back to the number  a_pid_file_with_no_newline_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:952:5: a PID file with no newline is left alone
+unlink planted away              a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:267:5: the PID file of a cleared lock goes with it
+unlink planted away              a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1160:5: the abandoned holder's PID file goes with its lock, and the new holder has none to lose
+```
+
+Each run exited 100,
+every failing control is named,
+and the module was green before the first plant and after the last one
+(`Summary [0.176s] 22 tests run: 22 passed, 8632 skipped`).
 
 ### What the product guarantees here
 
 The removal unlinks the PID file beside a lock it cleared only when that file is still the one it judged,
 as its device,
 its inode,
-its change time in whole milliseconds and the number it names show.
+its change time in whole milliseconds and its contents show.
+It compares the file's contents byte for byte with the contents it judged,
+and the one case left open is a program that writes the very same bytes back,
+and the instant between the last read and the unlink.
+Because equal contents entail the judged number,
+a program that writes any other bytes there is told apart on every file system and at every clock granularity,
+and the number the proof already asked for costs no second read.
 For a Git,
 nothing else can be at that name while the judged file stands,
 because Git creates its PID file with `O_EXCL` and silently writes none when the name is taken,
 so a live Git that takes the freed name has no PID file there to lose.
-For a program that writes its own number over the judged file,
-the number is the proof that the file is not the judged one,
-whatever its inode number is and whatever the clock says.
-What is not promised is the state where the same number is written back,
-and the instant between the last read and the unlink;
-both are named above,
-and neither is a lock.
+What is not promised is the state where the very same bytes are written back,
+which costs that writer the PID file and never its lock,
+and the instant between the last read and the unlink,
+which no system call closes for a name.
 
 
+The whole container gate then ran the same tree,
+in run `native-a5XyIb` of image
+`localhost/git-policy-native-test:gpc-6342-lows-20261122T2350`,
+on commit `1e52bbd00b`:
+
+```text
+Summary [1220.043s] 9918 tests run: 9916 passed (9 slow), 2 failed, 36 skipped
+FAIL [   0.939s] (9484/9918) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.377s] (9602/9918) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Both failures are the cause-H pair,
+and every control of this section passed in that run.
+Its Clippy step finished clean
+(``Finished `dev` profile [unoptimized] target(s) in 4m 53s``),
+and the unit ended `Failed with result 'exit-code'`,
+which is the cause-H pair's status and not this section's control.
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
 
 This is neither cause G nor cause H.
@@ -1914,32 +1995,61 @@ the paragraph beginning with "`RERUNNABLE` names neither"),
 so one `run_git` call starts it once and never again inside that call.
 Two attempts were therefore made.
 What the record does not say is which attempt's write the file lost,
-or how the first attempt ended:
+or how the first attempt ended;
+the measurements this section records settle the second question and not the first:
 
 - The first attempt is known only as cut or refused.
   Those are the two outcomes that make the loop continue,
   and a refusal is not an ending at a ceiling.
-- A refused start retries before it returns:
+- A start the system refuses at its spawn pauses before it returns:
   `spawn_retrying` pauses 10 ms,
-  then doubles,
-  for up to `START_RETRY_BUDGET` (`push/start_retry.rs:33`,
-  five seconds),
-  so a first attempt refused after about a second of pauses and then one ceiling
-  gives the same 1.539 s total.
-  The clock does not exclude it.
-- An attempt the system refused ran no program at all,
-  so the file's `1` would be the correct number of programs started and no write was lost.
-- A start whose `$(cat ...)` was refused a process also writes a wrong number,
+  doubling to the longest pause,
+  and returns the refusal when the next pause would pass `START_RETRY_BUDGET`
+  (`push/start_retry.rs:33`),
+  which is fourteen pauses summing to 4630 ms.
+  Measured by lowering the test process's own process limit so every spawn was refused:
+  the attempt's error read `the start was refused 15 times over 4630 ms`,
+  and the control waited 9.52 s for its two attempts
+  (issue 6344's integration pass,
+  `keep/merge-run-both-spawns-refused-by-process-limit.txt`).
+  A first attempt refused that way costs more than five seconds,
+  so the gate's 1.539 s total excludes it.
+- What the clock does not exclude is a refusal returned as a finished command:
+  there the program ran and printed the system's words,
+  and the wrapper reads `refused_by_the_system`.
+  The stand-in's shell did not produce one when a fork refusal was forced:
+  the gate image's `/bin/sh` is bash 5.3.20,
+  a stand-in with a one-process limit printed
+  `sh: fork: retry: Resource temporarily unavailable` four times
+  and returned nothing in twelve seconds,
+  and the control's 500 ms ceiling ends such a start at its ceiling
+  (issue 6344's integration pass,
+  `keep/fork-refusal-limit-1.txt` and `keep/fork-refusal-old-shim-limit-1.txt`).
+  So the first attempt was cut,
+  and which attempt's write was lost stays inseparable.
+  The limits of that:
+  one shell version,
+  a persistent one-process limit and not one that flickers,
+  and a refused thread read in code,
+  where the runtime falls back to the current thread and returns no `WouldBlock`,
+  and not run.
+- An attempt refused at its spawn ran no program at all,
+  so the file's `1` would then be the correct number of programs started and no write was lost.
+- On a shell that does not retry its own refused fork,
+  a stand-in whose `$(cat ...)` is refused a process writes a wrong number,
   `n` empty and `$((n + 1))` writing `1`,
-  which the list below names among the control's own defects.
+  which the list under "Why a start can reach its ceiling before its program writes" names among the control's own defects.
+  bash 5.3.20 retries that fork,
+  so on the gate's shell the start is cut at its ceiling and writes nothing.
 
-What the record does decide is the product's side:
+What the record alone decides:
 attempt 1 was not skipped,
 and attempt 2 was ended at its ceiling,
 which is what the loop's code and the sentence say.
-Which attempt lost the write,
-and whether the first attempt was ended at its ceiling or refused by the system,
-the record cannot separate.
+That the first attempt was cut follows with the measurements this section records,
+whose limits are named beside them;
+which attempt lost the write,
+neither the record nor those measurements separate.
 
 ### Why a start can reach its ceiling before its program writes
 
@@ -1969,10 +2079,13 @@ with whose defect each one is:
 - the control's:
   the second attempt is ended at its ceiling before its shim writes,
   so the file keeps the first attempt's `1`;
-- the control's:
+- the control's,
+  on a shell that does not retry its own refused fork:
   the shim's `$(cat …)` is refused a process under the container's process bound,
   and that start ends before its write,
-  so `n` is empty and `$((n + 1))` writes `1` in place of `2`;
+  so `n` is empty and `$((n + 1))` writes `1` in place of `2`.
+  bash 5.3.20 retries that fork,
+  so on the gate's shell the start is cut instead;
 - a product defect,
   ruled out here:
   the loop skips an attempt.
@@ -2024,7 +2137,7 @@ on this host (git 2.56.1) then failed with the journal's own two lines:
 The window is two attempts wide in this control,
 because either attempt's write can be lost.
 The round that wrote this section left the sibling control's own window open;
-issue 6344's sections below close both windows of it.
+the issue 6344 sections of this cause close both windows of it.
 
 ### The fix of issue 6343: the wrapper counts its own attempts
 
@@ -2038,14 +2151,14 @@ as the link-question count of `shadow_pool_member.rs` is,
 so no other test's creation reaches it.
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 asserts that count against `SHADOW_CREATION_ATTEMPTS`
-(`shadow_create_tests.rs:574`),
+(`shadow_create_tests.rs:593`),
 and the sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-asserts the same count for its two starts (`:538`).
+asserts the same count for its two starts (`:552`).
 The shim kept its file in that round,
 because only the shim can know which of its own starts to hang,
 and `reftable_with_hanging_init` no longer returned it.
 Issue 6344's first window removed that file from the shim altogether,
-and its section below says what replaced it.
+and the section "Issue 6344's first window" says what replaced it.
 
 What the product guarantees there,
 and what the control now holds:
@@ -2074,7 +2187,7 @@ all on this host with the same test binary:
   the every-time control passes
   (`2 tests run: 1 passed, 1 failed`,
   the one failure the sibling's,
-  named in the section that follows);
+  named in "Issue 6344's second window");
 - the new assertion is not vacuous:
   with the retry's condition made `false`
   (`if cut && attempt < SHADOW_CREATION_ATTEMPTS`),
@@ -2112,13 +2225,13 @@ and the only thing it could look at was a file it wrote itself:
 and `echo $n > '<count>'`,
 with the start hanging when `$n` was at most the control's number to hang
 (`reftable_with_hanging_init`,
-`shadow_create_tests.rs:493`).
+`shadow_create_tests.rs:506`).
 A first start that the ceiling ended before that write leaves no file at all,
 so the second start reads the file's absence as the first attempt,
 writes `1` and hangs too.
 The sibling control
 `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-then fails at `made` (`shadow_create_tests.rs:537`,
+then fails at `made` (`shadow_create_tests.rs:551`,
 `the second start made the shadow`)
 with the cut's own sentence,
 although the product had discarded the partial directory and started again exactly as it should.
@@ -2136,7 +2249,7 @@ counts the attempt,
 and in test builds it also sets `MONOCHROMATIC_TEST_SHADOW_INIT_ATTEMPT`
 to the loop's `attempt` in the request's environment
 (`shadow_init_attempts.rs:157`).
-The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:503`),
+The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:516`),
 and no file a start writes decides anything.
 The variable exists in test builds alone:
 the constant is `#[cfg(test)]` (`shadow_init_attempts.rs:64`),
@@ -2163,7 +2276,7 @@ The seam is not decorative:
 with the stand-in reading a variable no build sets,
 both controls fail loudly instead of passing,
 `left: 1`,
-`right: 2` at the count assertion (`shadow_create_tests.rs:538` and `:574`).
+`right: 2` at the count assertion (`shadow_create_tests.rs:552` and `:593`).
 
 ### Issue 6344's second window: the real second start had to finish inside the shortened ceiling
 
@@ -2179,7 +2292,7 @@ it failed in the same place with the file-based stand-in of the prototype that h
 
 The fix plants the cut instead of setting the thread's ceiling:
 `cut_the_first_init_attempt_at(Duration::from_millis(700))`
-(`shadow_create_tests.rs:534`)
+(`shadow_create_tests.rs:548`)
 shortens the ceiling of the first attempt alone
 (`shadow_init_attempts.rs:82`),
 and `apply_the_planted_cut` (`:123`)
@@ -2187,6 +2300,12 @@ gives the thread back its class's ceiling before the attempt after it,
 forgets the plant at that attempt,
 and `clear_the_planted_cut` (`:100`) does the same once the creation returned,
 so no other test on that thread inherits a shortened ceiling.
+`a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
+holds that clearing:
+with the function's body emptied it fails at `Some(700ms)` against `None`,
+while the two shadow controls stay green,
+and nextest runs each test in a process of its own,
+so no gate run could have seen an inherited ceiling.
 The start made again is therefore waited for as production waits for a start of `init`,
 `PLUMBING_STEP_CEILING` or `OBJECT_STEP_CEILING` (minutes),
 and the control holds only what it means to hold:
@@ -2197,15 +2316,23 @@ The plant is `#[cfg(test)]`,
 so nothing a shipped build does changed.
 
 Red,
-before the fix,
-with a one second delay on the second start before real Git runs:
+with a one second delay on the second start before real Git runs,
+before the fix:
 `FAIL ... a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`,
 `the second start made the shadow: GitFailure("... a bulk step ran for 0 seconds,
 the longest the wrapper lets one step run, and was ended")`.
-Green under the same plant after the fix:
-`2 tests run: 2 passed`,
-the sibling at 1.845 s,
-which is its first start's cut plus its second start's own second.
+The delay is now part of the control's stand-in,
+`THE_START_MADE_AGAIN_TAKES` (`shadow_create_tests.rs:488`),
+so the suite itself holds the fix of window two:
+with the first-attempt-only distinction dropped from `apply_the_planted_cut`,
+the sibling fails at `made` (1.597 s) and the every-time control passes.
+It costs the sibling control its second on every run:
+measured on this host,
+1.872 s to 1.948 s with the second
+against 0.910 s to 0.954 s without it,
+while the every-time control read 1.142 s to 1.205 s in the same runs.
+Green with the cut planted for the first attempt alone:
+`2 tests run: 2 passed`.
 
 ### The witness the count of attempts does not give, and the lower bound that does
 
@@ -2219,26 +2346,36 @@ because only a program could write it.
 
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 now also asks how long it waited
-(`shadow_create_tests.rs:576`).
+(`shadow_create_tests.rs:595`).
 Every start of that control hangs,
 so each attempt is waited for its 500 ms ceiling and no shorter,
-and a start that returned sooner neither ran a program nor waited for one.
+and an attempt that returned sooner ended before its ceiling.
 The bound is derived from the control's own named ceiling and from `SHADOW_CREATION_ATTEMPTS`.
 Contention only lengthens a wait,
-so the bound cannot flake on a busy host;
-one path does return before a ceiling,
-a start the system refused before its program ran (`start_retry.rs`,
-`START_RETRY_BUDGET`),
-and a run that refused both starts fails this control instead of passing it,
-which is right,
-because such a run did not witness what the control holds,
-and the failure says so.
+so the bound cannot flake on a busy host.
+What it rejects is an attempt that returned before its ceiling,
+which is a refusal returned as a finished command:
+the program ran,
+printed the system's words,
+and the start ended at once.
+Measured:
+a first start that prints the refusal and exits fails the bound at 548.950692ms
+(issue 6344's integration pass,
+`keep/merge-run-lower-bound-first-start-refused-as-finished-command.txt`).
+What the bound cannot tell apart from a cut:
+a spawn refused through the whole `START_RETRY_BUDGET` pauses 4630 ms,
+so such an attempt passes the bound without a program having started
+(9.52 s for two attempts and 15 refusals over 4630 ms,
+`keep/merge-run-both-spawns-refused-by-process-limit.txt`).
+It is worth that window because the false green it closes needs no plant:
+on `main`,
+a `run_git` that returned a cut at once left both controls green.
 
-Red with a plant that makes the second attempt return Git's refusal text
+Red with a plant that makes the second attempt return a cut
 without starting a program or waiting for one:
-`each attempt the count saw was a program waited for its ceiling,
-and a start that ended sooner ran nothing: 546.502363ms`
-(`shadow_create_tests.rs:575`).
+`an attempt ended before its ceiling,
+which a cut of this control's plant cannot do: 532.018781ms`
+(`shadow_create_tests.rs:594`).
 Green with the plant removed:
 `2 tests run: 2 passed`.
 
@@ -2264,24 +2401,58 @@ so neither window failed and the lower bound held under the gate's contention.
 Its Clippy step finished clean
 (`Finished `dev` profile [unoptimized] target(s) in 3m 21s`).
 
-Two of the three failures are the cause-H pair named above.
+Two of the three failures are the pair "Cause H" names.
 The third is
 `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`,
 the control cause G records:
 it failed with `the sweep removed the worktree whose branch landed`,
 and the product's own words there say the removal went to the commit service
 and that the branch `refs/heads/feature` is now on `main`.
-Run alone on this host afterwards it passed (5.469 s),
-which is the shape cause G records for it.
+Run alone on this host afterwards it passed (5.469 s).
+It is the same control cause G records,
+failing in a gate and passing alone,
+but cause G records it with other words,
+where the removal's record "was moved by another look of the same service while the worktree stayed";
+in this failure's own words the worktree was removed.
 No failure of cause I appeared,
 nor of cause J or K,
 and nothing of issue 6342 did either:
 nothing else failed,
 so there was nothing to run alone.
-The total is two above the 9877 of issue 6343's gates
+The total is two more than the 9877 of issue 6343's gates
 because `473dccebbc` (the subvolume record's branch) landed two controls
 between those runs and this one,
 not because this branch adds a test.
+
+### The follow-ups' gate
+
+The whole container gate of the follow-up round ran the same way,
+as its own capped unit `ssc2-6344-followups-gate-20261123`
+with `RuntimeMaxSec=3600`,
+on image `localhost/git-policy-native-test:ssc2-6344-followups-20261123T050551-0500`
+(run `native-Y34ZI0`):
+
+```text
+Summary [1046.619s] 9914 tests run: 9912 passed (11 slow), 2 failed, 36 skipped
+FAIL [   1.339s] (9480/9914) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.359s] (9598/9914) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Exactly the cause-H pair,
+and nothing else failed.
+All three shadow controls passed there:
+the sibling at 2.004 s (test 6131 of 9914),
+which carries the committed second,
+`a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
+at 1.152 s (6084 of 9914),
+and `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
+at 0.013 s (6037 of 9914).
+Its Clippy step finished clean
+(`Finished `dev` profile [unoptimized] target(s) in 3m 46s`),
+and the unit ended `Failed with result 'exit-code'`,
+the cause-H pair's status.
+The total is 9914 because `main` landed new controls between the merge this round started from and the gate,
+and because this round adds one.
 
 ### What the controls ask of the host now
 
@@ -2305,13 +2476,328 @@ Read which assertion failed and what it printed.
   unless `SHADOW_CREATION_ATTEMPTS` itself moved.
   A panic that names a count file cannot happen here any more:
   no control keeps one.
-- The sibling's `made` failure now names the sentence of whatever ended the second start.
-  Under a 700 ms ceiling that can only be the first attempt's cut,
-  because the second attempt has production's ceiling;
-  a `TimedOut` sentence there is a start `init` that production ended as well,
+- The sibling's `made` failure names the sentence of the last attempt's start,
+  which is the start made again:
+  a first attempt's cut makes the loop start again and is never the error the loop returns.
+  A `TimedOut` sentence there is that start ended at production's ceiling,
   and the whole step's ceiling and the host's state decide that,
   not this control.
+  A planted ceiling that outlived the first attempt gives the same sentence,
+  which `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared` holds.
 - The every-time control's lower-bound failure means at least one attempt returned before its ceiling:
   it was refused rather than cut,
   and the run did not witness the two programs the control means to count.
   Run it again on a host with processes to spare before reading it as a product defect.
+
+## Cause N: the wait a landed removal's control relies on can return while its record is being moved (issue 6345)
+
+This is neither cause G nor cause H.
+Cause G holds the first gate this control failed in and points here.
+Cause H is the standing scratch-directory pair.
+
+### The symptom the gate reader saw
+
+`worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes` failed in two whole container gates and passes when it runs alone.
+The gates were the one of 2026-11-21T13:25:00-05:00,
+which cause G holds,
+and the one of 2026-11-22T16:51:52-05:00.
+The second ran on the branch `fix/git-policy-cli-shadow-sibling-control-two-timing-windows`,
+which does not touch worktree removal,
+and it failed this control as test 9834 of 9879 after 0.880 s.
+Its own words,
+from the gate journal of that run as issue 6345 quotes it,
+with the fixture paths elided at `…`:
+
+```text
+thread 'worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes' (352637) panicked at src/native/binary/binary_worktree_removal_held_commit_tests.rs:359:5:
+the sweep removed the worktree whose branch landed: monochromatic-git-policy-cli: the commit 297feb89628925c7a416ccf50e3471a4a174426d for feature is held in /work/…/linked behind the lock `/work/…/repo/.git/refs/heads/feature.lock`, … it is kept at `refs/cli-git/kept/7`, feature stays where it is, and no command moves it by itself.
+monochromatic-git-policy-cli: handed the removal of the worktree /work/…/linked to the commit service, though its branch refs/heads/feature is now on main: … no merge waits for that. … What became of it is the record /work/…/repo/.git/monochromatic-git-policy-cli/work carries the record subvolume-delete-da570535966155ca3a7a531dc5d37c522cf6e734-1b541ba361ad4bed: `done` under it means the worktree is gone, and `failed` means it was kept, with the reason on your next command's standard error. …
+monochromatic-git-policy-cli-service: ready at_ms=1795385529221
+monochromatic-git-policy-cli-service: ready at_ms=1795385529230
+monochromatic-git-policy-cli-service: the subvolume /work/…/linked could not be deleted: nothing was removed: /work/…/repo/.git/worktrees cannot be resolved (No such file or directory (os error 2)), so this repository has no linked worktree at_ms=1795385529725
+monochromatic-git-policy-cli-service: moving subvolume-delete-da570535966155ca3a7a531dc5d37c522cf6e734-1b541ba361ad4bed to failed failed: No such file or directory (os error 2); its lease probably ran out and another instance took the work over at_ms=1795385529726
+monochromatic-git-policy-cli-service: exiting reason=signal-15 uptime_ms=508 at_ms=1795385529727
+monochromatic-git-policy-cli-service: exiting reason=signal-15 uptime_ms=504 at_ms=1795385529732
+```
+
+Two service instances ran for that fixture,
+one for each registered worktree Git directory,
+and the two exits came after the two error lines.
+
+### What the assertion needed, and each way it could be false
+
+The assertion was `assert!(!scene.linked.exists(), "the sweep removed the worktree whose branch landed")`.
+It needed the linked worktree's directory to be gone by the moment the `merge` command had returned.
+
+- The removal had not run yet when the assertion read the worktree.
+  The merge only hands it over,
+  and three places in the product say so:
+  `SPEC.md` ("and then it records the removal and returns"),
+  `HandedOverWorktree::worktree` in `src/native/worktree/worktree_landed_removal.rs` ("The worktree directory,
+  which is still there when the merge ends"),
+  and the sweep's own line in `src/native/worktree/worktree_landed_sweep_notice.rs` ("no merge waits for that",
+  "`done` under it means the worktree is gone").
+  The test support hides that in every run by waiting for the record to leave `pending`,
+  `recovering` and `claimed`.
+  That wait reads the three folders one after another,
+  and a record being moved between them during a sample is in none of that sample's three readings.
+  The wait then returns with the removal about to start and the assertion fails on a worktree that is still there.
+  That the two gates hit this window is not shown:
+  it is the way the old control fails with the gate's own sentence under plants that only widen windows the code already has.
+- The service examined the record and kept the worktree.
+  Git refused it,
+  an ignored file there is one the merge's worktree does not hold,
+  a process works inside it,
+  it is locked,
+  a held commit reached no reference,
+  or the identity the hand-over wrote names another worktree.
+  The worktree then stays for good,
+  and the next command that reads notices names it with the reason.
+- The service was not woken.
+  The record stays in `pending` until a commit wakes the service (see "Which commands wake the service"),
+  and the worktree stands until then.
+- The service could not start Git.
+  The removal answers a retry (`worktree_remove_hand_over.rs`,
+  the removal that found no Git),
+  the record stays in `claimed` until its 120 s lease ends,
+  and the support's wait ends first,
+  at its own 60 s bound,
+  with "the service never settled the after-commit work".
+- The sweep kept the candidate instead of handing it over.
+  That is a worktree nothing records as the wrapper's,
+  one nested inside it,
+  an ignored file,
+  or a lock,
+  and then there is no hand-over line at all.
+- A removal took the registration and left the files.
+  A person's `git worktree remove --force` that cannot empty a directory does that:
+  Git 2.56.1 deletes the registration and an empty `worktrees` folder even when it could not delete the files (`builtin/worktree.c`,
+  `remove_worktree`,
+  "continue on even if ret is non-zero").
+  The service's look then answers `failed` ("nothing was removed:
+  …") and writes no kept-worktree notice,
+  so no command says anything;
+  that limit is tracked as issue 6355.
+- The fixture's teardown removed the tree under a look that was still running.
+  That is the journal's `.git/worktrees cannot be resolved` line,
+  and it needs the registration tree to go between the look's second and third path resolution.
+  The section "The fixture's drop,
+  and the journal's two service lines" shows it,
+  and it is not what made the assertion fail:
+  the assertion ran first.
+
+### The cause
+
+Two things,
+and the first is what the controls show.
+The merge returns before the removal finishes,
+by design,
+in the three places named under "What the assertion needed,
+and each way it could be false".
+The wait that hides that reads three folders one after another,
+while a record being claimed moves from `pending` into `recovering` and then into `claimed`,
+a recovery of an expired claim moves a `claimed` record into `recovering` and then into `pending`,
+and a settle moves a claim into `done` or `failed`.
+A record moved between two of a sample's reads is missed by that sample.
+The wait now reads the folders in the order a record moves through them,
+and confirms an empty reading with a second and a third sample (`settle_service_work` in `src/native/binary/binary_support_observation.rs`).
+The order closes forward moves,
+because a forward move lands in a folder the sample has not read yet;
+the second sample closes the moves that go back;
+the third closes a recovery whose two renames straddle two samples.
+The comment on `settle_service_work` lists every move a record makes between these folders,
+from the code.
+What three samples do not close,
+over schedules of one record's moves placed among the wait's reads,
+counted by a reviewer's run kept outside the repository,
+and reproduced by the pass after it:
+they closed all 3,350 schedules of up to three moves and all but 4 of 18,365 of up to four,
+so a chain of four or more moves that a thread's stall stretches across every sample is still missed.
+A record renamed inside one folder while that folder is read was not tested.
+
+Shown:
+
+- four controls of the wait (`src/native/binary/binary_support_observation_tests.rs`),
+  each red with its own guard removed and green with it:
+  `a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads` is red when the folders are read in the old order with three samples kept;
+  `a_second_sample_catches_what_a_recovery_takes_back_between_two_reads` is red with one sample;
+  `a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples` is red with two samples;
+  `a_record_that_moves_between_two_reads_is_not_a_settled_queue` is red on the wait `main` has,
+  and green with the order alone and with the second sample alone;
+- a reviewer's four plants (the claim's stay in `recovering` 300 ms,
+  the first sample 100 ms late,
+  400 ms after the second read of a sample,
+  a 600 ms removal) made the control as it stood fail with the gate's own sentence on `main`'s wait and pass on this one,
+  and the pass that reviewed this round saw it again;
+- the wait as it stood before its third sample (two samples),
+  with real renames made by the wait's own step,
+  returns with a live record on the third control's schedule;
+  the wait now in the tree does not return on any of the four controls' schedules.
+
+Inferred,
+and not shown:
+
+- that either gate hit this window.
+  Neither gate logged the queue when the wait returned.
+  The move that makes the window needs a stall of the waiting thread;
+  the pass measured the recovery of an expired claim at 227 to 1131 microseconds (median 249,
+  300 runs) against about 55 microseconds for a whole call of the wait with three samples,
+  so a capped four-thread container can hold a thread that long,
+  and no rate is claimed here.
+  The next occurrence must capture the queue at the moment the wait returns.
+
+### The reproduction
+
+Each control's window is one record moved between the wait's reads by the seam `run_before_each_folder_read`,
+and each is red with its guard removed:
+
+```text
+PASS support_observation::tests::a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads
+FAIL support_observation::tests::a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads
+     with A_RECORD_IN_FLIGHT_FOLDERS read as pending, claimed, recovering and three samples kept
+PASS support_observation::tests::a_second_sample_catches_what_a_recovery_takes_back_between_two_reads
+FAIL support_observation::tests::a_second_sample_catches_what_a_recovery_takes_back_between_two_reads
+     with one sample
+PASS support_observation::tests::a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples
+FAIL support_observation::tests::a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples
+     with two samples
+PASS support_observation::tests::a_record_that_moves_between_two_reads_is_not_a_settled_queue
+FAIL support_observation::tests::a_record_that_moves_between_two_reads_is_not_a_settled_queue
+     with main's order and one sample
+```
+
+Each red prints the queue at the wait's return,
+with the record still in it,
+for example `a read of the wait sees the record while it moves between the folders a claim passes through, and none did: pending=[] claimed=["subvolume-delete-0000000000000000000000000000000000000000"] recovering=[] done=[] failed=[]`.
+
+### The fix
+
+`settle_service_work` reads the three folders in the order a record moves through them and requires three empty samples.
+A whole call on an empty queue costs about 55 microseconds against `main`'s 19,
+a ratio of 2.9 (range 2.6 to 3.5 over two sets of 36 interleaved rounds,
+where identical code ranged 0.91 to 1.14),
+measured by a reviewer's run kept outside the repository.
+The four controls hold the order and each sample,
+and the pair of halves.
+The wait keeps its 60 s bound,
+its 20 ms pause and its failure message.
+No test-level timing was made:
+the whole gate that would pair the wait's users has no usable result for this branch.
+
+### The fixture's drop, and the journal's two service lines
+
+`Fixture::drop` (`src/native/binary/binary_support_fixture_service.rs`) bound the service it took to `_stopped` on `main`.
+A binding that begins with an underscore keeps its value to the end of the scope,
+so the services were stopped after `settle_fixture` removed the tree,
+and the comment on that line of `Fixture::drop` said the opposite ("The service goes first").
+A look of a service still running when its test ended therefore read a repository being removed,
+which is how the journal's two error lines arose.
+The drop stops the services at once now,
+before `end_processes_working_in` and `settle_fixture`.
+
+Shown with a look held between its second and third path resolution,
+and a test that ends while the look waits (a reviewer's runs of it,
+kept outside the repository):
+
+- the old order printed the look's line in 13 of 28 runs,
+  two of those with the second line too,
+  at pauses from 4 to 20 ms and with a pause that ends when the repository is gone,
+  and not at all at 400 ms;
+- the new order printed it in none of 28 runs,
+  and the only service lines were the two `exiting reason=signal-15` lines,
+  both before the tree was touched.
+
+### What a person meets
+
+- The service is slow:
+  the merge exits 0 with its own line,
+  the worktree stands at its return,
+  and the removal finishes later.
+- The service was not woken:
+  the merge prints "the removal of … is recorded and not woken (…)" beside its own line,
+  the record stays `pending`,
+  and the worktree stands until a commit.
+- The service hangs inside the removal:
+  the record stays `claimed`,
+  the worktree stays,
+  and no later command says anything about it;
+  the merge's line is the only word,
+  and it gives the command that removes the worktree.
+  This was run once,
+  by the first pass that reviewed this control,
+  and not since.
+- The service keeps the worktree because it is locked:
+  the record reaches `failed`,
+  and the next command that reads notices prints the kept-worktree line once,
+  with the product's own sentence about the lock.
+  A reviewer ran this.
+- The service keeps the worktree because Git refused the removal:
+  the record reaches `failed`,
+  and the notice carries Git's own sentence.
+  This was not run since the first pass that reviewed this control;
+  it stands on the code (`keep_the_worktree(…, "Git refused to remove it: …")`).
+- The merge's line names the hand-over,
+  where the record is,
+  what `done` and `failed` mean,
+  and the exact `git worktree remove <path>`.
+
+#### Which commands wake the service
+
+Measured against a removal record parked in `pending`:
+thirteen commands,
+eight seconds each,
+and only `git commit --allow-empty` woke the service.
+Two runs put the record's leaving `pending` at 312 ms and at 1652 ms after the command started,
+so the wait it took is what one run of a loaded host gives and no bound is claimed.
+The other twelve left it `pending`:
+`git status`,
+`git status --short`,
+`git log`,
+`git branch`,
+`git rev-parse`,
+`git worktree list`,
+`git diff`,
+`git stash list`,
+`git add`,
+`git worktree add` (which made no trash),
+`git worktree prune` and `git worktree remove` (of another worktree).
+
+From the code:
+
+- a commit is a request to the service,
+  whose round drains that repository's queue;
+- every wrapped command whose output no program reads runs `show_push_failures` before it runs (`src/native/invocation/wrapped_command.rs`),
+  and that step wakes the service when it queues a subvolume leaving or queues a refused removal record again.
+  The pass measured the second:
+  human-read `git status`,
+  `git status --short` and `git log --oneline` did it,
+  and `git status --porcelain` and `git rev-parse` did not;
+- an add wakes the service through its trash hand-over (`worktree_trash::hand_over_to_the_service`) only when the add made a trash;
+  that was not run,
+  and this document claims it from the code only;
+- a repair that relinks a package,
+  an add's snapshot ahead,
+  and the next merge that hands over a removal were not run either;
+  they stand on the code.
+
+A removal left `pending` by a missed wake is tracked as issue 6354;
+nothing here changes that behaviour.
+
+### A limit the fix does not close
+
+`remove_the_worktree_of` answers `Failed("nothing was removed: …")` when the registration cannot be read,
+and that branch returns before `keep_the_worktree`,
+which is the only writer of a kept-worktree notice.
+The merge's line promises that a `failed` record's reason reaches the next command;
+for this state no notice is written,
+so no command shows one.
+The state is rare (the worktree is already half gone when it is met),
+and it is tracked as issue 6355.
+
+### What the next occurrence must capture
+
+The queue listing and whether the worktree and its registration exist at the moment `settle_service_work` returns,
+and the record's state at every look of the service,
+with the process of that look.
+The wait's own step can print that listing (`run_before_each_folder_read`),
+and it is the line that decides whether the wait returned early.

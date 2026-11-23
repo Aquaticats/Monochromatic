@@ -439,6 +439,25 @@ pub(crate) fn checkout_environment_with_index((git_dir, work_tree): (&Path, &Pat
 }
 
 /// What:
+///  The database the target's own HEAD and tree are read from.
+/// Why:
+///  They are the new worktree's own objects,
+/// so they come from the repository's own store,
+///  as `main`'s reader read them;
+///  a store or a replacement base the command's environment names is not what they are,
+///  and where the repository's own store lacks them this answers `None` and the rung leaves the add to Git.
+///  One function,
+/// so the one place the rung opens the database is the place a control can ask.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const database = openObjectDatabaseOfTheRepositoryAlone({ commonDir, format });
+/// ```
+fn the_targets_database(common_dir: &Path, format: ObjectFormat) -> Option<ObjectDatabase> {
+    return ObjectDatabase::open_of_the_repository_alone(common_dir, None, format);
+}
+
+/// What:
 ///  Read the result of the `--no-checkout` run:
 /// the pointer,
 /// the administrative directory,
@@ -482,7 +501,7 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     let Some(commit) = head_commit(admin.as_path(), source.common_dir.as_path(), format) else {
         return Err(String::from("the new HEAD is not a plain ref to a commit"));
     };
-    let Some(database) = ObjectDatabase::open(source.common_dir.as_path(), None, format) else {
+    let Some(database) = the_targets_database(source.common_dir.as_path(), format) else {
         return Err(String::from("the object database is not plain"));
     };
     let Some(name) = from_hex(commit.as_bytes(), format) else {

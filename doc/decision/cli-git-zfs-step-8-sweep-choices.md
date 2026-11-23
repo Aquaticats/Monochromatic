@@ -262,7 +262,7 @@ treating an empty file as no file.
 ## A standing mount's source is read by its mount number
 
 Answered in the question tool on 2026-11-23,
-recorded 2026-11-23T18:25:00-05:00,
+recorded 2026-11-23T18:03:17-05:00,
 on the second Sonnet pass of the step 8 follow-up
 (`fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` at `c87a50a09b`;
 `~/temp/agent/integration-second-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
