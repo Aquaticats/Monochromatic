@@ -106,6 +106,38 @@ at and after it leaves.
   and making the copy inert before the fill,
   for what the slot holds.
 
+## A further answer: an add whose own unmount is refused as busy
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:21:19-05:00,
+after the design was rewritten to the three answers of this record and reviewed again
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-owners-answers.md`,
+section "What is left for the owner",
+question Q-R5).
+
+Asked:
+by the first answer of this record an add that fails its proof unmounts and destroys the clone it just made.
+When something else already sits in the new folder,
+another session's shell for example,
+the unmount is refused as busy and the add's unmount request to the root handler is left standing.
+The accepted design allows no remount or unmount by itself after a failure,
+with one exception,
+a removal that cancels itself.
+
+The project chose "A:
+yes,
+withdraw it (Recommended)":
+the add writes its request back to the mounted state,
+nothing having been unmounted,
+prints that the worktree is pending and the command that removes it,
+and the clone stays mounted as it was.
+So the exception now covers an add that withdraws its own request,
+beside a removal that cancels itself.
+
+Not chosen:
+leaving the request standing,
+so that the handler unmounts the clone when the holder leaves.
+
 ## What this record does not decide
 
 Whether rung 1 may decline a very dirty main checkout as rung 2 does
