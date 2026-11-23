@@ -132,7 +132,10 @@ This shouldn't happen."
 The skill is corrected in `e24cf7d46d`,
 and the launchers now take their pool from `writer-pool-for-a-round.ts` in the launch folder,
 which refuses that pool.
-`drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names.
+`drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names;
+the round `pi-driver-refuses-a-run-on-a-closed-pool`,
+on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool`,
+makes it and the worktree launcher refuse one.
 A run that ends is still read and recorded here.
 Under each sub-initiative,
 "Running" and "Next" say what was going at that reading and what is started first afterwards.
@@ -285,20 +288,30 @@ branch `feat/git-policy-cli-zfs-sweep-and-start-probe-need-no-configuration-file
 after a fix round on its first integration pass.
 The owner's answers are in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "Four further answers on the look-up with no configuration file".
+Its second Sonnet pass
+(`review-second-pass.md` in
+`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/`)
+found it fit after two fixes:
+the documents say the route cannot read `snapdir`,
+which it can (B1),
+and the probe's refusal prints the sweep's remedy,
+which does not settle the probe (B2).
+Told what hiding snapshot directories comes to,
+the owner chose `snapdir=disabled` on the checkout and the clone container,
+set by step 19 and reported by step 18
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"What hiding comes to,
+answered 2026-11-23").
 Running:
-its second Sonnet pass,
-to `review-second-pass.md` in
-`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/`.
+`pi-zfs-no-configuration-second-pass-findings`,
+on B1,
+B2,
+B4 and the lows,
+with that answer in its inbox.
 
 Next:
-tell the owner what "hide snapshot directories" comes to.
-The fix round reports that only `snapdir=disabled` stops the snapshot mounts,
-that it exists from OpenZFS 2.3.0,
-and that the route as built cannot read the property,
-so nothing would report a checkout on which it is not set.
-The pass is checking that.
-Then merge,
-or a fix round.
+read its diff;
+then merge.
 
 #### Step 8's follow-up: the recheck's findings and the sweep's cost
 
@@ -323,15 +336,24 @@ a removal learns which processes in any mount namespace hold a clone.
 
 State:
 branch `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces` at `1b574285f3`.
+Its Sonnet pass
+(`~/temp/agent/integration-pass-zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/keep/review.md`)
+found it not fit:
+under intent `unmount` the scan sets aside every copy of the clone and answers clear while four namespaces hold it,
+and four medium findings.
+Nothing `main` does got worse.
+The owner answered its three questions
+(`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`):
+no set-aside,
+read every thread and root,
+and the wrapper names the holders before each destroy.
 Running:
-its Sonnet pass,
-to `~/temp/agent/integration-pass-zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/keep/review.md`.
-The pass was sent the sibling's verdict and the answer a stopped unmount files.
+`pi-zfs-step-9-holder-scan-integration-pass-findings`,
+with the answers in its inbox.
 
 Next:
-merge,
-or a fix round.
-The unmount's reviewer says this branch should land first.
+a second Sonnet pass.
+This branch lands before the unmount.
 
 #### Step 9: the unmount, staging and reattach
 
@@ -354,8 +376,8 @@ The owner chose that a stopped unmount files an answer in an extended format
 "The answer a stopped unmount files,
 answered 2026-11-23").
 Running:
-`pi-zfs-step-9-unmount-integration-pass-findings`,
-with that answer in its inbox as its last item.
+`pi-zfs-step-9-unmount-after-the-machine-restarted`,
+the same round resumed from its session after the restarts ended it at 05:42.
 
 Next:
 a second Sonnet pass.
@@ -526,7 +548,8 @@ The owner's four answers are in `doc/decision/cli-git-clone-rung-partial-clone-o
 "Four further answers after the recheck,
 answered 2026-11-23".
 Running:
-`pi-clone-rung-partial-clone-recheck-findings-and-four-answers`.
+`pi-clone-rung-partial-clone-after-the-machine-restarted`,
+the same round resumed from its session after the restarts ended it at 05:42.
 
 Next:
 a third Sonnet pass.
@@ -555,14 +578,21 @@ each branch on which the merged object reader declines is held by a control.
 
 State:
 branch `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows` at `daa0836b75`.
+Its fourth Sonnet recheck
+(`review-fourth-recheck.md` in
+`~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/`)
+found it fit after one fix:
+the note's reason for a replacement base the command names is false.
+The owner chose to record that case as a limit
+(`doc/decision/cli-git-object-reader-named-replacement-base-is-a-recorded-limit.md`),
+filed as issue 6396.
 Running:
-its fourth Sonnet recheck,
-to `review-fourth-recheck.md` in the earlier recheck's `keep/` folder,
-`~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/`.
+`pi-object-reader-fourth-recheck-findings`,
+on that and the recheck's two lows.
 
 Next:
-merge,
-or a fix round.
+read its diff;
+then merge.
 Issue 6347,
 the one case the reader's refusal was right about,
 is held work.
@@ -642,6 +672,37 @@ Issue 6354 is decided
 (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`)
 and is built after this branch merges,
 because its round edits the same documents.
+
+#### The tests and the gate under AppArmor
+
+Outcome:
+the wrapper's host tests and its container gate run under the AppArmor enforcement of 2026-11-23 with no denial.
+
+State:
+the host's `git` profile confined the container's own Git and refused the tests' fixtures,
+so every gate and host test run after the restart failed for that reason.
+Two batches of rules are in,
+with their causes and tradeoffs in
+`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+"The Git wrapper's own tests,
+gate and helpers under enforcement".
+The owner:
+"No,
+please do rules for everything instead of a dedicated profile that agents would have to remember to use."
+Every running pass and round was told to run no gate until a note says the gate is clean,
+and that a gate result after the restart and before the rules is void.
+Running:
+`apparmor-shakedown-gate-on-main-20261123`,
+one whole gate on `main` started before the second batch,
+with its output under `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
+The kernel's audit backlog is 64 and drops records in bursts;
+that is the owner's to change and is not asked yet.
+
+Next:
+read the gate's denials and failures;
+add rules for what it still meets;
+one more whole gate on `main`;
+then tell every pass and round that gates may run.
 
 #### Tests that failed once and are not diagnosed
 
