@@ -4406,6 +4406,23 @@ the questions section is the decided record.
   the non-shared closure branch,
   the doubled preflight lines,
   the sibling tip and the plain Decides lines.
+- `e29a47b64d`,
+  2026-11-23T18:18:50-05:00:
+  the merge of `main`.
+- `f1ba76d92b`,
+  2026-11-23T18:23:39-05:00:
+  the guest read's edits to the arms and the text:
+  T0-3's variant (a) on the with-master start,
+  T0-4's delivery under the peer,
+  T0-5a's readable descriptor and the parent's mount,
+  T0-6's copy before the change and its two halves reported apart,
+  T0-7's bound,
+  T0-8's raw `dev_t`,
+  T0-10's `6.19` guest and its compared ids,
+  T0-11's probe between the repair and the change,
+  T0-12's state named as a sandbox that holds no copy,
+  the covered-copy policy as V9,
+  and what the host's own mount rests on.
 
 ## What this revision left as it was
 
