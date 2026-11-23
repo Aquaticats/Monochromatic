@@ -1172,6 +1172,9 @@ and a folder left behind by a racing creator costs one `read_dir` that finds not
 
 ### What a command pays, in each case
 
+A folder holds one file per clone at rest ("The record:
+one file per clone"),
+so the cases below read one entry and not a growing list.
 The command reads the receipt before it spends anything else.
 The entry carries the clone's GUID,
 receipts are named by GUID,
