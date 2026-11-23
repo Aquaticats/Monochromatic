@@ -1779,3 +1779,226 @@ Read which assertion failed and what it printed.
   it was refused rather than cut,
   and the run did not witness the two programs the control means to count.
   Run it again on a host with processes to spare before reading it as a product defect.
+
+## Cause N: a landed removal is handed to the commit service, and one control read the worktree before it ran (issue 6345)
+
+This is neither cause G nor cause H.
+Cause G is the label this document gives failures one busy full run had and no other run repeats,
+with no cause recorded.
+This one has a cause the product's own documents decide,
+and the control is fixed.
+Cause H is the standing scratch-directory pair,
+which fails here and on the Btrfs host.
+
+### The symptom the gate reader saw
+
+`worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes` failed in two whole container gates,
+and it passes when it runs alone.
+The gates were the one of 2026-11-21T13:25:00-05:00,
+which cause G named,
+and the one of 2026-11-22T16:51:52-05:00.
+The second ran on the branch `fix/git-policy-cli-shadow-sibling-control-two-timing-windows`,
+which does not touch worktree removal,
+and it failed this control as test 9834 of 9879 after 0.880 s.
+Its own words,
+from `gate-journal-ssc-6344.txt`,
+with the fixture paths elided at `…`:
+
+```text
+thread 'worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes' (352637) panicked at src/native/binary/binary_worktree_removal_held_commit_tests.rs:359:5:
+the sweep removed the worktree whose branch landed: monochromatic-git-policy-cli: the commit 297feb89628925c7a416ccf50e3471a4a174426d for feature is held in /work/…/linked behind the lock `/work/…/repo/.git/refs/heads/feature.lock`, … it is kept at `refs/cli-git/kept/7`, feature stays where it is, and no command moves it by itself.
+monochromatic-git-policy-cli: handed the removal of the worktree /work/…/linked to the commit service, though its branch refs/heads/feature is now on main: removing it is Git's own reading of every tracked file there, and no merge waits for that. … What became of it is the record /work/…/repo/.git/monochromatic-git-policy-cli/work carries the record subvolume-delete-da570535966155ca3a7a531dc5d37c522cf6e734-1b541ba361ad4bed: `done` under it means the worktree is gone, and `failed` means it was kept, with the reason on your next command's standard error. …
+monochromatic-git-policy-cli-service: ready at_ms=1795385529221
+monochromatic-git-policy-cli-service: ready at_ms=1795385529230
+monochromatic-git-policy-cli-service: the subvolume /work/…/linked could not be deleted: nothing was removed: /work/…/repo/.git/worktrees cannot be resolved (No such file or directory (os error 2)), so this repository has no linked worktree at_ms=1795385529725
+monochromatic-git-policy-cli-service: moving subvolume-delete-da570535966155ca3a7a531dc5d37c522cf6e734-1b541ba361ad4bed to failed failed: No such file or directory (os error 2); its lease probably ran out and another instance took the work over at_ms=1795385529726
+monochromatic-git-policy-cli-service: exiting reason=signal-15 uptime_ms=508 at_ms=1795385529727
+monochromatic-git-policy-cli-service: exiting reason=signal-15 uptime_ms=504 at_ms=1795385529732
+```
+
+Two service instances ran for that fixture,
+started 9 ms apart and each up for about half a second.
+
+### What the assertion needed, and each way it could be false
+
+The assertion was `assert!(!scene.linked.exists(), "the sweep removed the worktree whose branch landed")`.
+It needed the linked worktree's directory to be gone by the moment the `merge` command had returned.
+
+- The removal had not run yet.
+  The merge only hands it over,
+  in the merge's own words ("no merge waits for that",
+  "`done` under it means the worktree is gone"),
+  and `HandedOverWorktree::worktree` in `src/native/worktree/worktree_landed_removal.rs` says of that field:
+  "The worktree directory,
+  which is still there when the merge ends."
+  This is the cause.
+- The service examined the record and kept the worktree.
+  Git refused it,
+  an ignored file there is one the merge's worktree does not hold,
+  a process works inside it,
+  it is locked,
+  a held commit reached no reference,
+  or the identity the hand-over wrote names another worktree.
+  The worktree then stays for good,
+  and the next command names it with the reason.
+- No service ran,
+  or it could not start Git.
+  The record stays in `pending`,
+  and every later command of the repository wakes the same service.
+- The sweep kept the candidate instead of handing it over.
+  That is a worktree nothing records as the wrapper's,
+  one nested inside it,
+  an ignored file,
+  or a lock,
+  and then there is no hand-over line at all.
+- A removal emptied the registration and not the files.
+  That is an unfinished removal,
+  which the sweep reports in its own words,
+  and the worktree stays.
+- A look that removed the worktree overlapped a look that found the registration already gone.
+  That is the journal's `.git/worktrees cannot be resolved` line,
+  which is about a worktree that is already gone,
+  and it is not what made the assertion fail,
+  because the assertion ran first.
+
+### The cause
+
+The removal stopped being the merge's own step on 2026-11-11T16:53:41-05:00 (commit `9118d87959`).
+The sweep proves the worktree,
+records the removal in the repository's work queue,
+tells the commit service,
+and returns (`src/native/worktree/worktree_landed_after_a_merge.rs`,
+`src/native/worktree/worktree_remove_hand_over.rs`).
+The service runs `git worktree remove` there when its own round reaches the record.
+The control was written the same morning (commit `3c0d697bed`,
+2026-11-11T11:11:40-05:00),
+and its assertion was not moved with that change.
+
+What the control leaned on instead of a product promise is `observe()`'s wait for the repository's after-commit queue (`binary_support_observation.rs`,
+`settle_service_work`).
+That wait polls the five state directories of the work queue,
+returns when `pending`,
+`claimed` and `recovering` are all empty,
+and gives up after `SERVICE_WORK_PATIENCE`,
+which is 60 s.
+That is a statement about a queue and not about a worktree.
+A record that settles `failed` empties the queue and leaves the worktree standing.
+A queue read while the hand-over's record moves between two state directories is empty for that moment.
+Measured here:
+with the hand-over's wake returning without waiting for the answer it brings,
+which is the state `worktree_remove_hand_over.rs` documents ("a person removing a worktree waits for none of what the service does with the record"),
+the record stayed in `pending` and the helper itself failed after its 60 s bound.
+
+### The reproduction
+
+The window is the merge's return and the service's own Git,
+and the control read between them.
+Four planted delays before the service's `git worktree remove` (120 ms,
+1.5 s,
+5 s and 8 s) all left the control passing on this host,
+because the merge's wake and `settle_service_work`'s queue wait covered every one of them.
+That is how much of this control's pass came from the test support and not from the product.
+The second pair of plants is the failing shape itself,
+and it needs no waiting for a rare failure.
+`settle_service_work` counted only `pending`,
+which is what one sample of that directory looks like while a service holds the record,
+and `delete_subvolume_of` slept 300 ms before the service's own `git worktree remove`.
+The control as it stood failed at the assertion,
+in the gate's own words and with the merge's own line:
+
+```text
+FAIL [   1.562s] (1/1) monochromatic-git-policy-cli::native_binary worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes
+  thread '…' (3736456) panicked at src/native/binary/binary_worktree_removal_held_commit_tests.rs:405:5:
+  the sweep removed the worktree whose branch landed: monochromatic-git-policy-cli: the commit a938b7dcb2af9a601f0ca9404a4b71246c8365d2 for feature is held in /…/linked behind the lock `/…/repo/.git/refs/heads/feature.lock`, …
+  monochromatic-git-policy-cli: handed the removal of the worktree /…/linked to the commit service, though its branch refs/heads/feature is now on main: removing it is Git's own reading of every tracked file there, and no merge waits for that. …
+```
+
+The fixed control with the same two plants:
+
+```text
+PASS [   1.746s] (1/1) monochromatic-git-policy-cli::native_binary worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes
+```
+
+Without either plant the module's four controls pass:
+
+```text
+Summary [   1.530s] 4 tests run: 4 passed, 1295 skipped
+```
+
+### The fix
+
+`the_handed_over_removal_finishes` waits,
+for up to 60 s in 10 ms steps,
+for the worktree whose removal the merge's line names.
+Only then does the control assert that the sweep removed the worktree and took its registration.
+When the worktree stays,
+the control fails with the merge's own line and with the repository's record of a kept worktree,
+so a failure says whether the service refused,
+could not start Git,
+or never saw the record.
+The three assertions after it (the kept reference,
+the branch where the lock left it,
+and the commit after `git gc --prune=now`) are unchanged.
+The control no longer depends on a queue sample:
+the product promises the record and the service's own work,
+and the control reads the worktree that record names.
+
+### What a person meets when the window is hit
+
+Nothing is silent and nothing is lost.
+`git merge` exits 0,
+and the linked worktree may still stand for a moment.
+The merge's own standard error says that the removal was handed over,
+that no merge waits for it,
+and where the record is (`repo/.git/monochromatic-git-policy-cli/work`).
+It says that `done` means the worktree is gone and `failed` means it was kept,
+and that the reason for a `failed` record reaches the next command's standard error.
+It also prints the exact `git worktree remove <path>` that removes the worktree now if nothing there is theirs.
+A worktree the service refuses is named by the next command of any worktree,
+with Git's own sentence and the branch.
+
+### The two service instances, and the journal's `.git/worktrees` line
+
+The two instances are the fixture's normal pair,
+and not a second look at the record.
+`serve_worktrees` starts one service per registered worktree Git directory,
+so one for `repo/.git` and one for `repo/.git/worktrees/linked`,
+and the linked worktree's instance drains the common directory's queue as housekeeping (`service_work_drains_awaiting.rs`,
+`drain_common_records_planned_awaiting`).
+Measured with a temporary probe in `delete_subvolume_of`:
+in a passing run the look that ran the record was the second-started instance (the linked worktree's),
+while the merge's wake named the first (the main worktree's).
+Which instance runs a handed-over removal is therefore not decided by the wake.
+
+The journal's `.git/worktrees cannot be resolved` line is not explained by this control's failure,
+and it is left as its own incident:
+it needs the registration gone while the worktree directory was still there.
+Ruled out for that run by reading:
+
+- the sweep,
+  where a worktree that is not a subvolume returns `LeftToGit` before `hold`,
+  so the sweep changes nothing about the registration on a tmpfs fixture root;
+- the fixture teardown,
+  where `Fixture::drop` kills the services before `settle_fixture` removes the tree,
+  so a service cannot have seen the tree removed;
+- a lease takeover of the record,
+  where `CLAIM_LEASE` is 120 s and a holder renews every 40 s,
+  and the record was held for about 25 ms,
+  so two claims of it cannot both have run;
+- `git worktree prune`,
+  which `git gc` runs,
+  and which prunes a registration only when the worktree's own `.git` file is missing or two registrations name one path,
+  while the failing look read that `.git` file successfully before it asked for `.git/worktrees`;
+- `git worktree remove`,
+  which deletes the worktree's files before the registration and `.git/worktrees` (`builtin/worktree.c`,
+  `remove_worktree`),
+  so a run that took the registration also took the files.
+
+What is left unmeasured is which process removed the registration in that run.
+The next occurrence should capture,
+around the record:
+the record's id and state at every look,
+the pid and instance of every look,
+whether the worktree's `.git` file and `.git/worktrees` exist at each look,
+and the whole work queue listing (`binary_support_observation.rs`,
+`work_listing`).
