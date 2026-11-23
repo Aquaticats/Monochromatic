@@ -4185,4 +4185,15 @@ meets" for the pass's binding condition,
   the adoption rule (N4),
   the origin record's bound (N8),
   and the requirements paragraph.
+- `203d5da4c0`,
+  committer time `2026-11-23T04:43:14-05:00`:
+  the revision the sixth read asked for.
+  It names the settling command only where it is true,
+  for every head word but `gone`,
+  and makes the `gone` cell's route the finish pass once the pool answers,
+  states the permanent refusal's way out and corrects the control that stopped on an `unknown` tuple,
+  and cites the binding design's "The settling command" at `c077bdb1e1` for its reach,
+  its order,
+  its unreadable-plan refusal and the rerun it lets through after a kill.
+  It changed only the cells and sentences the check named.
   A later commit that only adds or corrects this list is not listed.
