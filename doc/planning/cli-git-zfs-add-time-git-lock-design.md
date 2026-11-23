@@ -618,14 +618,16 @@ lines 1317 to 1320 at that commit):
 > or ->
 > phase=<claimed|slot|registered|snapshotted|cloned|mounted|filled>
 
-and `registration=<lowercase hexadecimal of the registration's path bytes>` is written at phase `registered`,
+and the binding's A6 writes `registration=`,
+`registrationIdentity=`,
+`pointer=` and `phase=registered`,
 after Git's add returns (binding design,
-"What the writer confirms before each write",
-and its A6):
-
-> Then phase `registered`,
-> with `registration=`,
-> `registrationIdentity=` and `pointer=`.
+"The add's writes in one order",
+A6,
+read at that commit).
+Its fields are `registration=<lowercase hexadecimal of the registration's path bytes>`,
+`registrationIdentity=<inode>:<seconds>:<nanoseconds>` and `pointer=<the slot's .git bytes, lowercase
+hexadecimal>`.
 
 That is the whole of what this design takes from the binding:
 the nonce written before Git runs,
