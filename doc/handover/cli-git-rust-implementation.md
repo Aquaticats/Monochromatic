@@ -415,12 +415,18 @@ and one more state with no command:
 a clone destroyed by hand before any removal ran.
 The binding's round on both reads ended at `86ce40be3c`
 (`continuation-seventh-reads.md` in its round folder is what it was asked);
-its report and diff are unread.
+its report,
+`keep/report-seventh-reads.md`,
+says all eight items are done,
+H1 and H2 among them.
+Running:
+the eighth read by each reviewer of that diff alone
+(the lock reviewer resumed as agent `a162ea896d0a950e2`,
+the record reviewer as `a6207db50e3431e04`),
+each to `review-eighth-read-before-acceptance.md` beside its seventh read.
 
 Next:
-read that diff against the eight items it was asked;
-then one more read by both reviewers of that diff alone;
-then the acceptance question.
+the acceptance question.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
 step 10's "discarded copied Git administration",
@@ -449,9 +455,11 @@ and the set not ready for two things in the binding
 ("Step 10's designs").
 Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
 each with the words that should replace it.
+The rounds on H9 and H10 ended with every low done:
+the origin cleanup record at `ea271e9e1d`,
+the plan record at `db69df972a`.
 Running:
-`pi-zfs-origin-cleanup-record-design-seventh-read-lows` (H9)
-and `pi-zfs-removal-destruction-plan-record-design-seventh-read-lows` (H10).
+the record reviewer's eighth read of all three diffs and of check 6's list.
 
 Next:
 a round on each record's lows;
