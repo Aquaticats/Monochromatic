@@ -509,10 +509,18 @@ Both designs,
 and the four other designs of this section and the next two,
 merged into `main` as proposals on 2026-11-23 at 18:29,
 by the owner's choice that a design merges when its round ends.
+The round on both tenth reads ended with every item done
+(`keep/report-tenth-reads.md` in its round folder):
+the loop closed,
+the gone-clone row gives the settling command,
+and the add's read of the plan folder is offered as V24,
+with the plan record's paragraph to match;
+the binding merged as `b6011a59eb` and the plan record as `98a81d8f79`,
+both proposals.
 Running:
-the binding's round on both tenth reads
-(`continuation-tenth-reads.md` in its round folder),
-which also writes the plan record's paragraph K9 asks for.
+each reviewer's eleventh read of that diff,
+writing the final text of its acceptance question
+(`review-eleventh-read-and-step-10-question.md` and `review-eleventh-read-and-the-records-question.md`).
 
 Next:
 the acceptance questions,
