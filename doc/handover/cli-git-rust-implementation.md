@@ -230,10 +230,12 @@ and only the owner accepts one.
   The folder it named,
   `~/temp/agent/zfs-reflink-module-page-2026-11-22`,
   does not exist on this machine.
-  Whether another of the owner's sessions has such a task is a question for the owner;
-  if one does,
-  text crossed between sessions,
-  which is a privacy matter.
+  Asked whether it is a real task of another session,
+  the owner answered on 2026-11-22:
+  "The model probably invented it.
+  It's funny though!"
+  So it is kept as an observation of a writer inventing a task late in a long run,
+  and nothing follows from it.
   Excerpt:
   `~/temp/agent/zfs-add-time-git-lock-design-2026-11-22/keep/writer-invented-an-unrelated-task-in-its-own-reasoning-2026-11-22T18-30-46.txt`.
 
@@ -253,6 +255,23 @@ and only the owner accepts one.
 - The object reader branch's commit refusal comes out
   ("B:
   take it out (Recommended)").
+- The dirty-main restore,
+  three answers,
+  recorded in `doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`:
+  a failed add finishes by itself with Git's own checkout at every step,
+  after destroying only what it made;
+  the proof records the main checkout's state immediately before the snapshot and refuses writes after it;
+  the copied `.git` stays until the last step and changes places with the pointer in one exchanging rename.
+- A removal over a marked origin,
+  three answers,
+  recorded in `doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`:
+  a refusal at either decided check leaves the removal pending and the clone unmounted,
+  with the cancel command as the way back;
+  and the removal also looks for the mark before it unmounts anything.
+- Issue 6342's lock cleanup:
+  "B:
+  also compare bytes (Recommended)",
+  so the removal unlinks a PID file only when its bytes too are what it judged.
 
 #### Step 10's two designs: the add-time lock and the binding record
 
@@ -274,19 +293,18 @@ and only the owner accepts one.
   the slot's identity is compared against a path the mount covers,
   the two documents' orders are not one order,
   and the lock design gives step 13 a module step 10 needs.
+- The binding record's second round ended at `c144499eb9`
+  (report `keep/report-second-pass-findings.md` in its folder);
+  it also took the record designs' second pass.
 - Running:
-  `pi-zfs-add-binding-record-design-second-pass-findings`,
-  which also takes the record designs' second pass
-  (cite the origin cleanup design's merged list;
-  correct statements about the other two).
-- Next:
-  when it ends,
-  the lock design's second round
+  `pi-zfs-add-time-git-lock-design-second-pass-findings`,
+  started when the binding's ended
   (delete its own order and name its moments by the binding's step labels;
   the composer,
   the recompose-and-compare and the scan move to step 10;
-  the scan that finds a registration by its lock sentence stays its own);
-  then one diff check of both by the same reviewer,
+  the scan that finds a registration by its lock sentence stays its own).
+- Next:
+  one diff check of both by the same reviewer,
   asked again whether step 10 can be built.
 - Questions the reviewer would put,
   none of which blocks step 10:
@@ -318,19 +336,22 @@ and only the owner accepts one.
   (the reviewer:
   drop the count ceiling,
   the reader is bounded by the file's length).
-- Running:
-  `pi-zfs-origin-cleanup-record-design-second-pass-findings`,
-  which writes one merged list of every write and removal a removal makes across the three records and the registration
+- The origin cleanup design's second round ended at `0973f2fc2a`
+  (report `keep/report-second-pass-findings.md` in its folder);
+  it was told to write one merged list of every write and removal a removal makes across the three records
+  and the registration
   (the binding removed before the plan,
   the claim released last),
   for the other two to cite.
-- Next:
-  the plan design's second round when that ends
+- Running:
+  `pi-zfs-removal-destruction-plan-record-design-second-pass-findings`,
+  started when that ended
   (cite the list,
   the finish pass,
   drop the placeholder,
-  re-read both siblings);
-  then one diff check of the three.
+  re-read both siblings).
+- Next:
+  one diff check of the three.
 - The reviewer's single set of four questions for the owner,
   carried by the origin cleanup document:
   who may destroy a leftover origin snapshot;
@@ -357,14 +378,17 @@ and only the owner accepts one.
   two tests cannot reach what they are named for;
   the copied `.git` names 188 real worktree directories,
   the remotes and the hooks.
+- Three of its four questions are answered
+  (see "The owner's answers of 2026-11-22 on these designs");
+  whether rung 1 may decline a very dirty main checkout waits for the measurement that would size the cut.
+- Running:
+  `pi-zfs-dirty-main-restore-on-rung-1-design-second-pass-findings`,
+  with the answers sent to its inbox.
+  The first answer needs an unmount and a destroy that an add can call,
+  which no sibling design offers yet;
+  the round is told to state it as a requirement on the designs that own them.
 - Next:
-  its second fix round
-  (not yet started),
-  and its four questions to the owner in the reviewer's words:
-  whether the add may finish with Git's own checkout by itself and from which step;
-  whether rung 1 may decline a very dirty main checkout;
-  which writes the frozen proof must refuse;
-  whether the slot may hold a full copy of the main checkout's administration while it is filled.
+  one review of the revision.
 
 #### Step 16: the deferred-destroy checks
 
@@ -381,13 +405,15 @@ and only the owner accepts one.
   the expected refusal,
   the bound on its wait),
   the script to be written and first run by the build step that builds the route it needs.
-- By the rule under "How the rounds are run" it gets no fourth review now.
-  Next:
-  its questions to the owner
-  (keep the pending removal or cancel and remount when the first check refuses;
-  whether to add a refusal before the unmount;
-  what a refusal after the head check keeps),
-  then one review of the revision that follows.
+- By the rule under "How the rounds are run" it got no fourth review;
+  its three questions are answered
+  (see "The owner's answers of 2026-11-22 on these designs").
+- Running:
+  `pi-zfs-deferred-destroy-checks-design-the-projects-three-answers`,
+  on `continuation-the-projects-three-answers.md`,
+  which also designs the look before the unmount.
+- Next:
+  one review of the whole document.
 
 #### Step 17: the forced arm and the cancelled or interrupted removal
 
@@ -408,12 +434,18 @@ and only the owner accepts one.
   the ancestor chain the handler reads can lose the harness when a parent exits,
   the unmount inside a namespace is not designed,
   and the matcher for every task holding the mount is new code.
-- Running,
-  both on the owner's four answers:
-  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-second-pass-findings`
-  and `pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-second-pass-findings`.
+- Both got a round on the owner's four answers.
+  The forced arm's,
+  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-second-pass-findings`,
+  was still running at 19:17-05:00.
+  The cancelled removal's ended early:
+  its last message was an `edit` call written out as text,
+  which no tool ran and the driver took for the final message.
+  It was started again as `...-second-pass-findings-carried-on`
+  on `continuation-resume-after-a-tool-call-written-as-text.md`,
+  from its kept session.
 - Next:
-  one diff check of both.
+  one diff check of both when both have ended.
   Still open for the owner,
   in the review's numbering:
   the signal and any grace (S4),
@@ -429,10 +461,22 @@ and only the owner accepts one.
 - Propagation:
   `zfs-private-propagation-after-replacement-mount-design` at `30274435f3`,
   after two fix rounds.
-  Its diff check is going
+  Its diff check is back
   (`gate-review-zfs-private-propagation-after-replacement-mount-design-2026-11-22`,
-  to `review-diff-check.md`),
-  asked whether the two documents now give one mechanism.
+  `review-diff-check.md`):
+  "fit after the listed fixes",
+  the self-restarting unit fixed and no high finding new.
+  Mediums:
+  a failed `ExecReload=` leaves the boot unit active,
+  so a refused step fails the unit only on the start path;
+  the list of the boot unit's states is wrong in one place and misses the activating state;
+  and vetoing `ExecReload=` would turn the recommended trigger into a restart that unmounts every clone.
+  Between the two documents it still found:
+  the lost-event design's `ExecReload=` sample names a program that is not the installed one,
+  the filter question is asked in both,
+  and each cites the other's earlier tip.
+  By the rule it goes to the owner next,
+  with one short round for both documents after the answers.
 - Lost-event triggers:
   `zfs-lost-last-event-triggers-design` at `cefc8bb362`,
   after three fix rounds.
@@ -490,8 +534,26 @@ and only the owner accepts one.
   to `~/temp/agent/integration-recheck-fence-size-read-never-fetches-2026-11-22/keep/review.md`.
 - Issue 6342
   (`fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `c40f1cece6`):
-  Sonnet pass going,
-  to `~/temp/agent/integration-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`.
+  its Sonnet pass said not fit
+  (`~/temp/agent/integration-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `7bda4c431b`).
+  The branch lost the only control that pinned the change-time comparison,
+  and the guarantee it ships is false for a program that rewrites its PID file in place
+  (the reviewer read that in `gitbutlerapp/grit`'s source);
+  on this host's ZFS two quick rewrites had identical stamps in 957 of 1000 pairs.
+  Running:
+  `pi-lock-control-freed-name-integration-pass-findings`,
+  on `continuation-integration-pass-findings.md`,
+  run folder `run-2`,
+  in a worktree made again at the same path:
+  one control per compared term,
+  the bytes comparison the owner chose,
+  the words corrected.
+  Then a second Sonnet pass.
+  The pass left an orphaned cargo build folder,
+  `~/.cargo/build/68/a5e436cd0c0598` (770 MB),
+  and its gate met a third test that failed once and passes alone,
+  `push::push_wait_tests::a_wait_ends_when_the_connection_closes_and_the_stall_window_runs_again`.
 - Issue 6344:
   merged into `main` as `0b7a48def4` after its pass said fit
   (`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/review.md`).
