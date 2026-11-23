@@ -3187,9 +3187,20 @@ nothing here claims their behaviour.
 - `9ee117c04d`,
   committed `2026-11-22T19:02:49-05:00`:
   the metadata-only commit that listed the two above with their times.
+- `ff946dcae2`,
+  committed `2026-11-22T19:02:57-05:00`:
+  the metadata-only commit that recorded `9ee117c04d`'s time,
+  and the entry above it was "the commit that writes this line" until this round.
+- `fda838910a`,
+  committed `2026-11-22T19:16:37-05:00`:
+  the merge of `main` that brought in the project's three answers and the two sibling records.
+- `7bf0bbb76e`,
+  committed `2026-11-22T19:21:28-05:00`:
+  the version that writes the design to the three answers,
+  with the changes the fourth part of "What this revision rewrote" lists.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  record the diff check round's metadata commit":
+  list the answers round's commits":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
