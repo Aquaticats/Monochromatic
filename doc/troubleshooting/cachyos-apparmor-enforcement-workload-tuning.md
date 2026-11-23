@@ -643,6 +643,148 @@ unconfined outside these specific profile boundaries.
   not substitutes for workload behavior, process labels, kernel maps, namespace state, or successful
   syscall evidence.
 
+## The Git wrapper's own tests, gate and helpers under enforcement
+
+Recorded 2026-11-23T17:10:00-05:00 by the session that works on the Git wrapper,
+on the owner's word at its return:
+"Add rules to unblock whatever you need to do as you go this session."
+While the session weighed a profile of the tests' own,
+the owner wrote:
+"No,
+please do rules for everything instead of a dedicated profile that agents would have to remember to use."
+Not final:
+the whole container gate on `main` that checks these rules is still running.
+
+### Symptoms
+
+- `git init` of the wrapper's test fixtures failed with "Permission denied",
+  both in host test runs (fixtures under the shared cargo build folder `~/.cargo/build/<hash>/.../test-fixtures/`)
+  and inside the container gate (fixtures under `/work/package/git-policy/cli/target/`).
+  The AVCs were `operation="mkdir" profile="git" requested_mask="c"`,
+  inside the container with `fsuid=100999`.
+- `gh issue view` failed with the wrapper's "Could not find a real Git executable after examining 66 PATH candidates",
+  every candidate,
+  `/usr/bin/git` included,
+  reading "missing,
+  not an executable file,
+  or unreadable".
+- `gh issue create --body-file <draft under ~/temp/agent>` failed with "permission denied" on the draft.
+- After the first rules,
+  the fixtures' hooks and editor scripts were denied running `/usr/bin/sleep`,
+  `git` was denied `ptrace read` of unconfined processes,
+  `ssh-keygen` was denied the signing buffer under a Pi run's temporary folder,
+  and Git LFS was denied its cgroup's `cpu.max` under the account's user manager.
+- The audit log rotated all five of its 8 MiB files within minutes during a gate,
+  and `auditctl -s` showed `lost 68735` with `backlog_limit 64`:
+  denials were being dropped before they were written.
+
+### Root cause
+
+- AppArmor attaches a profile by the path of the program run,
+  and a rootless Podman container's processes are unconfined,
+  so the container's own `/usr/bin/git` attaches to the host's `git` profile.
+  That profile grants the development paths the rollout measured,
+  not the paths the wrapper's tests make their fixtures in.
+- The custom `gh` profile let the policy wrapper inherit `gh`'s narrow confinement,
+  which cannot read Git,
+  the repository,
+  the wrapper's own `/proc` files,
+  its caller's environment or its user unit.
+- The wrapper reads its caller's environment (`/proc/<pid>/environ`),
+  which the kernel checks as a ptrace read of the caller.
+- The Pi driver points `TMPDIR` into each run's folder,
+  so Git writes its signing buffer there and not in `/tmp`.
+- `fuse-overlayfs` is in complain mode,
+  so every access its profile does not name is logged as `ALLOWED`:
+  11,029 of 11,052 AppArmor records in the two newest audit files were its,
+  all inside rootless Podman's layer storage.
+  With a backlog of 64,
+  bursts like that drop records.
+
+### Rules added
+
+All of them are in the `local/` includes,
+loaded with `apparmor_parser --replace`,
+which also wrote each profile's entry in the early-policy cache.
+Backups of each local file as it was are under
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
+
+```text
+# /etc/apparmor.d/local/git, first batch
+owner @{HOME}/.cargo/build{,/**} rwlk -> @{HOME}/.cargo/build{,/**},
+owner @{HOME}/.cargo/build/** mix,
+owner /work{,/**} rwlk -> /work{,/**},
+owner /work/** mix,
+owner @{PROC}/@{pid}/stat r,
+owner @{PROC}/@{pid}/fd/ r,
+owner @{PROC}/@{pid}/environ r,
+owner @{run}/user/@{uid}/systemd/user/monochromatic-git-policy-cli@.service r,
+# /etc/apparmor.d/local/git, second batch
+ptrace (read) peer=unconfined,
+ptrace (read) peer=gh,
+@{bin}/{sleep,cat,touch,mkdir,rm,rmdir,mv,cp,ls,echo,printf,true,false,test,head,tail,wc,sort,uniq,grep,sed,awk,date,kill,stat,sync,id,basename,dirname,readlink,realpath,tr,cut,tee,chmod,ln,mktemp,uname,od,diff,cmp,seq,expr,dd} rix,
+@{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/**/cpu.max r,
+```
+
+```text
+# /etc/apparmor.d/local/gh: the wrapper's line changed from rix, and one rule added
+owner @{HOME}/Monochromatic/.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli px -> git,
+owner @{HOME}/temp/agent/** r,
+```
+
+```text
+# /etc/apparmor.d/local/ssh-keygen
+owner @{HOME}/temp/agent/**/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
+```
+
+```text
+# /etc/apparmor.d/local/fuse-overlayfs (new); the profile stays in complain mode
+@{user_share_dirs}/containers/storage/overlay{,/**} rwlk,
+```
+
+### Tradeoffs
+
+- Git may create,
+  lock,
+  link and run files anywhere in the shared cargo build folder,
+  which holds every build's output,
+  not only test fixtures.
+  `/work` does not exist on the host,
+  and only root could make it.
+- The listed tools run under Git's confinement,
+  so they gain no file access Git does not have.
+- Git,
+  and the wrapper under it,
+  may read the environment of any unconfined process of the account and of `gh`,
+  which includes credentials those processes hold.
+  The owner's threat model for this machine assumes it is not compromised.
+- Under `gh`,
+  the wrapper now runs under the `git` profile it runs under everywhere else,
+  not under `gh`'s.
+  `gh` may read every file the account owns under `~/temp/agent`.
+- `fuse-overlayfs` may read and write any file in the layer storage,
+  whoever owns it,
+  which is its job;
+  those accesses are no longer logged.
+
+### Verification so far
+
+- After the first batch:
+  `git init` under the cargo build folder succeeded;
+  `gh issue view 6347` printed its title through the wrapper;
+  a container fixture under `/work` ran `git init`,
+  a commit and its own `post-commit` hook,
+  which wrote its file.
+- After the `gh` read rule:
+  `gh issue create --body-file` filed issue 6396.
+- After the `fuse-overlayfs` rule:
+  no `fuse-overlayfs` record was logged during the running gate,
+  and the denials that followed could be read.
+  The kernel still dropped 484 records in the next minutes,
+  with the backlog limit unchanged at 64.
+- Not yet shown:
+  a whole container gate on `main` with no AppArmor denial.
+
 ## Upstream filing artifact
 
 ### Upstream filing decision
