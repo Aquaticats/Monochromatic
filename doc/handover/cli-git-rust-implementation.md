@@ -665,26 +665,6 @@ the owner's bar for a worktree add,
 restated on 2026-11-23:
 a declined add costs what `main` paid for the same source.
 
-#### The partial clone of a dirty source
-
-Outcome:
-a source with uncommitted changes is cloned,
-and Git writes only the changed files.
-
-State:
-branch `feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source` at `45499c3154`.
-Its recheck said not fit for one finding
-(`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`).
-The owner's four answers are in `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
-"Four further answers after the recheck,
-answered 2026-11-23".
-Running:
-`pi-clone-rung-partial-clone-after-the-machine-restarted`,
-the same round resumed from its session after the restarts ended it at 05:42.
-
-Next:
-a third Sonnet pass.
-
 #### The size read beside the source check
 
 Outcome:
@@ -936,17 +916,34 @@ Over the four ended ledgers it finds 208 quoted passages in `delete` items,
 and one in the findings,
 picks and working rules.
 
-Running:
-the sorter of the open work (34,867 to 40,843),
-briefed by `brief-sorter-open-work.md` in that folder;
-and a Sonnet audit that tells each of the 159 as the owner's words with a target record,
-held in another form,
-or not the owner's
-(`brief-quotations-the-ended-ledgers-would-delete.md`).
+The sorter of the open work (34,867 to 40,843) has ended:
+196 items cover its 5,977 lines exactly,
+112 of them `delete`,
+with seven issue drafts
+(`sorter-lines-34867-to-40843/keep/`).
+The Sonnet audit of the 159 has ended
+(`quotations-the-ended-ledgers-would-delete/keep/`):
+30 are the owner's words,
+9 are held elsewhere,
+and 120 are not the owner's.
+It found the check pairs quotes by alternation,
+so a short quotation flips every pair after it,
+and its own scan found 11 more of the owner's quotations the check never listed.
+Of the owner's,
+ten stand nowhere else,
+not even in a range another ledger moves
+(Group 1 in its report,
+with "Fall back automatically (Recommended)",
+"Kimi for these only",
+"Fix the driver too." among them);
+the rest have a copy in a range a ledger moves.
+The rule that reviews never block a merge was one such unmoved passage,
+and it was lost from the rewrite until the owner said it again;
+it is now `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
 
 Next:
-apply that audit's `owner` moves to their records,
-then the ledgers by script;
+turn the audit's Group 1 lines into `move` items in their ledgers,
+then apply the ledgers by script;
 the ranges in this order:
 the owner's decisions (lines 41,470 to 49,499 of the old file),
 the open review findings and the picks made under delegation (40,844 to 41,469),
