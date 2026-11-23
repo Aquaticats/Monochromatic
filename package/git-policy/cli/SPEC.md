@@ -20286,6 +20286,25 @@ The build phase's names are `branch`,
 `commit read back` and `amend fields`,
 and a build that stops inside itself closes the phase where the command stops,
 so its time is stated by `buildMs` and never left to `otherMs`.
+`offsetMs` counts from the command's start,
+so the build's window begins at `routeMs + prepareMs` and is `buildMs` long,
+each figure cut to whole milliseconds and their sum therefore up to two whole milliseconds early,
+and the window is one build's:
+with more than one attempt `prepareMs` and `buildMs` are sums over attempts,
+`routeMs` is the first attempt's only,
+written once before the first preparation
+(`note_route` at `package/git-policy/cli/src/native/landing/service_commit.rs:181`,
+whose call site runs only while `attempt == 0`,
+and `package/git-policy/cli/src/native/commit/commit_timing.rs:441-443`,
+which writes the field only while it is zero),
+and no single pair of offsets states where each build began.
+`buildParts` states the Git steps that began inside the build,
+each under the stretch that ran it in `childrenMs`;
+a step that began in the preparation is stated that way by `prepareParts`;
+and a step of the route,
+or one that began between two stretches of a phase,
+is taken out of no stretch's `ms`,
+so its time lies in `routeMs` or in the `ms` of the stretch it fell in.
 Durations come from the monotonic clock in whole milliseconds,
 and the start stamp from the wall clock.
 The file moves to the next free generation (`monochromatic-git-policy-cli-commit-timing.jsonl.1`,
