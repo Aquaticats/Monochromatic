@@ -4913,6 +4913,8 @@ which is that design's answer.
   five cost-requirement phrases name the coordinator's requirement,
   the prose lines over 120 characters are wrapped,
   and the sibling statements cite the propagation design at `467d05e307` by heading.
+- 2026-11-22T22:19:29-05:00:
+  recorded the answer's commit time above.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
