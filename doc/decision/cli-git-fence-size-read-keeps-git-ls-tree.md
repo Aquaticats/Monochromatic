@@ -97,6 +97,50 @@ and the decline's stated price,
 are amended to say so,
 and the cost goes into the crate's `SPEC.md`.
 
+## The recheck's two questions, answered 2026-11-22
+
+Recorded 2026-11-22T17:33:43-05:00,
+after the integration recheck of the build said it was not fit
+(`~/temp/agent/integration-recheck-fence-size-read-beside-source-check-2026-11-22/keep/review.md`).
+
+The build had set `GIT_NO_LAZY_FETCH=1` only when a test saw a promisor remote,
+and the recheck made the read fetch into a source the check had refused where that test misses:
+the remote's settings in an included configuration file,
+set through the environment,
+or in a `--reference` clone.
+The project answered "A:
+variable on every read (Recommended)":
+the variable is set on every early read,
+with no detection and no `--no-lazy-fetch` option.
+A Git older than the releases that honour the variable ignores it and can fetch;
+that Git is below the tested minimum of 2.56.0,
+and the limit is written down.
+Not taken:
+"B:
+A,
+and skip partial clones",
+and "C:
+keep as built".
+
+Where the source check refuses at once,
+the add gave up the early read before its `git ls-tree` had started,
+so nothing was stopped and the read ran to its end in the background
+(80 of 80 measured adds).
+The project answered "B:
+really stop the read (Recommended)":
+a read given up before it starts never starts its Git child,
+or the child is ended the moment it appears.
+Not taken:
+"A:
+reword the spec",
+which the recheck had ranked first,
+and "C:
+leave both".
+
+The fix round had been told both before the answers,
+as picks open to veto;
+the answers confirm them.
+
 ## Left open
 
 The proposal branch also changed shipped code:

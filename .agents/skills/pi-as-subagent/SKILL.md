@@ -62,6 +62,16 @@ its own `HOME` and `XDG_RUNTIME_DIR` under its run folder:
 the installed wrapper hands a repository's pushes to the commit service of the session it runs in,
 and an agent's proof repositories under `/tmp/lfs-login-proof-ikmLJW/` reached the owner's real service,
 which kept retrying their pushes every 600 seconds for hours after the agent deleted them.
+Tell every agent never to ask the system service manager to act:
+no `systemctl` verb that changes or signals a unit unless it carries `--user` and names a unit the agent started,
+no call to `org.freedesktop.systemd1` on the system bus,
+no `pkexec`,
+and `--no-ask-password` on every `systemctl` it runs.
+A request that needs authorization does not fail for an account;
+it puts a password dialog on the owner's desktop and waits for the owner:
+on 2026-11-22 a design run probed with `systemctl kill --signal=KILL systemd-random-seed.service`,
+and the dialog stood for 25 seconds until the request timed out.
+What such a request answers is taken from the source or measured in a guest.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
