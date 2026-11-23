@@ -4116,6 +4116,11 @@ and any test suite.
   Q7 and Q8 kept).
   M9 and L12 are added,
   and the sources name each sibling's tip read.
+- 2026-11-22T19:06:17-05:00:
+  recorded the previous commit's revision time in this list.
+- 2026-11-22T19:06:42-05:00:
+  named the resumed add's refusal when its frozen proof is gone,
+  which the second pass's N8 observed had been dropped.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
