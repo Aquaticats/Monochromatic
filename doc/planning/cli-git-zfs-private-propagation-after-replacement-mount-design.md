@@ -483,7 +483,7 @@ and "What the wrapper and the caller see between the replacement and the re-run"
   timeouts,
   size bounds) cite a workload
   measurement or owner decision beside the value".
-  This design introduces no timeout and no unit cap;
+  This design introduces no timeout and no cap on a unit's resources;
   the sizes it states are
   the record's file bound,
   derived from kernel limits and named,
@@ -1081,6 +1081,9 @@ and none is a measurement of behaviour.
   (`src/core/unit.c:7192` to `:7197`),
   which needs an `ExecReload=` or another reload form (`service_can_reload`,
   `src/core/service.c:3778` to `:3786`).
+  On such a unit the `reload-or-start` becomes a reload when it is active or reloading and a start otherwise
+  (`job_type_collapse`,
+  `src/core/job.c:505` to `:510`).
   Without one it stays a restart,
   which any unit that can be stopped and started accepts (`unit_job_is_applicable`,
   `src/core/unit.c:3056` to `:3058`)
@@ -1140,7 +1143,7 @@ and none is a measurement of behaviour.
   and the accepted design puts every mount under the checkout in the handler's hands.
 - A3.
   The lost-event sibling owns the triggers,
-  and at its tip `6d820735cd` the provider hook is two files:
+  and at its tip `95d3b2074e` the provider hook is two files:
   a `zfs-mount.service` drop-in whose `ExecStartPost=` is prefixed `-` and asks the boot unit to act with
   `systemctl --no-block --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service`,
   and the boot unit's `ExecReload=`,
@@ -1435,7 +1438,7 @@ with the same request the lost-event design's readiness hook uses.
 The root command stays whatever is chosen,
 and it is the sibling design's:
 `systemctl --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service`,
-printed by the wrapper's refusal and by `doctor` (sibling `6d820735cd`,
+printed by the wrapper's refusal and by `doctor` (sibling `95d3b2074e`,
 "T5:
 a trigger the project fires").
 
@@ -1884,6 +1887,10 @@ which says so),
 and the bytes are the ones step 5 read,
 parsed with the reader's `parse_mount_table` (`:222`) and not with `read_mount_facts`,
 which answers one row.
+The parser decodes the kernel's escapes,
+so the scan writes each mount point back in the kernel's own spelling,
+with the same octal rule mountinfo uses (`fs/proc_namespace.c:151`),
+which is what keeps a path from breaking the record's line.
 It reports and does not change:
 a mount beneath the checkout whose set carries `MS_SHARED` is counted,
 named in the record up to the bound "The propagation record" states,
@@ -2306,9 +2313,10 @@ zero or more `beneath-path` lines;
   `fs/proc_namespace.c:151`),
   so no path can break the line (rule `SYB`).
   The key is repeated once per path and is absent when there are none.
-  `beneath` is `0` when the table was read and found none,
-  and both fields are `unread` when the run refused before the table was read,
-  which is the value `doctor` prints as "the step never looked".
+  `beneath` is `unread` when the run refused before the table was read,
+  and no `beneath-path` line stands then,
+  which is the value `doctor` prints as "the step never looked";
+  `beneath` is `0` and no line stands when the table was read and found none.
   The count is exact and the paths are capped at four,
   which is a writer's choice,
   "Choices this design marks for the project's veto" lists it (V7),
@@ -2351,8 +2359,9 @@ The field bounds are the kernel's and the existing records':
 20 decimal digits for each of the
 two mount numbers and for the namespace id,
 20 for `master` and for the count,
-4,095 for each of up to four `beneath-path` lines,
-which the count and the table carry beyond,
+16,380 for each of up to four `beneath-path` lines,
+which is 4,095 path bytes at the kernel's worst four bytes each,
+and which the count and the table carry beyond,
 4095 for the path (`MAXIMUM_CHECKOUT_PATH_BYTES`,
 the readiness record's
 own),
@@ -2767,7 +2776,7 @@ They are additions to the record the build already owes ([measurements][measurem
   whether the step is measurable beside the sweep at all.
   Would change:
   nothing shipped,
-  because the design introduces no timeout and no unit cap,
+  because the design introduces no timeout and no cap on a unit's resources,
   and it would give step 22 a
   number if one is ever wanted.
 - M7.
@@ -2862,7 +2871,22 @@ They are additions to the record the build already owes ([measurements][measurem
   Then make the child private with `mount --make-private`,
   run the step again,
   and read the same four places.
-  Then mount five datasets under the checkout and read `beneath` and the four paths.
+  Then the bound,
+  as a builder can script it:
+  the state before is the checkout private and `/home/guest` shared;
+  the one action is `mount --make-shared /home/guest/chk`,
+  which makes the checkout shared again,
+  then mounting five datasets under it,
+  each of which comes up shared under a shared destination (F3,
+  F4;
+  a mount under a private checkout comes up private and `beneath` would read `0`,
+  which is why the checkout is made shared first),
+  then running the step;
+  the expected record is `beneath 5` with four `beneath-path` lines and `outcome applied`;
+  and the bound on the wait is the run's own return,
+  or,
+  when the step is started through the boot unit,
+  the unit's `ActiveState` settling back to active inside the deadline the guest round states.
   Would show:
   whether the scan finds a shared child and names it,
   whether it leaves the child exactly as it was,
@@ -3185,7 +3209,7 @@ activation (M4).
   step 19,
   "What it builds").
 - Step 22 builds nothing here.
-  This design ships no timeout and no unit cap,
+  This design ships no timeout and no cap on a unit's resources,
   so no value waits on its measurements;
   M6 exists so that a later bound can
   be sized if one is ever proposed.
@@ -3433,8 +3457,8 @@ and there this design follows the record and says so.
 
 - "Which triggers a lost last event waits for"
   (`docs/planning-cli-git-zfs-lost-last-event-triggers-design`,
-  tip `6d820735cd`,
-  2026-11-22T21:00:39-05:00).
+  tip `95d3b2074e`,
+  2026-11-22T21:43:49-05:00).
   One mechanism,
   and each document owns half of it:
 
@@ -3486,23 +3510,21 @@ and there this design follows the record and says so.
     and the repair record's "Which triggers the route adds").
   - Its A9 calls a `systemctl` request from a unit's start unprobed,
     which is this design's M4 too,
-    and its D1 records this design's hook and command as it states them (A3,
+    and its D1 records the hook and the command as this design cites them (A3,
     this section's hook bullet,
     the printed-command paragraph and L11).
-  - The sibling's citations of this design are pointers by commit.
-    Its D1 reads this document at `037bcee2e5`
-    (its lines 4213 to 4245),
-    where it cites "The project's four answers,
-    and what this design does with each" at this document's lines 249 to 378,
+  - The sibling cites this design by heading and by label,
+    without line numbers,
+    at tip `12ff579a2c` (its D1),
+    so this design cites the sibling the same way and names no line of it.
+    Its D1 reads this document at that tip and cites "The project's four answers,
+    and what this design does with each",
     "Where it runs,
     as whom,
-    and in what order" at 1566 to 1644,
+    and in what order",
     "The trigger the route adds,
-    and what it must show" and "The propagation service and its drop-in" by line,
-    and its F22,
-    A3,
-    L11 and F31 point here by line as well.
-    This round moves every one of those sections,
+    and what it must show" and "The propagation service and its drop-in" by heading.
+    This round moves several of those sections,
     so a later agreement check should read this document at this round's tip.
     What the sibling reads there has not changed kind:
     the `ExecReload=` line is the record's accepted fact,
@@ -3560,7 +3582,7 @@ and there this design follows the record and says so.
   no executable and no configuration key,
   and no new unit except the propagation
   service the project's trigger answer installs;
-  it proposes no timeout and no unit cap,
+  it proposes no timeout and no cap on a unit's resources,
   and its one shipped bound other than the record's file bound is V7's.
 
 ## Sources read
