@@ -33,6 +33,9 @@ use crate::support_observation_bound::{Ending, LineBound, UNSTATED_BOUND, line_b
 /// the one writer of executable fixture files,
 /// and its removal.
 use crate::support::{Fixture, executable, fixture, remove};
+/// The five folders a record of the after-commit queue stands in,
+/// which the wait's control moves one record through.
+use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, PENDING, RECOVERING};
 /// `process_group` puts a command of a control in a group of its own.
 use std::os::unix::process::CommandExt as _;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -605,5 +608,95 @@ fn a_command_that_writes_more_than_a_pipe_holds_keeps_all_of_it() {
     let seen = observe(&mut wrapped, b"");
     assert_eq!(seen.code, Some(0), "the command that writes much ends by itself");
     assert_eq!(seen.stdout.len(), written, "every byte the command wrote is in the answer");
+    remove(&made);
+}
+
+thread_local! {
+    /// The queue a control's step moves one record in,
+    /// and the record's name,
+    /// which no step of an ordinary run holds.
+    static THE_RECORD_A_STEP_MOVES: std::cell::RefCell<Option<(PathBuf, String)>> = const { std::cell::RefCell::new(None) };
+    /// Whether a read of a sample saw that record in one of the folders it is in flight in,
+    /// which a step that runs immediately before that read knows.
+    static A_READ_SAW_THE_RECORD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What:
+///  Move the control's record one folder on before the sample reads the folder it stands in,
+///  and settle it once a read has seen it in the folder a claim is published in.
+/// Why:
+///  `take_entry` moves a record forward through `pending`,
+/// `recovering` and `claimed`,
+///  and the wait's own window is a record moving between two of those folders while one sample reads them.
+///  A step that runs immediately before each read can hold the record there:
+///  a record standing in the folder this step is given is one the read that follows sees,
+///  so `A_READ_SAW_THE_RECORD` is that read's answer,
+///  and the record is settled from `claimed` on the sample after one saw it,
+///  so a wait that reads in the order a record moves sees it and then ends.
+fn move_the_record_one_folder_on(folder: &str) {
+    let held: Option<(PathBuf, String)> = THE_RECORD_A_STEP_MOVES.with(|step| { return step.borrow().clone(); });
+    let Some((work, name)) = held else {
+        return;
+    };
+    let standing: PathBuf = work.join(folder).join(name.as_str());
+    if !standing.is_file() {
+        return;
+    }
+    let next: &str = match folder {
+        PENDING => RECOVERING,
+        RECOVERING => CLAIMED,
+        _ => match A_READ_SAW_THE_RECORD.with(std::cell::Cell::get) {
+            // A read that saw the record in this folder is the one the wait must not call settled,
+            // so the record stays for that read and is settled on the next sample.
+            true => DONE,
+            false => {
+                A_READ_SAW_THE_RECORD.with(|seen| { seen.set(true); });
+                return;
+            }
+        },
+    };
+    let moved: PathBuf = work.join(next).join(name.as_str());
+    let _renamed = std::fs::rename(standing.as_path(), moved.as_path());
+}
+
+/// What:
+///  A record that moves between two reads of one sample is not a settled queue.
+/// Why:
+///  Every control that reads a landed commit after its command relies on this wait,
+///  and a record being claimed moves through three folders:
+/// `take_entry` renames it from `pending` into `recovering`,
+///  stamps it there,
+///  and renames it into `claimed`.
+///  A sample that reads `pending`,
+/// then `claimed`,
+/// then `recovering` can see none of them:
+///  the record left `pending` before that read and reached `claimed` only after the second one,
+///  and the wait then returns with the removal about to start,
+///  which is the gate's own sentence for issue 6345.
+///  This control moves the record between two reads,
+/// which is the window itself,
+///  and requires the wait to see it there.
+#[test]
+fn a_record_that_moves_between_two_reads_is_not_a_settled_queue() {
+    let made: Fixture = fixture("observe-wait-a-record-between-reads");
+    let repository: PathBuf = made.root.join("repo");
+    let git_dir: PathBuf = repository.join(".git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
+    let work: PathBuf = git_policy_cli::service_work::work_directory(git_dir.as_path());
+    for state in [PENDING, RECOVERING, CLAIMED, DONE, FAILED] {
+        std::fs::create_dir_all(work.join(state)).expect("a state folder");
+    }
+    let name: String = format!("push-{}", "0".repeat(40));
+    std::fs::write(work.join(PENDING).join(name.as_str()), "a record a control moves\n").expect("the record");
+    THE_RECORD_A_STEP_MOVES.with(|step| { *step.borrow_mut() = Some((work.clone(), name.clone())); });
+    A_READ_SAW_THE_RECORD.with(|seen| { seen.set(false); });
+    crate::support_observation::run_before_each_folder_read(Some(move_the_record_one_folder_on));
+    crate::support_observation::settle_service_work(repository.as_path());
+    crate::support_observation::run_before_each_folder_read(None);
+    THE_RECORD_A_STEP_MOVES.with(|step| { *step.borrow_mut() = None; });
+    let seen: bool = A_READ_SAW_THE_RECORD.with(std::cell::Cell::get);
+    let listing: String = crate::support::work_listing(work.as_path());
+    assert!(seen, "a read of the wait sees the record while it moves between the folders a claim passes through, and none did: {listing}");
+    assert!(work.join(DONE).join(name.as_str()).is_file(), "the record the control moves ends where the wait reads it as settled: {listing}");
     remove(&made);
 }
