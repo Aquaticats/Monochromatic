@@ -87,7 +87,7 @@ The section names are the ones in this revision.
   the managed lock's included,
   with what a kill at each point leaves.
   The lock's sentence is stated here as a pure function of the nonce,
-  which is the review's Q1 answer B,
+  which is V11's answer B,
   and marked for the project's veto as V11.
 - H2:
   the reader's rule is now "the `claim=` generation is not newer than the newest generation present",
@@ -116,10 +116,10 @@ The section names are the ones in this revision.
   the opening and "Sources read and runs made" say that one container ran.
 - M9:
   the Git common directory is named as the plan's suggestion,
-  Q4 weighs a home outside it,
+  V18 weighs a home outside it,
   V1 is reordered,
   and the argument against a registration-internal home rests on F2 and the settle order rather than on prune arms.
-- M11 and the review's Q3:
+- M11 and the route's convention:
                 "The route's three record folders" states the convention this design recommends to the two siblings and
         where they differ from it.
 - M12:
@@ -148,9 +148,63 @@ The section names are the ones in this revision.
 - The same review's fourteen disagreements:
   "The route's record convention" is the one place the other two rounds can cite,
   with the precedent each part follows,
-  and Q9 (its merged four) and Q7 (its merged five) put the two parts no record decides to the project.
+  and V19 (its merged four) and Q7 (its merged five) put the two parts no record decides to the project.
 - Every citation:
   "Citations" reports the count checked and corrected.
+
+This round answers the two second passes,
+the add-time lock review of `428040d45d` and the removal-side review of the three record designs.
+Each line names the finding and the section that answers it.
+
+- N3,
+  the kill inside Git's add:
+  "A resume after a kill between Git's add and the registered write" now runs the lock design's per-slot scan and
+  gives every state Git's failure path can leave one action and one order,
+  A6 owns the decision,
+  A7 is retired,
+  and T20 to T20b force each state.
+- N2,
+  the slot Git's failure path deletes:
+  the same section's second half answers it,
+  and T21's new arm asserts the rewrite.
+- N5,
+  the identity a mounted slot covers:
+  "The identity fields and the device number" names each field's object and the two comparisons,
+  the five resume states and "What no reader may conclude" repeat the rule,
+  and T17 gains the mounted arm.
+- N1,
+  the claim generations:
+  "What a reader may ask of the claim" states the rule once,
+  the newer-than-present arm is deleted,
+  `doctor` reports it instead,
+  and T18 states both orders.
+- N6,
+  one order:
+  "The add's writes in one order" names the lock design's moment at every step,
+  A7 is retired without renumbering,
+  and "Where the siblings disagree" no longer claims the two agree.
+- N8,
+  the request:
+  `request=` is recorded at A2,
+  its type and its bound term are stated,
+  and T21a refuses a resume whose request differs.
+- N10,
+  N11 and N12:
+  the inode sentence is corrected,
+  the two stale sentences about the lock design's record and the copy journal's folder are rewritten,
+  the fifth name form is removed from the grammar,
+  and the claim about the origin cleanup record's flush is replaced by V19.
+- X3:
+  "The record's end" cites the origin cleanup design's list at `987a3ba886`,
+  states only what this record needs from its merged list,
+  V20 places this binding's removal before the plan's with the claim released last,
+  and "What a record whose clone is gone means" no longer reads an ordinary kill as an outside change.
+- X4:
+  every statement about the two removal-side records is rewritten at `76849b8d9b` and `987a3ba886`,
+  and the veto options that no longer differ are gone.
+- The questions:
+  Q1 to Q4 and Q9 are retired into V11 and V16 to V19,
+  and Q7 and Q8 are the two that remain.
 
 ## The gap this design answers
 
@@ -174,7 +228,7 @@ This design placed its folder in the Git common directory because of that sugges
 and the review's M9 is right that the document treated it as a starting point rather than as a choice.
 "The home" now states the suggestion as one,
 "When the home sits outside the repository" is the alternative the earlier revision never weighed,
-and Q4 puts the choice to the project.
+and V18 puts the choice to the project.
 
 ## Decided sentences that bind this design
 
@@ -677,7 +731,8 @@ F18.
 and the newest generation file is never removed (`single_owner_claim.rs`:28 to :33).
 So after two operations on one slot,
 the generation a record names may no longer exist,
-and only "not newer than the newest present" is a rule a reader can always check.
+which is why the record's `claim=` is informational and the claim's own liveness is the only refusal
+("What a reader may ask of the claim").
 
 F19.
 `live_owner_of` and `take_claim` both list the whole folder:
@@ -853,6 +908,18 @@ If they do not,
 every resumed add and removal refuses until a person settles the record,
 which is the same exposure the accepted slot identity store already carries.
 
+L12.
+The resume removes a bare `worktrees/<name>` directory that holds no lock and no `gitdir` on the strength of its name
+and of the claim it holds,
+which is what makes it this add's.
+Another account's Git add at the same slot,
+started in the same instant and killed in the same window,
+would leave a directory of that shape,
+and the trusted-account sentence the project states is what makes this acceptable;
+the name check is also the only place two half-made directories at once (the slot's and a slot whose name is the
+slot's plus digits) could be confused,
+and a complete registration is never removed under it.
+
 ## The home
 
 The record lives in one folder of the Git common directory,
@@ -872,7 +939,7 @@ This design's earlier revision used a top-level `monochromatic-git-policy-cli-wo
 copying the copy journal's folder (`worktree_copy_journal.rs`:130 to :136);
 the review's M11 showed the route's three records should share the parent the rename machinery already moves (F20),
 so this revision moves under it and recommends the same parent to both siblings.
-Q3 puts the choice to the project.
+V17 puts the choice to the project.
 
 Inside the parent,
 `worktree-clones` names what the folder holds,
@@ -893,15 +960,21 @@ and a reader says so instead of guessing.
 Root may read the folder,
 and no root-run mode does.
 
-The folder holds five name forms and no others:
+The folder holds four name forms and no others:
 
 ```text
 <slot>.claim.<generation>      one per operation on the slot, numbered from 1
 <slot>.binding                 the record itself
 <slot>.origin-inventory        the origin-side inventory, written once
 <slot>.clone-inventory         the clone's initial inventory, written once
-<slot>.unreadable              a record a reader could not read, moved aside for a person
 ```
+
+A fifth form for a record a reader cannot read is deliberately not reserved:
+no reader moves a record aside today (Q7's adopted A),
+and a form the design does not use would be a name `doctor` must explain without a writer.
+If Q7 is answered B,
+the fifth form comes back with that answer,
+named then and not before.
 
 plus the staging names under "Publication,
 and what a kill leaves",
@@ -962,7 +1035,7 @@ The clone's GUID is still the proof of the clone's identity;
 it is a value,
 not a name.
 V2 lists the alternatives with their costs,
-and the review's Q3 records that it is still open to the project.
+and V17 records that it is still open to the project.
 
 ### When the home sits outside the repository
 
@@ -982,7 +1055,7 @@ the record is not found when the home is restored separately from the repository
 and the key must be derived from something the repository keeps,
 which is the repository's identity in a place that itself lives on the dataset.
 This design keeps the common directory,
-and Q4 puts the choice to the project with both costs.
+and V18 puts the choice to the project with both costs.
 
 ## Its two files, and which one is exclusive
 
@@ -1037,22 +1110,27 @@ which is why a concurrent add cannot change the record under a removal's proof.
 
 ### What a reader may ask of the claim
 
-The earlier revision said a binding whose `claim=` generation does not exist as a file refuses.
-The review's H2 showed that rule can never be met:
-`take_claim` deletes every older generation,
-so the removal's take of generation 2 deletes generation 1,
-and the removal would then refuse the record the add wrote (F18).
+The rule is one sentence,
+and this section is the only place it is stated:
+the record's `claim=` generation is informational,
+and the claim's own liveness is the only claim fact a reader refuses on.
 
-The rule now is one comparison the primitive always allows:
-the record's `claim=` generation is not newer than the newest generation file present,
-and the claim's own liveness decides whether another command is working the slot.
-A record whose `claim=` generation is newer than every generation present was written by a command whose claim
-has since been dismantled by a take it did not make,
-which is the state a removal's own take leaves behind;
-it is not a refusal.
+`claim=` says which generation wrote the bytes the reader holds.
+It is neither a proof nor a test.
+`take_claim` deletes every older generation and never the newest (F18),
+so after two operations on one slot the record's generation is older than the newest file,
+which is the ordinary settled case.
+A generation newer than every file present means the claim set was dismantled by something other than a take,
+and the reader reports it (`doctor` does,
+as "the record names a claim no generation file holds")
+and does not refuse on it,
+because authority over the slot is the live owner of the newest generation file,
+never a number inside a record.
 A record whose newest generation is held by a live owner refuses,
-because a command is working the slot.
-T23 forces both orders.
+naming that owner's process id (V5,
+T18).
+Nothing else about the generation is a refusal,
+and T18 forces both orders of it.
 
 ## The route's record convention
 
@@ -1106,8 +1184,8 @@ and the other two rounds are told to line up with this section or list the diffe
   which the wrapper's own JSON reader says is unsafe.
   Precedent:
   the btrfs binding's two encodings and the slot store's token grammar.
-  The destruction plan writes ZFS names in hex instead;
-  the second review showed both are safe and hex is only longer.
+  The destruction plan writes the same three encodings (read at `76849b8d9b`),
+  so all three now agree here.
 - Publication:
   one private file,
   filled whole,
@@ -1120,19 +1198,26 @@ and the other two rounds are told to line up with this section or list the diffe
   whose decision record chose exactly this over a lock.
 - Flush:
   flush every write of a record whose facts a later command must not have to rediscover.
-  This record flushes every write (V6),
-  and the origin cleanup record publishes with a flushed `replace_private_file` (its lines 351 to 352);
-  the destruction plan publishes unsynced by default and offers the flushed form as its Choice 4.
+  This record flushes every write (V6).
+  The destruction plan publishes unsynced by default (its Choice 5,
+  read at `76849b8d9b`)
+  and the origin cleanup record is unflushed too,
+  so the route has two rules today;
+  V19 puts one rule to the project,
+  and M1 is the number that would settle it.
   No project record fixes one rule for the three,
-  so it is Q9,
+  so it is V19,
   the second review's merged question four.
 - Staging names and who removes them:
   every staging name is a dot name made by one known writer,
   and `doctor` at plan step 18 removes the known forms.
   Where a writer holds a claim across a long step,
-  `doctor` removes a staging name only when the folder holds no live claim (V8);
-  the destruction plan and the origin cleanup record remove theirs unconditionally,
-                following the store's own decided rule ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
+  `doctor` removes a staging name only when the folder holds no live claim (V8).
+  The destruction plan removes one only when a plan with that GUID stands and its `owner` is gone (its Choice 12),
+  and the origin cleanup record removes none and reports them (read at `987a3ba886`),
+  so the route has three rules here;
+  the store's own decided rule covers the store alone
+  ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
   "Who removes a killed writer's staging file").
   Precedent:
   the store's decision,
@@ -1141,9 +1226,8 @@ and the other two rounds are told to line up with this section or list the diffe
   refuse and change nothing,
   and name the file and the two ways forward.
   All three designs refuse a partial,
-  foreign or oversized record;
-  this one and the destruction plan also refuse a wrongly owned one,
-  and the origin cleanup record has no rule for an owner yet.
+  foreign,
+  oversized or wrongly owned record.
   Whether any reader may instead move an unreadable record aside,
   as the copy journal's pass does (`SPEC.md`:4873 to :4885),
   is Q7,
@@ -1156,20 +1240,20 @@ and the other two rounds are told to line up with this section or list the diffe
         its dropped whole-store cap (`slot_identity_store_reading.rs`:63 to :85,
   [`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
   "What was decided").
-  Rounding a derived bound up to a round number,
-  as the two siblings do,
-  is a pick the precedent does not make.
+  Neither sibling rounds either:
+  the destruction plan's bound is `10,128 + 340 × count` and the origin cleanup record's is 13,375,
+  both computed from named terms (read at `76849b8d9b` and `987a3ba886`).
 
 Where the two siblings differ from the convention today,
 read from their branches:
 
-- The destruction plan keeps a pointer inside
-  the registration (`<registration>/monochromatic-git-policy-cli-clone-destruction-plan`) as well as the plan under
-  the parent.
-  That is a second home,
-  and it is the same shape the lock design chose;
-  it is right for a fact that may die with the registration,
-  and this design's record cannot be one (F2).
+- The destruction plan keeps no pointer inside a registration:
+  the earlier revision's pointer is dropped,
+  and the plan reads its folder by one `stat` before every forwarded command and lists it only when it exists
+  (its "What finds a plan",
+  read at `76849b8d9b`).
+  Its finish pass is a second command that settles a registration,
+  which this record's step 5 must survive (F2).
 - The destruction plan's key is the clone's decimal GUID,
   which a registration and a clone dataset reach and a slot name alone does not;
   this design's key is the slot,
@@ -1179,13 +1263,14 @@ read from their branches:
 - The origin cleanup record's key is the origin snapshot's name,
   which carries the nonce,
   so that key needs no stored field.
-- The origin cleanup record publishes with `replace_private_file`,
-  a flushed publication,
-  and this design also flushes;
-  the destruction plan publishes unsynced by default.
-- The origin cleanup record's `doctor` removes a dot-named staging entry with no liveness condition,
-  where this design removes one only when no live claim stands.
-  Two rules for one folder family.
+- The origin cleanup record is unflushed (its option C premise and its F21),
+  and so is the destruction plan's outcome writing;
+  this design flushes every write,
+  so the route has two rules and V19 puts one to the project.
+- The origin cleanup record removes no staging entry and reports the ones it finds,
+  while this design removes one only when no live claim stands (V8).
+  Two rules for one folder family,
+  each named in its own document.
 - The origin cleanup record writes its record before the first snapshot delete and says a new add may take
   the freed slot at once;
   this design now agrees with both,
@@ -1200,7 +1285,7 @@ a header line,
 then either `released` or the owner's `pid=`,
 `birth=` and `namespace=` lines (`single_owner_claim.rs`:167 to :199).
 This design adds no field to it,
-for the reason H1 and the review's Q1 give:
+for the reason H1 and V11 give:
 the attribution the lock design needs is a function of the binding's nonce,
 not a field the shared claim could carry,
 and adding one would change the primitive and the fuzz decoder that reads it.
@@ -1229,6 +1314,7 @@ in this order:
 # monochromatic-git-policy-cli zfs worktree clone binding, version 1
 claim=<generation>
 nonce=<32 lowercase hexadecimal digits>
+request=<branch|commit|detach> <lowercase hexadecimal of the argument, or ->
 phase=<claimed|slot|registered|snapshotted|cloned|mounted|filled>
 checkoutDataset=<dataset name>
 checkoutDatasetGuid=<decimal>
@@ -1287,12 +1373,40 @@ A folder whose birth time is unknown still has an inode,
 and the identity is weaker in exactly that way,
 which the reader says when it refuses.
 
+Each identity field names one object,
+and which object a field names does not change:
+
+- `repositoryIdentity=` names the common directory;
+- `registrationIdentity=` names the registration directory `<common>/worktrees/<id>`;
+- `slotIdentity=` names the underlay directory at `<slot>` on the checkout dataset,
+  recorded at A4 while the slot is empty;
+- `cloneGuid=` names the clone dataset.
+
+The mount is what makes the distinction matter:
+from A10 on,
+the path `<slot>` names the clone dataset's root,
+whose inode and birth time are its own,
+and the underlay directory A4 recorded is no longer visible at that path.
+So a reader compares `slotIdentity=` only while the clone is unmounted,
+where the underlay is what `<slot>` shows and the comparison runs through the pinned `.claude/worktrees` parent
+descriptor.
+While the clone is mounted,
+a reader compares the mount's source dataset GUID with `cloneGuid=` and the registration with
+`registrationIdentity=` and the pointer,
+and never compares `slotIdentity=`,
+because the object it names is covered.
+That is N5 of the second gate review,
+whose first revision had the sentence and whose last revision dropped it while keeping the equality.
+
 The anchor is checked as well as the inode:
 a reader reads the identity of the live folder and the GUID of the dataset the record's home is on,
 and it compares both.
-A dataset restored from a snapshot answers another inode for the folder Git or the add created,
-and a dataset mounted from another pool answers another GUID,
+The inode and birth time change when a folder is deleted and re-created,
+and the GUID changes when the dataset is another one,
 so both ways of losing the record's subject refuse.
+A dataset restored from a snapshot keeps its objects' numbers,
+and so does a clone or a `zfs send` replica,
+so a rollback alone does not make the identity refuse.
 
 L11 is the limit:
 whether inode and birth survive a boot,
@@ -1379,6 +1493,17 @@ so a value cannot have two spellings:
 - The nonce is `RequestNonce`'s 32 lowercase hexadecimal digits (`request_nonce.rs`:1 to :20).
 - The claim generation is decimal digits with no leading zero,
   which is the generation file's own name (`single_owner_claim.rs`:210 to :218).
+- The request is one word and one value:
+  `branch`,
+  `commit` or `detach`,
+  then the argument exactly as the command was given,
+  in lowercase hexadecimal,
+  or `-` when the word is `detach` and no commit-ish was given.
+  Hexadecimal is what makes the value safe:
+  a refname may hold `=`,
+  and a commit-ish may hold `~`,
+  `^` and `..`,
+  none of which a `key=value` line can carry verbatim without a second grammar.
 - The pointer is the `.git` file's bytes in lowercase hexadecimal,
   which is how the btrfs binding records it (`worktree_add_binding.rs`:122 to :134).
 - The phase is one of the seven words above and nothing else.
@@ -1412,8 +1537,11 @@ and each line and each fixed part is bounded from a kernel constant:
     or `20 + 1 + 1 + 1 + 1` for the `-:-` form;
   - the nonce at 32 bytes,
     the phase's widest word `snapshotted` at 11,
-    and the claim generation at 20.
-  The terms sum to 34,797 bytes,
+    and the claim generation at 20;
+  - the request at `6 + 1 + 2 × 4096` bytes,
+    because the widest kind word is six letters and a refname or commit-ish is at most `PATH_MAX` (F14) before its
+    hexadecimal form doubles it.
+  The terms sum to 43,005 bytes,
     and a scratch script printed that sum from the wide strings this section names (`keep/bound.ts`,
     this round).
         The constant in code is computed from those terms the way the slot store computes
@@ -1455,6 +1583,7 @@ after its mount is verified and before the fill:
 # monochromatic-git-policy-cli zfs worktree clone binding, version 1
 claim=2
 nonce=9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f
+request=branch 6d61696e
 phase=mounted
 checkoutDataset=tank/monochromatic-git-checkout
 checkoutDatasetGuid=4815162342109876543
@@ -1504,8 +1633,15 @@ released and recovered;
 this design owns what the claim and the binding carry,
 the fields,
 and the order below,
-in which the lock's invocation and its record are two steps.
-A step's owner is named beside it.
+in which Git's invocation is one step and no lock record is written at all.
+A step's owner is named beside it,
+and so is the lock design's moment for that step,
+read at `a7902e293b` ("The moments of an add",
+D0 to D7).
+
+The labels do not move again:
+a later revision that adds a write appends a label,
+and A7 keeps its place although this revision retires it.
 
 A0.
 Preflight,
@@ -1516,6 +1652,11 @@ the checkout mount,
 the grants,
 the slot parent and the handler's readiness,
 as plan step 10 lists it.
+Owner:
+the route's preflight.
+Lock moment:
+D0 begins,
+in which nothing in `worktrees` names this slot.
 A kill here leaves nothing.
 
 A1.
@@ -1523,7 +1664,9 @@ The claim.
 The account takes `<slot>.claim.<generation>` with `take_claim`.
 Owner:
 this design.
-A kill leaves the claim and nothing else;
+Lock moment:
+D0.
+A kill here leaves the claim and nothing else;
 the next command takes the next generation.
 
 A2.
@@ -1537,13 +1680,19 @@ before any mutation.
 `repository=`,
 `repositoryIdentity=`,
 `slot=`,
+`request=`,
 the proposed clone name and the proposed `git-worktree-clone-origin-<nonce>` snapshot name.
 Owner:
 this design.
-A kill leaves a claim and a binding with no mutation;
+Lock moment:
+D0,
+whose lock attribution this write is the root of.
+A kill here leaves a claim and a binding with no mutation;
 the next command takes the next generation and resumes at A3.
 This is the write the proposal's "Write the proposed clone name and unique ... snapshot name
-before any mutation beyond the claim" asks for ([proposal](cli-git-zfs-worktree-design-proposal.md):373 to :376).
+before any mutation beyond the claim" asks for ([proposal](cli-git-zfs-worktree-design-proposal.md):373 to :376),
+and `request=` is added this round so that a resumed add can prove it is the same request (N8 of the second gate
+review).
 
 A3.
 The empty slot.
@@ -1553,63 +1702,86 @@ and prove it empty and owned by this account.
 Owner:
 this design,
 with the slot's own checks from the route's preflight.
+Lock moment:
+D0.
 A kill leaves an empty slot,
 a claim and a binding at phase `claimed`;
 the next command verifies the slot again.
+Git's own failure path may delete this slot later (the resume's slot rule),
+which is why A3 is a step a resume may run again.
 
 A4.
 The slot's identity.
 `slotIdentity=` and `phase=slot`.
 Owner:
 this design.
+Lock moment:
+D0.
 A kill leaves the slot named and nothing mutated in Git.
-The earlier revision wrote this identity at A2,
-before the slot existed;
-M6 is why it moved here.
+The identity is the underlay folder's,
+recorded before any mount covers the path ("The identity fields",
+and N5 of the second gate review).
 
 A5.
 Git's add,
 with the managed lock.
 `git worktree add --no-checkout --lock --reason <sentence> <slot> <commit-ish>`,
-where the sentence is a pure function of the recorded `nonce=` (fixed prefix,
-the 32 digits,
-fixed suffix,
-one line,
-no trailing newline).
+where the sentence is a pure function of the recorded `nonce=`,
+and `request=` records the commit-ish and the form this step was given.
 Owner:
-the lock design for the invocation and the sentence's wording;
-this design for the order and for the nonce being recorded before this step runs.
-A kill here leaves whatever Git leaves (F1,
-F3 and the lock design's D1 to D3);
-the next command finds it as A6 describes.
+the lock design for the invocation and the sentence's wording (its "The invocation",
+read at `a7902e293b`);
+this design for the order,
+for the nonce being recorded before this step runs,
+and for the request being recorded so a resume can compare it.
+Lock moment:
+D1,
+D2,
+D2a,
+D2b,
+D2c and D3,
+the moments inside Git,
+and its failure path,
+which is outside D0 to D7.
+A kill here leaves whatever Git leaves;
+A6 and "A resume after a kill between Git's add and the registered write" decide it.
 
 A6.
-Finding and proving what Git made.
-Read the slot's `.git` pointer,
-the registration's `gitdir` back-link and both folder identities;
-refuse when they do not name each other,
-and refuse a registration whose `locked` file does not hold the sentence recomputed from the recorded nonce.
+Finding and proving what Git made,
+and clearing what Git's failure path left.
+Run the scan of "A resume after a kill between Git's add and the registered write",
+decide each entry by that section's table,
+and either adopt the complete registration or remove the incomplete one in the settle's order before A5 is run
+again.
+For an adopted one,
+read the slot's `.git` pointer,
+the registration's `gitdir` back-link,
+`commondir` and `HEAD`,
+and refuse when they do not name each other;
+refuse a registration whose `locked` holds words that are neither the sentence recomputed from the recorded nonce
+nor a prefix of it.
 `registration=`,
 `registrationIdentity=`,
 `pointer=`,
 `phase=registered`.
 Owner:
-this design for the fields and the finder;
-the lock design for what the lock's bytes prove.
-A kill between A5 and this write leaves a registration the binding does not name;
-"A resume after a kill between Git's add and the registered write" is how the next command finds it.
+this design for the order,
+the fields and what the resume does with what the scan finds;
+the lock design for the scan,
+the sentence and what the lock's bytes prove.
+Lock moment:
+D3,
+and D4 is this step's write.
+A kill between A5 and this write leaves one of the table's states;
+the next command's scan meets it.
 
 A7.
-The lock's own record,
-if the lock design keeps one.
-It is written here,
-after Git returned and after the registration is proved,
-and its bytes are a copy of `locked`'s.
-Owner:
-the lock design.
-A kill leaves a proved registration whose lock the binding's nonce still attributes,
-so the record can be written by the resume;
-no step depends on it for attribution (Q1 answer B).
+Retired.
+The earlier revision put the lock design's own record here;
+the lock design keeps none (its "The order of the add's writes" step 5,
+read at `a7902e293b`),
+so no write stands at this label.
+The labels after it keep their numbers so that a citation from either document does not move.
 
 A8.
 The checkout snapshot,
@@ -1623,6 +1795,8 @@ then write `originSnapshot=`,
 `originSnapshotCreatetxg=` and `phase=snapshotted`.
 Owner:
 this design.
+Lock moment:
+D5.
 A kill leaves a snapshot the recorded name identifies,
 and no inventory;
 the resume rebuilds the inventory,
@@ -1638,6 +1812,8 @@ then write `cloneGuid=`,
 `cloneCreatetxg=` and `phase=cloned`.
 Owner:
 this design.
+Lock moment:
+D5.
 A kill leaves a clone the recorded name and parent identify and possibly no inventory;
 the resume rebuilds the inventory only while the clone holds no snapshot of its own (V13).
 
@@ -1647,16 +1823,22 @@ verified in the caller's namespace,
 then `phase=mounted`.
 Owner:
 this design with the route's attach checks.
+Lock moment:
+D6,
+whose no-pointer window the lock protects.
 A kill leaves a clone that may be mounted;
-the resume reads the mount live.
+the resume reads the mount live,
+and compares the identities "The identity fields" says are comparable while mounted.
 
 A11.
 The pointer inside the clone,
 the verified checkout,
 then `phase=filled`,
-which the proposal's "Mark the binding usable only after the fill is verified" is.
+which the proposal's "Mark the binding usable only after the fill is verified" is ([proposal](cli-git-zfs-worktree-design-proposal.md):407).
 Owner:
 this design.
+Lock moment:
+D6 and D7.
 A kill leaves a mounted clone whose pointer state the resume reads live.
 
 A12.
@@ -1664,8 +1846,9 @@ The dependency repairs,
 queued.
 Owner:
 the route's existing repair step.
-A kill leaves the queue,
-which the route already recovers.
+Lock moment:
+D7,
+which the lock stands through.
 
 What a failed add leaves,
 at any step from A5 on,
@@ -1677,36 +1860,146 @@ the failure is reported with the operation,
 object and pool,
 and the next add at that slot resumes ([proposal](cli-git-zfs-worktree-design-proposal.md):427 to :428).
 This design writes no rollback,
-and the lock design's rollback contradicts this sentence (Q2).
+and V16 puts the choice to the project with the lock design's rollback beside it.
 
 ### A resume after a kill between Git's add and the registered write
 
-The binding has no `registration=` at phase `slot`,
-and Git's name is not derivable (F1).
-The finder is one scan of the registrations,
-then one proof:
+The claim is held and the binding's phase is `slot` (or `claimed`,
+when A5 began but the `slot` write did not land),
+so Git's add may have left anything from a bare directory to a complete registration.
+The finder is the lock design's scan,
+widened by one name check:
+one listing of `<common>/worktrees/`,
+one read of each entry's `locked` with the lock design's bound,
+comparing it with the sentence recomposed from this add's `nonce=` (its S8 and S2,
+read at `a7902e293b`),
+one read of each entry's `gitdir`,
+and the entry's name compared with the slot's.
+The name check is what reaches the entry that holds no lock at all (D1 and Git's failure path),
+which no lock scan can find,
+and it is why a complete registration is never removed on a name alone.
 
-1. List `<common>/worktrees/` and read each entry's `gitdir` file as bytes;
-   keep the ones whose absolute or registration-relative target is exactly `<slot>/.git`.
-        The resolution is the wrapper's own (`worktree_add_binding.rs`:77 to :113 reads a pointer and a back-link
-    the same way).
-2. Refuse when more than one names it,
-   and refuse when one names it but the slot's `.git` names another registration.
-3. When one is found,
-   prove it further by the lock:
-   `locked` must hold the sentence recomputed from the recorded nonce.
-   A registration whose `locked` holds another sentence is either a person's lock or another add's,
-   and the resume refuses and names it.
-4. Write `registration=`,
-   `registrationIdentity=`,
-   `pointer=` and `phase=registered`,
-   and continue at A7.
+A directory is this add's when one of these holds:
 
-When none is found,
-nothing was made:
-Git's own failure path and its `remove_junk` remove what it started,
-and the resume re-runs A5.
-T20 forces both arms by planting a registration and by planting none.
+- its `locked` bytes equal the recomposed sentence;
+- its `locked` bytes are a proper prefix of the sentence,
+  which is what a killed single write leaves (the lock design's F8 and S2);
+- it holds no `locked` and no `gitdir`,
+  and its name is the slot's name or the slot's name followed by decimal digits,
+  which is D1 of the lock design's moments and the directory Git's failure path leaves after it unlinks `locked`
+  (its F11).
+
+A directory whose `locked` holds other words,
+or whose `gitdir` names another slot's `.git`,
+is never this add's:
+the resume refuses,
+names the entry and the first line of its words,
+and changes nothing.
+It is a person's `git worktree unlock` and lock again,
+or another command's add.
+
+An entry that is this add's is complete when all five answers name each other:
+the slot's `.git` pointer exists,
+its bytes will be `pointer=`,
+the `gitdir` file names exactly `<slot>/.git`,
+`commondir` exists,
+and `HEAD` exists.
+That is the wrapper's own three-fact proof plus the `HEAD` the lock design's F14 names (read at `a7902e293b`).
+Then:
+
+- Complete:
+  adopt it.
+  Write `registration=`,
+  `registrationIdentity=`,
+  `pointer=` and `phase=registered`,
+  and continue at A8.
+- Incomplete:
+  remove it in the settle's order and re-run A4 and A5.
+  The states,
+  each with what it holds:
+  - D1,
+    a bare directory,
+    holds nothing.
+    No recordable fact is lost:
+    Git created it at `mkdir` (`builtin/worktree.c`:505 to :512) and wrote nothing in it.
+  - D2,
+    `locked` and nothing else,
+    holds only Git's lock,
+    whose bytes are recomposed from our nonce.
+  - D2a,
+    `gitdir` names `<slot>/.git` and the slot has no pointer:
+    the pointer's bytes cannot be read,
+    so `pointer=` cannot be written.
+  - D2b,
+    the pointer stands and `commondir` is missing:
+    the wrapper's proof cannot pass.
+  - D2c,
+    `commondir` stands and `HEAD` is missing:
+    the proof is short its last fact.
+  In every incomplete case the removal is the lock design's own settle order,
+  "How the wrapper's own removal releases the lock" (read at `a7902e293b`):
+  1. unlink `locked`,
+     so no lock stands in the way and no prune is stopped by one on a half-made directory;
+  2. prove the directory empty through a descriptor opened on the pinned `worktrees` parent,
+     so a name that pointed elsewhere is not removed;
+  3. remove the entry by that descriptor's parent and name.
+  The add prints the entry it removed and why.
+- Nothing found:
+  re-run A5,
+  after the slot rule below.
+
+The resume never runs `git worktree prune` instead:
+a repository-wide prune would remove another slot's registration in the mounted,
+no-pointer state the lock design's D6 names,
+so this rule is per slot by construction.
+
+A removal of a leftover that is itself killed is harmless:
+the next resume finds what is left and repeats the same three steps,
+because each step removes one fact (the lock,
+then the directory) and the entry stays attributable until the last one.
+
+The resume's other half is the slot Git's failure path may have deleted.
+Git's own failure path removes the destination directory it was given,
+even when that directory existed before Git ran and was empty (`remove_junk`,
+`builtin/worktree.c`:273 to :288 and :536).
+The second gate review measured it with Git alone in the gate image,
+sending SIGTERM to the process group of twelve adds:
+eight of the twelve removed the pre-existing empty slot,
+and a Ctrl-C (SIGINT) is the common cause,
+because Git catches it and runs that path.
+A SIGKILL or a power loss there is unmeasured,
+and M9 is the arm that would show it.
+So at phase `slot` or `claimed` the resume may find no slot at all,
+or an empty slot with another inode and birth time,
+and `slotIdentity=` then answers nothing.
+
+The rule is:
+
+- The slot is absent,
+  or an empty directory whose identity differs:
+  re-run A3 and A4 and rewrite `slotIdentity=` and `phase=slot`.
+  Nothing depends on the old identity yet:
+  no registration is named,
+  no dataset exists and no clone was made.
+  The add prints that it re-made the slot.
+- The slot holds a `.git` pointer or anything else:
+  refuse,
+  naming what stands there.
+  A folder with a pointer is a registration's subject,
+  not an empty slot.
+- What identifies the slot across the deletion is the path (`slot=`) and the dataset
+  (`checkoutDatasetGuid=`),
+  never the inode.
+  The inode is what A4 records after the folder is verified,
+  and it is rewritten only in this window.
+  From A6 on,
+  a slot whose identity differs refuses,
+  because the registration's `gitdir` names `<slot>/.git` and a re-created folder is another subject for it.
+
+T20 forces every state of the table with a planted entry,
+T20a the bare directory and the failure path's unlocked one,
+T20b the two foreign cases,
+and T21 the slot's deletion and the identity's rewrite.
 
 ## The phases, and a kill at each step
 
@@ -1723,28 +2016,36 @@ and never lead it.
   phases `claimed` and `slot`,
   with no registration at the recorded `slot` path and no dataset at `cloneDataset=`.
   Proven by the slot's folder being absent or empty and Git's registration folder absent,
-  or by a registration the finder of "A resume after a kill between Git's add and the registered write" does not find.
+  or by the only registration at the slot being one the table of "A resume after a kill between Git's add and the
+  registered write" removes.
 - Registration without a dataset,
   including a possible origin only:
   phases `claimed`,
   `slot`,
   `registered` and `snapshotted`.
-                Proven by a registration whose `gitdir` names the slot's `.git` path and
-        whose identity equals `registrationIdentity=`,
+  Proven by a registration whose `gitdir` names the slot's `.git` path and whose identity equals
+  `registrationIdentity=`,
   with no clone dataset at `cloneDataset=`.
   With phase `snapshotted` the origin snapshot at `originSnapshot=` exists and its GUID equals `originSnapshotGuid=`;
   that is the "possible origin only" arm.
 - An unmounted clone:
   phases `registered`,
   `snapshotted` and `cloned`.
-  Proven by the clone dataset existing with `cloneGuid=` and no mount at the slot whose mount source is that dataset.
+  Proven by the clone dataset existing with `cloneGuid=` and no mount at the slot whose mount source is that dataset,
+  and,
+  because the underlay is what `<slot>` shows then,
+  by the underlay's identity through the pinned parent equalling `slotIdentity=`.
 - A mounted but unfinished clone:
   phases `cloned` and `mounted`.
-  Proven by the mount at the slot naming the clone dataset.
+  Proven by the mount at the slot whose source is the clone dataset `cloneGuid=`,
+  and by the registration and the pointer,
+  and not by `slotIdentity=`,
+  whose object the mount covers.
 - A verified checkout:
   phase `filled`.
   Proven by the registration's back-link,
   the pointer's bytes equalling `pointer=`,
+  the mount's source being `cloneGuid=`,
   and the checkout's index and tracked content matching what the fill verified.
 
 The phase vocabulary is this design's,
@@ -1797,8 +2098,14 @@ its GUID,
 its `createtxg` and its origin agree;
 the registration is the recorded one when its path,
 its identity and its `gitdir` back-link agree with the pointer's bytes;
-the slot is the recorded slot when its identity equals `slotIdentity=` and the record's dataset GUID equals the live
-one;
+the slot is the recorded slot when,
+unmounted,
+the underlay's identity seen through the pinned parent equals `slotIdentity=` and the record's dataset GUID equals the
+live one,
+and,
+mounted,
+when the mount's source is the dataset whose GUID is `cloneGuid=`;
+`slotIdentity=` is never compared against a mounted slot ("The identity fields");
 and the origin snapshot is the recorded one when its name,
 GUID and `createtxg` agree and `zfs get origin` of the clone names it.
 
@@ -1919,10 +2226,9 @@ when the record is:
   a phase whose object does not answer,
   or answers with another identity.
   This is the one arm a reader meets when another hand destroyed an object (see "What no reader may conclude");
-- behind its newest claim in a way no take explains:
-  a `claim=` generation newer than every generation file present,
-  which only a dismantled claim could leave,
-  is accepted (see "What a reader may ask of the claim").
+- a live owner of the newest claim generation:
+  the only claim fact a reader refuses on,
+  and the refusal names the owner's process id (see "What a reader may ask of the claim").
 
 An add that finds no record takes the claim and writes one,
 which is the normal path.
@@ -1990,55 +2296,79 @@ with the wrapper's copy-journal pass as the alternative shape.
 
 ## The record's end
 
-A removal writes nothing into the binding.
+A removal writes nothing into this binding.
 Its own plan is another record,
-whose home is the sibling design's ("Where the siblings disagree"),
+whose home is the destruction plan design's,
 and the binding's phase stays at `filled` for the whole removal.
-What identifies the removal's state is the plan's presence and the live facts.
+What the removal does with this binding is read it,
+compare its origin fields with the origin cleanup record,
+and remove it at the step the route's one removal order places.
 
-The order that ends the record is:
+That order is the origin cleanup design's list,
+and this design states none of its own:
+"The order,
+and what a kill at each point leaves" at `987a3ba886`,
+its steps 1 to 11.
+Read at that commit,
+the list ends at step 11,
+the plan's removal,
+and it does not yet hold this binding's removal or the claim's release;
+that round is writing one merged list of every write and removal a removal makes across the three records and the
+registration.
+What this record needs from that merged list is three rules,
+stated here as requirements and not as step numbers:
 
-1. The removal takes the claim and proves lineage from the binding and both inventories.
-2. It confirms that the origin cleanup record already stands,
+- this binding's three files are removed before the plan's removal,
+  so the plan is the last witness of a removal that was killed at its end;
+- the claim is released last,
+  after the binding's removal and the plan's;
+- the origin cleanup record's confirmation stays where that list puts it,
+  before the first delete (its step 6),
+  and this record's confirmation of it is the same step's other half.
+
+V20 marks those three rules as the writer's choice they are until the merged list lands,
+and the list's round owns the numbering.
+
+What a removal does with this record is then,
+in this record's terms:
+
+1. It reads the binding and both inventories under the claim,
+   and proves lineage (its step 1,
+   and "The removal's lineage proof").
+2. It confirms that the origin cleanup record stands,
    and that its origin fields equal this record's `originDataset=`,
    `originDatasetGuid=`,
    `originSnapshot=`,
    `originSnapshotGuid=` and `originSnapshotCreatetxg=`.
    It writes nothing there:
    that record's writer is the removal command,
-   and its own design publishes it before the first snapshot delete (its V4,
-   read at `4daa6c66ce`,
-   which is still open to the project's veto).
+   and its own design publishes it at its step 6 (its V4,
+   read at `987a3ba886`).
    A removal that finds no such record,
    or one whose fields differ,
    refuses before its first delete,
    which is the same refusal the origin cleanup design gives a removal that cannot write its own record.
-3. It destroys the clone's own snapshots and the clone head,
-   and proves absence by the recorded GUID:
-        the name is absent and no child of
-    the pinned clone parent carries `cloneGuid=` ([proposal](cli-git-zfs-worktree-design-proposal.md):966 to :968).
+3. The destroys are the siblings' steps (its steps 7 to 9).
 4. It settles the registration,
    which either Git removes with its folder (F2,
    A4) or the wrapper's own settle removes by descriptor,
-   and releases the managed lock.
+   and releases the managed lock (its step 10).
    The binding is not inside the registration,
    so it survives either route.
-5. Then,
-   whenever step 2 was confirmed,
-   it removes `<slot>.binding`,
+5. It removes `<slot>.binding`,
    `<slot>.origin-inventory` and `<slot>.clone-inventory`,
-   and releases its claim,
+   then releases its claim,
    which leaves the newest generation file as a released claim.
    It prints what it removed.
    This happens whether or not the origin's cleanup is still blocked,
-        because the origin's identity now lives in that design's record and nothing about the pending snapshot depends on
-    the slot:
-        the proposal decides that "settling does not wait for the origin" and that "settling frees the slot
-    but requires recovery without its Git entry" ([proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469
-    and :1460 to :1463).
+   because the origin's identity now lives in that record and nothing about the pending snapshot depends on the
+   slot:
+   the proposal decides that "settling does not wait for the origin" and that "settling frees the slot
+   but requires recovery without its Git entry" ([proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469
+   and :1460 to :1463).
 
 So the binding is the carrier of the origin's identity only up to step 2,
-and the slot is freed at step 4 rather than at the cleanup's end.
+and the slot is freed at the settle rather than at the cleanup's end.
 The earlier revision kept the binding while the origin cleanup was blocked,
 which the second gate review's X2 showed contradicts those two sentences.
 The binding stays,
@@ -2048,44 +2378,53 @@ no origin cleanup record,
 one that cannot be read,
 or one whose fields disagree.
 Then the binding is the only record that names the origin,
-and keeping it is the safe arm that X2 allows ("keep it only when step 4 cannot complete").
+and keeping it is the safe arm X2 allows.
 
 ### What a record whose clone is gone means
 
 The clone's GUID is absent from the pinned clone parent,
 and no child of that parent carries `cloneGuid=`.
-Three causes,
-told apart by what else stands:
+Two readings follow from the order above,
+and the order is what tells them apart.
 
-- A destruction plan stands for `cloneGuid=`,
-  so a removal is in flight or was killed.
-  The binding is that removal's left hand until step 5,
-  and `doctor` prints the plan's standing intent and this record's origin names.
-  A resumed removal continues from its plan;
-  if the plan reports the head's destroy as unresolved,
+- A destruction plan stands for `cloneGuid=`.
+  A removal is in flight or was killed,
+  wherever it was killed:
+  because V20 puts the plan's removal after this binding's,
+  a kill after the settle and before step 5 leaves the plan standing beside this binding.
+  `doctor` prints the plan's standing intent and this record's origin names,
+  and the next removal resumes from the plan and finishes step 5.
+  If the plan reports the head's destroy as unresolved,
   nothing in the binding is regenerated and nothing is settled on a guess.
-- No plan stands,
-  and an origin cleanup record stands whose origin dataset and snapshot GUIDs equal this record's:
-  the removal got past step 2 and was killed before step 5.
-  The reader proves the absence above,
-  settles the registration if it still stands,
-  and finishes step 5.
-  It destroys nothing.
-- Neither stands:
-  the clone was destroyed outside this wrapper.
-  The binding proves which GUID is missing,
-                so the reader requires "the name is absent and no child of the pinned parent carries the recorded GUID"
-        before it settles anything,
-  it reports the case as an outside change,
-  and it destroys nothing.
-  It never removes the binding on the strength of a name being absent alone.
+- No plan stands.
+  Then either the clone was never destroyed by this wrapper (nothing else can remove a plan on the normal path),
+  or a removal broke V20's order,
+  and both are reported as an outside change:
+  the reader requires "the name is absent and no child of the pinned parent carries the recorded GUID" before it
+  settles anything,
+  it destroys nothing,
+  and it names which of the two it cannot rule out.
+  The earlier revision's third reading,
+  "no plan and an origin record stands",
+  is now one arm of this case:
+  the origin record standing without a plan does not prove a removal,
+  because a removal that reached its origin record also wrote a plan and removes that plan last.
 
 A binding whose clone is gone and whose absence cannot be proven,
 or whose step 2 cannot be confirmed,
 is kept,
 and the slot it names refuses the next add until a person settles it.
-That is question Q8,
+That is Q8,
 because it trades a blocked slot against a guessed settlement.
+
+The command that finishes step 5 when the removal that owned it is dead is the next removal of that slot,
+which resumes from the plan,
+or,
+when an add reaches the slot first,
+the add's own settle under the claim before it writes its own binding.
+The plan design's finish pass is not one of them:
+it holds no claim,
+so it must leave the plan standing (V20) rather than remove the last witness of a binding that still stands.
 
 ## What Git does to a file it does not know here
 
@@ -2109,7 +2448,9 @@ and the result decides the home:
   Those arms ran on an unlocked registration;
   with the managed lock in place,
   arm 9 shows prune and gc keep the registration while the lock stands.
-- Beside the copy journal's folder (`<common>/monochromatic-git-policy-cli/worktree-clones/v1/...`),
+- Beside the wrapper's own folder,
+  in this record's folder
+  (`<common>/monochromatic-git-policy-cli/worktree-clones/v1/...`),
   every one of those commands left the folder's files exactly as they were,
   and `git worktree repair` left them too (arms 1,
   2b,
@@ -2119,9 +2460,10 @@ The argument against a registration-internal home is therefore F2 and the settle
 not prune:
 `git worktree remove` deletes the registration's whole directory at the settle,
 and this record must outlive the settle until the origin cleanup record holds the origin's identity.
-The lock design's record and the destruction plan's pointer may live there because their facts die with
-the registration or are re-derivable;
-this one may not.
+A record whose facts die with the registration may live there,
+and the `worktree-added` record the wrapper already writes does (`worktree_added_by_the_wrapper.rs`:1 to :26);
+this one may not,
+because the origin's identity must outlive the settle.
 A lost lock would also reopen the prune arm,
 which arm 9 shows is otherwise closed.
 
@@ -2147,11 +2489,15 @@ no recorded path yet.
   the add's writes in one order,
   and the resume rules:
   the folder and its modes,
-  the five name forms,
+  the four name forms,
   the publication and flush of each write,
   the finder of a registration,
+  the table of what a resume does with each state Git's add can leave,
+  the slot rule when Git's failure path deleted it,
   the checks a resumed add makes,
   and the refusals.
+  It also builds the add's own settle of a standing binding whose clone is gone and whose removal is dead,
+  which is the same three files under the same claim as step 16's step 5.
   Its "Design sections" gain this document,
   and `SPEC.md`'s "### The records an add writes for itself" gains the claim and binding records,
   as the plan already says ([plan](cli-git-zfs-worktree-implementation-plan.md):1439 to :1443).
@@ -2290,10 +2636,15 @@ each refusal leaves every planned snapshot's identity readable in the fixture.
 
 T16.
 `the_record_is_removed_only_after_the_origin_cleanup_record_exists`:
-an arm where step 4 fails,
+an arm where the confirmation of step 2 fails,
 and the three files stand;
 an arm where it succeeds,
-and they are gone with the released claim left.
+and they are gone with the released claim left;
+and an arm where a removal was killed after the settle and before step 5,
+which leaves the plan standing beside the binding,
+and the next removal resumes from the plan and finishes step 5,
+so no kill leaves the binding standing where "What a record whose clone is gone means" reads it as an outside
+change.
 
 T17.
 `an_identity_without_a_device_matches_after_the_dataset_is_mounted_again`:
@@ -2302,17 +2653,26 @@ then the record is read after the fixture's own device number is changed in the 
 is otherwise equal:
 the record still matches,
 and the same line with another inode refuses.
+A third arm asserts the table's mounted side:
+a record whose `cloneGuid=` equals the mounted dataset's source is accepted while `slotIdentity=` names the
+underlay,
+and a record whose `cloneGuid=` differs refuses.
 This is a unit test because it asserts the comparison's table,
-not the kernel's number.
+not the kernel's number;
+the guest arm that would measure the mount itself is the lock design's M2,
+owed there.
 
 T18.
 `a_binding_read_after_two_takes_does_not_refuse`:
 generation 1 writes `claim=1` and is released;
 `take_claim` takes generation 2,
 which removes file 1;
-the binding is read under generation 2 and accepted;
-a binding whose `claim=` names 3 refuses only because no such generation was ever taken,
-and is accepted once it is.
+the binding is read under generation 2 and accepted.
+The record's `claim=` is informational in both directions:
+a binding whose `claim=` names 3 is accepted while generation 2 is the newest,
+and `doctor` reports it,
+and the only refusal is a newest generation whose owner is alive,
+which refuses with that owner's process id.
 
 T19.
 `the_reader_compares_the_dataset_guid_and_the_inode`:
@@ -2321,18 +2681,63 @@ and one whose inode differs refuses,
 and one whose stored identity is the `-:-` form reads.
 
 T20.
-`a_resume_finds_a_registration_git_made`:
-a planted registration whose `gitdir` names the recorded slot,
-with `locked` holding the sentence recomputed from the recorded nonce,
-is found and written as `registered`;
-two such registrations refuse;
-one whose `locked` holds another sentence refuses;
-and with none planted the resume re-runs the add.
+`a_resume_reads_each_state_gits_add_can_leave`:
+one arm per state of the table,
+each planted rather than raced:
+D3,
+a complete registration whose `locked` holds the recomposed sentence,
+is adopted and written as `registered`;
+D2,
+`locked` and nothing else,
+D2a,
+`gitdir` naming `<slot>/.git` with no pointer,
+D2b,
+a pointer with no `commondir`,
+and D2c,
+`commondir` with no `HEAD`,
+are each removed in the settle's order and the add re-runs A5;
+and a kill during that removal leaves the entry attributable and the next resume repeats it.
+Each arm asserts the three removal steps in order:
+`locked` unlinked,
+the directory proved empty through the descriptor,
+the name removed.
+
+T20a.
+`a_bare_directory_and_a_failure_path_leftover_are_removed_before_the_add_reruns`:
+D1,
+a bare `worktrees/<slot>`,
+and the directory Git's failure path leaves after unlinking `locked`,
+both of which hold no `gitdir` and no lock,
+are removed,
+and the re-run's registration is at the slot's own name and not at `<slot>1`,
+which F1's counter would otherwise make.
+
+T20b.
+`a_foreign_lock_and_a_foreign_gitdir_are_refused`:
+a registration whose `locked` holds other words,
+and one whose `gitdir` names another slot,
+are both refused with the entry and the words' first line,
+and nothing is removed.
 
 T21.
 `a_slot_identity_is_written_only_after_the_slot_exists`:
 the phase `claimed` write carries no `slotIdentity=`,
 and the phase `slot` write refuses when the slot is absent.
+Then the arm the second gate review's N2 asks for:
+a resume at phase `slot` whose slot Git's failure path deleted,
+or whose empty slot answers another identity,
+re-runs A3 and A4 and rewrites `slotIdentity=`;
+a slot holding a `.git` pointer refuses;
+and from phase `registered` on,
+a slot with another identity refuses.
+
+T21a.
+`a_resumed_add_whose_request_differs_refuses`:
+a record written by `request=branch 6d61696e`,
+resumed by an add given `request=commit 4f1c...`,
+refuses and names both,
+and resumed by an add given the same request,
+continues.
 
 Guest tests,
 because they need a real pool,
@@ -2469,89 +2874,104 @@ what `ENOSPC` and a refused mount leave at A5 to A11,
 and that the accepted sentence's "keep the claim,
 the slot and the locked registration" is what a resume meets.
 
+M9.
+Git's failure path under a SIGKILL and under a power cut.
+Measure,
+in the guest,
+whether a SIGKILL and a hard power cut inside `git worktree add` also remove the destination directory Git was
+given,
+which the second gate review measured only under SIGTERM (eight of twelve adds),
+and what shape the registration is left in at each of D1 to D2c.
+That number is what tells a reader whether this design's slot rule meets the common case or the rare one.
+
 ## Where the siblings disagree
 
 Each line names this design's position,
 the sibling's,
 and which record decides it if any does.
-The siblings are unreviewed;
-nothing here adopts their answer.
+The siblings are read at their current tips,
+the lock design at `a7902e293b`,
+the destruction plan at `76849b8d9b`,
+and the origin cleanup record at `987a3ba886`,
+and nothing here adopts their answer.
 The second gate review's "Disagreements between the three record designs" is the full list,
 and "The route's record convention" is where this design answers it.
 
-- The lock design,
-  "The add-time Git lock":
-  its A1 and D0 say the claim record carries the nonce and the reason bytes.
-  This design's claim carries nothing new and the binding's `nonce=` is that root,
+- The lock design's "The record whose nonce the lock's proof rests on":
+  the claim carries nothing new and the binding's `nonce=` is the one root of attribution,
   written at A2 before Git runs.
-                The proposal fixes only the claim's home and
-        its proposed names ([proposal](cli-git-zfs-worktree-design-proposal.md):373 to :376),
-  so the claim's payload is undecided:
-  Q1 asks it,
-  with the review's answer B (a function of the nonce) ranked first,
-  and this design states B.
-- The lock design,
-  its V2-A and "What the wrapper writes beside the registration":
+  This design agrees and states it as V11;
+  the lock design reads `nonce=` and `registration=` and never `claim=`.
+- The lock design's V2-A and "What the wrapper writes beside the registration":
   a record inside the registration holds the lock's bytes.
   This design needs no such record for attribution,
   and its own record cannot live there (F2).
-  The two positions do not conflict:
-  both may stand,
-  and Q1 decides whether the second record is needed.
-- The lock design,
-  "The add's own rollback":
-  a failed add releases,
-  empties and drops the claim.
-  This design and the proposal keep the claim,
-  the slot and the registration ([proposal](cli-git-zfs-worktree-design-proposal.md):427 to :428).
-  The proposal decides it;
-  Q2 records the disagreement,
-  and this design's A12 and T26 follow the proposal.
-- The lock design,
-  its D0 to D7,
-  against this design's A0 to A12:
-  the two orders agree step for step,
-  and this document's list is the one with the binding's writes in it.
-  The lock design's D2 leaves a locked registration with no `gitdir`;
-  this design's finder at A6 refuses such a registration (no back-link) and names it,
-  so a resume after that kill needs the lock design's own recovery,
-  which its M4 owes.
-  That is a gap in both,
-  and it is named here because step 10 must not build past it.
-- The lock design's nonce example is 8 hexadecimal digits;
-  this design's is `RequestNonce`'s 32 (`request_nonce.rs`:1 to :20),
-  and the origin snapshot's name carries the same 32.
-  The 32 is the wrapper's existing type,
-  and the lock design's example is its own to change.
-- The destruction plan sibling keys its record by the clone's GUID and keeps a pointer inside the registration;
-  this design keys by the slot and keeps its record outside.
+  The two positions do not conflict,
+  and V11's ranking puts the nonce first.
+- The lock design's "A failed add":
+  it keeps what the accepted sentence keeps and writes no rollback,
+  in its own words "This design does not remove a registration after a failed add".
+  This design keeps the same state (A12's paragraph),
+  so the two agree and the accepted text decides ([proposal](cli-git-zfs-worktree-design-proposal.md):427 to :428);
+  V16 keeps the rollback reachable for the project's veto.
+- The lock design's D0 to D7 against this design's A0 to A12:
+  each step of the order above names its moment,
+  so the two documents no longer describe two orders.
+  The mapping is A0 to A4 at D0,
+  A5 across D1 to D3 and Git's failure path,
+  A6 at D3 and D4,
+  A8 and A9 at D5,
+  A10 at D6,
+  A11 and A12 at D6 and D7,
+  and A7 retired because the lock design writes no record (its "The order of the add's writes" step 5).
+  A kill inside Git's add,
+  D1 to D2c,
+  is this design's A6 and the table under "A resume after a kill between Git's add and the registered write":
+  the lock design's S8 scan finds the entries and this design decides what happens to each.
+  The next pass judges whether that is one order.
+- The lock design's two-fact variant compares the slot's recorded identity at a path the mount may cover.
+  This design's "The identity fields" states the same rule from this side:
+  unmounted,
+  the identity through the pinned parent;
+  mounted,
+  the mount's source and the registration,
+  never the underlay's inode.
+  The guest arm that would measure it is the lock design's M2,
+  owed there.
+- The destruction plan keys its record by the clone's GUID and keeps no pointer inside a registration
+  (its "What finds a plan",
+  read at `76849b8d9b`).
+  This design keys by the slot and keeps its record outside any registration.
   Neither record can be read by the other's key alone,
-  and the set still reaches from any one key through this record's fields;
-  Q3 asks whether the route's convention should be uniform.
-- The origin cleanup sibling writes its record before the first snapshot delete,
+  and the set still reaches from any one key through this record's fields (V17).
+- The destruction plan publishes unsynced by default (its Choice 5),
+  and this design flushes every write;
+  the origin cleanup record is unflushed too (its option C premise and its F21).
+  The route has two rules today,
+  and V19 with M1 is where one rule would come from.
+- The destruction plan's finish pass settles a registration and removes the plan,
+  and it holds no claim.
+  This design's V20 requires the plan to stay until this binding is removed,
+  so the pass must leave a plan whose binding still stands.
+  This is the second gate review's X3,
+  and the placement is the plan design's.
+- The origin cleanup record publishes at its step 6,
+  after every refusal and before the first destroy,
   and says a new add may take the freed slot at once.
-  This design now agrees with both:
+  This design agrees with both:
   step 2 of "The record's end" only confirms that record,
-  and step 5 frees the slot by removing the binding whether or not the cleanup is still blocked.
-  The proposal decides it ("settling does not wait for the origin",
-  [proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469),
-  and the second review's X1 and X2 are its findings.
-- The origin cleanup sibling's moment is its own V4,
+  and V20 puts this binding's removal before the plan's.
+  The proposal decides the freeing ("settling does not wait for the origin",
+  [proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469).
+- The origin cleanup record's moment is its own V4,
   still open to the project's veto.
-  This design's record's end depends on that veto:
+  This design's step 2 depends on that veto:
   if the owner moves the origin record later than the first delete,
   this design's step 2 reopens with it.
-- The origin cleanup sibling writes with `replace_private_file`,
-  a flushed publication,
-  and its `doctor` removes a staging entry without a liveness condition;
-  this design flushes too and conditions the removal on the claim (V8).
-  "The route's record convention" states the convention this design recommends to both.
-- The destruction plan sibling publishes unsynced by default and offers the flushed form as its Choice 4;
-  this design flushes every write.
-  Its fact is an outcome on the destroy's own waiting path,
-  and this design's is evidence of a clone that already exists,
-  so the two choices may differ without contradicting,
-  and Q9 puts one flush rule to the project.
+- The origin cleanup record removes no staging entry and reports the ones it finds,
+  where this design removes one only when no live claim stands (V8).
+  Each rule is its own document's,
+  and the store's decision covers the store alone.
 
 ## Choices this design marks for the project's veto
 
@@ -2560,6 +2980,9 @@ Each gives the options,
 an example for each,
 a pros and cons list,
 and a ranking with the reason for each adjacent pair.
+V1 to V15 stand as the last revision left them,
+and V16 to V20 are the choices this revision moved here from its questions,
+because the second gate review judged them writers' choices rather than the project's.
 
 V1.
 The folder's parent and its inner name.
@@ -2903,8 +3326,8 @@ and whether a blocked origin keeps the slot.
   B beats C because C turns every slot into permanent state that `doctor` must explain.
 
 V11.
-Where the managed lock's ownership is proved (the review's Q1,
-adopted as B).
+Where the managed lock's ownership is proved (the review's first question,
+now this entry).
 
 - A,
   a second record inside the registration holds the lock's exact bytes:
@@ -3056,117 +3479,41 @@ No forwarded command reads the record folder.
   A wins because the folder's facts matter only to an operation on that slot,
   and the copy journal's pass exists to settle files a command's own run must not leave behind.
 
-## Questions only the project can answer
+V16.
+What a failed add that made a registration but no clone leaves.
 
-The review merged this design's earlier questions with the lock design's.
-Its Q2,
-Q7 and Q8 are this design's,
-its Q1 is partly this design's (V11 states the answer),
-and its Q3 and Q4 are the folder conventions.
-Q5 and Q6 belong to the lock design and are not repeated here.
-
-Q1.
-Where is the proof that a Git lock is the wrapper's,
-and what does the claim carry?
-
-Asked in plain words:
-when a person runs `git worktree unlock` and `lock` again,
-or a kill leaves a lock,
-how does the wrapper know the lock is its own?
-
-- A.
-  A second record inside the registration holds the exact lock bytes;
-  the claim carries nothing new.
+- A,
+  keep the claim,
+  the slot,
+  the locked registration,
+  report and resume (adopted,
+  and what the lock design's "A failed add" does too).
   Example:
-  a person runs `git worktree lock --reason held` on a managed slot;
-  `locked` reads `held`,
-  the record reads the sentence;
-  `doctor` prints "locked by words its add did not write".
-  Pros:
-  no change to `take_claim`;
-  dies with the registration.
-  Cons:
-  a second home and a second durability rule,
-  and a power loss can keep `locked` and drop the record,
-  which reads as a foreign lock and refuses the removal.
-- B.
-  No second record:
-  the sentence is a pure function of the binding's `nonce=`,
-  and the proof is "`locked` equals the sentence recomputed from the recorded nonce,
-  in the recorded registration".
-  Example:
-  the same `held` lock reads as foreign;
-  a killed add at A5 is recognised by the binding's nonce with no extra write.
-  Pros:
-  one record family,
-  one durability policy (flushed),
-  attribution for A5 and A7,
-  and a record that survives the registration's loss.
-  Cons:
-  lock verification depends on the binding being readable,
-  and an unreadable binding makes every lock foreign (which the removal refuses on anyway).
-- C.
-  The claim file carries the nonce and the bytes.
-  Example:
-  `<slot>.claim.1` gains two lines.
-  Pros:
-  the evidence exists before Git runs by construction.
-  Cons:
-  changes the shared claim primitive and its fuzz decoder,
-  and the claim is rewritten as `released` and loses the fields.
-- Ranking:
-  B,
-  then A,
-  then C.
-  B beats A because it removes a file,
-  a durability mismatch and an unprovable power-loss state while keeping the proof a byte comparison.
-  A beats C because it leaves the shared primitive alone.
-  This design states B in "The add's writes in one order" and V11;
-  the lock design must state it too.
-
-Q2.
-After a failed add that made a registration but no clone,
-does the add remove its registration,
-or keep it?
-
-Asked in plain words:
-the snapshot step returns "no space";
-what stands afterwards?
-
-- A.
-  Keep the claim,
-  the locked registration and the slot,
-  report,
-  and resume or discard explicitly (the accepted text,
-  [proposal](cli-git-zfs-worktree-design-proposal.md):427 to :428;
-  this design's A12 and T22).
-  Example:
+  the snapshot returns "no space";
   `git worktree add .claude/worktrees/one` prints the operation,
   object and pool,
   and a later add at `one` resumes;
   `doctor` shows "registration without a dataset".
   Pros:
-  matches the accepted words,
+  matches the accepted words ([proposal](cli-git-zfs-worktree-design-proposal.md):427 to :428),
   destroys nothing,
-  reuses the registration's recorded identity.
+  and keeps the registration's recorded identity.
   Cons:
-  a locked registration that Git cannot remove without two forces stays until a person resumes or discards;
-  the discard path (the removal's settle) must exist.
-- B.
-  Roll back:
+  a locked registration Git cannot remove without two forces stays until a person resumes or discards it.
+- B,
+  roll back:
   release,
-  empty,
-  drop the claim (the lock design's "The add's own rollback").
+  empty and drop the claim.
   Example:
-  the same failure ends with no registration and an empty slot (Git itself deletes a slot it did not create).
+  the same failure ends with no registration and an empty slot.
   Pros:
   leaves no half state.
   Cons:
-  contradicts "keep the claim";
-  loses the evidence that explains the failure;
-  a kill in the rollback is a new state.
-- C.
-  Keep on `ENOSPC` as the proposal names it,
+  contradicts "keep the claim",
+  loses the evidence that explains the failure,
+  and a kill in the rollback is a new state.
+- C,
+  keep on `ENOSPC` as the proposal names it,
   roll back on other failures.
   Example:
   `ENOSPC` keeps;
@@ -3174,50 +3521,53 @@ what stands afterwards?
   Pros:
   follows the only failure the text names.
   Cons:
-  needs a failure taxonomy no record gives.
+  needs a failure taxonomy no record gives,
+  and M8 is the arm that would size it.
 - Ranking:
   A,
   then C,
   then B.
-  A is the accepted behaviour;
-  C is the same for the named case and adds an unwritten rule for the rest;
+  A is the accepted behaviour and needs no new rule;
+  C is A for the named case plus an unwritten rule for the rest;
   B overrides an accepted sentence with no record behind it.
 
-Q3.
-Which folder,
-key and durability convention do the route's three records share?
+V17.
+The route's folder,
+key and durability convention,
+as one choice for the three records.
 
-Asked in plain words:
-three designs each placed a record folder in `.git`;
-which shape does the route follow?
-
-- A.
-  All inside `<common>/monochromatic-git-policy-cli/<kind>/`,
-  which the two sibling designs do and this design now does.
+- A,
+  one parent and one shape:
+  `<common>/monochromatic-git-policy-cli/<kind>/`,
+  a version the grammar compares,
+  `key=value` lines,
+  names verbatim and paths in hex (adopted here,
+  and what both siblings now do except for the origin record's JSON object).
   Example:
-                `.git/monochromatic-git-policy-cli/worktree-clones/add-cache-layer.binding` beside `clone-destruction-plans/`
-        and `origin-cleanups/`.
+  `.git/monochromatic-git-policy-cli/worktree-clones/v1/add-cache-layer.binding` beside
+  `clone-destruction-plans/` and `origin-cleanups/`.
   Pros:
-  one parent that the rename machinery already moves;
-  a person who knows one knows the others.
+  one parent the rename machinery already moves (F20),
+  and a person who knows one record knows the others.
   Cons:
-  a listing of the parent is not a listing of one record family,
-  and the key and flush questions remain.
-- B.
-  A top-level folder with a version segment for the binding only,
+  a listing of the parent is not a listing of one family,
+  and the keys still differ.
+- B,
+  a top-level folder per family,
   as the earlier revision had it.
   Example:
   `.git/monochromatic-git-policy-cli-worktree-clone/v1/add-cache-layer.binding`.
   Pros:
-  matches the copy journal's shape and keeps one listing exact.
+  one listing is exactly one family,
+  as the copy journal's folder is.
   Cons:
-  a new top-level name needs its own rename entry (F20,
-  inferred),
-  and the route then has two parent conventions.
-- C.
-  Leave each design as written and reconcile later.
+  a second parent convention,
+  and a new top-level name the rename machinery most likely needs an entry for (F20,
+  inferred).
+- C,
+  leave each design as written and reconcile later.
   Example:
-  three folders under two parents with three keys.
+  two parents and three shapes.
   Pros:
   no rework now.
   Cons:
@@ -3227,29 +3577,22 @@ which shape does the route follow?
   A,
   then B,
   then C.
-  A beats B because two of three designs and the rename machinery already point there.
+  A beats B because two of three designs and the rename machinery already point at the parent.
   B beats C because a deliberate difference with a reason is better than an accidental one.
-  Keys cannot be uniform:
-  the binding is found from a slot,
-  the plan from a clone GUID and the cleanup from a snapshot's nonce,
-  which are the three things each reader knows first.
-  Flush policy can be:
-  "flush when the fact cannot be rediscovered",
-  which the binding and the cleanup keep and the plan's outcome writes weigh in their own Choice 4.
+  The key cannot be uniform:
+  this record is found from a slot,
+  the plan from a clone's GUID and the cleanup from a snapshot's nonce.
+  Durability is V19.
 
-Q4.
-May the binding live outside the Git common directory?
+V18.
+May this record live outside the Git common directory.
 
-Asked in plain words:
-the plan suggested `.git`;
-that puts the record on the dataset that is snapshotted hourly and copied into every clone.
-
-- A.
-  The common directory,
+- A,
+  the common directory (adopted):
   the plan's suggestion,
-  both siblings' choice and this design's (adopted).
+  both siblings' choice and this design's.
   Example:
-  as Q3-A.
+  as V17-A.
   Pros:
   per repository,
   found without a machine-wide scan,
@@ -3258,26 +3601,151 @@ that puts the record on the dataset that is snapshotted hourly and copied into e
   the checkout's hourly snapshots hold copies (L5),
   every clone carries a copy (L6),
   and a rebuilt `.git` orphans every record (L9).
-- B.
-  An account state folder outside the dataset,
+- B,
+  an account state folder outside the dataset,
   keyed by repository identity.
   Example:
   `~/.local/state/monochromatic-git-policy-cli/<repository-key>/add-cache-layer.binding`.
   Pros:
-  no snapshot or clone copies;
-  survives a rebuilt `.git`.
+  no snapshot or clone copies,
+  and survives a rebuilt `.git`.
   Cons:
-  not found when the home is restored separately;
-  a key for the repository is needed;
-  a home path is a new dependency (rule `HOM` applies).
+  not found when the home is restored separately,
+  a key for the repository is needed,
+  and a home path is a new dependency (rule `HOM` applies).
 - Ranking:
   A,
   then B.
-  A is already where the claim lives and where both siblings went;
-  B solves limits the documents accept and adds two new failure modes.
-  This question exists because the earlier revision never weighed B;
-  if the project accepts the suggestion as decided,
-  it is closed.
+  A is where the claim lives and where both siblings went;
+  B solves limits the documents accept and adds two failure modes.
+
+V19.
+One flush rule for the route's records,
+or one per record.
+
+- A,
+  flush every write of every route record.
+  Example:
+  the destruction plan's outcome line is flushed beside the destroy it reports.
+  Pros:
+  one rule to test and to explain,
+  and no reader has to know which records a power cut can take.
+  Cons:
+  every outcome write waits for a log commit on the destroy's own path.
+- B,
+  flush nothing.
+  Example:
+  the same outcome line,
+  and this binding's identity writes,
+  published unsynced.
+  Pros:
+  no record pays a log commit.
+  Cons:
+  the clone's initial inventory and the identities cannot be rediscovered,
+  so a power cut leaves a clone nothing can prove.
+- C,
+  flush by position (adopted):
+  a record written after the object it names exists,
+  where its loss would leave an object nothing can prove,
+  is flushed (this binding's writes);
+  a record written before an irreversible ZFS step,
+  or to report an outcome,
+  needs none,
+  because the destroy waits for its transaction group and the record is on disk when it returns.
+  Example:
+  the binding's `registered` write is flushed;
+  the plan's outcome line is not,
+  and the origin cleanup record's `owed` write is not.
+  Pros:
+  every record pays only what its facts need,
+  and all three designs already do this in effect.
+  Cons:
+  three durability stories,
+  and `doctor` cannot say what a power cut took without knowing which record it was.
+- Ranking:
+  C,
+  then A,
+  then B.
+  C beats A because the plan's and the origin record's writes lose only a repeated attempt,
+  so a flush there buys no evidence.
+  A beats B because a file `fsync` and its directory's make the name durable at `sync=standard` (F12),
+  so flushing protects this record's orphan case,
+  and B leaves it open.
+  M1 and the plan's and the origin record's own measurements are the numbers that could change the ranking.
+
+V20.
+Where this binding's removal and the claim's release fall in the removal's one order.
+
+- A,
+  the binding before the plan,
+  the claim last (adopted):
+  exactly the three rules "The record's end" states,
+  for the origin cleanup design's merged list to place.
+  Example:
+  a removal killed after the settle leaves the plan and the binding standing,
+  which reads as a removal in flight,
+  and the next removal finishes step 5 and then removes the plan.
+  Pros:
+  the plan is the last witness,
+  so no kill leaves this binding standing where "What a record whose clone is gone means" would read it as an
+  outside change;
+  and the claim covers the whole tail.
+  Cons:
+  the plan's finish pass cannot remove a plan whose binding still stands,
+  so it must leave it and report it.
+- B,
+  the plan before the binding.
+  Example:
+  the same kill leaves the binding alone,
+  and the next add reads it as an outside destruction and may block the slot (Q8's default).
+  Pros:
+  the plan's finish pass needs no new rule.
+  Cons:
+  it creates exactly that misreading on the normal path.
+- C,
+  each record's own document decides,
+  as the three stand today.
+  Example:
+  three placements for one tail.
+  Pros:
+  no coordination.
+  Cons:
+  no reader can tell a killed removal from an outside change.
+- Ranking:
+  A,
+  then B,
+  then C.
+  A beats B because it removes the misreading X3 found without weakening the plan's finish pass.
+  B beats C because one wrong placement is still one placement a reader can learn.
+
+## Questions only the project can answer
+
+Two questions are this design's,
+and the second gate review's set puts them fourth and fifth.
+Every other choice this design once asked is a writer's choice with a ranking,
+and this revision moved it to the veto
+list:
+
+- where the proof that a lock is the wrapper's lives,
+  once Q1,
+  is V11;
+- what a failed add leaves,
+  once Q2,
+  is V16;
+- the route's folder,
+  key and durability convention,
+  once Q3,
+  is V17;
+- a home outside the Git common directory,
+  once Q4,
+  is V18;
+- one flush rule for the route's records,
+  once Q9,
+  is V19.
+
+The lock design's own questions (whether a lost managed lock is put back unasked,
+and what a removal does when the
+lock is already gone) are not repeated here.
 
 Q7.
 What a reader does with a record it cannot read,
@@ -3308,8 +3776,9 @@ or push the old file aside and go on?
   the clone or the cleanup waits for a person,
   and a record from a later release makes an operation wait where a skipping reader would not.
 - B.
-  Move the file aside into an `.unreadable/` folder and continue,
-  as the copy journal's pass does (`SPEC.md`:4873 to :4885).
+  Move the file aside and continue,
+  as the copy journal's pass does (`SPEC.md`:4873 to :4885),
+  under a fifth name form the answer would introduce.
   Example:
   the same file is renamed to `<slot>.unreadable` and the add runs.
   Pros:
@@ -3361,49 +3830,7 @@ or may a person force a settle?
   Ask it together with the destruction plan sibling,
   whose "unresolved" outcome decides when absence is unprovable.
 
-Q9.
-One flush rule for the route's records,
-or one per record.
-
-Asked in plain words:
-the three records are written by the same route,
-one flushes every write and two do not;
-is there one rule?
-
-- A.
-  One rule:
-  flush every write of every route record.
-  Example:
-  the destruction plan's outcome line is flushed beside the destroy it reports.
-  Pros:
-  one rule to test and to explain,
-  and no reader has to know which records can be lost.
-  Cons:
-  every outcome write waits for the log commit on the destroy's own path,
-  which the plan's own Choice 4 weighs as a cost.
-- B.
-  One rule per record,
-  as the three designs stand:
-  this record and the origin cleanup record flush,
-  and the destruction plan's outcome writes do not.
-  Example:
-  the same outcome line is published unsynced,
-  and a power cut leaves the earlier outcome.
-  Pros:
-  each record pays only what its own facts need.
-  Cons:
-  three durability stories for one route,
-  and `doctor` cannot say what a power cut may have taken without knowing which record it was.
-- Ranking:
-  A,
-  then B.
-  A beats B because one rule is what a person and a test can hold,
-  and B's saving falls on the path that already waits for the destroy.
-  This is the second review's merged question four;
-  M1 and the destruction plan's own measurement are the numbers that would change the ranking.
-
-The earlier revision's Q3,
-about the released claim file,
+The earlier revision's question about the released claim file,
 is withdrawn from this list and is settled by the primitive itself:
 the newest generation is never removed (F18),
 so a released claim stays,
@@ -3427,9 +3854,41 @@ and nothing else in the design turns on it.
 
 ## Citations
 
-The review checked this document's citations before this revision and listed thirteen findings for this document,
-of which seven named a wrong range or a wrong statement and the rest were ranges it could not verify.
-This revision rechecked every quotation and every cited range by two scratch scripts:
+The first revision's citations were checked by that round's two scratch scripts;
+this round's two second passes listed the citations still wrong (the first pass's N10 to N15 and its
+"Citations still wrong",
+the second pass's "Citations still wrong"),
+and this round corrected them and rechecked every citation it changed.
+The errors this round fixed:
+
+- the inode sentence that said a restored dataset answers another inode (now "The identity fields",
+  after the first pass's N10);
+- the two stale sentences about the lock design's record and the copy journal's folder (now "What Git does to a file
+  it does not know here",
+  after its N11);
+- the claim that the origin cleanup record publishes with a flushed write (now the convention's flush bullet,
+  after its N12);
+- the `.unreadable` name form in the grammar and in Q7's option B (now four forms,
+  after its N11);
+- T18 and T23 as the claim rule's two readings (now T18 alone,
+  after its N1);
+- "the two orders agree step for step" (now the mapping in "Where the siblings disagree",
+  after its N6);
+- every statement about the destruction plan and the origin cleanup record that their new tips no longer say
+  (after X4):
+  the pointer inside a registration,
+  the hex names,
+  the flush,
+  the staging rule,
+  the owner rule,
+  the bounds,
+  and their Choice numbers;
+- the earlier revision's own summary,
+  which named the origin cleanup record's flush (now V19).
+
+The earlier round's checking,
+which this one reuses where nothing changed,
+ran two scratch scripts:
 one printed each of the document's one hundred and thirty-two cited ranges beside the lines it names,
 the other searched each of its ten blockquotes in the sources it should come from.
 Every blockquote matched its source,
@@ -3504,14 +3963,37 @@ and the wrapper's code under `package/git-policy/cli/src/native/`:
 `worktree_clone_mount/` and `worktree_clone_mount_protocol/`.
 
 The three siblings,
-read with `git show` from their branches and not adopted as decided:
+read with `git show` from their branches this round and not adopted as decided:
 "The add-time Git lock of a ZFS clone worktree"
-at `05a0eadf9d` (branch `docs/planning-cli-git-zfs-add-time-git-lock-design`),
+at `a7902e293b` (branch `docs/planning-cli-git-zfs-add-time-git-lock-design`,
+read for its "The order of the add's writes",
+"The moments of an add" D0 to D7,
+"What Git's failure path leaves",
+"How doctor and removal tell the states apart" S1 to S8 and its scan,
+"How the wrapper's own removal releases the lock",
+its F8,
+F11 and F14,
+its M2 and its sibling section),
 "Where a removal's persisted destruction plan lives,
-and its format" at `a7823980b9` (branch `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`)
+and its format" at `76849b8d9b` (branch `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
+read for what finds a plan,
+the finish pass,
+its choices 5,
+10,
+11 and 12 and its sibling section)
 and "The record that carries origin cleanup after a registration is settled"
-at `4daa6c66ce` (branch `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
-read again this round for X1 and X2).
+at `987a3ba886` (branch `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
+read for "The order,
+and what a kill at each point leaves",
+its home,
+its V2,
+V4 and V8,
+its question one and its F21).
+At `987a3ba886` the origin cleanup design does not yet hold the one merged list of the removal's writes across the
+three records:
+its list ends at step 11,
+the plan's removal,
+and this design's V20 states what it needs from the merged list instead.
 
 Read at a tag,
 in clones under this round's scratch folder:
@@ -3589,7 +4071,7 @@ and any test suite.
   M8 (the host's ZFS home dataset and the gate image's filesystem,
   and the one container),
   M9 (the plan's suggestion named,
-  Q4,
+  V18,
   V1 reordered,
   the F2 argument),
   M11 and the route's convention,
