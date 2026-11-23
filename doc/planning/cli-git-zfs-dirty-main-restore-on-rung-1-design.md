@@ -2631,6 +2631,33 @@ and the sibling passages read at their commits.
 - `b46a064030` at `2026-11-22T18:38:49-05:00`:
 says in "What it reuses,
 and where ZFS differs from btrfs" that the clone rung's index install is `write_index_under_a_name` and not `install_index`.
+- `f73e12ae1e` at `2026-11-22T19:16:30-05:00`:
+`main` merged with `--no-ff`,
+bringing the owner's three answers (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`) and the removal record `doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
+which says nothing of an add's calls.
+- `f12ef2b94e` at `2026-11-22T19:18:12-05:00`:
+the second-pass revision,
+which applies the three answers and answers the pass's findings:
+the pointer exchanged with the copied `.git` in one exchanging rename,
+with the kill states at each point of step 8 and the post-restore content check;
+`restore_dirty`'s three real-name index sites named and T6b added for them;
+the resume's waiting index and its lock cleared with `clear_the_waiting_index`,
+its rows split by the real-name index and by the exchange,
+and the proof's phase moved to a marker file;
+the fallback decided,
+so every failure after the claim settles and finishes with Git's own checkout,
+with the requirement stated on the designs that own the unmount and the destruction;
+the proof's window decided and the plan's test sentence amended in V6;
+V4's racy settle adopted as the design's default,
+with the tick's source and the racy set's measured size;
+the copy's reach stated as a limit,
+with the inert copy costed and the record's refusal of it quoted;
+T3 and T3b rebuilt,
+T10 and T11 rewritten,
+and the split or sparse index refused at the capture;
+the five sibling tips re-read and the binding record's statement on the proof's home quoted;
+F14's and F31's citations corrected and V4's reference to the racy rewrite reworded;
+and "Answers to the second gate pass" recording each finding with where it was fixed.
 
 ## Sources read
 
