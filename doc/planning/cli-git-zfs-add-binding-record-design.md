@@ -4083,6 +4083,33 @@ and any test suite.
   L8 and L9,
   and every citation the review listed,
   plus the ranges this round's own checking found.
+- 2026-11-22T19:06:07-05:00:
+  answered the two second gate passes:
+  N3 (the resume's table for every state Git's add can leave,
+  the lock design's scan and the settle's order,
+  A7 retired,
+  T20 to T20b),
+  N2 (the slot Git's failure path deletes,
+  T21's arm),
+  N5 (which identity field names which object and what a mounted slot compares,
+  T17's arm),
+  N1 (the claim rule once,
+  T18),
+  N6 (a moment at every step,
+  the mapping instead of "agree step for step"),
+  N8 (`request=` and T21a),
+  N10 to N12 (the inode sentence,
+  the stale sentences,
+  the fifth name form,
+  the origin record's flush),
+  X3 (the record's end cites the origin cleanup design's list,
+  V20,
+  the two readings of a record whose clone is gone),
+  X4 (every statement about the two removal-side records at their new tips),
+  and the questions (Q1 to Q4 and Q9 retired into V11 and V16 to V19,
+  Q7 and Q8 kept).
+  M9 and L12 are added,
+  and the sources name each sibling's tip read.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
