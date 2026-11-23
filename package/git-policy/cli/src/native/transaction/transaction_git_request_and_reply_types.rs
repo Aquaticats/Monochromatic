@@ -24,6 +24,20 @@ use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
+/// The value `started_child` holds once its owner abandoned the run before a child was published.
+/// Why:
+///  A run abandoned before its child existed must not start that child and then run its whole length
+///  beside the command that will not use its answer.
+///  The runner reads this value where it publishes the child and ends the child at once,
+///  so the abandon lands whether it comes before or after the publication.
+///  A positive value is a process id and zero is no published child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ABANDONED_CHILD = -1;
+/// ```
+pub const ABANDONED_CHILD: i32 = -1;
+
 /// What:
 ///  The real Git executable and the variables every Git child receives.
 /// Why:
@@ -99,6 +113,52 @@ pub struct GitRequest {
     /// Bytes on standard input;
     ///  none means an empty input.
     pub input: Option<Vec<u8>>,
+    /// Whether this run happens beside another step of the same command,
+    ///  so it takes no part in the process-wide note of the step that failed
+    ///  (`git_step_failure.rs`):
+    ///  it neither clears that note nor writes one.
+    /// Why:
+    ///  A read the ladder starts before its source check runs on another thread
+    ///  while the add's own steps start and fail;
+    ///  a note taken by such a read would be the reason a later record stated,
+    ///  which is another step's note.
+    ///  Every run of a command's own turn keeps the note's one owner,
+    ///  which is the step the command was in when it stopped.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type GitRequest = { ...; besideAnotherStep?: boolean };
+    /// ```
+    pub beside_another_step: bool,
+    /// Whether this Git child must end when the thread that started it ends,
+    ///  which is the thread that ends with this process.
+    /// Why:
+    ///  A read the ladder leaves unjoined when the add ends has no owner left to wait for it.
+    ///  Its child must not outlive the command that started it,
+    /// so the kernel is asked to end it
+    ///  (`PR_SET_PDEATHSIG`),
+    /// and that is what the early size read sets here.
+    ///  A run of the command's own turn keeps the default,
+    /// because no such run outlives its caller.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type GitRequest = { ...; endWithTheStartingThread?: boolean };
+    /// ```
+    pub end_with_the_starting_thread: bool,
+    /// Where a run's child process id is published while it runs,
+    ///  so a caller that abandons the run can end that child.
+    /// Why:
+    ///  The early size read may be abandoned when the check refuses the source,
+    ///  and it must not keep competing with Git's checkout for the length of it;
+    ///  the id is the child's own,
+    /// published by the runner once it starts.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type GitRequest = { ...; startedChild?: { pid: number } };
+    /// ```
+    pub started_child: Option<std::sync::Arc<std::sync::atomic::AtomicI32>>,
 }
 
 /// Builder methods for one request.
@@ -123,6 +183,53 @@ impl GitRequest {
             arguments: owned,
             ..Self::default()
         };
+    }
+
+    /// What:
+    ///  This request declared one that runs beside another step of the command,
+    ///  so it leaves the process-wide failed-step note alone.
+    /// Why:
+    ///  See the field's own doc;
+    ///  the ladder's early size read is the only such run today.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.besideAnotherStep()
+    /// ```
+    pub fn beside_another_step(mut self) -> Self {
+        self.beside_another_step = true;
+        return self;
+    }
+
+    /// What:
+    ///  This request's Git child ends when the thread that starts it ends.
+    /// Why:
+    ///  See the field's own doc;
+    ///  the ladder's early size read is the only such run today,
+    ///  and an add that leaves it unjoined must leave no child behind.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.endsWithTheStartingThread()
+    /// ```
+    pub fn ends_with_the_starting_thread(mut self) -> Self {
+        self.end_with_the_starting_thread = true;
+        return self;
+    }
+
+    /// What:
+    ///  This request publishes its child's process id into `cell` while it runs.
+    /// Why:
+    ///  See the field's own doc;
+    ///  the ladder's early size read is the only such run today.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// request.publishingItsChild(cell)
+    /// ```
+    pub fn publishing_its_child(mut self, cell: std::sync::Arc<std::sync::atomic::AtomicI32>) -> Self {
+        self.started_child = Some(cell);
+        return self;
     }
 
     /// What:
