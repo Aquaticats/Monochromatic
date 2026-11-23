@@ -699,7 +699,7 @@ fn make_the_controlled_moves(folder: &str) {
 /// ```ts
 /// const { seen, listing } = await waitWith([{ at: 2, from: 'claimed', to: 'recovering' }], 'pending');
 /// ```
-fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str) -> (bool, String) {
+fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str, what: &str) {
     let made: Fixture = fixture(label);
     let repository: PathBuf = made.root.join("repo");
     let git_dir: PathBuf = repository.join(".git");
@@ -721,9 +721,11 @@ fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str) -> (bo
     THE_MOVES.with(|held| { *held.borrow_mut() = &[]; });
     let seen: bool = A_READ_SAW_THE_RECORD.with(std::cell::Cell::get);
     let listing: String = crate::support::work_listing(work.as_path());
+    // The control's own sentence comes first, so a red says what the wait missed rather than only that it returned;
+    // the settle check after it says the wait did end, which a wait that never returned would otherwise hide.
+    assert!(seen, "a read of the wait sees the record while {what}, and none did: {listing}");
     assert!(work.join(DONE).join(name.as_str()).is_file(), "the record the control moves ends where the wait reads it as settled: {listing}");
     remove(&made);
-    return (seen, listing);
 }
 
 /// What:
@@ -748,7 +750,7 @@ fn wait_with_moves(moves: &'static [AMove], starts_in: &str, label: &str) -> (bo
 /// and this control fails while the others pass.
 #[test]
 fn a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads() {
-    let (seen, listing) = wait_with_moves(
+    wait_with_moves(
         &[
             AMove { at: 1, from: PENDING, to: RECOVERING },
             AMove { at: 3, from: RECOVERING, to: CLAIMED },
@@ -759,8 +761,8 @@ fn a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_b
         ],
         PENDING,
         "observe-wait-the-order-holds-alone",
+        "a claim and a recovery move it between the reads",
     );
-    assert!(seen, "a read of the wait sees the record while a claim and a recovery move it between the reads, and none did: {listing}");
 }
 
 /// What:
@@ -774,12 +776,12 @@ fn a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_b
 ///  sample reads it there.
 #[test]
 fn a_second_sample_catches_what_a_recovery_takes_back_between_two_reads() {
-    let (seen, listing) = wait_with_moves(
+    wait_with_moves(
         &[AMove { at: 3, from: CLAIMED, to: RECOVERING }, AMove { at: 3, from: RECOVERING, to: PENDING }],
         CLAIMED,
         "observe-wait-a-second-sample-holds-alone",
+        "a recovery takes it back between two reads",
     );
-    assert!(seen, "a read of the wait sees the record while a recovery takes it back between two reads, and none did: {listing}");
 }
 
 /// What:
@@ -794,29 +796,40 @@ fn a_second_sample_catches_what_a_recovery_takes_back_between_two_reads() {
 ///  live in `pending` and the third reads it there.
 #[test]
 fn a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples() {
-    let (seen, listing) = wait_with_moves(
+    wait_with_moves(
         &[AMove { at: 3, from: CLAIMED, to: RECOVERING }, AMove { at: 5, from: RECOVERING, to: PENDING }],
         CLAIMED,
         "observe-wait-a-third-sample-holds-alone",
+        "a recovery's two renames straddle two samples",
     );
-    assert!(seen, "a read of the wait sees the record while a recovery's two renames straddle two samples, and none did: {listing}");
 }
 
 /// What:
-///  A record that moves between two reads of one sample is not a settled queue.
+///  A claim published after the folder it lands in was read is missed by a wait of one sample in the old order.
 /// Why:
-///  The pair of halves together:
-/// on one sample the record leaves `pending` before that read and reaches `claimed`
-///  only after that read,
-/// and the second sample in this flow order reads it,
-/// which neither half alone does for this
-///  scene (`a_read_in_the_order...` and `a_second_sample...` guard the halves separately).
+///  This is the pair of halves' guard,
+/// and the second move's read is what makes it one:
+/// the record leaves `pending` before the first read and reaches `claimed` before the third,
+/// so the order `pending`,
+/// `claimed`,
+/// `recovering` reads `pending` after the record left it and `claimed` before it
+/// arrived,
+/// and one sample returns with the record live in `claimed`.
+/// Read in the order a record moves the third read is `claimed` and meets it,
+/// and with that order reverted a second sample meets it in `recovering`,
+/// so neither half alone is enough for this scene (`a_read_in_the_order...` and `a_second_sample...` hold each
+/// half on a scene of its own).
+/// With the second move at the second read instead,
+/// the old order's second read is `claimed` and sees the record
+/// at once,
+/// and this control passes on every wait,
+/// which the third integration pass measured.
 #[test]
 fn a_record_that_moves_between_two_reads_is_not_a_settled_queue() {
-    let (seen, listing) = wait_with_moves(
-        &[AMove { at: 1, from: PENDING, to: RECOVERING }, AMove { at: 2, from: RECOVERING, to: CLAIMED }],
+    wait_with_moves(
+        &[AMove { at: 1, from: PENDING, to: RECOVERING }, AMove { at: 3, from: RECOVERING, to: CLAIMED }],
         PENDING,
         "observe-wait-a-record-between-reads",
+        "it moves between the folders a claim passes through",
     );
-    assert!(seen, "a read of the wait sees the record while it moves between the folders a claim passes through, and none did: {listing}");
 }
