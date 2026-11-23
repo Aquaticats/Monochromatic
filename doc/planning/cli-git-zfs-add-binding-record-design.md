@@ -5535,6 +5535,13 @@ and any test suite.
   the empty-lock rule,
   the two nothing-found rows,
   and V21 and V22 rewritten.
+- 2026-11-22T22:01:05-05:00:
+  reconciled the proof-gone refusal with the fallback the restoring design requires:
+  the refusal stands only where the clone's identity cannot be proven,
+  and elsewhere A20 settles and finishes,
+  as that design's "Dependencies on the sibling designs" asks at `5237948862`.
+- 2026-11-22T22:01:18-05:00:
+  broke that paragraph at its clauses for the linter.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
