@@ -35,6 +35,7 @@ use crate::worktree_clone_unmount::slot_walk_calls::{DatasetGuids, LiveSlotWalk}
 use crate::worktree_clone_unmount::staged_folder_identity::StagedFolderIdentity;
 use crate::worktree_clone_unmount::staging_calls::LiveStagingCalls;
 use crate::worktree_clone_unmount::unmount_checks::ExpectedMount;
+use crate::worktree_clone_unmount::staged_unmount::recover_a_staged_unmount;
 use crate::worktree_clone_unmount::unmount_turn::{unmount_the_clone, ReattachCause, UnmountOutcome, UnmountRequest};
 use crate::worktree_clone_unmount::user_cache_pin::{open_cache, passwd_home_of, read_pin, UserCachePin, USER_CACHE_PIN_PATH};
 use std::os::unix::fs::MetadataExt;
@@ -123,10 +124,18 @@ fn the_key_refusals_receipt(context: &SweepContext<'_>, facts: &CloneObjectFacts
 /// const outcome = answerUnmount(verified, request);
 /// ```
 pub(super) fn answer_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
-    let fresh = match look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: context.checkout, slot: verified.slot.as_str() }) {
-        Ok(fresh) => fresh,
-        Err(refusal) => return refuse_an_unmount(context, verified, request, "look-again", refusal.message()),
+    let claim = match context.claims.claim(verified.slot.as_str()) {
+        Ok(claim) => claim,
+        Err(refusal) => return CloneOutcome::Held { name: verified.dataset_name.clone(), slot: verified.slot.clone(), said: refusal.message() },
     };
+    let outcome: CloneOutcome = answer_unmount_under_the_claim(context, verified, request);
+    claim.release();
+    return outcome;
+}
+
+/// The unmount turn once this clone's slot is claimed,
+/// so two handlers cannot act on one clone.
+fn answer_unmount_under_the_claim(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
     let recorded = match SlotIdentityStore::open_under_root_control(context.store).and_then(|store| return store.slot(verified.slot.as_str())) {
         Ok(recorded) => recorded,
         Err(refusal) => return refuse_an_unmount(context, verified, request, "slot-identity", refusal.message()),
@@ -148,6 +157,26 @@ pub(super) fn answer_unmount(context: &SweepContext<'_>, verified: &VerifiedClon
         Err(refusal) => return refuse_an_unmount(context, verified, request, "user-cache-pin", refusal.message()),
     };
     let canonical_slot = context.checkout.join(".claude/worktrees").join(verified.slot.as_str());
+    let calls = LiveStagingCalls;
+    let cache_path = home.join(".cache");
+    let recovery = recover_a_staged_unmount(
+        &crate::worktree_clone_unmount::staged_unmount::StagedSweep { cache: &cache, cache_path: cache_path.as_path(), guid: verified.dataset, boot: context.boot, pin: &pin, calls: &calls },
+        canonical_slot.as_path(),
+        0,
+    );
+    match recovery {
+        crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::Finished { mount_id } => {
+            return answer_the_unmount(context, verified, request, UnmountOutcome::Unmounted { mount_id, slot: canonical_slot.clone(), bind_gone: true });
+        }
+        crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::BindRemoved | crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::NotStaged => {}
+        crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::Refused { step, said } => {
+            return refuse_an_unmount(context, verified, request, step.as_str(), said);
+        }
+    }
+    let fresh = match look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: context.checkout, slot: verified.slot.as_str() }) {
+        Ok(fresh) => fresh,
+        Err(refusal) => return refuse_an_unmount(context, verified, request, "look-again", refusal.message()),
+    };
     let expected = ExpectedMount {
         mount_id: fresh.mount_id,
         parent_mount_id: fresh.parent_mount_id,
@@ -159,9 +188,7 @@ pub(super) fn answer_unmount(context: &SweepContext<'_>, verified: &VerifiedClon
     };
     let slot_identity: StagedFolderIdentity = StagedFolderIdentity::from_clone_folder(&recorded);
     let guids = HandlerDatasetGuids { reader: context.reader };
-    let calls = LiveStagingCalls;
     let walk = LiveSlotWalk;
-    let cache_path = home.join(".cache");
     let turn = UnmountRequest {
         checkout: context.checkout,
         slot: verified.slot.as_str(),

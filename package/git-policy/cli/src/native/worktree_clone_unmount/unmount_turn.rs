@@ -39,6 +39,7 @@ use super::unmount_checks::{verify_the_slot, CheckedSlot, ExpectedMount, SlotRef
 use super::user_cache_pin::{check_live_pin, UserCachePin};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
+use std::os::unix::fs::MetadataExt;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -109,6 +110,10 @@ pub enum UnmountOutcome {
         slot: PathBuf,
         /// Whether the bind was unbound too.
         bind_gone: bool,
+        /// The clone root's device.
+        device: u64,
+        /// The clone root's inode.
+        inode: u64,
         /// Why the mount was moved back.
         cause: ReattachCause,
     },
@@ -275,7 +280,7 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
             ReattachResult::Reattached { mount_id, slot } => {
                 let bind_gone: bool = unbind_if_empty(request.calls, request.cache, name.as_str(), &staging, bind_id);
                 log_rolled_back(request, mount_id);
-                UnmountOutcome::Reattached { mount_id, slot, bind_gone, cause: ReattachCause::MisplacedRolledBack }
+                UnmountOutcome::Reattached { mount_id, slot, bind_gone, device: request.expected.device, inode: request.expected.inode, cause: ReattachCause::MisplacedRolledBack }
             }
             ReattachResult::Refused { step, said } => UnmountOutcome::Retained { step, errno: 0, said, mount: Some(topmost.2) },
         };
@@ -288,6 +293,27 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
 /// unrecorded or void record and refusing a current record whose identity moved.
 #[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
 fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
+    let folder_facts: std::fs::Metadata = match staging.metadata() {
+        Ok(facts) => facts,
+        Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be read: {error}"))),
+    };
+    let cache_facts: std::fs::Metadata = match request.cache.metadata() {
+        Ok(facts) => facts,
+        Err(error) => return Err(refused("staging-folder", format!("the cache folder could not be read: {error}"))),
+    };
+    let entry_count: usize = match crate::entries_of_one_open_folder::entry_names(staging) {
+        Ok(names) => names.len(),
+        Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be listed: {error}"))),
+    };
+    if folder_facts.uid() != cache_facts.uid() {
+        return Err(refused("staging-folder", format!("the staging folder {name} is owned by {}, and the account's cache by {}", folder_facts.uid(), cache_facts.uid())));
+    }
+    if folder_facts.mode() & 0o7777 != 0o700 {
+        return Err(refused("staging-folder", format!("the staging folder {name} has mode {:04o}, and the route records 0700", folder_facts.mode() & 0o7777)));
+    }
+    if entry_count != 0 {
+        return Err(refused("staging-folder", format!("the staging folder {name} holds {entry_count} entries, and a staging folder is empty before its bind")));
+    }
     let reading: RecordReading = read_staged_record(request.cache, request.expected.guid, request.boot, request.cache_path.join(name).as_path(), request.calls);
     let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
         Ok(identity) => identity,
@@ -358,11 +384,24 @@ fn unmount_the_pair(request: &UnmountRequest<'_>, held: &std::fs::File, bind_id:
                 Ok(reopened) => reopened,
                 Err(open) => return UnmountOutcome::Retained { step: String::from(open.call.word()), errno: open.errno, said: open.message("the busy clone could not be reopened for its reattach"), mount: None },
             };
+            let reopened_id: u64 = match request.calls.mount_id(&reopened) {
+                Ok(id) => id,
+                Err(read_failure) => return UnmountOutcome::Retained { step: String::from("mount-id"), errno: read_failure.errno, said: read_failure.message("the busy answer's mount could not be read"), mount: None },
+            };
+            let reopened_row = request.calls.mount_facts(reopened_id).ok();
+            if reopened_id != request.expected.mount_id || reopened_row.as_ref().is_some_and(|row| return row.source != request.expected.source || row.root != std::path::Path::new("/")) {
+                return UnmountOutcome::Retained {
+                    step: String::from("pre-call-check"),
+                    errno: 0,
+                    said: format!("the mount the busy call answered for is {reopened_id} of source `{}`, and the clone is mount {} of `{}`. Nothing was moved.", reopened_row.as_ref().map_or_else(|| return String::from("unread"), |row| return row.source.clone()), request.expected.mount_id, request.expected.source),
+                    mount: reopened_row,
+                };
+            }
             return match reattach(request, &reopened) {
                 ReattachResult::Reattached { mount_id, slot } => {
                     let bind_gone: bool = unbind_if_empty(request.calls, request.cache, name, held, bind_id);
                     log_rolled_back(request, mount_id);
-                    UnmountOutcome::Reattached { mount_id, slot, bind_gone, cause: ReattachCause::Busy }
+                    UnmountOutcome::Reattached { mount_id, slot, bind_gone, device: request.expected.device, inode: request.expected.inode, cause: ReattachCause::Busy }
                 }
                 ReattachResult::Refused { step, said } => UnmountOutcome::Retained { step, errno: 0, said, mount: None },
             };

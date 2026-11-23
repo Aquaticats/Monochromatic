@@ -84,6 +84,7 @@ fn fixture(name: &str) -> Fixture {
     let component: String = staging_folder_name(guid());
     let staging: PathBuf = cache_path.join(component.as_str());
     std::fs::create_dir_all(staging.as_path()).expect("the fixture staging folder is made");
+    std::fs::set_permissions(staging.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the fixture staging folder holds 0700");
     let cache: std::fs::File = std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
     let facts: std::fs::Metadata = std::fs::metadata(slot.as_path()).expect("the slot's metadata is read");
     use std::os::unix::fs::MetadataExt;

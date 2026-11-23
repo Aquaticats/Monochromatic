@@ -33,6 +33,8 @@
 //! - `staging_folder_name.rs`:
 //!   the folder,
 //!   record and claim names one GUID derives.
+//! - `staged_folder_error.rs`:
+//!   the refusal the record and the identity share.
 //! - `staged_folder_identity.rs`:
 //!   the five recorded fields and their compare.
 //! - `staged_folder_record.rs`:
@@ -73,6 +75,9 @@
 /// the folder,
 /// its record and its claim.
 pub mod staging_folder_name;
+
+/// Why a staging record or folder identity could not be read.
+pub mod staged_folder_error;
 
 /// The five fields one staging folder's identity holds.
 pub mod staged_folder_identity;

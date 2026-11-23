@@ -23,6 +23,11 @@ use super::zfs_sweep_guest::{
     CONFIGURATION, DESIRED_STATE, NONCE, PROBE_RECORD_DIRECTORY, Run, STORE, clone_the_checkouts_snapshot, command_ok, line_about, make_the_designs_layout, make_the_slot,
     mount_request, prepare_the_store, required, sweep, write_configuration, write_passing_probe_record, zfs, zfs_ignored, zfs_ok,
 };
+use git_policy_cli::worktree_clone_mount_protocol::DatasetGuid;
+use git_policy_cli::worktree_clone_unmount::staged_folder_identity::StagedFolderIdentity;
+use git_policy_cli::worktree_clone_unmount::staged_folder_record::{write_record, StagedFolderRecord};
+use git_policy_cli::worktree_clone_unmount::staged_record_reading::{read_staged_record, RecordReading};
+use git_policy_cli::worktree_clone_unmount::staging_calls::{LiveStagingCalls, StagingCalls};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
@@ -255,4 +260,85 @@ fn zfs_unmount_guest() {
     let _ = std::fs::remove_dir_all(STORE);
     let _ = std::fs::remove_dir_all(RECEIPTS);
     println!("UNMOUNT done");
+}
+
+/// A fixture folder under `/root`, cleared first.
+fn folder(name: &str) -> PathBuf {
+    let path: PathBuf = Path::new("/root").join(name);
+    let _ = std::fs::remove_dir_all(path.as_path());
+    std::fs::create_dir_all(path.as_path()).expect("the fixture folder is made");
+    return path;
+}
+
+/// The record one handle arm writes before its reopen.
+fn record(guid: DatasetGuid, folder_path: &Path, _cache: &std::fs::File, boot: &str) -> StagedFolderRecord {
+    let held: std::fs::File = std::fs::File::open(folder_path).expect("the staging folder opens");
+    let identity: StagedFolderIdentity = StagedFolderIdentity::of(&held).expect("the staging folder's identity is read");
+    let (handle_type, handle): (i32, Vec<u8>) = LiveStagingCalls.name_handle(&held).expect("the folder's handle is read");
+    let (namespace_device, namespace_inode): (u64, u64) = LiveStagingCalls.namespace_pair().expect("the namespace pair is read");
+    return StagedFolderRecord {
+        component: staging_name(guid.file_name().as_str()),
+        dataset: String::from("tmpfs"),
+        guid,
+        identity,
+        handle_type,
+        handle,
+        nonce: String::from("00112233445566778899aabbccddeeff"),
+        namespace_device,
+        namespace_inode,
+        boot: String::from(boot),
+    };
+}
+
+/// What:
+///  The handle one process writes is reopened from the record by another process.
+/// Why:
+///  The kernel's `name_to_handle_at` and `open_by_handle_at` are one pair,
+///  and only a fresh process can show the record alone is enough to reopen the
+///  folder;
+///  a host control's recording calls cannot see the kernel's own handle.
+#[test]
+#[allow(clippy::disallowed_methods, reason = "starts this test binary, not the wrapper, for the fresh-process reopen control")]
+fn zfs_unmount_guest_handle_round_trip() {
+    if !guest() {
+        return;
+    }
+    let cache_path: PathBuf = folder("unmount-handle");
+    let cache: std::fs::File = std::fs::File::open(cache_path.as_path()).expect("the handle cache opens");
+    let guid: DatasetGuid = DatasetGuid::parse("9002").expect("the handle GUID parses");
+    let folder_path: PathBuf = cache_path.join(staging_name("9002"));
+    std::fs::create_dir_all(folder_path.as_path()).expect("the handle folder is made");
+    std::fs::set_permissions(folder_path.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the handle folder holds 0700");
+    let boot: String = LiveStagingCalls.boot().expect("this boot is read");
+    let written: StagedFolderRecord = record(guid, folder_path.as_path(), &cache, boot.as_str());
+    write_record(&cache, &written).expect("the handle record is written");
+    let exe = std::env::current_exe().expect("this test binary");
+    let child = Command::new(exe)
+        .args(["--exact", "zfs_unmount_guest::zfs_unmount_guest_handle_child", "--nocapture"])
+        .env("STEP9_HANDLE_CACHE", cache_path.as_path())
+        .env("STEP9_HANDLE_GUID", "9002")
+        .env("STEP9_HANDLE_BOOT", boot.as_str())
+        .output()
+        .expect("the handle child runs");
+    let said: String = String::from_utf8_lossy(child.stdout.as_slice()).to_string() + String::from_utf8_lossy(child.stderr.as_slice()).as_ref();
+    assert!(child.status.success(), "the handle child failed: {said}");
+    assert!(said.contains("HANDLE reopened=true"), "the child reopened the folder from the record: {said}");
+    println!("UNMOUNT handle-reopened=true");
+}
+
+/// The child half of the handle round trip:
+///  it reads only the record, the cache descriptor and the boot.
+#[test]
+fn zfs_unmount_guest_handle_child() {
+    let Ok(cache_path) = std::env::var("STEP9_HANDLE_CACHE") else {
+        return;
+    };
+    let cache_folder: PathBuf = PathBuf::from(cache_path);
+    let guid: DatasetGuid = DatasetGuid::parse(std::env::var("STEP9_HANDLE_GUID").expect("the child GUID").as_str()).expect("the child GUID parses");
+    let boot: String = std::env::var("STEP9_HANDLE_BOOT").expect("the child boot");
+    let cache: std::fs::File = std::fs::File::open(cache_folder.as_path()).expect("the child cache opens");
+    let calls = LiveStagingCalls;
+    let reading = read_staged_record(&cache, guid, boot.as_str(), cache_folder.join(staging_name(guid.file_name().as_str())).as_path(), &calls);
+    assert!(matches!(reading, RecordReading::Current { .. }), "the child reads a current record: {}", reading.word());
+    println!("HANDLE reopened=true");
 }

@@ -82,6 +82,7 @@ const EXPECTED_UNMOUNT_MARKERS = [
   'UNMOUNT busy=reattached holder=ended',
   'UNMOUNT reattach-then-unmounted=true',
   'UNMOUNT two-at-once=both-unmounted',
+  'UNMOUNT handle-reopened=true',
   'UNMOUNT done',
 ] as const;
 

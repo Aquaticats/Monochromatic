@@ -25,7 +25,7 @@
 //! const fields = identity.differences(recorded); // ['inode', 'birth']
 //! ```
 
-use super::staged_folder_record::StagedFolderRefusal;
+use super::staged_folder_error::StagedFolderRefusal;
 use std::os::unix::fs::MetadataExt;
 
 /// What:

@@ -206,3 +206,77 @@ fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
     assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
     return false;
 }
+
+/// A current record with no row at the folder is finished by the next run.
+#[test]
+fn a_finished_state_is_finished_by_the_next_run() {
+    let (root, cache, _pin) = fixture("recover-finished");
+    let facts = crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache row reads");
+    let pin = UserCachePin { source: facts.source.clone(), root_inode: cache.metadata().expect("the cache metadata reads").ino(), device: 1 };
+    let calls = RecordingCalls::default();
+    let held = std::fs::File::open(root.join(staging_folder_name(guid())).as_path()).expect("the staged folder opens");
+    *calls.open_handle.borrow_mut() = Some(Ok(held));
+    *calls.facts.borrow_mut() = Some(crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache row reads"));
+    calls.mount_ids.borrow_mut().extend([7]);
+    let sweep = StagedSweep { cache: &cache, cache_path: root.as_path(), guid: guid(), boot: "this-boot", pin: &pin, calls: &calls };
+    let slot: PathBuf = root.join("slot");
+    assert_eq!(crate::staged_unmount::recover_a_staged_unmount(&sweep, slot.as_path(), 41), crate::staged_unmount::RecoveryOutcome::Finished { mount_id: 41 });
+}
+
+/// A foreign mount at the folder refuses rather than being taken for the clone.
+#[test]
+fn a_foreign_mount_refuses_recovery() {
+    let (root, cache, _pin) = fixture("recover-foreign");
+    let facts = crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache row reads");
+    let pin = UserCachePin { source: facts.source.clone(), root_inode: cache.metadata().expect("the cache metadata reads").ino(), device: 1 };
+    let calls = RecordingCalls::default();
+    let held = std::fs::File::open(root.join(staging_folder_name(guid())).as_path()).expect("the staged folder opens");
+    *calls.open_handle.borrow_mut() = Some(Ok(held));
+    *calls.facts.borrow_mut() = Some(crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache row reads"));
+    calls.mount_ids.borrow_mut().extend([7]);
+    let folder_path: PathBuf = root.join(staging_folder_name(guid()));
+    *calls.table.borrow_mut() = vec![crate::fs_mount_options::MountFacts {
+        mount_id: 51,
+        parent_id: 7,
+        root: PathBuf::from("/"),
+        optional_fields: Vec::new(),
+        mount_point: folder_path,
+        filesystem_type: String::from("tmpfs"),
+        source: String::from("foreign"),
+        mount_options: Vec::new(),
+        super_options: Vec::new(),
+    }];
+    let sweep = StagedSweep { cache: &cache, cache_path: root.as_path(), guid: guid(), boot: "this-boot", pin: &pin, calls: &calls };
+    let outcome = crate::staged_unmount::recover_a_staged_unmount(&sweep, root.join("slot").as_path(), 41);
+    assert!(matches!(outcome, crate::staged_unmount::RecoveryOutcome::Refused { ref step, .. } if step == "pre-call-check"), "{outcome:?}");
+}
+
+/// A bind left over an empty folder with the clone gone is unbound and finished.
+#[test]
+fn a_leftover_bind_is_unbound_and_finished() {
+    let (root, cache, _pin) = fixture("recover-bind");
+    let facts = crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache row reads");
+    let pin = UserCachePin { source: facts.source.clone(), root_inode: cache.metadata().expect("the cache metadata reads").ino(), device: 1 };
+    let calls = RecordingCalls::default();
+    let held = std::fs::File::open(root.join(staging_folder_name(guid())).as_path()).expect("the staged folder opens");
+    *calls.open_handle.borrow_mut() = Some(Ok(held));
+    *calls.facts.borrow_mut() = Some(crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache row reads"));
+    calls.mount_ids.borrow_mut().extend([7]);
+    let source = crate::user_cache_pin::cache_mount_facts(&cache).expect("the cache's row reads").source;
+    let folder_path: PathBuf = root.join(staging_folder_name(guid()));
+    *calls.table.borrow_mut() = vec![crate::fs_mount_options::MountFacts {
+        mount_id: 52,
+        parent_id: 7,
+        root: folder_path.clone(),
+        optional_fields: Vec::new(),
+        mount_point: folder_path,
+        filesystem_type: source.clone(),
+        source,
+        mount_options: Vec::new(),
+        super_options: Vec::new(),
+    }];
+    let sweep = StagedSweep { cache: &cache, cache_path: root.as_path(), guid: guid(), boot: "this-boot", pin: &pin, calls: &calls };
+    let outcome = crate::staged_unmount::recover_a_staged_unmount(&sweep, root.join("slot").as_path(), 41);
+    assert_eq!(outcome, crate::staged_unmount::RecoveryOutcome::Finished { mount_id: 41 }, "{outcome:?}");
+    assert!(calls.ran(crate::staging_calls::StagingCall::Unmount));
+}

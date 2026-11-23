@@ -181,6 +181,30 @@ pub trait StagingCalls {
 }
 
 /// What:
+///  The kernel's `file_handle` with the bytes the kernel actually writes.
+/// Why:
+///  The `libc` crate declares `f_handle` as a zero-length array,
+///  so the struct it declares is eight bytes and a call writing a 12-byte handle
+///  writes past its end (undefined behaviour),
+///  while the reopen then copies zero bytes.
+///  This declaration carries the kernel's own 128-byte field and is cast to the
+///  libc type only at the two calls.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ours: FileHandle = { handleBytes: 128, handleType: 0, fHandle: new Uint8Array(128) };
+/// ```
+#[repr(C)]
+struct FileHandle {
+    /// The bytes the handle holds, and the buffer's size on entry.
+    handle_bytes: libc::c_uint,
+    /// The handle's type, which the kernel reports.
+    handle_type: libc::c_int,
+    /// The handle's bytes.
+    f_handle: [libc::c_uchar; super::staged_folder_record::MAXIMUM_HANDLE_BYTES],
+}
+
+/// What:
 ///  The release calls:
 ///  the kernel's own.
 /// Why:
@@ -202,7 +226,26 @@ impl StagingCalls for LiveStagingCalls {
         if bound != 0 {
             return Err(refused(StagingCall::Bind, std::io::Error::last_os_error()));
         }
-        return crate::fs_beneath::open_directory_crossing_one_mount(cache, name).map_err(|error| return refused(StagingCall::OpenBind, error));
+        // The open by name follows the topmost mount, so a mount the account stacked after the bind would be taken for
+        // the bind. The bind's own row names its parent, its source and its root; the descriptor must be on that row.
+        let cache_path: PathBuf = observed_path(cache).map_err(|error| return refused(StagingCall::OpenBind, error))?;
+        let cache_id: u64 = mount_id_of(cache).map_err(|error| return refused(StagingCall::Bind, error))?;
+        let table: Vec<MountFacts> = parse_mount_table(std::fs::read(MOUNTINFO_PATH).map_err(|error| return refused(StagingCall::MountTable, error))?.as_slice());
+        let cache_source: Option<&str> = table.iter().find(|facts| return facts.mount_id == cache_id).map(|facts| return facts.source.as_str());
+        let folder_path: PathBuf = cache_path.join(name);
+        let candidate = table
+            .iter()
+            .filter(|facts| return facts.mount_point == folder_path && facts.parent_id == cache_id && Some(facts.source.as_str()) == cache_source && facts.root != std::path::Path::new("/"))
+            .max_by_key(|facts| return facts.mount_id);
+        let Some(bind_row) = candidate else {
+            return Err(StagingCallRefusal { call: StagingCall::Bind, errno: libc::ENOENT, detail: format!("no row names the bind at {}", folder_path.display()) });
+        };
+        let opened: std::fs::File = crate::fs_beneath::open_directory_crossing_one_mount(cache, name).map_err(|error| return refused(StagingCall::OpenBind, error))?;
+        let opened_id: u64 = mount_id_of(&opened).map_err(|error| return refused(StagingCall::OpenBind, error))?;
+        if opened_id != bind_row.mount_id {
+            return Err(StagingCallRefusal { call: StagingCall::OpenBind, errno: libc::EBUSY, detail: format!("the topmost mount at {} is {opened_id}, and the bind this call made is {}", folder_path.display(), bind_row.mount_id) });
+        }
+        return Ok(opened);
     }
 
     fn make_private(&self, bind: &std::fs::File) -> Result<(), StagingCallRefusal> {
@@ -233,29 +276,26 @@ impl StagingCalls for LiveStagingCalls {
     }
 
     fn name_handle(&self, folder: &std::fs::File) -> Result<(i32, Vec<u8>), StagingCallRefusal> {
-        let mut handle: libc::file_handle = unsafe { std::mem::zeroed() };
-        handle.handle_bytes = super::staged_folder_record::MAXIMUM_HANDLE_BYTES as u32;
+        let mut handle: FileHandle = FileHandle { handle_bytes: super::staged_folder_record::MAXIMUM_HANDLE_BYTES as u32, handle_type: 0, f_handle: [0; super::staged_folder_record::MAXIMUM_HANDLE_BYTES] };
         let mut mount_id: libc::c_int = 0;
         let empty: CString = CString::new("").expect("no NUL in an empty path");
-        // SAFETY: `handle` is a live buffer of the size it declares, `mount_id` is this call's own, and the empty path outlives the call.
-        let named: libc::c_int = unsafe { libc::name_to_handle_at(folder.as_raw_fd(), empty.as_ptr(), &mut handle, &mut mount_id, libc::AT_EMPTY_PATH) };
+        // SAFETY: `handle` is a live buffer of the size it declares, `mount_id` is this call's own, and the empty path outlives the call; the cast is to the libc type the call takes, whose zero-length array is not the buffer.
+        let named: libc::c_int = unsafe { libc::name_to_handle_at(folder.as_raw_fd(), empty.as_ptr(), (&mut handle as *mut FileHandle).cast::<libc::file_handle>(), &mut mount_id, libc::AT_EMPTY_PATH) };
         if named != 0 {
             return Err(refused(StagingCall::NameHandle, std::io::Error::last_os_error()));
         }
-        let bytes: usize = usize::try_from(handle.handle_bytes).unwrap_or(0);
-        // SAFETY: `handle_bytes` is the length the call filled in `f_handle`, which is 128 bytes at its largest.
-        let found: &[u8] = unsafe { std::slice::from_raw_parts(handle.f_handle.as_ptr().cast::<u8>(), bytes) };
-        return Ok((mount_id, found.to_vec()));
+        let bytes: usize = usize::try_from(handle.handle_bytes).unwrap_or(0).min(super::staged_folder_record::MAXIMUM_HANDLE_BYTES);
+        return Ok((handle.handle_type, handle.f_handle[..bytes].to_vec()));
     }
 
     fn open_from_handle(&self, cache: &std::fs::File, handle_type: i32, handle: &[u8]) -> Result<std::fs::File, StagingCallRefusal> {
-        let mut owned: libc::file_handle = unsafe { std::mem::zeroed() };
-        owned.handle_bytes = u32::try_from(handle.len()).map_err(|_error| return StagingCallRefusal { call: StagingCall::OpenHandle, errno: libc::EINVAL, detail: String::from("the handle is longer than the kernel's") })?;
-        owned.handle_type = handle_type;
-        let length: usize = handle.len().min(owned.f_handle.len());
-        owned.f_handle[..length].copy_from_slice(&handle[..length]);
-        // SAFETY: `owned` is a live handle of the size it declares, and the descriptor is the caller's cache mount.
-        let opened: libc::c_int = unsafe { libc::open_by_handle_at(cache.as_raw_fd(), &mut owned, libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) };
+        if handle.len() > super::staged_folder_record::MAXIMUM_HANDLE_BYTES {
+            return Err(StagingCallRefusal { call: StagingCall::OpenHandle, errno: libc::EINVAL, detail: String::from("the handle is longer than the kernel's") });
+        }
+        let mut owned: FileHandle = FileHandle { handle_bytes: u32::try_from(handle.len()).unwrap_or(0), handle_type, f_handle: [0; super::staged_folder_record::MAXIMUM_HANDLE_BYTES] };
+        owned.f_handle[..handle.len()].copy_from_slice(handle);
+        // SAFETY: `owned` is a live handle of the size it declares, and the descriptor is the caller's cache mount; the cast is to the libc type the call takes.
+        let opened: libc::c_int = unsafe { libc::open_by_handle_at(cache.as_raw_fd(), (&mut owned as *mut FileHandle).cast::<libc::file_handle>(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) };
         if opened < 0 {
             return Err(refused(StagingCall::OpenHandle, std::io::Error::last_os_error()));
         }
