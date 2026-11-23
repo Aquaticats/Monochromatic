@@ -81,6 +81,9 @@ fn text_at_key(configuration: &str, key: &str) -> MemberReading {
 /// The file is there and unreadable.
 pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> {
     return match std::fs::read_to_string(path) {
+        // A file that is there and holds nothing is refused rather than read as a file that names nothing:
+        // the project's answer of 2026-11-22 says an empty file is not the same as no file.
+        Ok(text) if text.trim().is_empty() => Err(SourceRefusal::ConfigurationEmpty { path: path.to_path_buf() }),
         Ok(text) => Ok(Some(text)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(SourceRefusal::ConfigurationUnreadable { path: path.to_path_buf(), reason: error.to_string() }),
@@ -106,6 +109,9 @@ pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Re
     let Some(held) = document else {
         return the_one_mounted_checkout(mounts).map(|one| return one.mount_point).map_err(|refusal| return CheckoutRefusal::NotFound { refusal });
     };
+    if held.trim().is_empty() {
+        return Err(CheckoutRefusal::Empty);
+    }
     return match text_at_key(held, CHECKOUT_KEY) {
         MemberReading::Text(text) => {
             let checkout: PathBuf = PathBuf::from(text);

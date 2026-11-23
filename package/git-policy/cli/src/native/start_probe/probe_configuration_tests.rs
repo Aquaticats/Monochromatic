@@ -182,6 +182,22 @@ fn a_missing_file_is_no_refusal_and_an_unreadable_one_is() {
     assert_eq!(refusal.word(), "configuration-unreadable");
 }
 
+/// A file that is there and holds nothing is refused,
+/// and the message says an empty file is not the same as no file.
+#[test]
+fn an_empty_file_is_refused_and_says_it_is_not_the_same_as_no_file() {
+    let folder: PathBuf = crate::test_support::fixture("probe-configuration-empty");
+    let file: PathBuf = folder.join("git-worktree-clone-mounts.jsonc");
+    std::fs::write(file.as_path(), "").expect("the empty fixture configuration is written");
+    let refusal: SourceRefusal = read_configuration(file.as_path()).expect_err("an empty file is refused");
+    assert_eq!(refusal.word(), "configuration-empty");
+    let said: String = refusal.message(file.as_path());
+    assert!(said.contains("is empty"), "the message says the file is empty: {said}");
+    assert!(said.contains("an empty file is not the same as no file"), "the message says the difference: {said}");
+    let checkout_refusal: CheckoutRefusal = checkout_path(Some(""), &designed()).expect_err("an empty document tells no checkout");
+    assert_eq!(checkout_refusal.word(), "configuration-empty");
+}
+
 /// The file is read from disk and both names come from the same bytes.
 #[test]
 fn the_file_is_read_once_and_both_names_come_from_it() {

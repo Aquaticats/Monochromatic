@@ -366,6 +366,26 @@ fn a_file_that_is_there_and_unreadable_is_refused() {
     assert!(refusal.message().contains("could not be read"), "{}", refusal.message());
 }
 
+/// A file that is there and holds nothing is refused,
+/// and the message says an empty file is not the same as no file.
+#[test]
+fn an_empty_file_is_refused_and_says_it_is_not_the_same_as_no_file() {
+    let fixture: Fixture = Fixture::new("empty");
+    let file: PathBuf = fixture.write("");
+    let refusal: ConfigurationRefusal = read_configuration(file.as_path(), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET)))
+        .expect_err("an empty file is refused rather than read as a file that names nothing");
+    assert!(matches!(refusal, ConfigurationRefusal::Empty { .. }), "{refusal:?}");
+    let said: String = refusal.message();
+    assert!(said.contains("is empty"), "the message says the file is empty: {said}");
+    assert!(said.contains("an empty file is not the same as no file"), "the message says the difference: {said}");
+    assert!(said.contains("remove the file") || said.contains("is removed"), "the message names the way out: {said}");
+    assert!(!said.contains("not one JSONC document"), "an empty file is not worded as a broken one: {said}");
+    let whitespace: PathBuf = fixture.write("\n  \t\n");
+    let blank_refusal: ConfigurationRefusal = read_configuration(whitespace.as_path(), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET)))
+        .expect_err("a file of spaces is as empty as an empty one");
+    assert!(matches!(blank_refusal, ConfigurationRefusal::Empty { .. }), "{blank_refusal:?}");
+}
+
 /// The file is read from disk,
 /// so the release path and a control take the same route to the same parse.
 #[test]

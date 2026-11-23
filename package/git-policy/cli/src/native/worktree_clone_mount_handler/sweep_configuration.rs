@@ -289,6 +289,9 @@ pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn MountedData
 /// and a file that is there and unreadable.
 pub fn read_configuration(path: &Path, mounts: &dyn MountedDatasets) -> Result<SweepConfiguration, ConfigurationRefusal> {
     let document: Option<String> = match std::fs::read_to_string(path) {
+        // A file that is there and holds nothing is refused rather than read as a file that names nothing:
+        // the project's answer of 2026-11-22 says an empty file is not the same as no file.
+        Ok(text) if text.trim().is_empty() => return Err(ConfigurationRefusal::Empty { path: path.to_path_buf() }),
         Ok(text) => Some(text),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(ConfigurationRefusal::Unreadable { path: path.to_path_buf(), reason: error.to_string() }),

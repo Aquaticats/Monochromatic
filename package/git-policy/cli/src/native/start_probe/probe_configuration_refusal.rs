@@ -41,6 +41,12 @@ pub enum SourceRefusal {
         /// What the read answered.
         reason: String,
     },
+    /// The configuration file is there and holds nothing,
+    /// which is not the same as no file at all.
+    ConfigurationEmpty {
+        /// The path that was read.
+        path: PathBuf,
+    },
     /// The configuration file is not one JSONC document.
     ConfigurationUnparsable {
         /// The path that was read.
@@ -79,6 +85,7 @@ impl SourceRefusal {
     pub fn word(&self) -> &'static str {
         return match self {
             SourceRefusal::ConfigurationUnreadable { .. } => "configuration-unreadable",
+            SourceRefusal::ConfigurationEmpty { .. } => "configuration-empty",
             SourceRefusal::ConfigurationUnparsable { .. } => "configuration-unparsable",
             SourceRefusal::NameNotText { .. } => "name-not-text",
             SourceRefusal::NameRefused { .. } => "name-refused",
@@ -95,6 +102,10 @@ impl SourceRefusal {
         return match self {
             SourceRefusal::ConfigurationUnreadable { path, reason } => format!(
                 "the probe's source is not configured: {} could not be read ({reason}). Nothing was attached. Ways forward: make the file readable by root and run the probe again.",
+                path.display()
+            ),
+            SourceRefusal::ConfigurationEmpty { path } => format!(
+                "the probe's source is not configured: {} is empty, and an empty file is not the same as no file. Nothing was attached. Ways forward: remove the file so the probe finds its dataset by the design's own name, or write `{key}` in it.",
                 path.display()
             ),
             SourceRefusal::ConfigurationUnparsable { path, reason } => format!(
@@ -135,6 +146,9 @@ impl SourceRefusal {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CheckoutRefusal {
+    /// The file is there and holds nothing,
+    /// which is not the same as no file at all.
+    Empty,
     /// The file is not one JSONC document.
     Unparsable,
     /// The key is there and its value is not text.
@@ -153,6 +167,7 @@ impl CheckoutRefusal {
     /// The word the record carries for this cause.
     pub fn word(&self) -> &'static str {
         return match self {
+            CheckoutRefusal::Empty => "configuration-empty",
             CheckoutRefusal::Unparsable => "configuration-unparsable",
             CheckoutRefusal::NotText => "name-not-text",
             CheckoutRefusal::NotAbsolute => "name-refused",
@@ -165,6 +180,10 @@ impl CheckoutRefusal {
     pub fn message(&self, path: &Path) -> String {
         let key: String = format!("{START_PROBE_KEY}.{CHECKOUT_KEY}");
         return match self {
+            CheckoutRefusal::Empty => format!(
+                "the probe's checkout could not be told: {} is empty, and an empty file is not the same as no file. Ways forward: remove the file so the probe finds the mounted checkout dataset, or write `{key}` in it.",
+                path.display()
+            ),
             CheckoutRefusal::Unparsable => format!(
                 "the probe's checkout could not be told: {} is not one JSONC document. Ways forward: fix the file so it parses, or remove it so the probe finds the mounted checkout dataset.",
                 path.display()
