@@ -20,14 +20,16 @@ recorded in
 `doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`,
 and "What the project decided" says what each one changes here.
 
-This revision answers three reviews,
+This revision answers four reviews,
 all outside this repository:
 the gate review of `124ea5b573`
 (`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review.md`),
 the second pass over `3e34817184`
 (`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`)
-and the diff check of `f82f20ecab`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-diff-check.md`).
+the diff check of `f82f20ecab`
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-diff-check.md`)
+and the review after the project's answers of `1f7a0800fa`
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-after-the-owners-answers.md`).
 "Revisions" lists what each commit changed,
 and "What this revision rewrote" says which sections each review's findings turned over
 and which stand as the first version wrote them.
@@ -770,8 +772,10 @@ A removal of a managed clone does this,
 in the accepted order (proposal `:886` to `:900`):
 
 1. Prove the lineage and the candidate identities (proposal step 1),
-   and look for the mark on the origin snapshot the proof resolved,
-   before anything is written
+   and,
+   on a first run only,
+   look for the mark on the origin snapshot the proof resolved,
+   before the intent is written
    (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`,
    "A look before the unmount").
 2. Record the removal intent,
@@ -781,17 +785,32 @@ in the accepted order (proposal `:886` to `:900`):
 3. After the verified unmount,
    persist the destruction plan (proposal `:894` to `:896`).
 4. Require fresh root all-namespace verification and reprove lineage and candidate identities
-   immediately before each snapshot request (proposal `:896` to `:899`).
+   immediately before each snapshot request (proposal `:896` to `:899`),
+   and that reproof does not look:
+   it refuses a mark through the first check,
+   with the plan's history in its message.
 5. Send the snapshot request,
    or skip it for an empty set (proposal `:908`),
    and record its per-name outcomes in the plan.
 6. Enumerate the clone's snapshots again,
    then send the head destroy (proposal `:926`).
 
-The three refusal points therefore sit in three states:
-the look runs with the clone still mounted and nothing written;
-both checks run with the clone already unmounted,
-the intent already written and the plan already persisted.
+The three refusal points therefore sit in three states.
+The look runs once per removal,
+in step 1's proof of a first run,
+when the clone has no intent and no plan:
+the accepted order proves lineage again in three later places,
+the reproof of step 4 (proposal `:897` to `:898`),
+"before every chunk" (proposal `:918` to `:919`)
+and a resume (proposal `:963`,
+with the amended-plan rule rerunning "all lineage and unmount checks",
+`:922` to `:923`),
+and none of those proofs looks,
+because in each of them the intent and the plan exist and the plan may already name destroyed snapshots.
+Both checks run with the clone already unmounted,
+the intent already written and the plan already persisted,
+and they are what refuses a mark in every later proof,
+with the plan's history in the message.
 The first check runs after step 4's verification and reproof and before the plan rewrite that announces a request;
 the second after step 6's enumeration and before the plan rewrite that announces the head request
 (`head=requested` in the sibling destruction-plan design,
@@ -810,14 +829,36 @@ and the first decided check's state then arises only when the mark appears betwe
 (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`,
 "A look before the unmount").
 
-Where it runs:
-inside step 1's lineage proof,
+Where it runs,
+and where it does not:
+it runs once per removal,
+inside step 1's lineage proof of a first run,
 immediately after the proof resolves the clone's live `origin` and compares that snapshot's name,
 GUID and `createtxg` with the binding record's,
 and before the proof returns,
 so before step 2 writes the intent and before the unmount is requested
-(proposal `:869` to `:871`,
+(proposal `:854` to `:857`,
 `:886` to `:888`).
+It runs only when the clone has no intent and no plan.
+Every later proof leaves a mark to the two decided checks:
+the reproof of step 4 (proposal `:897` to `:898`),
+the proof before each chunk (`:918` to `:919`)
+and a resume (`:963`,
+`:922` to `:923`).
+The reason is the sentences the look's text makes:
+in each later proof the clone is unmounted,
+the intent stands and the plan exists,
+so a look there would print a state sentence that is false,
+a cause name that is false,
+and a history sentence that hides the snapshots the plan says were destroyed,
+which is the loss the project chose to keep visible at the second check.
+So on a rerun over a standing mark the look does not run,
+and the first check refuses with the plan's history in its message.
+A mark that appears after the first run's look is therefore refused by the first check on that run,
+by the next chunk's check,
+by the head check,
+or by the first check of the next run,
+according to when it appears.
 An identity the proof refuses never reaches the look:
 the look judges a mark only on the snapshot whose own reply proved it is the recorded origin.
 
@@ -839,17 +880,29 @@ and a mark read from an object the proof did not identify is never judged.
 What it prints:
 `OriginMarkedBeforeTheUnmount`,
 or the shared `MarkUnreadable`,
-with the template whose state sentence says the worktree is still mounted and nothing was written
-("The refusals").
+with form A of "The refusals".
+The owner's answer describes that state as "with the worktree still mounted and nothing written"
+(record,
+"A look before the unmount").
+The look reads no mount,
+so its message says the removal stopped before it took anything down and makes no claim about the mount;
+and the plan-record and origin-cleanup designs take the removal's per-slot claim at the removal's first step,
+before the proof,
+so the claim is the one write a refusal there comes after and it is the removal's,
+not a record of destruction
+("What a refusal leaves,
+and what the record keeps").
 
 How it is told apart from the first check:
 by the stage and by the cause's name.
-The look's message says the worktree is mounted at its slot and this removal has written nothing;
-the first check's says the clone is unmounted,
-the intent stands and the plan exists.
-Because the cause names differ,
+The look's message says the removal stopped before it took anything down and nothing is pending;
+the first check's says the clone is unmounted and the removal stays pending,
+with the cancel command as the way back for a removal that is not forced.
+Because the mark's two causes are named apart,
 a receipt,
-a control and `doctor` can say which of the three refused.
+a control and `doctor` can say which of the three refused by the mark;
+an unreadable mark shares one cause name,
+and only the state sentence says which point met it.
 
 What it costs,
 and what step 14 must offer:
@@ -1060,51 +1113,71 @@ in the idiom "The refusals" of the descriptor mount records
 (`package/git-policy/cli/SPEC.md:5834` to `:5840`;
 `sweep_clone_check.rs:206` to `:280`).
 The two checks also name the field that disagreed with the recorded and the live value,
-and what the destruction plan records as already destroyed;
+and what the removal has already destroyed;
 the look names no field of a plan,
 because no plan exists when it runs.
+A refusal's text is read by a person:
+it names no document and no field of a record,
+and it uses no word a person has not met in the message itself.
 
-One template,
-with the fields a control compares,
-covers every cause.
-Its state sentence and its way-back sentence depend on the refusal point,
-because the three run in different states.
+The cause decides which of three forms the text takes,
+because the sentences that are true differ by cause.
 
-At the look,
-which runs before anything is written:
+Form A,
+the look's,
+for `OriginMarkedBeforeTheUnmount` and for an unreadable mark at the look:
 
 ```text
 refusing to remove the ZFS worktree clone `<clone name>`: <the cause, with the object and the field>.
-This removal has not destroyed anything yet. This check changed nothing, and the worktree is still mounted at its
-slot: no removal intent and no destruction plan were written, so nothing is pending and there is nothing to
-cancel. Ways forward: <the reads and the acts a person has>.
+This removal has not destroyed anything yet. This check changed nothing and the removal stopped before it took
+anything down: nothing is pending and there is nothing to cancel. Ways forward: <the reads and the acts a person
+has>.
 ```
 
-At the first and second checks,
-which run with the clone already unmounted:
+Form B,
+a check's,
+for `OriginMarkedForDeferredDestroy` and for an unreadable mark at a check:
 
 ```text
 refusing to remove the ZFS worktree clone `<clone name>`: <the cause, with the object and the field>.
 <the history sentence>. This check changed nothing, and the clone is unmounted.
-The removal is pending; `cancel-worktree-removal <slot>` is the way back and reports any snapshot already
-destroyed. Ways forward: <the reads and the acts a person has>.
+The removal stays pending; `cancel-worktree-removal <slot>` is the way back for a removal that is not forced,
+and it reports any snapshot already destroyed. Ways forward: <the reads and the acts a person has>.
 ```
 
-The template claims only what the refusal point read and what the plan records:
+Form C,
+a check's,
+for a planned object that is not there or is not the planned one,
+and for a check that could not judge:
+
+```text
+refusing to remove the ZFS worktree clone `<clone name>`: <the cause, with the object and the field>.
+<the history sentence>. This check changed nothing, and it sent no request.
+<what this check could not compare, in the cause's own words>. The removal stays pending; putting the worktree
+back needs a person to reconcile that first, and `cancel-worktree-removal <slot>` reports the same mismatch
+rather than attaching anything. Ways forward: <the reads and the acts a person has>.
+```
+
+Each form claims only what its refusal point read,
+plus the two states the removal's own order produced:
 at the look,
-the one object of its read and the fact that nothing was written;
+before the removal has taken anything down;
 at the checks,
-the three objects of their reads and the tuples the plan names,
-plus the unmounted state the removal's own order produced (the intent and the unmount are step 2's,
-proposal `:886` to `:888`).
-It does not say that anything else stands,
-because the checks read three objects and a cause such as `CloneIsNotThePlannedOne` arises exactly where a planned
+after the unmount (proposal `:886` to `:888`).
+The look makes no claim about the mount,
+because it reads no mount:
+a slot whose clone somebody else unmounted,
+with no removal under way,
+is a first run the look would otherwise
+misdescribe.
+Neither form claims that anything else stands,
+because a check reads three objects and a cause such as `CloneIsNotThePlannedOne` arises exactly where a planned
 object is not what its name says any more.
 The Git registration is the removal's own step 1 read and is not repeated here.
 The look always prints the first form of the history sentence,
 because no plan exists when it runs.
 
-The history sentence comes from the destruction plan's recorded outcomes,
+The history sentence comes from the plan's recorded outcomes,
 never from which call site reached the check,
 so it is true on a resumed removal and at a later chunk's check:
 - a plan that records no destroyed tuple says
@@ -1113,67 +1186,85 @@ so it is true on a resumed removal and at a later chunk's check:
   `This removal has already destroyed <the names, comma separated> (in this run or an earlier one), and they do not
   come back.`
 
-The same template covers both check points.
+The same history sentence covers both check points.
 What differs between a first refusal and a later one is only what the plan records,
 so no sentence claims "this run" did or did not delete something,
 and the look says outright that this removal has destroyed nothing,
 because it cannot have:
-it ran before the intent was written.
+it ran before the removal wrote anything of its own beyond the per-slot claim it takes at its first step.
 `cancel-worktree-removal` is step 17's command (implementation plan `:1958`),
 so a control compares the name as a fixed string,
 and a refusal may name a command the build does not yet carry.
+Whether a forced removal may be cancelled at all is open in the forced-removal record,
+which is why form B scopes the sentence to a removal that is not forced.
 
 The causes,
 each with the object and field the message names:
-
 - `OriginMarkedBeforeTheUnmount`:
   the origin snapshot is marked,
-  judged by the look inside the proof,
-  and the message names `dds_num_clones` and `userrefs` and what they mean (F9,
-  F10,
-  F17).
+  judged by the look inside the proof;
+  form A.
 - `OriginMarkedForDeferredDestroy`:
   the origin snapshot is marked,
-  judged by one of the two checks,
-  with the same numbers in the message.
+  judged by one of the two checks;
+  form B.
+  Both name `dds_num_clones` and `userrefs` and what they mean (F9,
+  F10,
+  F17).
   The two causes are one state at two points;
   they are named apart so a receipt,
   a control and `doctor` can say which point refused.
 - `PlanIncomplete`:
-  the destruction plan does not carry the field named,
-  so no object is proven and nothing is judged.
+  the plan does not carry the field named,
+  so no object is proven and nothing is judged;
+  form C.
 - `CloneGone`:
-  the planned clone is not there (the kernel answered `ENOENT`).
+  the planned clone is not there (the kernel answered `ENOENT`);
+  form C.
 - `CloneIsNotAFilesystem`:
-  the object at the clone's name is not a filesystem or is a snapshot.
+  the object at the clone's name is not a filesystem or is a snapshot;
+  form C.
 - `CloneIsNotThePlannedOne`:
-  `clone_guid` differs from the plan's.
+  `clone_guid` differs from the plan's;
+  form C.
 - `CloneHasNoOrigin`:
-  the clone reports no origin.
+  the clone reports no origin;
+  form C.
 - `CloneOriginDiffers`:
-  the clone's live origin is not `origin_snapshot_name`.
+  the clone's live origin is not `origin_snapshot_name`;
+  form C.
 - `OriginDatasetIsNotThePlannedOne`:
-  the origin dataset's GUID differs from the plan's.
+  the origin dataset's GUID differs from the plan's;
+  form C.
 - `OriginDatasetGone`:
-  the origin dataset is not there.
+  the origin dataset is not there;
+  form C.
 - `OriginDatasetIsNotAFilesystem`:
   the object at the origin dataset's name is not a filesystem,
-  so the plan's dataset identity cannot be compared.
+  so the plan's dataset identity cannot be compared;
+  form C.
 - `OriginIsNotASnapshot`:
-  the object at the origin snapshot's name is not a snapshot.
+  the object at the origin snapshot's name is not a snapshot;
+  form C.
 - `OriginSnapshotIsNotThePlannedOne`:
-  `origin_snapshot_guid` differs from the plan's.
+  `origin_snapshot_guid` differs from the plan's;
+  form C.
 - `OriginSnapshotCreatetxgDiffers`:
-  the origin snapshot's `createtxg` differs from the plan's.
+  the origin snapshot's `createtxg` differs from the plan's;
+  form C.
 - `OriginSnapshotGone`:
   the origin snapshot is not there,
-  so its mark cannot be judged.
+  so its mark cannot be judged;
+  form C.
 - `MarkUnreadable`:
   the reply has no `defer_destroy`,
   or its value is not 0 or 1,
   or the property list is missing,
   or the start-time gate refused raw requests,
   or the device could not be opened.
+  It takes the form of the point that met it:
+  form A at the look,
+  form B at a check.
   This one never falls through to "not marked":
   an unreadable mark is not an off mark (F13),
   and the property read's own words say which state it found
@@ -1191,25 +1282,23 @@ and the message names the plan's tuple and says the settle rules of the resume o
 The check never proceeds over a gone object,
 because the request that follows would act on a name nobody proved.
 
-Three full messages,
-one per refusal point,
-in the order the points run.
+Four full messages.
 The look's:
 
 ```text
 refusing to remove the ZFS worktree clone `monochromatic-git-worktree-clone-datasets/fix-flaky-test`: its origin
 snapshot `monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` is marked for deferred destroy
 (`defer_destroy` reads 1), and the kernel reports 1 clone of it and 0 user holds, so destroying this clone destroys
-that snapshot in the same transaction. This removal has not destroyed anything yet. This check changed nothing, and
-the worktree is still mounted at its slot: no removal intent and no destruction plan were written, so nothing is
-pending and there is nothing to cancel. Ways forward: `zfs get -H -o value defer_destroy
-monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` and `zfs holds
+that snapshot in the same transaction. This removal has not destroyed anything yet. This check changed nothing and
+the removal stopped before it took anything down: nothing is pending and there is nothing to cancel. Ways forward:
+`zfs get -H -o value defer_destroy monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` and `zfs holds
 monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` show the mark and the holds. The mark cannot be
 cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's
-destruction and destroy the clone yourself, or you clone that snapshot elsewhere first, which pins it, and then
-destroy the clone. Either way, run the removal again once the clone is gone: it is meant to finish the removal
-then, and the worktree stays usable at its slot until you do. If neither is right for you, leave the slot and ask
-the administrator.
+destruction and destroy the clone yourself, which takes the worktree's files with it, or you clone that snapshot
+elsewhere first, which pins it, and then destroy the clone. Either way, run the removal again once the clone is
+gone. If the marked snapshot went with the clone, that run can settle what is left once it proves no replacement
+stands at the slot. If you kept the snapshot under a new clone, nothing recorded covers this slot, and an
+administrator has to reconcile it.
 ```
 
 The first check's,
@@ -1220,17 +1309,19 @@ refusing to remove the ZFS worktree clone `monochromatic-git-worktree-clone-data
 snapshot `monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` is marked for deferred destroy
 (`defer_destroy` reads 1), and the kernel reports 1 clone of it and 0 user holds, so destroying this clone destroys
 that snapshot in the same transaction. This removal has not destroyed anything yet. This check changed nothing, and
-the clone is unmounted. The removal is pending; `cancel-worktree-removal fix-flaky-test` is the way back and
-reports any snapshot already destroyed. Ways forward: `zfs get -H -o value defer_destroy
-monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` and `zfs holds
+the clone is unmounted. The removal stays pending; `cancel-worktree-removal fix-flaky-test` is the way back for a
+removal that is not forced, and it reports any snapshot already destroyed. Ways forward: `zfs get -H -o value
+defer_destroy monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` and `zfs holds
 monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` show the mark and the holds. The mark cannot be
 cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's
-destruction and destroy the clone yourself, or you clone that snapshot elsewhere first, which pins it, and then
-destroy the clone. Either way, run the removal again once the clone is gone: it is meant to finish the removal
-then. If neither is right for you, leave the slot and ask the administrator.
+destruction and destroy the clone yourself, which takes the worktree's files with it, or you clone that snapshot
+elsewhere first, which pins it, and then destroy the clone. Either way, run the removal again once the clone is
+gone. If the marked snapshot went with the clone, that run is meant to settle what is left, after proving no
+replacement stands at the slot. If you kept the snapshot under a new clone, nothing recorded covers this slot, and
+an administrator has to reconcile it.
 ```
 
-and the second check's,
+The second check's,
 with a plan that recorded two destroyed snapshots:
 
 ```text
@@ -1239,9 +1330,23 @@ snapshot `monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` is mark
 (`defer_destroy` reads 1), and the kernel reports 1 clone of it and 0 user holds, so destroying this clone destroys
 that snapshot in the same transaction. This removal has already destroyed `fix-flaky-test@manual-2026-11-21` and
 `fix-flaky-test@sanoid-hourly-2026-11-22` (in this run or an earlier one), and they do not come back. This check
-changed nothing, and the clone is unmounted. The removal is pending; `cancel-worktree-removal fix-flaky-test` is
-the way back and reports any snapshot already destroyed. Ways forward: as for the refusal above, and the loss named
-here is the cost already paid.
+changed nothing, and the clone is unmounted. The removal stays pending; `cancel-worktree-removal fix-flaky-test`
+is the way back for a removal that is not forced, and it reports any snapshot already destroyed. Ways forward: as
+for the refusal above, and the loss named here is the cost already paid.
+```
+
+And form C,
+for a planned clone that is not there:
+
+```text
+refusing to remove the ZFS worktree clone `monochromatic-git-worktree-clone-datasets/fix-flaky-test`: the planned
+clone is not there, and the kernel answered that no such dataset exists. This removal has already destroyed
+`fix-flaky-test@manual-2026-11-21` and `fix-flaky-test@sanoid-hourly-2026-11-22` (in this run or an earlier one),
+and they do not come back. This check changed nothing, and it sent no request. Nothing this removal recorded about
+that clone can be compared any more. The removal stays pending; putting the worktree back needs a person to
+reconcile that object first, and `cancel-worktree-removal fix-flaky-test` reports the same mismatch rather than
+attaching anything. Ways forward: an administrator's recovery, after which a removal of this slot can start again,
+and `doctor` names the slot and what this removal recorded.
 ```
 
 A refusal prints no destructive command.
@@ -1251,7 +1356,7 @@ whether a wrapper command should ever destroy a marked origin is left alone by t
 The `doctor` wording that repeats a refusal is step 18's,
 not this design's (F19).
 
-The check writes nothing,
+The check writes nothing of its own,
 so no refusal can leave half a record,
 and there is no lock to take (rule `NLK`).
 
@@ -1260,17 +1365,27 @@ and there is no lock to take (rule `NLK`).
 The project decided all three on 2026-11-22
 (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
 
-The look's refusal leaves the machine as it found it.
-It runs before the intent is written,
+The look's refusal takes nothing down and writes no intent and no plan.
+It runs before the intent is written and before any unmount is requested,
 so nothing is pending,
 no plan exists,
-nothing was written,
-and the worktree is still mounted at its slot and still usable.
-No record is kept,
-because there is none to keep,
-and the next removal starts from the top.
-The cancel command has nothing to cancel,
-and the look's message says exactly that.
+and the removal has not taken anything down.
+The one thing the removal has written by then is its per-slot claim,
+which the plan-record design places at the removal's first step,
+before the proof:
+its step 1 is "the claim and the proof:
+no plan is written"
+(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+"The order",
+`:1055` to `:1084`),
+and a claim is the removal's,
+not a record of what it destroyed.
+The look's message therefore says that nothing is pending and nothing is to cancel,
+and it makes no claim about the mount,
+which it does not read.
+No record of destruction is kept,
+because the look runs before any record of destruction exists,
+and the cancel command has nothing to cancel.
 
 A refusal at either check keeps the removal pending.
 The clone stays unmounted,
@@ -1295,17 +1410,21 @@ The record's own words:
 Nothing about any of the three rewrites the intent,
 reattaches the clone,
 unlinks the plan or removes a registration.
-The one case in which a removal remounts the clone by itself is a removal without `--force` whose scan sees a
-holder:
-it "stops before any snapshot is deleted,
-attaches the clone at its slot again,
-and reports the holder"
+The one family of cases in which a removal remounts the clone by itself is a holder's,
+seen by the removal's scan
+or blocking its unmount:
+a scan's holder makes the removal "stop before any snapshot is deleted,
+attach the clone at its slot again,
+and report the holder"
 (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
 "What a removal without `--force` does when its scan sees a holder").
 None of these three refusals is that case,
 and the deferred-destroy record says why:
 "a holder goes away by itself and a mark does not"
 ("What a refusal at the first check leaves").
+The busy-unmount cancellation (proposal `:1357` to `:1359`,
+`:1492` to `:1498`) is the other holder case,
+and no refusal here is it either.
 
 The destruction-plan design still removes a plan only after a completed removal's settle
 (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
@@ -1356,6 +1475,12 @@ the snapshot is the add's own,
 and the add was going to destroy it anyway.
 The add's fallback has to treat that one `ENOENT` as done,
 and how it reports that is that design's to say.
+A marked snapshot that another clone or a hold pins does not go with the clone:
+the add's own destroy of it answers `EEXIST` or `EBUSY` (F18),
+the snapshot stands,
+and the add reports what it could not destroy rather than claiming a clean fallback.
+Either way the add destroys nothing of the person's,
+and the checks judge none of it.
 
 ### How a person finishes a refused removal
 
@@ -1365,59 +1490,59 @@ So while the mark stands the wrapper refuses every attempt at that slot,
 and only these things can then happen:
 
 - The person leaves it as it is.
-  After a refusal at the look the worktree is still mounted at its slot and nothing was written,
-  so leaving it costs the removal nothing:
-  the slot keeps working and no record of a removal exists.
+  After a refusal at the look the removal has taken nothing down and written no record of destruction,
+  so the slot keeps whatever state it had and the next removal starts with its first proof again.
   After a refusal at either check the worktree is unmounted and out of use until someone takes one of the ways
   below.
 - The person accepts the destruction.
   Outside the wrapper they destroy the clone (`zfs destroy` of its remaining snapshots,
   then of the head,
   or `zfs destroy -r` of the clone),
-  which reaps the marked origin in the same transaction (F10).
-  From the look's state the clone is still mounted,
-  so they take it down first;
+  which reaps the marked origin in the same transaction (F10) and takes the worktree's files with it.
+  From the look's state the removal has not unmounted anything,
+  so they take the clone down first if it is mounted;
   from either check's state it is already unmounted.
-  From the look's state there is also no plan and nothing to settle:
-  once the mark is dealt with,
-  the next removal starts from the top.
-  From a check's state,
-  the clone's own intent property went with the clone,
-  and the plan still records its head as present,
-  so what completes this removal is a later run settling a plan whose head it can no longer find.
-  The plan record
-  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-  read at `76849b8d9b`)
-  has no stated rule for that case:
-  its finish pass acts only on a plan whose head is `gone`
-  (`:1627` to `:1637`),
-  its worked example of the head-gone path is a plan whose head is `requested`
-  (`:1436` to `:1440`),
-  and its head-present path refuses a record that disagrees with the live clone
-  (`:1353` to `:1365`).
-  So this design does not describe the completion.
-  It asks that design to state which path a plan takes when the plan says the head is present and the clone does
-  not answer,
-  and "Dependencies on sibling designs" carries the request.
-  Until it does,
-  a refusal promises only that running the removal again once the clone is gone is meant to finish
-  the removal.
+  What settles the slot afterwards depends on what is left:
+  - the accepted sentence for a removal whose recorded clone and origin are both gone is that it
+    "can settle a missing registration only after proving there is no replacement"
+    (proposal `:460` to `:461`),
+    and this completion leaves exactly that state;
+  - the plan record has no rule for a plan that says its head is present when the clone does not answer
+    (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+    read at `b4dc758a76`:
+    its finish pass acts only on a plan whose head is `gone`,
+    `:1751` to `:1754`;
+    its worked example of the head-gone path is a plan whose head is `requested`,
+    `:1529` to `:1553`;
+    its head-present path refuses a record that disagrees with the live clone),
+    so the checks' state needs that design to state one;
+  - and a registration whose clone is gone while its origin stands,
+    which is the second completion below,
+    is the case that sentence does not cover and no other record does.
+  So this design settles neither completion:
+  it asks the plan record to state the first path and the plan and binding designs to say what finishes a
+  standing-origin registration,
+  and the messages promise only the accepted sentence's "can settle",
+    after proving no replacement stands at the
+  slot.
 - The person keeps the history.
   Outside the wrapper they first clone the marked snapshot under another name,
   which pins it (F21),
   and then destroy the slot's clone the same way.
   The marked snapshot survives under the new clone,
-  and this removal settles exactly as the one above.
+  and the slot is then the standing-origin case the bullet above names:
+  the recorded clone is gone while the recorded origin stands,
+  and nothing recorded says what settles it.
 - The person cancels the removal with `cancel-worktree-removal <slot>`,
   which is the sibling's design,
   and leaves the slot unmounted or reattached as that design's checked reattach decides.
   The mark still stands,
   so a later removal attempt refuses again until one of the first two happens.
 
-The three messages say these two completions,
+The four messages say these two completions,
 the cancel command at the two checks,
-and at the look the fact that nothing is pending and the worktree still usable;
-the checks' second message repeats that the loss is already paid.
+and at the look the fact that nothing is pending and nothing was taken down;
+the second check's message repeats that the loss is already paid.
 The wrapper itself never finishes a removal over a marked origin:
 the record does not decide that the wrapper may ("What the record does not decide").
 
@@ -1514,10 +1639,28 @@ and this design does not design:
 
 ### What each build step builds
 
-- Step 15 builds the function,
+- Step 14 builds the proof and leaves one named hook at the place the proof has the origin snapshot's reply in
+  hand,
+  immediately after it resolves that snapshot's identity and before the intent is written
+  ("The look before the unmount").
+  The hook proceeds when nothing judges it,
+  because step 15 depends on step 14 in the implementation plan (`:1858` to `:1860`),
+  so step 14 cannot call code step 15 builds.
+  Step 14's controls cover the hook's place in the order:
+  it runs before the intent write and before the unmount request,
+  and a hook with no judge refuses nothing and hands the reply on.
+- Step 15 builds the look and places it inside step 14's hook,
+  and step 15's controls cover the judgement:
+  a marked origin refuses there,
+  an unreadable mark refuses there,
+  an identity the proof refused never reaches it,
+  and it runs once,
+  not in step 4's reproof,
+  in a chunk's reproof or on a resume,
+  which the controls for those three later proofs assert.
+  Step 15 also builds the function,
   the three reads,
   the exported `origin_mark`,
-  the look that step 14 calls,
   the plan's field requirements as a refusal,
   the causes and the refusal words,
   what each refusal leaves,
@@ -1526,12 +1669,6 @@ and this design does not design:
   because the implementation plan's step 15 builds "What each refusal prints,
   and whether a refusal keeps the removal record"
   (`:1818` to `:1822`).
-- Step 14 places the look inside its lineage proof,
-  immediately after it resolves the origin snapshot and before the intent is written,
-  and hands the look the reply that read the snapshot's GUID and `createtxg`
-  ("The look before the unmount").
-  Step 14 builds the proof,
-  so where the look sits and what reply it gets are step 14's to place and step 15's to judge.
 - Step 16 places both calls:
   one before each snapshot request,
   each chunk included
@@ -1545,6 +1682,7 @@ and this design does not design:
   that writes `<path>.ready` and waits for `<path>.go` at the phase `<path>.at` names
   (`before-first-check` or `before-head-check`),
   bounded by the removal's own deadline,
+  which the plan sizes later and no record sizes today,
   and recording a wait that expired rather than honouring it.
   Building it widens that feature's own comment in `package/git-policy/cli/Cargo.toml:71` to `:75`,
   which today names the clone fence alone.
@@ -1621,10 +1759,10 @@ which already builds a `DatasetIdentity` by hand.
    `OriginDatasetIsNotAFilesystem`,
    `OriginIsNotASnapshot`).
 9. `an_incomplete_plan_names_the_field_and_deletes_nothing`.
-10. `every_cause_prints_the_template_with_its_object_the_field_and_the_ways_forward`:
+10. `every_cause_prints_its_form_with_the_object_the_field_and_the_ways_forward`:
     one message per cause,
-    compared against the template and the fields,
-    at either call site.
+    compared against the form its cause takes and the fields it names,
+    at the point that judges it.
 11. `the_history_sentence_follows_the_plans_outcomes`:
     a plan with no outcome prints "has not destroyed anything yet",
     one with two destroyed tuples names both,
@@ -1656,6 +1794,40 @@ which already builds a `DatasetIdentity` by hand.
     the fixture records the call order of the head step,
     the enumeration before the check,
     and the plan rewrite announcing `head=requested` after it.
+19. `a_marked_origin_refuses_at_the_look_before_anything_is_taken_down`:
+    the mark reads 1 on the origin snapshot the proof resolved,
+    the verdict is `Refused` with `OriginMarkedBeforeTheUnmount`,
+    and the fixture records that the intent write,
+    the plan's first write,
+    the unmount request and every snapshot request were never called.
+20. `an_unreadable_mark_at_the_look_refuses_before_anything_is_taken_down`:
+    an absent key,
+    a text value,
+    a missing property list and a gate refusal each produce `MarkUnreadable` at the look,
+    and the same four calls are never recorded.
+21. `an_identity_the_proof_refuses_never_reaches_the_look`:
+    the proof refuses `CloneIsNotThePlannedOne` and the fixture records that the look was never called.
+22. `the_step_four_reproof_does_not_look`:
+    a plan,
+    a mark reading 1 and step 4's reproof;
+    the look is never called,
+    and the first check refuses with the plan's history sentence.
+23. `a_chunk_reproof_does_not_look`:
+    two chunks,
+    a mark set before the second chunk's reproof;
+    the look is never called,
+    and the second chunk's check refuses.
+24. `a_rerun_over_a_standing_mark_refuses_at_the_first_check_with_the_plans_names`:
+    a plan recording two destroyed tuples and a mark reading 1;
+    the look is never called,
+    the first check refuses,
+    and the message names both tuples and never says "has not destroyed anything yet".
+25. `each_cause_prints_the_form_that_is_true_for_it`:
+    form A at the look makes no claim about the mount and says nothing is pending;
+    form B at a check says the clone is unmounted and names the cancel command for a removal that is not forced;
+    form C for `CloneGone` says the planned clone is not there and that the cancel command reports the same
+    mismatch rather than attaching anything,
+    and the three texts share no sentence that is false for its cause.
 
 ### The races, each forced without timing luck
 
@@ -1711,21 +1883,9 @@ Not forced and not claimed:
 it is L4,
 and the measured arms of [VM item 12][vm-12] are its record.
 
-19. `a_marked_origin_refuses_at_the_look_with_nothing_written`:
-    the mark reads 1 on the origin snapshot the proof resolved,
-    the verdict is `Refused` with `OriginMarkedBeforeTheUnmount`,
-    and the fixture records that the intent write,
-    the plan's first write,
-    the unmount request and every snapshot request were never called.
-20. `an_unreadable_mark_at_the_look_refuses_with_nothing_written`:
-    an absent key,
-    a text value,
-    a missing property list and a gate refusal each produce `MarkUnreadable` at the look,
-    and the same four calls are never recorded.
-
 ### Controls that need a guest
 
-21. `a_marked_snapshot_reports_the_mark_and_an_unmarked_one_does_not`,
+26. `a_marked_snapshot_reports_the_mark_and_an_unmarked_one_does_not`,
     in `package/zfs/request-to-openzfs-kernel-device/src/kernel_device/live_read_tests.rs`:
     the identity read on a snapshot before a deferred destroy reads 0,
     after it reads 1,
@@ -1733,7 +1893,7 @@ and the measured arms of [VM item 12][vm-12] are its record.
     and `dds_num_clones` follows F9's meaning.
     It runs through the package's e2e recipe like the other `#[ignore]` live controls
     (`live_read_tests.rs:120` to `:121`).
-22. The removal arms of M3 below,
+27. The removal arms of M3 below,
     in a new guest recipe under `package/git-policy/cli/e2e/`,
     written and first run by step 16,
     and driven the way `mount-git-worktree-clone-datasets-guest.ts` drives the step 8 arms.
@@ -1762,7 +1922,7 @@ Where OpenZFS's programs live in the guest:
 the step 8 guest recipe keeps the 2.4.4 userspace at `/opt/openzfs-2.4.4`
 and runs every pool command with
 `/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/sbin:/usr/sbin:/bin:/usr/bin` on its `PATH`
-(`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts:104` to `:105`,
+(`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts:105` to `:106`,
 `:291`),
 so a probe that runs `zfs` through `sudo` passes that `PATH` in the `env` list rather than relying on what the
 guest's sudoers keeps.
@@ -1871,7 +2031,14 @@ each part with what says so:
   usable root-owned status and results folders,
   and a current handler readiness report for this pool,
   checkout and boot,
-  because the add's preflight verifies each of them (proposal `:365` to `:374`).
+  because the add's preflight verifies each of them (proposal `:365` to `:374`),
+  together with the checkout mount and the caller's visibility,
+  `/dev/zfs` access,
+  the ABI gate,
+  effective grants,
+  the slot parent's identity and owner,
+  and mount propagation,
+  which the same list names (`:365` to `:371`).
   The handler's install paths are
   `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
   and the unit that starts it (`package/git-policy/cli/SPEC.md:266`,
@@ -1940,7 +2107,11 @@ zfs get -H -o value defer_destroy "$origin"
 # module/zfs/dsl_deleg.c:574 to :582).
 # It marks instead of destroying because the origin still has one clone, so two children
 # (module/zfs/dsl_destroy.c:322 to :333); a snapshot with none would fall to the destroy below that branch.
-sudo --user probe zfs destroy -d "$origin"
+# The guest PATH goes through env, as the header says a probe that runs zfs through sudo must pass it
+# (the recipe's constant, mount-git-worktree-clone-datasets-guest.ts:106).
+sudo --user probe env \
+    PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/sbin:/usr/sbin:/bin:/usr/bin \
+    zfs destroy -d "$origin"
 zfs get -H -o value defer_destroy "$origin"
 # the removal's own order by hand: the clone's own snapshots, then the head (proposal :894 to :900)
 zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/m1-clone@manual-2026-11-21
@@ -1970,7 +2141,7 @@ and L5's sentence about the message would need rewording.
 
 ### M2: the mark read through the binding
 
-Control 19,
+Control 26,
 in the crate's own pool rather than M0a's,
 because the crate's live test makes the pool it needs (`live_read_tests.rs:127`).
 It shows that the field the check reads is the field the kernel fills,
@@ -1996,6 +2167,8 @@ then the pool image removed and `userdel --remove probe`,
 because every arm uses the same pool name and the same slot name,
 so a second round would otherwise collide.
 Each arm states whether it is a control (an assertion that must hold) or a reach report (counts).
+One arm reruns a removal that an earlier arm left pending,
+because the owner's answers make that the normal state after a refusal over a standing mark.
 
 #### The pause route
 
@@ -2053,15 +2226,23 @@ and before the proof returns,
 so before step 2 writes the intent and requests the unmount (proposal `:886` to `:888`),
 before step 3 writes the plan and before any snapshot request.
 
+This is a first run only:
+the clone has no intent and no plan when the proof runs,
+which is the one state the look runs in
+("The look before the unmount").
+
 Pass:
 the message in its look form
-(the worktree still mounted at its slot,
-nothing written,
-nothing pending and nothing to cancel),
+(the removal has taken nothing down,
+nothing is pending and nothing is to cancel,
+and no claim about the mount),
 the exit status,
-`findmnt --mountpoint <slot>` still naming the slot,
+`findmnt --mountpoint <slot>` still naming the slot
+(the arm's own read,
+not the message's),
 the desired-state property still reading what the add left,
 no plan in the plan folder,
+the removal's per-slot claim present,
 the registration listed,
 the clone and both its snapshots still listed,
 the origin and the marked snapshot still listed,
@@ -2282,6 +2463,51 @@ because the record's other windows are reached through the pause.
 Bound:
 300 s for the removal and 300 s for the watcher.
 
+#### M3f: the rerun over a standing mark (control)
+
+The state it needs:
+the state M3d leaves,
+on the same fixture,
+before its teardown:
+the clone's own snapshots destroyed,
+the plan recording their outcomes,
+the head still present,
+the intent standing,
+and the origin marked.
+
+The one action:
+run the removal again,
+as in M3b.
+
+The refusal it expects,
+and the step that produces it:
+step 1's proof runs and does not look,
+because the clone has an intent and a plan,
+which is the rule of "The look before the unmount";
+step 4's reproof does not look either;
+and the first check refuses with `OriginMarkedForDeferredDestroy`
+before the plan's `requested` rewrite and before any snapshot request,
+with the message naming the two destroyed snapshots the plan records,
+and never saying that the removal has destroyed nothing.
+
+Pass:
+that message,
+the exit status,
+the plan's bytes unchanged because a refusal rewrites nothing,
+the head still present with its own snapshots gone,
+the origin and the marked snapshot still listed,
+the intent still standing,
+and no head request issued.
+It shows that the loss stays visible on a rerun,
+which is what the owner's second answer chose.
+Bounds:
+300 s for the removal,
+and no pause,
+because no look runs.
+The same rerun after M3b is the same arm with the other history sentence:
+nothing had been destroyed there,
+so the message says so.
+
 ### M4: the cost (specification)
 
 Written and first run by step 16,
@@ -2307,7 +2533,9 @@ the ratio of the two arms' wall times with its range,
 never an absolute time (rule `TVC`).
 It sizes no shipped number (L7).
 Bound:
-the round's own deadline.
+300 s per removal,
+and the interleaving order,
+which the runner records in the log beside the two arms' times.
 
 ## Choices this design marks for the project's veto
 
@@ -2409,6 +2637,11 @@ How the mark's absence is read.
 Ranking:
   adopted over the alternative,
 because a check that cannot read its one field has not checked.
+
+V4 was the record rule,
+which the project decided on 2026-11-22;
+its alternatives are in "What was not chosen",
+and the numbering below is left as it was so old references still find their entry.
 
 V5.
 Whether the check writes anything.
@@ -2666,7 +2899,8 @@ each with the reason this design does not carry it:
   and the same removal refuses again while the mark stands.
 - Keeping exactly the two decided checks.
   The project added the look,
-  so a mark present when the person runs the removal is now refused with the worktree mounted and nothing written.
+  so a mark present when the person runs the removal is now refused before the removal unmounts anything,
+  which is the record's "with the worktree still mounted and nothing written".
 - Cancelling and remounting with the record kept,
   and cancelling with the record dropped,
   at the second check.
@@ -2698,7 +2932,7 @@ the quoted text is the text at that commit.
 - "Where a removal's persisted destruction plan lives,
   and its format"
   (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-  read at `76849b8d9b`):
+  read at `b4dc758a76`):
   it places every field A1 needs,
   including `originDatasetGuid`,
   and says those are "the identities the deferred-destroy check compares with live";
@@ -2715,24 +2949,42 @@ the quoted text is the text at that commit.
   and it says "A `head=gone` plan has no live intent by construction" and is never refused for that reason,
   while a plan with no live intent whose head still stands is refused.
   Its finish pass acts only on a plan whose head is `gone`
-  (`:1627` to `:1637`),
-  and its own words for the head-gone path are about a plan whose head is `requested`
-  (`:1436` to `:1440`),
+  (`:1751` to `:1754`,
+  in the section at `:1733`),
+  and its worked example of the head-gone path is a plan whose head is `requested`
+  (`:1549` to `:1553`),
   while its head-present path refuses a record that disagrees with the live clone
-  (`:1353` to `:1365`).
+  (`:1465` to `:1473`).
   A person's `zfs destroy` of the clone leaves a plan that says the head is present,
   and that design states no rule for it,
   so completion after an out-of-wrapper destroy is a requirement this design puts on that design:
   say which path a plan takes when it says the head is present and the clone does not answer.
   "How a person finishes" relies on that answer and describes no completion of its own.
+  A second request goes to that design and to the binding design together:
+  say what settles a registration whose recorded clone is gone while its recorded origin stands,
+  which is the state a person leaves when they pin the marked snapshot under a new clone before destroying the
+  slot's clone.
+  No accepted sentence covers it;
+  the nearest is proposal `:460` to `:461`,
+  "A removal whose recorded clone and origin are already gone can settle a missing registration only after
+  proving there is no replacement",
+  which is exactly the case where the origin went too.
 - "What a cancelled,
   timed-out or killed removal leaves,
   and what the cancel command proves and does"
   (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
-  read at `42f01440f3`):
+  read at `1fee10f2ce`):
   its A9 says "The deferred-destroy design keeps the intent and the plan on every refusal,
   and rewrites neither",
-  and its points 12 and 15 are the two refusal states with that assumption.
+  and its points 13 and 16 are the two refusal states with that assumption.
+  It also says to "Run `cancel-worktree-removal <slot>` after a deferred-destroy refusal",
+  that the refusal "keeps the intent and the plan",
+  and that "the command's proof accepts it:
+  it rewrites the intent,
+  attaches,
+  and reports that nothing was
+  destroyed or which tuples were" (`:1703` to `:1710`).
+  That is what form B's cancel sentence promises for a removal that is not forced.
   That agrees with what the project decided on 2026-11-22:
   the intent and the plan are kept at both checks
   (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`,
@@ -2756,8 +3008,10 @@ the quoted text is the text at that commit.
 - "Where the add's durable binding record lives,
   and its format"
   (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-  read at `428040d45d`):
-  at this tip it says nothing about the checks.
+  read at `a8514d9d6a`):
+  at this tip it says nothing about the checks,
+  and the request "How a person finishes" makes of it is in the plan-record entry:
+  say what settles a registration whose clone is gone while its origin stands.
   The earlier version this design quoted
   ("reads the origin identity this design records,
   and gives it no new field")
@@ -2780,12 +3034,15 @@ the quoted text is the text at that commit.
   by whom,
   and how the caller's session is spared"
   (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
-  read at `095b807355`):
-  it says "The deferred-destroy checks own step 16's call sites ...
-  this design claims no ownership of those checks and only needs the scan file's reader",
-  and its D3 says an earlier version of it assumed "a refusal rewrites the intent to `mount`"
-  and that "this revision removes that assumption and defers the state to D2".
-  Both agree with this design:
+  read at `6871053b79`):
+  its D3 says "[The deferred-destroy checks][deferred] own step 16's checks and call sites.
+  This design claims no ownership of them;
+  it needs the scan file's reader and V2's rule,
+  and the build place is the first consumer's choice",
+  which is the whole of what it says about the checks.
+  An earlier tip carried a sentence about an assumed intent rewrite that the current text no longer has,
+  and this design does not quote it.
+  Both entries agree with this design:
   step 16 owns the call sites,
   this design owns the checks,
   and no refused check rewrites an intent.
@@ -2810,9 +3067,22 @@ the quoted text is the text at that commit.
   so any caller that holds a plan gets the same check.
   Whether an add may call the removal's unmount and destruction is the removal's and the add's design to settle,
   which this design neither grants nor withholds.
-  What it does say is that its check gives an add's fresh clone no exception:
-  a same-account mark on the origin snapshot an add made is the accepted residual,
-  and the check refuses it as it refuses any other.
+  What it says about an add's own destroys,
+  in words that design can quote:
+  the checks do not run for them,
+  because the look belongs to the removal's proof and both checks read a removal's plan,
+  intent and stage,
+  none of which an add writes;
+  a same-account mark on the snapshot an add made is reaped with the add's clone when that clone is its last child
+  and no hold pins it,
+  so the add meets one `ENOENT` and treats it as done;
+  a marked add snapshot that another clone or a hold pins answers `EEXIST` or `EBUSY` and stands;
+  and a refusal is what a caller meets only when it gives the check a plan.
+  At its current tip (`610e5da52e`) that design read this document's earlier entry and concluded
+  "it might refuse the origin snapshot an add made ... which would make the add's destroy of that snapshot fail and
+  leave the pending state" (`:2336` to `:2343`);
+  that is the opposite of what this design says,
+  and this entry is the sentence to reconcile against.
 - "The add-time Git lock of a ZFS clone worktree"
   (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
   read at `a7902e293b`):
@@ -3041,7 +3311,7 @@ Q1's Option C cost and the reason A is ranked over it,
 QA-2 marked as held rather than adopted,
 Q2 reduced to a note,
 control 11's review label,
-control 22's owner,
+control 27's owner,
 "What each build step builds" (which step writes which probe's script),
 "Sources read" and "Revisions".
 Two statements the diff check found sound changed because a fix forced it:
@@ -3089,6 +3359,44 @@ its refusal,
 its control and its guest arm are this document's own,
 beyond the record's sentence.
 
+Rewritten after the review of the answers round:
+the opening (the fourth review),
+"The order the three refusal points sit in" (the look runs once,
+in step 1's proof of a first run,
+and step 4's reproof does not look),
+"The look before the unmount" (the proof citation,
+where it does not look and why,
+the mount claim withdrawn from its message,
+and the per-slot claim named),
+"The refusals" (three forms and the cause each takes,
+four full messages,
+the cancel sentence scoped to an unforced removal,
+no design words in person text,
+and the worktree's files named),
+"What a refusal leaves,
+and what the record keeps" (what the look's refusal writes,
+the holder family and the busy-unmount case),
+"An add's own destroy does not pass through these checks" (a pinned marked snapshot),
+"How a person finishes a refused removal" (the accepted sentence for a gone clone and origin,
+the standing-origin case put to the plan and binding designs,
+and the look's state),
+"What each build step builds" (step 14 leaves the hook and step 15 places the look in it,
+and the pause's unsized bound named),
+the controls (the look's two moved into the host list,
+four for the later proofs and the texts,
+and the guest ones renumbered),
+"Measurements owed" (the guest `PATH` citation and M1's `env`,
+M0b's other preconditions,
+M3a as a first run only,
+M3f the rerun,
+and M4's bound),
+"Choices this design marks for the project's veto" (the V4 note),
+"Dependencies on sibling designs" (four tips read again,
+the plan record's current lines,
+the add's destroys in words the dirty-main design can quote,
+and the request for a standing-origin settle),
+"Sources read" and "Revisions".
+
 ## Sources read
 
 OpenZFS `zfs-2.4.4`,
@@ -3114,10 +3422,12 @@ cloned at
 `man/man8/zfs-destroy.8`,
 `man/man8/zfs-get.8`.
 
-This repository at `f82f20ecab`
-(its first version was read at `5dd8883a60`,
-and the code files cited here did not change between the two,
-which `git diff --stat 3e34817184 f82f20ecab` shows by naming only this document):
+This repository at `fda838910a`,
+the merge that brought the project's three answers,
+with this document read at `1f7a0800fa`
+(its first version was read at `5dd8883a60`;
+the only change to a file cited here between `3e34817184` and that merge is one line of `SPEC.md` at `:7789`,
+which is after every line cited from it):
 the decision,
 proposal,
 implementation plan and decision records named in the opening,
