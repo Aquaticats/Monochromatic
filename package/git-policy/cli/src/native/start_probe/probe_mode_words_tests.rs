@@ -27,10 +27,10 @@ use super::super::probe_status_line::StepLine;
 /// What:
 ///  The listing the mode prints when the table told it no single checkout.
 /// Why:
-///  The project's second answer of 2026-11-22: the probe prints each mounted
-///  dataset it found with its path.
-///  The word alone cannot do that, so the mode recomputes the look-up and prints
-///  the refusal's own words.
+///  The project's second answer of 2026-11-22:
+///  the probe prints each mounted dataset it found with its path.
+///  The word alone cannot do that,
+///  so the mode recomputes the look-up and prints the refusal's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

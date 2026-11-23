@@ -70,7 +70,8 @@ fn leaf_of(dataset: &str) -> &str {
 ///  the designed one,
 ///  or the one root's file names."
 ///  So `container_in_use` is the named `cloneMounts.parent` when a file holds
-///  one, and nothing then means the designed sibling.
+///  one,
+///  and nothing then means the designed sibling.
 ///  The design's dataset is a sibling of the container and never a child of it,
 ///  so a row inside the named container is a clone the route itself attaches at
 ///  a slot,
