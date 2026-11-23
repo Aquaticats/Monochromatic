@@ -3421,3 +3421,32 @@ oldest first.
 - The commit that carries this entry,
   written 2026-11-22T18:29:43-05:00:
   adds the entries for `4d60e1ddfc` and `a432d9250a`.
+- `2fb7caea17`,
+  2026-11-22T19:03:10-05:00:
+  merges `main` into this branch so that the forced-removal record of 2026-11-22 is read here.
+  It changes nothing in this document.
+- `710f386f17`,
+  2026-11-22T19:13:44-05:00:
+  answers the gate review's second pass.
+  It reads a holder the scan sees as the project decided it on 2026-11-22:
+  the removal cancels before any snapshot is deleted,
+  attaches the clone at its slot again,
+  and reports the holder,
+  and the passage that glossed the earlier sentence as "does not stop the destruction" is replaced by that reading.
+  It writes that reading into the stop points for the pre-move scan,
+  the scan after the unmount (a new point 8,
+  with the points after it renumbered),
+  the scan before a delete,
+  and the head destroy a missed holder outlasts,
+  and adds the arm blocked by a scan with its two loss cases.
+  It adds "The forced arm's failure path" with the three ways the decided reach refuses,
+  the state each leaves and a report for each,
+  and the two refusals decided before anything is touched.
+  It adds "When a cancellation can report destroyed history",
+  renumbers this document's questions to S7 to S10 with what the answers change about each,
+  adds M11 and limits L11 and L12,
+  reads the forced arm at `1931987673` and cites it by section with `caller-protected-holds`,
+  and corrects the citation slips that pass lists.
+- The commit that carries this entry,
+  written 2026-11-22T19:14:06-05:00:
+  adds the entries for `2fb7caea17` and `710f386f17`.
