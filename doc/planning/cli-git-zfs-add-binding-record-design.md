@@ -2493,6 +2493,13 @@ with the clone standing or gone:
   except where the heading names no command at all:
   a reused name and a plan that cannot be read are refusals that name the file or the reuse and no command
   (K10 of the tenth).
+  So the command that accepts a state with a plan standing is the removal's or the settling command's,
+  as that heading places them,
+  and a `settling` binding is no exception:
+  the settling command's refusal of a `settling` binding whose absence is proved applies only where no plan
+  stands,
+  and with one standing it takes the binding,
+  prints what the plan held and removes it with the records (K7).
   The plan design's finish pass acts only on a plan whose head is `gone`,
   and its "The finish pass that settles a registration" says so.
 - the add refuses while such a plan stands,
