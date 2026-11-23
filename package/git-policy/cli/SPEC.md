@@ -6430,6 +6430,22 @@ The rule this build keeps is entry by entry:
 - a bind mount of a subtree shows a deeper root and is no instance,
   while a bind mount of the dataset's own root and a second mount of the
   dataset are instances;
+- the checkout dataset's `snapdir` is not part of the look-up,
+  and the sweep prints one line when it is not `disabled`,
+  because the project's third answer of 2026-11-22 hides snapshot directories
+  on the checkout
+  (the same section of the record,
+  quoted:
+  "Turn off snapshot-directory visibility on the checkout so accounts cannot
+  trigger those mounts.")
+  `visible` lets an account enter a snapshot's directory by name and the kernel
+  mounts it as root,
+  `hidden` only leaves the directory out of listings and still allows the name,
+  and `disabled` refuses the name and makes no mount;
+  the sweep names the dataset,
+  the value it read and `zfs set snapdir=disabled <dataset>`,
+  and attaches as usual,
+  and the probe reads no property and says nothing about it;
 - a dataset mounted directly inside the clone container this run uses is a
   managed clone the route attaches at a slot and never the checkout,
   because the design's delegation lets the account create a dataset of the

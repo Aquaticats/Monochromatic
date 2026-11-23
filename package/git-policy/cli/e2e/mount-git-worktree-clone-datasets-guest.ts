@@ -602,8 +602,9 @@ function snapdirMatrix({ chosen, }: { readonly chosen: Options; }): void {
     'DS="$POOL/ROOT/cos/home/monochromatic-git-checkout"',
     `as_account() { runuser -u "$ACCOUNT" -- env LD_LIBRARY_PATH=${library} ${sbin}/zfs "$@"; }`,
     'as_account_ls() { runuser -u "$ACCOUNT" -- ls -a "$1"; }',
-    'snapshot_rows() { findmnt --noheadings --output SOURCE --type zfs | grep --count "@" || true; }',
-    'leaf_rows() { findmnt --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings "monochromatic-git-checkout" | tr "\\n" ";"; }',
+    'snapshot_rows() { findmnt --list --noheadings --output SOURCE --type zfs | grep --count "@" || true; }',
+    'leaf_rows() { findmnt --list --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings "monochromatic-git-checkout" | tr "\\n" ";"; }',
+    'snapdir_rows_cleanup() { findmnt --list --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings "@account-origin" | sed "s/ .*//" | xargs --no-run-if-empty umount || true; }',
     'zpool destroy -f "$POOL" > /dev/null 2>&1 || true',
     'rm --force "$IMAGE"',
     'truncate --size 512M "$IMAGE"',
@@ -619,8 +620,14 @@ function snapdirMatrix({ chosen, }: { readonly chosen: Options; }): void {
     // The guest's own release accepts which values?
     'if zfs set snapdir=disabled "$DS" > /root/snapdir-disabled-set.log 2>&1; then echo "SNAPDIR release has-disabled=true"; else echo "SNAPDIR release has-disabled=false"; cat /root/snapdir-disabled-set.log; exit 1; fi',
     'zfs inherit snapdir "$DS"',
+    // Each value is measured from a fresh mount, because a `.zfs` dentry the kernel already resolved keeps the
+    // directory reachable until the dataset is mounted again, whatever the property says afterwards.
     'for value in visible hidden disabled; do',
+    '  zfs unmount "$DS" > /dev/null 2>&1 || true',
+    '  snapdir_rows_cleanup',
     '  zfs set "snapdir=$value" "$DS"',
+    '  zfs mount "$DS"',
+    '  mount --make-private "$CHECKOUT"',
     '  read_value=$(zfs get -H -o value snapdir "$DS")',
     '  test "$read_value" = "$value"',
     '  if as_account_ls "$CHECKOUT" > /root/snapdir-list.log 2>&1 && grep --quiet "^\.zfs$" /root/snapdir-list.log; then listed=true; else listed=false; fi',
@@ -628,11 +635,10 @@ function snapdirMatrix({ chosen, }: { readonly chosen: Options; }): void {
     '  if as_account_ls "$CHECKOUT/.zfs/snapshot/account-origin" > /root/snapdir-enter.log 2>&1; then entered=true; else entered=false; fi',
     '  after=$(snapshot_rows)',
     '  if test "$after" -gt "$before"; then grown=true; else grown=false; fi',
-    '  echo "SNAPDIR $value listed=$listed entered=$entered mounts-grown=$grown rows=$(leaf_rows) enter-answer=$(head --lines=1 /root/snapdir-enter.log 2>/dev/null || true)"',
-    '  test "$entered" = "$grown" || { echo "SNAPDIR $value entered-without-a-mount"; exit 1; }',
-    // A row the kernel mounted for the account is taken down again, by root.
-    '  findmnt --noheadings --output TARGET --type zfs | grep --fixed-strings "@account-origin" | xargs --no-run-if-empty umount || true',
-    '  zfs unmount "$DS@account-origin" > /dev/null 2>&1 || true',
+    '  echo "SNAPDIR $value listed=$listed entered=$entered mounts-grown=$grown enter-answer=$(head --lines=1 /root/snapdir-enter.log 2>/dev/null || true)"',
+    '  # Entering a snapshot directory is what makes the kernel mount it, so the two answers must agree in every state.',
+    '  test "$entered" = "$grown" || { echo "SNAPDIR $value entered=$entered grown=$grown disagree"; exit 1; }',
+    '  snapdir_rows_cleanup',
     'done',
     // The account cannot set the property back: the route's grants do not name it.
     'if as_account set snapdir=visible "$DS" > /root/snapdir-account-set.log 2>&1; then echo "SNAPDIR account-cannot-set-it-back=false"; else echo "SNAPDIR account-cannot-set-it-back=true"; sed "s/^/  /" /root/snapdir-account-set.log; fi',

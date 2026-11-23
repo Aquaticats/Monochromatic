@@ -24,6 +24,7 @@
 
 use super::sweep_checkout_mount::{CheckoutMount, CheckoutMounts};
 use super::sweep_configuration::SweepConfiguration;
+use super::sweep_dataset_facts::{PropertyValue, SNAPDIR_DISABLED, facts_of};
 use super::sweep_dataset_reader::DatasetReader;
 use crate::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use crate::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
@@ -427,6 +428,47 @@ pub fn checkout_state(checkout: &Path, mounts: &dyn CheckoutMounts) -> (ReadySta
         );
     }
     return (ReadyState::Ready, String::new());
+}
+
+/// What:
+///  The line the sweep prints when the checkout dataset still lists or opens its
+///  `.zfs` directory.
+/// Why:
+///  The project's third answer of 2026-11-22 hides snapshot directories on the
+///  checkout so that accounts cannot trigger the mounts that grow the mount
+///  table
+///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+///  "Four further answers on the look-up with no configuration file").
+///  A guest run of this round showed what each value does:
+///  `hidden` and `visible` both let the account enter a snapshot's directory by
+///  name,
+///  and the kernel mounts it as root,
+///  while `disabled` refuses the name and no mount appears.
+///  Plan step 19's setup is what sets `disabled`,
+///  so a sweep that finds another value says which command settles it instead of
+///  refusing a route that still works.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const warning = snapshotDirectoryWarning(reader, 'pool/home/monochromatic-git-checkout');
+/// ```
+pub fn snapshot_directory_warning(reader: &dyn DatasetReader, checkout_dataset: &str) -> String {
+    let Ok(identity) = reader.identity(checkout_dataset) else {
+        return String::new();
+    };
+    let facts = facts_of(checkout_dataset, &identity);
+    let reported: String = match facts.snapdir {
+        PropertyValue::Number(SNAPDIR_DISABLED) => return String::new(),
+        PropertyValue::Number(0) => String::from("`hidden` (0)"),
+        PropertyValue::Number(1) => String::from("`visible` (1)"),
+        PropertyValue::Number(other) => format!("`{other}`"),
+        PropertyValue::Text(text) => format!("`{text}`"),
+        PropertyValue::Unreadable { why } => format!("a value this run could not read ({why})"),
+        PropertyValue::Absent => String::from("no value"),
+    };
+    return format!(
+        "The checkout dataset `{checkout_dataset}` has `snapdir` {reported} rather than `disabled` (2), so an account that lists `{checkout_dataset}`'s `.zfs/snapshot/<name>` makes the kernel mount that snapshot as root and adds a row to this machine's mount table, and enough such rows make this sweep refuse. Nothing here was refused for it. Ways forward: plan step 19's setup runs `zfs set snapdir=disabled {checkout_dataset}`, and `git monochromatic-git-policy-cli doctor` reports it once plan step 18 adds that.\n"
+    );
 }
 
 /// What:

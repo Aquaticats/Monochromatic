@@ -2309,6 +2309,51 @@ The gate that orders every path descendant after a verified checkout mount.
 The private propagation the unit sets on the verified checkout,
 and what re-applies it after a replacement mount.
 The provider hook that triggers reconciliation after post-key-load checkout readiness.
+The `snapdir` the setup sets on the checkout dataset,
+which is the project's third answer of 2026-11-22
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Four further answers on the look-up with no configuration file"):
+the setup runs `zfs set snapdir=disabled` on the checkout dataset
+before that dataset is next mounted,
+because `disabled` is the only value that refuses the `.zfs` directory by name,
+and a value set while it stands applies to the next mount of it.
+The build's facts,
+from OpenZFS `zfs-2.4.4` and a guest run of 2026-11-22:
+`keep/snapdir-value-probe.log` and `keep/snapdir-matrix-GREEN.log` hold the readings.
+`visible` lists the directory and lets an account enter a snapshot's directory by name,
+which makes the kernel mount that snapshot as root and adds a row;
+`hidden` only leaves it out of listings and still lets the name be entered;
+`disabled` refuses the name with `ENOENT` and no row appears
+(`module/os/linux/zfs/zfs_ctldir.c`,
+`zfsctl_root_lookup`,
+which answers `ENOENT` for every name when
+`z_show_ctldir == ZFS_SNAPDIR_DISABLED`,
+and `include/sys/zfs_ioctl.h` at `zfs-2.4.4`,
+`ZFS_SNAPDIR_DISABLED 2`,
+with the values at `module/zcommon/zfs_prop.c:240` to `:242`).
+`disabled` exists from OpenZFS 2.3.0 and not in 2.2.2 or 2.2.0,
+whose headers and manuals hold only `hidden` and `visible`;
+the route's gate reads no release string
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"No step reads the module's release string as a rule"),
+so a matching older module is possible and the setup's
+`zfs set snapdir=disabled` would be refused on it,
+which is a setup refusal a person reads rather than a silent state.
+No part of the route reads a snapshot through that directory:
+the start probe never opens `.zfs` at all
+(`doc/planning/cli-git-zfs-start-probe-design.md`,
+"The source:
+the probe dataset"),
+and no file in this package names `.zfs/snapshot`.
+What the route does when the property is not `disabled`:
+the sweep prints one line naming the dataset,
+the value it read,
+and `zfs set snapdir=disabled <dataset>`,
+and attaches as usual;
+the probe prints nothing about it,
+because it reads no property and never opens the ZFS device.
+A person reads the check in `git monochromatic-git-policy-cli doctor`
+once plan step 18 adds it.
 The two dataset names the setup writes into the root-owned configuration:
 the checkout dataset and the clone container,
 so no person edits that file by hand

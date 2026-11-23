@@ -64,6 +64,18 @@ pub const ENCRYPTION_ROOT_PROPERTY: &str = "encryptionroot";
 /// The property that says whether that key is loaded.
 pub const KEY_STATUS_PROPERTY: &str = "keystatus";
 
+/// The property that says whether a dataset's `.zfs` directory is listed,
+/// enterable,
+/// or refused altogether.
+pub const SNAPDIR_PROPERTY: &str = "snapdir";
+
+/// The `snapdir` value that refuses the `.zfs` directory even by name,
+/// which is what stops an account from making the kernel mount a snapshot
+/// (`module/zfs/zfs_ioctl.h` at `zfs-2.4.4`, `ZFS_SNAPDIR_DISABLED = 2`,
+/// and `zfsctl_root_lookup`, which answers `ENOENT` for every name in that
+/// state, `module/os/linux/zfs/zfs_ctldir.c`).
+pub const SNAPDIR_DISABLED: u64 = 2;
+
 /// What:
 ///  The `keystatus` value that means the key is not loaded,
 ///  which is what item 5 of the design's VM measurements saw on a clone made
@@ -190,6 +202,9 @@ pub struct CloneObjectFacts {
     pub encryption_root: PropertyValue,
     /// Whether that key is loaded.
     pub key_status: PropertyValue,
+    /// The `snapdir` value,
+    /// where the module reports one.
+    pub snapdir: PropertyValue,
     /// The property list itself,
     /// which the intent's own reader takes.
     pub properties: NvList,
@@ -247,6 +262,7 @@ pub fn facts_of(name: &str, identity: &DatasetIdentity) -> CloneObjectFacts {
         encryption: value_of(properties, ENCRYPTION_PROPERTY),
         encryption_root: value_of(properties, ENCRYPTION_ROOT_PROPERTY),
         key_status: value_of(properties, KEY_STATUS_PROPERTY),
+        snapdir: value_of(properties, SNAPDIR_PROPERTY),
         properties: properties.clone(),
     };
 }
