@@ -2154,6 +2154,36 @@ because `473dccebbc` (the subvolume record's branch) landed two controls
 between those runs and this one,
 not because this branch adds a test.
 
+### The follow-ups' gate
+
+The whole container gate of the follow-up round ran the same way,
+as its own capped unit `ssc2-6344-followups-gate-20261123`
+with `RuntimeMaxSec=3600`,
+on image `localhost/git-policy-native-test:ssc2-6344-followups-20261123T050551-0500`
+(run `native-Y34ZI0`):
+
+```text
+Summary [1046.619s] 9914 tests run: 9912 passed (11 slow), 2 failed, 36 skipped
+FAIL [   1.339s] (9480/9914) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.359s] (9598/9914) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Exactly the cause-H pair,
+and nothing else failed.
+All three shadow controls passed there:
+the sibling at 2.004 s (test 6131 of 9914),
+which carries the committed second,
+`a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
+at 1.152 s (6084 of 9914),
+and `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
+at 0.013 s (6037 of 9914).
+Its Clippy step finished clean
+(`Finished `dev` profile [unoptimized] target(s) in 3m 46s`),
+and the unit ended `Failed with result 'exit-code'`,
+the cause-H pair's status.
+The total is 9914 because `main` landed new controls between the merge this round started from and the gate,
+and because this round adds one.
+
 ### What the controls ask of the host now
 
 - The sibling control asks for one cut:
