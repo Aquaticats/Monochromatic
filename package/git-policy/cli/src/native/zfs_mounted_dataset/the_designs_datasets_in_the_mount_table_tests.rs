@@ -49,7 +49,7 @@ const CLONE_UNDER_THE_CONTAINER: &str = "zpcachyos/ROOT/cos/home/monochromatic-g
 #[test]
 fn one_mounted_instance_is_the_checkout_dataset_and_its_path() {
     let table: ScriptedMountTable = ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET));
-    let one: MountedDatasetInstance = the_one_mounted_checkout(&table).expect("the table holds the design's checkout once");
+    let one: MountedDatasetInstance = the_one_mounted_checkout(&table, None).expect("the table holds the design's checkout once");
     assert_eq!(one.dataset, CHECKOUT_DATASET);
     assert_eq!(one.mount_point, PathBuf::from(CHECKOUT));
 }
@@ -62,7 +62,7 @@ fn two_pools_holding_the_leaf_name_are_several_and_are_listed() {
         row(50, 1, "/", "/home/user/second", "zfs", "otherpool/ROOT/cos/home/monochromatic-git-checkout"),
     ];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("two pools are several instances");
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, None).expect_err("two pools are several instances");
     assert_eq!(refusal.word(), "several-mounted-checkouts");
     let said: String = refusal.message(Path::new("/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc"));
     assert!(said.contains(CHECKOUT_DATASET), "the refusal lists the first: {said}");
@@ -75,7 +75,7 @@ fn two_pools_holding_the_leaf_name_are_several_and_are_listed() {
 fn one_dataset_mounted_at_two_paths_is_several() {
     let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/again", "zfs", CHECKOUT_DATASET)];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("one dataset twice is several instances");
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, None).expect_err("one dataset twice is several instances");
     assert!(refusal.message(Path::new("/etc/config")).contains("/home/user/again"), "{}", refusal.message(Path::new("/etc/config")));
 }
 
@@ -84,7 +84,7 @@ fn one_dataset_mounted_at_two_paths_is_several() {
 fn a_bind_mount_of_the_datasets_own_root_elsewhere_is_several() {
     let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/bound", "zfs", CHECKOUT_DATASET)];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("the bind mount is a second row");
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, None).expect_err("the bind mount is a second row");
     assert!(refusal.message(Path::new("/etc/config")).contains("/home/user/bound"), "{}", refusal.message(Path::new("/etc/config")));
 }
 
@@ -94,7 +94,7 @@ fn a_bind_mount_of_the_datasets_own_root_elsewhere_is_several() {
 fn a_bind_mount_of_a_subtree_is_no_instance() {
     let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/.claude", "/home/user/subtree", "zfs", CHECKOUT_DATASET)];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let one: MountedDatasetInstance = the_one_mounted_checkout(&table).expect("a subtree bind mount is no instance");
+    let one: MountedDatasetInstance = the_one_mounted_checkout(&table, None).expect("a subtree bind mount is no instance");
     assert_eq!(one.mount_point, PathBuf::from(CHECKOUT));
 }
 
@@ -104,7 +104,7 @@ fn a_bind_mount_of_a_subtree_is_no_instance() {
 fn no_instance_names_the_leaf_it_looked_for_and_the_rows_that_carried_it() {
     let rows: Vec<String> = vec![row(41, 1, "/sub", "/home/user/bound", "zfs", CHECKOUT_DATASET)];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("a subtree bind mount is no instance");
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, None).expect_err("a subtree bind mount is no instance");
     let said: String = refusal.message(Path::new("/etc/config"));
     assert_eq!(refusal.word(), "no-mounted-checkout");
     assert!(said.contains("`monochromatic-git-checkout`"), "the refusal names the leaf: {said}");
@@ -117,7 +117,7 @@ fn no_instance_names_the_leaf_it_looked_for_and_the_rows_that_carried_it() {
 #[test]
 fn an_unreadable_table_is_refused_as_unreadable() {
     let table: ScriptedMountTable = ScriptedMountTable::unreadable("permission denied");
-    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("an unread table names nothing");
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, None).expect_err("an unread table names nothing");
     assert_eq!(refusal.word(), "mount-table-unreadable");
     assert!(refusal.message(Path::new("/etc/config")).contains("permission denied"), "{}", refusal.message(Path::new("/etc/config")));
 }
@@ -130,10 +130,40 @@ fn an_unreadable_table_is_refused_as_unreadable() {
 fn a_clone_inside_the_container_is_no_candidate_for_the_checkout() {
     let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", CLONE_UNDER_THE_CONTAINER)];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let one: MountedDatasetInstance = the_one_mounted_checkout(&table).expect("a clone is no second instance");
+    let one: MountedDatasetInstance = the_one_mounted_checkout(&table, None).expect("a clone is no second instance");
     assert_eq!(one.dataset, CHECKOUT_DATASET);
-    assert!(super::is_a_managed_clone(&MountedDatasetInstance { dataset: String::from(CLONE_UNDER_THE_CONTAINER), mount_point: PathBuf::from("/home/user/x"), root: PathBuf::from("/") }));
-    assert!(!super::is_a_managed_clone(&MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: PathBuf::from(CHECKOUT), root: PathBuf::from("/") }));
+    assert!(super::is_a_managed_clone(
+        &MountedDatasetInstance { dataset: String::from(CLONE_UNDER_THE_CONTAINER), mount_point: PathBuf::from("/home/user/x"), root: PathBuf::from("/") },
+        None,
+    ));
+    assert!(!super::is_a_managed_clone(
+        &MountedDatasetInstance { dataset: String::from(CHECKOUT_DATASET), mount_point: PathBuf::from(CHECKOUT), root: PathBuf::from("/") },
+        None,
+    ));
+}
+
+/// The rule knows the container this run uses,
+/// which root's file may name instead of the design's:
+/// a clone row inside that container is no instance either.
+#[test]
+fn a_clone_row_in_the_container_the_file_names_is_ignored() {
+    let named_container: &str = "zpcachyos/ROOT/cos/home/my-clones";
+    let clone: String = format!("{named_container}/monochromatic-git-checkout");
+    let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", clone.as_str())];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let one: MountedDatasetInstance = the_one_mounted_checkout(&table, Some(named_container)).expect("a clone in the named container is no second instance");
+    assert_eq!(one.dataset, CHECKOUT_DATASET);
+}
+
+/// A row inside a container this run does not use still counts,
+/// which is the cost the project accepted with the first answer.
+#[test]
+fn a_row_in_a_container_this_run_does_not_use_still_counts() {
+    let named_container: &str = "zpcachyos/ROOT/cos/home/my-clones";
+    let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/clone", "zfs", CLONE_UNDER_THE_CONTAINER)];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, Some(named_container)).expect_err("a row in another container is a second instance");
+    assert_eq!(refusal.word(), "several-mounted-checkouts");
 }
 
 /// A table whose only row under the leaf name is such a clone is refused,
@@ -142,7 +172,7 @@ fn a_clone_inside_the_container_is_no_candidate_for_the_checkout() {
 fn a_table_whose_only_leaf_row_is_a_clone_is_refused_and_the_clone_is_listed() {
     let rows: Vec<String> = vec![row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", CLONE_UNDER_THE_CONTAINER)];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
-    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table).expect_err("a clone is no checkout");
+    let refusal: MountedDatasetRefusal = the_one_mounted_checkout(&table, None).expect_err("a clone is no checkout");
     let said: String = refusal.message(Path::new("/etc/config"));
     assert!(said.contains(CLONE_UNDER_THE_CONTAINER), "the refusal lists the clone: {said}");
     assert!(said.contains("managed clone"), "the refusal says why it is none: {said}");

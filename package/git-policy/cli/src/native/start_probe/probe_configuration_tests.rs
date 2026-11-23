@@ -93,6 +93,19 @@ fn a_start_probe_object_without_the_checkout_takes_the_mounted_one() {
     assert_eq!(checkout, PathBuf::from(CHECKOUT));
 }
 
+/// The probe reads the clone-container key as well as its own object,
+/// so a clone row inside the container this run uses is no second instance.
+#[test]
+fn a_clone_row_in_the_container_the_file_names_is_ignored() {
+    let named: &str = "zpcachyos/ROOT/cos/home/my-clones";
+    let clone: String = format!("{named}/monochromatic-git-checkout");
+    let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", clone.as_str())];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let document: String = format!(r#"{{ "cloneMounts": {{ "parent": "{named}" }} }}"#);
+    let checkout: PathBuf = checkout_path(Some(document.as_str()), &table).expect("a clone in the named container is no second instance");
+    assert_eq!(checkout, PathBuf::from(CHECKOUT));
+}
+
 /// Two mounted instances of the design's leaf name are refused,
 /// and the reason word says several.
 #[test]

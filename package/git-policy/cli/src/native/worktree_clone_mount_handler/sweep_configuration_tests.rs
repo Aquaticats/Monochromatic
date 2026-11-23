@@ -269,6 +269,37 @@ fn an_entry_the_file_holds_wins_over_what_the_table_would_say() {
     assert_eq!(chosen.parent_dataset, "zpcachyos/ROOT/cos/home/another-container");
 }
 
+/// The clone container this run uses is the one the file names,
+/// so a clone row inside that container is no second instance of the checkout,
+/// and the pass's stoppage does not happen.
+#[test]
+fn a_file_naming_another_container_ignores_its_clone_row() {
+    let named: &str = "zpcachyos/ROOT/cos/home/my-clones";
+    let clone: String = format!("{named}/monochromatic-git-checkout");
+    let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/monochromatic-git-checkout", "zfs", clone.as_str())];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let named_parent: String = format!(r#"{{ "{CLONE_MOUNTS_KEY}": {{ "{PARENT_KEY}": "{named}" }} }}"#);
+    let configuration: SweepConfiguration = parse_configuration(named_parent.as_str(), Path::new(CONFIGURATION), &table).expect("the clone is in the container this run uses");
+    assert_eq!(configuration.parent_dataset, named);
+    assert_eq!(configuration.checkout, PathBuf::from(CHECKOUT));
+    assert_eq!(configuration.checkout_dataset, CHECKOUT_DATASET);
+}
+
+/// A clone row inside the designed container counts once the file names another
+/// container,
+/// which this run does not use,
+/// and the sweep refuses on several as the project's first answer accepts.
+#[test]
+fn a_row_in_a_container_this_run_does_not_use_is_several() {
+    let named: &str = "zpcachyos/ROOT/cos/home/my-clones";
+    let designed_clone: String = format!("{PARENT}/monochromatic-git-checkout");
+    let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/clone", "zfs", designed_clone.as_str())];
+    let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
+    let named_parent: String = format!(r#"{{ "{CLONE_MOUNTS_KEY}": {{ "{PARENT_KEY}": "{named}" }} }}"#);
+    let refusal: ConfigurationRefusal = parse_configuration(named_parent.as_str(), Path::new(CONFIGURATION), &table).expect_err("a row in another container is a second instance");
+    assert!(refusal.message().contains("will not choose between them"), "{}", refusal.message());
+}
+
 /// A file that names a dataset the table mounts once wins over the design's own
 /// leaf name the table also holds.
 #[test]

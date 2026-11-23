@@ -40,15 +40,26 @@ use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{the_ch
 use std::path::{Path, PathBuf};
 
 /// The one object the project answered holds both names.
-pub const START_PROBE_KEY: &str = "startProbe";
+pub const START_PROBE_KEY: &str = crate::handler_configuration_keys::START_PROBE_KEY;
 
 /// The key inside `startProbe` that names the probe dataset,
 /// beside the pool and dataset names the configuration pins.
-pub const DATASET_KEY: &str = "dataset";
+pub const DATASET_KEY: &str = crate::handler_configuration_keys::PROBE_DATASET_KEY;
 
 /// The key inside `startProbe` that names the checkout the walk opens
 /// read-only.
-pub const CHECKOUT_KEY: &str = "checkout";
+pub const CHECKOUT_KEY: &str = crate::handler_configuration_keys::PROBE_CHECKOUT_KEY;
+
+/// The object the sweep's names sit in,
+/// whose clone-container key the probe reads too,
+/// so that a clone in the container this run uses is no instance of the
+/// checkout for either program
+/// (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+/// "Four further answers on the look-up with no configuration file").
+pub const CLONE_MOUNTS_KEY: &str = crate::handler_configuration_keys::CLONE_MOUNTS_KEY;
+
+/// The key naming the clone container this run uses.
+pub const PARENT_KEY: &str = crate::handler_configuration_keys::PARENT_KEY;
 
 /// What:
 ///  One configuration document's text value at one key inside `startProbe`.
@@ -66,6 +77,29 @@ pub const CHECKOUT_KEY: &str = "checkout";
 /// ```
 fn text_at_key(configuration: &str, key: &str) -> MemberReading {
     return text_of_member(configuration, START_PROBE_KEY, key);
+}
+
+/// What:
+///  The clone container this run uses,
+///  which a row inside is no instance of the checkout for.
+/// Why:
+///  The project's first answer of 2026-11-22 has the probe read the sweep's
+///  container key as well as its own object:
+///  a clone the account makes inside the container this run uses must not count
+///  as a second mounted checkout.
+///  The probe reads it only to know which container to ignore;
+///  a value that is not text names no container,
+///  and the sweep refuses that file itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const container = textOfMember(document, 'cloneMounts', 'parent') ?? undefined;
+/// ```
+fn clone_container_in_use(document: &str) -> Option<String> {
+    return match text_of_member(document, CLONE_MOUNTS_KEY, PARENT_KEY) {
+        MemberReading::Text(container) => Some(container),
+        MemberReading::Absent | MemberReading::NotText | MemberReading::DocumentNotJsonc => None,
+    };
 }
 
 /// What:
@@ -107,7 +141,7 @@ pub fn read_configuration(path: &Path) -> Result<Option<String>, SourceRefusal> 
 /// or the design's name matched none or several.
 pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Result<PathBuf, CheckoutRefusal> {
     let Some(held) = document else {
-        return the_one_mounted_checkout(mounts).map(|one| return one.mount_point).map_err(|refusal| return CheckoutRefusal::NotFound { refusal });
+        return the_one_mounted_checkout(mounts, None).map(|one| return one.mount_point).map_err(|refusal| return CheckoutRefusal::NotFound { refusal });
     };
     if held.trim().is_empty() {
         return Err(CheckoutRefusal::Empty);
@@ -121,7 +155,12 @@ pub fn checkout_path(document: Option<&str>, mounts: &dyn MountedDatasets) -> Re
                 Err(CheckoutRefusal::NotAbsolute)
             }
         }
-        MemberReading::Absent => the_one_mounted_checkout(mounts).map(|one| return one.mount_point).map_err(|refusal| return CheckoutRefusal::NotFound { refusal }),
+        MemberReading::Absent => {
+            let container: Option<String> = clone_container_in_use(held);
+            the_one_mounted_checkout(mounts, container.as_deref())
+                .map(|one| return one.mount_point)
+                .map_err(|refusal| return CheckoutRefusal::NotFound { refusal })
+        }
         MemberReading::NotText => Err(CheckoutRefusal::NotText),
         MemberReading::DocumentNotJsonc => Err(CheckoutRefusal::Unparsable),
     };

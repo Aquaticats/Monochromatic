@@ -53,25 +53,25 @@ use crate::zfs_mounted_dataset::the_designs_datasets_in_the_mount_table::{the_ch
 use std::path::{Path, PathBuf};
 
 /// The object this step's names sit in.
-pub const CLONE_MOUNTS_KEY: &str = "cloneMounts";
+pub const CLONE_MOUNTS_KEY: &str = crate::handler_configuration_keys::CLONE_MOUNTS_KEY;
 
 /// The key naming the pinned clone parent dataset,
 /// which is the container every managed clone is a child of.
-pub const PARENT_KEY: &str = "parent";
+pub const PARENT_KEY: &str = crate::handler_configuration_keys::PARENT_KEY;
 
 /// The key naming the checkout the walk starts from.
-pub const CHECKOUT_KEY: &str = "checkout";
+pub const CHECKOUT_KEY: &str = crate::handler_configuration_keys::CHECKOUT_KEY;
 
 /// The key naming the checkout dataset,
 /// whose snapshots the design's add route clones.
-pub const CHECKOUT_DATASET_KEY: &str = "checkoutDataset";
+pub const CHECKOUT_DATASET_KEY: &str = crate::handler_configuration_keys::CHECKOUT_DATASET_KEY;
 
 /// The object the start probe's own names sit in,
 /// which the sweep reads only to refuse two different checkouts.
-pub const PROBE_OBJECT_KEY: &str = "startProbe";
+pub const PROBE_OBJECT_KEY: &str = crate::handler_configuration_keys::START_PROBE_KEY;
 
 /// The key inside `startProbe` naming the checkout the probe opens.
-pub const PROBE_CHECKOUT_KEY: &str = "checkout";
+pub const PROBE_CHECKOUT_KEY: &str = crate::handler_configuration_keys::PROBE_CHECKOUT_KEY;
 
 /// The document a file that is not there stands for,
 /// so every entry is one the sweep finds rather than reads.
@@ -177,7 +177,13 @@ fn discovered<T>(found: Result<T, MountedDatasetRefusal>, path: &Path) -> Result
 /// # Errors
 /// The table could not be read,
 /// or the name matched none or several.
-fn checkout_of(path_entry: Option<PathBuf>, dataset_entry: Option<String>, mounts: &dyn MountedDatasets, path: &Path) -> Result<(PathBuf, String), ConfigurationRefusal> {
+fn checkout_of(
+    path_entry: Option<PathBuf>,
+    dataset_entry: Option<String>,
+    container_entry: Option<&str>,
+    mounts: &dyn MountedDatasets,
+    path: &Path,
+) -> Result<(PathBuf, String), ConfigurationRefusal> {
     return match (path_entry, dataset_entry) {
         (Some(checkout), Some(dataset)) => Ok((checkout, dataset)),
         (Some(checkout), None) => {
@@ -189,7 +195,7 @@ fn checkout_of(path_entry: Option<PathBuf>, dataset_entry: Option<String>, mount
             Ok((checkout, dataset))
         }
         (None, None) => {
-            let one: MountedDatasetInstance = discovered(the_one_mounted_checkout(mounts), path)?;
+            let one: MountedDatasetInstance = discovered(the_one_mounted_checkout(mounts, container_entry), path)?;
             Ok((one.mount_point, one.dataset))
         }
     };
@@ -236,6 +242,12 @@ pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn MountedData
         }
         None => None,
     };
+    // The clone container this run uses is read before the table is, because a row inside it is no instance
+    // of the checkout (the project's first answer of 2026-11-22).
+    let parent_entry: Option<String> = match optional_text(document, CLONE_MOUNTS_KEY, PARENT_KEY, path)? {
+        Some(name) => Some(named_dataset(name, &format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}"), path)?),
+        None => None,
+    };
     let probe_checkout_entry: Option<PathBuf> = match optional_text(document, PROBE_OBJECT_KEY, PROBE_CHECKOUT_KEY, path)? {
         Some(text) => {
             let guessed: PathBuf = PathBuf::from(text.as_str());
@@ -250,11 +262,7 @@ pub fn parse_configuration(document: &str, path: &Path, mounts: &dyn MountedData
         }
         None => None,
     };
-    let parent_entry: Option<String> = match optional_text(document, CLONE_MOUNTS_KEY, PARENT_KEY, path)? {
-        Some(name) => Some(named_dataset(name, &format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}"), path)?),
-        None => None,
-    };
-    let (checkout, checkout_dataset): (PathBuf, String) = checkout_of(path_entry, dataset_entry, mounts, path)?;
+    let (checkout, checkout_dataset): (PathBuf, String) = checkout_of(path_entry, dataset_entry, parent_entry.as_deref(), mounts, path)?;
     if let Some(probe) = probe_checkout_entry
         && probe != checkout
     {
