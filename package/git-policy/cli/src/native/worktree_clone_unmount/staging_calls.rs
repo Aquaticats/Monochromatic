@@ -241,7 +241,9 @@ impl StagingCalls for LiveStagingCalls {
         let Some(row) = table.iter().find(|facts| return facts.mount_id == opened_id) else {
             return Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: format!("no row names the opened mount {opened_id}") });
         };
-        if row.parent_id != cache_id || row.source != cache_source || row.root == std::path::Path::new("/") {
+        // A bind of the folder onto itself has root `/`, like the cache mount; the two differ by their mount id and by
+        // the bind's parent being the cache mount.
+        if opened_id == cache_id || row.parent_id != cache_id || row.source != cache_source {
             return Err(StagingCallRefusal {
                 call: StagingCall::OpenBind,
                 errno: libc::EBUSY,
