@@ -2723,6 +2723,10 @@ asserts that the second request carries a fresh nonce and counts only its own re
 and that the stale busy receipt is never taken for an answer (X4,
 X5).
 Its third control answers no receipt at all within the bound and asserts the withdrawal and the text's "no answer came".
+Its fourth control lets the holder leave and the handler unmount between the refusal and the read,
+and asserts that the add treats the clone as `done`,
+writes nothing back and continues the settle from the destruction,
+which is V15's first option and the one arm that would go red if the property were written back first.
 - T15.
 `a_new_add_never_reads_a_pending_add's_records`,
 on the host,
