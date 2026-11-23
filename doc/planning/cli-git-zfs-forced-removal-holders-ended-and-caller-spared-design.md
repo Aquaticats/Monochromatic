@@ -3145,6 +3145,20 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
 - `ceb7bc06c2`,
   2026-11-22T20:03:59-05:00:
   the line breaks those entries needed.
+- `10a308a973`,
+  2026-11-22T21:12:45-05:00:
+  the merge of `main` with the corrected reach record and the script-unit answer.
+- `7e0f31ed9e`,
+  2026-11-22T21:18:03-05:00:
+  this revision: the ways and ranking corrected to the kernel's propagation rule,
+  ways 7 and 8,
+  the preflight's endability, socket, room, parent and receiver reads,
+  the all-namespace order,
+  the wait constant,
+  the destination's directory,
+  the extended matcher,
+  the script refusal,
+  and F47 to F54.
 
 The record's answers are built in:
 "Who ends each kind of holder" is the chosen channel,
