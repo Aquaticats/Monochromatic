@@ -1224,7 +1224,8 @@ fn the_first_attach_is_claimed_once_and_records_the_mount() {
 ///  so the source is the seam and the answer is a table the control wrote.
 #[derive(Clone)]
 struct ScriptedTable {
-    /// The tables in order; the last one answers every later read.
+    /// The tables in order;
+    /// the last one answers every later read.
     tables: std::rc::Rc<RefCell<Vec<Vec<MountFacts>>>>,
     /// Whether the poll says the table changed.
     changed: std::rc::Rc<Cell<bool>>,
@@ -1233,7 +1234,8 @@ struct ScriptedTable {
 }
 
 impl ScriptedTable {
-    /// A source holding `tables`, with the poll quiet.
+    /// A source holding `tables`,
+    /// with the poll quiet.
     fn new(tables: Vec<Vec<MountFacts>>) -> Self {
         return Self { tables: std::rc::Rc::new(RefCell::new(tables)), changed: std::rc::Rc::new(Cell::new(false)), reads: std::rc::Rc::new(Cell::new(0)) };
     }

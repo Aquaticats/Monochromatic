@@ -56,9 +56,11 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  and the raw lines are `perf/sweep-cost-2026-11-23-poll-interleaved.json`.
 ///  Steady sweeps over standing mounts were 285 ms against main's 297 and its
 ///  repeat's 293 at 64 children (ratio 0.96,
-///  0.95 to 0.99, control spread 0.82 to 1.29),
+///  0.95 to 0.99,
+///  control spread 0.82 to 1.29),
 ///  and 3,089 ms against 9,129 and 9,971 at 1,024 (ratio 0.37,
-///  0.28 to 0.45, control spread 1.05 to 1.18).
+///  0.28 to 0.45,
+///  control spread 1.05 to 1.18).
 ///  Cold sweeps that attach every clone were 957 against 1,193 and 990 at 64
 ///  (ratio 1.00,
 ///  0.78 to 1.23) and 27,328 against 22,690 and 24,762 at 1,024
@@ -66,8 +68,6 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  0.87 to 1.72,
 ///  control 0.99 to 1.22);
 ///  the 1,024 cold arm is the one figure whose range lies outside the control.
-///  The one-child controls were 155, 167 and 151 ms steady at 64 and 190, 213
-///  and 184 ms at 1,024.
 ///  No 2,048 or 4,096 figure is cited here because no raw line for that shape
 ///  is kept for this build;
 ///  the earlier 4,097-child figure counted children the origin check refuses,
