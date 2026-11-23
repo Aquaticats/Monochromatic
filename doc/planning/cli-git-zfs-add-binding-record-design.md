@@ -199,7 +199,7 @@ the next list is this round's.
 - X3:
   "The record's end" cites the origin cleanup design's list at `987a3ba886`,
   states only what this record needs from its merged list,
-  V20 places this binding's removal before the plan's with the claim released last,
+  the origin design's V13 places this binding's removal before the plan's with the claim released last,
   and "What a record whose clone is gone means" no longer reads an ordinary kill as an outside change.
 - X4:
   every statement about the two removal-side records is rewritten at `76849b8d9b` and `987a3ba886`,
@@ -2136,7 +2136,9 @@ in which a kill after a destroy leaves a binding naming a clone that no longer a
 A21.
 The unmount requested and its receipt verified,
 when the entry phase has a mounted clone,
-or the request withdrawn when the handler refuses it as busy.
+or the request withdrawn on every outcome but success,
+which is the accepted design's wider rule and its choices 14 and 15:
+a clone the add finds already unmounted continues the settle.
 The further answer of 2026-11-22 decides the busy arm:
 the add writes its request back to the mounted state,
 nothing having been unmounted,
@@ -2294,6 +2296,10 @@ the clone's GUID present or absent,
 the snapshot's present or absent,
 the lock standing or gone,
 the checkout done or partial.
+When it cannot prove the clone's absence it stops,
+changes nothing,
+and names the settling command,
+which is the state the project's answer gives to that command (U14 of the sixth add-side read).
 This is the one case in which an add finishes a binding,
 and it is not R3's case:
 R3 refuses a binding at `filled` or later whose clone is gone and which carries no `settling` phase,
@@ -2335,31 +2341,67 @@ and the command for each state after A20 is:
 
 - the clone still stands,
   mounted or not:
-  the person's removal,
-  which reads the `settling` binding as an add's unfinished clone,
+  two commands are true here.
+  The person's removal reads the `settling` binding as an add's unfinished clone,
   proves lineage from the live clone and the binding,
-  and removes it as any clone is removed;
-  a busy unmount prints the pending worktree's line and the removal command:
+  and removes it;
+  a busy unmount prints the pending worktree's line and the removal command,
   "this worktree is pending and the clone that would have made it is still mounted;
-  do not run Git in this folder
-  until it is removed;
+  do not run Git in this folder until it is removed;
   `git worktree remove <slot>` removes it once nothing holds it",
-  and the person leaves the folder and runs the command;
+  and the person leaves the folder and runs it.
+  The add again at the slot is the other true command:
+  a resumed add continues at A20 with what it can prove,
+  so it finishes a fallback that was killed with nothing busy,
+  and it meets the refused unmount again in the busy state,
+  where only the removal is true (G12 of the sixth removal-side read);
 - the clone is gone,
   the binding says `settling`,
+  it holds a `cloneGuid=`,
   and its absence is proved (the pinned parent's children carry neither the GUID nor the name):
   the add's own re-run,
-  which continues at A20 and closes at A26 and A27;
+  which continues at A20,
+  finishes the checkout,
+  and closes at A26 and A27;
 - the clone is gone,
   the binding says `settling`,
-  and its absence cannot be proved (the pool refuses the listing,
-  or answers it only in part):
+  it holds a `cloneGuid=`,
+  its absence cannot be proved,
+  and its slot holds no finished checkout (the lock stands,
+  or the slot holds nothing but the pointer,
+  or the registration holds no `index`):
   the settling command,
   whose guard the person meets.
   This is the project's answer for such a slot,
   and a `settling` binding is no exception to it (U3 and N2 of the fifth checks):
   the plain `settling` refusal covers only the state where the absence is proved,
-  because there the add's own re-run finishes it.
+  because there the add's own re-run finishes it;
+- the clone is gone,
+  the binding says `settling`,
+  its absence cannot be proved,
+  and its slot holds a finished or partial checkout (the lock is gone and the slot holds an entry besides `.git`,
+  or the registration holds an `index`):
+  the settling command removes only the records (the plan,
+  the two inventories,
+  the binding and the claim),
+  and leaves the registration and the slot,
+  naming the worktree it leaves and the wrapper's ordinary removal command for it (G1 of the sixth removal-side
+  read).
+  The full recipe would strip a worktree Git made and leave its files behind,
+  so it does not run there.
+- the clone is gone,
+  the binding says `settling`,
+  and it holds no `cloneGuid=` (it entered from `registered` or `snapshotted`):
+  no clone remains to settle,
+  so the settling command refuses it and names the add's re-run,
+  which continues at A20 and needs no clone's identity (G1).
+
+"Cannot be proved" means one thing wherever this design uses the phrase:
+the pinned parent's children were read and either the pool refused the listing or it answered it only in part.
+A reused name is not this state:
+it is a refusal,
+below,
+because a live dataset holds the recorded clone's name (G9).
 
 A fallback killed before A20 leaves no `settling` phase:
 the binding names the clone it made,
@@ -2527,7 +2569,9 @@ moving the installer into step 10,
 to the project.
 From step 13 on,
 A6 adopts the entry and the lock design's installer writes the lock again with one line.
-and then `registration=`,
+Then,
+in either case once the entry is adopted,
+`registration=`,
 `registrationIdentity=`,
 `pointer=` and `phase=registered` are written and the add continues at A8.
 
@@ -3191,12 +3235,20 @@ a removal accepts a binding at any phase whose clone still stands,
 `phase=settling` included,
 read the live clone's identity from the binding and the pool,
 and proves lineage from it as from any clone;
-the phase stays where the add or the fallback left it for the whole removal,
-and a removal that finds a clone already gone and a `settling` binding refuses and names the add's own re-run
-instead (W4 of the fourth removal-side check).
+the phase stays where the add or the fallback left it for the whole removal.
+A removal that finds a clone already gone and a `settling` binding refuses,
+and names the one command that is true for the state:
+the add's own re-run when the absence is proved,
+and the settling command when it cannot be proved (G5 of the sixth removal-side read,
+and the same rule as the list after A20).
 What the removal does with this binding is read it,
 confirm its origin fields,
 and remove it where the route's one removal order places it.
+When the clone it names is already gone and the binding says `settling`,
+the removal refuses and names the one command that is true for the state,
+the add's re-run or,
+when the absence cannot be proved,
+the settling command of "The settling command" (T34).
 
 That order is the origin cleanup design's list,
 and this design states none of its own:
@@ -3347,7 +3399,7 @@ and the order is what tells them apart.
 - A destruction plan stands for `cloneGuid=`.
   A removal is in flight or was killed,
   wherever it was killed:
-  because V20 puts the plan's removal after this binding's,
+  because the origin design's V13 puts the plan's removal after this binding's,
   a kill after the settle and before step 5 leaves the plan standing beside this binding.
   `doctor` prints the plan's standing intent and this record's origin names,
   and the finisher above finishes its step 12:
@@ -3358,7 +3410,7 @@ and the order is what tells them apart.
   nothing in the binding is regenerated and nothing is settled on a guess.
 - No plan stands.
   Then either the clone was never destroyed by this wrapper (nothing else can remove a plan on the normal path),
-  or a removal broke V20's order,
+  or a removal broke that order,
   and both are reported as an outside change:
   the reader requires "the name is absent and no child of the pinned parent carries the recorded GUID" before it
   settles anything,
@@ -3453,10 +3505,18 @@ in order:
    a `.git` at the slot,
    the registration it names,
    that registration's identity against `registrationIdentity=`,
+   the registration's own entries (an `index` among them),
    and the mount table for a mount at the slot.
    A `.git` that names another registration refuses;
    one that names this registration is the ordinary abandoned slot's,
    and the recipe's first step removes it.
+   A registration the command's own recipe already removed counts as that step done,
+   as the recipe treats its own `ENOENT`,
+   so a rerun after a kill goes on to the plan and the inventories (G2 of the sixth removal-side read).
+   The slot and the registration together tell a finished checkout:
+   the lock gone and an entry besides `.git` in the slot,
+   or an `index` in the registration,
+   is Git's own checkout of a fallback that ran A25 (G1).
 5. The origin cleanup record,
    when one stands,
    compared with this binding's five origin fields.
@@ -3489,15 +3549,23 @@ changing nothing:
   and a removal and this command both refuse and name the reuse (N3 of the fifth removal-side check);
 - a mount at the slot;
 - a `.git` at the slot that names another registration;
+- a standing origin cleanup record whose five origin fields disagree with the binding's;
 - a plan for `cloneGuid=` whose `head` is `gone`;
 - a plan it cannot read,
   or one whose recorded identities disagree with the live clone,
   the binding or the pool,
-  which is the refusal the plan design asks of this command at its "What a later run does" (N3);
+  which is the refusal the plan design asks of this command at its "A clone gone whose absence cannot be
+  proved" (N3);
 - a binding at `phase=settling` whose clone's absence is proved,
   which the add's own re-run finishes at A20 instead;
-  a `settling` binding whose clone's absence cannot be proved is this command's case,
-  and the command mirrors A20's own reads to prove what it can before it acts;
+- a binding at `phase=settling` that holds no `cloneGuid=`,
+  which entered from `registered` or `snapshotted`:
+  no clone remains to settle,
+  so the command refuses and names the add's re-run,
+  which continues at A20 without a clone's identity;
+  a `settling` binding whose absence cannot be proved and which holds a `cloneGuid=` is this command's case,
+  and the command reads the slot,
+  the registration and the checkout as A20's resume does before it acts;
 - two records that both answer the two names.
 
 What it asks the person to confirm,
@@ -3517,7 +3585,8 @@ because the wrapper's commands are non-interactive.
 
 What it removes,
 in this record's order,
-which is the recipe's:
+which is the recipe's,
+when the slot holds no finished checkout:
 
 1. a lost managed lock is written again,
    with one line,
@@ -3542,6 +3611,22 @@ which is the recipe's:
 6. its claim,
    released after the removal,
    which leaves the newest generation file as a released claim.
+
+For a `settling` binding whose slot holds a finished or partial checkout,
+the command removes only the records and leaves the worktree:
+the plan,
+the two inventories,
+the binding,
+and the claim,
+in that order,
+and it names the registration and the slot it leaves,
+with the wrapper's ordinary removal command for that worktree.
+The full recipe would strip the registration of a worktree Git made at A25 and leave its files behind,
+so it never runs there (G1).
+The alternative,
+refusing and naming the add's re-run for that state,
+is V23's second option,
+for the project to choose.
 
 That order is one sentence a sibling can quote,
 and the plan design cites it:
@@ -3574,15 +3659,14 @@ What a kill leaves:
   one of the rows,
   with the binding still standing,
   and the next run repeats the recipe;
-- inside the recipe,
-  with the plan already gone:
-  the same rows,
-  the plan gone,
-  and the next run reads the binding and repeats the recipe;
+- after the recipe and before the plan:
+  the registration is gone and the plan stands,
+  and the next run reads the binding,
+  not the plan,
+  and removes the rest;
 - after the plan and before the first inventory:
   the binding and both inventories stand and the plan is gone,
-  and the next run of this command — which reads the binding,
-  not the plan — removes the rest;
+  and the next run removes the rest;
 - between the two inventories,
   or after them and before the binding:
   the binding and whatever inventories remain,
@@ -3603,6 +3687,14 @@ and the command itself with both flags shown as placeholders
 (`--confirm-removal-of <slot>` and `--confirm-clone-guid <the last four digits printed above>`),
 spelled with the slot from the record's own `slot=`,
 so the line a person copies carries neither value and each must be read and typed.
+The command is printed whenever its state is the one that stands and no other command can act on it:
+when the clone is gone,
+and neither a plan stands for the finish pass nor a registration stands for a removal,
+the add's refusal and `doctor` print it,
+not only when the pool refused the listing (G2 of the sixth removal-side read).
+A rerun of the command is let through in the states a kill inside it leaves,
+because read 4 counts a registration the recipe already removed as that step done,
+which is what the kill list below says.
 
 ## What Git does to a file it does not know here
 
@@ -3700,7 +3792,7 @@ and the last list says what step 10 cannot take yet.
   as the next bullet says.
 - Git's invocation and its sentence:
   the lock design's "The invocation" and "The reason text",
-  read at `7d0dcdc875`;
+  read at `f45d05a96d`;
   this document records the nonce the sentence is recomputed from.
 - The finder,
   the rows,
@@ -3769,13 +3861,8 @@ and the last list says what step 10 cannot take yet.
   the number ships only with that measurement (rule `LQM`).
 - The fallback's unmount request and receipt are the handler's,
   and the staging design must state that an add may use them;
-  the lock design's release step is named at its tip `7d0dcdc875`,
+  the lock design's release step is named at its tip `f45d05a96d`,
   and the installer that step 10 lacks until step 13 is its too (V22).
-- The plan's step 10 sentence that lists "the discarded copied Git administration" is now wrong:
-  the decision keeps the copy until the exchange,
-  and the plan's text still says what the earlier design did.
-  That is a plan amendment for the project,
-  not a builder's choice.
 
 ### What each later step builds
 
@@ -4022,12 +4109,14 @@ directory and is cleared the same way;
 and a `refs/` holding a file the listing shows is emptied before `refs/` goes.
 
 T20b.
-`a_foreign_lock_a_foreign_gitdir_and_a_short_prefix_are_refused`:
-an entry at one of this slot's candidate names whose `locked` holds other words,
-one whose `gitdir` names another slot,
-one whose `locked` holds a prefix shorter than the sentence's fixed part and nonce,
+`a_foreign_lock_and_a_short_prefix_on_this_slot_are_refused_and_another_slot_is_left`:
+an entry whose `gitdir` names this slot and whose `locked` holds other words,
+and one whose `gitdir` names this slot and whose `locked` holds a prefix shorter than the sentence's fixed part
+and nonce,
 are each refused with the entry and the words' first line,
-and nothing is removed.
+and nothing is removed;
+an entry whose `gitdir` names another slot is left and never refuses,
+which T20c carries.
 An empty `locked` is not among them:
 with a `gitdir` naming this slot it is row 3's shape and is cleared,
 and with a pointer in the slot it is row 4's,
@@ -4137,7 +4226,7 @@ releases the claim,
 and leaves an ordinary worktree at the slot with no binding,
 no inventory and no claim generation owned by it.
 The `snapshotted` arm proves no clone is ever named,
-and the `mounted` and `filled` arms prove the unmount comes before the destroy.
+and the `mounted` arm proves the unmount comes before the destroy.
 
 T30.
 `a_kill_at_each_fallback_step_leaves_a_settling_binding_the_next_add_finishes`:
@@ -4147,7 +4236,8 @@ after A22,
 after A23 with a refused destroy,
 after A24,
 after A25,
-and after A26;
+after A26,
+and after A25 with the pool refusing the listing;
 the first leaves no `settling` phase and the ordinary resume,
 and each other leaves `phase=settling` with the reason,
 which the next add continues at A20 and closes;
@@ -4198,7 +4288,8 @@ the slot's `.git` naming this registration and therefore removed by the recipe's
 the registration standing and emptied by the recipe,
 `locked` removed last of the recipe's files,
 the lost lock written again and one line printed,
-a kept plan at `head=present` printed with the snapshot names it recorded as destroyed and removed before the two inventories,
+a kept plan at `head=present` printed with the snapshot names it recorded as destroyed,
+and removed before the two inventories,
 the two inventories removed,
 the binding removed,
 and the claim released;
@@ -4209,7 +4300,16 @@ and asserts the lock is written again before it is released;
 a third plants a `settling` binding whose absence cannot be proved,
 and asserts the command accepts it and removes its records;
 a fourth plants a disagreeing origin record,
-which refuses.
+which refuses;
+a fifth plants a `settling` binding after A25 whose slot holds a finished checkout,
+and asserts the command removes only the records,
+leaves the registration and the slot,
+and names the worktree;
+a sixth plants a `settling` binding with no `cloneGuid=`,
+which refuses and names the add's re-run;
+a seventh reruns the command after a kill between the recipe and the plan,
+with the registration already gone,
+and asserts the rerun goes on to the plan and the inventories.
 
 T34.
 `the_removal_accepts_a_settling_binding`:
@@ -4406,7 +4506,8 @@ and "The route's record convention" is where this design answers it.
   finishes its step 12 for the binding that names the plan's clone and removes the plan
   (its "The finish pass that settles a registration",
   read at `1921adf393`).
-  This design's V20 keeps the same order among the binding's three files and the same condition for a finisher,
+  This design's V20 keeps that order among its own three files,
+  and "The condition a finisher meets" is the pass's,
   so the pass is the finisher and the add is not;
   the second gate review's X3 and the third's Z1 are the two findings that made both sentences necessary.
 - The origin cleanup record publishes at its step 6,
@@ -4414,9 +4515,9 @@ and "The route's record convention" is where this design answers it.
   and says a new add may take the freed slot at once.
   This design agrees with both:
   step 2 of "The record's end" only confirms that record,
-  and V20 keeps this binding's removal before the plan's and the claim's release last,
-  in the origin list's own numbers (its step 12 before its step 13,
-  with its step 14 last).
+  and the origin design's V13 keeps this binding's removal before the plan's and the claim's release last,
+  which its list numbers 12,
+  13 and 14.
   The proposal decides the freeing ("settling does not wait for the origin",
   [proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469).
 - The origin cleanup record's add subsection makes an add that fails publish the same record before it destroys
@@ -5289,45 +5390,76 @@ and what step 10 does before it exists.
   and B would give one write two owners.
 
 V23.
-May the settling command take a `settling` binding whose clone's absence cannot be proved.
+How far the settling command reaches `settling` bindings.
 
 - A,
-  yes (adopted):
-  the command refuses a `settling` binding only where the absence is proved,
-  because there the add's own re-run finishes it,
-  and it takes the one whose absence cannot be proved,
-  with the guard and the reads above.
+  the adopted reach,
+  in two modes and one refusal:
+  it takes a `settling` binding that holds a `cloneGuid=` and whose slot holds no finished checkout
+  (the lock stands,
+  or the slot holds nothing but the pointer,
+  or the registration holds no `index`),
+  which is the state the project chose the command for;
+  when the slot holds a finished or partial checkout it removes the records only (the plan,
+  the two inventories,
+  the binding and the claim),
+  leaves the registration and the slot,
+  and names the worktree with the wrapper's ordinary removal command for it;
+  and a `settling` binding with no `cloneGuid=` refuses and names the add's re-run.
   Example:
   a fallback was killed after A22,
-  leaving `phase=settling` and the clone's GUID absent;
-  the pool refuses the listing,
-  and `git monochromatic-git-policy-cli settle-worktree-clone-record add-cache-layer --confirm-removal-of
-  add-cache-layer --confirm-clone-guid <digits>` prints the refused listing as its evidence and removes the
-  records after the person confirms.
+  leaving `phase=settling` and the clone's GUID absent,
+  and the pool refuses the listing;
+  `git monochromatic-git-policy-cli settle-worktree-clone-record add-cache-layer --confirm-removal-of
+  add-cache-layer --confirm-clone-guid <digits>` prints the refused listing as its evidence and removes the records
+  after the person confirms.
+  A second example:
+  a fallback was killed after A25,
+  so Git's checkout stands and the lock is gone;
+  the same command prints the refused listing,
+  removes only the records,
+  and names the worktree and `git worktree remove <slot>`.
   Pros:
   the state the project chose the command for has one true command,
-  and `settling` is not an exception to the answer on a slot whose clone cannot be proved gone.
+  no state is left without one,
+  and no finished worktree is stripped of the registration that makes it Git's.
   Cons:
-  the command can remove a `settling` binding whose clone stands on a host where the pool cannot be asked,
-  which the visible-clone check cannot catch there.
+  with a pool that cannot be asked,
+  the command can remove the records of a `settling` binding whose clone in fact stands;
+  and it erases a fallback's evidence while leaving its worktree.
 - B,
-  no:
-  keep the refusal for every `settling` binding and delete the third state's bullet,
-  leaving a `settling` slot whose clone cannot be proved gone with no command until the pool answers.
+  refuse every `settling` binding and delete the unprovable state's bullet:
+  a `settling` slot whose clone cannot be proved gone waits for the pool,
+  and no command fits it.
   Example:
-  the same state,
+  the same killed fallback and refused pool,
   and the person is told the pool must answer.
   Pros:
-  one fewer state for the command to handle,
-  and the add's re-run is the only finisher of a fallback.
+  the command never touches an add's own path.
   Cons:
   it leaves a blocked slot with no command,
   which is the state the project declined in its answer on such a slot.
+- C,
+  take the unprovable no-checkout state as A does,
+  and for a finished checkout refuse and name the worktree instead of removing the records.
+  Example:
+  the killed-after-A25 fallback:
+  the command refuses,
+  prints that a finished worktree stands,
+  and names `git worktree remove <slot>`.
+  Pros:
+  the command never deletes a record beside a worktree it leaves.
+  Cons:
+  the records of that state stand until a person removes the worktree and runs the command again,
+  so the slot is blocked for as long.
 - Ranking:
   A,
+  then C,
   then B.
-  A beats B because the project's answer names the command for exactly this slot,
-  and B leaves it with nothing a person can do.
+  A beats C because C leaves a state the command could clear with the person's confirmation,
+  and the checkout rule keeps A from stripping a worktree.
+  C beats B because C still frees the no-checkout state the project's answer names,
+  and B leaves it with nothing.
 
 ## Questions only the project can answer
 
@@ -5806,7 +5938,9 @@ and any test suite.
   W2 (the settling command refuses only a plan whose `head` is `gone`,
   removes any other before the inventories and prints what it held,
   never removes or rewrites the origin record,
-  and V23 weighs the three options),
+  and V23 weighed the kept plan's three options then,
+  which the project decided on 2026-11-22,
+  so V23 now asks the reach question),
   W3 (a refused or partial pool listing is printed and named,
   not a refusal),
   W4 (the phase is no precondition,
