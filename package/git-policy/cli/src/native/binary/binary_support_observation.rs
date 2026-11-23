@@ -549,11 +549,11 @@ pub fn settle_service_work(directory: &Path) {
     // `promote` moves a held record into `pending`, and `requeue_after_giving_up` moves a failed one into `pending`.
     // Arrivals into `pending` from outside are written by commands (`enqueue_all`), never by a service round,
     // and a record in `held` is not waited for.
-    // What three samples do not close, measured by the second integration pass over schedules of one record's moves
-    // placed among the wait's reads (`keep/probes/wait-every-schedule.txt` of its folder):
+    // What three samples do not close, over schedules of one record's moves placed among the wait's reads,
+    // counted by a reviewer's run kept outside the repository and reproduced by the pass after it:
     // they closed all 3350 schedules of up to three moves, and all but 4 of 18365 of up to four.
-    // So a chain of four or more moves that a thread's stall stretches across every sample of this wait is still missed,
-    // and so is a record renamed inside one folder while that folder is read.
+    // So a chain of four or more moves that a thread's stall stretches across every sample of this wait is still missed.
+    // A record renamed inside one folder while that folder is read was not tested.
     while a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) || a_record_is_in_flight(work.as_path()) {
         assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
         std::thread::sleep(SAMPLE_PAUSE);
