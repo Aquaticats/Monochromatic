@@ -4656,6 +4656,35 @@ which is that design's answer.
   gate-control and root-side arms.
 - 2026-11-22T20:32:59-05:00:
   recorded the answer's commit time above.
+- 2026-11-22T21:00:23-05:00:
+  the diff check after the answers,
+  and the project's further answer.
+  `main` was merged first,
+  at 2026-11-22T20:56:33-05:00,
+  bringing the further answer in the lost-event record and the repair record's answer on a shared and slave mount.
+  How long a lost request keeps being nudged is decided:
+  V14 left the veto list,
+  "The project's three answers" carries the fourth answer,
+  and "How long a lost request keeps being nudged" states it,
+  with the record's "once a minute" as an example and the first and longest gaps left to M8.
+  The record's shape is fixed along the slot store's own:
+  a unique staging name of a dot and 32 hexadecimal digits per writer,
+  removed after the link or by `doctor` when a writer was killed;
+  the command links the next attempt and only the winner spawns the helper,
+  which replaces its attempt's file with the outcome;
+  a wait claims its nudge through the same link.
+  A second request on a clone removes its older entries,
+  and the helper drops an entry whose intent is absent or names another nonce,
+  each stating what it proves.
+  An empty folder is removed with its last entry,
+  any failure on the command's read path is silent,
+  the command path is compiled out with the switch,
+  and the one-page bound and V15's sync are stated.
+  V17 lists how the nudge is written without the command waiting,
+  and V3's example numbers are marked placeholders.
+  The sibling statements cite the propagation design at `037bcee2e5`,
+  the repair record's further answer touches nothing here,
+  and facts F45 and F46 carry the staging names and the user service.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
