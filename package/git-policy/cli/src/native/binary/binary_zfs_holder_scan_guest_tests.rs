@@ -322,7 +322,8 @@ fn live_tasks() -> usize {
 /// What:
 ///  One task the arm started in a mount namespace of its own.
 /// Why:
-///  `unshare` forks the task and waits for it, so the launcher's pid is in the
+///  `unshare` forks the task and waits for it,
+///  so the launcher's pid is in the
 ///  host's namespace and killing it leaves the task that keeps the namespace
 ///  alive.
 ///  The task writes its own pid into a file and then execs into its work,
@@ -346,7 +347,9 @@ struct Task {
 }
 
 /// Start one task in its own mount namespace,
-/// bounded: it writes its pid first, and the arm reads that pid and the
+/// bounded:
+/// it writes its pid first,
+/// and the arm reads that pid and the
 /// namespace it is in.
 fn start_task(script: &str, pid_file: &str, sbin: &str, unshare_arguments: &[&str]) -> Option<Task> {
     let _removed: std::io::Result<()> = std::fs::remove_file(pid_file);
