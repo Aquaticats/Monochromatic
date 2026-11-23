@@ -255,29 +255,33 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
         return None;
     }
     let pid_file: PathBuf = pid_file_beside(lock);
-    if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(pid).ok()?) {
+    // The contents the PID file has when it is judged, byte for byte, and the number they name. One read gives both, and
+    //  the removal holds it until its last look, where the file is unlinked only if these very bytes are still there.
+    let judged_contents: Vec<u8> = crate::stopped_git_locks::pid_file_contents(pid_file.as_path())?;
+    if crate::stopped_git_locks::pid_named_in(judged_contents.as_slice()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
     let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> = pid_file_metadata(pid_file.as_path());
     std::fs::remove_file(lock).ok()?;
     // A control reaches here to act as a Git that takes the freed name at this instant.
     crate::service_fault::reach(UNLINKED_THE_LOCK);
-    // The number the PID file names is read again here, after the lock's name has gone, because the metadata below is
-    //  not enough on its own: a program that takes the freed lock and writes its own number over the judged PID file
-    //  truncates that very file, so its device, inode and millisecond change time can all be the judged ones and only
-    //  the number tells it apart (gitbutlerapp/grit does exactly that: `write_lock_pid_file` opens with create and
-    //  truncate, called from `IndexLockFile::acquire` after the lock was taken). The read is the bounded one
-    //  `pid_named_by` makes of a file that holds `pid <number>`, and nothing else here reads it.
-    let still_names_the_judged: bool = i32::try_from(pid).is_ok_and(|judged_number| { return crate::stopped_git_locks::pid_named_by(pid_file.as_path()) == Some(judged_number); });
+    // The contents are read again here, after the lock's name has gone, because the device, the inode and the change time
+    //  are not enough on their own: a program that takes the freed lock and writes over the judged PID file truncates that
+    //  very file, so its device, inode and millisecond change time can all be the judged ones and only the contents tell it
+    //  apart (gitbutlerapp/grit does exactly that: `write_lock_pid_file` opens with create and truncate, called from
+    //  `IndexLockFile::acquire` after the lock was taken). It compares the file's contents byte for byte with the contents it
+    //  judged, and the one case left open is a program that writes the very same bytes back, and the instant between the last
+    //  read and the unlink. The read is the bounded one `pid_file_contents` makes of a file that holds `pid <number>`.
+    let still_the_judged_contents: bool = matches!(crate::stopped_git_locks::pid_file_contents(pid_file.as_path()), Some(later) if later == judged_contents);
     // The PID file goes with the lock it belongs to only when it is still the very file that was judged: its device,
-    //  inode and change time as read before the unlink, and the number it names. Git's own PID file cannot stand at that
+    //  inode and change time as read before the unlink, and the contents it held. Git's own PID file cannot stand at that
     //  name while the judged one does, because it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is
     //  refused (`lockfile.c`, `create_lock_pid_file`, Git 2.56.1), so a Git that takes the freed name has none of its own
-    //  to lose. A program that writes its own number there is kept by the number, and one that writes the same number back
-    //  is not told apart: the file is gone then, and it names the holder that was just proved gone
+    //  to lose. A program that writes other bytes there is kept, and one that writes the very same bytes back is not told
+    //  apart: the file is gone then, and it names the holder that was just proved gone
     //  (issue 6342, `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, cause L).
     if let Some(judged_pid_file) = pid_file_judged
-        && still_names_the_judged
+        && still_the_judged_contents
         && matches!(pid_file_metadata(pid_file.as_path()), Some(still) if still.device == judged_pid_file.device && still.inode == judged_pid_file.inode && still.ctime_ms == judged_pid_file.ctime_ms)
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
