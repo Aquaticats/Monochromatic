@@ -933,9 +933,9 @@ Of the owner's,
 ten stand nowhere else,
 not even in a range another ledger moves
 (Group 1 in its report,
-with "Fall back automatically (Recommended)",
-"Kimi for these only",
-"Fix the driver too." among them);
+among them "Fall back automatically (Recommended)",
+"Kimi for these only"
+and "Fix the driver too.");
 the rest have a copy in a range a ledger moves.
 The rule that reviews never block a merge was one such unmoved passage,
 and it was lost from the rewrite until the owner said it again;
