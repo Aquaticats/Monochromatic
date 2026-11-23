@@ -376,7 +376,8 @@ impl State {
 /// so it reads the repository's own store,
 /// as `main`'s reader did,
 ///  and a store or a base a command's environment names does not move that reading:
-/// the objects it asks for are this repository's, and their names are their bytes.
+/// the objects it asks for are this repository's,
+/// and their names are their bytes.
 /// Where the repository's own store lacks them,
 /// the proof refuses as `main` refused,
 /// and the caller takes Git's own answer.

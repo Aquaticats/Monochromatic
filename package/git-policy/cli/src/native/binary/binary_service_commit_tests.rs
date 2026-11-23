@@ -720,9 +720,12 @@ fn git_holding(fixture: &Fixture, repo: &Path, held: &[(&str, &str)], arguments:
 ///  parents to Git,
 /// and the reader declines them,
 /// so a landing that read in process asks Git too.
-///  This control is therefore red only with both doors closed;
+///  This control is therefore red only with both doors closed,
+///  while at the unit level each door is isolated for the same variable by `main`'s own controls
+///  (`every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list` and
+///  `an_environment_that_moves_the_replacement_base_declines_the_database`);
 ///  `a_graft_file_the_service_names_lands_as_git_reads_it` and
-///  `a_ref_store_the_service_names_lands_as_git_reads_it` hold one door each.
+///  `a_replace_ref_keeps_the_amendment_on_the_parents_git_reads` hold one door each.
 #[test]
 fn a_setting_only_the_service_sees_lands_as_git_reads_it() {
     for (variable, value) in SETTINGS_ONLY_A_SERVICE_SEES {
@@ -873,10 +876,11 @@ struct AnEnvironmentRow {
     amend: bool,
 }
 
-/// The rows of the integration recheck's environment situations in which `main` lands the right commit,
-/// under the names it gives them (`r01` to `r32` of its `env-situations.ts`).
+/// The rows of the environment survey the integration rechecks ran,
+/// in which `main` lands the right commit,
+/// each named here for what it holds (`r01` to `r32` are the survey's own row names).
 /// Why:
-///  These are the rows the commit refusal this round added refused:
+///  These are the rows the commit refusal a later round removed refused:
 /// a value that names what the repository already
 ///  uses,
 /// an empty cache directory,
@@ -903,9 +907,10 @@ fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
 
 /// What:
 ///  Every row of the recheck's environment situations in which `main` lands the right commit still lands it,
-///  with the parents Git reads and a whole commit.
+///  with the parents Git reads and a whole commit,
+///  and every row that does not is named in one failure.
 /// Why:
-///  The commit refusal this round added refused these rows,
+///  The commit refusal a later round removed refused these rows,
 /// and the merge bar is that a branch may not make anything
 ///  `main` does well worse:
 ///  a value that names what the repository already uses,
@@ -914,74 +919,106 @@ fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
 ///  it,
 /// a reftable store naming what it is,
 /// and an effective setting the service holds too are all cases `main` lands.
-///  Each row has a fixture and a commit service of its own.
+///  Each row has a fixture and a commit service of its own,
+/// and a row that fails is collected rather than thrown,
+/// so a regression names every row it breaks and not only the first of a variable.
 #[test]
 fn a_setting_the_command_or_the_service_holds_still_lands() {
-    for (index, row) in rows_of_the_recheck().into_iter().enumerate() {
-        let fixture: Fixture = fixture(format!("environment-row-{index}").as_str());
-        let repo: PathBuf = fixture.root.join("repo");
-        std::fs::create_dir(repo.as_path()).expect("repository directory");
-        let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
-        if row.reftable {
-            init.push("--ref-format=reftable");
+    let rows: Vec<AnEnvironmentRow> = rows_of_the_recheck();
+    let mut failures: Vec<String> = Vec::new();
+    for (index, row) in rows.iter().enumerate() {
+        if let Err(why) = one_row_lands(index, row) {
+            failures.push(why);
         }
-        git(&fixture, repo.as_path(), init.as_slice());
-        git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=root"]);
-        std::fs::write(repo.join("a.txt"), "one\n").expect("a");
-        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
-        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
-        git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
-        let paths: RowPaths = row_paths(&fixture, repo.as_path());
-        std::fs::create_dir_all(paths.cache.as_path()).expect("the directory the row names");
-        (row.prepare)(&fixture, &paths);
-        let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-        let held_by_the_command: Vec<(&'static str, String)> = (row.command)(&paths);
-        {
-            let mut environment = fixture.service_environment.lock().expect("the service environment");
-            for (name, value) in (row.service)(&paths) {
-                environment.push((OsString::from(name), OsString::from(value)));
-            }
+    }
+    assert!(failures.is_empty(), "{} of {} rows do not land as they do on main:\n{}", failures.len(), rows.len(), failures.join("\n"));
+}
+
+/// What:
+///  One row:
+/// a fixture,
+///  a commit service with what the row gives it,
+///  the command with what the row gives it,
+///  and the checks the row must pass.
+/// Why:
+///  A row that cannot be prepared (a fixture that does not build) is reported with its own name like one that fails a
+///  check,
+/// so the collection above names it too.
+///
+/// # Errors
+///
+/// The row's name and what it did not do,
+/// in words.
+fn one_row_lands(index: usize, row: &AnEnvironmentRow) -> Result<(), String> {
+    let fixture: Fixture = fixture(format!("environment-row-{index}").as_str());
+    let repo: PathBuf = fixture.root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
+    if row.reftable {
+        init.push("--ref-format=reftable");
+    }
+    git(&fixture, repo.as_path(), init.as_slice());
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=root"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["config", "maintenance.autoDetach", "false"]);
+    let paths: RowPaths = row_paths(&fixture, repo.as_path());
+    std::fs::create_dir_all(paths.cache.as_path()).expect("the directory the row names");
+    (row.prepare)(&fixture, &paths);
+    let base: String = query(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    let held_by_the_command: Vec<(&'static str, String)> = (row.command)(&paths);
+    {
+        let mut environment = fixture.service_environment.lock().expect("the service environment");
+        for (name, value) in (row.service)(&paths) {
+            environment.push((OsString::from(name), OsString::from(value)));
         }
-        let service: FixtureService = start_fixture_service(&fixture);
-        service.serve(&fixture, repo.join(".git").as_path());
-        std::fs::write(repo.join("a.txt"), "two\n").expect("edit");
-        git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
-        let arguments: &[&str] = match row.amend {
-            true => &["commit", "--quiet", "--amend", "--message=amended", "--", "a.txt"],
-            false => &["commit", "--quiet", "--message=under test", "--", "a.txt"],
-        };
-        let mut command: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
-        command.env("XDG_RUNTIME_DIR", &service.runtime);
-        for (name, value) in &held_by_the_command {
-            command.env(name, value);
+    }
+    let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
+    std::fs::write(repo.join("a.txt"), "two\n").expect("edit");
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let arguments: &[&str] = match row.amend {
+        true => &["commit", "--quiet", "--amend", "--message=amended", "--", "a.txt"],
+        false => &["commit", "--quiet", "--message=under test", "--", "a.txt"],
+    };
+    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), arguments);
+    command.env("XDG_RUNTIME_DIR", &service.runtime);
+    for (name, value) in &held_by_the_command {
+        command.env(name, value);
+    }
+    let served: Output = command.output().expect("the wrapped commit runs");
+    let said: String = String::from_utf8_lossy(served.stderr.as_slice()).trim_end().to_owned();
+    let answer: Result<(), String> = (|| {
+        if served.status.code() != Some(0) {
+            return Err(format!("it lands on main and it exited {:?}: {said}", served.status.code()));
         }
-        let served: Output = command.output().expect("the wrapped commit runs");
-        let said: String = String::from_utf8_lossy(served.stderr.as_slice()).into_owned();
-        assert_eq!(served.status.code(), Some(0), "{}: this row lands on main: {said}", row.name);
         // What Git reads for the commit under the same environment, and what the landing made of it.
         let judging: Vec<(&str, &str)> = held_by_the_command.iter().map(|(name, value)| { return (*name, value.as_str()); }).collect();
         let landed: String = text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["rev-parse", "HEAD"]));
-        assert_ne!(landed, base, "{}: the branch moved", row.name);
+        if landed == base {
+            return Err(String::from("the branch did not move"));
+        }
         let expected: String = match row.amend {
             true => landed.clone(),
             false => format!("{landed} {base}"),
         };
-        assert_eq!(
-            text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["rev-list", "--parents", "--max-count=1", landed.as_str()])),
-            expected,
-            "{}: the commit stands on the parents Git reads",
-            row.name
-        );
+        let parents: String = text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["rev-list", "--parents", "--max-count=1", landed.as_str()]));
+        if parents != expected {
+            return Err(format!("it stands on {parents} where Git reads {expected}"));
+        }
         let whole: Output = git_holding(&fixture, repo.as_path(), judging.as_slice(), &["fsck", "--no-progress"]);
-        assert!(whole.status.success(), "{}: Git finds every object the commit names: {}", row.name, String::from_utf8_lossy(whole.stderr.as_slice()));
-        assert_eq!(
-            text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["status", "--porcelain"])),
-            "",
-            "{}: the worktree is clean",
-            row.name
-        );
-        remove_settled(&fixture);
-    }
+        if !whole.status.success() {
+            return Err(format!("Git does not find every object it names: {}", String::from_utf8_lossy(whole.stderr.as_slice()).trim_end()));
+        }
+        let status: String = text_of(git_holding(&fixture, repo.as_path(), judging.as_slice(), &["status", "--porcelain"]));
+        if !status.is_empty() {
+            return Err(format!("the worktree is not clean: {status}"));
+        }
+        return Ok(());
+    })();
+    remove_settled(&fixture);
+    return answer.map_err(|why| { return format!("{}: {why}", row.name); });
 }
 
 /// The text of one Git answer,

@@ -1,12 +1,20 @@
 //! What:
 //!  The snapshot rung of `git worktree add` decides on the filesystem and not on the reader when the add's own environment
-//!  names an object store, alternate object directories or a replacement base.
+//!  names an object store,
+//! alternate object directories or a replacement base.
 //! Why:
-//!  The object reader declines those variables, so that every question a landing asks Git reads the store Git reads.
-//!  A proof of *this worktree's own files* is not such a question: it reads the repository's own store, as `main`'s reader
-//!  did, and a harmless value of either variable must not turn a snapshot into a copy.
-//!  The control counts the routes the add states: the snapshot line where the filesystem can make one, its own structural
-//!  refusal where it cannot, and never the reader's refusal of the source.
+//!  The object reader declines those variables,
+//! so that every question a landing asks Git reads the store Git reads.
+//!  A proof of *this worktree's own files* is not such a question:
+//! it reads the repository's own store,
+//! as `main`'s reader
+//!  did,
+//! and a harmless value of either variable must not turn a snapshot into a copy.
+//!  The control counts the routes the add states:
+//! the snapshot line where the filesystem can make one,
+//! its own structural
+//!  refusal where it cannot,
+//! and never the reader's refusal of the source.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +30,8 @@ use std::process::Command;
 
 /// The words a source the reader refused leaves in the add's explanation.
 /// Why:
-///  They are the regression this control holds: a proof of this worktree's own files must answer under these variables.
+///  They are the regression this control holds:
+/// a proof of this worktree's own files must answer under these variables.
 const THE_READERS_REFUSAL: &str = "could not be read to prove it unchanged";
 
 /// How many of the two routes one add stated:
@@ -38,7 +47,8 @@ fn routes_of(seen: &Observed) -> (usize, usize) {
 ///  and one with nothing held as its control,
 ///  both stated by the same route and neither because of the reader.
 /// Why:
-///  The route is the filesystem's where a snapshot cannot be made, and the snapshot's where one can;
+///  The route is the filesystem's where a snapshot cannot be made,
+/// and the snapshot's where one can;
 ///  what must never appear is the reader's refusal of the source,
 ///  which is what turned a snapshot into a copy under a harmless value.
 fn assert_the_snapshot_rung_decides(name: &'static str, setting: fn(&Fixture, &Path) -> (&'static str, String)) {

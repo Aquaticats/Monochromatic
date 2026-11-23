@@ -205,7 +205,7 @@ A repository whose reader now declines where `main` opened it keeps its answer,
 because the caller asks Git;
 that is the safe direction,
 at the price of Git starts.
-The declines this round added are:
+The declines this branch adds are these:
 
 - a stray `reftable` folder in a files repository,
 and a linked worktree whose common directory holds one;
@@ -379,7 +379,7 @@ with all four questions made to answer nothing,
   `a_content_proof_answers_under_each_variable_a_command_names` failed with
   `"GIT_OBJECT_DIRECTORY": a proof of this worktree's own files answers under the variable it holds:
   Err(CleanRefusal { kind: Unreadable, reason: "the object database has a layout the reader does not know" })`;
-- with the commit refusal put back in `run_commit_command` (the code this round removed),
+- with the commit refusal put back in `run_commit_command` (the code a later round removed),
   `a_setting_the_command_or_the_service_holds_still_lands` failed on its first row,
   `r01 the object store in use: this row lands on main`,
   exit 1 against 0;
@@ -393,12 +393,18 @@ with all four questions made to answer nothing,
   `a_setting_only_the_service_sees_lands_as_git_reads_it` failed on
   `GIT_REPLACE_REF_BASE: the amended commit stands on the parents Git reads under the setting`.
 
-The landing's two doors are redundant for `GIT_REPLACE_REF_BASE`,
-so no red run isolates one of them for that variable:
-with the entry in `HISTORY_VARIABLES` taken out alone the control passes (the reader declines and the question goes to
-Git),
+The landing's two doors are redundant for `GIT_REPLACE_REF_BASE` **in the binary controls**,
+so no red run isolates one of them for that variable there:
+with the entry in `HISTORY_VARIABLES` taken out alone `a_setting_only_the_service_sees_lands_as_git_reads_it` passes
+(the reader declines and the question goes to Git),
 and with the reader's decline of the variable taken out alone it passes too (the landing leaves the parents to Git).
-Each door has its own control above,
+At the unit level each door is isolated for that variable,
+by `main`'s own controls:
+`every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list`
+(`service_land_built_tests.rs`) is red with the entry taken out of `HISTORY_VARIABLES` alone,
+and `an_environment_that_moves_the_replacement_base_declines_the_database` is red with the reader's decline of the
+variable taken out alone.
+Each door also has its own binary control above,
 which closes the other in its fixture.
 
 ## The environment that overrides the configuration
@@ -481,7 +487,7 @@ so naming it there would change no answer.
   for the commit object of a request Git built.
 
 A Git that cannot be started answers false,
-which is the answer the caller kept before this round;
+which is the answer the caller kept before these questions asked Git;
 `objects_missing` is the one that can say the question failed instead,
 because the private file its names travel in can fail to be made or to be written whole,
 and no caller then takes the silence for "not missing".
@@ -533,7 +539,7 @@ and the request that carries a commit carries no environment:
 the service reads objects and refs from its own environment,
 and its Git children inherit that.
 A variable set for one `git commit` therefore reaches that command's Git and nothing the landing asks.
-For the four variables that move a read this round declines at the reader
+For the four variables that move a read the reader declines
 (`GIT_REFERENCE_BACKEND` other than `files`,
 `GIT_REPLACE_REF_BASE`,
 `GIT_OBJECT_DIRECTORY`,
@@ -636,15 +642,26 @@ a no-parent replacement under `GIT_REPLACE_REF_BASE` and then an amend,
 lands on one parent where Git reads none:
 the command's Git reads the replacement and the landing reads the commit's own bytes.
 That is what `main` does,
-so this round leaves it as it is and files it as issue 6347,
+so this branch leaves it as it is and files it as issue 6347,
 which wants a design of its own.
-The row measured by the integration recheck (`env-situations.ts`,
-`r14` client only) earned it:
-`main` lands one parent,
-Git reads none.
+The measured row is the one where a no-parent replacement sits under `GIT_REPLACE_REF_BASE` and only the command holds
+the variable:
+`main` lands one parent and Git reads none.
+An effective store the command alone holds does not land wrongly but fails loudly
+(the empty store,
+and the history moved into a directory only the command names),
+and that belongs to the same issue.
 
 ## What the refusal costs a files-backend repository
 
+The baseline of this section is `main` as it stood before the first fix merged (`main` at `e3c9b7e62d`):
+the `reftable` folder check and the configuration read are on `main` as well now,
+so this section measures what the first round added to the `main` of that day and not a difference between today's
+`main` and this branch.
+The third recheck measured today's two:
+this branch's unproved open is 0.989 of `main`'s (0.789 to 1.267,
+25 rounds),
+and the proved open 0.763 of `main`'s (0.550 to 0.968).
 Two parts,
 measured separately in paired runs on one files-backend fixture of two commits with loose
 objects:
@@ -928,10 +945,14 @@ Git resolves them.
   it lands on one parent where Git reads none,
   as it does on `main`,
   and issue 6347 wants a design of its own ("An effective setting the command alone holds").
-- The end-to-end removal of a worktree that holds a foreign volume was not run:
-  it needs a nested subvolume,
-  which this host may not make without root.
-  The by-content proof that removal reaches is what the control exercises.
+- The end-to-end removal of a worktree that holds a foreign volume was run in a btrfs guest on 2026-11-22:
+  `main` and this branch gave the same result in all five cases (nothing held,
+  each of `GIT_OBJECT_DIRECTORY`,
+  `GIT_ALTERNATE_OBJECT_DIRECTORIES` and `GIT_REPLACE_REF_BASE`,
+  and `GIT_REFERENCE_BACKEND=files`),
+  the worktree and its registration gone and the volume of the person's own left in place.
+  A later round added the same guest run for a `git worktree add` under those variables,
+  which makes a snapshot on `main` and on this branch alike.
 - The `files://` payload store given to the service alone is not claimed to work:
   its payload must hold the branch as well as the replacement,
   and the wrapper's own push then fails to read the commit there.

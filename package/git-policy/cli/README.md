@@ -5799,8 +5799,11 @@ A `git commit` is not refused for any of these variables:
 the commit service that lands the commit is another process and reads from its own environment,
 so a store or a replacement base named for one command is read by that command's Git and by nothing the landing asks,
 and the commit lands as `main` landed it.
-An effective replacement base the command alone holds is the one case that lands wrongly,
-and it is issue 6347 (`doc/object-database-and-a-reftable-ref-store.md`,
+An effective replacement base the command alone holds lands on one parent where Git reads none,
+and an effective store the command alone holds fails loudly instead of landing:
+both are what `main` does,
+and issue 6347 covers that class
+(`doc/object-database-and-a-reftable-ref-store.md`,
 "An effective setting the command alone holds").
 
 ## Operating conditions

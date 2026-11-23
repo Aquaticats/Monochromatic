@@ -467,9 +467,11 @@ mod worktree_copy_forms;
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
-/// An add whose own environment names an object store, alternate directories or a replacement base proves its source as it
+/// An add whose own environment names an object store,
+/// alternate directories or a replacement base proves its source as it
 /// did before:
-/// the snapshot rung is decided by the filesystem, never by the reader.
+/// the snapshot rung is decided by the filesystem,
+/// never by the reader.
 #[path = "binary_worktree_add_source_proof_tests.rs"]
 mod worktree_add_source_proof;
 
