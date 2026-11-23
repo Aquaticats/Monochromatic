@@ -2638,16 +2638,16 @@ syncs the registration directory,
 and leaves the registration and its files for the Git checkout that follows (`:2160` to `:2166` are what it must not do).
 Its D6 describes a slot with no `.git` between the discard and the pointer,
 which this design's exchange never passes through.
-- The durable binding record (`c144499eb9`):
+- The durable binding record (`ec2b0b14f3`):
 its V16's A keeps the claim,
-the slot and the locked registration for a resume (`:3478` to `:3499`),
+the slot and the locked registration for a resume (`:3810` to `:3831`),
 which the project's answer replaces for this route;
 this design requires that an add which finished with Git's own checkout may close the binding and release the claim,
 and that the record's lines report a registration without a dataset,
 which is where a person reads a settle that failed (its V16's example,
 `doctor`'s "registration without a dataset").
 Its content-proof sentence,
-"A resumed add whose proof is gone refuses",
+"A resumed add whose proof is gone refuses" (`:4176` to `:4180`),
 differs from this route's decided fallback,
 which settles and finishes;
 the refused case stands only for a clone whose identity cannot be proven.
@@ -2667,7 +2667,7 @@ its unaccounted-snapshot line says of a snapshot nothing accounts for that it "d
 and "a snapshot with a live binding is an add and not litter" (`:2129`).
 So a pending add's snapshot is not named by that line,
 and the binding design's lines are where a person reads it.
-- The private propagation after a replacement mount (`9dfb749815`) and the lost-last-event triggers (`88f6a15194`):
+- The private propagation after a replacement mount (`c7708953c0`) and the lost-last-event triggers (`88f6a15194`):
 this design's step 1 assumes the mount of a fresh clone is verified in the caller's namespace by the add's step 4,
 and adds no trigger of its own,
 which the lost-last-event design's D10 records at `:3864`.
@@ -2953,6 +2953,37 @@ and the split or sparse index refused at the capture;
 the five sibling tips re-read and the binding record's statement on the proof's home quoted;
 F14's and F31's citations corrected and V4's reference to the racy rewrite reworded;
 and "Answers to the second gate pass" recording each finding with where it was fixed.
+
+- `cee3211ae6` at `2026-11-22T19:58:00-05:00`:
+the third-pass revision.
+The post-restore check compares each written path's facts to the nanosecond against the entry Git recorded,
+reads content only where the stat cannot decide and the judge can,
+and says what a conversion makes undecisable,
+with T12's three arms and its cost in M1;
+the add's settle owns its own destroy path,
+calls none of the deferred-destroy checks,
+writes no plan,
+treats a reaped snapshot's `ENOENT` as done,
+releases the lock while keeping the registration,
+closes the binding and releases the claim,
+states its requirement on the lock and binding designs,
+and publishes a settle marker a resume continues;
+the copy is set aside as the trash's next `d<index>` entry with its identity in the trash's `.manifest` before the exchange;
+the resume gains the "copied `.git` and the real-name index" row and loses the unreachable clause;
+the add closes its handles before it requests the unmount,
+and Q-R5 brings the intent to the project;
+the settle's racy test's two inputs are listed as a fourth change with T13;
+the waiting-index function is made callable,
+T3's fixture writes its own entry,
+the pathspec,
+the doubled quotes,
+the record path,
+the corrections' `sa.c` range and F41's lines are corrected,
+the printed sentence is the snapshot rung's,
+"narrows" replaces "closes",
+F37 cites the one-transaction and one-log-record lines,
+and `doctor`'s line is replaced by the binding design's;
+the sibling commits are read at the tips this revision names.
 
 ## Sources read
 
