@@ -424,29 +424,23 @@ fn zfs_unmount_guest_kill_points() {
         let written: StagedFolderRecord = record_of(guid, folder_path.as_path(), clone.as_str(), boot.as_str());
         write_record(&cache, &written).expect("the record is written");
         let folder: std::fs::File = std::fs::File::open(folder_path.as_path()).expect("the staging folder opens");
-        {
-            // Every state but the last begins with the bind; the last begins with the bind too and then takes both mounts
-            // down, which is the state a kill between the second unmount and the receipt leaves.
-            let bind: std::fs::File = LiveStagingCalls.bind_the_folder(&folder, &cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the folder binds");
-            LiveStagingCalls.make_private(&bind).expect("the bind is private");
-            drop(bind);
-        }
-        if label != "none" {
-            let bind: std::fs::File = LiveStagingCalls.bind_the_folder(&folder, &cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the folder binds");
-            LiveStagingCalls.make_private(&bind).expect("the bind is private");
-            drop(bind);
-            if label != "bind-over-slot" {
-                let clone_at_slot: std::fs::File = std::fs::File::open(slot_path.as_path()).expect("the clone's slot opens");
-                let bind_again: std::fs::File = LiveStagingCalls.open_by_name(&cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the bind opens");
-                LiveStagingCalls.move_clone(&clone_at_slot, &bind_again).expect("the clone moves onto the bind");
-                drop(clone_at_slot);
-                drop(bind_again);
-                if label == "between-unmounts" || label == "none" {
-                    LiveStagingCalls.unmount_top(&folder).expect("the clone's unmount works");
-                }
+        // Every state begins with the bind and its propagation change; the last two also move the clone or take both mounts
+        // down, which is what a kill at each of the four points leaves.
+        let bind: std::fs::File = LiveStagingCalls.bind_the_folder(&folder, &cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the folder binds");
+        LiveStagingCalls.make_private(&bind).expect("the bind is private");
+        drop(bind);
+        if label != "bind-over-slot" {
+            let clone_at_slot: std::fs::File = std::fs::File::open(slot_path.as_path()).expect("the clone's slot opens");
+            let bind_again: std::fs::File = LiveStagingCalls.open_by_name(&cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the bind opens");
+            LiveStagingCalls.move_clone(&clone_at_slot, &bind_again).expect("the clone moves onto the bind");
+            drop(clone_at_slot);
+            drop(bind_again);
+            if label == "between-unmounts" || label == "none" {
+                LiveStagingCalls.unmount_top(&folder).expect("the clone's unmount works");
             }
         }
         if label == "none" {
+            // The state a kill between the second unmount and the receipt leaves: nothing mounted, the record standing.
             LiveStagingCalls.unmount_top(&folder).expect("the bind's unmount works");
         }
         ask_to_unmount(sbin.as_str(), clone.as_str(), "77777777777777777777777777777777");
