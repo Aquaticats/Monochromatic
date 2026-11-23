@@ -345,9 +345,6 @@ and the questions left".
   its "Whether a forced removal records who it ended,
   beyond the journal" and "How long the plan a cancellation keeps stays".
 
-- [The sibling cancelled-removal design][cancelled] at its current tip `eb7a78eccc`,
-  read last.
-
 - Linux `v7.3` at `fs/pnode.c` (`propagation_next`,
   `change_mnt_propagation`),
   `net/unix/diag.c`,
