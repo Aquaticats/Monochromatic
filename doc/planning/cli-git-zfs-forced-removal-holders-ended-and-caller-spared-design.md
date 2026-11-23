@@ -2413,7 +2413,7 @@ that it does.
   This design states only the forced arm's refusal before the first delete,
   gives it the two words `caller-protected-holds` and `holder-unendable`,
   and writes no intent.
-  The sibling's current text names the first refusal with its old word and the caller's session only;
+  The sibling's current text calls the first refusal `caller-session-holds` and spares the caller's session only;
   its fix round owes the wider protected set and the two words.
   It also adds a sixteenth receipt key,
   `bind`,
@@ -2525,12 +2525,13 @@ N5 in "What a holder is".
 
 ## What this revision left as it was
 
-The sections "The open items and the words that decide them" apart from the record's four quotations,
-"What this design read" apart from the record,
-the sibling and the staging design,
-the kernel and OpenZFS facts F7 to F30 apart from the rewrite of F8 and F10,
-the reference definitions,
-and the route-level exclusions of "What this design does not cover" were left as they were,
+The sections "The open items and the words that decide them" (apart from the record's four quotations),
+"What this design read" (apart from the record,
+the sibling and the staging design),
+the kernel and OpenZFS facts F7 to F30 (apart from F8 and F10,
+which are corrected,
+and the new F31 to F37),
+and the reference definitions (apart from the two the record and the staging design add) were left as they were,
 with the corrections the review names.
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
