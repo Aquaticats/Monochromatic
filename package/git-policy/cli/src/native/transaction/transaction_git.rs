@@ -137,8 +137,54 @@ pub(crate) fn build_command(context: &GitContext, request: &GitRequest) -> Comma
     if let Some(objects) = &request.object_directory {
         command.env("GIT_OBJECT_DIRECTORY", objects);
     }
+    if request.end_with_the_starting_thread {
+        end_with_the_starting_thread(&mut command);
+    }
     return command;
 }
+
+/// What:
+///  Ask the kernel to end this child when the thread that starts it ends,
+/// which is the thread that ends with this process.
+/// Why:
+///  A Git child an add leaves unjoined has nobody waiting for it;
+///  without this it would outlive the command until it next writes to a pipe no reader holds,
+///  and a read that never writes again would outlive it for the whole step ceiling.
+///  `PR_SET_PDEATHSIG` is set in the child between `fork` and `exec`,
+///  so it is there before Git runs and is not inherited by Git's own children.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// command.beforeExec(() => prctl(PR_SET_PDEATHSIG, SIGKILL));
+/// ```
+#[cfg(unix)]
+fn end_with_the_starting_thread(command: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: the closure runs in the child between `fork` and `exec`, where only async-signal-safe
+    // calls are allowed; `prctl` is one, and it reads no memory the child shares with this process.
+    let _ = unsafe {
+        command.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        })
+    };
+}
+
+/// What:
+///  The parent-death signal has no counterpart here,
+/// so nothing is asked for.
+/// Why:
+///  The field is set only by the ladder's early size read,
+///  and this build never runs that read where the signal is unavailable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // no equivalent outside Unix
+/// ```
+#[cfg(not(unix))]
+fn end_with_the_starting_thread(_command: &mut Command) {}
 
 /// What:
 ///  Run one request and capture its output,
@@ -161,8 +207,11 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     // A step that is starting takes the note of an earlier failure with it: only the step running last can be the reason a
-    //  command stops (`git_step_failure.rs`).
-    crate::git_step_failure::clear_failed_step();
+    //  command stops (`git_step_failure.rs`). A run beside another step of the command is not that step, so it leaves the
+    //  note where it found it (`GitRequest::beside_another_step`).
+    if !request.beside_another_step {
+        crate::git_step_failure::clear_failed_step();
+    }
     let entered: bool = crate::add_timing::begin_step(label.as_str());
     let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
     crate::add_timing::end_step(entered);
@@ -414,7 +463,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     let began: std::time::Instant = std::time::Instant::now();
     // A stop of the service lets the branch write finish (owner, 2026-11-08, "B: let a branch write finish (Recommended)").
     let a_stop_lets_it_finish: bool = matches!(bound, StepBound::Unbounded) && is_branch_write(request);
-    let watched = output_watched_within_for_a_stop(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound, a_stop_lets_it_finish);
+    let watched = output_watched_within_for_a_stop(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound, a_stop_lets_it_finish, request.started_child.as_ref());
     crate::transaction_step_durations::note_step_asked(ledger_step.as_str(), request.arguments.as_slice(), began, began.elapsed());
     let output: std::process::Output = watched?;
     return Ok(GitOutput {

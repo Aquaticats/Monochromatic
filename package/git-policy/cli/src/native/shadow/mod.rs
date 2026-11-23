@@ -71,6 +71,18 @@ pub mod shadow_refs;
 /// symbolic refs and `HEAD`.
 pub mod shadow_ref_write;
 
+/// The shadow's own directories and files,
+/// made private to the account.
+pub mod shadow_create_private_storage;
+
+/// The facts a shadow repository is made from,
+/// and the bytes of its `config` and alternates.
+pub mod shadow_create_template;
+
+/// The `git init` that makes a reftable shadow,
+/// and the starts made again after one was cut or refused.
+pub mod shadow_create_init;
+
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;
 
