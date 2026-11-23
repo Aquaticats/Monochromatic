@@ -184,7 +184,7 @@ and what it owes before shipping:
 > before this ships.
 
 So the wrapper's command path carries a trigger (T4),
-"## The nudge on Git commands" designs the record and the command's check,
+the section "The nudge on Git commands" designs the record and the command's check,
 and measurement M8's numbers ship before the nudge does.
 "Periodic reconciliation without a waiter is not part of this route" stands,
 and this design adds no timer.
