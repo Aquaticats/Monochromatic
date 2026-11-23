@@ -3820,6 +3820,9 @@ with its committer time from `git log --format=%cI`:
   F39 states what `reload-or-start` becomes on a unit that has the reload line,
   the sibling is cited by heading at its tip `95d3b2074e`,
   and the scan says it re-escapes what the parser decoded.
+- `d44521782c`,
+  2026-11-22T21:49:13-05:00:
+  this list gained the two commits it was short of the tip and this round's own.
 
 ## Links
 
