@@ -6431,23 +6431,37 @@ The rule this build keeps is entry by entry:
   while a bind mount of the dataset's own root and a second mount of the
   dataset are instances;
 - the checkout dataset's `snapdir` is not part of the look-up,
-  and neither program reports it today,
+  and neither program sets it or reports it today,
   because the project's third answer of 2026-11-22 hides snapshot directories
   on the checkout
   (the same section of the record,
   quoted:
   "Turn off snapshot-directory visibility on the checkout so accounts cannot
   trigger those mounts.")
-  `visible` lets an account enter a snapshot's directory by name and the kernel
-  mounts it as root,
-  `hidden` only leaves the directory out of listings and still allows the name,
-  and `disabled` refuses the name and makes no mount;
-  plan step 19's setup runs `zfs set snapdir=disabled` on the checkout dataset,
-  a person reads the property in `git monochromatic-git-policy-cli doctor`
-  once plan step 18 adds it,
-  and neither the sweep nor the probe reads it,
-  because the sweep's dataset-stats reply does not carry it and the probe never
-  opens the ZFS device;
+  `visible` lists the directory,
+  and `visible` and `hidden` both let an account enter a snapshot's directory by
+  name,
+  which makes the kernel mount that snapshot as root and adds a row to the
+  machine's mount table;
+  `hidden` is the default and only leaves the directory out of listings;
+  `disabled` refuses the name and makes no mount.
+  `disabled` exists from OpenZFS 2.3.0 and not in 2.2.7 or earlier,
+  and the route's gate reads no release string,
+  so a module that refuses the setting can run the route.
+  Plan step 19's setup runs `zfs set snapdir=disabled` on the checkout dataset,
+  and a person reads the property in `git monochromatic-git-policy-cli doctor`
+  once plan step 18 adds it.
+  The sweep could report it without a new request:
+  its dataset-stats reply carries the value whenever it is set,
+  locally or inherited,
+  and omits it only at the default,
+  so a locally set `visible` reads 1,
+  an inherited `disabled` reads 2 and an unset dataset reads absent
+  (the guest arm that reads all three through the route's own reader prints
+  `SNAPDIR-REPLY`).
+  This build prints no such report,
+  and the probe cannot,
+  because it reads no property and never opens the ZFS device;
 - a dataset mounted directly inside the clone container this run uses is a
   managed clone the route attaches at a slot and never the checkout,
   because the design's delegation lets the account create a dataset of the
@@ -21049,14 +21063,17 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
-A probe with no configuration file reads this process's mount table once more
+A probe with no configuration file is about 25 milliseconds (1.14 times) slower
 than one whose file names every entry,
-and the integration pass of 2026-11-22 measured it about 25 milliseconds
-(1.14 times) slower in three runs,
-once per boot;
-that read happens inside the worker phase the deadline bounds,
-whose margin is the 231 milliseconds below,
-so it is about a tenth of that margin and is stated here rather than sized.
+once per boot.
+Three runs measured it,
+and a second pass decomposed it into three lookup arms,
+each 26 to 43 milliseconds over the file-named arm with heavily overlapping
+ranges,
+so the arms do not look additive and the cause is not established;
+the work happens inside the worker phase the deadline bounds,
+whose margin is the 231 milliseconds stated below,
+and this build states the cost rather than sizing the deadline by it.
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to

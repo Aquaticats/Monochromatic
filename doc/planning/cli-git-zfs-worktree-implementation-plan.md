@@ -1280,7 +1280,7 @@ and root's `zfs mount -a` mounted nothing of the account's),
 so a row whose dataset is mounted directly inside the clone container this run
 uses is a managed clone the route attaches at a slot,
 and the discovery ignores it rather than counting it as a second instance.
-The project decided exactly that on 2026-11-22 in the fourth answer of the
+The project decided exactly that on 2026-11-22 in the first answer of the
 section "Four further answers on the look-up with no configuration file"
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`):
 "A:
@@ -1401,7 +1401,10 @@ once root attaches it because the route does,
 adds a row the discovery ignores by the rule above,
 so it makes neither a second instance nor the only one.
 A row inside a container of another name that this run does not use still counts,
-which is the cost the project accepted with the fourth answer.
+which follows from the answer:
+the record's two stated costs are one more key read by the probe and a little
+more code,
+and it lists "any clone anywhere" and "no exception" as not chosen.
 
 #### Design sections
 
@@ -2227,6 +2230,21 @@ section "Who removes a killed writer's staging file"):
 until this step the administrator's adoption is their only remover,
 and a leftover affects no reader,
 because no reader reads a staging name.
+It reports the `snapdir` of the checkout dataset and of the clone container,
+each where it is not `disabled`,
+with the command that sets it and the sentence that the container's value is
+what the clones inherit,
+which is the reporting half of the project's answer of 2026-11-23,
+recorded in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+in the section that answers what hiding snapshot directories comes to.
+It says of a module older than OpenZFS 2.3.0 that the value cannot be set
+there at all.
+The route can read the setting:
+its own dataset-stats request carries `snapdir` whenever it is set,
+locally or inherited,
+and omits it only at the default,
+which is a value that is not `disabled` either,
+so an absent value is reported as the default `hidden`.
 It prints the concrete root-once and setup commands without running them,
 and reports the deferred-origin check as not yet designed until step 15 lands.
 
@@ -2309,20 +2327,40 @@ The gate that orders every path descendant after a verified checkout mount.
 The private propagation the unit sets on the verified checkout,
 and what re-applies it after a replacement mount.
 The provider hook that triggers reconciliation after post-key-load checkout readiness.
-The `snapdir` the setup sets on the checkout dataset,
+The `snapdir` the setup sets on the checkout dataset and on the clone container,
 which is the project's third answer of 2026-11-22
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-"Four further answers on the look-up with no configuration file"):
-the setup runs `zfs set snapdir=disabled` on the checkout dataset
-before that dataset is next mounted,
-because `disabled` is the only value that refuses the `.zfs` directory by name,
-and a value set while it stands applies to the next mount of it.
-The build's facts,
-from OpenZFS `zfs-2.4.4` and a guest run of 2026-11-22:
-`keep/snapdir-value-probe.log` and `keep/snapdir-matrix-GREEN.log` hold the readings.
-`visible` lists the directory and lets an account enter a snapshot's directory by name,
+"Four further answers on the look-up with no configuration file")
+as it was answered on 2026-11-23 in that section's "What hiding comes to,
+answered 2026-11-23",
+quoted:
+"Step 19's setup sets `snapdir=disabled` on the checkout and on the clone
+container (clones inherit it);
+step 18's `doctor` reports either one where it isn't disabled (the route can
+read the setting);
+setup says so plainly where the ZFS module is older than 2.3.0 and refuses the
+value."
+So the setup runs `zfs set snapdir=disabled` on the checkout dataset,
+and again on the clone container so every clone inherits it,
+before the account's next mount of either,
+because `disabled` is the only value that refuses the `.zfs` directory by name;
+and where the loaded module refuses the value,
+which is every release before OpenZFS 2.3.0,
+the setup prints one line saying this module cannot hide the snapshot
+directories and that the mount table's bound is all that stands in their place,
+rather than reporting a set it did not make.
+A value set on a live mount is only partly in force:
+an account that has already listed `.zfs/snapshot` on that mount keeps entering
+names until the dataset is mounted again,
+so the safe statement is the next mount,
+and the setup's own run comes before the account's sessions.
+The facts,
+from OpenZFS `zfs-2.4.4` and the guest arms of this route's drivers:
+`visible` lists the directory,
+and `visible` and `hidden` both let an account enter a snapshot's directory by
+name,
 which makes the kernel mount that snapshot as root and adds a row;
-`hidden` only leaves it out of listings and still lets the name be entered;
+`hidden` is the default and only leaves the directory out of listings;
 `disabled` refuses the name with `ENOENT` and no row appears
 (`module/os/linux/zfs/zfs_ctldir.c`,
 `zfsctl_root_lookup`,
@@ -2331,7 +2369,11 @@ which answers `ENOENT` for every name when
 and `include/sys/zfs_ioctl.h` at `zfs-2.4.4`,
 `ZFS_SNAPDIR_DISABLED 2`,
 with the values at `module/zcommon/zfs_prop.c:240` to `:242`).
-`disabled` exists from OpenZFS 2.3.0 and not in 2.2.2 or 2.2.0,
+The driver's `snapdir` step shows the three values and the account's refusals,
+and the sweep guest arm reads a locally set value,
+an inherited one and the default through the route's own reader
+(`SNAPDIR-REPLY`).
+`disabled` exists from OpenZFS 2.3.0 and not in 2.2.7 or earlier,
 whose headers and manuals hold only `hidden` and `visible`;
 the route's gate reads no release string
 (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
@@ -2339,6 +2381,10 @@ the route's gate reads no release string
 so a matching older module is possible and the setup's
 `zfs set snapdir=disabled` would be refused on it,
 which is a setup refusal a person reads rather than a silent state.
+A clone inherits the container's value,
+so setting the checkout alone leaves each clone's own `.zfs/snapshot` at the
+default `hidden`,
+which still lets the account enter a snapshot of that clone by name.
 No part of the route reads a snapshot through that directory:
 the start probe never opens `.zfs` at all
 (`doc/planning/cli-git-zfs-start-probe-design.md`,
@@ -2349,13 +2395,12 @@ What the route does when the property is not `disabled`:
 nothing yet.
 Neither program reports it:
 the probe reads no property and never opens the ZFS device,
-and the sweep's dataset-stats reply,
-the request this build makes,
-does not carry `snapdir`
-(a guest run of this round read `no value` for a dataset `zfs get snapdir`
-reported `hidden`),
-so a live check needs a property request the binding does not make,
-which is a design decision this step does not take.
+and this build prints no line from the sweep,
+although the sweep's dataset-stats reply carries the value whenever it is set,
+locally or inherited,
+and omits only the default,
+so a one-line report on the request the sweep already makes is possible and is
+the owner's to choose.
 A person reads the property in `git monochromatic-git-policy-cli doctor`
 once plan step 18 adds it.
 The two dataset names the setup writes into the root-owned configuration:
