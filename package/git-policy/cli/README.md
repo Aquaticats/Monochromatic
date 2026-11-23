@@ -1292,9 +1292,11 @@ Read-only commands,
      while a record for it is still queued,
      a running service finds it by itself within five seconds
    (`LOOK_AGAIN_AFTER`),
-     and the next command of that repository wakes the service that reads the record,
-     which is every commit
-   and every add.
+     and the next `git commit` of that repository wakes the service that reads the record,
+   which no other ordinary command does:
+   of thirteen run against a record waiting in the queue,
+   only a commit woke it (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+   "Which commands wake the service").
      A delete the kernel refuses may pass,
      so the service tries it again,
      and it gives up once the attempts a record

@@ -1884,7 +1884,7 @@ fn btrfs_a_swept_worktree_takes_a_pool_a_killed_clear_left_with_it() {
 ///  (an audit of the release changeover,
 ///  finding 7).
 ///  The record is what outlives the command,
-///  and every later command of the repository wakes the same service,
+///  and the next commit of the repository wakes the same service,
 ///  so one failed wake says what the rest would say.
 #[test]
 fn a_merge_whose_service_does_not_answer_tells_it_once() {
