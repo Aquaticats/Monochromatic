@@ -4134,8 +4134,7 @@ T14's fourth arm,
 which pins V15's first option.
 - `ca65d4b62a` at `2026-11-22T22:19:26-05:00`:
 `main` merged with `--no-ff` for this round.
-- the round's own edit commit,
-whose time `git log` carries:
+- `83ea6d19fa` at `2026-11-22T22:21:09-05:00`:
 the seventh-pass revision.
 The binding is cited at `7d041d773b` by heading and label,
 and its A20 order is followed:
