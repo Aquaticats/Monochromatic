@@ -274,10 +274,9 @@ and confirms or changes the direction to unmount inside a holder's mount namespa
 
 State:
 the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design` at `b62601213f`,
-after a round on the reviewer's seventh read,
 and the cancelled removal on
-`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design`,
-which was at `4fe792a697` before its round on the same read.
+`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design` at `c8cd85501c`,
+each after a round on the reviewer's seventh read.
 The reviewer's seventh read
 (`review-seventh-read.md` in
 `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`)
@@ -291,11 +290,11 @@ the mode of `unshare` it uses and a positive control;
 the coordinator read that section,
 and no review follows it,
 because the guest round is its test.
+The cancelled removal's round closed its one medium
+(it no longer refuses a kept receiver the forced arm does not refuse);
+the coordinator read its diff.
 Running:
-`pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-seventh-read`,
-on the cancelled removal's one medium
-(it still refused a kept receiver the forced arm no longer refuses);
-and `pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
+`pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
 a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
 Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
 and it writes its results as a new section of
