@@ -1060,9 +1060,9 @@ fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
     let before: (usize, usize) = answered_maps_freed_for_a_control();
     started.abandon();
     // The free runs on a thread of its own, so the control waits for it rather than reading the counters at once.
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let freed_by = std::time::Instant::now() + Duration::from_secs(5);
     let mut after: (usize, usize) = answered_maps_freed_for_a_control();
-    while after.0 == before.0 && std::time::Instant::now() < deadline {
+    while after.0 == before.0 && std::time::Instant::now() < freed_by {
         std::thread::sleep(Duration::from_millis(5));
         after = answered_maps_freed_for_a_control();
     }
