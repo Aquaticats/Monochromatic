@@ -5076,6 +5076,8 @@ which is that design's answer.
   cost case,
   lever,
   test or measurement changes.
+- 2026-11-23T04:18:09-05:00:
+  recorded the answer's commit time above.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
