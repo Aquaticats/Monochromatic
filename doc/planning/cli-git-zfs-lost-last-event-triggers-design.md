@@ -2923,7 +2923,7 @@ Nothing here is new measurement on this host.
   (`src/native/invocation/wrapped_command.rs`,
   line 428),
   and it already asks real Git for the invocation's identity there,
-  whose `WorktreeIdentity` carries the canonical `common_dir` for every repository shape
+  whose `WorktreeIdentity` carries the canonical `common_dir` for every shape that is a repository
   (`src/native/worktree/worktree_identity.rs`,
   `WorktreeIdentity`).
   So the record's path is derived from a value the command already holds,
@@ -2933,8 +2933,7 @@ Nothing here is new measurement on this host.
   the worktree pending check reads one Git pointer file with a bound and follows no link,
   and the specification says why it may not block
   ([spec][spec],
-  "Unmounted,
-  pruned or moved worktrees"):
+  "The records an add writes for itself"):
   "the pending check runs before every forwarded command".
 - F40.
   The per-add claim record has a named home in the account-owned Git common directory
@@ -2946,9 +2945,10 @@ Nothing here is new measurement on this host.
   line 1742),
   so the unanswered-request record sits beside a record the route already owns.
 - F41.
-  The start probe reads each small file it depends on with one bound per file
-  ([start probe design][probedesign],
-  "What it reads"),
+  The start-time gate reads each small file it depends on with one bound per file
+  ([spec][spec],
+  "The start-time ZFS compatibility gate",
+  lines 20490 to 20500),
   which is the bound the unanswered-request record's one-page read takes.
 - F42.
   The propagation sibling's question 2 option 1 is a `checkout-propagation.service` upheld by a drop-in on the
@@ -4102,6 +4102,12 @@ which is that design's answer.
   limits L16 to L20,
   and dependencies D1 to D4,
   D8 and D9 follow.
+- 2026-11-22T19:33:36-05:00:
+  recorded the answer's commit time above,
+  and the last read corrected two citations it left:
+  the one-page bound now points at the start-time gate,
+  and the pending-check sentence at the add-records section that carries it,
+  with `WorktreeIdentity` narrowed to the shapes that are repositories.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
