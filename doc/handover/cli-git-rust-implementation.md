@@ -665,26 +665,6 @@ the owner's bar for a worktree add,
 restated on 2026-11-23:
 a declined add costs what `main` paid for the same source.
 
-#### The size read beside the source check
-
-Outcome:
-rung 1 reads sizes without making a declined add slower.
-
-State:
-merged as `e37566df9c`.
-Its follow-up is on `feat/git-policy-cli-fence-size-read-beside-source-check` at `9329642a95`.
-Its Sonnet pass
-(`~/temp/agent/integration-pass-fence-size-read-declined-add-step-cost-2026-11-22/keep/review.md`)
-found it not fit:
-the declined add's step cost is gone,
-but the parse moved onto the adding thread,
-so the `conversionFence` step of every served and dirty add is 7.8 to 13.4 ms longer than `main`'s.
-Running:
-`pi-fence-size-read-integration-pass-findings`,
-which puts the parse back off the adding thread.
-
-Next:
-a second Sonnet pass.
 
 ### The wrapper's test gate tells the truth
 
