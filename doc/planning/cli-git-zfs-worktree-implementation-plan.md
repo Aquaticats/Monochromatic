@@ -1265,6 +1265,27 @@ which for a ZFS mount is the dataset's name because `zpl_show_devname` prints `d
 wired at `:1058`,
 OpenZFS `zfs-2.4.4`).
 
+A row inside the clone container is never the checkout.
+The design puts the checkout dataset and the container beside each other,
+and its delegation gives the account `create` on the container alone,
+so an account can make a dataset there whose last name component is
+`monochromatic-git-checkout`.
+A guest run of 2026-11-22 did exactly that under the design's grants
+(`git-policy-cli-delegation`:
+`zfs clone <checkout>@account-origin <container>/monochromatic-git-checkout`
+as `ubuntu` was allowed,
+the same `create -o mountpoint=...` was refused,
+`zfs mount` of it was refused,
+and root's `zfs mount -a` mounted nothing of the account's),
+so a row whose dataset's parent carries the container's leaf name is a managed
+clone the route attaches at a slot,
+and the discovery ignores it rather than counting it as a second instance.
+The design's dataset is a sibling of the container and never a child of it,
+so ignoring that shape loses no checkout,
+and a deployment whose checkout dataset really sits inside a container-named
+dataset is named by `cloneMounts.checkoutDataset`,
+which a file holds as written.
+
 A row is a mounted instance of a dataset name this design looks for when all three hold:
 its filesystem type is exactly `zfs`;
 its source's last `/`-separated component is the leaf name looked for;
