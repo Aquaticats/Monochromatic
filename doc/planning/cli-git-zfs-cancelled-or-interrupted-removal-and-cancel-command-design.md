@@ -4445,3 +4445,27 @@ oldest first.
 - The commits that carry this entry,
   written from 2026-11-23T04:42:57-05:00:
   add the entries for `f884b640eb` and `d0680d57bf`.
+- `43bc5b8fda`,
+  2026-11-23T05:00:07-05:00:
+  merges `main` into this branch so that the records as they now stand are read here.
+  It changes nothing in this document.
+- `bb0ea79c97`,
+  2026-11-23T05:02:03-05:00:
+  answers the seventh read.
+  It stops refusing a kept receiver on way 8's route and says,
+  in one sentence,
+  that way 8 is not used and the act
+  falls to way 7;
+  restates the forced arm's liveness whole at `b62601213f`,
+  with the stage word and the accepted receipt wait before
+  the first counter;
+  turns the veto entry's "every other receipt is unchanged" from a con into the truth it is;
+  cites the plan record at `28c590b4c4` and tells its two unsettled cases apart (an unreadable pool,
+  where the removal
+  is run again,
+  and a live snapshot with another `createtxg`,
+  a permanent refusal with no command);
+  and cites the forced arm at `b62601213f` in the sources and the liveness.
+- The commits that carry this entry,
+  written from 2026-11-23T05:02:11-05:00:
+  add the entries for `43bc5b8fda` and `bb0ea79c97`.
