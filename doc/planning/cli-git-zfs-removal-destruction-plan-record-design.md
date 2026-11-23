@@ -104,6 +104,20 @@ has the reused-name cell agree with the binding design's refusal at `3b4b073f0e`
 and corrects the origin record's bound and the two missing cells.
 "Revisions" lists each commit and what it changed.
 
+This revision also answers the sixth read at
+`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-sixth-read-before-acceptance.md`
+(its ids G6 and G7 for this design),
+which read this text at `2a333a511e`.
+It names the settling command only where it is true,
+for every head word but `gone`,
+states the `gone` state's route as the finish pass once the pool answers,
+states the permanent refusal's way out,
+corrects the control that stops on an `unknown` tuple,
+and cites the binding design's settling command at `c077bdb1e1` for its reach,
+its order,
+its unreadable-plan refusal and its finisher after a kill.
+"Revisions" lists each commit and what it changed.
+
 It wrote this one file and no other,
 ran no ZFS command that changes anything,
 started no guest,
@@ -161,7 +175,7 @@ What it read:
   each read with `git show` at the commit named here:
   "The record that carries origin cleanup" at `f17455b786`,
   and "Where the add's durable binding record lives,
-  and its format" at `3b4b073f0e`;
+  and its format" at `c077bdb1e1`;
 - the code the wrapper keeps its records and its claims with,
   and the Git and OpenZFS sources named in F1 to F16.
 
@@ -340,7 +354,7 @@ and marks the choice for the project's veto with the alternatives it weighed.
   `doc/planning/cli-git-zfs-worktree-design-proposal.md` lines 909 to 910:
   "A per-slot claim only serializes cooperating wrapper operations."
   The claim itself is the add's binding design's,
-  read at `3b4b073f0e`,
+  read at `c077bdb1e1`,
   and this design only takes it (F15,
   A2).
 - Lock-free first,
@@ -448,7 +462,7 @@ must use hex,
   (`worktree_removal_interrupted_destroy.rs:276` and `:278`),
   which is two forms in one record and the reason this one keeps one.
 - The per-slot claim is the add's binding record's (`<slot>.claim.<generation>`,
-  read at `3b4b073f0e`,
+  read at `c077bdb1e1`,
   and `lock/single_owner_claim.rs`),
   taken by both an add and a removal for one slot (F15).
 - The mount intent and its receipts fix two more precedents:
@@ -608,7 +622,7 @@ so each can be checked alone.
   a second command is refused with the live owner's process id.
   Read in `lock/single_owner_claim.rs:1 to 40`,
   `:245 to 285` and `:362 to 404`,
-  and in the binding record's design at `3b4b073f0e`,
+  and in the binding record's design at `c077bdb1e1`,
   whose use of the claim for removals is that document's proposal and not a project decision.
 - F16.
   The crate has a measurement-only feature,
@@ -622,7 +636,7 @@ so each can be checked alone.
 - A1.
   The add's durable binding record is found by `<slot>`,
   the last path component of the path `targetHex` holds,
-  as the binding design defines the key in its "What the key is made of at each moment" at `3b4b073f0e`.
+  as the binding design defines the key in its "What the key is made of at each moment" at `c077bdb1e1`.
   Its home and key are that design's,
   not this one's;
   this design reads it by `<slot>`,
@@ -1659,9 +1673,11 @@ no other fact decides it.
   by an unreadable or a partial listing:
   the removal refuses,
   changes nothing,
-  and names the plan,
-  the failed read and the settling command,
-  which section 7 calls the route for an unprovable absence.
+  and names the plan and the failed read.
+  It also names the settling command when the head word is not `gone`;
+  for a head word of `gone` the finish pass is the route once the pool answers,
+  and the command refuses a `gone` plan,
+  so no command is named for that cell.
 
 An accepted design asks this question in its "How a person finishes a refused removal",
 in words it can quote:
@@ -2279,9 +2295,18 @@ leaves it unsettled:
 the run refuses,
 prints the tuple's name and GUID and that it stopped,
 and names the read that failed.
-No command is named for that refusal:
-the cancel command removes and rewrites nothing for a kept plan,
-and the settling command's case is a clone that is gone.
+A pool that cannot be read ends when it answers,
+and the removal is run again.
+A live snapshot carrying the GUID with another `createtxg` is a permanent refusal:
+the run names the tuple,
+its recorded GUID and group and the live snapshot's,
+`doctor` prints the same,
+nothing rewrites the tuple,
+and no command settles it,
+because the cancel command removes and rewrites nothing for a kept plan and the settling command's case is a
+clone that is gone;
+the plan stays as the evidence of what was destroyed,
+and a person decides.
 A plan's `owner` may name a process that has ended,
 and no reader of this design refuses on that field;
 only `doctor`'s staging rule reads it.
@@ -2339,9 +2364,13 @@ and neither is a removal's:
 a head word of `present` or `refused`,
 which is the outside destroy section 4 refuses,
 and a pool that cannot prove the absence.
-Both are the settling command's case,
+The first is the settling command's case,
 the binding design's "The settling command";
 this design designs no second command.
+For the second,
+the command is the route for a plan whose head is not `gone`,
+while a `gone` plan waits for the finish pass to read the pool again,
+and the command refuses it.
 The command reads the pinned parent's children for `cloneGuid=` by GUID and by name,
 not the plan's head word.
 
@@ -2395,7 +2424,9 @@ and the next run of the command removes it,
 because the pass leaves any head that is not `gone`.
 A kill after the plan and before the first inventory leaves the binding and both inventories,
 which is the state the binding design's "The settling command" also names,
-and the next run of the command removes them;
+and the next run of the command removes them,
+which that design states is let through because its read 4 counts a registration the recipe already removed as that
+step done;
 no next removal of that slot can run there,
 because the command removed the registration before the plan.
 A kill after the binding and before the claim releases leaves the claim alone,
@@ -2695,9 +2726,9 @@ forced without timing luck:
   not re-request;
 - a plan with one `destroyed`,
   one `intact` and one `unknown` tuple,
-  asserting the run settles the first two,
-  stops on the third,
-  and deletes nothing;
+  asserting the run settles all three by the head-present arm,
+  and stops with nothing deleted where a live snapshot carries the `unknown` tuple's GUID with another
+  `createtxg`;
 - a second writer that publishes a conflicting outcome between two steps,
   asserted through the documented staging hook (`private_storage_replacing_a_record.rs:94 to 95`),
   showing a lost update reads as `requested` and refuses.
@@ -2875,7 +2906,7 @@ so a person who deletes the repository deletes it.
 
 Option B,
 the binding design's folder inside the same parent,
-`monochromatic-git-policy-cli/worktree-clones/v1/<slot>.plan` (at `3b4b073f0e`).
+`monochromatic-git-policy-cli/worktree-clones/v1/<slot>.plan` (at `c077bdb1e1`).
 
 Example:
 the same removal records at
@@ -3583,7 +3614,7 @@ if any,
 decides it.
 The siblings are read at their branch tips,
 the origin cleanup record at `f17455b786`
-and the binding record at `3b4b073f0e`,
+and the binding record at `c077bdb1e1`,
 and both are other rounds' documents,
 reviewed by the third pass and not final:
 nothing below adopts a sibling's answer as decided,
@@ -3745,7 +3776,7 @@ with the same numbers as the points below.
 
 ### What this design needs from the two sibling documents
 
-Every requirement this design put on the binding record is met in its text at `3b4b073f0e`.
+Every requirement this design put on the binding record is met in its text at `c077bdb1e1`.
 "The record's end" states the order among its three files and cites the fourteen-step list under O's two headings,
 and "The condition a finisher meets" states the condition the pass uses and names the pass among the finishers.
 Its "The settling command" refuses only a plan whose head is `gone`,
@@ -3760,13 +3791,17 @@ then the binding,
 then the claim),
 states the kill after the plan and before the first inventory,
 refuses a plan it cannot read or whose identities disagree,
-and refuses a reused name,
+refuses a reused name,
+reaches a `settling` binding with a `cloneGuid=` and no finished checkout,
+and states that a rerun after a kill is let through,
 so no requirement remains on B.
 The requirements this design still has are on the cancelled-removal design:
 its "writes nothing" about a self-cancelling removal must keep meaning that no outcome is written,
-since both actors remove the all-`planned` plan,
-and its four retry states stand;
-its `unknown`-tuple request is answered in section 6.
+since both actors remove the all-`planned` plan;
+its state for a kept plan with an `unknown` outcome must move with section 6's rule,
+because the retry now settles that tuple and adopts the plan instead of refusing at the adoption rule;
+and its other retry states stand.
+Its `unknown`-tuple request is answered in section 6.
 The origin cleanup design's list holds every point this plan needs,
 including the second check and a kill inside the origin record's publication;
 if a later revision moves the plan's removal before the binding's,
@@ -3775,7 +3810,7 @@ section 7 and the finish pass move with it.
 ## Dependencies on sibling designs
 
 - The add's durable binding record (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-  read at `3b4b073f0e`).
+  read at `c077bdb1e1`).
   This design reads it by `<slot>`,
   the last component of the path `targetHex` holds,
   and compares its `slot=`,
@@ -3977,7 +4012,7 @@ Each item names the probe that would settle it and the step that owes it.
 This round ran no probe on any pool and started no guest.
 It merged `main` for the fifth diff read's decisions and the accepted deferred-destroy design,
 read it,
-read the binding design at `3b4b073f0e` and the origin cleanup design at `f17455b786`,
+read the binding design at `c077bdb1e1` and the origin cleanup design at `f17455b786`,
 checked every path-and-line citation in the changed text,
 and recorded a search for each of the fifth diff read's items in `keep/fifth-diff-searches.md`.
 
