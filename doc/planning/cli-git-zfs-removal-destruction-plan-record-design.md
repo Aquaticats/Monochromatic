@@ -4059,4 +4059,23 @@ meets" for the pass's binding condition,
   the field's name and the key's derivation (Y6),
   the clause on the pass's heads (Y13),
   and the two decided entries (the seven answers).
+- `c6e29129ef`,
+  committer time `2026-11-22T22:17:06-05:00`:
+  the revision the fourth check,
+  the seven answers' further answer and the accepted deferred-destroy design asked
+  for.
+  It states in section 4 the rule by which a removal chooses its path,
+  answers the accepted design's request in its own words,
+  moves the settling command's plan removal before the two inventories and the binding,
+  states what a kill inside the command leaves,
+  corrects the retry's words and the cancelled-removal design's requirements,
+  deletes the three statements about B's old step numbers,
+  corrects the add's absence proof and adds its owed-record sentence,
+  replaces the references to O's retired questions with the seven answers' headings,
+  quotes B's bound at 43,027 and notes its finisher condition's second arm has no finisher,
+  and records a search for each item in `keep/fourth-check-searches.md`.
+  It changed the parts the earlier checks found sound only where a fix forced it:
+  section 4's path choice (W1),
+  the command's order (W2),
+  and the two sentences about the add (W8).
   A later commit that only adds or corrects this list is not listed.
