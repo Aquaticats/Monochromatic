@@ -519,6 +519,13 @@ OPT:
  Score capability for the target workload,
  never fidelity to incumbents.
 
+RBE:
+ Rank options by what each delivers for the target workload;
+ effort to build,
+ raw system calls
+ or a new code path are costs to state,
+ never reasons to rank an option lower.
+
 OPA:
  `AskUserQuestion`:
  question text ranks options with adjacent-pair reasons;
