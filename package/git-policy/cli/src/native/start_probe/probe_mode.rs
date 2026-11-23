@@ -27,7 +27,7 @@
 //! ```
 
 use super::probe_deadline::{deadline_from_environment, deadline_passed, remaining};
-use super::probe_mode_words::{namespace_of, skip_after_gate_refusal, source_of, source_refusal_word, unstarted, verdict_line};
+use super::probe_mode_words::{namespace_of, skip_after_gate_refusal, source_of, source_refusal_word, table_listing, table_word, unstarted, verdict_line};
 use super::probe_test_switch::{TestSwitch, keep_descriptor_from_environment, test_switch_from_environment};
 use super::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use super::probe_holder_control::{Arrival, Holder, reports_of};
@@ -264,7 +264,15 @@ impl<'a> ProbeMode<'a> {
             skip_reason: None,
         };
         self.place.publish(record.text().as_str()).map_err(|refusal| return refusal.message())?;
-        return Ok(verdict_line(verdict, &report));
+        let line: String = verdict_line(verdict, &report);
+        // The project's second answer of 2026-11-22: when the table told the worker no single checkout, the mode
+        // recomputes the look-up in this process and prints every row it found with its path.
+        if table_word(&report).is_some()
+            && let Some(listing) = table_listing(self.configuration, &crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets)
+        {
+            return Ok(format!("{line}\n{listing}"));
+        }
+        return Ok(line);
     }
 }
 

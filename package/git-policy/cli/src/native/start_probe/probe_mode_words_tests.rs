@@ -13,7 +13,7 @@
 //! expect(verdictLine({ kind: 'failed', step: 'move' })).toContain('move');
 //! ```
 
-use super::{source_of, source_refusal_word, verdict_line};
+use super::{source_of, source_refusal_word, table_listing, table_word, verdict_line};
 
 /// An empty report,
 /// which every verdict line reads without a step.
@@ -23,6 +23,43 @@ fn report() -> ProbeReport {
 use super::super::probe_arms::{ProbeArm, ProbeStep};
 use super::super::probe_report::{ProbeReport, ProbeVerdict};
 use super::super::probe_status_line::StepLine;
+
+/// What:
+///  The listing the mode prints when the table told it no single checkout.
+/// Why:
+///  The project's second answer of 2026-11-22: the probe prints each mounted
+///  dataset it found with its path.
+///  The word alone cannot do that, so the mode recomputes the look-up and prints
+///  the refusal's own words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(tableListing(path, twoInstances)).toContain('/home/user/second');
+/// ```
+#[test]
+fn the_table_words_ask_for_a_listing_that_names_every_row() {
+    let mut several: ProbeReport = ProbeReport::new();
+    several.record(StepLine::not_exercised(ProbeStep::CheckoutRoot, "several-mounted-checkouts", None));
+    assert_eq!(table_word(&several), Some("several-mounted-checkouts"));
+    let mut none: ProbeReport = ProbeReport::new();
+    none.record(StepLine::not_exercised(ProbeStep::ReadSourceName, "no-mounted-checkout", None));
+    assert_eq!(table_word(&none), Some("no-mounted-checkout"));
+    let mut other: ProbeReport = ProbeReport::new();
+    other.record(StepLine::not_exercised(ProbeStep::CheckoutRoot, "no-checkout-path", None));
+    assert_eq!(table_word(&other), None);
+    assert_eq!(table_word(&ProbeReport::new()), None);
+
+    let fixture: std::path::PathBuf = crate::test_support::fixture("probe-listing-none");
+    let missing: std::path::PathBuf = fixture.join("nothing.jsonc");
+    let rows: Vec<String> = vec![
+        crate::testing::mounted_dataset_table::row(40, 1, "/", "/home/user/Monochromatic", "zfs", "pool/home/monochromatic-git-checkout"),
+        crate::testing::mounted_dataset_table::row(41, 1, "/", "/home/user/second", "zfs", "other/home/monochromatic-git-checkout"),
+    ];
+    let table = crate::testing::mounted_dataset_table::ScriptedMountTable::holding(&rows);
+    let listing: String = table_listing(missing.as_path(), &table).expect("two instances are no single checkout");
+    assert!(listing.contains("/home/user/Monochromatic") && listing.contains("/home/user/second"), "the listing names both rows with their paths: {listing}");
+    assert!(listing.contains("will not choose between them"), "the listing says why nothing was taken: {listing}");
+}
 
 /// Every verdict's line names what the reader must act on.
 #[test]
