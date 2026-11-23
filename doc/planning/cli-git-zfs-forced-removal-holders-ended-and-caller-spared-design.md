@@ -2944,9 +2944,7 @@ never passed (Z5).
   `findmnt`,
   `/proc/self/mountinfo`,
   `setsid --wait`.
-  It runs on the `6.8.0-147-generic` guest the fixture already has,
-  where its results are informative;
-  the production evidence needs a `7.3` guest (Z8).
+  It runs on the `6.8.0-147-generic` guest the fixture already has, where its results are informative: what it leaves unshown is the taskless namespace (no `listns`) and the production kernel's own mount code, and a `7.3` guest is what would show them (Z8).
 - **Tier 1** needs a ZFS pool and datasets but none of the route's code:
   the handle route and the no-room states.
 - **Tier 2** needs step 17's code,
