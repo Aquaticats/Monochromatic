@@ -3244,6 +3244,28 @@ with its committer time from `git log --format=%cI`:
   2026-11-22T18:50:13-05:00:
   the propagation set's real combinations,
   and the boot unit's inactive state.
+- `01c89c326f`,
+  2026-11-22T19:55:28-05:00,
+  on the merge of `main` at `9dfb749815`:
+  the project's four answers are written in,
+  with the two decision records quoted;
+  the questions section becomes "The project's four answers,
+  and what this design does with each";
+  the trigger section keeps the one provisional trigger and the root command,
+  with the kill criterion and the three limits;
+  the filter option and its ranking are removed and the record's refusal quoted;
+  the boot unit's `ExecReload=` line becomes decided,
+  with L11 kept as a short note for an older install;
+  the unit's `ExecReload=`-less case is guarded by the install order and the `doctor` check;
+  the states the request can meet are corrected and completed,
+  with the activating and reloading rows and what repairs the missed case;
+  a refusal is reported by the path it came by,
+  with `ReloadResult` added to where it is read;
+  the three wrong measurement references and the last review label are corrected;
+  the third rate limit,
+  the man-page line,
+  the `doctor` namespace note and the `statmount` callers are fixed;
+  and every sibling citation is re-pointed at `88f6a15194`.
 
 ## Links
 
