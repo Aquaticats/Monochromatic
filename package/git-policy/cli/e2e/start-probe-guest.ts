@@ -404,12 +404,12 @@ function green(chosen: Options): void {
     `CLI_GIT_TEST_ONLY_START_PROBE=hold-unshare ${HANDLER} start-probe > /root/probe-kill.log 2>&1 & mode=$!`,
     'started=false',
     'for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do',
-    '  if grep --quiet --fixed-strings "state started" "$REC" 2>/dev/null; then started=true; break; fi',
+    `  if grep --quiet --fixed-strings "state started" ${RECORD} 2>/dev/null; then started=true; break; fi`,
     '  sleep 0.05',
     'done',
     // A mode that never wrote the started record is a failure of this control rather than of the kill, and it names
     // itself instead of surfacing as a missing record line later.
-    'test "$started" = true || { echo "MISSING the started record before the kill"; cat "$REC" 2>/dev/null; exit 1; }',
+    `test "$started" = true || { echo "MISSING the started record before the kill"; cat ${RECORD} 2>/dev/null; exit 1; }`,
     'kill -KILL "$mode" || true',
     'wait "$mode" 2>/dev/null || true',
     `pkill --signal KILL --full "^${HANDLER} start-probe$" || true`,
