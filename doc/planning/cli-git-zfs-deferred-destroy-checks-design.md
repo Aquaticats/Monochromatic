@@ -4039,9 +4039,17 @@ nothing here claims their behaviour.
 - `8f38000259`,
   committed `2026-11-22T21:44:14-05:00`:
   the metadata-only commit that listed the three above with their times.
+- `d0ff7604b7`,
+  committed `2026-11-22T21:44:21-05:00`:
+  the metadata-only commit that recorded `8f38000259`'s time,
+  and the entry above it was "the commit that writes this line" until this commit.
+- `bbcd945c81`,
+  committed `2026-11-22T21:59:46-05:00`:
+  the wording fixes the last diff read listed,
+  with the changes the eighth part of "What this revision rewrote" lists.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  record the acceptance round's metadata commit":
+  close the wording round's revision list":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
