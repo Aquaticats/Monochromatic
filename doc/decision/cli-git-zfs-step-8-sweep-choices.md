@@ -283,7 +283,8 @@ Steady sweeps on the branch are 0.20 to 0.79 of `main`'s time from 8 to 1,024 cl
 
 The project chose "C:
 statmount(2) per mount":
-"Ask the kernel for that one mount's source by its unique mount number (Linux 6.8 and later; host is 7.3.5),
+"Ask the kernel for that one mount's source by its unique mount number (Linux 6.8 and later;
+host is 7.3.5),
 falling back to B on older kernels.
 Pros:
 exact,
