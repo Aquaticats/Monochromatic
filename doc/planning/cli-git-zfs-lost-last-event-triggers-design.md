@@ -4888,6 +4888,31 @@ which is that design's answer.
   recorded the answer's commit time above.
 - 2026-11-22T21:43:43-05:00:
   said in the cost cases that a folder holds one file per clone at rest.
+- 2026-11-22T22:19:20-05:00:
+  the last read's findings.
+  `main` was merged first,
+  at 2026-11-22T22:15:28-05:00.
+  The claim's crash window is stated from the OpenZFS source:
+  an fsync of another file commits the claim's create,
+  link and remove records without the claim's own data,
+  because only a rename orders a file's data first,
+  so the winner keeps the lower attempts until the helper has recorded its synced outcome,
+  the helper then unlinks them,
+  and the reader skips an empty highest attempt and uses the highest readable lower one;
+  V18's example and con say what a crash can leave,
+  and its ranking rests on the lower attempt,
+  not on a repeated nudge.
+  A14 rests on the binding record design's V9 at `7d041d773b`,
+  unapproved,
+  and states what breaks if that claim is not kept.
+  Test 16 says two files after a killed winner.
+  The folder's bound is one file per clone plus one per unrecorded claim,
+  the helper's recreating rename is stated with what heals it,
+  the helper's unlink is in both cost cases,
+  the absent-intent drop reads `written-at` against the provisional mount-request deadline,
+  five cost-requirement phrases name the coordinator's requirement,
+  the prose lines over 120 characters are wrapped,
+  and the sibling statements cite the propagation design at `467d05e307` by heading.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
