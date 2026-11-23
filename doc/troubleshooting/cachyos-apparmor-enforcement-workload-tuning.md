@@ -333,20 +333,12 @@ After keyring access and the real push reached the repository, Git denied this r
 `.git/hooks/pre-push`. The hook is a POSIX shell script that runs `git lfs pre-push "$@"`. The exact
 own-hook inherit-exec rule is separate from third-party hook and build-output policy.
 
-The auto-push policy wrapper also produced `/proc/<pid>/cgroup` with `ouid=0`. Its own
-`package/git-policy/cli/src/native/foundation/runtime_limits.rs:154-166` reads that path before
-resolving resource limits:
-
-```rust
-// package/git-policy/cli/src/native/foundation/runtime_limits.rs:154-158
-#[cfg(unix)]
-fn threads_left_in_this_control_group() -> Option<u64> {
-    let text: String = std::fs::read_to_string("/proc/self/cgroup").ok()?;
-    let path: String = control_group_path(text.as_str())?;
-```
-
-That root-owned proc file requires no `owner` qualifier. The local rule covers only this proc read;
-any subsequent `pids.max` or `pids.current` denial requires its own evidence.
+The follow-up auto-push also produced `/proc/154971/cgroup`, with `comm="git-lfs"` and `ouid=0`. Git
+LFS 3.8.1 is built with Go 1.27.3-X:nodwarf5. The Go runtime source cited in
+`Go retains the current cgroup quota descriptor` resolves the current cgroup from
+`/proc/self/cgroup` before opening its CPU limit. That root-owned proc file requires no `owner`
+qualifier. The local rule covers only this proc read; any subsequent cgroup-file denial requires its
+own evidence.
 
 ## Verification
 
@@ -354,8 +346,8 @@ any subsequent `pids.max` or `pids.current` denial requires its own evidence.
 
 The measured host runs AppArmor 4.1.8-2.1, Sanoid 2.3.0-2, Capture::Tiny 0.50-4, File::Temp from
 Perl 5.44.0-1.1, Cachy-Update 4.4.7-1, pacman-contrib 1.13.1-1.2, Go 1.27.4-X:nodwarf5, Incus
-7.6.0-1.1, KeePassXC 2.8.0-4.1, Git 2.56.1-1.1, GitHub CLI 2.105.0-1, and the custom confined Helium
-package.
+7.6.0-1.1, KeePassXC 2.8.0-4.1, Git 2.56.1-1.1, Git LFS 3.8.1-1.1 with Go 1.27.3-X:nodwarf5, GitHub
+CLI 2.105.0-1, and the custom confined Helium package.
 
 Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/`. Reports marked
 `ownerAcceptance: false` are not final approval.
@@ -382,8 +374,8 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
   required separate evidence.
 - The first auto-push failed because `/usr/bin/gh` had no transition target. After a custom `gh`
   profile succeeded at `gh auth status`, the real push failed on this repository's own `pre-push`
-  hook. The follow-up auto-push also recorded the policy wrapper's `/proc/<pid>/cgroup` denial.
-  These were new workflow stages, not repeats of the signing-buffer incident.
+  hook. The follow-up auto-push also recorded Git LFS's `/proc/154971/cgroup` denial. These were new
+  workflow stages, not repeats of the signing-buffer incident.
 
 ### Passing catalog
 
@@ -405,10 +397,11 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
 - Fresh Helium rendered Example Domain with renderer seccomp filtering and no unexpected unconfined
   helper. Audited events proved its OS-release read, existing crash-report reads, settings
   read/write opens, and lock-file operations. It did not create a new crash dump.
-- Signed commits `02f5e836951eaa990e1c6e3f88e5017b51e39d0b` and
-  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a` reached `main`. `gh auth status` read the existing
-  keyring credential through the enforcing custom profile, and `git ls-remote` returned the same
-  commit hashes. The push also exercised the exact own Git LFS hook.
+- Signed commits `02f5e836951eaa990e1c6e3f88e5017b51e39d0b`,
+  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a`, and `d189b6f6d0355cd41c377d1fdfc4b68aff043668` reached
+  `main`. `gh auth status` read the existing keyring credential through the enforcing custom
+  profile, and `git ls-remote` returned the same commit hashes. The push also exercised the exact
+  own Git LFS hook.
 
 ## Verified workarounds
 
