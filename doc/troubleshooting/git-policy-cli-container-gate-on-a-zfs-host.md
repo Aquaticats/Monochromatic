@@ -1228,61 +1228,250 @@ without naming a container
 A container carrying another run's label is another session's gate,
 and is never stopped.
 
-## Cause K: a commit timing record 13 ms past its stop ceiling, once
+## Cause K: a commit-timing control counted the preparation's last steps inside the build (issue 6346)
 
-`commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time` failed once,
-in the second gate of the round that built the per-slot slot identity store
-(branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files` at `2b3e13f439`,
-2026-11-21),
+### The symptom
+
+Two whole container gates failed
+`commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time`
 on the assertion at
-`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs:611`:
-the stretches the record states plus the steps whose offsets lie inside the build's window
-must fit that window plus `ROUNDING_MS`,
-which is 12 ms (`:711`).
-The excess was 13 ms,
-so the record's own parts summed to 25 ms more than its `buildMs`.
-The control passed alone in the same round,
-and passed in the whole gate of that branch's integration pass of 2026-11-21 on the same test binaries.
+`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs:611`,
+and the control passed alone in both rounds.
+The assertion asks the build's stretches plus the Git steps that began inside its window
+to fit the window plus the rounding of the figures summed.
 
-What is known:
+The first failure was the second gate of the round that built the per-slot slot identity store
+(branch `feat/git-policy-cli-zfs-slot-identity-store-per-slot-files` at `2b3e13f439`,
+2026-11-21).
+Its journal line was not kept;
+what this document recorded then was an excess of 13 ms over the allowed rounding,
+so the record's figures passed its `buildMs` by 25 ms.
+Nothing can be quoted from that failure,
+and this rewrite does not pretend to.
 
-- one failure in three gates
-  (the first of them on the commit before that tip),
-  and two passes of the same binary:
-  the control run alone in that round (2.317 s)
-  and the integration pass's whole gate;
-- nothing in the branch's changed modules is on this control's path:
-  the store,
-  the walk,
-  the adoption and the two foundation modules are called from `lib.rs`,
-  the mount binary,
-  one source-guard test and the guest tests,
-  and not from the commit,
-  landing or worktree-add code the control drives;
-- the assertion is an accounting one over numbers the record carries,
-  each measured on its own and each rounded on its own;
-- one more gate at the merged tip did not reproduce it:
-  this round's gate on `integ-store-findings-72d8dbeb`
-  ran 9752 tests,
-  and this control passed there in the same run as the standing cause-H pair.
+The second was the gate of
+`feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach` at `2120f75dff`,
+2026-11-22T17:35:47-05:00,
+with 9945 tests run and 9942 passed,
+the other two failures the standing cause-H pair.
+Its lines,
+the journal's own prefix stripped and every other byte as the journal wrote it
+(unit `gpc-gate-native-nma30Q-suite[970970]`):
 
-What is not known:
+```text
+thread 'commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time' (175418) panicked at src/native/binary/binary_commit_timing_tests.rs:611:5:
+the stretches and steps lie inside the stopped build (34 + 2071 of 2086): {"schemaVersion":1,"time":"2026-11-22T22:35:47.650Z","level":"warn","startMillis":1795386945351,"pid":175566,"release":"0.6.1-alpha.44","instance":"3abd20d1f0f99caa5fa0b83d90e14f6e","gitDir":"/work/package/git-policy/cli/target/gate-fixtures/native-binary-175408-timing-build-stopped/repo/.git","requestId":"a3b14421-1af0-434e-9406-2c420ba30c92","branch":"refs/heads/main","outcome":"stopped","exitCode":1,"stop":{"kind":"git-step","step":"git commit"},"totalMs":2299,"routeMs":101,"prepareMs":111,"attempts":1,"prepareSpans":[{"name":"index read","calls":1,"totalMs":0,"longestMs":0},{"name":"index copy","calls":2,"totalMs":0,"longestMs":0},{"name":"index seed","calls":1,"totalMs":0,"longestMs":0},{"name":"index equals base","calls":1,"totalMs":2,"longestMs":2},{"name":"index stat check","calls":1,"totalMs":2,"longestMs":2},{"name":"policy require-root at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"policy linked-worktree-only at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"policy branch-worktree-only at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"policy add-explicit at pre-forward","calls":1,"totalMs":0,"longestMs":0},{"name":"candidates prepared","calls":1,"totalMs":52,"longestMs":52},{"name":"policy final-newline at pre-forward","calls":1,"totalMs":66,"longestMs":66}],"prepareSpansDropped":0,"indexBuilds":[{"kind":"first","statDataKept":true}],"scratchSteps":[{"ceilingMs":2000,"armed":true,"stoppedAfterMs":2007,"heldAfterCeilingMs":null,"stallCeilingMs":null,"noticeMs":0,"wroteMs":0,"linesDropped":0,"looks":9,"looksFound":9,"below":[{"name":"git","seenMs":2006},{"name":"sleep","seenMs":1755}],"belowCpuMs":0,"belowUnlisted":false,"belowUnended":0,"blindLooks":0,"blockedLooks":0}],"buildMs":2086,"buildParts":{"branch":{"ms":0,"calls":1,"childrenMs":0},"message":{"ms":0,"calls":1,"childrenMs":0},"amend tree":{"ms":0,"calls":1,"childrenMs":0},"fitting request":{"ms":0,"calls":1,"childrenMs":0},"request":{"ms":0,"calls":1,"childrenMs":0},"shadow":{"ms":0,"calls":1,"childrenMs":0},"shadow hand-out":{"ms":8,"calls":1,"childrenMs":0},"shadow pool":{"ms":2,"calls":1,"childrenMs":0},"shadow skeleton":{"ms":6,"calls":1,"childrenMs":0},"shadow config":{"ms":3,"calls":1,"childrenMs":0},"shadow links":{"ms":6,"calls":1,"childrenMs":0},"shadow conclusion":{"ms":3,"calls":1,"childrenMs":0},"shadow refs":{"ms":5,"calls":1,"childrenMs":0},"client build":{"ms":1,"calls":1,"childrenMs":2023}},"buildPartsDropped":0,"provisionMs":0,"submitMs":0,"sends":0,"reachMs":0,"connectTries":0,"refusedConnects":0,"startWaitMs":0,"updateRounds":0,"releasesSeen":[],"answeredByRelease":null,"answerWaitMs":0,"positions":[],"waitingNotices":0,"lockHolderKind":null,"reconnects":0,"afterLandingMs":0,"gateMs":0,"handoffMs":0,"closingMs":0,"otherMs":0,"scratchRemovalMs":24,"removalsThatDidNotFinish":0,"stderrMs":0,"prepareParts":{"layout":{"ms":4,"calls":1,"childrenMs":0},"unmergedBefore":{"ms":0,"calls":1,"childrenMs":0},"capture":{"ms":2,"calls":1,"childrenMs":0},"scratch":{"ms":0,"calls":1,"childrenMs":0},"stagedDeletions":{"ms":3,"calls":1,"childrenMs":0},"index":{"ms":11,"calls":1,"childrenMs":12},"interactive":{"ms":0,"calls":1,"childrenMs":0},"conclusionState":{"ms":0,"calls":1,"childrenMs":0},"unmergedFiles":{"ms":2,"calls":1,"childrenMs":0},"changedPaths":{"ms":6,"calls":1,"childrenMs":0},"policies":{"ms":29,"calls":1,"childrenMs":36},"worktreeRecords":{"ms":0,"calls":1,"childrenMs":0},"treeCheck":{"ms":0,"calls":1,"childrenMs":0},"changes":{"ms":1,"calls":1,"childrenMs":0}},"preparePartsDropped":0,"longestQuietMs":54.802,"quietMs":{"/work/package/git-policy/cli/target/gate-fixtures/native-binary-175408-timing-build-stopped/slow-commit-bin/git rev-parse":29.83,"git add":8.997,"git cat-file --batch":11.755,"git version":54.802},"steps":[{"name":"git version","offsetMs":4,"durationMs":86},{"name":"git add","offsetMs":120,"durationMs":12},{"name":"git rev-parse","offsetMs":153,"durationMs":36},{"name":"git commit","offsetMs":250,"durationMs":2023}],"stepsDropped":0,"landing":null}
+```
 
-- whether the 25 ms came from the steps' own rounding accumulating,
-  from a step whose `offsetMs` fell inside the build's window while its time fell outside,
-  or from a real gap between the build's window and the parts it states;
-- whether anything about this host changes it.
-  Host load is not recorded as a cause here (rule `NQH`),
-  and one failure and two passes cannot separate a busy host from a defect.
+Its record's figures:
+`routeMs` 101,
+`prepareMs` 111,
+`buildMs` 2086,
+`totalMs` 2299,
+`otherMs` 0,
+`attempts` 1;
+`git version` at 4 ms for 86,
+`git add` at 120 for 12,
+`git rev-parse` at 153 for 36,
+`git commit` at 250 for 2023;
+14 `buildParts` whose `ms` sum 34,
+with `client build`'s `childrenMs` 2023;
+`prepareParts` `index`'s `childrenMs` 12 and `policies`' `childrenMs` 36.
 
-So the incident stands on its own name and is not put down to load,
-not to this branch,
-and not to cause G.
-A later failure of it should read which numbers the assertion printed:
-the record's `stated` sum,
-the `steps_in_build` sum and its `buildMs`,
-and the `steps` array,
-before anything here is reopened.
+### The cause
+
+The record was right and the control's window was wrong.
+That is shown for the second failure,
+whose record is quoted here;
+the first failure's journal line was never kept,
+so its cause is inferred from the same control and not shown.
+
+`offsetMs` counts from the command's start
+(`package/git-policy/cli/src/native/transaction/transaction_step_durations.rs`,
+`figure_of`;
+`package/git-policy/cli/SPEC.md`,
+"offsetMs from the command's start"),
+and the two phases before the build are the route and the preparation
+(`CommitTiming::other`,
+`package/git-policy/cli/src/native/commit/commit_timing.rs`;
+`note_route` at `package/git-policy/cli/src/native/landing/service_commit.rs:181`,
+`begin_build` at `:205`).
+The build therefore begins at `routeMs + prepareMs`,
+here 212 ms,
+and the assertion began it at `prepareMs`,
+111 ms:
+a band as wide as the route,
+holding every step that began in the preparation's last `routeMs` milliseconds.
+`git add` began 19 ms into the preparation and `git rev-parse` 52 ms into it,
+both inside that band and outside the build,
+and `prepareParts` already states their 12 and 36 ms as the `childrenMs` of `index` and `policies`.
+The assertion counted 48 ms twice.
+The build's parts state 34 of its 2086 ms with 2023 under `client build`,
+so 29 ms of the build is in no part;
+48 - 29 = 19,
+and 19 - 12 = 7,
+the failure's excess exactly.
+Read from 212,
+the window holds `git commit` alone,
+and 34 + 2023 = 2057 fits 2086,
+and so fits 2086 + 1 as well.
+
+The record is right on both sides:
+58 + 48 = 106 <= 111 in the preparation,
+34 + 2023 = 2057 <= 2086 in the build,
+and 101 + 111 + 2086 = 2298 of 2299 with `otherMs` 0.
+Nothing of the stopped `git commit`'s 2023 ms lies outside the build either:
+`client build` states `childrenMs` 2023,
+the step's whole duration,
+so its stretch is at least as long as the step,
+and the 16 ms between the notice's `stoppedAfterMs` 2007 and the step's 2023
+is time the step ran past the ceiling,
+consistent with its own end and reap on this host,
+where the 17 clean stopped records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+show natural `git commit` steps lasting 2013 to 2091 ms against a 2000 ms ceiling,
+and inside `buildMs`,
+which is closed after the step's time is read
+(`note_step(step, began, began.elapsed())` at
+`package/git-policy/cli/src/native/commit/commit_preparation.rs:281`,
+after `run_guarded_child` at `:275`;
+`close_an_open_build` at `package/git-policy/cli/src/native/commit/commit_command.rs:418`).
+No stretch is stated twice:
+14 parts,
+`calls` 1 each,
+2057 under 2086.
+No Git child spans a build seam:
+the build's one child is stated wholly in one part.
+
+Rounding is not it either,
+and neither is counting the figures.
+Every figure the accounting sums is a duration cut to whole milliseconds on its own
+(`package/git-policy/cli/src/native/commit/commit_prepare_part_durations.rs:180-182`,
+`package/git-policy/cli/src/native/transaction/transaction_step_durations.rs:264-265`,
+`package/git-policy/cli/src/native/commit/commit_timing.rs:613`),
+and a cut never raises a sum:
+a stretch's `ms` and `childrenMs` are two cuts of one duration,
+and `floor(a) + floor(b) <= floor(a + b)`,
+so a right record states the build's parts and the steps that began in them at `buildMs` or under it.
+The one cut that can add is the window's origin,
+`routeMs + prepareMs`,
+two cuts that can begin the window up to two whole milliseconds early;
+the step such a band admits is one the preparation had awaited,
+so it ended before the preparation did,
+ran in under those two milliseconds,
+and states at most one whole one.
+The controls hold that one whole millisecond (`WINDOW_ORIGIN_ROUNDING_MS`),
+and the failure's 2105 passes 2086 + 1 = 2087 by 18,
+so no cut decides it.
+In the 34 clean records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+the excess was -12 to -3 ms
+(stopped control -12 to -3,
+landing control -5 to -3),
+so the bound leaves 4 to 13 ms of headroom,
+and never less than 4.
+The fixed 12 ms allowance was larger than any right record needs,
+so a step stating 10 or 14 ms too much passed it,
+and a count of figures is larger still:
+the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+read the count as 16 on the stopped control and 19 on the landing one,
+where a planted step stating 20 ms more than it ran passed both.
+
+Every other way this could be false was checked and excluded:
+the build's own figure by `otherMs` 0 and 101 + 111 + 2086 = 2298 of 2299,
+a record of several builds by `attempts` 1,
+a step list cut short by `stepsDropped` 0,
+and the window's own origin,
+which can admit only a step that began in the two milliseconds before the build and ran in less than those two,
+by the two preparation steps beginning 92 ms and 59 ms before it.
+A step that began in the build's last `routeMs` was not counted at all,
+so the same off-by-a-route could also hide a defect at the window's end;
+the window now ends where the build does.
+
+Why the control passes alone:
+the band is as wide as `routeMs`,
+and a preparation step it takes in ran only until the preparation ended,
+so it adds at most its own few milliseconds to a sum the build leaves 3 to 5 ms uncovered.
+The 17 clean stopped records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+read `routeMs` as 3 to 7 ms and stayed green.
+The gate's record states 101 ms,
+and the band took in both preparation steps,
+which had run 12 and 36 ms.
+Host load is no cause here (rule `NQH`);
+what load changes is how much of the preparation falls inside the band,
+because the band is as wide as the route the load stretched.
+
+### The reproduction
+
+The fixture's stand-in Git was made to sleep 400 ms on `version`,
+a step of the route,
+and 200 ms on `add`,
+a step of the preparation.
+Neither sleep adds a window:
+the route is already before the preparation,
+and the band is already as wide as the route.
+The control then failed on this host,
+at the same assertion:
+
+```text
+    thread 'commit_timing::a_build_stopped_in_its_scratch_commit_still_states_its_time' (3702717) panicked at src/native/binary/binary_commit_timing_tests.rs:611:5:
+    the stretches and steps lie inside the stopped build (11 + 2243 of 2045): {...}
+```
+
+That record states `routeMs` 436,
+`prepareMs` 275 and `buildMs` 2045,
+with `git add` at 477 ms for 208,
+`git rev-parse` at 693 for 6 and `git commit` at 722 for 2029,
+and `prepareParts` states the two preparation steps' time as
+`index`'s `childrenMs` 208 and `policies`' `childrenMs` 6.
+Read from `prepareMs` 275,
+the window selects all three steps,
+2243 ms,
+and 11 + 2243 passes 2045 + 12 by 197 ms
+(and 2045 + 1 by 208).
+Read from 711 it selects `git commit` alone,
+and 11 + 2029 = 2040 fits 2045,
+and so fits 2045 + 1 as well.
+
+No whole-suite rerun was used to wait for this failure:
+the delay was planted in the stand-in and one run of the control showed it.
+
+### The fix
+
+`package/git-policy/cli/src/native/binary/binary_commit_timing_tests.rs`:
+
+- `build_window` states the window from `routeMs + prepareMs` to
+  `routeMs + prepareMs + buildMs`,
+  and both controls assert `attempts` 1,
+  because a record of several builds is several windows and no single pair states their union;
+- `WINDOW_ORIGIN_ROUNDING_MS` is the bound:
+  one whole millisecond,
+  because every figure summed is a cut that cannot raise a sum,
+  and the window's origin,
+  two cuts,
+  can admit only a preparation step that ran in under two milliseconds;
+- both controls assert that the window holds the scratch `git commit`,
+  so a frame that moved cannot leave an empty selection that passes by adding nothing;
+- `a_preparations_last_steps_are_not_counted_inside_the_build` holds this gate's own record:
+  it derives the window,
+  the selected step,
+  and the sums from that record,
+  and asserts that the old reading's 2071 ms passes even the origin's bound.
+  With `steps_inside_the_build` reading its window from `prepareMs`,
+  the control fails at its step list:
+  `left: ["git add", "git rev-parse", "git commit"]` against `right: ["git commit"]`,
+  and those three steps state 2071 ms against the record's 2086 ms build,
+  the sum the gate printed as `34 + 2071 of 2086`.
+  With the window read from the route and the preparation it passes.
+
+`package/git-policy/cli/SPEC.md` now says what the build's window is,
+so a later reader does not derive it again.
+
+Nothing in the record changed for the second failure,
+whose record is quoted here and was right;
+the first failure's record was never kept.
 
 ## Cause L: a control wrote over the PID file it had judged, within one millisecond (issue 6342)
 
