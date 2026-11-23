@@ -1535,9 +1535,8 @@ and only when what is read there equals what was read before the lock's unlink:
 the same device,
 the same inode,
 the same `ctime_ms`,
-and,
-since this round,
-the same number the file names
+and the same contents,
+which entail the number the file names
 (section The fix says why and what it costs).
 So the file could be gone in one of these ways:
 
@@ -1732,7 +1731,8 @@ as "B:
 also compare bytes (Recommended)",
 whose words were "Before deleting the PID file,
 read it again and delete only if its contents are also unchanged",
-over correcting these words alone and leaving the route open.
+over correcting these words alone and leaving the route open,
+and the record is `doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`.
 The limit the owner was shown with that choice is the one case named under What the comparison is now,
 and why:
 a program that rewrote the very same bytes in place would still lose the file.
@@ -1773,6 +1773,7 @@ and both are recorded here so the next reader does not have to find them:
 - the instant between the last read and the unlink is not closed:
   no system call unlinks a name only when it still holds given contents
   (`service_index_unheld_removal.rs` says the same of the lock's own removal).
+
 ### The fix
 
 `src/native/lock/abandoned_lock_proving.rs` is the file whose comparison changed,
@@ -1788,6 +1789,10 @@ a change time this host's ZFS hands out in jiffies,
 an inode number a file system may hand back to the next file,
 and one change time both reads report,
 so no clock decides what a control holds.
+It tells the removal's judged read from its last look by the phase the removal is in,
+which a control's hook moves at the lock's unlink,
+so a judged read taken after that instant is answered as a later one,
+and a removal that read the file in the wrong place fails its control.
 The contents are always the file's own,
 so a control that writes them writes a state.
 
@@ -1800,7 +1805,7 @@ so a control that writes them writes a state.
   and none of them is the bytes the removal judged.
   Each file stands,
   which is the pin of the comparison of the contents.
-- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
+- `a_pid_file_with_the_very_bytes_it_was_judged_with_goes_with_the_lock`
   has the hook write the very bytes the file was judged with,
   under one change time for both reads:
   all four facts equal the judged ones,
@@ -1817,9 +1822,10 @@ so a control that writes them writes a state.
 - `a_pid_file_of_another_inode_is_left_alone`
   has the hook remove the judged file and write the judged number again,
   a new file with the same bytes,
-  and the arm answers the later read with another inode number:
+  and the arm reports one inode for every read and another for the read taken after the lock's name went:
   the inode is the term that decides,
-  whichever number the file system gives the new file.
+  whichever number the file system gives the new file,
+  and dropping the arm's answer makes the removal compare one inode number with itself and take the file.
 - `a_pid_file_of_another_change_time_is_left_alone`
   arms the later read with a change time one millisecond back and touches nothing else.
 - `a_pid_file_of_another_device_is_left_alone`
@@ -1838,29 +1844,44 @@ then the file was put back:
 
 ```text
 term left out: device            a_pid_file_of_another_device_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:1047:5: a PID file of another device is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1053:5: a PID file of another device is left alone
 term left out: inode             a_pid_file_of_another_inode_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:984:5: a PID file of another inode is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:990:5: a PID file of another inode is left alone
 term left out: change time       a_pid_file_of_another_change_time_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:1017:5: a PID file whose change time reads another millisecond is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1023:5: a PID file whose change time reads another millisecond is left alone
 contents put back to the number  a_pid_file_whose_number_gained_a_leading_zero_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:871:5: a PID file whose number gained a leading zero is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:876:5: a PID file whose number gained a leading zero is left alone
 contents put back to the number  a_pid_file_with_trailing_padding_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:898:5: a PID file with spaces before its newline is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:903:5: a PID file with spaces before its newline is left alone
 contents put back to the number  a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:925:5: a PID file with a carriage return before its newline is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:930:5: a PID file with a carriage return before its newline is left alone
 contents put back to the number  a_pid_file_with_no_newline_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:952:5: a PID file with no newline is left alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:957:5: a PID file with no newline is left alone
 unlink planted away              a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared
 panicked at src/native/lock/abandoned_lock_proving_tests.rs:267:5: the PID file of a cleared lock goes with it
 unlink planted away              a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:1160:5: the abandoned holder's PID file goes with its lock, and the new holder has none to lose
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1167:5: the abandoned holder's PID file goes with its lock, and the new holder has none to lose
 ```
 
 Each run exited 100,
 every failing control is named,
 and the module was green before the first plant and after the last one
 (`Summary [0.176s] 22 tests run: 22 passed, 8632 skipped`).
+
+The pass after the merge moved the judged metadata read to after the lock's unlink,
+which makes the device, the inode and the change time compare one file with itself,
+and every control passed then:
+the arm answered a control's reads by counting them,
+so a judged read taken in the last look's place was still answered as the judged one.
+The arm answers by the phase of the removal now,
+and that plant fails the three controls whose whole difference is one of those three terms
+(`Summary [0.097s] 22 tests run: 19 passed, 3 failed`):
+`a_pid_file_of_another_inode_is_left_alone`,
+`a_pid_file_of_another_change_time_is_left_alone` and
+`a_pid_file_of_another_device_is_left_alone`.
+Dropping the arm's inode answer alone fails `a_pid_file_of_another_inode_is_left_alone` and nothing else
+(`Summary [0.102s] 22 tests run: 21 passed, 1 failed`),
+which is why that control arms one inode for every file.
 
 ### What the product guarantees here
 
@@ -1901,6 +1922,7 @@ Its Clippy step finished clean
 (``Finished `dev` profile [unoptimized] target(s) in 4m 53s``),
 and the unit ended `Failed with result 'exit-code'`,
 which is the cause-H pair's status and not this section's control.
+
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
 
 This is neither cause G nor cause H.
