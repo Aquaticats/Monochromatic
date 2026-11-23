@@ -1040,7 +1040,8 @@ fn an_abandon_after_the_child_ended_names_no_child() {
     remove(root.as_path());
 }
 
-/// An abandon of a read that already answered frees its map off the adding thread, and frees it at all.
+/// An abandon of a read that already answered frees its map off the adding thread,
+/// and frees it at all.
 #[test]
 fn the_abandon_frees_the_answered_map_off_the_adding_thread() {
     let root: PathBuf = fixture("freed-beside-the-add");
@@ -1187,7 +1188,7 @@ fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     remove(root.as_path());
 }
 
-// ===== The integration recheck's own controls (uncommitted, in the integration worktree only) =====
+// ===== The integration recheck's six promisor shapes, taken into the branch =====
 
 /// Take every promisor flag of the clone's own configuration away (the remote's two keys and the extension),
 /// and the pack markers with them,
