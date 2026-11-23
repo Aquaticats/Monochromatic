@@ -6431,6 +6431,25 @@ and any test suite.
   K6 (the 8- and 16-space continuations normalized),
   and U38 (the tips sentence names `db69df972a` and `ea271e9e1d`,
   and the live "read at" cites are refreshed).
+- 2026-11-23T18:42:02-05:00 (`fa6617282c`):
+  answered the two tenth reads:
+  K7 and U40 (the settling command's proved-absence refusal applies only where no plan stands,
+  so a `settling` binding beside a plan whose clone a person destroyed is taken by the command,
+  whose read 6 prints and removes the plan;
+  `doctor`'s `settling` line carries the same plan condition,
+  and T33's twelfth arm and T30's plan arm plant it),
+  K8 and U39 (`cloned` or `mounted` with a gone clone and no plan names the settling command,
+  `registered` and `snapshotted` leave the row,
+  and the fallback's entry list says a gone clone is not a failure of the add's own step),
+  K9 and U41 (the five readers of the plan folder are named,
+  including the add and `doctor`,
+  "A resumed add" and A20's resume carry the plan condition,
+  "Where the siblings disagree" records the plan design's sentence,
+  and V24 puts the add's refusal to the project),
+  K10 and U42 (T34's scope and its plan arm,
+  T30's plain arm after A25,
+  T32's plan arm,
+  and the plan row's two refusals that name no command).
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
