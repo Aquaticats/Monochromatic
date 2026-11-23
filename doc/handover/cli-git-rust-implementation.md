@@ -586,12 +586,14 @@ T0-5c gives two answers to whether way 8 is taken,
 and way 7 end to end never ran.
 Nothing is shown on kernel 7.3 or on ZFS.
 The design places the confirmation after Tier 0,
-Tier 1 (ZFS, no route) and Tier 2 (step 17's code);
+Tier 1 (ZFS,
+no route) and Tier 2 (step 17's code);
 the reviewer drafted the question with every slot the guest could not fill left empty.
 Running:
 `pi-zfs-forced-removal-probe-arms-gaps-kernel-7-and-tier-1`,
 on the mediums' arms,
-Tier 0 on kernel 7.3 (a guest of 6.19 or newer, or a rootless container on this machine's kernel),
+Tier 0 on kernel 7.3 (a guest of 6.19 or newer,
+or a rootless container on this machine's kernel),
 and Tier 1;
 and the design writer's round on the text edits the read asks for,
 G4's policy among them
