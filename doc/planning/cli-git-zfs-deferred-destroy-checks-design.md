@@ -16,12 +16,14 @@ the proposal or the project's answers of 2026-11-19 did not make,
 beyond the choices "Choices this design marks for the project's veto" lists
 and the questions "Questions only the project can answer" puts.
 
-This revision answers two reviews,
-both outside this repository:
+This revision answers three reviews,
+all outside this repository:
 the gate review of `124ea5b573`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review.md`)
-and the second pass over `3e34817184`
-(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`).
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review.md`),
+the second pass over `3e34817184`
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-second-pass.md`)
+and the diff check of `f82f20ecab`
+(`~/temp/agent/gate-review-zfs-deferred-destroy-checks-design-2026-11-22/keep/review-diff-check.md`).
 "Revisions" lists what each commit changed,
 and "What this revision rewrote" says which sections each review's findings turned over
 and which stand as the first version wrote them.
@@ -85,9 +87,12 @@ started no guest and no container,
 took no measurement,
 and edited no other file.
 Every kernel sentence here is source reading.
-Every measurement it owes stays owed,
-and "Measurements owed" writes the probe that would run each one,
-with the account and grants it needs.
+Every measurement it owes stays owed.
+Of "Measurements owed",
+three probes can run as written once a guest exists,
+and the rest are specifications of the state,
+the action and the expectation,
+whose scripts the build step that builds the route they need writes and first runs in a guest.
 
 The one command it ran against the machine was read-only:
 `ls --format=long --directory /dev/zfs`,
@@ -973,11 +978,19 @@ covers every cause:
 
 ```text
 refusing to remove the ZFS worktree clone `<clone name>`: <the cause, with the object and the field>.
-<the history sentence>. Everything the history sentence and the cause do not name as gone is still there; the Git
-registration stands.
+<the history sentence>. This check changed nothing, and the clone is unmounted.
 The removal is pending; `cancel-worktree-removal <slot>` is the way back and reports any snapshot already
 destroyed. Ways forward: <the reads and the acts a person has>.
 ```
+
+The template claims only what the check read and what the plan records:
+the three objects of its reads and the tuples the plan names,
+plus the unmounted state the removal's own order produced (the intent and the unmount are step 2's,
+proposal `:886` to `:888`).
+It does not say that anything else stands,
+because the check reads three objects and a cause such as `CloneIsNotThePlannedOne` arises exactly where a planned
+object is not what its name says any more.
+The Git registration is the removal's own step 1 read and is not repeated here.
 
 The history sentence comes from the destruction plan's recorded outcomes,
 never from which call site reached the check,
@@ -1049,7 +1062,7 @@ because a removal can meet one by a substitution after step 1's proof and before
 which is exactly the window a read cannot close (L4).
 This design's choice,
 marked for veto as V10:
-both refuse,
+all three refuse,
 and the message names the plan's tuple and says the settle rules of the resume own the next attempt
 (proposal `:963` to `:967`).
 The check never proceeds over a gone object,
@@ -1062,18 +1075,15 @@ the first for the cause this item exists for:
 refusing to remove the ZFS worktree clone `monochromatic-git-worktree-clone-datasets/fix-flaky-test`: its origin
 snapshot `monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` is marked for deferred destroy
 (`defer_destroy` reads 1), and the kernel reports 1 clone of it and 0 user holds, so destroying this clone destroys
-that snapshot in the same transaction. This removal has not destroyed anything yet. Everything the history sentence
-and the cause do not name as gone is still there; the Git registration stands. The removal is pending;
-`cancel-worktree-removal fix-flaky-test` is the way back and reports any snapshot already destroyed. Ways forward:
-`zfs get -H -o value defer_destroy monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` and `zfs holds
+that snapshot in the same transaction. This removal has not destroyed anything yet. This check changed nothing, and
+the clone is unmounted. The removal is pending; `cancel-worktree-removal fix-flaky-test` is the way back and
+reports any snapshot already destroyed. Ways forward: `zfs get -H -o value defer_destroy
+monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` and `zfs holds
 monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` show the mark and the holds. The mark cannot be
 cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's
 destruction and destroy the clone yourself, or you clone that snapshot elsewhere first, which pins it, and then
-destroy the clone. Either way the plan beside the registration still names what this removal owed, and once the
-head is gone it is a `head=gone` plan, which that design never refuses for want of a live intent
-(doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md,
-"the pointer beside the registration" and "The head-gone path"), so its finish pass settles it. If neither is
-right for you, leave the slot and ask the administrator.
+destroy the clone. Either way, run the removal again once the clone is gone: it is meant to finish the removal
+then. If neither is right for you, leave the slot and ask the administrator.
 ```
 
 and the same cause with a plan that recorded two destroyed snapshots:
@@ -1083,10 +1093,10 @@ refusing to remove the ZFS worktree clone `monochromatic-git-worktree-clone-data
 snapshot `monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` is marked for deferred destroy
 (`defer_destroy` reads 1), and the kernel reports 1 clone of it and 0 user holds, so destroying this clone destroys
 that snapshot in the same transaction. This removal has already destroyed `fix-flaky-test@manual-2026-11-21` and
-`fix-flaky-test@sanoid-hourly-2026-11-22` (in this run or an earlier one), and they do not come back. Everything
-the history sentence and the cause do not name as gone is still there; the Git registration stands. The removal is
-pending; `cancel-worktree-removal fix-flaky-test` is the way back and reports any snapshot already destroyed. Ways
-forward: as for the refusal above, and the loss named here is the cost already paid.
+`fix-flaky-test@sanoid-hourly-2026-11-22` (in this run or an earlier one), and they do not come back. This check
+changed nothing, and the clone is unmounted. The removal is pending; `cancel-worktree-removal fix-flaky-test` is
+the way back and reports any snapshot already destroyed. Ways forward: as for the refusal above, and the loss named
+here is the cost already paid.
 ```
 
 A refusal prints no destructive command.
@@ -1151,18 +1161,25 @@ and only three things can then happen:
   or `zfs destroy -r` of the clone),
   which reaps the marked origin in the same transaction (F10).
   The clone's own intent property went with the clone,
-  so the plan's head-gone rule is what completes it:
-  "A `head=gone` plan has no live intent by construction",
-  and "A plan whose head is gone is never refused for that reason"
-  (doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md,
-  "The head-gone path" and "The removal intent's rule"),
-  while the finish pass reaches the plan through the pointer beside the registration
-  (the same design's "The pointer beside the registration" and its section 5).
-  The finish pass then settles the registration and the pointer,
-  leaves the origin-cleanup record where an origin remains (a sibling's design),
-  and unlinks the plan (the same design's "When it is removed").
-  That division is the plan sibling's,
-  not this design's.
+  and the plan still records its head as present,
+  so what completes this removal is a later run settling a plan whose head it can no longer find.
+  The plan record
+  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+  read at `76849b8d9b`)
+  has no stated rule for that case:
+  its finish pass acts only on a plan whose head is `gone`
+  (`:1627` to `:1637`),
+  its worked example of the head-gone path is a plan whose head is `requested`
+  (`:1436` to `:1440`),
+  and its head-present path refuses a record that disagrees with the live clone
+  (`:1353` to `:1365`).
+  So this design does not describe the completion.
+  It asks that design to state which path a plan takes when the plan says the head is present and the clone does
+  not answer,
+  and "Dependencies on sibling designs" carries the request.
+  Until it does,
+  a refusal promises only that running the removal again once the clone is gone is meant to finish
+  the removal.
 - The person keeps the history.
   Outside the wrapper they first clone the marked snapshot under another name,
   which pins it (F21),
@@ -1300,7 +1317,9 @@ and this design does not design:
   and recording a wait that expired rather than honouring it.
   Building it widens that feature's own comment in `package/git-policy/cli/Cargo.toml:71` to `:75`,
   which today names the clone fence alone.
-  It runs M3 once the route is whole.
+  It writes and first runs the scripts of M0b,
+  M3 and M4 once the route is whole,
+  the managed slot's install being placed by hand from step 6's and step 19's files until step 19 ships it.
 - Step 18 builds `doctor`'s lines from the kept intent and plan,
   and replaces the sentence that reports the check "as not yet designed"
   (implementation plan `:2065`,
@@ -1379,7 +1398,7 @@ which already builds a `DatasetIdentity` by hand.
     a plan with no outcome prints "has not destroyed anything yet",
     one with two destroyed tuples names both,
     and the two messages are otherwise identical;
-    a resume whose earlier run destroyed the tuples prints the names and never says "this run" (M-A's fix).
+    a resume whose earlier run destroyed the tuples prints the names and never says "this run".
 12. `a_gone_clone_or_origin_dataset_or_origin_snapshot_refuses_and_names_the_settle`:
     `ENOENT` on any of the three,
     with the plan's tuple named and the settle rule pointed at (V10).
@@ -1463,27 +1482,43 @@ and the measured arms of [VM item 12][vm-12] are its record.
     (`live_read_tests.rs:120` to `:121`).
 20. The removal arms of M3 below,
     in a new guest recipe under `package/git-policy/cli/e2e/`,
-    driven the way `mount-git-worktree-clone-datasets-guest.ts` drives the step 8 arms.
+    written and first run by step 16,
+    and driven the way `mount-git-worktree-clone-datasets-guest.ts` drives the step 8 arms.
 
 ## Measurements owed
 
 None of these ran in this round.
-Each is written to be run by a later round as it stands,
-and each names every account and grant it needs.
 
-Every line below carries the record or source line that says what it does on the state the lines before it left.
-That is what proves a probe can run when nobody runs it.
-Two of the things they use are code a later step must build and that does not exist now:
-the pause route (step 16,
-"What each build step builds") and the managed slot's add (step 10,
-with the mount
-handler of steps 6 to 9).
+Three probes can run as written once a guest exists:
 M0a,
-M1 and M2 need neither.
+M1 and M2.
+The rest are specifications,
+because the route they drive does not exist yet.
+Each specification gives the state it needs,
+with the record or source line that says so,
+the one action,
+the refusal or result it expects with the step of the accepted order that produces it,
+and the bound on its wait,
+and each names the build step that writes its script and first runs it in a guest.
+A specification stands where a script would pretend to be evidence:
+three reviews found three different reasons a hand-written script could not start,
+and none of these arms can run until the steps that build the add route,
+the mount handler and the pause route exist.
+
+Where OpenZFS's programs live in the guest:
+the step 8 guest recipe keeps the 2.4.4 userspace at `/opt/openzfs-2.4.4`
+and runs every pool command with
+`/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/sbin:/usr/sbin:/bin:/usr/bin` on its `PATH`
+(`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts:104` to `:105`,
+`:291`),
+so a probe that runs `zfs` through `sudo` passes that `PATH` in the `env` list rather than relying on what the
+guest's sudoers keeps.
 `zfs`'s own flags have no long spelling for the ones used here
 (`man/man8/zfs-destroy.8:147` for `-d`,
 `man/man8/zfs-get.8:139` and `:149` for `-H` and `-o`),
 so rule `LFF` leaves them short.
+
+
 
 ### M0a: the kernel fixture, for M1 and M2
 
@@ -1517,7 +1552,7 @@ zfs snapshot zfsdeferred/monochromatic-git-checkout@git-worktree-clone-origin-$n
 zfs clone zfsdeferred/monochromatic-git-checkout@git-worktree-clone-origin-$nonce \
     zfsdeferred/monochromatic-git-worktree-clone-datasets/m1-clone
 # the clone's own snapshots, one manual and one sanoid-shaped, which are the set a removal inventories
-# (proposal :876 to :880)
+# (proposal `:858` to `:860`)
 zfs snapshot zfsdeferred/monochromatic-git-worktree-clone-datasets/m1-clone@manual-2026-11-21
 zfs snapshot zfsdeferred/monochromatic-git-worktree-clone-datasets/m1-clone@sanoid-hourly-2026-11-22
 # the grants a built add and a removal need, each from the proposal's delegation section:
@@ -1548,6 +1583,12 @@ so M0b's add of `fix-flaky-test` cannot collide with it whatever order the probe
 
 ### M0b: the managed slot, for M3
 
+A specification.
+Its script is written and first run by step 16,
+the first step whose measurement needs a managed slot;
+until step 19 ships the installer,
+the install it needs is placed by hand in the guest from the same files.
+
 M3 removes a slot the wrapper manages,
 so M0b runs the built add at the canonical destination,
 as the account,
@@ -1555,49 +1596,81 @@ on M0a's pool.
 A hand-made registration is neither the binding record nor the intent a removal reads,
 so M3 never makes its slot by hand.
 
-```bash
-# the checkout is the add's origin, so it is a Git repository with one commit
-# (the add's preflight requires a supported Git form and an eligible source, proposal :365 to :370)
-git init --initial-branch=main /var/lib/zfs-fixtures/deferred/checkout
-git -C /var/lib/zfs-fixtures/deferred/checkout config user.name probe
-git -C /var/lib/zfs-fixtures/deferred/checkout config user.email probe@example.invalid
-git -C /var/lib/zfs-fixtures/deferred/checkout add history
-git -C /var/lib/zfs-fixtures/deferred/checkout commit --message 'the fixture'
-# the built wrapper as `git`: a hard link of the executable and a bin/git symbolic link to it,
-# which is how every binary control runs it
-# (package/git-policy/cli/src/native/binary/binary_support_fixture_directories.rs:130 to :131, :210 to :213)
-install --directory /opt/deferred-removal/wrapper
-install --mode 0755 <the built monochromatic-git-policy-cli> \
-    /opt/deferred-removal/wrapper/monochromatic-git-policy-cli
-install --directory /opt/deferred-removal/bin
-ln --symbolic /opt/deferred-removal/wrapper/monochromatic-git-policy-cli /opt/deferred-removal/bin/git
-install --directory --mode 0700 /home/probe/.run
-# the add as the account, at the canonical destination and nowhere else
-# (the clone mounts at the slot, proposal :275 to :277;
-# the route accepts only the canonical path, :1375 to :1376), with its own home and runtime directory
-sudo --user probe --set-home env HOME=/home/probe XDG_RUNTIME_DIR=/home/probe/.run \
-    PATH=/opt/deferred-removal/bin:/usr/bin:/bin \
-    git worktree add /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test
-# the origin's name comes from the live clone, never typed
-# (the origin property is the snapshot the clone was created from, man/man7/zfsprops.7:252 to :255)
-origin=$(zfs get -H -o value origin zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test)
-printf 'origin=%s\n' "$origin"
-# the handler attached the clone to its slot on a qualifying sweep (proposal :379 to :380);
-# the removal's step 2 unmounts it, so assert it is mounted before the arm
-findmnt --target /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test
-# the clone's own snapshots, where M0a puts them, on the clone the add made
-zfs snapshot zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test@manual-2026-11-21
-zfs snapshot zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test@sanoid-hourly-2026-11-22
-```
+The state it needs,
+each part with what says so:
 
-The add's own sequence is the one it ships:
-the claim writes the clone's name and the origin snapshot's name before mutation,
-the account creates the snapshot and the clone,
-and the handler attaches the clone on its next qualifying sweep (proposal `:365` to `:380`).
-Until step 10 and the handler of steps 6 to 9 are built,
-this block cannot run and M3 waits;
-M0a,
-M1 and M2 do not.
+- M0a's pool,
+  datasets,
+  account and grants,
+  unchanged.
+- The checkout is a Git repository with one commit,
+  and the checkout,
+  its `.git`,
+  `.claude/worktrees` and the account's run folder belong to `probe`,
+  because the add writes the claim as that account
+  (proposal `:373` to `:375`)
+  and the account owns the directory and each slot (proposal `:132` to `:134`).
+  M0a's root-made checkout is therefore given to `probe` before the add runs,
+  and `/home/probe/.run` is made by root with `--owner probe --group probe --mode 0700`,
+  because it is the `XDG_RUNTIME_DIR` the add writes into.
+- The installed root-owned handler and its configuration,
+  a live ZED,
+  usable root-owned status and results folders,
+  and a current handler readiness report for this pool,
+  checkout and boot,
+  because the add's preflight verifies each of them (proposal `:365` to `:374`).
+  The handler's install paths are
+  `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
+  and the unit that starts it (`package/git-policy/cli/SPEC.md:266`,
+  `:274`),
+  and the installer is step 19's (implementation plan `:195`,
+  `:2580`).
+  The step 8 guest recipe does not install the handler:
+  it drives the handler's modes directly
+  (`package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts:3`,
+  `:341`),
+  so this install is M0b's own precondition,
+  placed from step 6's and step 19's files.
+- The wrapper as `git`:
+  a copy of the built executable and a `bin/git` symbolic link to it,
+  which is how every binary control runs it
+  (`package/git-policy/cli/src/native/binary/binary_support_fixture_directories.rs:130` to `:131`,
+  `:210` to `:213`).
+- The origin is the snapshot the add makes,
+  never one made by hand (proposal `:383` to `:385`),
+  so M0b makes no snapshot.
+- The clone is mounted at the slot,
+  which the handler does on a qualifying sweep after the add
+  (proposal `:380` to `:382`),
+  and the assertion is on the mount point itself,
+  `findmnt --mountpoint <slot>`:
+  `findmnt --target <path>` prints the mount that contains the path,
+  so it would pass on the checkout's mount while the clone is detached
+  (`findmnt(8)`,
+  its `--target` entry).
+
+The one action:
+the built add,
+as `probe`,
+at the path the route accepts and nowhere else
+(the clone mounts at the slot,
+proposal `:275` to `:277`;
+the canonical path only,
+`:1375` to `:1376`),
+with its own `HOME` and `XDG_RUNTIME_DIR`.
+
+The result it expects:
+the clone attached at the slot,
+proved by `findmnt --mountpoint`;
+the add's claim and binding record written under the common Git directory;
+the clone's `origin` property naming the snapshot the add made;
+and then two own snapshots on the clone,
+one manual and one sanoid-shaped,
+which are the set a removal inventories (proposal `:858` to `:860`).
+Bound:
+300 s for the add,
+and 120 s for the mount assertion.
+A mount that is not there by either bound fails the arm and names the handler's last readiness report.
 
 ### M1: the reap, the positive control
 
@@ -1653,9 +1726,19 @@ through the crate rather than through `zfs`.
 
 ### M3: the wrapper's refusals
 
+Specifications.
+Their scripts are written and first run by step 16,
+which places the two calls and builds the pause route they drive,
+in a guest where M0b's install is placed by hand.
+
 M3 needs M0b's managed slot.
 Each arm starts from a fresh M0a and M0b,
-because each arm destroys objects that the next one needs.
+because each arm destroys objects that the next one needs,
+and the round tears its fixture down at the end:
+`zpool destroy zfsdeferred`,
+then the pool image removed and `userdel --remove probe`,
+because every arm uses the same pool name and the same slot name,
+so a second round would otherwise collide.
 Each arm states whether it is a control (an assertion that must hold) or a reach report (counts).
 
 #### The pause route
@@ -1676,36 +1759,38 @@ bounded by the removal's own deadline;
 a wait that runs out is not honoured,
 the removal carries on,
 and the route records that the pause expired.
+Every arm puts that path under `/home/probe/.run/`,
+which `probe` owns and root can write in,
+because the removal runs as `probe` and writes `.ready` there while root writes `.at` and `.go`.
 Every line below sets the variable after `sudo`,
 so nothing depends on what the guest's sudoers keeps
 (`sudoers(5)`'s `env_reset` is on by default).
 
 #### M3a: the first check refuses (control)
 
-The origin is marked before the run,
-by the account,
-on the name the live clone reports.
+The state it needs:
+M0b's slot,
+mounted;
+the origin's name read live from the clone
+(`man/man7/zfsprops.7:252` to `:255`);
+and the mark made before the run by the account,
+which marks because the origin still has this one clone
+(`module/zfs/dsl_destroy.c:322` to `:333`);
+the account's reach is the checkout's descendant `mount,destroy` grant (proposal `:341` to `:343`).
 
-```bash
-# the origin's name, read live (man/man7/zfsprops.7:252 to :255)
-origin=$(zfs get -H -o value origin zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test)
-# the mark, as in M1: the origin has one clone, so the deferred destroy marks it
-# (module/zfs/dsl_destroy.c:322 to :333)
-sudo --user probe zfs destroy -d "$origin"
-# the removal as the account, through the wrapper as `git`
-sudo --user probe --set-home env HOME=/home/probe XDG_RUNTIME_DIR=/home/probe/.run \
-    PATH=/opt/deferred-removal/bin:/usr/bin:/bin \
-    git worktree remove /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test
-```
+The one action:
+`git worktree remove <slot>` as `probe`,
+through the wrapper as `git`,
+with its own `HOME` and `XDG_RUNTIME_DIR`.
 
-The state it runs on,
-and the step that refuses:
+The refusal it expects,
+and the step that produces it:
 step 1 proves the lineage and the clone's identity and reads no mark (proposal `:854` to `:857`);
 step 2 writes the intent,
-prints the names and requests the unmount (proposal `:886` to `:888`);
+prints the names and requests the unmount (`:886` to `:888`);
 step 3 writes the plan;
-step 4 runs the fresh all-namespace verification and reproofs the identities (proposal `:896` to `:899`);
-and the first check then refuses,
+step 4 runs the fresh all-namespace verification and reproofs the identities (`:896` to `:899`);
+and the first check then refuses with `OriginMarkedForDeferredDestroy`,
 before the plan's `requested` rewrite and before any snapshot request.
 If the project answers QA-2 yes,
 a refusal would come earlier,
@@ -1713,22 +1798,17 @@ in step 1's proof;
 this design adds no such refusal,
 so this arm expects the first check's.
 
-Recorded:
+Pass:
 the message (the template with a plan that recorded nothing),
 the exit status,
-and after the run `zfs list -H -o name,guid` for the clone and both its snapshots,
-`zfs get -H -o value,source defer_destroy` for the origin,
-`zfs get -H -o value org.monochromatic:git-worktree-clone-mount-desired-state` for the clone,
-the plan's bytes,
-and `git worktree list`.
-Pass is the first check's refusal,
-the clone and both its snapshots present,
-the origin and the marked snapshot present,
+the clone and both its snapshots still listed,
+the origin and the marked snapshot still listed,
 the intent reading `unmount`,
 the plan present with no outcome,
 the registration listed,
-no snapshot destroyed,
-and the history sentence saying this removal has not destroyed anything yet.
+and no snapshot destroyed.
+Bound:
+300 s for the removal.
 
 #### M3b: a replacement clone whose different origin is marked (control)
 
@@ -1740,177 +1820,178 @@ M3b-1,
 the replacement already in place.
 The plan lists this as step 15's acceptance test
 (`:1843` to `:1844`,
-and the proposal's own words at `:2095` to `:2098`),
-and on this state it is step 1's proof that refuses,
-not the check:
+and the proposal's own words at `:2095` to `:2098`).
 
-```bash
-# destroy the planned clone outside the wrapper, after its own snapshots
-# (the removal's own order, proposal :894 to :900)
-zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test@manual-2026-11-21
-zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test@sanoid-hourly-2026-11-22
-zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test
-# another checkout snapshot, a clone of it at the planned name, and the mark on that snapshot,
-# which now has its one clone (a clone needs its snapshot first, man/man8/zfs-clone.8:76 to :77;
-# the mark's condition, module/zfs/dsl_destroy.c:322 to :333)
-zfs snapshot zfsdeferred/monochromatic-git-checkout@other
-zfs clone zfsdeferred/monochromatic-git-checkout@other \
-    zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test
-sudo --user probe zfs destroy -d zfsdeferred/monochromatic-git-checkout@other
-# the removal: step 1 compares the live clone's GUID with the binding's and refuses (proposal :854 to :857);
-# nothing was unmounted, no intent was rewritten and no plan was written
-sudo --user probe --set-home env HOME=/home/probe XDG_RUNTIME_DIR=/home/probe/.run \
-    PATH=/opt/deferred-removal/bin:/usr/bin:/bin \
-    git worktree remove /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test
-```
+The state it needs:
+M0b's slot;
+then root destroys the planned clone outside the wrapper,
+after its own snapshots,
+in the removal's own order (proposal `:894` to `:900`),
+makes another checkout snapshot `@other`,
+clones it at the slot's name
+(a clone needs its snapshot first,
+`man/man8/zfs-clone.8:76` to `:77`),
+and the account marks `@other`,
+which now has its one clone (`module/zfs/dsl_destroy.c:322` to `:333`).
+The replacement is not mounted at the slot.
+
+The one action:
+the removal,
+as in M3a.
+
+The refusal it expects:
+the first refusal the built route reaches.
+The proposal's boundary and registration checks open the removal
+(proposal `:796` to `:812`),
+and the live clone's identity comparison is step 1's
+(`:854` to `:857`),
+so the expectation is a refusal naming the binding's clone GUID and the live one:
+only the binding exists,
+because no plan was written,
+and the route may refuse earlier still for the missing mount.
+That is a prediction about the built order,
+recorded as one.
 
 Pass:
-the refusal names the plan's or binding's clone GUID and the live one,
+the first refusal reached names the binding's clone GUID and the live one,
 nothing was destroyed,
 the replacement clone and `@other` stand,
 the registration is unchanged,
 and no plan exists.
-This shows the plan's sentence about a replacement being refused is met by step 1,
+This shows the proposal's sentence about a replacement being refused is met by step 1,
 and that the check's identity reads are defence in depth for the window after step 1.
+Bound:
+300 s.
 
 M3b-2,
 the replacement made at the pause before the first check,
-so the check's own comparison decides:
+so the check's own comparison decides.
 
-```bash
-# the replacement's source: another checkout snapshot, held and then marked,
-# because a deferred destroy marks only a held or cloned snapshot
-# (module/zfs/dsl_destroy.c:322 to :333; the hold is root's,
-# and the mark is the account's under the checkout's descendant destroy grant, proposal :341 to :343)
-zfs snapshot zfsdeferred/monochromatic-git-checkout@other
-zfs hold deferred-replacement zfsdeferred/monochromatic-git-checkout@other
-sudo --user probe zfs destroy -d zfsdeferred/monochromatic-git-checkout@other
-zfs get -H -o value defer_destroy zfsdeferred/monochromatic-git-checkout@other
-# the pause at the first check: the phase file names the point, and the variable is set after sudo
-mkdir --parents /var/lib/zfs-fixtures/deferred
-printf 'before-first-check\n' > /var/lib/zfs-fixtures/deferred/pause.at
-sudo --user probe --set-home env HOME=/home/probe XDG_RUNTIME_DIR=/home/probe/.run \
-    MONOCHROMATIC_ZFS_REMOVAL_PAUSE=/var/lib/zfs-fixtures/deferred/pause \
-    PATH=/opt/deferred-removal/bin:/usr/bin:/bin \
-    git worktree remove /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test &
-removal=$!
-# a bounded wait for the pause: 120 s, after which the arm prints what it saw and fails
-if ! timeout 120 sh -c 'until [ -e /var/lib/zfs-fixtures/deferred/pause.ready ]; do sleep 1; done'; then
-    printf '%s\n' 'FAIL: the pause ready file did not appear within 120 s;
-        the removal was not paused, and the plan and the log follow' >&2
-    exit 1
-fi
-# at the pause the clone is unmounted, the intent stands and the plan is written,
-# so the planned clone can be replaced by one from a marked snapshot
-zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test@manual-2026-11-21
-zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test@sanoid-hourly-2026-11-22
-zfs destroy zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test
-zfs clone zfsdeferred/monochromatic-git-checkout@other \
-    zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test
-# let it go on, and wait for it with a deadline of its own
-touch /var/lib/zfs-fixtures/deferred/pause.go
-timeout 300 tail --pid="$removal" --follow /dev/null
-wait "$removal"
-printf 'removal exit=%s\n' "$?"
-```
+The state it needs:
+M0b's slot;
+another checkout snapshot `@other`,
+held by root and then marked by the account,
+because a deferred destroy marks only a held or cloned snapshot
+(`module/zfs/dsl_destroy.c:322` to `:333`;
+the grant,
+proposal `:341` to `:343`);
+and the pause at `before-first-check`,
+its path under `/home/probe/.run/pause`,
+the account's own folder.
+
+The one action:
+start the removal with the pause,
+wait for it to pause,
+have root destroy the planned clone's own snapshots and then the head and clone `@other` at the slot's name,
+release the pause,
+and wait for the removal to end.
+
+The refusal it expects,
+and the step that produces it:
+at the pause the plan is written and the clone unmounted,
+so the first check's first read is the clone's GUID,
+which now answers a different object,
+and the check refuses with `CloneIsNotThePlannedOne`
+before the origin reads and before the plan's `requested` rewrite.
 
 Pass:
-the check refuses with `CloneIsNotThePlannedOne`,
+that refusal,
 naming the plan's GUID and the live one,
-before the plan's `requested` rewrite and before any snapshot request;
-the replacement and `@other` stand;
-the plan still names the destroyed snapshots this arm took outside the wrapper,
-and the removal destroyed nothing else.
+with the replacement and `@other` standing,
+and the plan still naming the destroyed snapshots this arm took outside the wrapper.
+Bounds:
+120 s for the pause's `.ready`,
+and 300 s for the removal.
+A pause that does not arrive within its bound fails the arm and names what it last saw,
+because the removal was then not paused.
 
 #### M3c: the check before the head destroy refuses (control)
 
-The pause moves to the head check,
-and the mark is made at the pause,
-so the batch has already run and the clone's own snapshots are gone.
+The state it needs:
+M0b's slot;
+the origin's name read live before the run
+(`man/man7/zfsprops.7:252` to `:255`);
+and the pause at `before-head-check`,
+its path under `/home/probe/.run/pause`.
 
-```bash
-# the origin's name, read live before the run (man/man7/zfsprops.7:252 to :255)
-origin=$(zfs get -H -o value origin zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test)
-printf 'before-head-check\n' > /var/lib/zfs-fixtures/deferred/pause.at
-sudo --user probe --set-home env HOME=/home/probe XDG_RUNTIME_DIR=/home/probe/.run \
-    MONOCHROMATIC_ZFS_REMOVAL_PAUSE=/var/lib/zfs-fixtures/deferred/pause \
-    PATH=/opt/deferred-removal/bin:/usr/bin:/bin \
-    git worktree remove /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test &
-removal=$!
-if ! timeout 120 sh -c 'until [ -e /var/lib/zfs-fixtures/deferred/pause.ready ]; do sleep 1; done'; then
-    printf '%s\n' 'FAIL: the pause ready file did not appear within 120 s;
-        the removal was not paused, and the plan and the log follow' >&2
-    exit 1
-fi
-# the batch ran: the clone's own snapshots are gone and the plan holds their outcomes
-zfs list -H -o name -t snapshot -r zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test
-# the mark, now that the head is the origin's last child (module/zfs/dsl_destroy.c:322 to :333)
-sudo --user probe zfs destroy -d "$origin"
-touch /var/lib/zfs-fixtures/deferred/pause.go
-timeout 300 tail --pid="$removal" --follow /dev/null
-wait "$removal"
-printf 'removal exit=%s\n' "$?"
-```
+The one action:
+start the removal with the pause,
+wait for it to pause,
+have the account mark the origin,
+release the pause,
+and wait for the removal to end.
 
-The state it runs on,
-and the step that refuses:
-the check before the snapshot request passed (nothing was marked yet),
-the batch destroyed the clone's own snapshots and the plan recorded each outcome,
-the fresh enumeration ran (proposal `:926`),
-and the head check refuses before the plan's `head=requested` rewrite and before the head request.
+The refusal it expects,
+and the step that produces it:
+the check before the snapshot request passed,
+because nothing was marked yet;
+the batch destroyed the clone's own snapshots and the plan recorded each outcome;
+the fresh enumeration ran (proposal `:926`);
+and the head check refuses with `OriginMarkedForDeferredDestroy`
+before the plan's `head=requested` rewrite and before the head request,
+with the history sentence naming the two destroyed snapshots.
 
-Recorded:
-the message (the history sentence naming the two destroyed snapshots),
+Pass:
+that message,
 the exit status,
-the origin and the marked snapshot present,
-the clone head present with its own snapshots gone,
+the origin and the marked snapshot still listed,
+the clone head still listed with its own snapshots gone,
 the plan present with the batch's outcomes,
-and no head request issued (the clone still exists).
+and no head request issued.
 `doctor`'s lines are not a pass condition here:
 they are step 18's (implementation plan `:2116` to `:2119`).
 For the proposal's "otherwise" clause (`:2095` to `:2098`),
 the same pause with a replacement instead of a mark refuses with `CloneIsNotThePlannedOne` at the head check.
+Bounds:
+120 s for the pause,
+and 300 s for the removal.
 
 #### M3d: the residual (reach report, not an owed arm)
 
-The proposal calls a same-account mark set between the head check and the destroy the accepted residual,
-"not a case this item has to close" (proposal `:1969` to `:1970`).
-This design records it as reach only.
-The watcher marks the origin the moment the clone's snapshot list empties,
-and gives up with a printed line if that has not happened within its own deadline:
+The state it needs:
+M0b's slot,
+and the origin's name read live.
 
-```bash
-origin=$(zfs get -H -o value origin zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test)
-# the watcher runs as the account, and a wait that runs out prints what it last saw and fails
-sudo --user probe timeout 300 sh -c '
-    while zfs list -H -o name -t snapshot \
-        -r zfsdeferred/monochromatic-git-worktree-clone-datasets/fix-flaky-test 2>/dev/null \
-        | grep --quiet .; do
-        sleep 1
-    done
-    zfs destroy -d "$1" || { printf "%s\n" "FAIL: the mark could not be set after the batch" >&2; exit 1; }
-' watcher "$origin" &
-watcher=$!
-sudo --user probe --set-home env HOME=/home/probe XDG_RUNTIME_DIR=/home/probe/.run \
-    PATH=/opt/deferred-removal/bin:/usr/bin:/bin \
-    git worktree remove /var/lib/zfs-fixtures/deferred/checkout/.claude/worktrees/fix-flaky-test
-timeout 300 tail --pid="$watcher" --follow /dev/null
-wait "$watcher"
-printf 'watcher exit=%s\n' "$?"
-```
+The one action:
+run the removal while a same-account watcher marks the origin the moment the clone's snapshot list empties.
+The watcher is bounded at 300 s,
+and a wait that runs out prints what it last saw and fails.
 
-Repeat it in one interleaved round with an unchanged-input control,
-and report how many runs had the head check see the mark and how many ended with the origin reaped.
-Rule `QNB` applies:
+The result it expects:
+counts,
+not a guarantee:
+how many runs had the head check see the mark and refuse,
+and how many ended with the origin reaped.
+The run is repeated in one interleaved round with an unchanged-input control,
+and rule `QNB` applies:
 the control arm's spread is reported beside the counts.
+Bound:
+300 s for the removal and 300 s for the watcher.
 
-### M4: the cost
+### M4: the cost (specification)
 
-The wall time of one removal with the checks against one without,
-in the same guest and the same round,
-both arms alternating,
-reported as a ratio with its range (rule `TVC`).
+Written and first run by step 16,
+in the same round as M3.
+
+The state it needs:
+M0b's slot,
+once per arm of the round.
+
+The one action:
+one removal with the checks and one without them,
+alternating in the same round on the same build tree.
+The arm without them is a `measurement-routes` build that serves the check's three reads from a recorded reply,
+built by step 16 with the pause route and shipped nowhere.
+If the project will not sanction that arm,
+the fallback is to time the three reads alone against the same pool,
+and the report then covers the reads' cost rather than the removal's.
+
+The result it expects:
+the ratio of the two arms' wall times with its range,
+never an absolute time (rule `TVC`).
 It sizes no shipped number (L7).
+Bound:
+the round's own deadline.
 
 ## Choices this design marks for the project's veto
 
@@ -2304,7 +2385,7 @@ so that is an inference about how it will read the origin,
 not a fact.
 The decided sentence names two checks,
 and this design adds none,
-so it adopts Option no until the project answers.
+so the design is held at Option no until the project answers.
 
 - Option yes:
   a refusal in step 1's proof,
@@ -2322,7 +2403,7 @@ so it adopts Option no until the project answers.
   a third refusal point and a third message state,
   where the decided text names two checks.
 - Option no,
-  adopted for now:
+  held until the project answers:
   exactly the two decided checks.
   Example:
   the same command unmounts the clone first and then refuses (QA-1's state).
@@ -2391,64 +2472,33 @@ for the same reason as QA-1.
   Pro:
   both the return to use and the loss statement.
   Con:
-  the destruction-plan design removes the plan at the end of a completed removal,
-  and the cancelled design says its own list of end states "has no cancelled value,
-  and this design needs none" (its "Where a sibling and this design disagree",
-  the deferred-destroy entry),
-  so this needs a plan state and a removal rule neither sibling has.
+  it spends the one decided remount exception (proposal `:1492` to `:1498`) on a refused check,
+  which the proposal names only for a removal that cancels itself because a holder blocks the unmount;
+  it adds a remount race;
+  and it needs a surviving verified binding (proposal `:2103` to `:2104`).
+  It needs no new plan state:
+  the cancelled design
+  (`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
+  read at `42f01440f3`)
+  answers the objection by name
+  (`:1123` to `:1134`),
+  and a cancellation writes nothing to the plan
+  (`:1102` to `:1108`).
 
 Ranking:
 A > C > B.
 A over C,
-because A needs no new plan state and no remount;
+because A needs no remount;
 C over B,
 because B is the one option that loses the loss.
 
 ### Q2. May the wrapper ever finish a removal over a marked origin?
 
-This is an amendment question,
-not an open one:
-the records decide that such a removal refuses
-(`doc/decision/cli-git-zfs-worktree-design.md:46` to `:48`;
-proposal `:930` to `:932`;
-proposal `:1517` to `:1521`).
-Option B would amend that decided refusal;
-a printed administrator command leaves the refusal in place,
-which is V7's subject (whether a refusal may print a destructive command),
-so it is not a second option here.
-This design adopts A,
-and the question is put only if the owner wants a guarded finish.
-
-- Option A,
-  no:
-  the refusal stands,
-  and the person finishes outside the wrapper (see "How a person finishes").
-  Example:
-  the refusal message names the two completions and prints no destructive command.
-  Pro:
-  the wrapper never destroys history a program other than itself marked,
-  and the delegated grant is not
-  widened.
-  Con:
-  the work is manual.
-- Option B,
-  a guarded command that takes the slot and names the marked snapshot it will destroy,
-  once.
-  Example:
-  `monochromatic-git-policy-cli remove-worktree --accept-deferred-origin <slot>` prints the snapshot's
-  name and tuple and needs a second confirmation word.
-  Pro:
-  the removal finishes inside the proofs the route already has.
-  Con:
-  a new authority and refusal surface,
-  and a person can destroy exactly the history the check exists to protect.
-Ranking:
-A > B,
-because B amends the decided refusal and adds an authority the delegated grant was chosen not to carry,
-while A keeps the refusal and the manual completion the message already names.
-The printed-command option is not ranked here:
-it is V7's,
-and V7 ranks the refusal's reads over a printed destructive command.
+Not put now:
+it would amend a decided refusal (`doc/decision/cli-git-zfs-worktree-design.md:46` to `:48`),
+so the note stands that the refusal does,
+and only a person finishing outside the wrapper or a guarded finish the owner asks for changes it;
+V7 carries the printed-command question.
 
 ## Dependencies on sibling designs
 
@@ -2476,8 +2526,17 @@ the quoted text is the text at that commit.
   clone and went with the head",
   and it says "A `head=gone` plan has no live intent by construction" and is never refused for that reason,
   while a plan with no live intent whose head still stands is refused.
-  Its finish pass reaches such a plan through the pointer beside the registration,
-  which is what "How a person finishes" relies on after an out-of-wrapper destroy.
+  Its finish pass acts only on a plan whose head is `gone`
+  (`:1627` to `:1637`),
+  and its own words for the head-gone path are about a plan whose head is `requested`
+  (`:1436` to `:1440`),
+  while its head-present path refuses a record that disagrees with the live clone
+  (`:1353` to `:1365`).
+  A person's `zfs destroy` of the clone leaves a plan that says the head is present,
+  and that design states no rule for it,
+  so completion after an out-of-wrapper destroy is a requirement this design puts on that design:
+  say which path a plan takes when it says the head is present and the clone does not answer.
+  "How a person finishes" relies on that answer and describes no completion of its own.
 - "What a cancelled,
   timed-out or killed removal leaves,
   and what the cancel command proves and does"
@@ -2489,8 +2548,18 @@ the quoted text is the text at that commit.
   That agrees with V4,
   QA-1's Option A and Q1's Option A.
   Its own end-state list "has no cancelled value,
-  and this design needs none",
-  which is why Q1's Option C would need a plan state and a removal rule that sibling does not have.
+  and this design needs none";
+  it answers this design's third option by name
+  (`:1123` to `:1134`):
+  the state that option asked for "is the intent plus the kept plan,
+  and the rule is the cancellation this design writes".
+  It also says "A cancellation writes nothing to [the plan]"
+  (`:1102` to `:1108`),
+  and it "does not decide whether such a refusal should cancel instead"
+  (`:2650` to `:2655`).
+  So Q1's Option C needs no new plan state;
+  its costs are the remount it spends,
+  the remount race and the surviving verified binding.
 - "Where the add's durable binding record lives,
   and its format"
   (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
@@ -2730,8 +2799,49 @@ and the binding's silence at its tip),
 "Sources read" and "Revisions".
 
 Two statements the second pass found sound changed only where one of these fixes forced it:
-Q1's Option C cost now quotes the cancelled design's own "no cancelled value",
-and the residual's two bullets name the head check where chunks make "the second check" ambiguous.
+Q1's Option C cost and the residual's two bullets,
+which name the head check where chunks make "the second check" ambiguous.
+The Option C cost then read the cancelled design's "no cancelled value" as if that sibling left the state undesigned;
+the diff check showed that sibling answers the objection by name,
+and this revision restates the cost as the remount it spends,
+the remount race and the surviving verified binding.
+
+Rewritten after the diff check,
+and nothing else:
+"Measurements owed" (M0b,
+M3a to M3d and M4 restated as specifications of the state,
+the one action,
+the expectation with the step that produces it,
+and the bound,
+each naming the step that writes and first runs its script;
+the checkout,
+its `.git`,
+`.claude/worktrees` and the account's run folder given to the account that runs the add;
+the installed handler,
+ZED,
+folders and readiness named as the add's preconditions;
+the pause path under the account's run folder;
+the mount assertion changed to `findmnt --mountpoint`;
+OpenZFS's guest `PATH` carried into the header;
+M0a's snapshot citation corrected;
+the round's teardown added),
+"The refusals" (the template and both messages name the unmounted clone,
+claim only what the check read and the plan records,
+and promise only that a later run is meant to finish the removal;
+the gone-object choice says all three),
+"How a person finishes" (the pointer and the finish pass dropped,
+and completion stated as a requirement on the plan record),
+V10's lead-in,
+Q1's Option C cost and the reason A is ranked over it,
+QA-2 marked as held rather than adopted,
+Q2 reduced to a note,
+control 11's review label,
+control 20's owner,
+"What each build step builds" (which step writes which probe's script),
+"Sources read" and "Revisions".
+Two statements the diff check found sound changed because a fix forced it:
+the messages' unmounted sentence came back from the first pass,
+and "How a person finishes" lost the finish-pass claim that rested on the pointer file.
 
 ## Sources read
 
@@ -2758,9 +2868,10 @@ cloned at
 `man/man8/zfs-destroy.8`,
 `man/man8/zfs-get.8`.
 
-This repository at `3e34817184`
+This repository at `f82f20ecab`
 (its first version was read at `5dd8883a60`,
-and the code files cited here did not change between the two):
+and the code files cited here did not change between the two,
+which `git diff --stat 3e34817184 f82f20ecab` shows by naming only this document):
 the decision,
 proposal,
 implementation plan and decision records named in the opening,
