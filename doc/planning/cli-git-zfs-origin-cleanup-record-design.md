@@ -400,7 +400,7 @@ each read at the commit named with `git show <branch>:<path>` and none read as d
 
 - `doc/planning/cli-git-zfs-add-binding-record-design.md`,
   branch `docs/planning-cli-git-zfs-add-binding-record-design`,
-  commit `a8514d9d6a`.
+  commit `ec2b0b14f3`.
 - `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
   branch `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
   commit `b4dc758a76`.
@@ -780,7 +780,7 @@ for the store folder
 (`doc/decision/cli-git-zfs-slot-identity-store-format.md:161` to `:177`).
 That decision covers the store and does not decide this folder.
 F24 The binding design,
-read at `a8514d9d6a` in `doc/planning/cli-git-zfs-add-binding-record-design.md`,
+read at `ec2b0b14f3` in `doc/planning/cli-git-zfs-add-binding-record-design.md`,
 puts its folder inside the wrapper's own folder,
 at `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`
 (`:974` of that document at that commit),
@@ -791,14 +791,14 @@ flushes every write that falls on the flushed side of the route's rule (`:1243` 
 refuses a record whose owner or mode is not the account's,
 and lets `doctor` remove a staging name only when the folder holds no live claim.
 Its removal's second step only confirms the origin cleanup record a removal published (F25's writer),
-and writes nothing there (`:2610` to `:2640`);
+and writes nothing there (`:2623` to `:2642`);
 its fifth step removes the two inventories first and `<slot>.binding` last and then releases the claim,
-whether or not the origin's cleanup is still blocked (`:2690` to `:2710`),
+whether or not the origin's cleanup is still blocked (`:2643` to `:2660`),
 which withdraws the earlier revision's rule of keeping the binding while the origin is blocked.
 "The condition a finisher meets" states its finisher's condition:
 a plan with `head=gone` and equal origin fields,
 or the origin record with equal fields when no plan stands.
-It names the plan design's pass and the next removal as the finishers (`:2657` to `:2700`).
+It names the plan design's pass and the next removal as the finishers (`:2659` to `:2705`).
 F25 The plan design,
 read at `b4dc758a76` in `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
 puts its folder at `<common>/monochromatic-git-policy-cli/clone-destruction-plans/<clone GUID>`
@@ -2569,7 +2569,7 @@ not controls.
 ## Where this design and its siblings disagree
 
 This round read the two sibling documents at the commits under "Sources read":
-the plan design at `b4dc758a76` and the binding design at `a8514d9d6a`.
+the plan design at `b4dc758a76` and the binding design at `ec2b0b14f3`.
 Neither is decided,
 and this section records what each says at those commits,
 whether this design now agrees,
@@ -4241,7 +4241,7 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
     the sibling statements:
     the "Sources read" list,
     the fourteen-point section and F24 and F25 are rewritten at the plan design's `b4dc758a76`
-    and the binding design's `a8514d9d6a`,
+    and the binding design's `ec2b0b14f3`,
     with the remaining stale statements named,
     including the step-number shift the second check causes.
   - Z6:
@@ -4283,7 +4283,7 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   2026-11-22T20:00:55-05:00:
   the revision entry for this round,
   with the build-step section's correction.
-  The commit that adds this line is the one `git log --format=%cI` reports for this path after `86444eef51`.
+  The commits that touch only this list are the ones `git log` reports for this path after `86444eef51`.
 
 ## References
 
