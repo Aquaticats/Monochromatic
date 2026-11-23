@@ -3892,4 +3892,10 @@ meets" for the pass's binding condition,
   the pass's binding condition became the binding design's (Z1),
   the reuse rule became the pass's (Z5),
   and the count sentence became a format width (Z8).
+- `648a31271d`,
+  committer time `2026-11-22T20:32:14-05:00`:
+  one sentence in section 5 naming what stands when the finish pass itself is killed:
+  the claim's next generation,
+  a standing inventory as the same step's leftover,
+  and a plan not yet removed as the last witness.
   A later commit that only adds or corrects this list is not listed.
