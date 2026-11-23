@@ -3548,4 +3548,30 @@ The document is unapproved and non-final.
   two cross-references corrected,
   the plan's chunked alternative from Choice 3 to Choice 11,
   and the copied-identities choice named where the plan refers to the binding.
+- `488d95fd17`,
+  committer time `2026-11-22T19:22:57-05:00`:
+  the revision the second gate pass asked for.
+  It cites the origin cleanup record's "The removal's one order of writes and removals" and its kill list instead
+of stating an order (section 3),
+  places the plan's removal at that list's step 12 after the binding's files at step 11 and before the claim's
+release at step 13,
+  has the finish pass take the per-slot claim,
+  prove the head's absence from the live pool through the route's gate,
+  refuse when the live pool contradicts the record,
+  and finish the list's steps 10 to 13,
+  drops the tuple-count ceiling and bounds the reader by the record's own length,
+  restates Choice 5 and Choice 10 in the origin cleanup record's V14 and question four wording,
+  rewrites the fourteen sibling points at `0973f2fc2a` and `c144499eb9`,
+  and corrects the lows the pass listed:
+  `EBUSY` for a hold,
+  `refused` to `destroyed`,
+  the tuple totals,
+  the example's provenance sentence,
+  the wrapper's path convention,
+  the folder's lifetime,
+  the header bound's assumptions and two citations.
+  It changed three parts the pass found sound only where a fix forced it:
+  the finish pass takes the claim (X3),
+  the first write no longer checks a ceiling (N2),
+  and the path field is hex alone where the wrapper's convention allows two forms (N4).
   A later commit that only adds or corrects this list is not listed.
