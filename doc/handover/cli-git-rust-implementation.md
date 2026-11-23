@@ -452,14 +452,20 @@ and only the owner accepts one.
   and the owner's two answers that are the binding's
   (an unreadable record is refused;
   a settling command for a clone gone and unprovable).
-- Running:
-  `pi-zfs-add-time-git-lock-design-third-check-findings`,
-  on `continuation-third-check-findings.md`
-  (which commands write a lost lock again;
+- The lock design's round ended at `7d0dcdc875` after 74 turns
+  (report `keep/report-third-check-findings.md` in its folder:
+  which commands write a lost lock again;
   one order for the fallback's lock removal).
-- Next:
-  the reviewer once more on both and on step 10,
-  to `review-fourth-check.md`.
+- Going:
+  the reviewer's fourth check of both and of step 10,
+  to `review-fourth-check.md` beside its other reviews.
+  It is asked to read the binding's two new parts,
+  which no review has read
+  (the end of a fallback add,
+  and the settling command with its guard),
+  and to say exactly which designs,
+  at which commits,
+  the owner would have to accept for step 10's builder to start.
 - Questions the reviewer would put,
   none of which blocks step 10:
   reinstalling a lost lock unasked;
@@ -828,19 +834,19 @@ and only the owner accepts one.
 - The forced arm's round on that review ended at `80780ff9c2` after 49 turns
   (report `keep/report-review-after-the-further-answers.md` in its folder);
   its brief carried the record's correction and the answer on a unit's script.
-- Running:
-  `pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-review-after-the-further-answers`,
-  on `continuation-review-after-the-further-answers.md`
-  (its one medium,
+- The cancelled removal's round ended at `eb7a78eccc` after 83 turns
+  (report `keep/report-review-after-the-further-answers.md` in its folder:
+  its one medium,
   the kept plan as the owner decided it,
   the unit's script,
   and the dirty-main record's second case of a withdrawn request).
-- Next:
+- Going:
   one review of both,
   to `review-fourth.md` beside the others,
-  asked again whether the unmount inside a shared namespace is ready for the owner to confirm.
-  The forced arm's round was short for what it was asked;
-  have the reviewer check that each item of its brief was done.
+  asked again whether the unmount inside a shared namespace is ready for the owner to confirm,
+  told of the record's correction,
+  and asked to check each item of the forced arm's brief against its diff,
+  since that round was short for what it was asked.
   Still open for the owner,
   in the review's numbering:
   the signal and any grace (S4),
