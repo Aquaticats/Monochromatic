@@ -3910,6 +3910,28 @@ L17 closed (A12),
 and the `setsid --wait` remedy (A13).
 The confirmation and the probe are rewritten;
 the questions section is the decided record.
+- `48a480cfc6`,
+  2026-11-23T03:51:31-05:00:
+  the merge of `main` with the accepted sibling designs.
+- `f640fe6194`,
+  2026-11-23T03:56:27-05:00:
+  the fifth review's X1 to X11:
+  V8 and the proceed-and-report rule,
+  the closure over shared and master groups,
+  the structural stage's leaves,
+  the heartbeat period and give-up window,
+  M2's derived peer rows,
+  the arms regrouped into Tiers 0,
+  1 and 2 with bounds,
+  constants,
+  invocations and names,
+  and the kernel paragraph.
+- `71adcd0e9d`,
+  2026-11-23T03:56:35-05:00:
+  what the 6.8 guest leaves unshown.
+- `813b0dd924`,
+  2026-11-23T03:56:42-05:00:
+  the line break that sentence needed.
 
 ## What this revision left as it was
 
