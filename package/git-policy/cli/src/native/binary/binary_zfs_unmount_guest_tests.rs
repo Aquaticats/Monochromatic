@@ -396,8 +396,12 @@ fn zfs_unmount_guest_kill_points() {
             if !path.file_name().is_some_and(|name| return name.to_string_lossy().starts_with("monochromatic-git-policy-cli-staging-")) {
                 continue;
             }
-            for _attempt in 0..3 {
-                let _ = Command::new("umount").arg(path.as_path()).status();
+            // A folder can carry several stacked binds, so each is taken down until nothing is left at the path.
+            for _attempt in 0..8 {
+                let done = Command::new("umount").arg(path.as_path()).status();
+                if done.is_err() || !done.is_ok_and(|status| return status.success()) {
+                    break;
+                }
             }
             let _ = std::fs::remove_dir_all(path.as_path());
         }

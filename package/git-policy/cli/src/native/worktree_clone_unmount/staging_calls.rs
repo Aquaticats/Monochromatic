@@ -239,11 +239,14 @@ impl StagingCalls for LiveStagingCalls {
             return Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: format!("no row names the cache's mount {cache_id}") });
         };
         let Some(row) = table.iter().find(|facts| return facts.mount_id == opened_id) else {
+            let _ = self.unmount_top(&opened);
             return Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: format!("no row names the opened mount {opened_id}") });
         };
         // A bind of the folder onto itself has root `/`, like the cache mount; the two differ by their mount id and by
         // the bind's parent being the cache mount.
         if opened_id == cache_id || row.parent_id != cache_id || row.source != cache_source {
+            // The bind this call made is taken down again, so a folder left alone is left with no mount of ours.
+            let _ = self.unmount_top(&opened);
             return Err(StagingCallRefusal {
                 call: StagingCall::OpenBind,
                 errno: libc::EBUSY,
