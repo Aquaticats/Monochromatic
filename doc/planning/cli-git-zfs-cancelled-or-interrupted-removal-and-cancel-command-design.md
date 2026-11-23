@@ -978,7 +978,7 @@ which is the same rule the cancel command's proof follows.
     or one that attached between the last scan and the destroy ([proposal][proposal],
     lines 1319 to 1321).
     Without `--force` the removal cancels itself,
-    which is the third cancellation arm,
+    which is the fourth cancellation arm,
     and the restored state is a fresh attach with the destroyed set reported.
     With `--force` this is the forced failure path,
     because the answer's own promise was that the holders would be ended.
