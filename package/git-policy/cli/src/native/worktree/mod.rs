@@ -350,6 +350,17 @@ pub mod worktree_clone_conversion_fence_measurement_routes;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_conversion_beside_the_clone;
 
+/// How the conversion fence makes one Git run,
+/// and the two runs that read the blob sizes it decides with.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_git_reads;
+
+/// The fence's one `git ls-tree` size read:
+/// the task a rung-1 add can start before its source check,
+/// and the join at the fence.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_conversion_size_read;
+
 /// The pool's block-cloning switch and what the clone rung does when it reads off.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_block_cloning;
