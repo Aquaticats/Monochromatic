@@ -1914,32 +1914,61 @@ the paragraph beginning with "`RERUNNABLE` names neither"),
 so one `run_git` call starts it once and never again inside that call.
 Two attempts were therefore made.
 What the record does not say is which attempt's write the file lost,
-or how the first attempt ended:
+or how the first attempt ended;
+the measurements this section records settle the second question and not the first:
 
 - The first attempt is known only as cut or refused.
   Those are the two outcomes that make the loop continue,
   and a refusal is not an ending at a ceiling.
-- A refused start retries before it returns:
+- A start the system refuses at its spawn pauses before it returns:
   `spawn_retrying` pauses 10 ms,
-  then doubles,
-  for up to `START_RETRY_BUDGET` (`push/start_retry.rs:33`,
-  five seconds),
-  so a first attempt refused after about a second of pauses and then one ceiling
-  gives the same 1.539 s total.
-  The clock does not exclude it.
-- An attempt the system refused ran no program at all,
-  so the file's `1` would be the correct number of programs started and no write was lost.
-- A start whose `$(cat ...)` was refused a process also writes a wrong number,
+  doubling to the longest pause,
+  and returns the refusal when the next pause would pass `START_RETRY_BUDGET`
+  (`push/start_retry.rs:33`),
+  which is fourteen pauses summing to 4630 ms.
+  Measured by lowering the test process's own process limit so every spawn was refused:
+  the attempt's error read `the start was refused 15 times over 4630 ms`,
+  and the control waited 9.52 s for its two attempts
+  (issue 6344's integration pass,
+  `keep/merge-run-both-spawns-refused-by-process-limit.txt`).
+  A first attempt refused that way costs more than five seconds,
+  so the gate's 1.539 s total excludes it.
+- What the clock does not exclude is a refusal returned as a finished command:
+  there the program ran and printed the system's words,
+  and the wrapper reads `refused_by_the_system`.
+  The stand-in's shell did not produce one when a fork refusal was forced:
+  the gate image's `/bin/sh` is bash 5.3.20,
+  a stand-in with a one-process limit printed
+  `sh: fork: retry: Resource temporarily unavailable` four times
+  and returned nothing in twelve seconds,
+  and the control's 500 ms ceiling ends such a start at its ceiling
+  (issue 6344's integration pass,
+  `keep/fork-refusal-limit-1.txt` and `keep/fork-refusal-old-shim-limit-1.txt`).
+  So the first attempt was cut,
+  and which attempt's write was lost stays inseparable.
+  The limits of that:
+  one shell version,
+  a persistent one-process limit and not one that flickers,
+  and a refused thread read in code,
+  where the runtime falls back to the current thread and returns no `WouldBlock`,
+  and not run.
+- An attempt refused at its spawn ran no program at all,
+  so the file's `1` would then be the correct number of programs started and no write was lost.
+- On a shell that does not retry its own refused fork,
+  a stand-in whose `$(cat ...)` is refused a process writes a wrong number,
   `n` empty and `$((n + 1))` writing `1`,
-  which the list below names among the control's own defects.
+  which the list under "Why a start can reach its ceiling before its program writes" names among the control's own defects.
+  bash 5.3.20 retries that fork,
+  so on the gate's shell the start is cut at its ceiling and writes nothing.
 
-What the record does decide is the product's side:
+What the record alone decides:
 attempt 1 was not skipped,
 and attempt 2 was ended at its ceiling,
 which is what the loop's code and the sentence say.
-Which attempt lost the write,
-and whether the first attempt was ended at its ceiling or refused by the system,
-the record cannot separate.
+That the first attempt was cut follows with the measurements this section records,
+whose limits are named beside them;
+which attempt lost the write,
+neither the record nor those measurements separate.
 
 ### Why a start can reach its ceiling before its program writes
 
@@ -1969,10 +1998,13 @@ with whose defect each one is:
 - the control's:
   the second attempt is ended at its ceiling before its shim writes,
   so the file keeps the first attempt's `1`;
-- the control's:
+- the control's,
+  on a shell that does not retry its own refused fork:
   the shim's `$(cat …)` is refused a process under the container's process bound,
   and that start ends before its write,
-  so `n` is empty and `$((n + 1))` writes `1` in place of `2`;
+  so `n` is empty and `$((n + 1))` writes `1` in place of `2`.
+  bash 5.3.20 retries that fork,
+  so on the gate's shell the start is cut instead;
 - a product defect,
   ruled out here:
   the loop skips an attempt.
@@ -2024,7 +2056,7 @@ on this host (git 2.56.1) then failed with the journal's own two lines:
 The window is two attempts wide in this control,
 because either attempt's write can be lost.
 The round that wrote this section left the sibling control's own window open;
-issue 6344's sections below close both windows of it.
+the issue 6344 sections of this cause close both windows of it.
 
 ### The fix of issue 6343: the wrapper counts its own attempts
 
@@ -2038,14 +2070,14 @@ as the link-question count of `shadow_pool_member.rs` is,
 so no other test's creation reaches it.
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 asserts that count against `SHADOW_CREATION_ATTEMPTS`
-(`shadow_create_tests.rs:574`),
+(`shadow_create_tests.rs:593`),
 and the sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-asserts the same count for its two starts (`:538`).
+asserts the same count for its two starts (`:552`).
 The shim kept its file in that round,
 because only the shim can know which of its own starts to hang,
 and `reftable_with_hanging_init` no longer returned it.
 Issue 6344's first window removed that file from the shim altogether,
-and its section below says what replaced it.
+and the section "Issue 6344's first window" says what replaced it.
 
 What the product guarantees there,
 and what the control now holds:
@@ -2074,7 +2106,7 @@ all on this host with the same test binary:
   the every-time control passes
   (`2 tests run: 1 passed, 1 failed`,
   the one failure the sibling's,
-  named in the section that follows);
+  named in "Issue 6344's second window");
 - the new assertion is not vacuous:
   with the retry's condition made `false`
   (`if cut && attempt < SHADOW_CREATION_ATTEMPTS`),
@@ -2112,13 +2144,13 @@ and the only thing it could look at was a file it wrote itself:
 and `echo $n > '<count>'`,
 with the start hanging when `$n` was at most the control's number to hang
 (`reftable_with_hanging_init`,
-`shadow_create_tests.rs:493`).
+`shadow_create_tests.rs:506`).
 A first start that the ceiling ended before that write leaves no file at all,
 so the second start reads the file's absence as the first attempt,
 writes `1` and hangs too.
 The sibling control
 `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-then fails at `made` (`shadow_create_tests.rs:537`,
+then fails at `made` (`shadow_create_tests.rs:551`,
 `the second start made the shadow`)
 with the cut's own sentence,
 although the product had discarded the partial directory and started again exactly as it should.
@@ -2136,7 +2168,7 @@ counts the attempt,
 and in test builds it also sets `MONOCHROMATIC_TEST_SHADOW_INIT_ATTEMPT`
 to the loop's `attempt` in the request's environment
 (`shadow_init_attempts.rs:157`).
-The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:503`),
+The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:516`),
 and no file a start writes decides anything.
 The variable exists in test builds alone:
 the constant is `#[cfg(test)]` (`shadow_init_attempts.rs:64`),
@@ -2163,7 +2195,7 @@ The seam is not decorative:
 with the stand-in reading a variable no build sets,
 both controls fail loudly instead of passing,
 `left: 1`,
-`right: 2` at the count assertion (`shadow_create_tests.rs:538` and `:574`).
+`right: 2` at the count assertion (`shadow_create_tests.rs:552` and `:593`).
 
 ### Issue 6344's second window: the real second start had to finish inside the shortened ceiling
 
@@ -2179,7 +2211,7 @@ it failed in the same place with the file-based stand-in of the prototype that h
 
 The fix plants the cut instead of setting the thread's ceiling:
 `cut_the_first_init_attempt_at(Duration::from_millis(700))`
-(`shadow_create_tests.rs:534`)
+(`shadow_create_tests.rs:548`)
 shortens the ceiling of the first attempt alone
 (`shadow_init_attempts.rs:82`),
 and `apply_the_planted_cut` (`:123`)
@@ -2187,6 +2219,12 @@ gives the thread back its class's ceiling before the attempt after it,
 forgets the plant at that attempt,
 and `clear_the_planted_cut` (`:100`) does the same once the creation returned,
 so no other test on that thread inherits a shortened ceiling.
+`a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
+holds that clearing:
+with the function's body emptied it fails at `Some(700ms)` against `None`,
+while the two shadow controls stay green,
+and nextest runs each test in a process of its own,
+so no gate run could have seen an inherited ceiling.
 The start made again is therefore waited for as production waits for a start of `init`,
 `PLUMBING_STEP_CEILING` or `OBJECT_STEP_CEILING` (minutes),
 and the control holds only what it means to hold:
@@ -2197,15 +2235,23 @@ The plant is `#[cfg(test)]`,
 so nothing a shipped build does changed.
 
 Red,
-before the fix,
-with a one second delay on the second start before real Git runs:
+with a one second delay on the second start before real Git runs,
+before the fix:
 `FAIL ... a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`,
 `the second start made the shadow: GitFailure("... a bulk step ran for 0 seconds,
 the longest the wrapper lets one step run, and was ended")`.
-Green under the same plant after the fix:
-`2 tests run: 2 passed`,
-the sibling at 1.845 s,
-which is its first start's cut plus its second start's own second.
+The delay is now part of the control's stand-in,
+`THE_START_MADE_AGAIN_TAKES` (`shadow_create_tests.rs:488`),
+so the suite itself holds the fix of window two:
+with the first-attempt-only distinction dropped from `apply_the_planted_cut`,
+the sibling fails at `made` (1.597 s) and the every-time control passes.
+It costs the sibling control its second on every run:
+measured on this host,
+1.872 s to 1.948 s with the second
+against 0.910 s to 0.954 s without it,
+while the every-time control read 1.142 s to 1.205 s in the same runs.
+Green with the cut planted for the first attempt alone:
+`2 tests run: 2 passed`.
 
 ### The witness the count of attempts does not give, and the lower bound that does
 
@@ -2219,26 +2265,36 @@ because only a program could write it.
 
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 now also asks how long it waited
-(`shadow_create_tests.rs:576`).
+(`shadow_create_tests.rs:595`).
 Every start of that control hangs,
 so each attempt is waited for its 500 ms ceiling and no shorter,
-and a start that returned sooner neither ran a program nor waited for one.
+and an attempt that returned sooner ended before its ceiling.
 The bound is derived from the control's own named ceiling and from `SHADOW_CREATION_ATTEMPTS`.
 Contention only lengthens a wait,
-so the bound cannot flake on a busy host;
-one path does return before a ceiling,
-a start the system refused before its program ran (`start_retry.rs`,
-`START_RETRY_BUDGET`),
-and a run that refused both starts fails this control instead of passing it,
-which is right,
-because such a run did not witness what the control holds,
-and the failure says so.
+so the bound cannot flake on a busy host.
+What it rejects is an attempt that returned before its ceiling,
+which is a refusal returned as a finished command:
+the program ran,
+printed the system's words,
+and the start ended at once.
+Measured:
+a first start that prints the refusal and exits fails the bound at 548.950692ms
+(issue 6344's integration pass,
+`keep/merge-run-lower-bound-first-start-refused-as-finished-command.txt`).
+What the bound cannot tell apart from a cut:
+a spawn refused through the whole `START_RETRY_BUDGET` pauses 4630 ms,
+so such an attempt passes the bound without a program having started
+(9.52 s for two attempts and 15 refusals over 4630 ms,
+`keep/merge-run-both-spawns-refused-by-process-limit.txt`).
+It is worth that window because the false green it closes needs no plant:
+on `main`,
+a `run_git` that returned a cut at once left both controls green.
 
-Red with a plant that makes the second attempt return Git's refusal text
+Red with a plant that makes the second attempt return a cut
 without starting a program or waiting for one:
-`each attempt the count saw was a program waited for its ceiling,
-and a start that ended sooner ran nothing: 546.502363ms`
-(`shadow_create_tests.rs:575`).
+`an attempt ended before its ceiling,
+which a cut of this control's plant cannot do: 532.018781ms`
+(`shadow_create_tests.rs:594`).
 Green with the plant removed:
 `2 tests run: 2 passed`.
 
@@ -2264,24 +2320,58 @@ so neither window failed and the lower bound held under the gate's contention.
 Its Clippy step finished clean
 (`Finished `dev` profile [unoptimized] target(s) in 3m 21s`).
 
-Two of the three failures are the cause-H pair named above.
+Two of the three failures are the pair "Cause H" names.
 The third is
 `worktree_removal_held_commit::a_merge_that_lands_a_branch_keeps_the_held_commit_of_the_worktree_it_removes`,
 the control cause G records:
 it failed with `the sweep removed the worktree whose branch landed`,
 and the product's own words there say the removal went to the commit service
 and that the branch `refs/heads/feature` is now on `main`.
-Run alone on this host afterwards it passed (5.469 s),
-which is the shape cause G records for it.
+Run alone on this host afterwards it passed (5.469 s).
+It is the same control cause G records,
+failing in a gate and passing alone,
+but cause G records it with other words,
+where the removal's record "was moved by another look of the same service while the worktree stayed";
+in this failure's own words the worktree was removed.
 No failure of cause I appeared,
 nor of cause J or K,
 and nothing of issue 6342 did either:
 nothing else failed,
 so there was nothing to run alone.
-The total is two above the 9877 of issue 6343's gates
+The total is two more than the 9877 of issue 6343's gates
 because `473dccebbc` (the subvolume record's branch) landed two controls
 between those runs and this one,
 not because this branch adds a test.
+
+### The follow-ups' gate
+
+The whole container gate of the follow-up round ran the same way,
+as its own capped unit `ssc2-6344-followups-gate-20261123`
+with `RuntimeMaxSec=3600`,
+on image `localhost/git-policy-native-test:ssc2-6344-followups-20261123T050551-0500`
+(run `native-Y34ZI0`):
+
+```text
+Summary [1046.619s] 9914 tests run: 9912 passed (11 slow), 2 failed, 36 skipped
+FAIL [   1.339s] (9480/9914) monochromatic-git-policy-cli::native_binary repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone
+FAIL [   0.359s] (9598/9914) monochromatic-git-policy-cli::native_binary service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing
+```
+
+Exactly the cause-H pair,
+and nothing else failed.
+All three shadow controls passed there:
+the sibling at 2.004 s (test 6131 of 9914),
+which carries the committed second,
+`a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
+at 1.152 s (6084 of 9914),
+and `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
+at 0.013 s (6037 of 9914).
+Its Clippy step finished clean
+(`Finished `dev` profile [unoptimized] target(s) in 3m 46s`),
+and the unit ended `Failed with result 'exit-code'`,
+the cause-H pair's status.
+The total is 9914 because `main` landed new controls between the merge this round started from and the gate,
+and because this round adds one.
 
 ### What the controls ask of the host now
 
@@ -2305,12 +2395,14 @@ Read which assertion failed and what it printed.
   unless `SHADOW_CREATION_ATTEMPTS` itself moved.
   A panic that names a count file cannot happen here any more:
   no control keeps one.
-- The sibling's `made` failure now names the sentence of whatever ended the second start.
-  Under a 700 ms ceiling that can only be the first attempt's cut,
-  because the second attempt has production's ceiling;
-  a `TimedOut` sentence there is a start `init` that production ended as well,
+- The sibling's `made` failure names the sentence of the last attempt's start,
+  which is the start made again:
+  a first attempt's cut makes the loop start again and is never the error the loop returns.
+  A `TimedOut` sentence there is that start ended at production's ceiling,
   and the whole step's ceiling and the host's state decide that,
   not this control.
+  A planted ceiling that outlived the first attempt gives the same sentence,
+  which `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared` holds.
 - The every-time control's lower-bound failure means at least one attempt returned before its ceiling:
   it was refused rather than cut,
   and the run did not witness the two programs the control means to count.
