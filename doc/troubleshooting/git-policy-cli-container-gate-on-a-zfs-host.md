@@ -1983,7 +1983,8 @@ and the step it names is a bulk step.
 `CarriedCeiling::ending` writes that sentence into an error of kind `TimedOut`
 (`step_output_read_whole_through_pipes.rs:720`),
 and `checked_from` returns a `TimedOut` outcome's text with no prefix at all
-(`transaction_git.rs:462`);
+(`transaction_git.rs`,
+the arm of `checked_from` that matches `TimedOut`);
 any other kind would have read `could not start`.
 `start_was_cut_or_refused` (`shadow_create_init.rs:120`) reads `TimedOut` as a cut,
 so at attempt 1 the loop took its `continue` and started again
@@ -2058,8 +2059,9 @@ The ceiling is the one the control shortens for its thread,
 (`STEP_CEILING_FOR_THIS_THREAD`,
 `transaction_git_step_bounds.rs:54`),
 and its clock begins once the child is spawned:
-`command.spawn_retrying()` at `child_watch_one_shot_run.rs:175`,
-`watch.begin()` at `:205`,
+`command.spawn_retrying()`,
+then `watch.begin()`,
+both in `child_watch_one_shot_run.rs`,
 and then the wait that carries the rest of the ceiling.
 It ends the whole process tree wherever the work has got to.
 The script reaches its number in three steps:
@@ -2151,7 +2153,7 @@ as the link-question count of `shadow_pool_member.rs` is,
 so no other test's creation reaches it.
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 asserts that count against `SHADOW_CREATION_ATTEMPTS`
-(`shadow_create_tests.rs:593`),
+(`shadow_create_tests.rs:615`),
 and the sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
 asserts the same count for its two starts (`:552`).
 The shim kept its file in that round,
@@ -2225,13 +2227,13 @@ and the only thing it could look at was a file it wrote itself:
 and `echo $n > '<count>'`,
 with the start hanging when `$n` was at most the control's number to hang
 (`reftable_with_hanging_init`,
-`shadow_create_tests.rs:506`).
+`shadow_create_tests.rs:528`).
 A first start that the ceiling ended before that write leaves no file at all,
 so the second start reads the file's absence as the first attempt,
 writes `1` and hangs too.
 The sibling control
 `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-then fails at `made` (`shadow_create_tests.rs:551`,
+then fails at `made` (`shadow_create_tests.rs:573`,
 `the second start made the shadow`)
 with the cut's own sentence,
 although the product had discarded the partial directory and started again exactly as it should.
@@ -2249,7 +2251,7 @@ counts the attempt,
 and in test builds it also sets `MONOCHROMATIC_TEST_SHADOW_INIT_ATTEMPT`
 to the loop's `attempt` in the request's environment
 (`shadow_init_attempts.rs:157`).
-The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:516`),
+The stand-in hangs the starts whose number it is told (`shadow_create_tests.rs:538`),
 and no file a start writes decides anything.
 The variable exists in test builds alone:
 the constant is `#[cfg(test)]` (`shadow_init_attempts.rs:64`),
@@ -2274,9 +2276,17 @@ with a one second delay inside the first start's work:
 
 The seam is not decorative:
 with the stand-in reading a variable no build sets,
-both controls fail loudly instead of passing,
+both controls fail loudly instead of passing.
+The sibling fails at the count assertion
+(`shadow_create_tests.rs:574`),
 `left: 1`,
-`right: 2` at the count assertion (`shadow_create_tests.rs:552` and `:593`).
+`right: 2`.
+The every-time control fails before that,
+at its `expect_err`
+(`every start was cut`,
+naming the path the start was handed),
+because no start hung and the creation succeeded,
+so its count assertion is never reached.
 
 ### Issue 6344's second window: the real second start had to finish inside the shortened ceiling
 
@@ -2288,11 +2298,15 @@ so a program slower than 700 ms failed the control at `made`
 with the cut's sentence,
 even when the product had done everything the control holds.
 Window two is independent of window one:
-it failed in the same place with the file-based stand-in of the prototype that had already removed window one.
+with window one's fix in place,
+the stand-in deciding from the variable and no file,
+dropping window two's distinction alone still fails the sibling at `made`,
+which is the red run this section records.
 
 The fix plants the cut instead of setting the thread's ceiling:
-`cut_the_first_init_attempt_at(Duration::from_millis(700))`
-(`shadow_create_tests.rs:548`)
+`cut_the_first_init_attempt_at(THE_FIRST_START_IS_CUT_AT)`
+(`shadow_create_tests.rs:570`,
+the 700 ms at `:499`)
 shortens the ceiling of the first attempt alone
 (`shadow_init_attempts.rs:82`),
 and `apply_the_planted_cut` (`:123`)
@@ -2301,9 +2315,11 @@ forgets the plant at that attempt,
 and `clear_the_planted_cut` (`:100`) does the same once the creation returned,
 so no other test on that thread inherits a shortened ceiling.
 `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
-holds that clearing:
+holds both halves of that clearing:
 with the function's body emptied it fails at `Some(700ms)` against `None`,
-while the two shadow controls stay green,
+with only the stored plant left behind it fails at the first attempt made after the clear
+(`shadow_create_tests.rs:709`),
+and the two shadow controls stay green either way,
 and nextest runs each test in a process of its own,
 so no gate run could have seen an inherited ceiling.
 The start made again is therefore waited for as production waits for a start of `init`,
@@ -2322,15 +2338,27 @@ before the fix:
 `the second start made the shadow: GitFailure("... a bulk step ran for 0 seconds,
 the longest the wrapper lets one step run, and was ended")`.
 The delay is now part of the control's stand-in,
-`THE_START_MADE_AGAIN_TAKES` (`shadow_create_tests.rs:488`),
+`THE_START_MADE_AGAIN_TAKES` (`shadow_create_tests.rs:490`),
 so the suite itself holds the fix of window two:
 with the first-attempt-only distinction dropped from `apply_the_planted_cut`,
 the sibling fails at `made` (1.597 s) and the every-time control passes.
-It costs the sibling control its second on every run:
-measured on this host,
-1.872 s to 1.948 s with the second
-against 0.910 s to 0.954 s without it,
-while the every-time control read 1.142 s to 1.205 s in the same runs.
+A build-time check beside the two numbers holds the delay longer than the ceiling it has to outlast
+(`const _: () = assert!(...)`),
+so a later change of either number stops the build rather than the guard.
+It costs the sibling control its second on every run.
+Measured on this host in three interleaved rounds,
+each round the committed build,
+the same tree with the second set to zero,
+and the committed build again:
+the sibling read 1.847 s to 2.245 s with the second
+against 0.876 s to 1.167 s without it,
+a difference of 0.71 s to 1.15 s (mean 0.94 s),
+while the two committed builds of one round differed by up to 0.38 s
+(issue 6344's integration pass,
+`keep/fu-delay-arms-interleaved-three-rounds.txt`).
+The every-time control,
+whose starts hang before the line that waits,
+read the same in both arms.
 Green with the cut planted for the first attempt alone:
 `2 tests run: 2 passed`.
 
@@ -2346,7 +2374,7 @@ because only a program could write it.
 
 `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`
 now also asks how long it waited
-(`shadow_create_tests.rs:595`).
+(`shadow_create_tests.rs:617`).
 Every start of that control hangs,
 so each attempt is waited for its 500 ms ceiling and no shorter,
 and an attempt that returned sooner ended before its ceiling.
@@ -2375,7 +2403,7 @@ Red with a plant that makes the second attempt return a cut
 without starting a program or waiting for one:
 `an attempt ended before its ceiling,
 which a cut of this control's plant cannot do: 532.018781ms`
-(`shadow_create_tests.rs:594`).
+(`shadow_create_tests.rs:616`).
 Green with the plant removed:
 `2 tests run: 2 passed`.
 
@@ -2482,12 +2510,30 @@ Read which assertion failed and what it printed.
   A `TimedOut` sentence there is that start ended at production's ceiling,
   and the whole step's ceiling and the host's state decide that,
   not this control.
-  A planted ceiling that outlived the first attempt gives the same sentence,
-  which `a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared` holds.
-- The every-time control's lower-bound failure means at least one attempt returned before its ceiling:
-  it was refused rather than cut,
-  and the run did not witness the two programs the control means to count.
-  Run it again on a host with processes to spare before reading it as a product defect.
+  A planted ceiling that stayed over the start made again gives the same sentence.
+  What holds that distinction is the committed delay,
+  `THE_START_MADE_AGAIN_TAKES`:
+  with the first-attempt-only branch of `apply_the_planted_cut` dropped,
+  the sibling fails at `made` and the every-time control passes
+  (the section "Issue 6344's second window").
+  The planted-cut control holds a different fact:
+  that clearing the plant forgets it,
+  so the first attempt of the creation after it is not cut either.
+- The every-time control's lower-bound failure means at least one attempt returned before its ceiling.
+  Two things end an attempt before its ceiling:
+  a refusal returned as a finished command,
+  where the program ran and printed the system's words,
+  so the run did not witness the two programs the control means to count,
+  and a product that returned a cut at once without starting a program,
+  which is the false green the bound was added to close
+  (the section "The witness the count of attempts does not give,
+  and the lower bound that does").
+  The sentence the failure carries says which:
+  the system's own refusal words are the host's,
+  so run it again on a host with processes to spare before reading it as a product defect;
+  the cut's sentence,
+  with no program's words behind it,
+  is the product's.
 
 ## Cause N: the wait a landed removal's control relies on can return while its record is being moved (issue 6345)
 
