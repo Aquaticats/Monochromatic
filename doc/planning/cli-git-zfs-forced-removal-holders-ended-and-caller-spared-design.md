@@ -4104,6 +4104,20 @@ the questions section is the decided record.
 - `813b0dd924`,
   2026-11-23T03:56:42-05:00:
   the line break that sentence needed.
+- `2edc939552`,
+  2026-11-23T04:29:56-05:00:
+  the merge of `main` with the accepted lost-event design.
+- `1050d0c48a`,
+  2026-11-23T04:32:44-05:00:
+  the sixth read's N1 to N9:
+  the closure's seed and one members rule,
+  the kept receiver as way 8 not used,
+  Tier 0's programs,
+  creation orders,
+  host sides,
+  controls and new arms T0-11 and T0-12,
+  the claim map,
+  and the stopped-unmount answer cited.
 
 ## What this revision left as it was
 
