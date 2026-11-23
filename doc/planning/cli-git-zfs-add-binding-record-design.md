@@ -5987,6 +5987,27 @@ and any test suite.
   nothing printed there),
   and the accepted dirty-main design cited by its headings.
   Each was proved by the searches kept in `keep/fifth-reads-searches-2026-11-22.txt`.
+- 2026-11-23T04:37:14-05:00:
+  answered the two sixth reads:
+  G1 and U13 (the settling command's reach in V23's option A,
+  with the finished checkout's records-only mode and the no-`cloneGuid=` refusal,
+  and the states after A20 walked again),
+  G12 (both commands true when the clone stands),
+  G9 ("cannot be proved" defined once),
+  G2 (the rerun let through,
+  and the printed lines that lead a person to it),
+  G3 and U12 (T20b's arms and T20c's),
+  G5 (one rule for what a removal names),
+  U14 (the re-run names the command),
+  G8 (the order cited to the origin design's V13),
+  G4 and L6 (T29,
+  T30,
+  T33,
+  the duplicated plan bullet,
+  the tips and "The record's end"),
+  L4 (A6's sentence),
+  and L5 (A21 widened).
+  Each was proved by the searches kept in `keep/sixth-reads-searches-2026-11-22.txt`.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
