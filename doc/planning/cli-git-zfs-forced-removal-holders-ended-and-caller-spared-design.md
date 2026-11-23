@@ -338,7 +338,7 @@ and the questions left".
   a unit whose main process is a script",
   quoted under "The open items and the words that decide them".
 
-- [The sibling cancelled-removal design][cancelled] at its current tip `3f2475e430`,
+- [The sibling cancelled-removal design][cancelled] at its current tip `4fe792a697`,
   read last:
   its "The forced arm's failure path",
   "What the caller sees",
@@ -1186,7 +1186,7 @@ not a guest's.
   and `doctor` prints it without removing it,
   which is unmeasured.
 
-- L20.
+- that a read-only parent refuses way 7 and way 8 works there.
   A hardened unit (`ProtectHome=read-only`,
   a read-only parent) refuses way 7's directory write;
   way 8,
@@ -1971,9 +1971,9 @@ the first signal and the first unmount:
   when it is not,
   the group its slaves print as their `master:` (or `master:0`,
   which names no group);
-  where neither names a group,
-  way 8 refuses for any receiver it cannot name,
-  and way 7 proceeds and reports.
+   for a parent that is not shared,
+  way 8 is not used and the act falls to way 7,
+  which reports any namespace that loses reception.
   A row is a member when its `shared:` group or its `master:` is already in the set,
   and a member adds its own `shared:` group to the set;
   repeat until nothing is added (F55).
@@ -2025,8 +2025,6 @@ the first signal and the first unmount:
   an unendable holder,
   a blind spot,
   a parent that is not the checkout's,
-  a parent that is not the checkout's,
-  or no destination for way 7,
   or no destination for way 7 refuses the removal before anything is ended or changed.
 
 The order is fixed:
@@ -2098,7 +2096,7 @@ and each has a wait that ends when the other dies (A4):
   while it waits,
   reads that file.
   Its own report deadline prints that the request still stands and does not end the act;
-   until it has seen a counter it keeps its accepted receipt wait (the 30-second poll deadline,
+  until it has seen a counter it keeps its accepted receipt wait (the 30-second poll deadline,
   F24),
   so a handler that has not started is not read as dead;
   after the first counter it gives up only when the counter has not moved for the give-up window `T_g`,
@@ -2417,7 +2415,8 @@ by the records record:
   the same fields plus the failing proof;
 - one line per refused namespace,
   and one for a refusal in the middle of the structural stage,
-  with what was changed and moved back;
+  with what was changed,
+  the directory's state and that no copy was moved;
 - one closing line:
   how many blockers were ended,
   how many were unproven,
@@ -2515,7 +2514,7 @@ A holder first seen after the first snapshot delete is met at the next scan,
 and the refusal then reports what was already destroyed;
 that state is [the sibling][cancelled]'s.
 This design states only the forced arm's refusals and writes no intent.
-The sibling at `3f2475e430` owns what a removal leaves when it does not finish,
+The sibling at `4fe792a697` owns what a removal leaves when it does not finish,
 forced or not,
 names this design's words,
 and has no question left;
@@ -2610,12 +2609,12 @@ not chased.
   this design adds no key and carries its refusals in bounded failed-step words (F24).
 
 - The failure path.
-  The sibling at `3f2475e430` owns what a removal leaves when it does not finish,
+  The sibling at `4fe792a697` owns what a removal leaves when it does not finish,
   names this design's words,
   has no question left,
   and cites this design's "The act's liveness" for its timeout states.
   It takes this design's structural-stage third state (A9) and the destination directory's leftover (V7),
-  which its `3f2475e430` text names.
+  which its `4fe792a697` text names.
   This design states only the forced arm's refusals and writes no intent.
 
 - The records.
@@ -2935,7 +2934,8 @@ and whether it needs a guest.
     guest.
 17. The structural-stage refusal in a middle namespace:
     nothing ended,
-    the earlier namespaces' changes reported and moved back;
+    the earlier namespaces' changes reported,
+    the directory removed when safe and no copy moved;
     guest.
 18. The signal order:
     a `SIGTERM` handler exits and is not killed,
@@ -3065,26 +3065,54 @@ and `subprocess` for `unshare`,
 `umount` and `findmnt`.
 Each arm's `Bound:` is its own (60 s or 120 s) and overrides the 900 s harness timeout,
 because it runs no handler.
+
+The common start (H).
+Every arm runs in one fresh private mount namespace,
+H,
+the experiment's host:
+the program calls `unshare(CLONE_NEWNS)` and then `mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL)` before anything else,
+and makes every stand-in in H,
+so nothing the arm mounts is visible in the guest's real namespaces.
+The parent with a group of its own,
+so that "no peers" is a state someone made:
+`mount --bind <dir> <parent>` in H,
+then `mount --make-private <parent>`,
+then `mount --make-shared <parent>`;
+before the action the arm prints the table and requires a `shared:` group on the parent that no other row carries.
+A namespace that must be a slave of another is made with `unshare --mount --propagation slave` from it;
+one that must be a peer with `--propagation unchanged`;
+and where a namespace must be shared after being made,
+`mount --make-shared <path>` follows inside it.
+Before the action every arm prints the tables of H and of each namespace it made and checks the relation its rows assume (the parent's group,
+who is a peer or slave of whom);
+the action runs only when the check passes,
+and the check and the tables are recorded.
+
 - **T0-1.
   A plain unmount reaches the parent's receivers.**
-  State:
-  a bind copy of a directory at a slot on a shared stand-in parent;
-  a slave namespace made with `unshare --mount --propagation unchanged` from that parent after the copy is mounted,
-  so it inherits its own copy;
-  a host-side bind at another path under the same parent,
-  which the host sees and the copy's unmount does not touch.
+  Start:
+  H,
+  and P as the common start;
+  a host bind at a second path under P in H;
+  U = `unshare --mount --propagation slave` from H,
+  then `mount --make-shared P` in U;
+  the copy mounted under P in U;
+  S = `unshare --mount --propagation slave` from U after the copy,
+  and the arm checks that S holds the copy.
   One action:
-  `umount2` the copy in the unit's namespace,
+  `umount2` the copy in U,
   via `ctypes` `umount2(path, 0)`.
+  Positive control:
+  in H,
+  `umount2` the host bind at the second path removes it,
+  so the probe is shown to see a mount vanish.
   Expected:
-  the slave's copy vanishes;
-  the host-side bind and the host's stand-in mount stay.
+  S's copy vanishes;
+  the host bind and P stay in H.
   Bound:
   60 s.
-  Constants:
-  none.
   Decides:
-  the receiver rule;
+  a plain unmount reaches the parent mount's slaves;
   ways 2 and 4 propagate.
   Tier 0;
   run on `6.8`,
@@ -3092,224 +3120,281 @@ because it runs no handler.
 
 - **T0-2.
   A private parent before the unmount stops it.**
-  State:
-  T0-1's state,
-  with `mount --make-private` on the parent (the `guest-probe.py` call `mount(NULL, parent, NULL, MS_PRIVATE, NULL)`).
+  Start:
+  T0-1's,
+  with `mount(NULL, P, NULL, MS_PRIVATE, NULL)` in U.
   One action:
-  `umount2` the copy.
+  `umount2` the copy in U.
+  Positive control:
+  T0-1's plain unmount on the same start removes the copy,
+  run first.
   Expected:
-  the slave's copy stays mounted.
+  S's copy stays mounted.
   Bound:
   60 s.
   Decides:
-  way 3's no-receiver effect.
+  a private parent before the unmount leaves the slaves' copies alone (way 3's change).
   Tier 0.
 
 - **T0-3.
   A slave parent before the unmount stops it.**
-  State:
-  T0-1's state with the parent made slave,
-  in two variants:
-  with a master (T0-1's host-side relation) and without one (a parent with no master).
+  Start:
+  two variants of T0-1's state.
+  (a) With a master:
+  U is a slave of H,
+  and P is shared in U,
+  so U's P is a slave of P in H with a master.
+  (b) Without one:
+  P is made private in U,
+  then `mount --make-slave P`,
+  which sets no master.
   One action:
-  `umount2` the copy.
+  `umount2` the copy in U,
+  once per variant.
+  Positive control:
+  T0-1's plain unmount on each variant's start removes the copy.
   Expected:
-  the slave's copy stays in both;
-  the parent's row reads `master:<the old master>` with the master and no `master:` without it (a slave with no master reads like private).
+  S's copy stays in both;
+  variant (a)'s P row reads `master:<P's group in H>`,
+  variant (b)'s reads as private with no `master:`.
   Bound:
   60 s.
   Decides:
-  way 7's no-receiver effect,
-  and which row each state produces.
+  a slave parent before the unmount leaves the slaves' copies alone,
+  and which row each state gives.
   Tier 0.
 
 - **T0-4.
   The peer case's rows.**
-  State:
-  a parent P,
-  a peer P' of P,
-  and a slave S whose master is P;
-  P' is made before the copy,
-  S after it,
-  and the copy under P.
+  Start:
+  H and P as the common start;
+  P' made a peer of P by `mount --bind P P'` in H;
+  S = `unshare --mount --propagation slave` from H while P is shared,
+  and the arm checks S's row;
+  the copy mounted under P.
   One action:
-  `mount --make-slave P`.
+  `mount --make-slave P` in H.
+  Positive control:
+  before the change,
+  a mount made under P' reaches P and S;
+  the arm records that delivery first.
   Expected (derived from `fs/pnode.c` 93 to 124 and `fs/proc_namespace.c` 159 to 169,
   not yet run):
   P's row becomes `master:<the former group>` without `shared:`;
   P' keeps its `shared:` and its own `master:`;
-  S's row still prints `master:<the former group>`,
-  because P' shares the group;
-  a mount made under P' reaches P and S,
-  and one made under P reaches neither.
+  S's row still prints `master:<the former group>`;
+  after the change a mount made under P' no longer reaches P or S,
+  and one under P reaches neither.
   Bound:
   60 s.
   Decides:
-  A2's peer case,
-  the post-check's two cases.
-  Tier 0.
+  the peer case's rows and that a slave made with peers takes its next peer as master.
+  Tier 0;
+  the rows are derived,
+  not run.
 
 - **T0-5a.
   The nested-in-nested receiver.**
-  State:
-  a covered directory whose cover is the topmost mount at the slot;
-  a receiver of a receiver (a namespace made from a namespace made from the holder) with its own copy;
-  a stand-in handle taken with `name_to_handle_at` on the covered directory before the cover,
-  from the guest's root filesystem (if it refuses a handle,
-  the arm records unrun).
+  Start:
+  H and P as the common start,
+  with the covered directory and a stand-in handle taken with `name_to_handle_at` on H's root filesystem before the cover (if that filesystem refuses a handle,
+  the arm records unrun),
+  and the handle opened later inside U with `open_by_handle_at` on an `O_PATH` descriptor of U's covering filesystem root;
+  U = `unshare --mount --propagation slave` from H;
+  the copy mounted under P in U;
+  V = `unshare --mount --propagation slave` from U,
+  the second-level receiver.
   One action:
-  `open_by_handle_at` the handle,
+  open the handle with `open_by_handle_at` on an `O_PATH` descriptor of the covering filesystem's root,
   read the topmost mount at its dentry,
-  and `umount2` by the descriptor.
+  and `umount2("/proc/self/fd/<n>", 0)`.
+  Positive control:
+  before the action,
+  a mount made under P in U is received by V,
+  recorded first.
   Expected:
-  a closure script over the tables (T0-5's oracle) finds the nested receiver in the set,
+  a closure script over the tables (T0-5's oracle) finds V in the set,
   and the set of namespaces whose copy vanished equals it.
   Bound:
   60 s.
   Decides:
-  X2's closure and the "mount at the slot" filter.
+  the receiver closure,
+  the "mount at the slot" filter and the descriptor unmount.
   Tier 0.
 
 - **T0-5b.
   A receiver with no mount at the slot.**
-  State:
-  T0-5a's state,
-  plus a receiver with no mount at the slot.
+  Start:
+  T0-5a's start,
+  with V's copy removed in V by a local `umount2` before the action.
   One action:
   the same handle unmount.
+  Positive control:
+  T0-5a's V,
+  which keeps its copy,
+  is in the vanished set.
   Expected:
-  that receiver is not a kept receiver and does not refuse;
-  it is not in the vanished set.
+  V is not a kept receiver,
+  is not refused and is not in the vanished set.
   Bound:
   60 s.
   Decides:
-  the "only members with a mount at the slot" rule.
+  only members with a mount at the slot count.
   Tier 0.
 
 - **T0-5c.
   A stacked mount at the slot.**
-  State:
-  T0-5a's state,
-  a stacked mount on the slot's dentry in a receiver.
+  Start:
+  T0-5a's start,
+  with a tmpfs mounted in V over its copy after the copy exists.
   One action:
   the same handle unmount.
+  Positive control:
+  T0-5a's V without the stack,
+  where way 8 is chosen and the copy vanishes.
   Expected:
-  the topmost mount is not the copy,
-  so way 8 is not chosen and the act falls to way 7;
-  the stacked mount is untouched.
+  the closure script's predicate says way 8 is not chosen,
+  because V's topmost mount at the slot is not the copy,
+  and the stacked mount is untouched.
   Bound:
   60 s.
   Decides:
-  the topmost check and N2's one behaviour.
+  the topmost-mount check and that way 8 is not chosen.
   Tier 0.
 
 - **T0-5's oracle**:
   a Python closure over the tables:
   map every group number to the order it first appears,
-  then compute the set from the seed and the members rule;
-  compare it with the namespaces whose copy vanished.
+  compute the set from the seed and the members rule of "The preflight",
+  and compare it with the namespaces whose copy vanished.
   The normalisation is the comparison rule for every arm (Z9),
   and the members rule is the one "The preflight" states.
 
 - **T0-6.
   The shared-state difference.**
-  State:
-  a shared stand-in parent,
-  a slave namespace with its own copy,
-  a second copy mounted on the host at a host path and propagated into the unit,
-  and a host peer.
+  Start:
+  H,
+  and P as the common start;
+  U = `unshare --mount --propagation unchanged` from H,
+  so U's P is a peer of P in H;
+  S = `unshare --mount --propagation slave` from U;
+  a second copy mounted in H under P,
+  which reaches U;
+  the host mount and the host unmount run in H.
   One action:
-  `mount --make-slave` the parent (way 7);
+  in U `mount --make-slave P` (way 7);
   then,
-  separately,
-  `mount --make-private` (way 3);
-  make a host mount and a host unmount of the second copy in each.
+  in a second run from the same start,
+  `mount --make-private P` (way 3).
+  Positive control:
+  before either change,
+  a mount and an unmount in H under P reach U,
+  recorded first.
   Expected:
-  the way 7 unit keeps receiving the host's mount and unmount of the second copy (its master or next peer is a receiver);
-  the way 3 unit loses both.
+  the way 7 U keeps receiving H's mount and unmount of the second copy,
+  because its master or next peer is a receiver;
+  the way 3 U loses both.
   Bound:
   120 s.
   Decides:
-  A1's shared-state difference.
+  what a service keeps receiving under a shared checkout with way 7 and with way 3.
   Tier 0.
 
 - **T0-7.
   The move sits after the signals.**
-  State:
-  a bind copy,
-  a blocker in its namespace that traps `SIGTERM`,
-  writes a file by absolute path into the slot and exits;
-  `guest-probe.py` forks it.
+  Start:
+  H,
+  P as the common start,
+  the copy mounted under P in U,
+  and a blocker in U that traps `SIGTERM`,
+  writes a file by absolute path at the slot and exits;
+  the parent made slave in U first,
+  so the move passes.
   One action:
-  `SIGTERM`,
-  wait,
-  then `mount --make-slave` and `move_mount`.
+  `SIGTERM` to the blocker,
+  wait `T_wait`,
+  then `mount --make-slave P` and `move_mount(copy_fd, "", destination_fd, "", MOVE_MOUNT_F_EMPTY_PATH | MOVE_MOUNT_T_EMPTY_PATH)`,
+  with the destination made and opened as way 7's steps 2 and 3 say.
+  Positive control:
+  the same start with the move before the signals;
+  the write then lands in the slot's underlying folder,
+  which H sees.
   Expected:
-  the write lands in the mounted copy and the slot's folder stays empty when the move is due.
-  Control:
-  the same state with the move first;
-  the write then lands in the slot's underlying folder on the checkout's filesystem,
-  which the host sees,
-  which is the hazard the order answers.
+  with the move after the signals the write lands in the mounted copy and the slot's folder is empty when the move is due.
   Bound:
   `T_wait` 10 s.
   Decides:
-  A5's exposure and its answer.
+  the old order's hazard exists and the new order avoids it.
   Tier 0.
 
 - **T0-8.
   A socket in another network namespace.**
-  State:
-  a namespace made with `unshare --net`,
+  Start:
+  a namespace made with `unshare --net`;
   a unix socket bound by absolute path inside the copy.
   One action:
   a netlink `sock_diag` request with `UDIAG_SHOW_VFS` from `ctypes`,
   entered by `setns` on a task's `/proc/<pid>/ns/net`.
+  Positive control:
+  the same request for a socket bound outside the copy returns a device that does not match the clone's filesystem.
   Expected:
   the bound file's device and inode name the copy's filesystem;
   the owning task is found by the socket's inode in `/proc/<pid>/fd`.
   Bound:
   60 s.
   Decides:
-  A7's socket read.
+  a bound socket in another network namespace is found and matched to the copy.
   Tier 0.
 
 - **T0-9.
   Blind and gone reads.**
-  State:
+  Start:
   a root-owned task,
   and an unprivileged reader (`setuid` to `nobody` in a forked child) reading its `/proc/<pid>/exe`;
-  a task that exits during the read.
+  a reaped pid whose task is gone.
   One action:
-  the reader's `statx` on `/proc/<pid>/exe`.
+  the reader's `statx` on `/proc/<pid>/exe` for each.
+  Positive control:
+  the same reader's `statx` on a live same-account task's `exe` succeeds,
+  so the reader is shown able to read one that permits it.
   Expected:
-  the first is `EACCES` and is classified blind;
-  the second is `ENOENT`/`ESRCH` and is gone;
+  the root task is `EACCES` and is classified blind;
+  the reaped pid is `ENOENT`/`ESRCH` and is gone;
   this tests the classifier,
   not what the root handler meets.
   Bound:
   60 s.
   Decides:
-  A10's definition.
+  which errno is blind and which is gone.
   Tier 0.
 
 - **T0-10.
   The taskless namespace.**
-  State:
+  Start:
   a namespace pinned by a descriptor with no task.
   One action:
   the `listns` syscall,
   number 470 on x86-64,
   from `ctypes`,
-  then `setns` and a table read.
+  with `struct ns_id_req` (32 bytes:
+  `size`,
+  `spare`,
+  `ns_id`,
+  `ns_type`,
+  `spare2`,
+  `user_ns_id`;
+  `include/uapi/linux/nsfs.h` at `v7.3`) and `listns(req, ids, nr_ns_ids, flags)`;
+  then `setns` on the returned id and a table read.
+  Positive control:
+  the same call lists the namespace the arm itself created.
   Expected:
-  it is found and entered;
+  the pinned namespace is found and entered;
   a guest whose `listns` refuses or is absent records the arm unrun,
-  and the rest of the group shows everything else.
+  and the group shows everything else.
   Bound:
   60 s.
   Decides:
-  the taskless route.
+  the taskless route and the call's own arguments.
   Tier 0,
   but a guest that answers `listns` only.
 
@@ -3317,43 +3402,55 @@ because it runs no handler.
   The chain:
   a unit started shared,
   then repaired.**
-  State:
-  a host stand-in parent shared,
-  a slave namespace made from it (the unit's stand-in) with its own copy;
-  then `mount --make-private` on the host stand-in,
-  the repair.
+  Start:
+  H and P as the common start;
+  U = `unshare --mount --propagation slave` from H,
+  then `mount --make-shared P` in U (the unit's parent shared,
+  as systemd leaves it);
+  the copy mounted under P in U;
+  the arm checks U's P row.
   One action:
-  read the unit's table after the repair,
-  then make the parent slave (way 7) and read it again.
+  in H `mount --make-private P` (the repair),
+  read U's row,
+  then in U `mount --make-slave P` (way 7) and read it again.
+  Positive control:
+  before the repair,
+  a mount made in H under P reaches U.
   Expected:
-  after the repair the unit's copy has no master (the host stand-in had no peers) or keeps the next peer's master (it had peers);
-  the way 7 change is the same as way 3's in the no-master case.
+  after the repair U's copy of P has no master (H's P had no peers) or keeps its next peer's master (it had peers);
+  after the way 7 change it is a slave of its next peer or of no master,
+  and in the no-master case the change equals way 3's.
   Bound:
   120 s.
   Decides:
-  A1's chain,
-  L22.
+  what the repair does to a unit started while the checkout was shared,
+  and that way 7 equals way 3 there.
   Tier 0.
 
 - **T0-12.
   A sandbox that never held the clone,
   after way 7.**
-  State:
-  a unit-like namespace with a copy,
-  a sandbox inside it with no copy,
-  receiving from the parent;
-  a host mount made under the parent after the act.
+  Start:
+  H and P as the common start;
+  U = `unshare --mount --propagation slave` from H with the copy;
+  V = `unshare --mount --propagation slave` from U,
+  with no copy of the slot.
   One action:
-  `mount --make-slave` the parent,
-  unmount the copy,
-  then make a host mount under the parent.
+  `mount --make-slave P` in U and `umount2` the copy in U,
+  then in U make a later mount of the service's own under P.
+  Positive control:
+  before the act,
+  the same later mount made in U is received by V,
+  recorded first.
   Expected:
-  the sandbox does not receive the later host mount;
-  the report names it (V8).
+  after the act V does not receive the later mount,
+  which is the loss V8 names;
+  no report is asserted,
+  because Tier 0 has none.
   Bound:
   120 s.
   Decides:
-  N6's claim (the sandbox's lost later mount).
+  a sandbox that never held the clone stops receiving the service's own later mounts after way 7.
   Tier 0.
 ### Tier 1: a ZFS pool, no route
 
@@ -3391,7 +3488,7 @@ because it runs no handler.
   Bound:
   120 s.
   Decides:
-  M8's no-room and clone-holding states at Tier 1.
+  that a dataset at its quota refuses the directory and the preflight names the quota.
   Tier 1.
 
 ### Tier 2: step 17's code
@@ -3419,9 +3516,9 @@ because it runs no handler.
   Invocation:
   the wrapper as a child of the harness's shell (Z1).
   Decides:
-  the repaired state's cost (A1),
-  the directory,
-  the order.
+  what the repaired state costs the service,
+  that the directory is made and removed,
+  and that the stage order ends with the head destroy.
   Tier 2.
 
 - **M2.
@@ -3447,8 +3544,7 @@ because it runs no handler.
   Bound:
   900 s.
   Decides:
-  A2 in the act,
-  the order's effect.
+  the peer rows inside the act and the order's effect.
   Tier 2;
   its kernel facts are T0-4.
 
@@ -3502,8 +3598,8 @@ because it runs no handler.
   Bound:
   900 s.
   Decides:
-  A1's chain,
-  L22.
+  what the repair does to a unit started while the checkout was shared,
+  and that nothing flows to it afterwards.
    Tier 2;
   the propagation facts are T0-11 and T0-3.
 
@@ -3520,7 +3616,7 @@ because it runs no handler.
   900 s;
   `T_wait`.
   Decides:
-  A5 in the act.
+  that a write during the wait lands in the copy and not in the checkout.
   Tier 2;
   the fact is T0-7.
 
@@ -3539,7 +3635,7 @@ because it runs no handler.
   900 s;
   `T_h`/`T_g`.
   Decides:
-  A4's handler side.
+  that a dead wrapper sends no kill and files `caller-gone`.
   Tier 2.
 - **M9b.
   The handler killed during the wrapper's wait.**
@@ -3556,7 +3652,7 @@ because it runs no handler.
   900 s;
   `T_h`/`T_g`.
   Decides:
-  A4's wrapper side.
+  that a dead handler stops the counter and the wrapper prints the handler-gone report.
   Tier 2.
 - **M9c.
   The structural-stage refusal.**
@@ -3575,8 +3671,8 @@ because it runs no handler.
   Bound:
   900 s.
   Decides:
-  A9,
-  X3.
+  that a structural-stage stop ends nothing,
+  leaves the parent a slave and removes the directory when safe.
   Tier 2.
 
 - **M10a.
@@ -3635,7 +3731,7 @@ because it runs no handler.
   Bound:
   300 s.
   Decides:
-  A13.
+  that the console-login refusal is answered by a session started under `setsid --wait`.
   Tier 2.
 - **M10e.
   An orphaned session.**
@@ -3679,7 +3775,7 @@ because it runs no handler.
   Bound:
   900 s.
   Decides:
-  A1's shared state with way 7.
+  what a unit under a shared checkout keeps receiving with way 7.
   Tier 2;
   the fact is T0-6.
 - **M11b.
@@ -3695,7 +3791,7 @@ because it runs no handler.
   Bound:
   900 s.
   Decides:
-  A1's shared difference;
+  what way 3 loses under a shared checkout.
   way 3 is not the policy.
   Tier 2.
 
@@ -3754,8 +3850,8 @@ because it runs no handler.
   Bound:
   900 s.
   Decides:
-  V6's state,
-  X3.
+  the parent a slave,
+  the directory left and the copy where it stands.
   Tier 2.
 - **M14b.
   A kill between the directory and the move.**
@@ -3880,7 +3976,7 @@ that it does.
   and nothing of the route is released.
 
 - D2.
-  [The sibling cancelled-removal design][cancelled] at `3f2475e430` owns what a removal leaves and restores when it does not finish,
+  [The sibling cancelled-removal design][cancelled] at `4fe792a697` owns what a removal leaves and restores when it does not finish,
   forced or not.
   It names this design's words,
   has no question left,
