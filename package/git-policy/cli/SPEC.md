@@ -11728,23 +11728,41 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
 - the name still refers to the very file that was judged,
   and its device,
   inode and change time are the ones read before the removal;
-- the PID file is still the very one that was judged when its own name goes:
-  a file a program put at that name is another file,
-  which its device,
-  inode and change time show.
-  Git's own PID file cannot stand at that name while the judged one does,
-  because it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is refused
+- the PID file beside it still names the number the record explained,
+  read again after the lock is unlinked:
+  a program that wrote its own number over the judged file through the same inode is kept,
+  and one that wrote the judged number back is not told apart from it
+  (`pid_named_by`,
+  one bounded read of a file that holds `pid <number>`).
+  Git cannot have a file of its own there anyway:
+  it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is refused
   (`lockfile.c`,
   `create_lock_pid_file`,
   Git 2.56.1),
-  so a Git that takes the freed name between the two unlinks has no PID file of its own to lose,
-  and a program that wants its own file there removes the judged one first,
-  which the inode shows.
-  A write over the judged file itself keeps its inode,
-  and its change time is compared in whole milliseconds,
-  so a write within that millisecond of the plant is not told apart from it;
-  no control plants one (issue 6342,
-  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+  so nothing a Git owns is on this path.
+  A program that writes its own number there is a real case and not a hypothetical one:
+  `gitbutlerapp/grit` writes Git sidecars with an open that creates and truncates
+  (`grit-lib/src/lockfile.rs`,
+  `write_lock_pid_file`,
+  at `d1637255d9`),
+  after taking the lock with an exclusive create,
+  so it truncates the judged file through the same inode.
+  The file is unlinked only if its device,
+  its inode and its change time in whole milliseconds also equal the ones read before the lock went,
+  and a program that writes a different number there is told apart by the number alone,
+  on every file system and at every clock granularity.
+  The project chose to compare the bytes as well on 2026-11-22,
+  over correcting these words and leaving the route open
+  (the question put to the owner,
+  "B:
+  also compare bytes",
+  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+  cause L).
+  Two states stay open and are recorded there:
+  a program that writes the judged number back costs itself that file,
+  because the bytes say nothing and the metadata may say nothing either,
+  and no system call unlinks a name only when it still names a given file,
+  so the instant between the read and the unlink is not closed.
 
 No time decides anything,
 so a correction of the clock moves no verdict.
