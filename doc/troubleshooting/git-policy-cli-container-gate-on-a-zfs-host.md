@@ -2535,7 +2535,7 @@ the whole gate that would pair the wait's users has no usable result for this br
 `Fixture::drop` (`src/native/binary/binary_support_fixture_service.rs`) bound the service it took to `_stopped` on `main`.
 A binding that begins with an underscore keeps its value to the end of the scope,
 so the services were stopped after `settle_fixture` removed the tree,
-and the comment above the line said the opposite ("The service goes first").
+and the comment on that line of `Fixture::drop` said the opposite ("The service goes first").
 A look of a service still running when its test ended therefore read a repository being removed,
 which is how the journal's two error lines arose.
 The drop stops the services at once now,
