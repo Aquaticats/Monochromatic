@@ -1358,6 +1358,8 @@ so it ran in under those two milliseconds and states at most one whole one.
 The controls hold that one whole millisecond (`WINDOW_ORIGIN_ROUNDING_MS`),
 and the failure's 2105 passes 2086 + 1 = 2087 by 18,
 so no cut decides it.
+In the controls' clean records of 2026-11-22 the excess was -5 to -3 ms,
+so the bound leaves 4 to 6 ms of headroom there.
 The fixed 12 ms allowance the controls held before that was too small for a record with more figures than it counted,
 and a count of figures is too large:
 the integration pass of 2026-11-22 read it as 16 on the stopped control and 19 on the landing one,
