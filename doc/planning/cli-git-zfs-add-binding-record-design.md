@@ -1644,6 +1644,9 @@ D0 to D7).
 The labels do not move again:
 a later revision that adds a write appends a label,
 and A7 keeps its place although this revision retires it.
+These A-labels are the order's;
+the Assumptions section's A1 to A10 are another list,
+and a citation that means an assumption says "assumption" beside its label.
 
 A0.
 Preflight,
@@ -3847,7 +3850,7 @@ and nothing else in the design turns on it.
 - The claim's effect on the checkout's own conversion or migration,
   which uses the same primitive for a different item.
 - Any root-side copy of the lineage identities,
-  which the delegated route does not need (A2).
+  which the delegated route does not need (assumption A2).
 
 ## Citations
 
