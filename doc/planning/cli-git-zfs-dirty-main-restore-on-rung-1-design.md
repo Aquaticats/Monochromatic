@@ -27,6 +27,10 @@ This revision answers the third gate pass (`~/temp/agent/gate-review-zfs-dirty-m
 tip `610e5da52e`),
 whose findings and their fixes "Answers to the third gate pass" records.
 
+This revision answers the fifth gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-of-the-high-finding.md`,
+tip `04ce55a880`) and applies the project's three further answers of 2026-11-22 (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"Three further answers") and the seven answers on clone worktree records (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`).
+
 This revision answers the fourth gate pass (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-further-answer.md`,
 tip `4dadc5fd27`),
 whose findings and their fixes "Answers to the fourth gate pass" records.
@@ -379,6 +383,54 @@ and a command started directly by the service manager is refused (`:219` to `:22
 So a pending add's clone that a person's shell holds is removed after that shell leaves,
 or by a forced removal that can refuse.
 
+### The three further answers of 2026-11-22
+
+The project answered the fifth pass's three questions,
+recorded in the same record's section "Three further answers" (accepted 2026-11-22,
+recorded 2026-11-22T21:37:01-05:00,
+`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"Three further answers").
+Each answer,
+its words,
+and where this design builds it:
+
+- Who records what when the add undoes what it made:
+"B:
+record the snapshot as owed (Recommended)",
+under which "Before destroying anything,
+the add records the snapshot as owed cleanup (the same record a removal uses).
+You get a finished worktree made by Git's own checkout,
+one line saying the snapshot stays for now,
+and the next `git worktree` command destroys it once the hold is gone (your earlier answer)."
+It is built in "What happens when the proof fails or the restore cannot finish":
+the origin cleanup record is published before the first destroy,
+and a refused snapshot destroy leaves it `owed` and the worktree finished.
+The option not chosen was the add owning the path alone,
+with no owed-cleanup record and the worktree pending until the same add is run again.
+- The pending text warns against running Git in the folder:
+"B:
+add the warning (Recommended)":
+"The pending message and `doctor`'s line gain one clause:
+do not run Git in this folder until it is removed."
+It is built in "When the add cannot unmount its own clone",
+in both texts.
+The option not chosen was leaving the text as it is.
+- A very dirty main checkout is warned about and still takes this route:
+"A:
+warn,
+still use the fast route (Recommended)":
+"Above the measured count the add clones and restores as usual and prints a warning that Git's own checkout may have been quicker for this many changed files.
+It never declines for dirtiness."
+It is built in "The cost,
+against a clean add and against rung 3",
+for [M4][m4],
+and in the sentence the add prints above that count,
+which "The restore" carries.
+The options not chosen were declining above the count and no warning at all.
+
+The three questions this design put to the project are therefore answered,
+and none is left.
+
 ## Answers to the third gate pass
 
 The reviewer of the third pass read this document at `610e5da52e` (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-owners-answers.md`) and ranked it "fit to put to the owner after the listed fixes".
@@ -469,8 +521,9 @@ the text and `doctor`'s line print `git worktree remove <slot>`,
 and the removal designs' route is cited for a pending folder.
 - X3,
 the add's destroy path had four partial owners.
-Fixed by putting it to the project as Q-O,
-with the design written under its first-ranked option (b):
+Fixed by putting it to the project and applying its answer,
+option B:
+
 the settle publishes the origin cleanup record and the binding's label before its first destroy,
 leaves that record `owed` when the snapshot's destroy is refused,
 and the text for that state is its own.
@@ -493,7 +546,7 @@ Fixed:
 the text says what is true,
 that `doctor`,
 the add's resume and the removal read these records and nothing else does,
-and Q-S asks whether the text should warn against running Git there.
+and the project's answer that the text warns against it is applied there.
 - X7,
 the resume row exchanged without repeating step 8's check.
 Fixed:
@@ -508,6 +561,45 @@ the typed content-judge answer,
 the corrected cites and commands,
 the same-tick residual in "Where the result differs" and L8,
 and the four silently decided choices listed as V9 to V12.
+
+## Answers to the fifth gate pass
+
+The reviewer of the fifth pass read this document at `04ce55a880` (`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-of-the-high-finding.md`) and found nothing high.
+Each finding and where its fix lives:
+
+- N1,
+the failure text after the clone is gone sent the person to a removal.
+Fixed:
+each state prints the command that is true for it,
+the removal while the clone stands,
+the add's own re-run when the clone is gone,
+and the settling command when its absence cannot be proved.
+- N2,
+the settle's order against the binding's A20 to A27.
+Fixed:
+the settle runs in the binding's order,
+label for label,
+with `phase=settling` before the unmount request,
+the sentence printed before the records go,
+and a failure after the clone gone leaving `settling` for the add's re-run;
+the binding bullet is read at `07858070bb` and the lock bullet at `7d0dcdc875`.
+- N3,
+the seven answers of 21:16:30.
+Fixed:
+they are cited and applied,
+the look's line on a change only,
+the worktree commands as the only destroyers of a leftover snapshot,
+`doctor` read-only,
+the settling command for a clone whose absence cannot be proved,
+and V13 lists refuse against clear for an unreadable foreign capture record.
+- N4 and the lows are fixed where they apply:
+V14 and V15 list the two extensions of the busy answer,
+the claim is named as the proof that a record is not a live add's,
+the "nothing made" row clears an earlier attempt's records,
+T5 gains the settle's kill points and step 11 its tests,
+T15's third arm joins the guest list,
+the two stale phrases and citations are corrected,
+and the resume window's two residuals are named where the result differs.
 
 ## The open item and the words it carries
 
@@ -656,9 +748,23 @@ and what the record says each amends:
 its section "Whether a failed add may finish with Git's own checkout by itself" (`:21` to `:53`),
 "Which writes the frozen proof refuses" (`:55` to `:69`) and "What the slot holds while the add fills it" (`:71` to `:94`),
 and its "What was not chosen" (`:96` to `:107`).
-Its fourth question,
-whether rung 1 may decline a very dirty checkout,
-is left open (`:109` to `:113`).
+Its fifth pass's three questions are the section "Three further answers" at `main`'s copy of the same record,
+recorded 2026-11-22T21:37:01-05:00,
+and they are answered:
+the snapshot is recorded as owed,
+the pending text warns,
+and a very dirty checkout is warned about and never declined.
+- The seven answers on leftovers,
+traces,
+unreadable records and lost clones:
+`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+whose "Which commands may destroy a leftover origin snapshot" (`:22` to `:40`) leaves the destruction to `git worktree add`,
+`remove`,
+`list`,
+`prune` and `repair`,
+keeps `doctor` read-only and printing the `zfs destroy` command,
+whose "How often a pending origin cleanup speaks" (`:53` to `:60`) prints one line on a change only,
+and whose "A slot whose recorded clone is gone and cannot be proved gone" (`:77` to `:88`) offers a settling command a person confirms.
 - No configuration:
 `doc/decision/cli-git-zfs-step-8-sweep-choices.md:19` to `:45`,
 the project "first answered that everything must work by default with no configuration",
@@ -1304,6 +1410,12 @@ the next add at the slot meets such records and clears them,
 which is what makes the remedy the pending text gives,
 "remove it and run the same add again",
 work (X1).
+The proof is the claim itself:
+the slot's claim is single-owner and taken before any record is touched,
+and a live owner of the newest claim generation is the only claim fact a reader refuses on (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+`:2953` to `:2955`),
+so an add that holds the claim has no live rival at the slot,
+and a record with another nonce was left by an add that is not running (Z9).
 - Publication:
 an exclusive staging name `<slot>.capture.pending`,
 the whole file written,
@@ -1585,10 +1697,18 @@ because nothing else removes the private name.
 9. Mark the binding usable,
 queue the dependency repair,
 hand the trash to the disposal,
-remove the capture record,
+remove the phase marker and then the capture record,
 and print Git's line,
 the line about the left-out changes,
+the warning below when the source had more changed paths than the measured count,
 and nothing else.
+A kill after the binding is marked usable and before the records go leaves a finished worktree with its own same-nonce records standing until the next add clears them,
+which is harmless and stated (Z11).
+
+The warning above the measured count,
+which never declines:
+`monochromatic-git-policy-cli: the main checkout had <count> changed paths when this add read it, and Git's own checkout may have been quicker for this many; the clone route was taken all the same.` The count is [M4][m4]'s,
+and the sentence names no internal step.
 
 Why this order:
 nothing under a real name is published before the finished tree is proven (H2),
@@ -1600,7 +1720,7 @@ and a mutating command acts through the copy (L8):
 `git restore .`,
 `git checkout .`,
 `git stash` and `git reset --hard` write the copy's HEAD bytes into the tree being restored and the writes stay,
-which the content check at the head of step 8 refuses;
+which the check at the head of step 8 narrows;
 `git worktree remove` acts on the 187 worktree folders the copy names,
 and `git push` reaches the remote,
 neither of which the design closes.
@@ -1748,53 +1868,72 @@ and a later add can tell the marker is not its own and clear it (R13,
 X1).
 
 What the add does,
-in order:
+in order,
+which is the binding record design's A20 to A27 at `07858070bb`,
+label for label,
+because that design owns the order of the add's own writes and this one owns the reason's words,
+the settle marker and the destroy mechanics:
 
-- it stops writing and reads the state it must settle:
-the clone and the origin snapshot its record names,
+- it stops writing,
+reads the state it must settle (the clone and the origin snapshot its record names,
 the mount,
-and its own outstanding intents;
-- it closes every handle it holds under the clone before it asks for the unmount:
+its own outstanding intents),
+and publishes the settle marker,
+`<slot>.settle`,
+holding `nonce=<thirty-two hexadecimal digits>`,
+the kind of refusal,
+the instant,
+and the reason's own words within a bound,
+so a resumed settle can still print the path and the field (Z8);
+- it closes every handle it holds under the clone,
 the proof's held root,
-the directory chains it opened,
-the private index it held open,
-and it waits for every Git child it started,
+its directory chains and the private index,
+and waits for every Git child it started,
 because the add is itself a holder of that mount until then (R5);
-- it asks the handler for that clone's unmount and waits for the receipt within the step's bound,
-which is the intent the account writes on the clone and the receipt the handler publishes (proposal `:554` to `:579`);
-- it re-proves from the binding what it is about to destroy:
-the clone's dataset GUID and `createtxg`,
-and the origin snapshot's GUID and `createtxg`,
-because the capture record holds no dataset identities (Y7);
-- it publishes the origin cleanup record with the binding's identities before its first destroy,
-which is Q-O's option (b) and which the origin cleanup design states as its own rule for an add (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
+- A20:
+it appends to the binding `phase=settling` and `settleReason=<the kind>`,
+which the binding design owns,
+before the first destroy and before the unmount request,
+so a busy pending add leaves a binding that says `settling` and no kill leaves a binding naming a clone that no longer answers;
+- it publishes the origin cleanup record with the binding's identities,
+which the origin cleanup design states as its own rule for an add (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
 "The add that fails and destroys what it made",
 `:1233` to `:1257`),
-and it appends the binding's label for a Git-only finish before the same moment,
-which the lock design's order already assumes (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-`:1669` to `:1678`);
-what changes under Q-O's option (a) is stated with that question and in "Dependencies on the sibling designs";
-- it destroys that clone with one delegated `zfs destroy` without `-R`,
+before the first destroy;
+- A21:
+it asks the handler for that clone's unmount and verifies the receipt,
+which is the intent the account writes on the clone and the receipt the handler publishes (proposal `:554` to `:579`);
+a `done` receipt continues,
+and every other outcome is "When the add cannot unmount its own clone";
+- it re-proves from the binding what it is about to destroy,
+the clone's dataset GUID and `createtxg` and the origin snapshot's GUID and `createtxg`,
+because the capture record holds no dataset identities (Y7);
+- A22:
+it destroys that clone with one delegated `zfs destroy` without `-R`,
 which refuses a name that holds anything the record does not;
-a refusal here is a failed settle;
-- it destroys the origin snapshot,
+a refusal here is a failed settle,
+and the clone may still stand,
+which the person's text says;
+- A23:
+it destroys the origin snapshot,
 and treats `ENOENT` as done:
 a mark another same-account process set on that snapshot reaps it in the same transaction as the clone's destroy,
-so the snapshot is not there any more,
 and the deferred-destroy design requires that the add's fallback treat that one `ENOENT` as done (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 "An add's own destroy does not pass through these checks",
-`:1499` to `:1511`).
+`:1466` to `:1511`).
 A marked snapshot another clone or a hold pins answers `EEXIST` or `EBUSY`,
 and that is not a failed settle:
 the snapshot stands,
 the origin cleanup record stays `owed`,
-and the look that design describes finishes it later,
-which is what the person's text says.
+and only the worktree commands destroy it once the hold is gone,
+which is the seven answers' rule (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+":22" to `:40`).
 It writes no destruction plan,
 no removal intent and no stage,
 and it calls none of that design's checks,
 which say they do not run for an add.
-- it releases the managed Git lock and keeps the registration:
+- A24:
+it releases the managed Git lock and keeps the registration:
 one `unlinkat` of the `locked` name through the held registration descriptor and one sync of the registration directory,
 which is the removal's release step alone and none of its emptying or removal (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 "A failed add,
@@ -1803,28 +1942,31 @@ and the fallback when the clone route fails",
 because the next step needs the registration;
 the mechanics are this design's,
 since that design states the who and the when and no unlink;
-- it runs Git's own checkout at the same slot,
+an absent `locked` is done,
+and so is a checkout that already ran (Z10);
+- A25:
+it runs Git's own checkout at the same slot,
 which is `git reset --hard --no-recurse-submodules` under the verified binding (F33),
 against the registration it kept and the underlay pointer the mount had covered (F7);
+- it prints one sentence naming the route that made the worktree and why the first was abandoned,
+with the reason's own words from the marker,
+before the records go;
+the binding's A27 prints the same sentence for a settle that reaches it with the marker already gone,
+and a resumed settle that has neither prints the kind alone;
 - it removes its own three records in order,
 the phase marker,
 then the capture record,
 then the settle marker last of the three,
-so that each removal finishes something a row can read (X1);
-- it prints one sentence naming the route that made the worktree and why the first was abandoned,
-with the proof's reason in it;
-- it closes the binding and releases the claim,
-which the binding record design must allow for an add that finishes with Git's own checkout (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-V16's A keeps them only for a resume),
-and the binding's reader must let an add that still holds its claim through a binding whose clone is gone,
-because that is exactly what these steps leave (X3).
-
-A refusal the preflight makes leaves no managed object,
-and the rung ends as the btrfs rung's does.
-
-The trash needs no disposal here:
-it is inside the clone,
-so the clone's destroy takes it and its manifest with it.
+so that each removal finishes something a row can read (X1,
+Z11);
+- A26:
+it closes the binding,
+`<slot>.origin-inventory` and `<slot>.clone-inventory` first and `<slot>.binding` last,
+the same order the removal uses;
+- A27:
+it releases the claim last,
+which the binding record design allows for an add that finishes with Git's own checkout,
+and whose reader lets an add that still holds its claim through a binding at `settling` (X3).
 
 What the add calls,
 and what each design must expose for it:
@@ -1863,7 +2005,7 @@ and the binding design's close and label are still open;
 When the settle fails anywhere else,
 the add keeps what it made,
 writes its record's pending state,
-prints the failure sentence with the removal command from the wrapper's existing unfinished-worktree report,
+prints the failure sentence and the command that is true for the state it left,
 and changes nothing else;
 a person leaves the folder,
 runs the removal,
@@ -1873,8 +2015,8 @@ A clone or snapshot whose identity cannot be re-proven is not destroyed by the a
 because destroying an object whose identity was not proven is what the removal proof forbids.
 `doctor`'s unaccounted origin line does not report such a snapshot:
 that line keeps only a snapshot with no clone,
-no record and no live binding (`0973f2fc2a`,
-`:2129`),
+no record and no live binding (`8cc31f59a4`,
+`:2312`),
 and a pending add keeps its binding.
 The binding record design's own lines report a registration without a dataset,
 and that is where a person reads it (R14).
@@ -2044,19 +2186,32 @@ and before the exchange the folder's `.git` is the copy,
 so a wrapper command run there resolves the copy's common directory and cannot even find the main repository's markers.
 A plain `git` command is not stopped,
 which is the reach L8 states,
-and Q-S asks whether the text should warn of it (X6).
+and the text and `doctor`'s line warn against it,
+as the project's answer on the pending text chose (X6).
 
 The text the person reads when the settle fails before the clone's destroy or at it,
 after the failure sentence:
 `monochromatic-git-policy-cli: the worktree at <slot> is pending, and nothing will change it by itself: the clone route was abandoned (<reason>) and its clone is <the re-read's words: still mounted there, or not mounted any more and being mounted again> because <the receipt's own words, or that no answer came>; leave the folder and run git worktree remove <slot>, then run the same add again.`
 
 The text the person reads when the clone is gone and the snapshot still stands,
-which is Q-O's option (b)'s `owed` record and not a pending worktree:
-`monochromatic-git-policy-cli: the worktree at <slot> was made by Git's own checkout, and the add could not destroy its snapshot (<the refusal's words>), which stays for the look to destroy later; nothing in this route changes it by itself.` `doctor` reports the same state:
-`monochromatic-git-policy-cli: the worktree at <slot> is pending: its add abandoned the clone route and <the last request's answer in the receipt's words>; nothing in this route changes it by itself;` followed by `git worktree remove <slot>`,
-which removes it.
-`doctor` reports the `owed` record through the origin cleanup design's own line,
-which is that design's to write.
+which is the record's option B and not a pending worktree:
+`monochromatic-git-policy-cli: the worktree at <slot> was made by Git's own checkout, and the add could not destroy its snapshot (<the refusal's words>), which stays for now; the next git worktree command destroys it once the block is gone.` The origin cleanup design's look prints that line on a change only,
+and `doctor` stays read-only and prints the `zfs destroy` command,
+which is the seven answers' rule for both (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+`:22` to `:40` and `:53` to `:60`).
+
+The text the person reads when the clone is gone and something else in the settle failed,
+which is a refused lock release or a failed checkout:
+`monochromatic-git-policy-cli: the worktree at <slot> was made by Git's own checkout, and the clone is gone, so a removal cannot help; run the same add again, which finishes it.` When the clone's absence cannot be proved (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+"A slot whose recorded clone is gone and cannot be proved gone",
+`:77` to `:88`),
+the line names the settling command the binding design offers,
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot>`,
+which removes the record once the person confirms.
+
+`doctor` reports the pending state:
+`monochromatic-git-policy-cli: the worktree at <slot> is pending: its add abandoned the clone route and <the last request's answer in the receipt's words>; nothing in this route changes it by itself; do not run Git in this folder until it is removed;` followed by `git worktree remove <slot>` when the clone stands,
+and by the settling command when its absence cannot be proved.
 
 `git worktree remove <slot>` is the person's own removal,
 the command the removal designs route:
@@ -2241,7 +2396,10 @@ and reports both ratios and their spread.
 300 and 6,000 changed tracked paths,
 alternating arms with an identical-binary control,
 and reports the ratio to Git's own checkout at each shape.
-Whether rung 1 should decline a very dirty source as rung 2 does is Q-B and not a bar this design sets.
+The count M4 reports is what the warning's sentence is set above,
+by the measured ratio rather than by a guess,
+and it never decides a decline:
+the project's answer is that above the count the add still takes this route and warns.
 - The fallback after a refused proof.
 [M5][m5] measures the settled add the project's answer names:
 an add whose proof is forced to refuse at T1's seam,
@@ -2382,7 +2540,7 @@ the phase marker,
 each restore step,
 the waiting index,
 the index's publication,
-the pointer's private name,
+the trash entry,
 the exchange,
 and the trash's leftover.
 - T6.
@@ -2462,7 +2620,7 @@ the printed sentence naming the route,
 and Git's own checkout at the same slot.
 Its control is the same fixture whose proof passes;
 its second control forces the snapshot's destroy to answer `EEXIST` under a hold,
-and asserts what Q-O's option (b) makes of it:
+and asserts what the record's option B makes of it:
 the clone gone,
 the worktree finished by Git's own checkout,
 the snapshot standing,
@@ -2605,7 +2763,7 @@ T1 to T7,
 T6b and the guest tests T8 to T11.
 - The settle's own steps are this build's,
 the two destructions and the Git checkout included,
-and the ownership of the path and its records is Q-O's question:
+and the ownership of the path and its records is the project's answered question:
 under (b),
 which the design is written to,
 the add publishes the origin cleanup record before its first destroy and the origin cleanup design's look finishes a refused snapshot destroy,
@@ -2690,7 +2848,8 @@ each added with rung 1 and with rung 3,
 alternating arms with the identical-binary control,
 ten rounds a shape;
 report the ratio for each shape with its range.
-A shape where rung 1 is slower than rung 3 is material for Q-B.
+A shape where rung 1 is slower than rung 3 sets the warning's count,
+which the add prints above and never declines for.
 - M5.
 The fallback's cost.
 In the guest:
@@ -2740,13 +2899,13 @@ on a file-backed pool:
 snapshot,
 clone,
 mount,
-write the pointer's private name inside the clone's trash place,
+write the pointer's bytes inside the clone's trash place,
 exchange it with `<clone>/.git` (F36,
 F37),
 and report that `<clone>/.git` is the saved pointer,
 that the copied administration stands at the trash name,
 and that the disposal empties it.
-Kill before the private name,
+Kill before the trash entry is written,
 after it,
 at the exchange and after it,
 and report what each kill leaves in the slot,
@@ -3045,18 +3204,21 @@ and it alone owns their lifetime (X1).
   - Option (a),
 this one:
 three small records of the add's own,
-cleared by the add and by the next add's nonce rule.
+cleared by the add and by the next add's nonce rule;
+the settle marker is kept for the reason's words and the instant,
+which the binding's `settleReason=` does not carry,
+so a resumed settle can still print the path and the field (Z8).
   - Option (b),
-no marker,
-with the settle's phase carried in the binding's label only,
-which the binding design does not have yet,
-and which needs a rewrite of the binding's record for each phase.
+no settle marker,
+with the settle's phase carried in the binding's `phase=settling` and `settleReason=` alone,
+which the binding design now has (A20),
+at the cost of a resumed settle printing the kind and not the reason's words.
   - Pros and cons:
-(a) needs no sibling's change and gives every reader a name to look for;
-(b) keeps one family of records and makes the settle depend on the binding's rewrite and its design's next round.
+(a) gives the resume the reason's words and the instant and costs one small file per settle;
+(b) needs no record outside the binding and prints a shorter sentence after a kill.
   - Ranking:
 a > b,
-because (a) is a small exclusive-create-and-link file per phase and (b) puts a 2.5 MB record's rewrite on the settle's path.
+because the path and the field are what the person acts on and the binding's field carries only the kind.
 
 - V11.
 The check after the restore is a stat rule,
@@ -3090,8 +3252,8 @@ and the state can last until the person acts.
 this one,
 which follows the project's answer on the slot and on the busy path:
 the copy stays,
-the text warns of the removal,
-and Q-S asks whether it should also warn against running Git there.
+the text warns of the removal and against running Git there,
+as the project's answer on the pending text chose.
   - Option (b),
 make the copy inert before the fill,
 as the project did not choose,
@@ -3102,134 +3264,91 @@ which removes the reach at the fill's cost.
   - Ranking:
 a > b,
 because the project chose the copy's place twice,
-and Q-S is the cheaper warning.
+and the warning is cheaper than making the copy inert.
+
+- V13.
+A foreign capture record or marker that cannot be read.
+The design's reader refuses an unknown version or a line it cannot parse,
+and its clearing rule speaks of "their recorded nonce",
+which an unreadable record has none of,
+so this case is the design's to choose.
+The owner's rule for an unreadable record (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+"A record that cannot be read",
+`:62` to `:76`) was answered for the binding,
+origin and plan records,
+which are the only evidence of a destroyed or pinned snapshot,
+and a capture record is not such evidence.
+  - Option (a),
+refuse and name the file,
+by analogy with that rule,
+which keeps a record a newer release may need,
+and leaves the pending text's remedy blocked until a person removes the file.
+  - Option (b),
+this one:
+clear it like a readable foreign record,
+which keeps the remedy working and loses only what the add rebuilds,
+since the record is the add's own scratch.
+  - Pros and cons:
+(a) never touches a newer release's record and can dead-end the prescribed remedy;
+(b) keeps every add working at the cost of deleting a record only this design could read.
+  - Ranking:
+b > a,
+because these records are rebuildable scratch and the cost of (a) is a dead end on the path the owner prescribed;
+(a) is better only if the project wants a newer release's records never touched by an older one.
+
+- V14.
+How far the withdrawal reaches.
+The design withdraws on every outcome a request can meet other than `done`,
+while the owner's answer covers "an unmount refused as busy".
+  - Option (a),
+this one:
+a busy refusal,
+a receipt that never arrives within the bound,
+one for another operation,
+an unknown outcome and a handler that is not running all withdraw,
+because each leaves an unmount nobody wants any more that would otherwise happen later.
+  - Option (b),
+a busy refusal only,
+which is the owner's words,
+and a receipt that never arrives leaves `unmount` standing with the text saying so.
+  - Pros and cons:
+(a) leaves no standing request the person was not told about;
+(b) matches the answer exactly and leaves the standing request in four cases the answer does not name.
+  - Ranking:
+a > b,
+because (b) leaves exactly the unmount nobody wants any more that the owner's reasoning rejects,
+and the reach costs one rule rather than four.
+
+- V15.
+Writing the property back when the clone may already be unmounted.
+The design reads the mount first and treats a clone that no longer stands as `done`,
+so it never asks for a remount,
+and "nothing having been unmounted" holds in the common case and not always.
+  - Option (a),
+read first and treat an already-unmounted clone as `done`,
+this one:
+the settle continues from the destruction and nothing is written back.
+  - Option (b),
+write the property back to `mount` and then read the mount,
+which covers the race where the handler unmounts between the read and the write-back,
+at the price of remounting a clone the add itself asked to unmount.
+  - Pros and cons:
+(a) never remounts,
+and leaves a narrower race that the text's last read describes;
+(b) covers the race and breaks "nothing having been unmounted" whenever it lands.
+  - Ranking:
+a > b,
+because a remount after a failure is what "No implicit remount after a failure or restart" refuses,
+and (b)'s coverage is a millisecond window the last read already describes.
 
 ## Questions only the project can answer
 
-Three questions are left:
-Q-O and Q-S from the fourth gate pass,
-and Q-B as before.
-Three of the second pass's four are answered,
-and so is the third pass's Q-R5,
-whose answers are recorded in "The project's answers of 2026-11-22" and applied in the sections it names.
-
-- Q-O.
-Who owns the add's own destroy path and the records around it?
-Four designs each state part of it today:
-the origin cleanup design gives the add a record written before the clone's destroy and left `owed` when the snapshot destroy is refused (`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`,
-"The add that fails and destroys what it made",
-`:1233` to `:1257`);
-the lock design keeps the claim and the binding after a fallback (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-`:1641` to `:1647`);
-the binding's reader refuses a binding whose clone is gone (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-`:2505` to `:2518`);
-and the destruction-plan design says an add's absence proof is its own head-gone proof (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-`:1997` to `:2002`).
-For a failure after the clone is gone and before its snapshot's,
-the only finisher any design offers is the add's own re-run.
-  - Case:
-an add whose proof refuses at the mount,
-with no holder in the way of the unmount,
-destroys its clone and then its snapshot,
-releases the lock and runs Git's own checkout;
-suppose the snapshot's destroy answers `EBUSY` because a hold pins it.
-The clone is gone,
-the snapshot stands,
-the lock stands,
-the registration stands,
-and the binding says the clone's phase.
-  - Option (a),
-this design owns the path and writes only the settle marker:
-the origin cleanup design drops its add section,
-the binding design lets an add that holds the settle marker through and allows its close,
-and the lock design drops "the claim,
-still held,
-the binding at its last phase".
-The pinned snapshot above leaves the pending state,
-and the person re-runs the add after the hold is gone or destroys the snapshot by hand.
-  - Option (b),
-the origin cleanup design owns the record,
-which is what this design is written to:
-the add publishes that record with the binding's identities before its first destroy,
-appends the binding's fallback label before the same moment,
-and a refused snapshot destroy leaves the record `owed` for the look,
-so the pinned snapshot above leaves a finished Git-only worktree and a snapshot the look destroys later,
-with a line saying so.
-  - Pros and cons:
-(a) states the path in one design and writes no record outside it,
-and it leaves exactly one finisher,
-the add's own re-run,
-which cannot succeed while the hold stands;
-(b) uses the finishers the designs already have,
-leaves a carrier for a kill between the clone's destroy and the snapshot's,
-and has no pending state after the clone is gone,
-at the cost of two records written before the first destroy and an `owed` record a person may not expect.
-  - Ranking:
-b > a,
-because (b) is the only option under which a removal or a look can finish a state the add left after the clone is gone,
-while under (a) the add's own re-run is the only finisher and cannot succeed while the hold stands.
-The design is written under (b);
-under (a) the settle's publication steps 4 and 5 go,
-the refused snapshot destroy returns to the pending state,
-and the four sibling statements above change.
-- Q-B.
-May rung 1 decline a very dirty main checkout in favour of Git's own checkout,
-as rung 2 does?
-The partial-clone decision cuts rung 2 at a changed-file count and states "no add is slower than Git's own checkout" (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
-"What was decided");
-no record says it of rung 1,
-and the decision record of 2026-11-22 leaves this question open (`:141` to `:145`).
-  - Case:
-a main checkout with 6,000 changed tracked files,
-where [M4][m4] would show rung 1 slower than rung 3.
-  - Option (a),
-decline above a count [M4][m4] measures,
-with rung 2's bar.
-  - Option (b),
-always take rung 1 for a dirty main.
-  - Pros and cons:
-(a) is never slower than Git's own checkout,
-and gives up the clone's gain above the cut;
-(b) keeps one route and the clone's disk saving,
-and can be slower than Git's checkout on a very dirty source.
-  - Ranking:
-a > b,
-because the owner's own rung 2 answer chose "no add slower than Git's own checkout" for a dirty source,
-and rung 1's stated advantage is speed.
-The cut itself is a measurement,
-not a question.
-
-- Q-S.
-Should the pending text and `doctor`'s line tell the person not to run Git in the pending folder?
-  - Case:
-a person's shell sits in `.claude/worktrees/one` when the add's proof refuses.
-The folder stays mounted,
-holding a live copy of the main repository's `.git` at the proof's state,
-until the shell leaves and the removal runs;
-in that shell `git status` answers from the copy,
-`git add -A` and `git commit --all` land in the copy and are lost,
-and `git push` sends what the copy's branch holds.
-L8's reach was a few seconds long during the fill and is now indefinite while the add is pending.
-  - Option (a),
-leave the text as it is:
-it follows the owner's words exactly and is one sentence,
-and a person who reads "pending" may keep working in the folder.
-  - Option (b),
-add one clause,
-"do not run Git in this folder until it is removed":
-it tells the person the thing that matters and costs a clause and no mechanism,
-and it cannot stop a plain `git`,
-only warn.
-  - Pros and cons:
-(a) is the owner's own wording and warns of nothing beyond the removal;
-(b) warns of the one thing that can lose work while the folder stands,
-and needs the same sentence in `doctor`'s line.
-  - Ranking:
-b > a,
-because the text already tells the person to leave the folder and the clause costs nothing,
-while the only alternative that removes the exposure,
-making the copy inert,
-was put to the project and not chosen.
+None is left.
+The second pass's four,
+the third pass's Q-R5,
+and the fourth pass's Q-O,
+Q-S and Q-B are all answered,
+and each answer is recorded in "The project's answers of 2026-11-22" and applied in the sections it names.
 
 ## Dependencies on the sibling designs
 
@@ -3239,17 +3358,45 @@ at the commit this revision read.
 The sibling branches move as their own rounds run,
 so the commit is named with each.
 
-- The add's settle needs two primitives from designs that own them,
-and asks nothing else:
+- The add's settle needs two primitives from designs that own them:
 the handler's unmount request and receipt,
 for the one clone the record identifies by dataset GUID and `createtxg`,
 which is the account-written desired-state intent and the root-written receipt the accepted design states (`doc/planning/cli-git-zfs-worktree-design-proposal.md:554` to `:579`);
 and an unlock that keeps the registration,
-which the lock design must expose (below).
+which the lock design already names for this fallback (below).
 The `zfs destroy` of the clone and of the snapshot needs no design's call:
 the route's grants already carry it ("Scoped delegation").
+- The durable binding record (`07858070bb`,
+read last again,
+because its round was writing the end of a fallback add while this one ran):
+its A20 to A27 are the add's own fallback,
+and this design's settle now runs in their order,
+label for label:
+`phase=settling` and `settleReason=` before the first destroy and before the unmount request (A20),
+the unmount request and its receipt (A21),
+the clone's destroy (A22),
+the snapshot's destroy with the origin cleanup record standing from before A22 and `ENOENT` counted as done (A23),
+the lock released and the registration kept (A24),
+Git's own checkout (A25),
+the binding closed with the inventories first and the binding last (A26),
+and the claim released last with the sentence (A27).
+Its reader lets an add continue a `settling` binding (`:2939` to `:2942`).
+What this design still asks of it:
+  - one sentence saying a removal accepts a `settling` binding whose clone still stands,
+which the fifth pass read from its "ahead of the live facts" arm and which no sibling states;
+  - the line that reports a pending worktree,
+which "When the add cannot unmount its own clone" gives in words,
+beside its "registration without a dataset" (`:3824`).
+Its content-proof sentence,
+"A resumed add whose proof is gone refuses" (`:4956` to `:4960`),
+differs from this route's decided fallback,
+which settles and finishes;
+the refused case stands only for a clone whose identity cannot be proven.
+Its record convention gives the parent folder `<common>/monochromatic-git-policy-cli/` and one family folder per record (`:932`,
+`:1157` to `:1162`),
+which this design follows with `add-capture/v1/`.
 - The deferred-destroy checks (`946578a8e5`):
-its "An add's own destroy does not pass through these checks" (`:1466` to `:1494`) says both checks read a destruction plan,
+its "An add's own destroy does not pass through these checks" (`:1466` to `:1511`) says both checks read a destruction plan,
 a removal intent and a stage,
 "none of which an add writes",
 and leaves "the add's own path,
@@ -3257,19 +3404,21 @@ order and reporting" to this design.
 This design therefore calls none of its checks and writes no plan,
 and takes its one requirement on an add:
 a mark set on the snapshot the add made reaps it in the same transaction as the clone's destroy,
-so "The add's fallback has to treat that one `ENOENT` as done" (`:1349` to `:1358`),
-which the settle's fourth and fifth steps do.
-- The destruction plan (`1921adf393`):
+so "The add's fallback has to treat that one `ENOENT` as done",
+and a marked snapshot another clone or a hold pins answers `EEXIST` or `EBUSY`,
+which the settle treats as the `owed` record and not as a clean fallback.
+- The destruction plan (`3cd520b6a0`,
+its tip after the review was written):
 it lists this design as "no dependency.
 None reads or writes this record" (`:3624` to `:3628`),
-which the settle now matches:
+which the settle matches:
 the add writes no plan.
 Its `:1997` to `:2002` says an add's absence proof "is the same head-gone proof of section 4",
 while the settle re-proves from the binding,
 so one of the two sentences must change (X3).
-- The add-time lock (`c263e76f48`):
+- The add-time lock (`7d0dcdc875`):
 its "A failed add,
-and the fallback when the clone route fails" now meets this design's requirement:
+and the fallback when the clone route fails" meets this design's requirement:
 the add's fallback releases the lock itself,
 in the same invocation,
 under the slot's claim,
@@ -3278,11 +3427,11 @@ and leaves the registration standing (`:1657` to `:1676`).
 What still differs,
 for its next round:
   - its release proof rests on "the record the binding appends for the fallback",
-a label after A11 that the binding design has not written,
-so until then its release "follows the end of A11" while this design's settle marker is published before the first destroy;
+which is the binding's A20 now,
+so it has only to re-point the sentence and no longer waits on a label the binding has not written;
   - its kill row for a kill before that record says the finisher is the removal and "the next add does not finish this state by itself" (`:1689` to `:1698`),
-while this design's settle marker lets a resume finish it,
-so the row must name the marker;
+while the settle marker and the binding's `settling` phase let a resume finish it,
+so the row must name them;
   - it does not say that the add's own Git child is not a forwarded wrapped command,
 so the put-back record's re-installation does not run between the release and the checkout,
 which this design relies on (`doc/decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md`);
@@ -3292,67 +3441,40 @@ still held,
 the binding at its last phase,
 the registration,
 and the slot",
-which is the opposite of this design's close and release;
+which contradicts the binding's A26 and A27 and this design's close and release;
   - the put-back record's "any wrapped command that already holds that worktree's slot" (`:28` to `:32`) includes an add,
 so excluding the add's own Git child from re-installing the lock is this design's reading and that design must state it.
-Its D6 now describes the exchange and says the slot's path holds a `.git` at every moment (`:1562` to `:1587`),
-so the item this bullet used to carry is gone.
-- The durable binding record (`21cbe938f5`,
-read last,
-after the other siblings and this revision's design work,
-because its round was given the end of a fallback add while this one ran):
-its V16's A keeps the claim,
-the slot and the locked registration for a resume (`:3810` to `:3831`),
-and its only release is the removal's order,
-which empties the registration and the binding's files and releases the claim last (`:2596` to `:2615`).
-At that tip the round's task is not yet in the text:
-it has no label or phase for a Git-only finish,
-no close an add may run,
-no line for a pending worktree,
-and its reader still says "a binding at `filled` whose clone dataset is gone is not the add's to settle" (`:2505` to `:2518`).
-So this design's requirement is still open,
-and its next round must add:
-  - a phase or label for a Git-only finish after A11,
-which is `filled` for a served clone only,
-so a worktree made by Git's own checkout has no phase of its own;
-  - a close an add may run under its own proof,
-removing the binding's files and releasing the claim,
-where the lock design already assumes "the record the binding appends for the fallback";
-  - the line that reports a pending worktree,
-which this design's "When the add cannot unmount its own clone" gives in words,
-beside its "registration without a dataset" (`:3824`).
-Its content-proof sentence,
-"A resumed add whose proof is gone refuses" (`:4176` to `:4180`),
-differs from this route's decided fallback,
-which settles and finishes;
-the refused case stands only for a clone whose identity cannot be proven.
-Its record convention gives the parent folder `<common>/monochromatic-git-policy-cli/` and one family folder per record (`:932`,
-`:1157` to `:1162`),
-which this design follows with `add-capture/v1/`.
-- The cancelled or interrupted removal (`2c70b9203c`):
+Its D6 describes the exchange and says the slot's path holds a `.git` at every moment (`:1562` to `:1587`).
+- The origin cleanup record (`22be706b09`):
+its "The add that fails and destroys what it made" (`:1233` to `:1257`) is the record this settle publishes under the record's option B,
+and the binding's A23 cites it at the same commit.
+Its unaccounted-snapshot line says of a snapshot nothing accounts for that it "destroys nothing and names the command a person may run" (`:2329`),
+and "a snapshot with a live binding is an add and not litter" (`:2312`),
+so a pending add's snapshot is not named by that line and the binding design's lines are where a person reads it.
+Its look prints one line on a change only,
+and only `git worktree add`,
+`remove`,
+`list`,
+`prune` and `repair` destroy a leftover origin snapshot,
+with `doctor` read-only and printing the `zfs destroy` command (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+`:22` to `:40` and `:53` to `:60`).
+- The cancelled or interrupted removal (`eb7a78eccc`):
 its "one answer covers an add's retry" is about a mount's boundary refusal (`:2482`),
 and its attach path answers a request for an already attached clone with `done` (`:2467` to `:2471`),
-which is the receipt this design's write-back expects from the handler (X4),
-and nothing in it states the accepted second exception.
-The project's further answer makes the exception cover "an add that withdraws its own request,
-beside a removal that cancels itself" (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md:134` to `:135`),
-so that design's next round must state the withdrawal as the second member,
-with the property written back to `mount` and nothing unmounted.
-- The forced arm (`10a308a973`):
+which is the receipt this design's write-back expects from the handler (X4).
+Its next round must state the accepted second exception,
+"an add that withdraws its own request,
+beside a removal that cancels itself" (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"A further answer:
+an add whose own unmount is refused as busy").
+- The forced arm (`80780ff9c2`):
 it lists "the dirty-main restore" among what it does not cover (`:2735`),
 so the add has no forced arm and never ends a holder.
-What the person's removal of a pending add meets is the record's answer,
-not the design's own:
+What the person's removal of a pending add meets is the record's answer:
 a seen holder cancels a removal without `--force`,
 and a forced removal unmounts inside the holder's namespace and ends only the blocking tasks (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
 `:47` to `:56` and `:66` to `:76`).
-- The origin cleanup record (`8cc31f59a4`):
-its unaccounted-snapshot line says of a snapshot nothing accounts for that it "destroys nothing and names the command a person may run" (`:2329`),
-and "a snapshot with a live binding is an add and not litter" (`:2312`).
-So a pending add's snapshot is not named by that line,
-and the binding design's lines are where a person reads it.
-Its "The add that fails and destroys what it made" (`:1233` to `:1257`) is the record this settle publishes under Q-O's option (b).
-- The private propagation after a replacement mount (`037bcee2e5`) and the lost-last-event triggers (`6d820735cd`):
+- The private propagation after a replacement mount (`12ff579a2c`) and the lost-last-event triggers (`6d820735cd`):
 this design's step 1 assumes the mount of a fresh clone is verified in the caller's namespace by the add's step 4,
 and adds no trigger of its own,
 which the lost-last-event design's D10 records at `:4370`.
@@ -3466,7 +3588,7 @@ the add has no authority to end another process and seeks none.
 It is not a hardening measure at all:
 it is the project's answer of 2026-11-22,
 and it exists because a standing request would unmount a clone nobody wants unmounted any more.
-- The content check at the head of step 8.
+- The check at the head of step 8.
 It survives:
 it exists because Git's own check cannot see a same-second rewrite (F2,
 F23),
@@ -3492,7 +3614,7 @@ its size unmeasured over a day.
 and the project's answer keeps the copied administration in the slot until step 8 ("The project's answers of 2026-11-22").
 So a command run there acts through the copy and can reach three places (L8):
 the tree being restored,
-which the content check at the head of step 8 refuses;
+which the check at the head of step 8 narrows;
 the 187 other worktree folders the copy names,
 which no step of this design closes;
 and the remote,
@@ -3727,17 +3849,17 @@ a reader refuses a foreign one,
 a fresh add clears another add's records,
 and the settle removes them in order before it closes the binding and releases the claim,
 with T15's three arms and `doctor`'s report of a foreign record;
-the settle publishes the origin cleanup record and the binding's label before its first destroy under Q-O's option (b),
+the settle publishes the origin cleanup record and the binding's label before its first destroy under the record's option B,
 leaves the record `owed` for a refused snapshot destroy,
 and has its own text for the state the clone is gone and the snapshot stands,
-with Q-O put to the project and its three sibling statements reconciled;
+with the record's answers applied and its three sibling statements reconciled;
 the printed removal is `git worktree remove <slot>` with the route cited;
 every request carries a fresh nonce and only its own receipt counts,
 the withdrawal covers every outcome but `done`,
 the mount is re-read after the write-back,
 and the text says what the re-read found;
 the pending folder's reach is stated as it is,
-with Q-S put to the project;
+with the project's warning applied in both;
 the resume repeats D1 on the copy's index before the exchange;
 T14 and T15 are added,
 T5's kill points gain the settle's,
