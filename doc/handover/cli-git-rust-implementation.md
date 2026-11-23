@@ -1223,8 +1223,10 @@ so start every round that can run before asking one.
   which a line wrap had broken so that about forty references rendered as raw brackets,
   are fixed there,
   and it renders with no Markdown left literal.
-  Its worktree was left in place by the wrapper at the merge;
-  remove it once nothing of its `keep/` proofs is wanted from there.
+  The wrapper's line at the merge said the worktree was left in place;
+  a look at 2026-11-23T03:59:28-05:00 found the worktree gone,
+  and the round's proofs are in the design's scratch folder under `keep/`,
+  not in the worktree.
 - Step 10 and the record set.
   The step 10 reviewer's read of both diffs and the record reviewer's read of the three
   (each `review-fifth-diff-read.md` in its folder)
