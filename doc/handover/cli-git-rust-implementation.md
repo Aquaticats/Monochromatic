@@ -555,11 +555,21 @@ and only the owner accepts one.
   now closed.
   The two that are the binding's went to its running round through its inbox
   (`note-the-projects-seven-answers.md` in its folder).
-- Next:
-  the origin and plan designs' rounds,
-  one after the other,
-  on their mediums and these answers,
-  on continuations still to be written;
+- Next,
+  when the binding's round ends:
+  the origin cleanup design's round,
+  on `continuation-third-check-and-the-seven-answers.md` in its folder
+  (written,
+  not started),
+  started with
+  `node run-a-gate-findings-round.ts zfs-origin-cleanup-record-design continuation-third-check-and-the-seven-answers.md third-check-and-the-seven-answers`
+  in the launch folder;
+  then the plan design's round
+  (its Y3,
+  Y4,
+  Y6,
+  the lows and the answers),
+  on a continuation still to be written;
   then the reviewer once more on the set.
 - The reviewer's single set of four questions for the owner,
   carried by the origin cleanup document:
@@ -632,10 +642,12 @@ and only the owner accepts one.
   the unmount request reuses the binding's nonce;
   only a busy refusal is withdrawn;
   nothing tests the busy path.
-- Next:
-  a round on that review,
-  on a continuation still to be written;
-  and two new questions for the owner from it:
+- Running:
+  `pi-zfs-dirty-main-restore-on-rung-1-design-review-after-the-further-answer`,
+  on `continuation-review-after-the-further-answer.md`.
+  Then one review.
+- Two new questions for the owner from that review,
+  which the round is told to put in the document with options and a ranking:
   who owns the state "clone gone, snapshot standing" after a failed add,
   and whether the pending text tells the person not to run Git in the pending folder.
 - Left for the owner:
@@ -936,10 +948,11 @@ and only the owner accepts one.
   a count of shared mounts beneath the checkout reads `0` for a run that never looked;
   a cap of four paths the writer chose;
   a guest recipe that cannot produce a shared mount beneath.
-- Running:
-  `pi-zfs-private-propagation-after-replacement-mount-design-diff-check-after-the-answers`,
-  on `continuation-diff-check-after-the-answers.md`.
-  Then a read of its diff.
+- The round on that check ended at `12ff579a2c`
+  (report `keep/report-diff-check-after-the-answers.md` in its folder).
+  Going:
+  the reviewer's short check of the high finding's fix,
+  to `review-check-of-the-high-finding.md` beside its other reviews.
 
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
 
@@ -1184,12 +1197,11 @@ and only the owner accepts one.
   so the sound bound is 1 ms.
   The round on those findings ended after 103 turns at `963d51627e`
   (report `keep/report-pi-commit-timing-control-integration-pass-findings.md` in the round's folder).
-  Its second Sonnet pass is not started yet:
-  start it as a general-purpose agent on Sonnet,
-  briefed with `rules-for-an-integration-pass.md` in the launch folder,
-  the first pass's review,
-  the round's continuation and report,
-  integration branch `integrate/git-policy-cli-commit-timing-control-second-pass`.
+  Its second Sonnet pass is going,
+  to `~/temp/agent/integration-second-pass-commit-timing-control-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-commit-timing-control-second-pass`;
+  its brief asks it to run one heavy thing at a time and no guest,
+  after the freeze.
   Commit `c4cdf11ffa` on the branch says `Closes #6346` and cannot be amended,
   so the merge will close the issue,
   with the second failure's cause shown and the first only inferred
