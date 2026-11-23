@@ -2887,7 +2887,7 @@ and more than a thousand,
 have a rule of their own that converts them,
 the rung declines before any copy and Git's checkout writes the worktree,
 with the line `the add ended after it had read the source (...)` absent and the fence's own count in its place:
-a declined add is Git's own checkout plus one `git check-attr` and the count over it,
+a declined add is the source check and Git's own checkout plus one `git check-attr` and the count over it,
 and,
 on rung 1,
 the size read that rung started before its source check.

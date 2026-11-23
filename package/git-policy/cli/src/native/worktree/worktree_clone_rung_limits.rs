@@ -10,7 +10,8 @@
 //!  file costs more than Git's one write of it,
 //! and a source with many changed paths pays the write step per path,
 //! so the
-//!  rung must decline both shapes or an add would be slower than the checkout it replaced.
+//!  rung must decline both shapes,
+//! or a clone would be slower than Git's own write of the same files.
 //! A clean source is judged by its mean file size rather than its total,
 //! because a clean tree of a few
 //!  large files clones far quicker than Git's write of them
@@ -277,7 +278,8 @@ pub fn mean_tracked_file(entries: &[StatEntry]) -> Option<u64> {
 /// in words,
 /// or nothing when the rung may clone it.
 /// Why:
-///   A declined add is Git's own checkout,
+///   A declined add costs what `main` paid for the same source:
+/// the source check and then Git's own checkout,
 /// so the person is owed the numbers the decision was made on rather than a bare refusal
 /// (`AGENTS.md`,
 /// rule `DGT`).
