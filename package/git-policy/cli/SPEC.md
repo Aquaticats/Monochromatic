@@ -6431,7 +6431,7 @@ The rule this build keeps is entry by entry:
   while a bind mount of the dataset's own root and a second mount of the
   dataset are instances;
 - the checkout dataset's `snapdir` is not part of the look-up,
-  and the sweep prints one line when it is not `disabled`,
+  and neither program reports it today,
   because the project's third answer of 2026-11-22 hides snapshot directories
   on the checkout
   (the same section of the record,
@@ -6442,10 +6442,12 @@ The rule this build keeps is entry by entry:
   mounts it as root,
   `hidden` only leaves the directory out of listings and still allows the name,
   and `disabled` refuses the name and makes no mount;
-  the sweep names the dataset,
-  the value it read and `zfs set snapdir=disabled <dataset>`,
-  and attaches as usual,
-  and the probe reads no property and says nothing about it;
+  plan step 19's setup runs `zfs set snapdir=disabled` on the checkout dataset,
+  a person reads the property in `git monochromatic-git-policy-cli doctor`
+  once plan step 18 adds it,
+  and neither the sweep nor the probe reads it,
+  because the sweep's dataset-stats reply does not carry it and the probe never
+  opens the ZFS device;
 - a dataset mounted directly inside the clone container this run uses is a
   managed clone the route attaches at a slot and never the checkout,
   because the design's delegation lets the account create a dataset of the

@@ -149,7 +149,6 @@ pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<Str
         first_attach: &first_attach,
         standing: &standing,
     };
-    let warning: String = super::sweep_preconditions::snapshot_directory_warning(&reader, configuration.checkout_dataset.as_str());
     let run: SweepRun = sweep(&context);
     let state: SweepState = if run.completed() && run.failed() == 0 { SweepState::Finished } else { SweepState::Failed };
     if state == SweepState::Failed {
@@ -157,7 +156,7 @@ pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<Str
     }
     readiness.publish(&record_of(&facts, state)).map_err(|refusal| return refusal.message())?;
     debug(TAG, "this boot's readiness is published after the sweep");
-    return Ok(format!("{warning}{}\n{}", readiness_line(&facts, state), run.report()));
+    return Ok(format!("{}\n{}", readiness_line(&facts, state), run.report()));
 }
 
 /// What:

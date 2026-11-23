@@ -2346,13 +2346,17 @@ the start probe never opens `.zfs` at all
 the probe dataset"),
 and no file in this package names `.zfs/snapshot`.
 What the route does when the property is not `disabled`:
-the sweep prints one line naming the dataset,
-the value it read,
-and `zfs set snapdir=disabled <dataset>`,
-and attaches as usual;
-the probe prints nothing about it,
-because it reads no property and never opens the ZFS device.
-A person reads the check in `git monochromatic-git-policy-cli doctor`
+nothing yet.
+Neither program reports it:
+the probe reads no property and never opens the ZFS device,
+and the sweep's dataset-stats reply,
+the request this build makes,
+does not carry `snapdir`
+(a guest run of this round read `no value` for a dataset `zfs get snapdir`
+reported `hidden`),
+so a live check needs a property request the binding does not make,
+which is a design decision this step does not take.
+A person reads the property in `git monochromatic-git-policy-cli doctor`
 once plan step 18 adds it.
 The two dataset names the setup writes into the root-owned configuration:
 the checkout dataset and the clone container,

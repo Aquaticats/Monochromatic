@@ -17,7 +17,6 @@
 
 use super::{
     BootFacts, ProbeRefusal, ProbeStanding, boot_identifier, checkout_state, pool_name_of, pool_state, prepare, probe_fingerprint_standing, probe_standing,
-    snapshot_directory_warning,
 };
 use crate::start_probe::probe_fingerprint::{FingerprintPaths, ProbeFingerprint};
 use crate::start_probe::probe_record::{ABSENT, RECORD_KIND, RECORD_VERSION};
@@ -139,60 +138,6 @@ fn stats() -> monochromatic_zfs_request_to_openzfs_kernel_device::DmuObjsetStats
 /// The identity a pool's answer for the pinned parent carries.
 fn identity_of_one_dataset() -> DatasetIdentity {
     return DatasetIdentity { stats: stats(), properties: monochromatic_zfs_request_to_openzfs_kernel_device::NvList::new() };
-}
-
-/// What:
-///  The line the sweep prints about the checkout dataset's `snapdir`.
-/// Why:
-///  The project's third answer of 2026-11-22 hides snapshot directories so that
-///  accounts cannot make the kernel mount snapshots;
-///  `disabled` (2) is the value that refuses the name,
-///  and any other value is a line a person reads rather than a refusal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// expect(snapshotDirectoryWarning(readerWith(2), 'pool/checkout')).toBe('');
-/// ```
-#[test]
-fn a_checkout_that_still_opens_its_snapshot_directory_is_named() {
-    for (value, words) in [(0_u64, "`hidden` (0)"), (1, "`visible` (1)")] {
-        let reader: OneDatasetWithSnapdir = OneDatasetWithSnapdir { snapdir: Some(value) };
-        let warning: String = snapshot_directory_warning(&reader, "pool/home/monochromatic-git-checkout");
-        assert!(warning.contains(words), "the warning names the value: {warning}");
-        assert!(warning.contains("snapdir=disabled"), "the warning names the command that settles it: {warning}");
-        assert!(warning.contains("once plan step 18 adds that"), "the warning says when doctor reports it: {warning}");
-        assert!(warning.contains("Nothing here was refused for it"), "the route still runs: {warning}");
-    }
-    let disabled: OneDatasetWithSnapdir = OneDatasetWithSnapdir { snapdir: Some(2) };
-    assert_eq!(snapshot_directory_warning(&disabled, "pool/home/monochromatic-git-checkout"), "");
-    let absent: OneDatasetWithSnapdir = OneDatasetWithSnapdir { snapdir: None };
-    assert!(snapshot_directory_warning(&absent, "pool/home/monochromatic-git-checkout").contains("no value"), "a module that reports no value is named too");
-    let not_held: OneDataset = OneDataset { held: None, refusal: String::from("not there"), errno: Some(libc::ENOENT) };
-    assert_eq!(snapshot_directory_warning(&not_held, "pool/elsewhere"), "", "a dataset the reader does not hold prints nothing here");
-}
-
-/// A pool that answers one dataset with a chosen `snapdir` value.
-struct OneDatasetWithSnapdir {
-    /// The value the property carries,
-    /// or nothing when the module reports none.
-    snapdir: Option<u64>,
-}
-
-impl DatasetReader for OneDatasetWithSnapdir {
-    fn identity(&self, _dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
-        let mut properties = monochromatic_zfs_request_to_openzfs_kernel_device::NvList::new();
-        if let Some(value) = self.snapdir {
-            let mut pair = monochromatic_zfs_request_to_openzfs_kernel_device::NvList::new();
-            pair.add_u64("value", value);
-            pair.add_str("source", "pool/home");
-            properties.add_nvlist("snapdir", pair);
-        }
-        return Ok(DatasetIdentity { stats: stats(), properties });
-    }
-
-    fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
-        return Ok(None);
-    }
 }
 
 /// A pool that answers one dataset and nothing else.

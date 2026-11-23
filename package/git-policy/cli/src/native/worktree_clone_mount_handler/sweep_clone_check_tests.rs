@@ -56,7 +56,6 @@ fn managed_clone() -> CloneObjectFacts {
         encryption: PropertyValue::Number(0),
         encryption_root: PropertyValue::Text(String::from(ENCRYPTION_ROOT)),
         key_status: PropertyValue::Number(0),
-        snapdir: PropertyValue::Number(0),
         properties: NvList::new(),
     };
 }

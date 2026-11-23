@@ -146,9 +146,8 @@ pub fn run_at(places: &SweepPlaces) -> Result<String, String> {
         first_attach: &first_attach,
         standing: &standing,
     };
-    let warning: String = super::sweep_preconditions::snapshot_directory_warning(&reader, configuration.checkout_dataset.as_str());
     let run: SweepRun = sweep(&context);
-    return Ok(format!("{warning}{}", run.report()));
+    return Ok(run.report());
 }
 
 /// Controls stay out of the release executable.
