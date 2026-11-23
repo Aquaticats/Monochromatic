@@ -386,6 +386,12 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
   const script = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}`,
+    // A layout an earlier run left mounted is taken down first, so the arm runs again on the same guest.
+    `zfs destroy -r -f ${SWEEP_POOL}/step8 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
+    `umount ${SWEEP_CHECKOUT} 2>/dev/null || true`,
     `rm --recursive --force ${SWEEP_CHECKOUT}`,
     `mkdir --parents ${SWEEP_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
