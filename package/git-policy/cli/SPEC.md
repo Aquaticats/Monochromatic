@@ -20290,8 +20290,13 @@ so its time is stated by `buildMs` and never left to `otherMs`.
 so the build's window begins at `routeMs + prepareMs` and is `buildMs` long,
 each figure cut to whole milliseconds and their sum therefore up to two whole milliseconds early,
 and the window is one build's:
-with more than one attempt `routeMs`,
-`prepareMs` and `buildMs` are sums over attempts,
+with more than one attempt `prepareMs` and `buildMs` are sums over attempts,
+`routeMs` is the first attempt's only,
+written once before the first preparation
+(`note_route` at `package/git-policy/cli/src/native/landing/service_commit.rs:181`,
+whose call site runs only while `attempt == 0`,
+and `package/git-policy/cli/src/native/commit/commit_timing.rs:441`,
+which writes the field only while it is zero),
 and no single pair of offsets states where each build began.
 `buildParts` states the Git steps that began inside the build,
 each under the stretch that ran it in `childrenMs`;
