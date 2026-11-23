@@ -343,3 +343,65 @@ fn an_attributes_file_that_is_not_text_names_no_proven_conversion() {
     assert!(refusal.contains("filter lf"), "the refusal names the filter it could not prove: {refusal}");
     remove(root.as_path());
 }
+
+/// The marker that tells the child of the control below which variable it holds.
+const THE_VARIABLE_CHILD: &str = "CLI_GIT_LADDER_TARGET_VARIABLE_CHILD";
+
+/// The variables a command's environment can hold that the reader's landing questions decline,
+/// by name.
+/// Why:
+///  The target's own HEAD and tree are this worktree's objects,
+///  so they are read from the repository's own store whatever a command names;
+///  the value each is given in the child names what the repository already has,
+///  so the control asks the reader and nothing else about the variable.
+const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE", "GIT_REFERENCE_BACKEND"];
+
+/// What the variable `name` is given for a repository whose object store is `objects` and whose fixture root is `root`.
+fn the_value_that_moves_nothing(name: &str, objects: &Path, root: &Path) -> std::ffi::OsString {
+    return match name {
+        "GIT_OBJECT_DIRECTORY" => objects.as_os_str().to_os_string(),
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES" => {
+            let empty: PathBuf = root.join("an-empty-directory");
+            std::fs::create_dir_all(empty.as_path()).expect("an empty directory");
+            empty.into_os_string()
+        }
+        "GIT_REPLACE_REF_BASE" => std::ffi::OsString::from("refs/probe/"),
+        _ => std::ffi::OsString::from("files"),
+    };
+}
+
+/// What:
+///  The ladder target reads the new worktree's HEAD and tree under each variable a command's environment can hold,
+///  as it does with nothing held.
+/// Why:
+///  `prepare_target` opens the database the target's own objects are read from,
+///  and that open answers under these variables only because it asks the repository's own store;
+///  with the environment-aware open there instead,
+///  this control fails on the variable's own reason
+///  (`the object database is not plain`).
+///  The variable belongs to one process, so each arm runs in a child that sets it after the repository exists.
+#[test]
+fn the_target_reads_its_own_objects_under_each_variable_a_command_names() {
+    let held: Option<std::ffi::OsString> = std::env::var_os(THE_VARIABLE_CHILD);
+    if let Some(variable) = held {
+        let root: PathBuf = fixture("ladder-target-variable");
+        let (repo, destination, source) = fixture_with_worktree(root.as_path(), false);
+        let value: std::ffi::OsString = the_value_that_moves_nothing(variable.to_string_lossy().as_ref(), &repo.join(".git/objects"), root.as_path());
+        // SAFETY: this is the child the parent started for one arm, it runs one test (`--test-threads=1`), and every read of the
+        //  variable this control makes happens after this line.
+        unsafe { std::env::set_var(variable.as_os_str(), value.as_os_str()) };
+        let target: Target = prepare(&source, &plan_to(destination)).unwrap_or_else(|why| { panic!("{variable:?}: the target is read under the variable it holds: {why}") });
+        assert!(!target.differs, "{variable:?}: the worktree is at the source's own commit");
+        remove(root.as_path());
+        return;
+    }
+    for variable in THE_VARIABLES_A_COMMAND_NAMES {
+        let output: std::process::Output = crate::test_support::child_test_process::run_with_environment(
+            "worktree::worktree_ladder_target::tests::the_target_reads_its_own_objects_under_each_variable_a_command_names",
+            &[(std::ffi::OsString::from(THE_VARIABLE_CHILD), std::ffi::OsString::from(variable))],
+        );
+        let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+        assert!(output.status.success(), "{variable}: the target is read as it is with nothing held:\n{said}");
+        assert!(said.contains("1 passed"), "{variable}: the child ran no test:\n{said}");
+    }
+}
