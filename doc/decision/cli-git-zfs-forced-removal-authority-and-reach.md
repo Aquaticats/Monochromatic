@@ -145,17 +145,26 @@ so that the service keeps running and the removal finishes.
 The recommended option was to refuse and name the unit;
 the project did not take it.
 
-The cost the question stated with this option:
-it changes what a running service's namespace receives from the host,
-which the accepted design does not authorise today
-(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
-line 732);
-this answer is that authorisation,
-for a forced removal's unmount of the clone's own copy and nothing wider.
-It is a direction like the third answer:
-one more design round,
+The cost the question stated with this option,
+in its words:
+"it changes what a running service's namespace receives from the host,
+which the accepted design does not authorise today;
+one more design round and a guest measurement before you can confirm."
+So it is a direction like the third answer:
+a design round,
 then a guest measurement,
 then the project confirms.
+
+Correction of 2026-11-22T20:34:39-05:00:
+this section first added that the answer "is that authorisation,
+for a forced removal's unmount of the clone's own copy and nothing wider",
+and cited a line of the proposal for it.
+The option said neither,
+its own example changes a mount other than the clone's copy,
+and the cited line is about a path unmount.
+How far the change may reach is for the design round to propose
+and for the project to confirm after the measurement.
+The forced-arm design's round of that evening and its review were briefed with the withdrawn sentence.
 
 ### The signal
 

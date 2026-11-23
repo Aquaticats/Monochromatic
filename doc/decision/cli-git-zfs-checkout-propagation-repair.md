@@ -68,13 +68,29 @@ and report what was found."
 Correction of 2026-11-22T20:21:19-05:00:
 this section first said that "a combination is left as it is",
 which the option did not say and the project was not asked.
-A mount can be shared and slave at once.
-Whether that mount counts as shared here,
-so that the repair sets it private and it stops receiving its master's mounts,
-is open and is being asked;
-the design acts on it,
-and its review (`review-after-the-owners-answers.md` beside the review this record cites,
-finding R5) names the difference.
+The design's review (`review-after-the-owners-answers.md` beside the review this record cites,
+finding R5) named the difference.
+
+### A mount that is shared and slave at once
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:37:32-05:00.
+Asked:
+a mount can pass mounts on to its peers and also receive them from a master,
+as on a machine that itself runs inside a container;
+does such a checkout count as shared here.
+The project chose "A:
+treat it as shared (Recommended)":
+the repair sets a checkout that is shared and slave private,
+like any shared one.
+
+The cost the question stated with this option:
+the checkout also stops receiving mounts its master makes beneath it.
+
+Not chosen:
+making such a mount a plain slave,
+which would keep the master's mounts arriving and was offered as not yet designed or measured;
+and leaving it as it is and reporting.
 
 ### How far the setting reaches
 
