@@ -3392,6 +3392,9 @@ with each committer time from `git log --format=%cI`:
   one Git-alone arm restored and two added,
   the stale citations corrected,
   and the questions reduced to the review's two.
+- `5b628ea8f4`,
+  2026-11-22T19:22:42-05:00:
+  the second review round's commit list.
 - `ec7055ba25`,
   2026-11-22T19:23:38-05:00:
   the binding design's `registered` write quoted at its current tip,
