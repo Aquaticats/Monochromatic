@@ -8,7 +8,11 @@ It answers the proposal `doc/planning/cli-git-clone-rung-partial-clone-of-a-dirt
 (at `dc7b5e5624` on `docs/planning-cli-git-clone-rung-partial-clone-of-a-dirty-source`),
 and it is the end condition of `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
 section "When it ends".
-Nothing of it is built yet.
+Nothing of it was built when this was recorded.
+(Note of 2026-11-23:
+the build is on `feat/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source`,
+unmerged,
+in a fix round on its integration recheck.)
 
 ## What was decided
 
@@ -28,6 +32,14 @@ with two provisional limits that send an add to Git's own checkout instead:
 
 An add the limits decline takes Git's own checkout,
 so no add is slower than Git's own checkout.
+(Note of 2026-11-23:
+that sentence is superseded.
+Measured,
+a declined add is the source check and then Git's checkout,
+and the requirement was restated under
+"Four further answers after the recheck,
+answered 2026-11-23",
+"What a declined add may cost".)
 
 ## The measurements it rests on
 
@@ -190,10 +202,15 @@ measuring first;
 keeping 8,799;
 and raising it to about 11,000.
 
-The exact value is the build's to set beside the measurement it cites:
-the question said "about 3,000",
-just above 2,599,
-the one mean with a clear pooled loss.
+The coordinator's reading,
+not shown to the project:
+the exact value is the build's to set beside the measurement it cites.
+The option's fuller wording in the recheck is "about 3,000 (just above 2,599,
+the one mean with a clear pooled loss)",
+of which the project was shown "about 3,000".
+Which edge a filesystem nobody measured takes after this change is not decided either;
+the build proposes one,
+open to the project's veto.
 
 ## Left to the build
 
