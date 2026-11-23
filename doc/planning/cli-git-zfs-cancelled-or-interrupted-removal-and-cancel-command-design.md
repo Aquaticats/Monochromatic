@@ -1764,9 +1764,14 @@ M10).
 
 A forced request that outlives its wrapper is the same state with one more hazard:
 the force word could end holders that attached after the person gave up.
-The bound is the forced arm's (A8 and S6 of the gate review's set):
-the request carries the writer's pid and start time,
-and the handler honours the force word only while that process lives;
+The bound is this design's A8,
+which the record decided ([forced-record][forced-record],
+"How long a forced request's authority lasts",
+lines 173 to 179):
+the request carries the writer's pid,
+start time and recorded parent,
+and the handler honours the force word only while that process lives,
+checked before every signal and every unmount;
 a trigger that finds a dead owner answers the request without the force word and says so in its receipt.
 This design's states assume that bound:
 an `unmount` intent a dead forced removal left is acted on as an ordinary request,
@@ -3641,8 +3646,32 @@ oldest first.
   It adds "When a cancellation can report destroyed history",
   renumbers this document's questions to S7 to S10 with what the answers change about each,
   adds M11 and limits L11 and L12,
-  reads the forced arm at `6871053b79` and cites it by section with `caller-protected-holds` and `holder-unendable`,
+  reads the forced arm at `1931987673` and cites it by section with `caller-protected-holds`,
   and corrects the citation slips that pass lists.
 - The commits that carry this entry,
   written from 2026-11-22T19:14:06-05:00:
   add the entries for `2fb7caea17` and `710f386f17`.
+- `1fee10f2ce`,
+  2026-11-22T19:53:51-05:00:
+  merges `main` into this branch so that the record's four further answers are read here.
+  It changes nothing in this document.
+- `04dd250d24`,
+  2026-11-22T19:58:34-05:00:
+  answers the gate review of this revision and the record's four further answers.
+  It makes the cancellation after a loss a decided section quoting the record,
+  and removes its question (S7) from the list;
+  moves the two questions the record calls the designs' own choices (S9 and S10) to the veto list;
+  splits the forced arm's refusals by what its read-only preflight can see,
+  so only an unmount that turns out busy and a blocker that cannot be ended can follow an ended process,
+  and rewrites the examples and arms to match;
+  reads the later-scan cancellation as this design's extension,
+  listed for the veto;
+  adds a lazily detached copy,
+  an unattached mount held by a descriptor and an incomplete scan read to the routes,
+  with their arms and the extended M11;
+  rewords the premises that said the refusal comes before the first delete everywhere;
+  updates the statements about the forced arm at `6871053b79` to its current sections and both refusal words;
+  and adds limits L13 and L14.
+- The commits that carry this entry,
+  written from 2026-11-22T19:58:38-05:00:
+  add the entries for `1fee10f2ce` and `04dd250d24`.
