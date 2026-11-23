@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-23T15:36:00-05:00
+## Status at 2026-11-23T15:51:19-05:00
 
 Incomplete and unapproved. Default enforcement and current-boot workload verification are in place.
 The first enforcement cold boot exposed and measured a missing full-config `setpci` capability,
@@ -57,13 +57,22 @@ blocks every unprofiled executable. Unprofiled development processes remain a re
   `/home/user/temp` browser grant was added.
 - `/etc/apparmor.d/abstractions/app/chromium_crashpad_handler.d` audits the pre-existing
   crash-report path and permissions without adding a path or permission.
-- `/etc/apparmor.d/local/keepassxc` currently audits owner-matched directory-only `r` access to
-  `/home/user/Plain/` and `rwl` access to `/home/user/Plain/main.kdbx*`. The real enforcing process
-  now reads its existing database and opens the directory successfully. Save and rename behavior is
-  source-traced but has not been exercised against a disposable database at that path.
+- `/etc/apparmor.d/local/keepassxc` grants recursive directory-only `owner @{HOME}/**/ r` for the
+  picker, selected database-file `rwl`, KIO state and bookmarks, anonymous sockets, its own proc
+  mount table and thread names, and the two observed udev metadata files. This exposes directory
+  metadata without granting unrelated file contents. Save and rename behavior at the selected
+  database path remains unexercised.
 - `/etc/apparmor.d/local/setpci` grants only `capability sys_admin`, which the kernel requires for
   full PCI config-space reads. This repairs the Intel NVMe Gen3 workaround without unconfining
   `setpci` or granting `/dev/mem` access.
+- `/etc/apparmor.d/local/ssh` grants bind, listen, accept, send, and receive on loopback TCP only,
+  preserving dynamic SSH reverse-forward ports without non-loopback listeners.
+- `/etc/apparmor.d/local/gh` grants inherit-exec only to the exact current owner-managed
+  `monochromatic-git-policy-cli` path. Helium's local additions include read-only access to the
+  existing KeePassXC native-messaging JSON. Other local rules cover `man//groff`'s `basename`,
+  logind's exact uhid module metadata, the portal's own `memory.pressure`, and profile-sync-daemon's
+  nested Chromium mountpoints. Portal pressure writes and fresh mount operations remain unexercised
+  until their real services repeat them. DMI and `sys_module` restrictions remain unchanged.
 - `/etc/apparmor.d/local/checkupdates` allows the five-character `arch-update` runtime database
   directory and its `local` symlink. It does not broaden other runtime paths. Pacman remains in
   complain mode.
@@ -79,17 +88,26 @@ cache must still receive a complete final verification pass and owner review.
   before `apparmor.service`.
 - `verification-pre-cold-boot-local-tuning-runtime.json` verifies current source modes, loaded
   kernel modes, and zero managed drift.
-- `verified-selected-setpci-keepass-folder-2026-11-23T15-36-00-0500.json` verifies all 809 cache
-  profiles, including custom `gh` and the `setpci` capability, source-only compilation, live feature
-  bytes, cache hits, successful loader reload, and rollback preservation. Earlier Podman and
-  strengthened Incus workloads also passed after the 808-profile selection.
+- `verified-selected-final-measured-cold-boot-tuning-2026-11-23T15-49-00-0500.json` verifies all 809
+  cache profiles, including custom `gh` and the `setpci` capability, source-only compilation, live
+  feature bytes, cache hits, successful loader reload, and rollback preservation. Podman, Incus,
+  host, Konsole, and disposable enforced Helium workloads passed on this enforcement cold boot.
+- `enforcement-policy-cold-boot.json` proves boot `5b86b6ae-d743-4c00-82eb-7011241cfbbc` is new,
+  with the expected LSMs, brokers, desktop environment, process labels, and early loader message at
+  33.44 seconds. The isolated cold-boot positive control also passed with exact AVC and cleanup
+  evidence.
+- After the picker/state and loopback rules, the credential helper, real Git push, and `man setpci`
+  succeeded. No new denials appeared after 2026-11-23T20:47:39Z in the immediate direct-log check.
+  The full retained-log collector and secondary `aa-log` view completed with no failures or partial
+  tails.
 - `zfs-nvme-gen3.service` initially failed because `setpci` was denied `sys_admin`; the kernel then
   exposed only 64 config bytes. After the narrow grant, the service reached 8.0 GT/s x4 and
   `Result=success`. The installed script now aborts on a failed speed-cap write instead of resetting
   blindly. See `doc/troubleshooting/cachyos-setpci-full-config-space-sys-admin.md`.
 - KeePassXC PID 4823 opened `/home/user/Plain/` after the directory-only grant, with paired
   `SYSCALL success=yes` and a returned directory descriptor. Earlier database reads were also
-  positively audited. There are currently no failed units.
+  positively audited. There are currently no failed units. The real 15:45 Sanoid run exited 0
+  without making a duplicate snapshot; the existing 14:45 hourly snapshots remain intact.
 - `positive-enforcement-control-2035a996-2f6f-45e8-a409-7712c793864b-before-cold-boot-2026-11-23T16-05-41-295Z-103181.json`
   verifies an allowed read, an exact denied PID and AVC, and removal of the temporary source, kernel
   profile, and cache artifact.
@@ -98,10 +116,11 @@ cache must still receive a complete final verification pass and owner review.
   `2a6969039952edf5564c8f384f03ea9ad4aa7737` reached `main` with the enforcing `ssh-keygen` and `gh`
   profiles plus the exact own-hook rule. `gh auth status` read the existing keyring credential
   successfully. `git ls-remote` returned those same commit hashes.
-- `markdown-rendered-review/final-workload-tuning/browser-evidence-aggregated-with-github-cli.json`
-  records successful light and dark rendering, keyboard focus, an empty local console, and all
-  fifteen source citations across the full run and targeted retries. The loopback server and
-  disposable documentation-browser processes and profiles are removed.
+- `markdown-rendered-review/final-workload-tuning/browser-evidence-aggregated-with-setpci.json` and
+  `browser-evidence-aggregated-with-loopback.json` record successful light and dark rendering,
+  keyboard focus, an empty local console, and all seventeen source citations across the full run and
+  targeted retries. The loopback servers and disposable documentation-browser processes and profiles
+  are removed.
 - The real scheduled `sanoid.service` initially failed with `Capture::Tiny` status 2. After the
   readiness-marker correction, the unchanged tee reproduction returned exact captured stderr, and
   the already-scheduled 14:00 EST service exited 0. Direct ZFS queries confirmed the home, root, and
@@ -176,8 +195,10 @@ and remove `apparmor,` from `lsm=`.
     enforced Helium with phase `cold-boot` against the latest selected cache.
 3.  Review all current-boot AppArmor records, inspect the next real scheduled Sanoid run without
     manufacturing snapshots, and verify `zfs-nvme-gen3.service` and KeePassXC's directory again.
-4.  Back up policy, cache, boot settings, and unrelated working-tree changes, then perform the final
-    cold boot of the repaired cache and repeat the service/session and required workload checks.
+4.  Back up policy, cache, boot settings, and unrelated working-tree changes. The owner confirmed
+    that no additional reboot is needed: the enforcement cold boot already occurred, the repaired
+    policies are reloaded in place, and the rebuilt cache is verified for future boots. Do not
+    reboot solely to repeat it.
 5.  Update `/etc/apparmor/full-system-policy.md`, finish native cleanup, and request explicit owner
     review. The exact LTS recovery entry remains untested.
 

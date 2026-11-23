@@ -349,6 +349,29 @@ active `git` command resolves through this exact owner-managed wrapper. Only tha
 inherit-exec permission; a rebuilt wrapper needs a new review, and third-party build output gets no
 general grant.
 
+### Loopback SSH forwarding and picker state
+
+The SSH profile's stock `abstractions/network/out/ssh` grants outbound port 22 access, not local
+bind. Reverse forwarding repeatedly failed with `operation="bind"` and loopback source addresses.
+The upstream [loopback TCP
+abstraction](https://github.com/roddhjav/apparmor.d/blob/5c34009a6ea104831c9a91a578f9255dbb289fe2/apparmor.d/abstractions/network/lo/tcp#L11-L12)
+shows the appropriate address-scoped rule shape:
+
+```text
+# abstractions/network/lo/tcp:11-12
+network (accept bind listen send receive) inet stream ip=127.0.0.1,
+network (connect send receive) inet stream peer=(ip=127.0.0.1),
+```
+
+KeePassXC's file picker also exercised directory traversal, KIO bookmark and service-menu state,
+anonymous sockets, its own proc mount table, thread names, and its XDG state directory. These are
+separate from the selected database permission. The installed AppArmor manual states that a trailing
+slash matches directories; recursive directory-only rules do not grant file contents.
+
+GitHub CLI's own `px` transition to Git worked, but it then needed the same exact owner-managed
+policy-wrapper exec path already granted to Git. Helium's existing KeePassXC integration needed only
+its native-messaging JSON in `google-chrome/NativeMessagingHosts`.
+
 ## Verification
 
 ### Versions and evidence scope
@@ -408,6 +431,9 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
 - Fresh Helium rendered Example Domain with renderer seccomp filtering and no unexpected unconfined
   helper. Audited events proved its OS-release read, existing crash-report reads, settings
   read/write opens, and lock-file operations. It did not create a new crash dump.
+- After the picker/state and loopback rules, the credential helper, real Git push, and `man setpci`
+  succeeded, and no new denials appeared after 2026-11-23T20:47:39Z. The selected database directory
+  is traversable without making unrelated file contents readable by that rule alone.
 - Signed commits `02f5e836951eaa990e1c6e3f88e5017b51e39d0b`,
   `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a`, `d189b6f6d0355cd41c377d1fdfc4b68aff043668`, and
   `2a6969039952edf5564c8f384f03ea9ad4aa7737` reached `main`. `gh auth status` read the existing
@@ -473,9 +499,50 @@ audit owner "@{HOME}/Plain/" r,
 audit owner "@{HOME}/Plain/main.kdbx*" rwl,
 ```
 
-Tradeoff: this covers one selected database basename and same-basename suffixes plus directory-only
-reads needed by the picker. It does not grant unrelated file contents, prove backup paths, or prove
-an actual save. Do not replace it with read/write access to every file under `/home/user/Plain`.
+The picker also uses these measured state and process boundaries:
+
+```text
+# /etc/apparmor.d/local/keepassxc
+owner @{HOME}/**/ r,
+owner @{user_state_dirs}/keepassxc/ rw,
+owner @{user_state_dirs}/keepassxc/* rwl,
+owner @{user_share_dirs}/user-places.xbel* rwl,
+owner @{user_config_dirs}/kservicemenurc{,.*} r,
+owner @{run}/user/@{uid}/#@{int} rw,
+@{PROC}/@{pid}/mountinfo r,
+@{PROC}/@{pid}/mounts r,
+@{PROC}/@{pid}/task/@{pids}/comm w,
+@{run}/udev/data/b{8:0,259:1} r,
+```
+
+Tradeoff: recursive directory traversal exposes names and metadata throughout the home directory but
+not file contents. The state, socket, proc, and observed udev metadata grants are separate and do
+not make the selected database or other personal files generally readable. KeePassXC save behavior
+at the selected database path remains unexercised.
+
+### Loopback SSH forwarding
+
+```text
+# /etc/apparmor.d/local/ssh
+network (bind listen accept send receive) tcp ip=127.0.0.1,
+network (bind listen accept send receive) tcp ip=::1,
+```
+
+Tradeoff: this permits SSH listeners and accepted streams on any loopback TCP port, not arbitrary
+non-loopback listeners. Outbound SSH remains governed by the stock outbound abstraction. This is
+needed for dynamic reverse-forward ports; granting only one historical port would be too narrow.
+
+### Exact wrapper, native messaging, and small service boundaries
+
+`/etc/apparmor.d/local/gh` grants inherit-exec only to the exact current owner-managed
+`monochromatic-git-policy-cli` path already measured for Git. `/etc/apparmor.d/local/helium` adds
+read-only access to the existing KeePassXC native-messaging JSON.
+
+Other measured local rules grant `basename` to `man//groff`, logind's exact `+module:uhid` read, the
+portal's own `memory.pressure`, and the nested profile-sync-daemon Chromium mountpoints. DMI reads
+and `iw`'s explicit `audit deny capability sys_module` remain unchanged. Portal pressure writes and
+new profile-sync-daemon mount operations are not claimed exercised until their real services repeat
+them.
 
 ### Helium and Git
 
@@ -561,6 +628,8 @@ unconfined outside these specific profile boundaries.
 - Read/write access to every file under `/home/user/Plain` is unnecessary for the observed database
   and directory picker. Directory-only read access is separate from the selected database-file
   grant.
+- Blanket `/home/user/** rw` is unnecessary for a picker. `owner @{HOME}/**/ r` grants directory
+  traversal only; file permissions still need their own measured rules.
 - Disabling commit signing, granting all of `/tmp`, or using `pux` would hide the Git buffer and
   exec mismatches. The exact buffer and `.sig` names plus the existing enforcing `ssh-keygen`
   profile are sufficient; the separate literal-key temporary file is not needed for this configured
