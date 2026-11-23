@@ -4648,6 +4648,52 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   2026-11-22T22:12:14-05:00:
   this revision entry.
   The commits that touch only this list are the ones `git log` reports for this path after `e4f591b6a8`.
+- `a93c305da4`,
+  2026-11-23T04:53:06-05:00:
+  the seventh round,
+  which answers the sixth read,
+  after merging `main` with `git merge --no-ff` into `09ef815fe4`.
+  Its findings and where each is fixed:
+  - G11:
+    F24 states the binding design's settling command at `c077bdb1e1` as it stands:
+    it takes a `settling` binding whose absence cannot be proved and which holds a `cloneGuid=`,
+    refuses one whose absence is proved and one that holds no `cloneGuid=`,
+    naming the add's own re-run in both.
+  - N7:
+    F24 is rewritten without the broken list and cites the binding design by heading and label,
+    with no line numbers;
+    the mapping says this list's steps 7 to 10 are the binding design's step 3;
+    the citations of A23 and of the settling command are by heading;
+    T2 gains the arm for a record missing a required key,
+    so `cloneGuid`'s absence is the only defined absence.
+  - Item 2,
+    the statements about the two sibling designs:
+    both are re-read at `c077bdb1e1` and `28c590b4c4` and cited by heading and label;
+    the removed `<slot>.unreadable` form,
+    the retired third reading,
+    the plan design's step numbers,
+    the kept plan's `unknown` retry,
+    the settling command's order and the states of a `settling` binding are corrected.
+  - Item 2,
+    the commands my refusals name:
+    the doctor lines name the five `git worktree` commands rather than "the next command",
+    and the settling-command sections name that design's command and its order.
+  - The add subsection gains the `registered` and `snapshotted` case,
+    with no clone and no snapshot,
+    where nothing is destroyed and no record is written.
+  Text the check found sound that a fix forced to change:
+  F24,
+  F25,
+  the sibling section's introduction,
+  points 4 and 5 and 8 and 12,
+  the stale-statement subsection,
+  the kept-plan section,
+  the step mapping and the step notes,
+  T2,
+  the doctor lines,
+  and the add subsection.
+  Nothing else the check found sound was changed.
+- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `a93c305da4`.
 
 ## References
 
