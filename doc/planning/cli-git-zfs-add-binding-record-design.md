@@ -6457,6 +6457,9 @@ and any test suite.
   T30's plain arm after A25,
   T32's plan arm,
   and the plan row's two refusals that name no command).
+- 2026-11-23T18:47:09-05:00 (`522ebf225b`):
+  the plan row names which command accepts a plan beside a `settling` binding,
+  which K7 of the tenth asked for by name.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
