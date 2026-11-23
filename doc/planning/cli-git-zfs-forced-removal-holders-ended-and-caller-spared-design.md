@@ -1,89 +1,55 @@
-# The forced arm of a removal: which holders are ended, by whom, and how the caller's session is spared
+# The forced arm of a removal: the chosen reach, the caller's protected set, and the probe the build owes
 
 Non-final,
 unapproved design proposal by an agent,
-written 2026-11-22T17:29:53-05:00 and revised 2026-11-22 after the gate review
-(`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review.md`,
-read whole).
+written 2026-11-22T19:05:00-05:00.
 It is not approved by the project owner and nothing in it is final.
-It designs two open items of the accepted ZFS worktree design that are one mechanism:
+It designs the two open items of the accepted ZFS worktree design that are one mechanism:
 "Who ends a holder,
 how a holder is identified,
 and by what authority",
 and "How the wrapper tells its caller's session apart from the other holders".
-It makes no decision that the accepted design,
-its answers of 2026-11-19,
-or the earlier answers made,
-beyond the writer's choices that "Choices this design marks for the project's veto" lists.
-The authority over another account's process,
-how much a forced removal ends,
-the signal,
-how long a forced request's authority lasts,
-and what the caller's protection covers stay the project's questions,
-as the build plan puts it at lines 2787 to 2798 of the plan.
-Every sentence that rests on the forced arm working is conditional on the guest measurement this round did not run.
-
-What this revision rewrote,
-after the review:
-the caller and its protected set (H1,
-Q6),
-the request's liveness (H2),
-the identification proof (H3),
-the act and its owner question (H4,
-Q2),
-the four authority options (M1,
-M2),
-the refusal (M3,
-M4),
-the scan file's publication and lifetime (M5),
-the fact and probe account (M6),
-the ancestor citation (M7),
-the questions moved from the veto list (M8),
-the tests and measurement labels (M9),
-and the low findings L1 to L4.
-"The open items and the words that decide them",
-"What this design read" (except the additions),
-the facts about kernels and ZFS not listed above,
-and the reference material at the end were left as they were apart from the corrections named.
+The project answered four questions about them on 2026-11-22,
+recorded in [the authority and reach record][record]:
+the channel is the installed root handler,
+a seen holder cancels a removal without `--force`,
+the forced arm unmounts inside a holder's namespace and ends only the blockers,
+and the caller's session and every ancestor to the first process are never ended,
+with `--force` refused when the command's parent is the service manager.
+The record's third answer is a direction,
+not a final acceptance:
+the reach it chooses is not final until this design states its mechanism and a guest measures it.
+This document states the mechanism in "The reach:
+unmounting inside the holder's namespace",
+and the probe the build owes is under "Measurements owed".
 
 What it read:
-the decision record whole,
-the proposal's sections named in "What this design read",
-the plan's step 17 and its open-item list,
-`package/git-policy/cli/SPEC.md` around the mount protocol,
-the receipts,
-the never-prompt rule and the mount deadline,
-the code paths named in the facts,
-the step 9 holder-scan and unmount branches as work in flight,
-the nine sibling design documents on their branches,
-upstream Linux at `v7.3`,
-OpenZFS at `zfs-2.4.4`,
-systemd at `v262`,
-and sudo at `v1.9.17p2`.
+the record whole,
+the two open items and the decisions around them,
+the second-pass gate review,
+the sibling cancelled-removal design at its tip,
+the accepted staging design's unmount,
+and the code,
+kernel,
+OpenZFS,
+systemd and sudo sources named below.
 What it ran:
-five host probes,
-recorded in
-`/home/user/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/keep/host-probes-2026-11-22.md`,
-and the two system-manager attempts that incident log records (L5).
+no probe this round.
+The five host probes of the earlier round stand as they were and are listed under "What this design ran",
+and this round read source and records only.
 What it did not run:
 no guest,
 no virtual machine,
 no container,
 no ZFS command that changes anything,
 no `sudo`,
-no mount on the host,
-and no signal to a process it did not start.
-One probe asked the system service manager to act,
-twice,
-against the rule that nothing does;
-both attempts and what they printed are in L5 and in the keep log,
-and neither is evidence.
+and no act through the system service manager.
+The two host commands that broke the never-prompt rule are recorded under L5 and are not evidence.
 
 The design is [the decision record][decision],
 the whole design is [the proposal][proposal],
 the build order is [the plan][plan],
 and the measured facts the route already has are [the measurement record][measurements].
-The sibling that owns what a removal leaves when it does not finish is [the cancelled or killed removal][cancelled].
 
 ## The open items and the words that decide them
 
@@ -119,8 +85,7 @@ the next paragraph):
 > "Spare the caller (Recommended)":
 > the removal never ends the caller and the processes of its session,
 > the shell that ran the command and that shell's other jobs,
-> and when the caller's session holds the clone the removal refuses and says to leave the folder and run the
-> command again;
+> and when the caller's session holds the clone the removal refuses and says to leave the folder and run the command again;
 > other holders are still ended.
 > Which process the wrapper knows as its caller,
 > how it identifies that caller's session and the jobs in it,
@@ -134,34 +99,90 @@ lines 49 to 55):
 
 > - The never-end set,
 > "Spare the caller (Recommended)".
-> The removal never ends the caller and the processes of its session,
-> the shell that ran the command and that shell's other jobs.
-> When the caller's session holds the clone,
-> the removal refuses and says to leave the folder and run the command again.
-> Other holders are still ended,
-> as "Kill or otherwise remove or destroy the holders whenever --force is specified" says.
+>   The removal never ends the caller and the processes of its session,
+>   the shell that ran the command and that shell's other jobs.
+>   When the caller's session holds the clone,
+> the removal refuses and says to leave the folder and run the
+>   command again.
+>   Other holders are still ended,
+> as "Kill or otherwise remove or destroy the holders whenever --force is
+>   specified" says.
 
-The forced arm the decision adopted ([proposal][proposal],
-lines 1357 to 1374),
-in the entry's own words:
+The four answers this design now follows are [the authority and reach record][record],
+accepted 2026-11-22.
+Its first answer,
+"By what channel a holder of another account is ended":
 
-> So `--force` gains a second meaning beside waiving cleanliness:
-> the holders are ended.
-> Without it,
-> a blocked removal reverts by itself.
+> The project chose "B:
+> root handler (Recommended)":
+> the wrapper writes a request that the installed root handler reads,
+> and root ends the holders,
+> through the property and receipt protocol the route already installs.
+> No second privileged channel is added.
 
-The same entry names the measurement the adoption rests on:
-"The second part of the answer is a measurement,
-"Measure in a VM (Recommended)",
-and the forced arm is adopted only if it works."
+Its second,
+"What a removal without `--force` does when its scan sees a holder":
 
-The measurement the build owes,
+> The project chose "A:
+> cancel,
+> delete nothing (Recommended)":
+> the removal stops before any snapshot is deleted,
+> attaches the clone at its slot again,
+> and reports the holder.
+> A removal that would have gone through had the holder left a moment later is cancelled and is run again by the person.
+> This fixes the reading of the earlier sentence:
+> a holder the scan sees stops the destruction.
+
+Its third,
+"How much a forced removal ends in another mount namespace":
+
+> The project chose "B:
+> unmount,
+> end blockers only":
+> the handler unmounts the clone inside the holder's namespace and ends only the tasks that block that unmount,
+> and when the namespace cannot be entered or the unmount is refused,
+> the forced removal refuses and names the holder.
+> It never falls back to ending every task of the namespace.
+> The recommended option was the same unmount with that fallback;
+> the project did not take the fallback.
+> A forced removal can therefore still refuse.
+> Still owed before this is final:
+> the design states how the mount to unmount is named inside the holder's namespace,
+> what is checked before and after the call,
+> what happens to a peer group and to a child mount,
+> and a guest measures it;
+> then the project confirms.
+
+Its fourth,
+"Which processes a forced removal never ends":
+
+> The project chose "D:
+> ancestors,
+> refuse as unit (Recommended)":
+> a forced removal never ends the caller's session or any ancestor of the command up to the first process,
+> and refuses,
+> naming it,
+> when one of them holds the clone;
+> and it refuses `--force` outright when the command's parent is the service manager,
+> telling the person to run the removal as a child of the process that wants it.
+> The cost the question stated with this option:
+> a forced removal launched as a service unit is refused.
+
+The proposal on an unmount inside a holder's namespace,
+which the third answer authorises ([proposal][proposal],
+lines 730 to 732):
+
+> With a shared checkout,
+> descriptor move refused with `EINVAL`;
+> the positive control used a path unmount solely to exercise propagation.
+> It removed the peer and slave copies while both readers were alive,
+> and head destroy succeeded.
+> This does not authorize path unmount in the design.
+
+The measurement the adoption still rests on,
 quoted whole ([proposal][proposal],
-lines 1950 to 1960):
+"Forced removal and deferred origins"):
 
-> - Forcing the removal of a clone a holder keeps.
-> The cancellation decision's second part is "Measure in a VM (Recommended)",
-> with the rule adopted only if it works.
 > Extend [VM item 15]'s post-attach readers and [VM item 4]'s busy holder:
 > with `--force`,
 > force-unmount or end the holders in each namespace kind,
@@ -172,70 +193,56 @@ lines 1950 to 1960):
 > stale content,
 > or a signal) and whether the destroy then succeeds,
 > with the wrapper's caller and its session's other jobs alive through the arm.
-> If the holder survives or the head destroy still refuses `dataset is busy`,
-> the answer has nothing behind it,
-> and this document reads that as the rule going back to the owner rather than shipping;
-> the record itself says only "adopted only if it works".
-> A force-unmount result would change two statements in this file:
-> the busy-teardown rule that reports which clone holds the mount and never forces or detaches it,
-> and the staging step's unmount without force or lazy detach.
-
-What the plan says the authority is not a writer's to decide ([plan][plan],
-lines 2787 to 2798):
-
-> - "Who ends a holder,
-> how a holder is identified,
-> and by what authority":
-> step 17,
-> blocking,
-> mixed.
-> Identification and the receiving path are writer work;
-> by what authority the wrapper ends another account's process or a unit's task is the owner's question.
-> - "How the wrapper tells its caller's session apart from the other holders":
-> step 17,
-> blocking,
-> writer design work.
-
-What the proposal says of an unmount inside a holder's namespace,
-which Q2 needs ([proposal][proposal],
-lines 730 to 732):
-
-> With a shared checkout,
-> descriptor move refused with `EINVAL`;
-> the positive control used a path unmount solely to exercise propagation.
-> It removed the peer and slave copies while both readers were alive,
-> and head destroy succeeded.
-> This does not authorize path unmount in the design.
 
 ## What this design read
 
-- The decision whole,
-  [decision][decision],
-  and the proposal's "Blocked-removal cancellation" (lines 1357 to 1374),
-  "Mounts held by other namespaces" (lines 724 to 781),
-  "Removal when the namespace exclusion cannot be shown" (lines 1306 to 1338),
+- The decisions and records:
+  [the decision][decision] whole,
+  [the authority and reach record][record] whole,
+  the proposal's "Blocked-removal cancellation",
+  "Mounts held by other namespaces",
+  "Removal when the namespace exclusion cannot be shown",
   "Requests,
-  results and ordering" (lines 552 to 596),
-  "Removal and recovery" (lines 796 to 976),
-  "Cancelling a blocked removal" (lines 977 to 1023),
-  "What doctor checks and prints" (lines 1188 to 1258),
-  "Decided defaults" (lines 1468 to 1512),
-  "Clone removal identity protection" (lines 1513 to 1603),
-  "Busy unmount after a staging move" (lines 1436 to 1443),
-  and "Forced removal and deferred origins" (lines 1946 to 1971).
+  results and ordering",
+  "Removal and recovery",
+  "Cancelling a blocked removal",
+  "What doctor checks and prints",
+  "Decided defaults",
+  "Busy unmount after a staging move",
+  "Clone removal identity protection",
+  and "Forced removal and deferred origins",
+  and the plan's step 17 and its open-item list.
 
-- The plan's step 17 (lines 1949 to 2015),
-  its open-item list (lines 2770 to 2856),
-  and its gaps list (lines 2858 to 2895).
+- [The accepted staging design][stagingdesign],
+  "The unmount call from staging" and "The private bind",
+  whose covered-descriptor rule this design reuses where it fits.
 
-- `package/git-policy/cli/SPEC.md` at "The wrapper's side and its deadline" (lines 6390 to 6420),
-  the never-prompt rule (lines 7345 to 7355),
-  and the receipts the unmount files (the step 9 branch's section).
+- [The sibling cancelled-removal design][cancelled] at commit `2fb7caea17`,
+  read whole:
+  its "The stop points",
+  "The forced arm's failure path",
+  "What the caller sees",
+  "The receipt's new answer field",
+  "One reversing request,
+  written in one place",
+  "Where this design and a sibling design disagree",
+  "Dependencies on the sibling designs",
+  and its questions Q7 to Q10.
+  It names itself the owner of what a removal leaves when it does not finish;
+  this design takes its refusal kinds and restoration from it and gives it back the two refusal words.
+
+- The second-pass gate review,
+  `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-second-pass.md`,
+  whole.
+
+- `package/git-policy/cli/SPEC.md` at "The wrapper's side and its deadline",
+  the never-prompt rule,
+  and the receipts the unmount files.
 
 - The code the route already has:
   `clone_holder_scan` and `mount_namespace_scan` on the step 9 branch,
   `worktree_clone_mount_protocol` receipts and intent,
-  `worktree_clone_unmount`'s busy answer,
+  `worktree_clone_unmount`'s busy answer and descriptor unmount,
   `process/process_use.rs`,
   `process/process_identity.rs`,
   `process/process_tree.rs`,
@@ -250,27 +257,19 @@ lines 730 to 732):
   lines 17 to 55),
   and the slot identity store's shape ([store][store]).
 
-- The sibling documents:
-  [the cancelled or killed removal][cancelled] whole for the state it owns,
-  [the deferred-destroy checks][deferred]'s ownership of step 16 and its dependency entry,
-  [the destruction plan record][planrecord]'s fields and readers,
-  [the lost-last-event triggers][losttriggers]'s nudge merge rule,
-  and [the propagation after a replacement mount][propagation]'s no-dependency statement.
-
-- Upstream Linux `v7.3` in
-  `/home/user/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/scratch/linux-v7.3`,
+- Upstream Linux `v7.3` in `/home/user/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/scratch/linux-v7.3`,
   OpenZFS `zfs-2.4.4`,
   systemd `v262`,
-  and sudo `v1.9.17p2` beside it,
+  and sudo `v1.9.17p2`,
   each at a named file and line below.
 
-- The step 9 holder-scan branch (`feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`) and the
-  step 9 unmount branch as work in flight.
+- The step 9 holder-scan branch and the step 9 unmount branch as work in flight.
   This design designs no scan and no unmount turn.
 
 ## What this design ran
 
-Five probes,
+No probe this round.
+The five host probes of the earlier round stand,
 kept with their outputs in
 `/home/user/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/keep/`:
 
@@ -278,40 +277,36 @@ kept with their outputs in
     process group,
     cgroup and ancestors of a command the Pi harness ran,
     and of a job that command left behind.
-
 2.  `pidfd-probe.py` opened a pidfd on an own child,
     signalled it,
     re-opened after the reap,
     opened a pidfd on pid 1,
     asked the kernel to send pid 1 signal 0,
     and printed session memberships of a shared job and a `setsid` child.
-
 3.  `namespace-pin-probe.py` made a private user and mount namespace,
     had a holder make a mount namespace,
     mount a tmpfs and pass the namespace descriptor out,
     then killed the holder and read the namespace from the descriptor.
-
 4.  `authority-probe.py` started a transient unit of this account,
     killed it through the user manager,
     and read the kernel's permission over pid 1.
-    It was rewritten this round:
-    no line can ask the system service manager to act,
+    No line can ask the system service manager to act,
     and every `systemctl` it runs carries `--user` and `--no-ask-password` and names only a unit it started.
-
 5.  Two inline Python arms wrote `cgroup.kill` in a cgroup this account owns,
     and created a child cgroup.
 
-The keep log also records two attempts that asked the system service manager to act,
+The keep log records two attempts that asked the system service manager to act,
 made before the rule reached this run:
-`systemctl kill --signal=0 dbus.service` (arm 2 of the first `authority-probe.py`,
-stopped by `systemctl`'s own argument check before any request left the process) and the later
-`systemctl kill --signal=KILL systemd-random-seed.service` (L5).
-Neither is evidence;
-both are named where a reader meets them.
+`systemctl kill --signal=0 dbus.service` (stopped by `systemctl`'s own argument check before any request left the process) and the later `systemctl kill --signal=KILL systemd-random-seed.service` (L5).
+Neither is evidence.
 
 No program ran inside a guest.
 No ZFS command ran on the host.
 Nothing mounted in the host's own namespace.
+This round read the record,
+the review,
+the sibling document and the sources named above,
+and changed this document only.
 
 ## Facts
 
@@ -375,8 +370,9 @@ not a guest's.
 - F8.
   Signalling through that descriptor to another account's process fails `EPERM`,
   because the signal checks the same credentials `kill(2)` does.
-  (Measured,
-  probe 2;
+  (Measured by the first authority probe,
+  whose arm is no longer in the script;
+  the log keeps it;
   Linux `v7.3`,
   `kernel/signal.c:789` to `:799`,
   `:805` to `:830`,
@@ -404,7 +400,8 @@ not a guest's.
   Linux `v7.3`,
   `include/uapi/linux/pidfd.h:112` to `:122`,
   `fs/pidfs.c:530` to `:615`,
-  and the lookup at `:552` to `:554`.)
+  the namespace ioctls take the fresh task lookup at `:552` to `:554`,
+  and `PIDFD_GET_INFO` takes the shortcut at `:548` to `:550` and its own lookup returns `-ESRCH` at `:417` to `:431` once the task is gone.)
 
 - F11.
   `/proc/<pid>/stat` is readable across accounts and carries the parent,
@@ -638,6 +635,71 @@ not a guest's.
   (Source,
   sudo `v1.9.17p2`.)
 
+- F31.
+  A plain `umount2` resolves its argument with `LOOKUP_MOUNTPOINT | LOOKUP_FOLLOW`,
+  and its checks require the resolved path to be the root of a mount in the caller's mount namespace,
+  not `MNT_LOCKED`,
+  with `CAP_SYS_ADMIN` there.
+  (Source,
+  Linux `v7.3`,
+  `fs/namespace.c:2077` to `:2129`,
+  and `path_mounted` at `fs/internal.h:344` to `:353`.)
+
+- F32.
+  A `/proc/self/fd/<n>` argument reaches that same lookup with the descriptor's own path,
+  and `LOOKUP_MOUNTPOINT` steps into the topmost mount at the final dentry,
+  so the call acts on the mount at the descriptor's location and resolves no name inside it.
+  The accepted staging design reads the same rule and unmounts from a covered descriptor.
+  (Source,
+  Linux `v7.3`,
+  the magic-link jump in `fs/proc/fd.c` and `fs/namei.c`'s mount step;
+  the rule is read at `v6.8` in `doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+  "The unmount call from staging",
+  and used by its "M2".
+  Unrun on this route.)
+
+- F33.
+  `move_mount` takes its source from a descriptor with `MOVE_MOUNT_F_EMPTY_PATH` and its destination from a descriptor with `MOVE_MOUNT_T_EMPTY_PATH`.
+  It requires the source to be a mount root,
+  to have a parent,
+  not to carry `MNT_LOCKED`,
+  and its parent mount not to be shared,
+  and the destination to be in the caller's namespace.
+  (Source,
+  Linux `v7.3`,
+  `fs/namespace.c:4743` to `:4813` and `:3765` to `:3793`.)
+
+- F34.
+  `/proc/self/mountinfo` prints each row's mount id and parent mount id,
+  each mount's source and file-system type,
+  and the `shared:`,
+  `master:` and `unbindable` tags.
+  (Source,
+  Linux `v7.3`,
+  `fs/proc_namespace.c:137` to `:171`.)
+
+- F35.
+  A plain unmount of a mount in a shared peer group propagates to its peers,
+  which is why the design refuses a `shared:` row.
+  (Source,
+  Linux `v7.3`,
+  `fs/namespace.c:1823` to `:1856` and `fs/pnode.c:718` to `:730`.)
+
+- F36.
+  Mount ids come from one global allocator,
+  so a mount id names one mount across namespaces,
+  and `/proc/<pid>/fdinfo` prints the mount id of a descriptor's open file.
+  (Source,
+  Linux `v7.3`,
+  `fs/namespace.c:227` to `:237` and `fs/proc/fd.c:57` to `:59`.)
+
+- F37.
+  A mount attach propagates when the mount it is attached to is in a shared peer group,
+  and a mount created by `mount(2)` or chosen on a private mount does not.
+  (Source,
+  Linux `v7.3`,
+  `fs/namespace.c`'s `attach_recursive_mnt` and `fs/pnode.c`'s `propagate_mnt`.)
+
 ## Assumptions
 
 - A1.
@@ -678,15 +740,22 @@ not a guest's.
 - A7.
   The handler does not read the account-owned removal claim:
   the sibling places it in the repository and says "the handler never reads it at all" ([cancelled][cancelled],
-  lines 1352 to 1358).
+  "The removal claim").
   Root's liveness proof is the wrapper process,
   not the claim.
+
+- A8.
+  The handler runs in the host mount namespace,
+  with no `PrivateMounts`,
+  so its own namespace is pid 1's and the host's clone mount is the one its staging turn unmounts.
+  A handler with a private mount namespace would see neither that mount nor the host's path holders,
+  and the route is not designed for one.
 
 ## Limits
 
 - L1.
-  No guest ran this round.
-  Every sentence about ZFS releasing the dataset after a plain unmount or after a kill,
+  No guest ran in either round.
+  Every sentence about ZFS releasing the dataset after a plain unmount or after ending a blocker,
   and every sentence about what a holder sees,
   is an inference from source plus VM items 4 and 15,
   not a measurement.
@@ -707,16 +776,15 @@ not a guest's.
 
 - L5.
   Two commands broke the project's rule and are not evidence.
-  Earlier in this round the first `authority-probe.py` ran,
+  Earlier in the first round the first `authority-probe.py` ran,
   as its arm 2,
   `systemctl kill --signal=0 dbus.service` (system manager,
   a real system unit,
   no `--user`,
   no `--no-ask-password`);
   it printed `Failed to parse signal string "0"` and never reached the manager.
-  At about 2026-11-22T17:24-05:00 this round ran `systemctl kill --signal=KILL systemd-random-seed.service`;
-  it printed `Failed to kill unit systemd-random-seed.service: Connection timed out` after putting a password
-  dialog on the person's desktop,
+  At about 2026-11-22T17:24-05:00 the first round ran `systemctl kill --signal=KILL systemd-random-seed.service`;
+  it printed `Failed to kill unit systemd-random-seed.service: Connection timed out` after putting a password dialog on the person's desktop,
   and the unit stayed `active` with `MainPID` 0.
   The design takes the polkit facts from source (F28,
   F29),
@@ -727,28 +795,29 @@ not a guest's.
   so the case of a holder the kernel cannot stop is unmeasured.
 
 - L7.
-  A mount namespace's inode number and a `listns` id can be reused after the namespace dies,
-  so the design never rests on the number alone.
+  A mount namespace's inode number,
+  a `listns` id and a mount id can be reused after the object dies,
+  so the design never rests on a number alone:
+  each is read again beside the object it names.
 
 - L8.
   The forced arm's cost is not measured:
-  how long a kill,
-  a plain unmount inside a namespace,
-  and their waits take,
+  how long an unmount inside a namespace,
+  an ending and their waits take,
   and how often a holder reappears,
   are owed to the guest.
 
 - L9.
   No number is shipped by this design.
   The protection's stop is pid 1 (F26),
-  the handler's act is bounded by the sweep's own work bound,
+  the handler's work is bounded by the sweep's own bound,
   and no grace or retry count is proposed.
 
 - L10.
-  A caller on the far side of a service unit is not an ancestor (F5),
-  so the outer process that started the unit is not in the protected set.
-  The design says so and recommends that a harness run the removal as a child of the harness process,
-  as Pi's driver does.
+  A service unit's parent is the service manager,
+  so `--force` is refused there (the fourth answer);
+  the outer process that started the unit is not in the protected set,
+  and a harness that must force runs the removal as its own child or under a `--scope`.
 
 - L11.
   `/etc/polkit-1/rules.d` is unreadable to this account,
@@ -756,15 +825,22 @@ not a guest's.
 
 - L12.
   `listns`,
-  `open_by_handle_at` on a namespace file handle,
-  and `PIDFD_GET_MNT_NAMESPACE` were read at source and not run this round (F10,
-  F14);
-  M11 owes the first two a guest arm.
+  a namespace file handle,
+  and the descriptor unmount inside a holder's namespace were read at source and not run this round (F14,
+  F31,
+  F32,
+  F33);
+  M3 to M7 owe them a guest.
 
 - L13.
   A confined unit the Pi driver starts is not an ancestor of the wrapper,
-  so `--force` can end it if it holds the clone.
+  so `--force` can end it if it holds the clone,
+  and the handler's own namespace rules do not reach into its unit.
   "What this design does not cover" states it.
+
+- L14.
+  The task matcher that finds every task with a file open on the clone's copy or a working directory in it is new code over the handler's own walk (N5);
+  only the descriptor record and the path-use ceiling it reuses are measured (F25).
 
 ## The caller and its protected set
 
@@ -777,30 +853,46 @@ Its birth identity is the start time the kernel recorded for it,
 the value `process_identity` already computes,
 and with the boot id it names one process across a number's reuse.
 
-The request carries that identity,
-and nothing else about the caller,
+The request carries that identity and the one hop the handler must check first,
 in a clone-local property written before the intent:
 
 - `org.monochromatic:git-worktree-clone-removal-caller`,
-  value `v1:<nonce>:<pid>:<starttime>:<boot>`.
+  value `v1:<nonce>:<pid>:<starttime>:<parent-pid>:<parent-starttime>:<boot>`.
   The nonce is the intent's 32 lowercase hex digits,
-  the pid and start time are decimal,
+  the numbers are decimal,
   and the boot id is the kernel's own.
   The byte length is bounded from those fields before parsing,
   and a malformed value sets nothing.
 
-The handler reads the property only for a request whose intent and force property carry the same nonce (V3),
-reads `/proc/<pid>/stat`,
-and requires its start time to equal the value.
-When it does not,
-the wrapper that asked is gone,
-and the handler declines the force word (see "The time between the scan and the ending").
-Root therefore needs no ancestor list in the property:
-it walks the chain itself from the wrapper's pid,
-so nothing the wrapper would have had to serialise can be stale or truncated.
-The review's narrowest fix for H1 proposed carrying each chain entry in the property;
-this design carries the wrapper's identity and lets the handler read the live chain,
-because a serialised list can only age and the handler reads the same `/proc` the wrapper would have.
+The review's N2 measured that a live chain read after the request can lose the harness:
+a child whose parent shell exits is reparented to the user manager,
+so the chain no longer contains the process that started it.
+The property's parent fields answer that:
+the handler proves the wrapper's pid and start time,
+then reads the wrapper's parent and requires its pid and start time to be the recorded pair,
+and only then walks upward.
+A wrapper whose parent changed or died before the handler read it is treated as gone,
+and the force word is declined (see "The time between the scan and the ending").
+The recorded pair is the anchor;
+nothing above it is serialised,
+because a serialised list can only age while a live read is the chain as it is.
+
+The walk itself is the same rule as `chain_ancestors` (F26),
+from the proved parent to pid 1,
+with two checks the review's N2 adds:
+after reading each parent's record the handler re-reads the child's `ppid` and requires it still to name that parent,
+and it requires the parent's start time not to exceed the child's,
+which no real ancestry can violate and a redirected number can.
+The walk stops at pid 1,
+which is in the set.
+
+The handler also holds a pidfd on the wrapper,
+opened once the wrapper's pid and start time are proved,
+and checks it immediately before each signal and each unmount,
+and includes it in the poll set the act waits on.
+Liveness is therefore a property of the exact process,
+not a number read per pass:
+a pass cannot follow a Ctrl-C that arrived between the pass's start and its first call.
 
 The protected set,
 which the handler spares and never ends,
@@ -808,21 +900,13 @@ is two things:
 
 - every task whose `session` field equals the wrapper's session (F11),
   which is the decision's "the caller and the processes of its session";
-
 - every ancestor of the wrapper from its parent to pid 1,
-  which the handler walks with the same rule as `chain_ancestors` (F26:
-  its round bound is that walk's existing `MOST_ANCESTORS_ASKED_FOR_THE_RECORD`,
-  its stop is pid 1,
-  and no number is new;
-  the walk from another process's pid is new code over that rule),
-  so a harness,
-  a terminal multiplexer or a terminal owner above the wrapper is spared even when it is in another session.
+  which the handler reads itself from the proved parent.
 
-The ancestor half is new in this revision and is what H1 found missing:
-the earlier text spared ancestors on the wrapper's side and never told the handler,
-so the handler ended them like any other holder.
-The reader now reads the ancestors itself,
-from the only number it is given.
+A holder in either set refuses the removal,
+and with `--force` that refusal is the forced arm's (`caller-protected-holds`);
+without `--force` the sibling design cancels the removal before anything is deleted (its "The stop points",
+point 5).
 
 The four shapes the brief and the review name,
 worked through:
@@ -833,56 +917,63 @@ worked through:
   its parent,
   is in another session.
   The protected set is the wrapper and its undetached children,
-  plus the driver,
-  the driver's parent and every ancestor to pid 1.
-  The handler is told the wrapper's pid,
-  start time and boot;
-  it walks that chain and spares all of it.
+  plus the driver and every ancestor to pid 1.
   A holder inside it refuses the removal.
-
 - Claude Code's Bash tool (F4).
   The wrapper's parent is a session-leading `zsh` with no terminal,
-  so the wrapper's session is that `zsh`'s,
-  with that shell's other jobs;
-  the ancestors are the `zsh`,
-  `claude`,
-  and everything above to pid 1.
-  Both the `zsh` and `claude` are spared.
-  The earlier text would have spared the `zsh` through the session and ended `claude`;
-  with the chain read by the handler,
-  `claude` is spared too.
-
+  so the session is that `zsh`'s and the ancestors are the `zsh`,
+  `claude` and everything above.
+  Both are spared.
 - `systemd-run --user --scope` (F3).
   The child shares the calling shell's session and its parent is that shell,
-  so the protected set is the same as Claude Code's.
-
+  so the set is Claude Code's.
 - `systemd-run --user --pipe --wait`,
   a service unit (F5).
   The wrapper is its own session leader and its parent is `systemd --user`;
-  no ancestor is the process that started the unit,
-  so the protected set is the wrapper and the manager's chain to pid 1,
-  and the session that started the unit is not protected.
-  The design says so (L10) rather than pretending otherwise,
-  and recommends that a harness run the removal as a child of its own process,
-  as the Pi driver does;
-  naming a requester across a service boundary has no mechanism here and is not designed.
+  no ancestor is the process that started the unit.
+  This shape is now refused rather than left unprotected (N3),
+  and "A command whose parent is the service manager" says how.
 
-To tell the caller's protected set from another job that merely holds the clone,
-the handler compares each holder task with that set and nothing else:
-not a process group,
-not a cgroup,
-not a command name.
-F2 is why a cgroup cannot serve:
-the harness's commands share one cgroup,
-so a cgroup rule would spare every holder the harness ever started,
-or end the harness itself.
+### A command whose parent is the service manager
 
-The width of the protection is the project's question Q6,
-because it decides who may die.
-This design implements the widest option,
-the session plus every ancestor to pid 1,
-so a narrower answer is a subset that changes the stop rule and no other part of the design.
-The refusal and the receipt's word do not change with the width.
+The fourth answer ([record][record],
+"Which processes a forced removal never ends") refuses `--force` outright when the command's parent is the service manager.
+The parent is recognised from the kernel's own data,
+not from a name:
+
+- the system manager:
+  the parent's pid is 1;
+- the user manager:
+  the parent's `/proc/<pid>/cgroup` row is exactly `/user.slice/user-<uid>.slice/user@<uid>.service/init.scope`,
+  where `<uid>` is the wrapper's uid,
+  and the parent's `comm` is `systemd`.
+
+A user process cannot create that cgroup path,
+because it lies in a systemd-owned slice,
+so the check is not a name test an account can satisfy with a look-alike cgroup;
+the `comm` read is a second check against a manager whose cgroup row was not read.
+The check runs in the wrapper,
+on its own parent,
+before it writes the force property:
+the removal fails with exit `2` and prints no request.
+
+The text:
+
+```text
+the removal of <slot> was asked to end the holders, and this command's parent is the service manager
+(pid <pid>, <systemd --user or systemd>), which cannot be told apart from the process that asked for it.
+Nothing was changed: the clone, its snapshots and the Git registration are as they were.
+Run the removal as a child of the process that wants it: from that process's own shell, or under
+`systemd-run --user --scope` started by that shell. Do not run it as a service unit.
+```
+
+What a harness does instead:
+it runs the removal in its own process,
+as the Pi driver already creates a worktree before starting a confined unit,
+or starts it under `systemd-run --user --scope` from that process,
+so the process that wants the removal is an ancestor.
+A harness that can only run a service unit cannot force a removal,
+and the message says so.
 
 ## What a holder is, and what the proof establishes
 
@@ -891,27 +982,34 @@ and the design treats both with one proof:
 
 - a task whose mount namespace holds a mount of the clone's dataset,
   which is what the root scan reports (F23);
-
 - a task whose working directory or open file lies inside a mount of the clone,
-  which the scan does not report and which the wrapper's existing path-use scan finds for its own account (F25).
+  which the scan does not report and which the handler's own walk finds (F25).
 
 The second kind is not decoration.
 F17 says a working directory or an open file makes a plain unmount refuse,
 and F18 and F22 say a detached mount lives on while a reference remains;
-VM item 4 measured a busy unmount caused by exactly that,
-and F22 says the dataset stays busy while any reference to the mount remains.
+VM item 4 measured a busy unmount caused by exactly that.
+The match is by the mount id the kernel records,
+not by a resolved path:
+a descriptor's `/proc/<pid>/fdinfo` carries its mount id (F36),
+and a working directory is read with `statx` and `STATX_MNT_ID` (F25).
+Finding every task with any file open on the clone's copy,
+or a working directory anywhere in it,
+is new code over that record:
+the wrapper's existing matcher names one file by mount id and inode,
+not every file on a mount (N5).
+A task under a child mount of the clone carries the child's mount id and is not matched by the copy's id;
+the child mount is itself the blocker that no signal clears (see "The reach").
+Where a read is refused,
+the report says the walk was blind for that task.
 
 Kind (d) of the brief,
 a namespace whose task is gone,
-is reachable after all,
-and the earlier text was wrong to call it unreachable.
+is reachable under the chosen reach.
 F13 measured that such a namespace lives on a descriptor;
-F14 says a privileged caller in the host pid namespace can list every active namespace with `listns` and reopen
-one by its file handle;
+F14 says a privileged caller in the host pid namespace can list every active namespace with `listns` and reopen one by its file handle;
 F15 says entering it with `setns` must happen in a single-threaded process.
-Q2's options (b) and (c) use that route.
-The act chosen decides whether kind (d) is ended by an unmount inside it or left,
-which is why Q2 puts the act to the owner.
+The reach section uses that route.
 
 The scan's report is evidence that a namespace holds the clone.
 It is never the operand of a signal.
@@ -920,42 +1018,30 @@ in this order:
 
 1.  It takes a candidate task,
     from the scan's namespace and its own enumeration of that namespace's tasks.
-
 2.  It reads the task's start time,
     opens a pidfd while the number names that process,
     and reads the start time again,
     requiring the two to agree,
     which is the shape `PinnedMember::open` already uses (F25).
-
 3.  Through the pidfd it reads the mount namespace (`PIDFD_GET_MNT_NAMESPACE`,
     F10) and requires it to equal the fresh scan's namespace identity,
     and it reads the task's session from `/proc/<pid>/stat` (F11).
-
 4.  It proves the pinned task is still the same live process:
     a zero-timeout `poll` on the pidfd,
     or a successful `PIDFD_GET_INFO`,
     whose own fresh task lookup returns `ESRCH` once the task is gone (F10).
-
-5.  Only then does it signal,
-    or,
-    under Q2's options (b) and (c),
-    decide whether the task blocks the unmount.
+5.  Only then does it end the task,
+    under the chosen reach's rule that it is a blocker.
 
 What that proves is "this task is in the namespace the fresh scan reported and is the process this descriptor names",
 not "this is the task the scan saw".
-The earlier text claimed the second,
-and its first read could be of a reused number.
 The design does not need the second:
-it ends every task in the holder namespace (or ends only the blockers),
-so the scan's representative task is evidence and never an operand.
-A reused number after the pin cannot receive the signal,
-because the signal travels through the descriptor.
-
+a signal travels through the descriptor,
+so a reused number cannot receive it.
 The scan records no start time for the representative task (F23),
-and the design does not assume one.
-It asks step 9's build to record it,
-so a report can name the exact process and a later design could compare it,
-and it says plainly that the forced arm does not depend on that field.
+and the design does not assume one;
+it asks step 9's build to record it so a report can name the exact process,
+and says that the forced arm does not depend on that field.
 
 ## How root's finding reaches the wrapper
 
@@ -1017,462 +1103,334 @@ the mode is the handler's,
 and `doctor` keeps the proposal's rule that it names holders by namespace identity and representative task and
 reports incomplete coverage as unknown.
 
-## Who ends each kind of holder: the authority options
+## Who ends each kind of holder
+
+The first answer ([record][record],
+"By what channel a holder of another account is ended") is the channel:
+the installed root handler,
+on the account's request,
+through the property and receipt protocol.
+No second privileged channel is added,
+and the account alone does not act.
 
 The kinds this machine produces are these,
-and each option below meets all of them in one removal:
+and the chosen channel meets all of them in one removal:
 
 - kind (a),
   the same account in another session:
   a leftover agent shell or a build job that `cd`'d into the clone or mounted it;
-
 - kind (b),
   another account's process:
   a root-run reader,
   for example a root `systemd-run` job that mounted the clone;
-
 - kind (c),
   a unit's task the caller cannot signal:
   the same root-run job seen as its unit's task,
   or a task in a system unit;
-
 - kind (d),
   a namespace whose task is gone:
   pinned by a descriptor (F13),
-  reachable by root under Q2's options (b) and (c) through `listns` and a namespace file handle (F14);
-
+  reachable through `listns` or a namespace file handle (F14);
 - kind (e),
   a path holder:
   a task of any account with a working directory or an open file inside the clone,
   which keeps the mount alive without mounting it (F17,
   F18).
 
-The project's answer says the forced arm ends the holders whenever `--force` is given,
-so an option that refuses kind (b) or (c) contradicts the answer;
-the proposal's open item says so in as many words.
-The option is still shown,
-because it is the baseline the other three depart from and the ranking needs it.
-
-The question,
-with the review's added options and order,
-is Q1.
-This section shows what each option does.
-
-### Option A: the account alone, and a refusal for the rest
-
-What it is:
-the wrapper ends kinds (a) and (e) of its own account with the pidfd proof and refuses every holder it cannot end.
-Root still writes the scan the wrapper reads (V1);
-no root process ends anything.
-
-One removal from start to end,
+One forced removal from start to end,
 on a clone at `.claude/worktrees/one`:
-
-1.  The removal writes the intent and the caller property,
-    the handler scans and publishes the scan file and its receipt.
-    The scan reports kind (a) in `mnt:[4026532396]` and kind (b) in `mnt:[4026532397]`.
-
-2.  The wrapper reads the file.
-    Before its first signal it refuses,
-    because kind (b) is outside its authority:
-    it prints the root reader's namespace and task,
-    says nothing was changed,
-    and says what a person can do for that holder,
-    which is to stop the holding unit themselves or end that process.
-    It does not print "leave the folder" for a root-run reader,
-    because leaving a folder releases nothing there.
-
-3.  No process is ended for a removal that will not happen,
-    no snapshot is deleted,
-    and the clone is where it was.
-
-Pros:
-no privileged path ends anything,
-so the blast radius is the account's own processes;
-the refusal comes before the first signal,
-which the earlier draft got wrong.
-Cons:
-it contradicts the forced answer for kinds (b) and (c) and leaves kind (d) untouched.
-Ranking:
-third.
-The project's forced answer is not satisfied;
-the option exists because it is the safe floor.
-
-### Option B: the installed root handler, under the property and receipt protocol
-
-What it is:
-the account asks the handler it already installed.
-Two clone-local properties carry the request (the caller's identity and the force word,
-both bound to the intent's nonce),
-the handler reads the caller's chain and protects it,
-scans,
-refuses when a protected task holds,
-ends what the act option says,
-scans again,
-and files its receipt and the scan file.
-
-One removal from start to end:
 
 1.  `git worktree remove --force <slot>` writes the caller property,
     the force property and then the intent,
     all with one nonce,
     and waits for the receipt (F24).
-
 2.  The handler rechecks the intent under the per-slot claim,
     reads the three matching values,
-    proves the wrapper's pid and start time from `/proc` (A6),
-    and walks its chain to pid 1 (F26).
-    It scans before it moves anything.
+    proves the wrapper's pid,
+    start time and recorded parent (A6,
+    N2),
+    and walks the chain to pid 1 (F26).
+3.  It scans before it moves anything and publishes the scan file.
     It finds kind (a) in one namespace,
     kinds (b) and (c) in another (the same root unit seen by task and by unit),
     and kind (e) in its own namespace,
     the staging folder.
-
-3.  It compares every holder with the protected set.
+4.  It compares every holder with the protected set.
     None is in it,
-    so it ends each proved task through its pidfd,
-    or,
-    under Q2's option (b),
-    unmounts the clone's mount inside each holder namespace and ends only the tasks that block that unmount.
-
-4.  It re-reads the wrapper's identity after each pass.
+    so it acts:
+    it ends the path blockers of its own namespace,
+    then for every other holder namespace it unmounts the clone's copy and ends the tasks that block that unmount ("The reach").
+    Kind (d) is found by `listns` and treated like any other namespace.
+5.  It re-reads the wrapper's pidfd after each pass.
     While it stands,
     the act goes on;
-    if it stops standing,
+    when it stops,
     the act stops and the receipt says `caller-gone`.
-
-5.  It scans again,
+6.  It scans again,
     moves the clone to staging,
     unmounts its own mount without force and without lazy detach,
-    and files the scan file,
-    then `done`.
+    and files the scan file and then `done`.
     Step 16's scans follow under fresh nonces,
-    each carrying the force word again,
-    so a holder that appeared is met then too.
-
-6.  The person sees the ordinary removal report,
-    plus the holders it ended by namespace and task.
+    each carrying the force word again.
+7.  The person sees the ordinary removal report plus the holders it ended,
+    by namespace and task.
     The head destroy succeeds.
-    A holder the act could not end leaves the snapshots gone and the head refused,
-    which the report names as the resume state and claims nothing about.
+    A holder the act could not end,
+    or a namespace it had to refuse,
+    is the forced refusal (`holder-unendable`) and nothing is destroyed before the first delete.
 
-Pros:
-one privileged program the route already installs,
-the accepted receipt protocol,
-no configuration file,
-no prompt,
-one protected set read from the wrapper's own process,
-every act bounded by the nonce and the wrapper's liveness.
-Cons:
-the handler must read the account's process table,
-which A4 permits;
-a handler round trip is needed for every scan,
-whose latency is unmeasured (L8).
-Ranking:
-first.
+### Options the answers did not choose
 
-### Option C: a root helper the wrapper starts through passwordless `sudo`
+One place,
+briefly,
+with the record ([record][record],
+"What was not chosen"):
 
-What it is:
-the wrapper runs the installed handler binary in a `kill-holders` mode under `sudo -n`,
-and reads its answer from standard output.
-The helper takes the protected set from its own parent chain rather than from a property.
+- The channel:
+  A,
+  the account alone with a refusal for what it cannot end,
+  because it contradicts "Kill or otherwise remove or destroy the holders whenever --force is specified" for other accounts' holders;
+  C,
+  a root helper through `sudo -n`,
+  because it adds a second privileged channel and a sudoers line;
+  D,
+  the systemd managers,
+  because a system-manager request prompts a person or fails and a unit kill can end the caller's own harness.
+- A seen holder:
+  proceeding to delete while the holder is still seen,
+  because it spends the clone's history to learn what the scan already said;
+  and refusing while keeping the removal pending,
+  because the accepted answer cancels,
+  and the checked reattach returns a usable worktree.
+- The reach:
+  ending every task of each holder namespace,
+  because it ends processes that held nothing;
+  and that as a fallback after the unmount,
+  because the answer says it never falls back.
+- The protection:
+  the caller's session alone,
+  because it ends the harness;
+  the session plus ancestors to the first session leader,
+  because it misses the harness in every measured shape;
+  and the same without the service-unit refusal,
+  because a service unit's parent cannot be told apart from the requester.
 
-One removal from start to end:
+The record's "What was not chosen" lists the same four sets.
 
-1.  The wrapper runs `sudo -n <handler> kill-holders --dataset <name> --checkout <slot>`.
-    `-n` makes a password request a failure rather than a prompt,
-    which the never-prompt rule requires.
+## The reach: unmounting inside the holder's namespace
 
-2.  The helper walks up its own chain past the processes that are `sudo` itself,
-    and takes the first process that is not sudo as the one that ran it,
-    which is the wrapper.
-    F30 is why the skip is needed:
-    with no pty,
-    wrapper,
-    `sudo` and helper share the wrapper's session;
-    on the pty path the monitor calls `setsid` and the helper's session is the monitor's.
-    Skipping the sudo processes lands on the wrapper's process in both cases.
-    The protected set is that process's session and its chain to pid 1.
+The third answer ([record][record],
+"How much a forced removal ends in another mount namespace") chooses the unmount and ends only its blockers,
+with no fallback to ending a namespace.
+The record leaves the mechanism to this design and the measurement to a guest.
+This section states the mechanism.
 
-3.  The helper scans,
-    refuses when a protected task holds,
-    and acts as Q2 decides,
-    with the same pin-first proof.
-    It reports what it did on the same pipe,
-    and the wrapper prints it.
+### What the act is aimed at
 
-Pros:
-the caller's set is inherited by parentage rather than asserted in a property,
-and the answer is synchronous;
-the sudo-process skip is read from sudo's source rather than guessed.
-Cons:
-it needs a sudoers rule naming the binary (configuration,
-against the project's no-configuration answer),
-it fails under a unit with `NoNewPrivileges=yes`,
-it adds a second privileged channel beside the accepted one,
-and this round could run no `sudo` at all,
-so its parentage is owed a guest run (M9).
-Ranking:
-second.
-
-### Option D: the systemd managers
-
-What it is:
-the account asks its own user manager to kill a unit it started,
-and the system manager for a system unit.
-
-One removal from start to end:
-
-1.  For kind (a) inside a transient unit of this account,
-    the wrapper runs `systemctl --user --no-ask-password kill --signal=SIGKILL <unit>`.
-    This works (F28 records the measured own-unit kill),
-    and it kills the whole unit's cgroup,
-    including tasks that never held the clone.
-
-2.  For kind (b) or (c),
-    the wrapper's request goes to the system manager,
-    which asks polkit for `org.freedesktop.systemd1.manage-units`.
-    The installed defaults are `auth_admin` and this account is in `wheel` (F29),
-    so the request waits on a person or,
-    with `--no-ask-password`,
-    is answered `INTERACTIVE_AUTHORIZATION_REQUIRED`;
-    the never-prompt rule forbids the wait,
-    and the account cannot make the request quietly.
-
-3.  Kind (d) is not reached,
-    and kind (e) outside a unit is untouched by a unit kill.
-
-4.  In the Pi shape the unit that holds the clone may be the harness's own unit (F2),
-    so step 1 can end the caller's harness,
-    which the never-end set forbids.
-
-Pros:
-no new privileged program for the account's own units,
-and a unit kill is atomic.
-Cons:
-the system-manager half prompts or fails;
-the account's own units are killed whole,
-which in the Pi shape is the caller's harness;
-the mechanism names no holder,
-so the report cannot say who was ended.
-Ranking:
-fourth.
-It breaks an explicit owner rule (nothing asks a person for a secret) and can end the caller,
-where option A only falls short of the forced answer.
-
-### Ranking of the authority options
-
-B > C > A > D,
-and this ranking decides nothing;
-the authority stays Q1.
-
-- B over C:
-  B rides the protocol,
-  the receipts and the per-slot claim the route already has,
-  needs no configuration file,
-  and this round could measure no `sudo` path.
-  C's inherited caller identity is the better proof,
-  and a later owner answer may prefer it for that reason,
-  at the cost of a sudoers line and a second channel.
-
-- C over A:
-  C honours the forced answer for kinds (b) and (c),
-  and A refuses them outright,
-  which the answer's words exclude.
-
-- A over D:
-  A prompts nobody and cannot end the caller's harness;
-  D breaks the never-prompt rule and can end it.
-
-- The earlier text ranked D above A.
-  That was wrong for the reason the review gives:
-  D breaks an explicit owner rule,
-  while A only falls short of an answer the owner can still choose to change.
-
-## What each authority option does to the rest of this design
-
-The review's M2:
-after Q1 is called the owner's,
-the later sections must say which answer they depend on.
-The design is written for option B.
-The carry-over is:
-
-- Under A:
-  the caller property and the force property are not needed,
-  because root ends nothing and the wrapper acts itself.
-  The identification proof,
-  the protected set,
-  the refusal and its two texts,
-  the scan file and its V2 rule,
-  and tests 3,
-  4,
-  6,
-  7 and 9 hold unchanged.
-  The act section reduces to same-account signals,
-  and Q2's unmount options are unreachable because an unprivileged wrapper cannot enter another namespace
-  (F15 needs `CAP_SYS_ADMIN` in the owning user namespace).
-  Kinds (b) and (c) become refusals.
-  The design's "every authority" test arms for kinds (b) and (c) expect the refusal.
-
-- Under C:
-  the properties are replaced by the helper's arguments and its answer on the pipe,
-  and the protected set is read from the helper's own ancestors (the sudo skip,
-  F30) rather than from `/proc/<wrapper pid>`.
-  The scan file and the refusal still come from the handler;
-  the act runs in the helper;
-  liveness is implicit,
-  because the helper is a child whose parent is the waiting wrapper.
-  The logging moves to the helper's output and the wrapper's report.
-
-- Under D:
-  the handler does not act,
-  so the caller property and the force property are replaced by unit names,
-  and the identification proof is systemd's (a unit's cgroup),
-  not this design's.
-  The refusal rule still needs the scan,
-  because the wrapper must not ask for a unit that holds a protected task.
-  Q2's act options are unreachable for kinds (b) and (c) without the system manager's authorization,
-  and kind (d) is out of reach.
-  Tests about the caller's protection become tests about a unit's cgroup,
-  and the Pi-shape test asserts the harness survives,
-  which D cannot promise.
-
-- Under B:
-  as designed throughout.
-
-## How much a forced removal ends, and with which signal
-
-These are the project's questions Q2 and Q3.
-The earlier text chose both silently;
-the review found the act's premise contradicted by the kernel source it targets,
-so the act is now Q2,
-and the signal is Q3.
-
-Q2,
-how much a forced removal ends,
-offers three acts:
-
-- (a) end every task in each holder namespace;
-
-- (b) unmount the clone's mount inside each holder namespace,
-  without force and without lazy detach,
-  and end only the tasks that block that unmount;
-
-- (c) (b) first,
-  then (a) for any namespace (b) cannot reach.
-
-The premise the earlier text got wrong:
-the aim is to release the dataset's long hold,
+The aim is to release the dataset's long hold,
 not to free the namespace (F20,
 F21).
-A plain unmount inside a holder namespace drops that namespace's copy (F22),
-and F17 says it refuses `EBUSY` while a task's working directory or open file is there,
-so the blockers are the tasks that must end.
-A lazy detach is not the tool:
-F18 and F22 say the copy stays alive while a task holds it,
-so the dataset stays busy.
-Proposal lines 730 to 732 are what the project has authorised:
-the path unmount in VM item 15's shared control "does not authorize path unmount in the design",
-so (b) and (c) go to the owner,
-not to this writer.
-The route the owner's answer would use is read and unrun:
-`listns` lists every active namespace to a privileged caller (F14),
-a namespace file handle reopens one,
-and `setns` must be called from a single-threaded process (F15),
-which is a `fork` inside the handler.
+A plain unmount of the clone's copy inside a holder's namespace drops that namespace's reference (F22);
+a lazy detach leaves the copy alive while a task holds it,
+so it does not release the dataset (F18,
+F22),
+and the design never detaches.
+A mount under the clone,
+or a task whose working directory or open file references the copy,
+makes the plain unmount refuse `EBUSY` (F17);
+the first is a mount and no signal clears it,
+the second is a blocker and is ended.
+A second mount of the same dataset in the same namespace,
+such as a bind of a folder inside the clone,
+keeps the dataset's long hold on its own and is refused as a mount blocker.
 
-Concrete case,
-one removal on this machine:
-a `PrivateMounts=yes` unit with a web server that never opened the clone and a helper whose working directory is in it.
-Under (a) the handler ends both,
-two tasks;
-under (b) it unmounts the unit's copy,
-the helper blocks it,
-so it ends the helper and the web server runs;
-under (c) the same as (b),
-and if the entering or the unmount is refused it falls back to (a) for that namespace.
+### How the mount is named
 
-Pros and cons:
-(a) is simple and needs no `listns`;
-it ends processes that never touched the clone and cannot reach a namespace with no task.
-(b) ends the fewest and is the only option that reaches kind (d) without ending anything;
-it needs root to enter namespaces,
-is unmeasured on this route,
-and needs the owner's authorization that the proposal withholds.
-(c) finishes a `--force` removal most often while ending the fewest,
-and is the most code.
-Ranking:
-c > b > a.
-c over b because b alone leaves a forced removal failing where the answer says holders are ended;
-b over a because a ends processes that held nothing.
-The guest arm M3 is aimed at a plain unmount for (b) and (c).
+A name inside the holder's namespace is a name an account process can change,
+and the accepted staging design's answer is to unmount from a descriptor (F32;
+[stagingdesign][stagingdesign],
+"The unmount call from staging").
+Its covered descriptor is opened before the clone is stacked on the folder,
+which a holder's namespace does not offer.
+This design makes the covered location itself,
+and names nothing the holder controls:
 
-Q3,
-the signal,
-applies to the tasks any act option decides to end:
-SIGKILL alone;
-SIGTERM,
-wait on the pidfd,
-then SIGKILL;
-SIGTERM alone.
-The concrete case is an editor with unsaved buffers whose working directory is in the clone.
-SIGKILL loses them;
-SIGTERM lets it save and exit and the removal waits;
-SIGTERM alone cannot promise it ends.
-Pros and cons:
-SIGKILL ships no number and cannot be refused,
-and loses a person's unsaved work;
-SIGTERM then SIGKILL gives the holder its chance and needs a grace the project must decide or measure (L9);
-SIGTERM alone can fail to end the holder.
-Ranking:
-SIGTERM then SIGKILL > SIGKILL > SIGTERM alone.
-The first over the second because the cost of an unmeasured grace falls on the removal's time while the cost of
-none falls on a person's data;
-the second over the third because the third can fail.
-This reverses the earlier V3,
-which ranked SIGKILL first for the writer's convenience.
+1.  A single-threaded child enters the namespace:
+    `setns` on a descriptor from `listns` or `/proc/<pid>/ns/mnt`,
+    because `setns(CLONE_NEWNS)` fails `EINVAL` from a thread of a multithreaded process (F15).
+    The child is a `fork` followed by `setns` in the child,
+    so the handler's other threads never enter.
+2.  The child reads its own `/proc/self/mountinfo` in that namespace and finds the copy:
+    a row whose file-system type is `zfs`,
+    whose source is exactly the clone's dataset name,
+    and whose root is `/` (F34).
+    The scan's match rule is the same one,
+    so the two cannot disagree about what a mount of the dataset is.
+3.  It checks the copy before naming it:
+    the row is not the namespace's root (its parent id differs from its own,
+    F34),
+    it carries no `shared:` tag (F35),
+    its parent row carries no `shared:` tag (F33 refuses a move from a shared parent),
+    it carries no `MNT_LOCKED` (the call's `EINVAL` is the check,
+    F31),
+    and no other row of the namespace is a mount of the dataset.
+4.  It opens the copy's mount point,
+    crossing into the copy,
+    with `O_PATH | O_DIRECTORY | O_CLOEXEC`,
+    and requires `statx` with `STATX_MNT_ID` to give the row's mount id and `fstatfs` to give the ZFS type (F25,
+    F36).
+    The descriptor names the mount root;
+    it is the only name the holder could have changed,
+    and the mount id check is what binds it to the scan's row.
+5.  It opens a destination it made itself:
+    a directory created mode `0700` under a root-owned,
+    writable directory of that namespace whose mount row carries no `shared:` tag,
+    so the attach in the next step does not propagate to peers (F37).
+    It opens that directory `O_PATH` before the move;
+    that descriptor is the covered dentry the staging design's rule needs.
+6.  It calls `move_mount(copy_fd, "", destination_fd, "", MOVE_MOUNT_F_EMPTY_PATH | MOVE_MOUNT_T_EMPTY_PATH)`,
+    which takes both ends from descriptors (F33).
+    The copy now sits at the destination,
+    and the copy's original path shows the parent mount again.
+7.  It closes the copy's descriptor,
+    because a descriptor on the copy would keep it busy for its own unmount (F17),
+    and re-reads the mount table:
+    the row with the copy's mount id is now at the destination's path,
+    and it is the topmost mount at the destination dentry.
+8.  It calls `umount2("/proc/self/fd/<destination fd>", 0)`,
+    plain,
+    with no `MNT_FORCE` and no `MNT_DETACH`.
+    The descriptor is on the destination's mount,
+    not on the copy,
+    and the lookup steps into the topmost mount at its dentry (F31,
+    F32).
+9.  It re-reads the mount table:
+    no row carries the copy's mount id,
+    and no row of the dataset remains in that namespace.
+    It then removes the destination directory.
 
-## The act's mechanism, which holds under every act option
+The checks after each call are what make a substituted or stacked mount a refusal rather than an unmount of the wrong thing:
+after the move the copy's mount id must be topmost at the destination,
+and after the unmount it must be absent,
+while the destination dentry must show the destination mount again.
+A mount stacked on the destination between the move and the unmount is the one the call would remove;
+the post-call check finds the copy still present and refuses,
+and the copy is moved back (below).
+The window is the same one the staging design records and does not close.
 
-Whatever Q2 answers,
-these hold:
+### What is refused, and what is reported
 
-- The handler never signals a task in its own namespace except a path holder whose working directory or open file
-  is in the clone.
-  A task in the handler's own namespace is the handler's own world,
-  and ending it is not what any holder claim can justify.
+- A copy carrying `shared:`,
+  or under a shared parent mount:
+  refused.
+  A plain unmount of a shared mount propagates to its peers and would take the copy out of namespaces the request never named (F35);
+  the accepted design withholds exactly that path unmount ([proposal][proposal],
+  lines 730 to 732).
+- A mount under the copy:
+  refused and reported as a mount blocker that no signal clears.
+  The design never shrinks submounts and never detaches.
+- A second mount of the dataset in the same namespace:
+  refused and named,
+  because the act unmounts the namespace's own-root copy and ending tasks cannot release another mount.
+- A namespace whose root mount is the copy:
+  refused,
+  because the move needs a parent and there is none (F33).
+- The handler's own namespace,
+  and any namespace containing pid 1:
+  refused.
+  Its clone mount is the host's,
+  and the removal's staging turn unmounts it without force;
+  the act's only work there is ending path holders.
+  A8 says the handler runs in the host mount namespace,
+  so the two are the same namespace.
+- A namespace that cannot be entered (`setns` refuses),
+  or a destination that cannot be made (no root-owned writable directory on a private or slave mount):
+  refused,
+  naming the namespace and the step.
+- A system service's namespace:
+  entered and treated like any other holder namespace,
+  because its task is another account's process and the forced answer ends those holders.
+  The report names the unit from the blocking task's cgroup row.
+  If the project wants services carved out,
+  that is a narrower rule than the record states,
+  and this design would take it as a veto.
+- Every path holder of the handler's own namespace:
+  ended,
+  as the blockers of the host's unmount (VM item 4's case).
 
-- The handler refuses a holder namespace that contains PID 1,
-  and it refuses when any protected task is a holder.
-  A namespace's tasks are all enumerated,
-  so a protected task anywhere in it refuses the whole namespace.
+### When the unmount is refused after the move
 
-- The number of tasks and namespaces one act reaches is bounded by the scan's own bounds (F23):
-  the act never sees more than the scan listed,
+The copy must not be left at the destination with nobody told.
+If the move succeeded and the unmount is refused,
+or a blocker appears after the blocker scan,
+the child re-reads both locations and moves the copy back to its recorded mount point only when that path still resolves to the parent mount and carries no mount;
+otherwise it leaves the copy at the destination,
+names both paths and the mount id in the receipt,
+and the forced removal refuses (`holder-unendable`).
+The move back is the one recovery this design writes,
+and it is unrun (M7).
+
+### What the tasks that block an unmount are, and how they are found
+
+A blocker is a task with a working directory or an open file whose mount id is the copy's (F36),
+found by the handler's walk over `/proc` (F25;
+new code,
+N5).
+A task under a child mount is not a blocker of this unmount:
+the child mount is,
+and it is refused.
+A blocker in the protected set refuses the whole removal before anything is moved.
+A blocker is ended through its pinned pidfd (the five steps above),
+and the unmount is tried again.
+A blocker that appears between the scan and the unmount is met by the same sequence once more within the sweep's bound;
+a task that keeps forking cannot extend the act past that bound.
+
+### The checks that exist only for a hostile account
+
+The threat model is the project's:
+the account is trusted,
+and root and the account are not a security boundary here ([staging][staging],
+lines 221 to 237).
+These checks survive that sentence as guards against a bug or a stale record,
+and are listed so no one reads them as a security boundary:
+
+- the mount id check after the path open and after the move:
+  it also catches a stale scan;
+- the topmost and transition checks:
+  they also catch the handler's own mistake;
+- the destination descriptor and its `0700` root-owned directory:
+  they also keep the handler's own unmount off a path it did not make;
+- the wrapper's pidfd before each call:
+  it guards a dead caller,
+  not a hostile one;
+- the dataset GUID re-read:
+  it is the removal's existing delegated-grant residual,
+  not a new boundary;
+- the refusal of a shared mount:
+  it also protects a cooperative account's other namespaces.
+
+This check exists only against a hostile account and is not adopted:
+requiring the copy's parent directory to be owned by root and not writable by the account.
+The move takes the mount by descriptor after the mount id check,
+so no component name is resolved after it,
+and the check would add nothing the mount id does not.
+
+## The act's mechanism
+
+Whatever the reach does for mounts,
+these hold for every act:
+
+- The handler never signals a task in its own namespace except a path holder whose working directory or open file is in the clone.
+- The handler refuses when any protected task is a holder,
+  and a namespace's tasks are all enumerated,
+  so a protected task anywhere in it refuses the namespace.
+- The number of tasks and namespaces one act reaches is bounded by the scan's own bounds (F23),
   and a scan that stopped at its bound is not a clear answer.
-  The values are the scan's,
-  not this design's,
-  and they ship with the scan's own veto.
-
-- Every task is pinned and proved before it is signalled (the five steps above),
+- Every task is pinned and proved before it is signalled (the five steps in "What a holder is"),
   and a task whose proof fails is reported,
   not signalled.
-
-- Path holders are matched by the mount id and inode the kernel records,
-  not by a resolved path:
-  `UseTarget::Mounted` (F25) for an open descriptor,
-  and `statx` with `STATX_MNT_ID` on `/proc/<pid>/cwd` for a working directory (Linux `v7.3`,
-  `include/uapi/linux/stat.h:216`).
-  A resolved path would miss a task in another namespace or under another root,
-  which is the review's L3;
-  where a read is refused,
-  the report says the walk was blind for that task.
-
-- Before each pass and after it the handler re-reads the wrapper's pid and start time.
-  When they no longer stand,
-  the act stops and the receipt names `caller-gone`.
-
+- The wrapper's pidfd is checked immediately before each signal and each unmount,
+  and it is in the poll set the act waits on (N2).
 - The act's wait is the pidfd's exit (`POLLIN`) and,
   for an unmount,
   the kernel call's return,
@@ -1480,8 +1438,7 @@ these hold:
   It is bounded by the sweep's own work bound,
   not by the wrapper's 30-second poll deadline (F24):
   the handler is not told that client-side number,
-  and it does not need it,
-  because a dead wrapper ends the act.
+  and a dead wrapper ends the act.
 
 The logging,
 through the wrapper's existing notice stream on standard error and the handler's journal:
@@ -1495,17 +1452,22 @@ through the wrapper's existing notice stream on standard error and the handler's
   whether it was in the protected set (it must not be),
   the act (signal or unmount),
   and the wait's outcome;
-
 - one line per holder not ended:
   the same fields plus the failing proof;
-
+- one line per refused namespace:
+  the namespace,
+  the mount row,
+  and the refusal (shared,
+  child mount,
+  second mount,
+  root mount,
+  cannot enter,
+  no destination,
+  unmount refused);
 - one closing line:
   how many holders were ended,
   how many were unproven,
   and whether the following scan was clear.
-  The earlier draft put "the removal deadline's remaining time" here;
-  the handler has no source for that number (review L1),
-  so it is gone.
 
 The wrapper prints the same facts in its report,
 because the decision's report has to name who was ended.
@@ -1514,89 +1476,98 @@ that case has its own refusal text.
 
 ## The refusal, and what it leaves
 
-The handler refuses when any holder task is in the protected set.
-It decides that on the pre-move scan,
-before anything moves,
-and files the receipt's failed step as `caller-protected-holds`.
-The decision's own words cover one case,
-a working directory inside the clone ("leave the folder and run the command again",
-[decision][decision],
-lines 52 to 53);
-a mount namespace holding a copy needs a second text,
-because leaving a folder releases nothing there (review M3).
+Two refusals are the forced arm's,
+and the receipt's failed step names which:
 
-The working-directory text,
+- `caller-protected-holds`:
+  a holder task is in the protected set.
+  The handler decides it on the pre-move scan,
+  before anything moves.
+- `holder-unendable`:
+  a holder the act could not end,
+  or a namespace the reach refused for a reason this design names (shared,
+  child mount,
+  second mount,
+  root mount,
+  cannot enter,
+  no destination,
+  unmount refused).
+  It is decided at the same scan or at the unmount itself.
+
+The first text,
+a working directory inside the clone,
 with the variables filled and every path quoted as a shell word:
 
 ```text
 the clone at <slot> is held by the removal's own protected set, and a removal never ends it.
-process <pid> (<command>) holds it in its working directory, in session <session>, and that process is the caller,
-or is in the caller's session or its ancestor chain. Nothing was moved, unmounted or destroyed: the clone, its
-snapshots and the Git registration are as they were, and the folder is still mounted.
+process <pid> (<command>) holds it in its working directory, in session <session>, and that process is the caller, or is in the caller's session or its ancestor chain.
+Nothing was moved, unmounted or destroyed: the clone, its snapshots and the Git registration are as they were, and the folder is still mounted.
 Leave the folder (end that job, or run the command from another shell) and run the removal again.
 ```
 
-The namespace text:
+The second,
+a mount namespace holding a copy:
 
 ```text
 the clone at <slot> is held by the removal's own protected set, and a removal never ends it.
-mount namespace <namespace> keeps a copy at <mount point> (mount <id>), and process <pid> (<command>) in session
-<session> is the caller, or is in the caller's session or its ancestor chain. Leaving the folder does not release
-a namespace's copy: end that session or its unit, or run the removal from a session that never entered the clone.
+mount namespace <namespace> keeps a copy at <mount point> (mount <id>), and process <pid> (<command>) in session <session> is the caller, or is in the caller's session or its ancestor chain.
+Leaving the folder does not release a namespace's copy: end that session or its unit, or run the removal from a session that never entered the clone.
 Nothing was moved, unmounted or destroyed: the clone, its snapshots and the Git registration are as they were.
 ```
 
-What the wrapper leaves untouched:
-no signal to any task,
-no move,
-no unmount inside a holder namespace,
-no lazy detach,
-no snapshot delete and no head destroy,
-so the clone's history is whole.
-The restored state,
+The third,
+a forced holder that cannot be ended:
+
+```text
+the removal of <slot> was asked to end the holders and could not.
+<the holder, its namespace and the reason: a root task this removal could not prove, a namespace with a shared copy, a mount under the clone, a second mount of the dataset, a namespace this removal could not enter, or an unmount that refused>.
+Nothing was destroyed.
+```
+
+What the forced arm leaves:
+no snapshot delete and no head destroy after the refusal point,
+and the restored state,
 the records,
-the reattach and the nonce of the request that reverses the intent belong to
-[the cancelled or killed removal][cancelled] (M4);
-this design removes its own account of them.
-What this design needs from that document:
-a stop point for a forced removal refused for `caller-protected-holds` and for a forced holder that cannot be ended,
-the restored state named there,
-and a fresh nonce for the reversing request,
-because a receipt is matched by nonce,
-operation and boot (F24) and the earlier `unmount` answer must not be read as the new `mount` answer.
-The sibling's current text says "the automatic arm of this design does not run for a forced removal"
-([cancelled][cancelled],
-lines 2042 to 2045),
-so this stop point is a requirement of this design on the sibling's fix round,
-and the two documents currently disagree about who owns it.
+the reattach and the nonce of the request that reverses the intent belong to [the sibling][cancelled].
+This design states only the forced arm's refusal before the first delete;
+the sibling owns what a removal leaves when it does not finish,
+forced or not,
+in its "The forced arm's failure path",
+"One reversing request,
+written in one place" and "The stop points".
+It needs three things from this design,
+which this design gives:
+the writer's pid and start time in the force property (and now its parent's,
+N2),
+the two refusal words above,
+and
+the fact that this design never writes the intent.
+The sibling's current text calls the first refusal `caller-session-holds` and spares the caller's session only;
+its fix round owes the wider protected set and these two words.
 
 ## The time between the scan and the ending
 
 A forced request must not act after the wrapper that made it is gone (H2).
-Three things settle it:
+The checks that settle it are:
 
-- The force is honoured only with a standing `unmount` intent whose nonce,
-  the force property's and the caller property's all agree,
-  and only while the wrapper's pid and start time,
-  read from `/proc` by the handler,
-  still stand (A6,
-  F11).
-  The handler checks them before the first act and after every pass.
+- the force word is honoured only with a standing `unmount` intent whose nonce,
+  the force property's and the caller property's all agree;
+- the caller property's pid and start time are proved,
+  and its recorded parent's pid and start time are proved,
+  before the chain is walked (N2);
+- the handler holds a pidfd on the wrapper and checks it immediately before each signal and each unmount,
+  and in the act's poll set;
+- the handler does not read the account-owned removal claim.
+  The staging design records that no channel from the claim to the handler exists and that the project chose not to add one ([stagingdesign][stagingdesign],
+  "The unmount call from staging");
+  the review's earlier suggestion that this check "is not implementable without moving that record under root" is too strong,
+  and the design says instead that root could read it and the project chose not to.
 
-- The handler does not read the account-owned removal claim,
-  because the sibling places it in the repository and says "the handler never reads it at all" ([cancelled][cancelled],
-  lines 1352 to 1358).
-  The liveness proof is the wrapper process;
-  the claim keeps two wrappers from overlapping on the wrapper side (A7).
-  The review's suggested claim check is therefore not implementable without moving that record under root,
-  which this design does not propose.
-
-- A later trigger that finds a forced request whose wrapper is gone declines the force word,
-  files `caller-gone`,
-  and does only the non-force work the intent asks:
-  it may unmount as any removal would,
-  and it never ends a process.
-  That is the answer to "what a later trigger does with a forced request nobody is waiting on".
+A later trigger that finds a forced request whose wrapper is gone declines the force word,
+files `caller-gone`,
+and does only the non-force work the intent asks:
+it may unmount as any removal would,
+and it never ends a process.
 
 The handler's own clock is the sweep's work bound,
 not the wrapper's poll deadline:
@@ -1610,43 +1581,31 @@ lines 1010 to 1014).
 
 A holder that attaches after the scan is met by the next scan,
 which the accepted design already requires before the first snapshot delete and before the head destroy,
-and every such scan under the force word ends the holders it sees.
+and every such scan under the force word acts on the holders it sees.
 A holder that attaches after the last scan shows up as `dataset is busy` at the head destroy,
-the accepted destroy-anyway residual.
+the accepted residual for a holder the scan cannot show.
 The retry is bounded by the removal deadline;
 nothing loops until the pool is quiet.
 
-A holder that exits and whose number is reused.
-Nothing is signalled by number;
+A holder that exits and whose number is reused:
+nothing is signalled by number,
 the pidfd is opened while the number names the proven process,
 and the pin's two start-time reads close the interval (F9,
 F10).
-A namespace identity reused after its namespace died is not enough either:
-the namespace link and the mount row are read from the pinned task.
+A namespace identity or a mount id reused after its object died is not enough either:
+the link,
+the row and the object are read again beside the number (L7).
 
-A holder the scan cannot see.
-A path holder in another account,
-or a path holder whose resolved path differs,
-is the named residual;
-the match by mount id and inode above narrows it,
-and where a read is refused the report says so.
-A taskless pinned namespace is reachable under Q2's options (b) and (c) through F14;
-under option (a) it is not reached and the head destroy refuses,
-which the report names.
-A task that survives the act's wait is reported,
-not chased;
-a task that keeps forking cannot extend the act past the scan's bounds and the liveness check.
+A holder the scan cannot see:
+a path holder in another account,
+or one whose resolved path differs,
+is the named residual,
+and the match by mount id narrows it;
+a taskless pinned namespace is reached under the chosen reach through `listns` (F14);
+a task that survives the act's wait is reported,
+not chased.
 
 ## Where the records differ, and how this design reads them
-
-- The refusal and the no-force arm.
-  The decision's never-end set says the removal refuses when the caller's session holds the clone.
-  The blocked-removal answer says a removal without `--force` cancels itself.
-  This design reads the refusal as the forced arm's rule:
-  without `--force` nobody is ended,
-  the auto-cancel applies,
-  and the never-end set is still met.
-  V5 puts the other reading to the project.
 
 - The scan before the move.
   The accepted design's removal-ready scan comes after the move and the unmount,
@@ -1654,57 +1613,35 @@ a task that keeps forking cannot extend the act past the scan's bounds and the l
   This design adds a scan under that same intent before the handler moves anything,
   so the protected-set refusal and the first act come before a snapshot is lost.
   Nothing in the accepted design forbids an earlier scan,
-  and V4 says why it runs there.
+  V4 says why it runs there,
+  and the sibling's point 5 is that state.
 
 - The scan's strict clear.
   The step 9 scan calls a result clear only when no holder and no incomplete read stands,
-  while the proposal reads an unreadable or racing entry as not refusing a removal by itself (line 739).
+  while the destroy-anyway decision covers holders the scan cannot see.
   This design keeps both:
   an incomplete read is reported and is never read as clear,
-  and the removal goes on under the destroy-anyway rule.
+  and a holder the scan sees stops the destruction (the second answer).
   A scan file that never arrived is different,
   and V2 makes it a refusal at the step that needed it.
 
-- The protected set's width.
-  The decision names the caller,
-  its session,
-  the shell that ran the command and that shell's other jobs.
-  This design protects the session and every ancestor to pid 1,
-  which is wider than the words.
-  Q6 puts the width to the project,
-  and the design implements the widest so a narrower answer changes only the stop rule.
-
-- The failure path.
-  The sibling owns what a removal leaves when it does not finish,
-  forced or not (M4);
-  its current text excludes forced removals,
-  so the stop point is a requirement of this design on its fix round.
-  This design no longer reverses the intent,
-  reattaches or reports lost snapshots itself,
-  and it writes no `mount` request;
-  it asks the sibling to write one with a fresh nonce.
-
 - The receipt's contract.
   The sibling adds a sixteenth key,
-  `bind` ([cancelled][cancelled],
-  lines 1395 to 1416);
-  this design adds no key,
-  and carries the holder list in the scan file and the refusal in a bounded failed-step word (F24).
+  `bind`,
+  in its "The receipt's new answer field";
+  this design adds no key and carries the holder list in the scan file and the refusal in a bounded failed-step word (F24).
   A key and a word can coexist,
   and the receipt's derived bound changes once,
   in the sibling's change.
 
-- The claim.
-  The sibling says the handler never reads the account's claim (A7);
-  this design's liveness proof is the wrapper process,
-  not the claim.
-
-- Step 16's ownership.
-  The deferred-destroy checks own step 16's call sites ([deferred][deferred],
-  lines 2168 to 2180,
-  and its "What each build step builds");
-  this design claims no ownership of those checks and only needs the scan file's reader,
-  whose build place is the first consumer's.
+- The failure path.
+  The sibling owns what a removal leaves when it does not finish,
+  forced or not (its "The forced arm's failure path");
+  this design states only the forced arm's refusal before the first delete,
+  with the two words,
+  and writes no intent and no restored state.
+  The sibling's current text still reads the forced failure path as two cases and names the first with its old word;
+  its fix round reconciles the words and the wider protected set.
 
 ## Choices this design marks for the project's veto
 
@@ -1725,14 +1662,12 @@ the wrapper never learns and root acts alone.
 
 Concrete example:
 a clone at `.claude/worktrees/one` held in `mnt:[4026532396]` by `/proc/127996`.
-Under the adopted option the person's report names `mnt:[4026532396]`,
-`/proc/127996` and the mount id from the receipt's nonce,
+Under the adopted option the person's report names the namespace,
+the task and the mount id from the receipt's nonce,
 and `doctor` prints the same row.
-Under the in-receipt option the report says the same,
-and every existing receipt reader gains an optional multi-line blob.
-Under the on-demand option the report says the same and there is no scan file for `doctor` to read.
-Under the outcome-only option the report says "a holder was ended" and cannot name it,
-and the refusal cannot be printed from the holder's own fields.
+Under the in-receipt option every existing receipt reader gains an optional multi-line blob.
+Under the on-demand option there is no scan file for `doctor` to read.
+Under the outcome-only option the refusal cannot be printed from the holder's own fields.
 
 Pros of the adopted option:
 reuses the scan's parser and bound,
@@ -1753,8 +1688,7 @@ and the last loses the names the decision's report owes.
 
 Options:
 a refusal of the removal at the step that needed the scan (adopted);
-an `unknown` that does not refuse and lets the removal go on,
-as the proposal's reading of an incomplete read would;
+an `unknown` that does not refuse;
 a retry of the scan before going on.
 
 Concrete example:
@@ -1762,11 +1696,10 @@ the wrapper asks for the scan before the first snapshot delete and the receipt a
 Under the adopted option the removal refuses,
 prints that the finding never arrived,
 and destroys nothing.
-Under the second it treats the missing file as an incomplete read and goes on to delete the snapshots.
-Under the third it asks again,
-and a handler that cannot publish a scan file will fail again.
+Under the second it treats the missing file as an incomplete read and goes on to delete.
+Under the third a handler that cannot publish will fail again.
 
-Pros of the adopted option:
+Pros:
 nothing is destroyed on an answer the wrapper never received.
 Cons:
 a handler fault stops a removal that might have been safe.
@@ -1781,15 +1714,15 @@ Options:
 two more clone-local properties,
 each bound to the intent's nonce (adopted),
 one carrying the wrapper's pid,
-start time and boot and the other the force word;
-a longer intent grammar carrying both;
+start time,
+recorded parent and boot and the other the force word;
+a longer intent grammar;
 a single property carrying a request record.
 
 Concrete example:
 `--force` on the clone above.
-The adopted option writes `v1:<nonce>:<pid>:<starttime>:<boot>` and `v1:<nonce>:force` beside the existing
-`v1:<nonce>:unmount`.
-The longer grammar writes `v1:<nonce>:unmount-force:<pid>:<starttime>:<boot>` into the one property,
+The adopted option writes `v1:<nonce>:<pid>:<starttime>:<parent-pid>:<parent-starttime>:<boot>` and `v1:<nonce>:force` beside the existing `v1:<nonce>:unmount`.
+The longer grammar writes everything into the one property,
 and every reader of the intent must grow with it.
 The single-record option writes a third property holding a structured request.
 
@@ -1828,249 +1761,146 @@ every scan > step 16's scans only > once,
 because the first also refuses before the move when the protected set holds,
 and the last trades history for nothing.
 
-### V5. Whether the protected-set refusal needs `--force`
+### V5. How the mount is named and unmounted inside a holder's namespace
 
 Options:
-the refusal is the forced arm's rule,
-printed when `--force` was asked and a protected task holds,
-while a removal without `--force` cancels itself (adopted);
-the refusal is unconditional.
+a descriptor on the copy,
+moved to a root-owned destination the handler made and unmounted from the destination's descriptor (adopted);
+a name under a descriptor on the mount point's parent directory (the staging design's "name under the descriptor" arm,
+rejected);
+a covered descriptor from before the mount (not available after the fact);
+a path unmount (withheld by proposal lines 730 to 732);
+a lazy detach (refused,
+F18,
+F22).
 
 Concrete example:
-a person runs `git worktree remove <slot>` with a shell sitting in the clone.
-Under the adopted option the removal cancels,
-the checked reattach puts the clone back,
-and the person reads the cancelled-removal report.
-Under the unconditional option the person reads the refusal,
-the clone stays as it is,
-and nothing is reversed.
+a `PrivateMounts=yes` unit holds a copy at `/srv/x` in `mnt:[4026532397]`.
+The adopted option opens `/srv/x` once,
+proves its mount id,
+moves the mount by descriptor to a `0700` directory the handler made under a private mount,
+and unmounts from that directory's descriptor;
+the holder sees its copy vanish and nothing it controls was named twice.
+The parent-name option unmounts `/proc/self/fd/<parent>/x`,
+and a rename of `x` steers the call.
+The path unmount is what the shared control did and what the accepted design withholds.
+The lazy detach reports success and leaves the dataset busy.
 
 Pros of the adopted option:
-it follows the blocked-removal answer for the no-force arm,
-and the caller is safe because nobody is ended there.
+both ends of the move are descriptors,
+the only account-changeable name is checked against the mount id before it is used,
+and the unmount argument is a dentry the handler made.
 Cons:
-two different words reach the person for one holder,
-depending on a flag.
+it needs `move_mount` and a private destination mount,
+it changes the holder's tree for a moment,
+and it is unrun.
 Ranking:
-forced-arm-only > unconditional,
-because the first keeps the auto-cancel the project chose and the second turns an ordinary cancel into a refusal
-the project did not ask for.
+move by descriptor > parent-name > path > lazy detach,
+because the first keeps every name after the check out of the call,
+the second resolves a component the holder can change,
+the third is the withheld path unmount,
+and the last does not release the dataset.
+The project confirms this after M3 to M7.
+
+### V6. Whether a refused unmount after the move is moved back
+
+Options:
+move the copy back when its recorded path is still the same parent with no mount (adopted);
+leave it at the destination and report both paths;
+detach it.
+
+Concrete example:
+a blocker appears after the move and the unmount refuses.
+The adopted option puts the copy back where the holder had it and reports the refusal.
+The second leaves the holder's path empty and names the destination.
+The third is the lazy detach the design refuses.
+Ranking:
+move back > leave and report > detach,
+because the first restores what the act found,
+the second leaves the holder's tree changed,
+and the third does not release the dataset.
 
 ## Questions only the project can answer
 
-### Q1. By what authority the wrapper ends another account's process or a unit's task
+The record closed S1,
+S2,
+S3 and S5.
+S7 to S10 belong to the sibling design and are not repeated here.
+These three are still open,
+numbered as the review numbers them.
+
+### S4. The signal, and any grace before it
+
+In words:
+"When the forced arm ends a process,
+may it give the process a chance to save and exit first?"
 
 Options:
-
-- A.
-  The account alone.
-  The wrapper signals only what its account may and refuses the rest,
-  naming the holder and what a person can do for it.
-
-- B.
-  The installed root handler ends holders on the account's request,
-  under the property and receipt protocol.
-
-- C.
-  A root helper the wrapper starts through `sudo -n`.
-
-- D.
-  The systemd managers.
-
-Concrete case:
-`git worktree remove --force one` on `.claude/worktrees/one` while a root `systemd-run` job holds a copy of the
-clone in `mnt:[4026532397]` and a shell of this account has its working directory inside.
-A ends the shell and refuses,
-printing the job's unit and "stop that unit yourself,
-then run the removal again";
-nothing is destroyed.
-B ends both and the head destroy succeeds.
-C does what B does through a helper,
-after a sudoers entry the setup writes.
-D asks polkit,
-which on the installed defaults wants administrator authentication (this account is in `wheel`,
-so that is its own password in a desktop dialog,
-the thing that happened),
-or,
-with `--no-ask-password`,
-is answered "requires interactive authentication" (F29);
-local rules are unread (L11).
-
-Pros and cons:
-A adds no privileged path and cannot over-reach;
-it contradicts "Kill ...
-the holders whenever --force is specified" for other accounts' holders,
-as the proposal's open item says.
-B keeps the accepted protocol and needs no configuration;
-it lets an account-writable property make root end processes,
-which A4 permits only with the liveness binding and the act's bounds.
-C gives the better caller proof by parentage once the sudo skip (F30) is in the algorithm;
-it adds a second privileged channel and a sudoers line,
-and fails under `NoNewPrivileges`.
-D uses no new program;
-it prompts a person,
-which the never-prompt rule forbids,
-and `systemctl kill` ends a whole unit including,
-in the Pi shape,
-the caller's own (F2).
-
-Ranking:
-B > C > A > D.
-B over C because B rides the receipts and the per-slot claim already built and adds no channel.
-C over A because C honours the forced answer for other accounts' holders,
-and its configuration cost is a line the step 19 setup could write,
-as it writes the handler's configuration.
-A over D because A prompts nobody and cannot end the caller's unit,
-while D breaks the never-prompt rule and can.
-
-### Q2. How much a forced removal ends
-
-Options:
-(a) every task in each holder namespace;
-(b) unmount the clone's mount inside each holder namespace,
-without force and without lazy detach,
-and end only the tasks that block that unmount;
-(c) (b) first,
-then (a) for any namespace (b) cannot reach.
-
-Concrete case:
-a `PrivateMounts=yes` unit with a web server that never opened the clone and a helper whose working directory is in it.
-(a) ends both.
-(b) unmounts the copy,
-the helper blocks it,
-so only the helper is ended and the web server runs.
-(c) ends the same as (b),
-and falls back to ending the namespace's tasks only if entering the namespace or the unmount is refused.
-
-Pros and cons:
-(a) is simple and the closest to what the guest arm already plans;
-it ends processes that never touched the clone and cannot reach a namespace with no task.
-(b) ends the fewest;
-it needs root to enter namespaces from a single-threaded child (F14,
-F15),
-is unmeasured on this route,
-and goes beyond what proposal line 732 authorises ("does not authorize path unmount in the design").
-(c) is the most likely to finish a `--force` removal while ending the fewest;
-it is the most code and carries (b)'s authorisation question.
-Ranking:
-c > b > a.
-c over b because b alone leaves a `--force` removal failing where the answer says the holders are ended;
-b over a because a ends processes that held nothing.
-Nothing is chosen until the guest arm M3 runs and the owner decides whether an unmount inside a namespace is
-within "otherwise remove".
-
-### Q3. The signal
-
-Options:
-SIGKILL alone;
-SIGTERM,
+`SIGKILL` alone;
+`SIGTERM`,
 wait on the pidfd,
-then SIGKILL;
-SIGTERM alone.
+then `SIGKILL`;
+`SIGTERM` alone.
 
 Concrete case:
 an editor with unsaved buffers whose working directory is in the clone.
-SIGKILL loses them.
-SIGTERM lets it save and exit,
+`SIGKILL` loses them.
+`SIGTERM` lets it save and exit,
 and the removal then waits for that.
+`SIGTERM` alone cannot promise the holder ends.
 
 Pros and cons:
-SIGKILL ships no number and cannot be refused,
-and loses state.
-SIGTERM then SIGKILL gives a holder its chance,
-and needs a grace the project must measure or decide (L9).
-SIGTERM alone cannot promise the holder ends.
+`SIGKILL` ships no number and cannot be refused,
+and loses state;
+`SIGTERM` then `SIGKILL` gives a holder its chance and needs a grace the project must measure or decide (L9);
+`SIGTERM` alone can fail to end the holder.
 Ranking:
-SIGTERM then SIGKILL > SIGKILL > SIGTERM alone.
-First over second because the cost of an unmeasured grace falls on the removal's time while the cost of none falls
-on a person's data;
-second over third because the third can fail to end the holder.
+`SIGTERM` then `SIGKILL` > `SIGKILL` > `SIGTERM` alone,
+because the cost of an unmeasured grace falls on the removal's time while the cost of none falls on a person's data,
+and the third can leave the holder alive.
+A grace period ships no number:
+it is owed to a measurement or to the project.
 
-### Q4. How long a forced request's authority lasts
+### S6. How long a forced request's authority lasts
+
+In words:
+"If the person gives up on a forced removal (Ctrl-C),
+may a later trigger still end processes for it?"
 
 Options:
-(a) the handler honours the force word only while the wrapper that wrote it is alive,
-by pid and start time (adopted by the design's implementation);
+(a) only while the wrapper that wrote it is alive,
+by pid,
+start time and its recorded parent (the design's implementation);
 (b) as long as the nonce matches and the caller's session exists;
-(c) for a fixed time (a number).
+(c) for a fixed time.
 
 Concrete case:
 Ctrl-C at the twentieth second;
 a ZED event at ten minutes.
-(a) ends nothing at ten minutes and files `caller-gone`.
-(b) ends whatever attached since.
+(a) ends nothing and files `caller-gone`;
+(b) ends whatever attached since;
 (c) depends on the number.
 
 Pros and cons:
-(a) matches what the person asked for and lets the standing request still do its harmless mount work;
-it needs the liveness check and a receipt word.
-(b) is cheaper and lets a later trigger finish a removal the person abandoned with a live session.
+(a) matches what the person asked and still lets the standing request do harmless mount work,
+and needs the liveness check and a receipt word;
+(b) is cheaper and lets a later trigger finish a removal the person abandoned with a live session;
 (c) ships an unmeasured number.
 Ranking:
-a > b > c.
-a over b because the person who interrupted a forced removal is the person whose later processes would be ended;
-b over c because b ships no number.
+a > b > c,
+because the person who interrupted a forced removal is the person whose later processes would be ended,
+and b ships no number where c does.
+The design implements (a),
+and the project should confirm it.
 
-### Q5. What a forced removal does when a holder cannot be ended
+### S11. Whether a forced ending leaves a durable record beyond the journal
 
-Options:
-refuse before the first snapshot delete;
-proceed while the holder is still seen;
-retry after the deadline.
-
-Concrete case:
-a root reader in uninterruptible sleep at the pre-move scan.
-The first prints the refusal with the clone,
-its snapshots and registration whole;
-the second destroys the snapshots and then meets `dataset is busy`.
-
-Pros and cons:
-the first keeps history and makes `--force` failing visible,
-and a `--force` removal can end with nothing destroyed;
-the second spends the clone's own snapshots to learn the act failed;
-the third repeats the same failure at the removal's cost.
-The second is not the destroy-anyway decision (that covers holders the scan cannot see),
-so choosing it overrides "the scan that refuses the holders it sees stays".
-Ranking:
-refuse first > retry > proceed.
-Refuse over retry because retry repeats the same failure at the removal's cost;
-retry over proceed because proceed spends the clone's history to learn the act failed and contradicts the kept scan.
-The failure's restored state is the sibling's to design (M4,
-D2).
-
-### Q6. What the caller's protection covers
-
-Options:
-(a) the caller's session only (the decision read literally);
-(b) session plus ancestors to the first session leader;
-(c) session plus every ancestor to pid 1,
-and refuse when any of them holds the clone.
-
-Concrete case:
-Claude Code started in `.claude/worktrees/one` removing `one`.
-(a) and (b) end `claude` (it was started there,
-so it holds the directory) and the removal's caller with it.
-(c) refuses,
-naming `claude` and saying to run the removal from outside the worktree.
-
-Pros and cons:
-(a) is the record's words and ends the harness.
-(b) is one chain wider and misses the harness in every shape measured here (F4,
-F5).
-(c) never ends a harness or a terminal owner;
-it refuses where (a) and (b) would have removed,
-and the person runs the command from the main checkout.
-Ranking:
-c > b > a.
-c over b because b misses the harness in the Claude Code,
-scope and unit shapes;
-b over a because a ends the harness even in the shape where b would have spared it.
-
-### Q7. Whether a forced ending leaves a durable record beyond the journal
+In words:
+"Should the plan record remember who a forced removal ended?"
 
 Options:
 the handler's journal and the wrapper's standard error;
-an entry in the removal's persisted plan record;
+an entry in the removal's plan record;
 a record of its own per slot.
 
 Concrete case:
@@ -2081,23 +1911,18 @@ a record of its own survives until something prunes it,
 and nothing does.
 
 Pros and cons:
-the journal adds no state and is where root's acts already go;
-it rotates.
-A plan entry survives rotation and sits beside the loss report;
-it couples a record kept while unfinished to an audit,
-and needs a field the plan record's design does not have today ([planrecord][planrecord],
-its fields section,
-lines 681 to 892,
-and its no-dependency entry,
-lines 2333 to 2337).
-A record of its own is exact and has no reader or pruner.
+the journal adds no state and rotates;
+a plan entry survives rotation and sits beside the destroyed set,
+and needs a field the plan design lacks today ([planrecord][planrecord],
+its fields section);
+a record of its own is exact and has no reader or pruner.
 Ranking:
-plan entry > journal > own record.
-The plan entry over the journal because it survives rotation and sits beside the destroyed set;
-the journal over the own record because the own record has no reader or pruner.
+plan entry > journal > own record,
+because the plan entry survives rotation and the journal does not,
+and the own record has no reader or pruner.
 The plan entry is contingent on that design adding the field,
 which this design asks of it (D4);
-until then the journal is what ships.
+until then the journal ships.
 
 ## Which build step builds which part
 
@@ -2106,35 +1931,34 @@ until then the journal is what ships.
   the parser and the mode,
   as work in flight.
   This design asks that build to record the representative task's start time (F23 has none),
-  and it builds no scan and no act there.
-
+  and it builds no scan there.
 - Step 16 owns the scans' call sites and the deferred-destroy checks ([deferred][deferred]);
   the scan file's publisher and reader are built with the first consumer,
-  which is step 16 or step 17,
-  and this design only needs the read interface and V2's rule.
-  The design claims no ownership of step 16's checks.
-
+  step 16 or step 17,
+  and this design needs only the read interface and V2's rule.
 - Step 17 builds this design:
   the caller and force properties,
-  the chain read and the protected set,
-  the liveness check,
-  the two refusal texts and their receipt word,
+  the chain read with its parent anchor and hop checks,
+  the pidfd on the wrapper,
+  the service-manager parent refusal,
+  the two refusal texts and their receipt words,
   the pre-move scan,
   the pin-first proof,
-  the act (as Q2 answers),
+  the reach (the entering child,
+  the move and the unmount,
+  the blocker matcher),
   the logging and the tests.
-
 - Step 18 builds the `doctor` reading:
   the last scan file,
   the live scan mode,
   the holders named by namespace and task,
   and the protected set the removal spares.
-
-- Step 19 adds a sudoers line only if Q1 chooses C,
-  and the single-threaded entering helper only if Q2 chooses (b) or (c).
-
-- No step builds a second scan.
-  `listns` and entering a namespace are built only under Q2's (b) or (c).
+- Step 19 installs nothing new:
+  the chosen channel adds no sudoers line and no helper.
+- No step builds a second scan,
+  a fallback kill-all,
+  a lazy detach,
+  or a forced unmount of the host's mount.
 
 ## Tests a build must have
 
@@ -2145,11 +1969,9 @@ and whether it needs a guest.
 1.  The proof refuses a task that exits before its pin.
     Enumerate a task,
     let it exit,
-    then run the proof and assert no signal;
-    the pin's two start-time reads are the same shape `PinnedMember` uses.
+    then run the proof and assert no signal.
     Device-free for the proof's own code;
     the guest owns the part that reads the host `/proc`.
-
 2.  A signal reaches the pinned process only.
     Pin one child,
     end it,
@@ -2157,7 +1979,6 @@ and whether it needs a guest.
     and assert a signal through the first child's descriptor fails while the second is untouched.
     Device-free,
     with the guest repeating it against the real `/proc`.
-
 3.  The protected-set refusal for a working directory.
     Start a holder in the wrapper's session,
     wait for its readiness on a pipe,
@@ -2167,13 +1988,11 @@ and whether it needs a guest.
     the registration,
     and the holder alive.
     Guest.
-
 4.  The protected-set refusal for a namespace.
     Start a holder in a mount namespace of the wrapper's session (a `PrivateMounts=yes` unit started by that session),
     run with `--force`,
     and assert the second refusal text names the namespace and says leaving the folder does not release it.
     Guest.
-
 5.  Another session's holder ends while the caller lives.
     Start the holder in a new session,
     wait on a pipe,
@@ -2183,36 +2002,78 @@ and whether it needs a guest.
     a second job of the caller's session alive,
     and the head destroy done.
     Guest.
-
 6.  The ancestor half is spared.
-    Start the removal from a child of a process that holds the clone but is not in the wrapper's session
-    (the harness shape,
+    Start the removal from a child of a process that holds the clone but is not in the wrapper's session (the harness shape,
     F4),
     and assert the refusal names that ancestor and it stays alive.
     Device-free with fixture `/proc` for the comparison;
     guest for the real removal.
-
 7.  A holder that appears between the scan and the act is met by the next one.
     Force the interleaving with an injected hook between the scan and the act,
     of the shape `take_claim_seamed` gives the claim (`lock/single_owner_claim.rs:362`),
     not with a watch on the results folder.
     Guest.
-
 8.  A receipt without its scan file refuses at a destroy step.
     Publish the receipt and no scan file,
     and assert the removal refuses before the snapshot delete.
     Device-free.
-
 9.  A stale or absent caller property declines the force.
     Send the force word with an absent caller property,
-    with a mismatched nonce,
-    and with a dead pid and start time,
-    and assert no signal,
+    a mismatched nonce,
+    a dead pid and start time,
+    and a wrapper whose recorded parent is not its live parent.
+    Assert no signal,
     the receipt says `caller-gone`,
     and only the non-force work happens.
     Device-free.
-
-10. `doctor` names holders and the protected set without root.
+10. The wrapper ends between two passes.
+    Kill the wrapper at the injected hook after the first pass and before the second,
+    and assert the second pass sends no signal and no unmount,
+    the receipt says `caller-gone`,
+    and the half-done state is reported.
+    This is the review's N2 test.
+    Guest.
+11. The service-manager parent refuses `--force`.
+    Run the removal as a `systemd-run --user --pipe --wait` unit,
+    assert exit `2`,
+    the refusal text,
+    no property written,
+    and nothing changed.
+    Guest.
+12. The reach unmounts a copy and ends only its blockers.
+    A `PrivateMounts=yes` unit holds a copy;
+    a web server that never touched the clone and a helper whose working directory is in it run in that unit.
+    Run with `--force`,
+    and assert the copy is gone,
+    the helper is dead,
+    the web server runs,
+    and the head destroy succeeds.
+    Guest.
+13. The reach refuses what it cannot take.
+    Five arms,
+    each asserting the named refusal and nothing destroyed:
+    a `shared:` copy;
+    a mount under the copy;
+    a second mount of the dataset in the namespace;
+    a namespace whose root is the copy;
+    a wrapper killed after the move.
+    Guest.
+14. A taskless namespace.
+    Pin a namespace that mounts the clone,
+    end its task,
+    run with `--force`,
+    and assert the handler lists it (F14),
+    enters a single-threaded child,
+    unmounts inside it,
+    and the head destroy succeeds.
+    Guest.
+15. The moved copy goes back when the unmount refuses.
+    Stack a mount on the destination between the move and the unmount (the injected hook),
+    and assert the copy is back at its recorded path,
+    the receipt names both,
+    and nothing else moved.
+    Guest.
+16. `doctor` names holders and the protected set without root.
     Give `doctor` a scan file and a live scan mode answer for a clone held in a namespace,
     and assert the namespace,
     task,
@@ -2221,20 +2082,15 @@ and whether it needs a guest.
     and that `doctor` never signals or unmounts.
     Device-free.
 
-11. A taskless namespace.
-    Pin a namespace that mounts the clone,
-    end its task,
-    and assert under Q2's (b) and (c) that the handler lists it (F14),
-    enters a single-threaded child,
-    unmounts inside it,
-    and the head destroy succeeds;
-    under (a) assert the head destroy refuses and the report names the resume state.
-    Guest.
-
 ## Measurements owed
 
-M1 to M11 are the arms of one guest run,
-on the fixture of [measurements][measurements]:
+M1 to M13 are the arms of one guest run,
+and each is a specification for the build step that builds the forced arm:
+the state,
+the one action,
+the expected result,
+and the bound on its wait.
+The fixture is [measurements][measurements]:
 an encrypted file-backed pool,
 OpenZFS `2.4.4`,
 sibling checkout and clone-parent datasets,
@@ -2250,172 +2106,249 @@ and the state of the clone,
 its snapshots and the registration after it.
 A run that cannot show the arm is recorded as unrun,
 never as passed.
+No value from any arm ships until the arm runs.
 
 - M1.
-  Mount-namespace holders outside the protected set.
-  Extend VM item 15's arms:
-  an `unshare --mount --propagation unchanged` reader and a `PrivateMounts=yes` unit,
-  both started by a session that is not the caller's,
-  after the attach.
-  Run `git worktree remove --force <slot>` under Q2's options (a) and (b).
-  Record each reader's wait status,
-  the last output it wrote and the last error it printed before the act,
-  whether its namespace row vanished,
-  the scan before and after,
-  and that the head destroy exited 0.
+  State:
+  a `PrivateMounts=yes` unit,
+  started outside the protected set,
+  holds a copy of the clone;
+  a second reader namespace holds another copy;
+  neither has a task using the copy.
+  Action:
+  `git worktree remove --force <slot>` once.
+  Expected:
+  the handler enters each namespace,
+  moves the copy and unmounts it;
+  both copies are gone from their namespaces;
+  both readers are still alive and see the mount vanish;
+  the head destroy exits 0 and the dataset is gone from `zfs list`.
+  Bound:
+  the child that enters and unmounts returns before the sweep's own work bound;
+  the record notes the elapsed time and whether the child was killed at the bound.
   Control:
   the same arm without `--force`,
-  recording that both readers live and the clone is reattached.
+  recording that the removal cancels,
+  both copies stay,
+  nothing is destroyed,
+  and the clone is back at its slot.
 
 - M2.
-  Protected-set holders.
-  The same two readers started by the removal's own session:
-  one holding a working directory,
-  one holding a mount namespace.
-  Assert the two refusal texts,
-  the readers alive,
-  the mount at its slot,
-  the snapshots and the registration whole,
-  the receipt's `caller-protected-holds` step,
-  and the absence of any destroy request.
+  State:
+  the same two readers,
+  but both started by the removal's own session;
+  one holds a working directory in the clone,
+  one holds a mount namespace.
+  Action:
+  one `git worktree remove --force <slot>`.
+  Expected:
+  the two refusal texts;
+  both readers alive;
+  the mount at its slot;
+  the snapshots and registration whole;
+  the receipt's `caller-protected-holds` step;
+  no destroy request.
+  Bound:
+  the refusal is at the pre-move scan;
+  the record notes that no signal and no unmount call ran.
 
 - M3.
-  A plain unmount inside a holder namespace.
-  Repeat VM item 15's shared-checkout control as a plain,
-  non-lazy path unmount inside a disposable holder namespace only,
-  and record what each holder sees (a vanished mount,
-  stale content,
-  an error,
-  or its own last output) and whether the head destroy then succeeds.
-  This is Q2's (b);
-  it is not a force-unmount and it is the arm whose success would let the owner choose (b) or (c).
+  State:
+  a holder namespace with a copy at `/srv/x`,
+  no task using it,
+  and a private destination available in that namespace.
+  Action:
+  the handler's reach enters the namespace,
+  moves the copy to the destination and unmounts it.
+  Expected:
+  the copy's mount id is absent from that namespace;
+  the destination dentry shows the destination mount;
+  the destination directory is removed;
+  the head destroy succeeds;
+  the holder's original path shows the parent mount.
+  Bound:
+  the child's calls return;
+  the record notes each call's elapsed time and the sweep bound.
+  Control:
+  the same arm with the move omitted and a path `umount` used only in a disposable decoy,
+  recording what the holder sees and why the design does not use it.
 
 - M4.
-  A path holder in the staging folder.
-  Reproduce VM item 4's busy holder with the built handler,
-  run with `--force`,
-  and record the unmount,
-  the destroy,
-  and the holder's wait status.
-  Control:
-  without `--force`.
+  State:
+  M3's namespace,
+  plus a web server that never opened the clone and a helper whose working directory is in the copy.
+  Action:
+  one `--force` removal.
+  Expected:
+  the helper is found by the copy's mount id,
+  ended through its pidfd,
+  and its wait status is recorded;
+  the web server is alive;
+  the unmount and the head destroy succeed.
+  Bound:
+  same as M3.
 
 - M5.
-  A path holder outside every holder namespace.
-  A process with an open descriptor on a file inside the clone,
-  in a namespace that does not mount it,
-  and a second with its working directory under another root.
-  Record whether the mount-id-and-inode match finds them,
-  whether they are ended,
-  and whether the destroy succeeds.
+  State:
+  M3's namespace plus a task with an open file on the copy (not a working directory),
+  and a task whose working directory is under a child mount of the copy.
+  Action:
+  one `--force` removal.
+  Expected:
+  the open-file task is found and ended;
+  the child mount is refused,
+  reported,
+  and no signal is sent for the task under it;
+  the removal refuses `holder-unendable` and nothing is destroyed.
+  Bound:
+  the refusal is before the first delete;
+  the record notes the blocker scan's cost.
 
 - M6.
-  A namespace whose task is gone.
-  Pin a namespace that mounts the clone with a descriptor held by a process outside it,
-  end its task,
-  run with `--force`,
-  and record under Q2's (a) that the scan reports no holder,
-  the batch succeeds and the head destroy refuses `dataset is busy`;
-  under (b) and (c),
-  that the handler lists the namespace with `listns` or a file handle,
-  enters it in a single-threaded child,
-  unmounts,
-  and the head destroy succeeds.
-  Then close the descriptor and retry,
-  recording the head destroy's success.
+  State:
+  a `shared:` copy,
+  and separately a copy under a shared parent mount;
+  a copy with a bind of a folder inside the clone at another path;
+  a namespace whose root mount is the copy.
+  Action:
+  one `--force` removal for each state.
+  Expected:
+  each is refused with its own named reason;
+  no move and no unmount ran;
+  the copies stay;
+  nothing is destroyed.
+  Bound:
+  the refusal needs no wait;
+  the record notes which check fired.
 
 - M7.
-  A holder the kernel will not stop.
-  A task in an uninterruptible sleep on a FUSE or NFS arm if the guest recipe can build one;
-  otherwise recorded as unrun with the reason.
-  Record the act's end,
-  the report,
-  and what the removal does per Q5.
+  State:
+  M3's namespace,
+  with a taskless namespace pinned by a descriptor,
+  and separately a system service's namespace holding a copy.
+  Action:
+  one `--force` removal for each.
+  Expected:
+  `listns` finds the taskless namespace,
+  the child enters it,
+  unmounts,
+  and the head destroy succeeds;
+  the system service's namespace is entered,
+  unmounted,
+  its blocker (if any) ended,
+  and the report names the unit.
+  Bound:
+  as M3.
 
 - M8.
-  The authority answers this host could not be asked,
-  and the arm the sibling design owes as its M9.
-  In the guest,
-  as an unprivileged account with no authentication agent:
-  `kill` and `pidfd_send_signal` on a root process (expected `EPERM`,
-  F8);
-  `systemctl --user --no-ask-password kill --signal=SIGKILL` on a transient unit of that account (expected to work,
-  F28);
-  `systemctl --no-ask-password kill --signal=SIGKILL` on a system unit the account does not own
-  (expected to be refused for want of authorization,
-  F29);
-  and the same with an agent that answers,
-  recording that the request waits on the agent.
-  The guest has no desktop,
-  so the last arm records the failure path,
-  not the dialog the host showed (L5).
-  One arm,
-  shared with the sibling;
-  neither design owes it twice.
+  State:
+  the authority answers this host could not be asked,
+  and the arm the sibling design shares:
+  an unprivileged account with no authentication agent.
+  Action:
+  `kill` and `pidfd_send_signal` on a root process;
+  `systemctl --user --no-ask-password kill --signal=SIGKILL` on its own transient unit;
+  `systemctl --no-ask-password kill --signal=SIGKILL` on a system unit it does not own.
+  Expected:
+  `EPERM`;
+  the own-unit kill works;
+  the system-unit request is refused for want of authorization (F29).
+  Bound:
+  the system-manager request returns without an agent;
+  the record notes the elapsed time.
 
 - M9.
-  The `sudo` route's parentage.
-  If Q1 ever prefers option C:
-  in a guest,
-  with a sudoers rule naming only the helper,
-  run `sudo -n <handler> kill-holders` and record whether the helper's chain past the sudo processes leads to the
-  wrapper and whether the no-pty and pty paths differ as F30 says.
+  State:
+  a wrapper that is killed after the move and before the unmount;
+  and one killed between two passes.
+  Action:
+  the next sweep finds the standing request.
+  Expected:
+  the act stops,
+  files `caller-gone`,
+  moves the copy back when it can,
+  and ends nothing.
+  Bound:
+  the sweep's bound;
+  the record notes the state left.
 
 - M10.
-  The scan file's latency and the act's cost.
-  Time the publish to the wrapper's read,
-  and time a kill of one and of many holders,
-  and a plain unmount inside one namespace,
-  to their outcomes.
-  No value ships before this runs.
+  State:
+  a rename of the copy's mount point between the mount-table read and the open;
+  a mount stacked on the destination between the move and the unmount.
+  Action:
+  one `--force` removal for each.
+  Expected:
+  the mount id check refuses the first;
+  the post-move check refuses the second and the copy goes back;
+  nothing is unmounted but the handler's own destination.
+  Bound:
+  no wait beyond the calls.
 
 - M11.
-  The service-unit shape.
-  Start a removal as a `systemd-run --user --pipe --wait` service unit from a process that holds the clone,
-  and record that the outer process is not in the protected set and is ended (L10).
-  Then start the same removal as a child of that process,
-  and record that it is spared.
-  The first half shows the limit;
-  the second shows the recommendation.
+  State:
+  the service-unit shape of the fourth answer.
+  Action:
+  start the removal as a `systemd-run --user --pipe --wait` unit from a process that holds the clone.
+  Expected:
+  `--force` is refused with the text,
+  exit 2,
+  and nothing changed;
+  the same removal run as a child of that process is allowed and spares it.
+  Bound:
+  the refusal is before any property write.
+
+- M12.
+  State:
+  the scan file's latency and the act's cost.
+  Action:
+  time the publish to the wrapper's read,
+  and time an unmount inside one namespace and the ending of one blocker.
+  Expected:
+  the numbers step 22's removal deadline needs.
+  Bound:
+  no value ships before this runs.
+
+- M13.
+  State:
+  a namespace whose destination cannot be made:
+  no root-owned writable directory on a private or slave mount.
+  Action:
+  one `--force` removal.
+  Expected:
+  refused,
+  naming the namespace and the step;
+  nothing moved.
+  Bound:
+  no wait beyond the calls.
 
 ## Limitations
 
-- Every claim about the dataset becoming destroyable after a plain unmount or after a kill is an inference from
-  source and from VM items 4 and 15 (L1).
-
+- Every claim about the dataset becoming destroyable after a plain unmount or after ending a blocker is an inference from source and from VM items 4 and 15 (L1).
 - The caller's protected set is a number inside one pid namespace (A1,
   L4);
   a removal inside a container is not covered and probably cannot reach `/dev/zfs` at all.
-
-- The caller property is an assertion the handler ties to a live process,
+- The caller property is an assertion the handler ties to a live wrapper and its recorded parent,
   not to a sender (A4);
   the liveness check keeps it from being stale,
   not from being wrong about which process is the caller.
-
-- A caller on the far side of a service unit is not protected (F5,
-  L10).
-
 - A confined unit the Pi driver starts is not an ancestor and can be ended if it holds the clone (L13).
-
-- Kind (d) is reached only under Q2's (b) and (c);
-  under (a) it stays and the head destroy refuses.
-
-- The `listns` and namespace-file-handle route is source-read and unrun (F14,
+- Kind (d) is reached through `listns` or a namespace file handle,
+  which is source-read and unrun (F14,
   L12).
-
-- The act chosen by Q2 is unmeasured;
-  M3 is the arm that would measure it.
-
+- The reach,
+  its move and its unmount are unrun;
+  M3 to M7 and M13 are the arms that would measure them.
+- The blocker matcher is new code (N5,
+  L14).
 - The protected-set refusal is unmeasured (M2),
   and the system-manager answers are unverified on this host (L5,
   L11).
-
 - The handler's own work bound is the sweep's,
   not a number this design ships (L9);
   its value is not measured here.
-
 - The plan record has no field for "who was ended" today,
-  so Q7's first-ranked home is contingent on D4.
+  so S11's first-ranked home is contingent on D4.
 
 ## What this design does not cover
 
@@ -2423,34 +2356,31 @@ never as passed.
   interrupted,
   timed-out or killed removal leaves,
   and the kept `cancel-worktree-removal` command:
-  the sibling owns it (D2),
-  including the forced stop point this design requires of it.
-
+  the sibling owns it,
+  including the forced stop point this design requires of it (D2).
 - Where the removal's persisted destruction plan lives,
   which fields it has,
   and what a forced ending should record in it (D4,
-  Q7).
-
+  S11).
 - The deferred-destroy checks themselves and step 16's call sites (D3).
-
 - A second scan,
   any force or lazy unmount of a staged mount,
-  and any automatic design of the `listns` route beyond what Q2's (b) needs.
-
+  any fallback that ends every task of a namespace,
+  and any unmount of the host's clone mount by the forced arm.
+- A namespace the reach refuses for a reason this design names,
+  beyond the refusal and the report:
+  no recovery is designed for a copy left at a destination when moving it back also fails.
 - The handler's installation,
   its unit hardening and ZED's own timeouts;
   whether a kill-and-wait inside a zedlet child is bounded by ZED is a question for step 19,
   not answered here.
-
 - The add-time Git lock,
   the add binding record,
   the dirty-main restore,
   the origin-cleanup record,
   and the private propagation after a replacement mount (D6).
-
 - Container removals,
   and a caller named across a service boundary (L10).
-
 - Any number:
   no grace,
   retry count,
@@ -2470,40 +2400,35 @@ that it does.
   nothing of the route is released.
 
 - D2.
-  [The cancelled or killed removal][cancelled] owns what a removal leaves and restores when it does not finish,
+  [The sibling cancelled-removal design][cancelled] at `2fb7caea17` owns what a removal leaves and restores when it does not finish,
   forced or not:
-  the states,
-  the records,
-  the reattach,
-  and the nonce of a new `mount` request.
-  This design takes its own failure-path mechanics out and asks that document's fix round for a forced stop point
-  (`caller-protected-holds` and a holder that cannot be ended),
-  the restored state,
-  and a fresh nonce.
-  It currently says "the automatic arm of this design does not run for a forced removal" (lines 2042 to 2045),
-  which is the disagreement this design's requirement resolves.
+  its "The stop points",
+  "The forced arm's failure path",
+  "What the caller sees" and "One reversing request,
+  written in one place".
+  This design states only the forced arm's refusal before the first delete,
+  gives it the two words `caller-protected-holds` and `holder-unendable`,
+  and writes no intent.
+  The sibling's current text names the first refusal with its old word and the caller's session only;
+  its fix round owes the wider protected set and the two words.
   It also adds a sixteenth receipt key,
-  `bind` (lines 1395 to 1416);
-  this design adds no key and a bounded failed-step word,
-  so the two can coexist.
+  `bind`,
+  in its "The receipt's new answer field";
+  this design adds no key.
 
 - D3.
   [The deferred-destroy checks][deferred] own step 16's checks and call sites.
   This design claims no ownership of them;
   it needs the scan file's reader and V2's rule,
   and the build place is the first consumer's choice.
-  That document records an earlier version of this one as assuming "a refusal rewrites the intent to `mount`"
-  (lines 2168 to 2180);
-  this revision removes that assumption and defers the state to D2.
 
 - D4.
   [The destruction plan record][planrecord] owns the plan's home,
   fields,
   readers and lifetime.
-  This design needs the record only if Q7 chooses the plan entry,
+  This design needs the record only if S11 chooses the plan entry,
   and then it needs a field for who was ended,
-  which that document does not have (its "no dependency" entry,
-  lines 2333 to 2337).
+  which that document does not have.
 
 - D5.
   [The lost-last-event triggers][losttriggers] own nudge merging and the rate rule.
@@ -2512,18 +2437,14 @@ that it does.
   and the merge rule does not read them.
 
 - D6.
-  [The propagation after a replacement mount][propagation] states "no dependency" on this design and leaves the
-  holder scan and the forced arm to this document (lines 886 to 895,
-  2835 to 2848).
+  [The propagation after a replacement mount][propagation] states "no dependency" on this design and leaves the holder scan and the forced arm to this document.
   This design keeps the scan's visibility unchanged from VM item 15 and needs nothing from that design.
 
 - D7.
-  If Q1 chooses C,
-  the step 19 setup writes a sudoers line naming only the helper.
-  If Q2 chooses (b) or (c),
-  the handler gains a single-threaded entering child;
-  both are dependencies of those answers,
-  not of this text.
+  The chosen channel adds no sudoers line and no helper.
+  The reach adds a single-threaded entering child to the handler,
+  which is step 17's build,
+  not a new installation.
 
 ## Revisions
 
@@ -2556,18 +2477,43 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   and the final newline.
 - `9949210964`,
   2026-11-22T18:32:03-05:00:
-  the paragraph that says the caller property carries the wrapper's identity rather than each chain entry,
+  the caller property carries the wrapper's identity rather than each chain entry,
   and why.
+- `095b807355`,
+  2026-11-22T18:32:10-05:00:
+  the chain-carrier commit named in the revision list.
+
+### The round that answered the four questions
+
+- The four answers are built in:
+  "Who ends each kind of holder" is the chosen channel,
+  "The reach" is the unmount and blockers,
+  "The caller and its protected set" is the session plus every ancestor to pid 1 and the service-manager refusal,
+  and "The refusal" carries the force-only refusal and leaves the unforced cancel to the sibling.
+- The options not chosen are listed once,
+  under "Who ends each kind of holder",
+  with the record.
+- N2 is fixed in "The caller and its protected set" and "The time between the scan and the ending";
+  N3 in "A command whose parent is the service manager";
+  N4 by "The reach" and its M3 to M7 and M13;
+  N5 in "What a holder is".
+- The sibling is cited by section at `2fb7caea17`,
+  its current words are used,
+  and no "currently says" statement remains.
+- The questions left are S4,
+  S6 and S11,
+  and the veto list has V6.
+- F8 and F10's citations are corrected;
+  the lows and citation notes the second pass listed for this document are applied.
 
 ## What this revision left as it was
 
-The sections "The open items and the words that decide them",
-"What this design read" apart from the additions named,
-the kernel and OpenZFS facts F7 to F22 apart from the rewrites of F9,
-F14,
-F16 and F22,
-"What this design does not cover"'s route-level exclusions,
-and the reference definitions were left as they were,
+The sections "The open items and the words that decide them" apart from the record's four quotations,
+"What this design read" apart from the record,
+the sibling and the staging design,
+the kernel and OpenZFS facts F7 to F30 apart from the rewrite of F8 and F10,
+the reference definitions,
+and the route-level exclusions of "What this design does not cover" were left as they were,
 with the corrections the review names.
 
 [decision]: ../decision/cli-git-zfs-worktree-design.md
@@ -2582,3 +2528,5 @@ with the corrections the review names.
 [planrecord]: cli-git-zfs-removal-destruction-plan-record-design.md
 [losttriggers]: cli-git-zfs-lost-last-event-triggers-design.md
 [propagation]: cli-git-zfs-private-propagation-after-replacement-mount-design.md
+[record]: ../decision/cli-git-zfs-forced-removal-authority-and-reach.md
+[stagingdesign]: cli-git-zfs-staging-under-cache-design.md
