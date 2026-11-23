@@ -77,12 +77,11 @@ const EXPECTED_SWEEP_MEASUREMENTS = [
 
 /** The lines a run must find in the guest's unmount-arm log, one per staging arm plan step 9 runs. */
 const EXPECTED_UNMOUNT_MARKERS = [
-  'UNMOUNT record-before-bind=true',
-  'UNMOUNT bind-private=true moved=true',
-  'UNMOUNT sweep=unmounted',
-  'UNMOUNT other-boot=void',
-  'UNMOUNT cleanup=removed',
-  'UNMOUNT cleanup=kept',
+  'UNMOUNT attached clone=',
+  'UNMOUNT plain=unmounted receipt=done destroy=ok',
+  'UNMOUNT busy=reattached holder=ended',
+  'UNMOUNT reattach-then-unmounted=true',
+  'UNMOUNT two-at-once=both-unmounted',
   'UNMOUNT done',
 ] as const;
 
@@ -365,6 +364,12 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
   const script = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}`,
+    `for slot in ${SWEEP_CHECKOUT}/.claude/worktrees/*; do umount --force "$slot" 2>/dev/null || true; done`,
+    `umount --force ${SWEEP_CHECKOUT} 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
     `rm --recursive --force ${SWEEP_CHECKOUT}`,
     `mkdir --parents ${SWEEP_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
@@ -411,6 +416,9 @@ function unmountArms({ chosen, }: { readonly chosen: Options; }): void {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     `export CLI_GIT_ZFS_UNMOUNT_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
+    'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
+    `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
     'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_unmount_guest)" > /root/unmount-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=60 /root/unmount-arm.log',

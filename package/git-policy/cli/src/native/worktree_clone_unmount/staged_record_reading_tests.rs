@@ -82,6 +82,9 @@ fn another_boot_is_void_before_the_handle() {
     record.boot = String::from("an-older-boot");
     write_record(&cache, &record).expect("the other-boot record is written");
     let calls = RecordingCalls::default();
+    // A row at the folder path would make a stale handle refuse rather than void; the boot test must run first and keep
+    // the answer void without consulting the handle or the row.
+    *calls.table.borrow_mut() = vec![row(folder_path.as_path())];
     let reading: RecordReading = read_staged_record(&cache, guid(), "this-boot", folder_path.as_path(), &calls);
     assert_eq!(reading.word(), "void");
     assert!(!calls.ran(StagingCall::OpenHandle));

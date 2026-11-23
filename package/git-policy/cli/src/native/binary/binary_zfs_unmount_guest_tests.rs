@@ -1,54 +1,55 @@
 //! What:
-//!  Plan step 9's staging mechanics in the throwaway guest:
-//!  the record written before the bind,
-//!  a bind made private,
-//!  a mount moved onto it,
-//!  the later sweep's unmount from the record's handle,
-//!  the record of another boot read as void,
-//!  and the wrapper's `rmdir`-only cleanup with an allowed and a rejected
-//!  fixture.
+//!  Plan step 9's arms in the throwaway guest,
+//! on the design's dataset layout:
+//!  a clone attached by the built sweep and unmounted by a handler process that
+//!  did not attach it,
+//!  a holder that makes the unmount busy and the checked reattach,
+//!  two removals at once,
+//!  and the receipt the plain unmount files.
 //! Why:
-//!  A bind,
-//! a move and an unmount need mount authority,
-//!  so these arms run only where `CLI_GIT_ZFS_UNMOUNT_GUEST` names a
-//!  disposable guest;
-//!  every other machine prints a skip line,
-//!  so the gate says what it did not run.
-//!  The fixture here is a tmpfs mount standing in for the clone,
-//!  because the full ZFS layout,
-//!  the built sweep's attach and the design's M1 to M9 remain owed and are
-//!  recorded as owed in the plan's step 9 notes;
-//!  what this arm proves is the staging and cleanup mechanism the ZFS arms
-//!  will drive.
+//!  Every claim about a ZFS clone's unmount rests on the guest until this runs,
+//!  and the design's M1 and M2 arms are the same scenes at the descriptor level.
+//!  The arm runs only where `CLI_GIT_ZFS_UNMOUNT_GUEST` names a disposable guest
+//!  and prints `SKIP` everywhere else,
+//! so a host run that ran nothing says so.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! writeRecord(cache, record); bind(folder); move(tmpfs, bind);
-//! expect(finishAStagedUnmount(sweep).word).toBe('unmounted');
+//! await sweep(); // attached
+//! await unmount(); // a fresh handler process unmounts and files done
 //! ```
 
-use git_policy_cli::staged_folder_identity::StagedFolderIdentity;
-use git_policy_cli::staged_folder_record::{write_record, StagedFolderRecord};
-use git_policy_cli::staged_unmount::{finish_a_staged_unmount, StagedSweep};
-use git_policy_cli::staging_calls::{LiveStagingCalls, StagingCalls};
-use git_policy_cli::staging_claim::{write_claim, StagingClaim};
-use git_policy_cli::staging_cleanup::{clean_up_staging_folder, CleanupOutcome, CleanupRequest};
-use git_policy_cli::staging_folder_name::{staging_folder_name, staging_record_name};
-use git_policy_cli::user_cache_pin::{cache_mount_facts, UserCachePin};
-use git_policy_cli::worktree_clone_mount_protocol::DatasetGuid;
-use std::ffi::CString;
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
+use super::zfs_sweep_guest::{
+    CONFIGURATION, DESIRED_STATE, NONCE, PROBE_RECORD_DIRECTORY, Run, STORE, clone_the_checkouts_snapshot, command_ok, line_about, make_the_designs_layout, make_the_slot,
+    mount_request, prepare_the_store, required, sweep, write_configuration, write_passing_probe_record, zfs, zfs_ignored, zfs_ok,
+};
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command};
+use std::time::{Duration, Instant};
 
-/// The variable the guest driver sets.
+/// The variable the guest driver sets for these arms.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_UNMOUNT_GUEST";
 
-/// The GUID the arm's folder carries.
-const GUID: &str = "9001";
+/// The pool variable the driver prepared.
+const POOL_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_POOL";
 
-/// Whether this run is inside the guest,
-/// or a skip line on every other machine.
+/// The OpenZFS userspace variable the driver prepared.
+const SBIN_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_SBIN";
+
+/// The checkout variable the driver prepared.
+const CHECKOUT_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_CHECKOUT";
+
+/// The account's home.
+const ACCOUNT_HOME: &str = "/home/ubuntu";
+
+/// The pin's root-owned file.
+const PIN: &str = "/var/lib/monochromatic-git-policy-cli/user-cache-pin";
+
+/// The receipts folder.
+const RECEIPTS: &str = "/run/git-worktree-clone-mount-results";
+
+/// Whether this run is inside the guest.
 fn guest() -> bool {
     let Ok(name) = std::env::var(GUEST_VARIABLE) else {
         println!("SKIP worktree_clone_unmount::guest: {GUEST_VARIABLE} is unset, so this arm runs only in the throwaway mvm guest");
@@ -59,99 +60,199 @@ fn guest() -> bool {
     return true;
 }
 
-/// A fixture folder under `/root`.
-fn folder(name: &str) -> PathBuf {
-    let path: PathBuf = Path::new("/root").join(name);
-    let _ = std::fs::remove_dir_all(path.as_path());
-    std::fs::create_dir_all(path.as_path()).expect("the fixture folder is made");
-    return path;
+/// One clone's GUID.
+fn guid_of(sbin: &str, clone: &str) -> String {
+    let (ok, said, _error) = zfs(sbin, "zfs", &["get", "-H", "-o", "value", "guid", clone], None);
+    assert!(ok, "the GUID of {clone} is read: {said}");
+    return said.trim().to_string();
 }
 
-/// Mount a tmpfs at `target` and answer a descriptor on it.
-fn mount_tmpfs(target: &Path) -> std::fs::File {
-    let at: CString = CString::new(target.as_os_str().as_bytes()).expect("a path holds no NUL");
-    let kind: CString = CString::new("tmpfs").expect("no NUL in a type");
-    let data: CString = CString::new("size=64k,nr_inodes=16,mode=0700").expect("no NUL in an option");
-    // SAFETY: every pointer is this call's own and outlives it.
-    let mounted: libc::c_int = unsafe { libc::mount(kind.as_ptr(), at.as_ptr(), kind.as_ptr(), libc::MS_NOSUID | libc::MS_NODEV, data.as_ptr().cast::<libc::c_void>()) };
-    assert_eq!(mounted, 0, "the fixture tmpfs mounts: {}", std::io::Error::last_os_error());
-    return std::fs::File::open(target).expect("the mounted folder opens");
+/// The staging folder's name for one GUID.
+fn staging_name(guid: &str) -> String {
+    return format!("monochromatic-git-policy-cli-staging-{guid}");
 }
 
-/// The record one arm writes before its bind.
-fn record(guid: DatasetGuid, folder_path: &Path, _cache: &std::fs::File, boot: &str) -> StagedFolderRecord {
-    let held: std::fs::File = std::fs::File::open(folder_path).expect("the staging folder opens");
-    let identity: StagedFolderIdentity = StagedFolderIdentity::of(&held).expect("the staging folder's identity is read");
-    let (handle_type, handle): (i32, Vec<u8>) = LiveStagingCalls.name_handle(&held).expect("the folder's handle is read");
-    let (namespace_device, namespace_inode): (u64, u64) = LiveStagingCalls.namespace_pair().expect("the namespace pair is read");
-    return StagedFolderRecord {
-        component: staging_folder_name(guid),
-        dataset: String::from("tmpfs"),
-        guid,
-        identity,
-        handle_type,
-        handle,
-        nonce: String::from("00112233445566778899aabbccddeeff"),
-        namespace_device,
-        namespace_inode,
-        boot: String::from(boot),
-    };
+/// Make the account's `.cache` a dataset and record the pin the handler checks.
+fn make_the_cache_and_pin(sbin: &str, pool: &str) -> String {
+    let cache_dataset: String = format!("{pool}/cache");
+    zfs_ignored(sbin, &["destroy", "-r", "-f", cache_dataset.as_str()]);
+    std::fs::create_dir_all(ACCOUNT_HOME).expect("the account's home is made");
+    zfs_ok(sbin, &["create", "-p", "-o", "mountpoint=/home/ubuntu/.cache", cache_dataset.as_str()]);
+    let facts: std::fs::Metadata = std::fs::metadata("/home/ubuntu/.cache").expect("the cache's metadata reads");
+    let pin: String = format!(
+        "{{\"version\":\"v1\",\"kind\":\"user-cache-pin\",\"source\":\"{cache_dataset}\",\"root-inode\":\"{}\",\"device\":\"{}\"}}\n",
+        facts.ino(),
+        facts.dev()
+    );
+    let directory: &Path = Path::new(PIN).parent().expect("the pin has a folder");
+    std::fs::create_dir_all(directory).expect("the pin's folder is made");
+    std::fs::write(PIN, pin).expect("the pin is written");
+    std::fs::set_permissions(PIN, std::fs::Permissions::from_mode(0o644)).expect("the pin holds its mode");
+    return cache_dataset;
 }
 
-/// The whole staging and sweep arm,
-/// plus the record's other-boot test and the cleanup's two fixtures.
+/// Make one clone's staging folder and return its path.
+fn make_the_staging_folder(cache: &str, guid: &str) -> PathBuf {
+    let folder: PathBuf = Path::new(cache).join(staging_name(guid));
+    let _ = std::fs::remove_dir_all(folder.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the staging folder is made");
+    std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the staging folder holds its mode");
+    return folder;
+}
+
+/// Write the unmount intent on one clone.
+fn ask_to_unmount(sbin: &str, clone: &str, nonce: &str) {
+    zfs_ok(sbin, &["set", format!("{DESIRED_STATE}=v1:{nonce}:unmount").as_str(), clone]);
+}
+
+/// One receipt's text,
+/// or nothing when the handler filed none.
+fn receipt(guid: &str) -> Option<String> {
+    return std::fs::read_to_string(Path::new(RECEIPTS).join(guid)).ok();
+}
+
+/// A source row at the slot,
+/// as the guest's mount table prints it.
+fn row_at(folder: &Path) -> Option<String> {
+    let text: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table reads");
+    return text.lines().find(|line| return line.split(' ').nth(4) == Some(folder.to_string_lossy().as_ref())).map(String::from);
+}
+
+/// Whether any line begins with `prefix` and names `dataset`,
+/// which a concurrent handler's later line about the same clone does not hide.
+fn any_line(said: &str, prefix: &str, dataset: &str) -> bool {
+    return said.lines().any(|line| return line.starts_with(prefix) && line.contains(dataset));
+}
+
+/// Start a holder whose working directory is inside `folder`,
+/// and wait until it is there.
+fn hold_inside(folder: &Path) -> Child {
+    let script: String = format!("cd {} && exec sleep 60", folder.display());
+    let mut holder: Child = Command::new("sh").args(["-c", script.as_str()]).spawn().expect("the holder starts");
+    let wanted: PathBuf = std::fs::canonicalize(folder).expect("the folder resolves");
+    let deadline: Instant = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline {
+        let link: PathBuf = PathBuf::from(format!("/proc/{}/cwd", holder.id()));
+        if std::fs::read_link(link).ok() == Some(wanted.clone()) {
+            return holder;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let _ = holder.kill();
+    let _ = holder.wait();
+    panic!("the holder never reached {}", folder.display());
+}
+
+/// What:
+///  The whole step 9 guest run:
+///  the design's layout,
+///  one plain unmount by a fresh handler,
+///  one busy unmount that reattaches,
+///  and two removals at once.
+/// Why:
+///  Each arm owns its clones and slots for the whole run,
+///  and the driver's markers say which arm ran.
 #[test]
 fn zfs_unmount_guest() {
     if !guest() {
         return;
     }
-    let cache_path: PathBuf = folder("unmount-cache");
-    let cache: std::fs::File = std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
-    let guid: DatasetGuid = DatasetGuid::parse(GUID).expect("the fixture GUID parses");
-    let name: String = staging_folder_name(guid);
-    let folder_path: PathBuf = cache_path.join(name.as_str());
-    std::fs::create_dir_all(folder_path.as_path()).expect("the staging folder is made");
-    let boot: String = LiveStagingCalls.boot().expect("this boot is read");
-    let facts = cache_mount_facts(&cache).expect("the cache's mount is read");
-    let pin: UserCachePin = UserCachePin { source: facts.source.clone(), root_inode: cache.metadata().expect("the cache's metadata is read").ino(), device: 7 };
-    let written: StagedFolderRecord = record(guid, folder_path.as_path(), &cache, boot.as_str());
-    write_record(&cache, &written).expect("the record is written before the bind");
-    println!("UNMOUNT record-before-bind=true folder={name}");
-    let staging: std::fs::File = std::fs::File::open(folder_path.as_path()).expect("the staging folder opens");
-    let bind: std::fs::File = LiveStagingCalls.bind_the_folder(&staging, &cache, std::ffi::OsStr::new(name.as_str())).expect("the folder binds");
-    LiveStagingCalls.make_private(&bind).expect("the bind is made private");
-    let clone_path: PathBuf = folder("unmount-clone");
-    let clone: std::fs::File = mount_tmpfs(clone_path.as_path());
-    LiveStagingCalls.move_clone(&clone, &bind).expect("the clone moves onto the bind");
-    println!("UNMOUNT bind-private=true moved=true");
-    let sweep = StagedSweep { cache: &cache, cache_path: cache_path.as_path(), guid, boot: boot.as_str(), pin: &pin, calls: &LiveStagingCalls };
-    let outcome = finish_a_staged_unmount(&sweep);
-    assert_eq!(outcome.word(), "unmounted", "the sweep unmounts the staged mount from the record's handle: {outcome:?}");
-    println!("UNMOUNT sweep=unmounted");
-    let other = StagedFolderRecord { boot: String::from("an-older-boot"), ..record(guid, folder_path.as_path(), &cache, boot.as_str()) };
-    write_record(&cache, &other).expect("the other-boot record is written");
-    let other_outcome = finish_a_staged_unmount(&sweep);
-    assert_eq!(other_outcome.word(), "not-current", "a record from another boot is void and unmounts nothing: {other_outcome:?}");
-    println!("UNMOUNT other-boot=void");
-    std::fs::remove_file(cache_path.join(staging_record_name(guid)).as_path()).expect("the other-boot record is removed");
-    let claims_path: PathBuf = folder("unmount-claims");
-    let claims: std::fs::File = std::fs::File::open(claims_path.as_path()).expect("the claim folder opens");
-    let claim: StagingClaim = StagingClaim { guid, nonce: String::from("00112233445566778899aabbccddeeff"), owner: String::from("bogus"), identity: StagedFolderIdentity::of(&std::fs::File::open(folder_path.as_path()).expect("the folder opens")).expect("the identity is read") };
-    write_claim(&claims, &claim).expect("the claim is written");
-    let no_mounts = || return Vec::new();
-    let claim_path: PathBuf = claims_path.join("9001.staged");
-    let request = CleanupRequest { cache: &cache, cache_path: cache_path.as_path(), claim_directory: &claims, guid, owner_token: Some("bogus"), mounts: &no_mounts, claim_path: claim_path.as_path() };
-    let removed: CleanupOutcome = clean_up_staging_folder(&request);
-    assert_eq!(removed.word(), "removed", "an empty claimed folder is removed: {removed:?}");
-    println!("UNMOUNT cleanup=removed");
-    std::fs::create_dir_all(folder_path.as_path()).expect("the kept folder is made");
-    std::fs::write(folder_path.join("sentinel").as_path(), b"keep").expect("the sentinel is written");
-    write_claim(&claims, &claim).expect("the claim is written again");
-    let kept: CleanupOutcome = clean_up_staging_folder(&request);
-    assert_eq!(kept.word(), "kept", "a folder holding a file is kept: {kept:?}");
-    println!("UNMOUNT cleanup=kept");
-    std::fs::remove_dir_all(cache_path.as_path()).expect("the fixture cache is removed");
-    std::fs::remove_dir_all(clone_path.as_path()).expect("the fixture clone is removed");
-    std::fs::remove_dir_all(claims_path.as_path()).expect("the fixture claims are removed");
+    let sbin: String = required(SBIN_VARIABLE);
+    let pool: String = required(POOL_VARIABLE);
+    let checkout: PathBuf = PathBuf::from(required(CHECKOUT_VARIABLE));
+    let _ = std::fs::remove_dir_all(checkout.as_path());
+    std::fs::create_dir_all(checkout.as_path()).expect("the checkout folder is made");
+    let (checkout_dataset, container): (String, String) = make_the_designs_layout(sbin.as_str(), pool.as_str(), checkout.as_path());
+    // The handler finds the account's home from the checkout's owner, so the fixture checkout is the account's, as the design's repository is.
+    command_ok("chown", &["--recursive", "ubuntu:ubuntu", checkout.display().to_string().as_str()]);
+    write_configuration(checkout.as_path(), Some(container.as_str()), Some(checkout_dataset.as_str()));
+    write_passing_probe_record();
+    prepare_the_store(checkout.as_path());
+    std::fs::create_dir_all(checkout.join(".git/worktrees").as_path()).expect("the Git administration folder is made");
+    let cache: String = make_the_cache_and_pin(sbin.as_str(), pool.as_str());
+
+    // M1's positive arm and M2's covered-folder arm: one clone, attached by the sweep, then unmounted by a fresh handler.
+    let one: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), "one", "nine-one", Some(mount_request(NONCE).as_str()));
+    make_the_slot(checkout.as_path(), "one");
+    let attached: Run = sweep();
+    assert!(line_about(attached.said.as_str(), one.as_str()).is_some_and(|line| return line.starts_with("attached ")), "the built sweep attaches the design's clone: {}", attached.said);
+    println!("UNMOUNT attached clone={one}");
+    let one_guid: String = guid_of(sbin.as_str(), one.as_str());
+    let one_folder: PathBuf = make_the_staging_folder("/home/ubuntu/.cache", one_guid.as_str());
+    ask_to_unmount(sbin.as_str(), one.as_str(), "11111111111111111111111111111111");
+    let unmounted: Run = sweep();
+    assert!(line_about(unmounted.said.as_str(), one.as_str()).is_some_and(|line| return line.starts_with("unmounted ")), "a fresh handler process unmounts the clone: {}", unmounted.said);
+    let done: String = receipt(one_guid.as_str()).expect("the unmount files its done receipt");
+    assert!(done.contains("outcome done"), "the receipt is done: {done}");
+    assert!(done.contains("operation unmount"), "the receipt answers an unmount: {done}");
+    assert!(row_at(checkout.join(".claude/worktrees/one").as_path()).is_none(), "no row is left at the slot");
+    assert!(std::fs::read_dir(one_folder.as_path()).expect("the staging folder lists").next().is_none(), "the staging folder is empty");
+    zfs_ok(sbin.as_str(), &["destroy", one.as_str()]);
+    println!("UNMOUNT plain=unmounted receipt=done destroy=ok");
+
+    // M1's busy arm and the checked reattach: a holder in the clone keeps the unmount busy, and the handler moves the same mount back to its slot.
+    let two: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), "two", "nine-two", Some(mount_request(NONCE).as_str()));
+    make_the_slot(checkout.as_path(), "two");
+    let two_attached: Run = sweep();
+    assert!(line_about(two_attached.said.as_str(), two.as_str()).is_some_and(|line| return line.starts_with("attached ")), "the second clone attaches: {}", two_attached.said);
+    let two_guid: String = guid_of(sbin.as_str(), two.as_str());
+    make_the_staging_folder("/home/ubuntu/.cache", two_guid.as_str());
+    let two_slot: PathBuf = checkout.join(".claude/worktrees/two");
+    let mut holder: Child = hold_inside(two_slot.as_path());
+    ask_to_unmount(sbin.as_str(), two.as_str(), "22222222222222222222222222222222");
+    let busy: Run = sweep();
+    assert!(line_about(busy.said.as_str(), two.as_str()).is_some_and(|line| return line.starts_with("reattached ")), "the busy unmount moves the same mount back: {}", busy.said);
+    assert!(row_at(two_slot.as_path()).is_some(), "the clone's row is back at its slot");
+    assert!(
+        receipt(two_guid.as_str()).is_none_or(|text| return !text.contains("operation unmount")),
+        "a busy reattach files no unmount receipt under the step 8 decision"
+    );
+    let _ = holder.kill();
+    let _ = holder.wait();
+    println!("UNMOUNT busy=reattached holder=ended");
+    ask_to_unmount(sbin.as_str(), two.as_str(), "33333333333333333333333333333333");
+    let after: Run = sweep();
+    assert!(line_about(after.said.as_str(), two.as_str()).is_some_and(|line| return line.starts_with("unmounted ")), "the clone unmounts after its holder ends: {}", after.said);
+    zfs_ok(sbin.as_str(), &["destroy", two.as_str()]);
+    println!("UNMOUNT reattach-then-unmounted=true");
+
+    // Two removals at once: each handler removes only its own clone.
+    let three: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), "three", "nine-three", Some(mount_request(NONCE).as_str()));
+    let four: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), "four", "nine-four", Some(mount_request(NONCE).as_str()));
+    make_the_slot(checkout.as_path(), "three");
+    make_the_slot(checkout.as_path(), "four");
+    let both: Run = sweep();
+    assert!(line_about(both.said.as_str(), three.as_str()).is_some_and(|line| return line.starts_with("attached ")), "the third clone attaches: {}", both.said);
+    assert!(line_about(both.said.as_str(), four.as_str()).is_some_and(|line| return line.starts_with("attached ")), "the fourth clone attaches: {}", both.said);
+    let three_guid: String = guid_of(sbin.as_str(), three.as_str());
+    let four_guid: String = guid_of(sbin.as_str(), four.as_str());
+    make_the_staging_folder("/home/ubuntu/.cache", three_guid.as_str());
+    make_the_staging_folder("/home/ubuntu/.cache", four_guid.as_str());
+    ask_to_unmount(sbin.as_str(), three.as_str(), "44444444444444444444444444444444");
+    ask_to_unmount(sbin.as_str(), four.as_str(), "55555555555555555555555555555555");
+    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let first: std::thread::JoinHandle<std::process::Output> = std::thread::spawn(move || return Command::new(binary).output().expect("the first concurrent handler starts"));
+    let second: std::thread::JoinHandle<std::process::Output> = std::thread::spawn(move || return Command::new(binary).output().expect("the second concurrent handler starts"));
+    let first_output: std::process::Output = first.join().expect("the first handler ends");
+    let second_output: std::process::Output = second.join().expect("the second handler ends");
+    let said: String = format!(
+        "{}{}{}{}",
+        String::from_utf8_lossy(first_output.stdout.as_slice()),
+        String::from_utf8_lossy(first_output.stderr.as_slice()),
+        String::from_utf8_lossy(second_output.stdout.as_slice()),
+        String::from_utf8_lossy(second_output.stderr.as_slice())
+    );
+    assert!(any_line(said.as_str(), "unmounted ", three.as_str()), "the first removal unmounts: {said}");
+    assert!(any_line(said.as_str(), "unmounted ", four.as_str()), "the second removal unmounts: {said}");
+    zfs_ok(sbin.as_str(), &["destroy", three.as_str()]);
+    zfs_ok(sbin.as_str(), &["destroy", four.as_str()]);
+    println!("UNMOUNT two-at-once=both-unmounted");
+
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", cache.as_str()]);
+    let _ = std::fs::remove_file(PIN);
+    let _ = std::fs::remove_file(CONFIGURATION);
+    let _ = std::fs::remove_dir_all(PROBE_RECORD_DIRECTORY);
+    let _ = std::fs::remove_dir_all(STORE);
+    let _ = std::fs::remove_dir_all(RECEIPTS);
     println!("UNMOUNT done");
 }
