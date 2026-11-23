@@ -2717,7 +2717,7 @@ a command with one owed record whose snapshot is pinned,
 a command with one blocked record,
 and a control command with the look removed.
 Measure wall time and the ioctl count (`strace -c -e trace=ioctl`) per arm.
-This sizes L13 and decides question one's ranking for this machine.
+This sizes L13 and is what would make question one's first two options differ in cost.
 If the added cost is above what the project accepts for every command,
 question one's option B is the fallback,
 and it changes only the call site.
@@ -3558,7 +3558,7 @@ so a reader needs no other text to answer them.
 ### Decided by an accepted record, and not offered
 
 Each of these was once an option somewhere in the three documents.
-No record decides it now,
+An accepted record decides it now,
 so it is not put to the project.
 
 - The slot is free once the registration is settled,
@@ -3925,6 +3925,80 @@ the leaving record's folder and record ranges,
 `dataset_guid.rs:39` to `:60`,
 `SPEC.md:6154` to `:6155`,
 and the proposal's steps 3 to 5 at `:894` to `:957`.
+
+- `b1166908fe`,
+  2026-11-22T19:07:14-05:00:
+  the third round,
+  which answers the second gate pass.
+  Its findings and where each is fixed:
+  - X3,
+    the removal's tail:
+    "The removal's one order of writes and removals" replaces "The order,
+    and what a kill at each point leaves".
+    It merges every write and removal a removal makes,
+    across this record,
+    the plan,
+    the binding and the Git registration,
+    states what a kill at each point leaves and who finishes it,
+    and adds "V13 The tail's order" with the alternative.
+    The origin attempt stays before the settle because the proposal orders it there.
+  - X4,
+    the sibling statements:
+    "Where this design and its siblings disagree" is rewritten against the plan design at `76849b8d9b` and the
+    binding design at `428040d45d`,
+    with each withdrawn statement named;
+    F24 and F25 are rewritten at those commits;
+    the home text and V1,
+    V2 and V12 no longer weigh the binding design's withdrawn top-level folder;
+    "What the two sibling texts still say about this one" names their remaining stale statements.
+  - N5:
+    the proof's second step refuses a dataset only when its own origin is the recorded snapshot,
+    so a checkout that is itself a clone of a backup does not leave every record unprovable.
+  - N6:
+    question one's option B no longer has `doctor` destroy;
+    it prints the `zfs destroy` command.
+  - N7:
+    the flush question becomes "V14 The flush rule",
+    with F27's source reading (a flush does make a rename durable at `sync=standard`) and M6's two arms.
+  - N8:
+    the rerun rule and the failed-write rule are back at step 6 of the merged order.
+  - N9:
+    "V2 The record's shape" gains option D,
+    the all-`key=value` shape both sibling designs write,
+    and says why this design does not take it.
+  - N10:
+    the gate line's frequency moves under question three,
+    and the kill list is written for either call-site answer.
+  - N11:
+    T7's seam is this record's own publication function,
+    citing the store's hook where it is called and where it is declared,
+    and "Sources read" names `foundation/publishing_entries_in_one_open_folder.rs`;
+    F16 cites `:26` to `:28`.
+  - N12:
+    the gate rule's first item has its list dash back.
+  - N13:
+    the bound's JSON holds one instant and not two,
+    which is why its terms sum to 13,375.
+  - The questions:
+    this document's five become the second pass's four,
+    with the list of what is already decided above them.
+    V9 is retired as a veto entry because the proposal decides that settling frees the slot.
+  - Also corrected,
+    outside the second pass's list:
+    a sentence duplicated in T4.
+  Text the second pass found sound that one of these fixes forced to change:
+  the order section,
+  which X3 replaces;
+  the proof's second step,
+  which N5 narrows;
+  the questions,
+  which the second pass's four replace;
+  the home paragraph and V12's option B,
+  whose statements about the binding design's folder X4 corrects;
+  and F24 and F25,
+  which X4 rewrites at the commits named.
+  Nothing else the second pass found sound was changed.
+- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `b1166908fe`.
 
 ## References
 
