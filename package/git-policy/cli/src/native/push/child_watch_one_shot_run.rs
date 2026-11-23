@@ -279,10 +279,8 @@ pub fn output_watched_within_for_a_stop(
                 //  caller parses nothing before this line, which closed the wider window of Low 1. The value is
                 //  cleared only when it is still this child's: an abandon that came earlier wrote `ABANDONED_CHILD`,
                 //  and a store would erase that marker (latent today, because `git ls-tree` is not rerunnable).
-                if let Some(cell) = started_child {
-                    if let Some(published) = published_child {
-                        let _ = cell.compare_exchange(published, 0, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst);
-                    }
+                if let (Some(cell), Some(published)) = (started_child, published_child) {
+                    let _ = cell.compare_exchange(published, 0, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst);
                 }
                 ended
             }
