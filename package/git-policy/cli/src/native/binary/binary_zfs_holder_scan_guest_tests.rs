@@ -656,7 +656,8 @@ fn divergent_root(sbin: &str, clone: &str) -> Option<Task> {
     // The task's root becomes a bind of the guest's root, so every path its mount table renders is rendered from
     // that root, and the clone is mounted inside it so the mount itself is a mount of that root's tree.
     let inner: String = format!("mount -t zfs {clone} {ROOTED_FOLDER} && exec sleep {HOLDER_SECONDS}");
-    let script: String = format!("mount --bind / {ROOTED_BIND} && exec chroot {ROOTED_BIND} sh -c '{inner}'");
+    // The mount point is made inside the bind, because the task that mounts the clone runs there.
+    let script: String = format!("mount --bind / {ROOTED_BIND} && mkdir --parents {ROOTED_BIND}{ROOTED_FOLDER} && exec chroot {ROOTED_BIND} sh -c '{inner}'");
     return start_task(script.as_str(), "/root/holder-scan-rooted.pid", sbin, &[]);
 }
 
