@@ -8,7 +8,9 @@
 //!  so a control that leaned on any of the three would be the timing and file-system lottery issue 6342 was filed
 //!  about.
 //!  The arm answers one term for the named path's reads,
-//!  which is the shape `lock_birth_times.rs` uses for a coarse birth time.
+//!  which is the shape `lock_birth_times.rs` uses for a coarse birth time,
+//!  and it tells the judged read from the removal's last look by the phase a control's hook moves it to,
+//!  so a judged read taken after the lock's name went is answered as a later one.
 //!  It is compiled out of the shipped executable:
 //!  `lock/mod.rs` declares this module under `#[cfg(test)]`
 //!  and the one call site in `clear_one` (`pid_file_metadata`) is under `#[cfg(test)]` too,
@@ -51,7 +53,8 @@ pub(crate) enum Changed {
 ///  The answer a control arms for the reads of one path.
 /// Why:
 ///  The removal reads the PID file's metadata twice,
-///  once as the judged file before the lock's unlink and once as the file at that name after it.
+///  once as the judged file before the lock's unlink and once as the file at that name after it,
+///  and which of the two a read is comes from the phase the removal is in.
 ///  Everything the arm does not name stays the file system's own answer,
 ///  and the bytes of the file are never touched by the arm,
 ///  so a control that writes them writes a state.
@@ -70,14 +73,36 @@ pub(crate) struct MetadataArm {
     /// A number every read of that path reports in place of the inode's,
     ///  which is a file system that hands the freed number to the next file.
     pub(crate) every_inode_is: Option<u64>,
-    /// The term a later read of that path reports differently.
+    /// The term a read taken after the lock's name went reports differently.
     pub(crate) later: Option<Changed>,
+}
+
+/// What:
+///  How far the removal the running thread's arm answers has gone.
+/// Why:
+///  The removal reads the armed path once as the file it judges, before the lock's name goes,
+///  and once at its last look, after it.
+///  A count of reads would answer a judged read taken after the lock's name went as the first one,
+///  so a removal that read the file in the wrong place would still compare it against an armed difference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Phase = 'judging' | 'at-the-last-look';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Phase {
+    /// The lock's name stands,
+    /// so a read here is the file the removal judges.
+    Judging,
+    /// The lock's name has gone,
+    /// so every read from here is the removal's last look.
+    AtTheLastLook,
 }
 
 thread_local! {
     /// The arm of the running thread,
-    /// and how many reads of its path it has answered.
-    static ARM: std::cell::RefCell<Option<(MetadataArm, usize)>> = const { std::cell::RefCell::new(None) };
+    /// and how far the removal it answers has gone.
+    static ARM: std::cell::RefCell<Option<(MetadataArm, Phase)>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:
@@ -91,11 +116,11 @@ thread_local! {
 /// ```ts
 /// class PutBack { #held; drop() { arm.set(this.#held); } }
 /// ```
-struct PutBackWhenDropped(Option<(MetadataArm, usize)>);
+struct PutBackWhenDropped(Option<(MetadataArm, Phase)>);
 
 impl Drop for PutBackWhenDropped {
     fn drop(&mut self) {
-        let held: Option<(MetadataArm, usize)> = self.0.take();
+        let held: Option<(MetadataArm, Phase)> = self.0.take();
         ARM.with(|cell| { *cell.borrow_mut() = held; });
     }
 }
@@ -113,10 +138,32 @@ impl Drop for PutBackWhenDropped {
 /// try { arm.set(it); body(); } finally { arm.putBack(); }
 /// ```
 pub(crate) fn with_arm<T>(arm: MetadataArm, body: impl FnOnce() -> T) -> T {
-    let put_back: PutBackWhenDropped = PutBackWhenDropped(ARM.with(|cell| { return cell.replace(Some((arm, 0))); }));
+    let put_back: PutBackWhenDropped = PutBackWhenDropped(ARM.with(|cell| { return cell.replace(Some((arm, Phase::Judging))); }));
     let ended: T = body();
     drop(put_back);
     return ended;
+}
+
+/// What:
+///  Say that the removal whose reads this thread's arm answers has unlinked the lock's name.
+/// Why:
+///  A control's hook runs at that instant,
+///  and from here every read of the armed path is the removal's last look:
+///  a judged read taken after the lock's name went is answered as a later one,
+///  so a removal that reads the file in the wrong place fails its control instead of passing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// arm.setPhase('at-the-last-look');
+/// ```
+pub(crate) fn the_locks_name_is_gone() {
+    return ARM.with(|cell| {
+        let mut held = cell.borrow_mut();
+        let Some((_arm, phase)) = held.as_mut() else {
+            return;
+        };
+        *phase = Phase::AtTheLastLook;
+    });
 }
 
 /// What:
@@ -132,15 +179,14 @@ pub(crate) fn with_arm<T>(arm: MetadataArm, body: impl FnOnce() -> T) -> T {
 /// ```
 pub(crate) fn armed(path: &Path, found: Option<LockMetadata>) -> Option<LockMetadata> {
     return ARM.with(|cell| {
-        let mut held = cell.borrow_mut();
-        let Some((arm, reads)) = held.as_mut() else {
+        let held = cell.borrow();
+        let Some((arm, phase)) = held.as_ref() else {
             return found;
         };
         if arm.path != path {
             return found;
         }
-        *reads += 1;
-        let later: bool = *reads > 1;
+        let later: bool = *phase == Phase::AtTheLastLook;
         let mut answered: LockMetadata = match found {
             Some(recorded) => recorded,
             None => return None,

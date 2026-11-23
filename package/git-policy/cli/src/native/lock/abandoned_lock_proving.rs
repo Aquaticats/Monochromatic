@@ -87,11 +87,11 @@
 //!    with `O_NOFOLLOW`,
 //!    `O_NONBLOCK` and `O_CLOEXEC`,
 //!    so a link is not followed and a pipe is never waited on;
-//!  - the PID file's number:
+//!  - the PID file's contents:
 //!    `plain_file::read_plain_file`,
 //!    which refuses anything but a plain file
 //!    and bounds what it reads (`stopped_git_locks.rs`,
-//!    `pid_named_by`);
+//!    `pid_file_contents`);
 //!  - a record's bytes:
 //!    `plain_file::read_plain_file`,
 //!    the same way;
