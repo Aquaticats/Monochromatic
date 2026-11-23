@@ -1021,16 +1021,27 @@ and only the owner accepts one.
   Planned for when an old drive is released:
   a raw swap partition there,
   with zram writing idle pages back to it.
-- Running:
-  `pi-desktop-freeze-under-agent-runs-troubleshooting-doc`,
-  which writes `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
-  on branch `docs/troubleshooting-desktop-freezes-while-agent-runs-thrash-zram-swap`
-  from that findings file
-  (brief `prompt.md` in the same scratch folder).
-  When it ends:
-  read it,
-  merge it,
-  and move this entry's durable facts there.
+- The Pi writer's document is
+  `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`
+  (commit `ef578186cb`,
+  written from that findings file,
+  merged into `main`).
+  It holds the measurements,
+  the commands and their revert,
+  the comparison that would verify the change,
+  a draft of the persistent form
+  (a `sysctl.d` file and a `tmpfiles.d` line,
+  installed nowhere),
+  and the upstream decision.
+  One fact it found that the owner has not been told in the question tool:
+  the distribution set `vm.watermark_scale_factor` to 125 once and removed it on purpose
+  (`CachyOS/CachyOS-Settings`,
+  pull request 55,
+  "This causes an unnecessarily large increase in RAM consumption"),
+  and a pull request to set it again has been open since 2025-03-10.
+  The coordinator read its headings,
+  the draft and the upstream decision,
+  not every line.
 - Owed:
   compare the same counters after a comparable load,
   as rates,
@@ -1094,12 +1105,26 @@ and only the owner accepts one.
   integration branch `integrate/git-policy-cli-clone-rung-partial-clone-of-a-dirty-source-recheck`.
   Passes started from now on are briefed with
   `rules-for-an-integration-pass.md` in the launch folder plus what is particular to the branch.
-- Step 9:
-  `pi-zfs-step-9-holder-scan-across-mount-namespaces` and
-  `pi-zfs-step-9-unmount-staging-and-reattach-guest-arms`,
-  both in guest arms at 18:50-05:00.
-  Each then gets a Sonnet pass;
-  the second to merge takes `main` first.
+- Step 9,
+  the unmount,
+  staging and reattach:
+  the round ended after 154 turns at `59f2bd1876`
+  on `feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach`
+  (report `keep/report-guest-arms.md` in
+  `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`,
+  its session kept beside it).
+  Its Sonnet pass is not started:
+  the harness refused it with ten subagents already going.
+  Start it when one ends,
+  as a general-purpose agent on Sonnet whose prompt names
+  `brief-integration-pass-zfs-step-9-unmount-staging-and-reattach.md` in the launch folder as its whole brief.
+  The brief asks for the round's question about receipts as a question for the owner.
+- Step 9,
+  the holder scan:
+  `pi-zfs-step-9-holder-scan-across-mount-namespaces` is still running
+  (`feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`).
+  Then its Sonnet pass;
+  the second of the two to merge takes `main` first.
 - The object reader's follow-up ended at `5ddb3c79a2`
   on `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows`
   (report `keep/report-recheck-findings.md` in its folder,
