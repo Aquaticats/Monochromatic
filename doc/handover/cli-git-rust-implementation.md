@@ -319,6 +319,18 @@ and only the owner accepts one.
   one further answer in its record:
   an add whose own unmount is refused as busy withdraws its request,
   and the clone stays mounted and pending.
+- The dirty-main restore,
+  three further answers in its record
+  (section "Three further answers",
+  recorded 2026-11-22T21:37:01-05:00):
+  a failed add records its snapshot as owed cleanup before it destroys anything;
+  the pending text and `doctor`'s line warn against running Git in the pending folder;
+  and a very dirty main checkout is warned about above a measured count and still takes this route,
+  never declined.
+  The third was first selected as "decline" with the note "warn about a measured count,
+  but still do it.",
+  and a second question confirmed the reading.
+  No sibling design has built the first in yet.
 - Step 8's bound of 4,096 children stays,
   in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`.
 - A checkout that is shared and slave counts as shared,
@@ -573,17 +585,22 @@ and only the owner accepts one.
   started when the binding's ended,
   ended at `22be706b09` after 100 turns
   (report `keep/report-third-check-and-the-seven-answers.md` in its folder).
-- Running:
-  `pi-zfs-removal-destruction-plan-record-design-third-check-and-the-seven-answers`,
-  on `continuation-third-check-and-the-seven-answers.md` in its folder,
-  last of the three.
-  Its brief also carries what two other designs wait on:
+- The plan design's round,
+  last of the three,
+  ended at `3cd520b6a0`
+  (report `keep/report-third-check-and-the-seven-answers.md` in its folder).
+  Its brief also carried what two other designs wait on:
   one rule for what a cancellation does to the plan,
   and what a removal does when the plan says the head is present and the clone is gone.
-- Next,
-  when the plan design's round ends:
-  the reviewer once more on the set of three,
-  to `review-fourth-check.md` beside its other reviews.
+- Going:
+  the reviewer once more on the set of three
+  (binding `07858070bb`,
+  origin cleanup `22be706b09`,
+  plan `3cd520b6a0`),
+  to `review-fourth-check.md` beside its other reviews,
+  asked what exactly the owner would be accepting.
+  It is told that the owed-cleanup record a failed add writes was decided after the three rounds ran,
+  so what follows for the designs is pending edits and not findings.
 
 #### Step 11: the dirty-main restore on rung 1
 
@@ -651,17 +668,27 @@ and only the owner accepts one.
   nothing tests the busy path.
 - The round on that review ended at `04ce55a880`
   (report `keep/report-review-after-the-further-answer.md` in its folder).
-  Going:
-  the reviewer's check of the high finding's fix,
-  to `review-check-of-the-high-finding.md` beside its other reviews,
-  asked for the owner's questions in its words.
-- Two new questions for the owner from that review,
-  which the round is told to put in the document with options and a ranking:
-  who owns the state "clone gone, snapshot standing" after a failed add,
-  and whether the pending text tells the person not to run Git in the pending folder.
-- Left for the owner:
-  whether rung 1 may decline a very dirty main checkout,
-  which waits for a measurement.
+- The reviewer's check of the high finding's fix
+  (`review-check-of-the-high-finding.md` beside its other reviews):
+  "fit after listed fixes",
+  the high finding fixed as meant,
+  nothing new high.
+  Mediums:
+  the failure text after the clone is gone names a removal that cannot help then;
+  the settle and the binding's steps for a fallback add differ in three orderings;
+  the seven answers are not cited;
+  and two extensions of the owner's busy-unmount answer are on no veto list
+  (withdrawing on every outcome but `done`;
+  the write-back remounting a clone the handler had unmounted).
+- The owner answered the design's three questions
+  (see "The owner's answers of 2026-11-22 on these designs").
+- Running:
+  `pi-zfs-dirty-main-restore-on-rung-1-design-check-of-the-high-finding-and-three-answers`,
+  on `continuation-check-of-the-high-finding-and-three-answers.md` in its folder.
+  Then one read of its diff,
+  and the design is put to the owner for acceptance with its veto list.
+- Still owed by a build step:
+  the measurement that gives the count above which the warning prints.
 
 #### Step 16: the deferred-destroy checks
 
@@ -707,12 +734,23 @@ and only the owner accepts one.
   Two of the three came from wrong pointers in the earlier review and brief.
 - The round on that check ended at `946578a8e5`
   (report `keep/report-diff-check-after-the-answers.md` in its folder).
-  The design rests there:
-  its last two reviews found nothing high.
-  Going:
-  the reviewer's check of that round's diff before the owner is asked to accept the design,
-  to `review-check-before-acceptance.md` beside its other reviews.
-- Two gaps that review leaves with other designs,
+  Its last two reviews found nothing high.
+- The reviewer's check before acceptance
+  (`review-check-before-acceptance.md` beside its other reviews):
+  "fit after the listed fixes",
+  nothing high.
+  One medium,
+  mechanical:
+  the section on how a person finishes a refused removal was committed with a duplicated block
+  whose two paragraphs on a retry after a cancel contradict each other.
+  It also lists the edits the seven answers make pending,
+  and says the owner's only new item is the veto entry on the gate of the look.
+- Running:
+  `pi-zfs-deferred-destroy-checks-design-check-before-acceptance`,
+  on `continuation-check-before-acceptance.md` in its folder,
+  citing the plan design at `3cd520b6a0`.
+  Then the design is put to the owner for acceptance with its veto list.
+- Two gaps the earlier diff check left with other designs,
   for their next rounds:
   what a retry after a cancel does
   (the plan record's two rules and the cancelled design's open question give three readings);
@@ -926,9 +964,25 @@ and only the owner accepts one.
   (report `keep/report-diff-check-after-the-answers.md` in its folder).
   The design rests there:
   its last two reviews found nothing high.
-  Going:
-  the reviewer's check of that round's diff before the owner is asked to accept the design,
-  to `review-check-before-acceptance.md` beside its other reviews.
+  The reviewer's check before acceptance
+  (`review-check-before-acceptance.md` beside its other reviews):
+  nothing high,
+  its four earlier mediums and the nudging answer built in,
+  and three new mediums of a few lines each to fix first.
+  The older attempt file is never removed,
+  so with a request nudged for as long as it stands the folder grows by one file per longest gap;
+  the helper-process veto entry's ranking contradicts its own text
+  (the reviewer reads A > C > B);
+  and the command's claim is synced on the Git command's path,
+  against the design's own sentence that no nudge makes a command wait for a sync.
+  Running:
+  `pi-zfs-lost-last-event-triggers-design-check-before-acceptance`,
+  on `continuation-check-before-acceptance.md` in its folder.
+  Then the propagation design's short round on its own check
+  (one medium in a guest arm and seven lows),
+  citing this design's new tip,
+  on a continuation still to be written;
+  then both are put to the owner for acceptance with their veto lists.
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`

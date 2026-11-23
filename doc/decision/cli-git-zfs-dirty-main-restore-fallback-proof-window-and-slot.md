@@ -12,6 +12,10 @@ questions Q1,
 Q3 and Q4),
 about the open item "Dirty-main restore on rung 1" of `doc/planning/cli-git-zfs-worktree-design-proposal.md`
 and plan step 11 of `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
+The fourth,
+Q2,
+is answered in the section "Three further answers",
+with two questions a later review put.
 The design it binds is still unapproved:
 `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 on its own branch.
@@ -212,6 +216,43 @@ The count comes from a measurement and is not decided here.
 Not chosen:
 declining above the count,
 and no warning at all.
+
+## The merge bar is waived for an add above the warning's count
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T22:00:52-05:00,
+on a finding of the review of the design's next round
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-before-acceptance.md`,
+"What Q-B costs that the document does not say").
+
+Asked:
+the project's merge bar says a branch may make nothing `main` does well worse.
+On `main`,
+as far as the records say,
+an add from a dirty main checkout on ZFS ends in Git's own checkout.
+Once plan step 11 lands,
+an add above the warning's count clones and restores every changed file instead,
+and is slower than `main` by an amount not yet measured.
+An integration pass would refuse that branch unless a record waives the bar for this case,
+as `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md` once did for the clone rung.
+
+The project chose "B:
+waive for good":
+"Taking this route above the count is the intended behaviour and the bar never applies to it."
+The cost stated with it:
+it ships without anyone having shown the project how slow a very dirty add gets.
+
+Not chosen:
+a waiver that ends when the slowdown is measured,
+which was the option recommended;
+and no waiver,
+with the add declining above the count after all.
+
+What the question did not cover,
+and this record therefore does not waive:
+an add below the count,
+and an add that fails its proof and finishes with Git's own checkout.
+Each still owes its measured time against `main`.
 
 ## What this record does not decide
 
