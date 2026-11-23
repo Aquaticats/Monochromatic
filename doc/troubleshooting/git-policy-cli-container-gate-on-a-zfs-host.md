@@ -2566,7 +2566,8 @@ kept outside the repository):
   the record stays `pending`,
   and the worktree stands until a commit.
   The clause and the correction of the documents' "every commit and every add" are the build of issue 6354
-  (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`, 2026-11-23).
+  (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`,
+  2026-11-23).
 - The service hangs inside the removal:
   the record stays `claimed`,
   the worktree stays,
@@ -2633,7 +2634,8 @@ From the code:
 A removal left `pending` by a missed wake was issue 6354;
 what wakes the service is unchanged,
 and the warning a failed wake prints now names the next `git commit` and `git worktree remove <path>`
-(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`, 2026-11-23).
+(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`,
+2026-11-23).
 
 ### A limit the fix does not close
 
