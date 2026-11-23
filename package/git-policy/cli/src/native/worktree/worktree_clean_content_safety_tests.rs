@@ -425,9 +425,9 @@ const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = ["GIT_OBJECT_DIRECTORY", "GIT_A
 /// The marker that tells the child of the control below which variable it holds.
 const THE_VARIABLE_CHILD: &str = "CLI_GIT_CONTENT_PROOF_VARIABLE_CHILD";
 
-/// What the variable `name` is given for a proof in the worktree `worktree`,
-/// whose common directory is `common` and whose fixture root is `root`.
-fn the_value_that_moves_nothing(name: &str, worktree: &Path, common: &Path, root: &Path) -> std::ffi::OsString {
+/// What the variable `name` is given for a proof of a worktree whose common directory is `common` and whose fixture root
+/// is `root`.
+fn the_value_that_moves_nothing(name: &str, common: &Path, root: &Path) -> std::ffi::OsString {
     return match name {
         "GIT_OBJECT_DIRECTORY" => common.join("objects").into_os_string(),
         "GIT_ALTERNATE_OBJECT_DIRECTORIES" => {
@@ -438,7 +438,6 @@ fn the_value_that_moves_nothing(name: &str, worktree: &Path, common: &Path, root
         "GIT_REPLACE_REF_BASE" => std::ffi::OsString::from("refs/probe/"),
         _ => std::ffi::OsString::from("reftable"),
     };
-    let _ = worktree;
 }
 
 /// What:
@@ -461,7 +460,7 @@ fn a_content_proof_answers_under_each_variable_a_command_names() {
             std::fs::write(root.join("a.txt"), "one\n").expect("a");
         });
         let found = inspect(worktree.as_path()).expect("registered");
-        let value: std::ffi::OsString = the_value_that_moves_nothing(variable.to_string_lossy().as_ref(), worktree.as_path(), found.common.as_path(), root.as_path());
+        let value: std::ffi::OsString = the_value_that_moves_nothing(variable.to_string_lossy().as_ref(), found.common.as_path(), root.as_path());
         // SAFETY: this is the child the parent started for one arm, it runs one test (`--test-threads=1`), and every read of
         //  the variable this control makes happens after this line.
         unsafe { std::env::set_var(variable.as_os_str(), value.as_os_str()) };
