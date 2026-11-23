@@ -1127,6 +1127,20 @@ one program.
   the container's own `/` is an overlay.
   So the Tier 0 rows in the container are rows over ZFS on 7.3,
   and the handle rows there are ZFS handles.
+- `mvm`'s registry,
+  read before choosing the container,
+  holds four images:
+  alpine 3.23,
+  fedora 43,
+  ubuntu noble and windows server 2025.
+  The newest kernel among them is fedora 43's `6.17.1-300.fc43.x86_64`,
+  which the first round tried,
+  and the local image store held `template-alpine.qcow2`,
+  `template-fedora.qcow2`,
+  `template-ubuntu.qcow2` and their two base images.
+  No image with a kernel of 6.19 or newer is cached or in the registry,
+  so no guest could run `listns` without a download this round did not make,
+  and the container was used for this machine's kernel instead.
 - The exact container invocation,
   one per arm:
 
@@ -2172,9 +2186,11 @@ and no line of that kernel's source was compiled or traced here.
   Z1-1.
 - A dataset at its quota refuses the directory and the reads name it:
   Z1-2.
-- The unmount at the destination and the folder's removal:
-  not run.
-- A service the manager started:
-  not run.
-- The taskless route for a caller with the initial namespace's capability:
-  not run.
+The statements this round fills no slot for are left visibly empty,
+as the review left them:
+
+- `<the unmount at the destination and the folder's removal: way 7 has never been run end to end>`.
+- `<a service the manager started with PrivateMounts=yes, and its live blockers>`.
+- `<the taskless route as a handler in the initial namespaces would run it, with CAP_SYS_ADMIN there>`.
+- `<the kill cases: a blocker that will not die, EBUSY after the structural stage, and what a kill leaves>`.
+- `<a read-only parent, and way 8 where way 7 is refused>`. 
