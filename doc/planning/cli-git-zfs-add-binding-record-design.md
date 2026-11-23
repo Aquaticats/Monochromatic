@@ -5821,6 +5821,26 @@ and any test suite.
   and W13 (the plan's current text and the bound's 43,027 against 34,797).
   Each was proved by the searches kept in
   `keep/fourth-removal-check-searches-2026-11-22.txt`.
+- 2026-11-23T03:54:59-05:00:
+  answered the two fifth reads:
+  N1 (V20 restored with its two options and ranking,
+  and the sentences and the list's introduction that cite it made true),
+  U1 (one rule for an unlocked complete entry: refused and named until step 13),
+  U2 (`git worktree remove <slot>` in the pending line and in `doctor`),
+  U3 and N2 (the settling command takes a `settling` binding whose clone's absence cannot be proved,
+  each state after A20 with one true command,
+  and V23),
+  N3 (a reused name refuses in both, the command's order in six steps,
+  its refusal for an unreadable plan,
+  and the kill after the plan),
+  N13 and U5 (T33's arms, T29, T30, and T34 and T35),
+  U4 and N5 (A23 recovers a `registered` entry's snapshot identities by its proposed name),
+  W14 and the lows (the create's flags, the refusal's trigger, the empty lock's row,
+  the decisions section's wording, O's 13,368, the lock and plan tips,
+  the origin list's destroys, the D6 clause, the route claim),
+  A27 (the accepted design's request: nothing printed there),
+  and the accepted dirty-main design cited by its headings.
+  Each was proved by the searches kept in `keep/fifth-reads-searches-2026-11-22.txt`.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
