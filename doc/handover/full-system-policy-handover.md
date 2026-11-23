@@ -1,11 +1,11 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-23T15:51:19-05:00
+## Status at 2026-11-23T16:09:36-05:00
 
-Incomplete and unapproved. Default enforcement and current-boot workload verification are in place.
-The first enforcement cold boot exposed and measured a missing full-config `setpci` capability,
-which is now repaired and cached. Final cold-boot workload verification and explicit owner review
-remain required. Do not describe this as owner-approved or universally enforcing.
+The owner approved the enforcement result and requested a complete installed-system and repo
+inventory. That inventory is complete. Current evidence has no additional denial requiring a policy
+change, but this is not a guarantee against future application changes or unexercised operations.
+Default enforcement with documented per-profile exceptions is not universal enforcement.
 
 The owner selected the broad `apparmor.d` collection for network-facing and local threats. The
 required development, terminal, Podman, and Incus access to `/home/user` and
@@ -188,13 +188,20 @@ Recovery instructions: `/etc/apparmor/recovery.md`. Disabling only `apparmor.ser
 insufficient once an early cache exists. Prefer LTS with `apparmor=0`, or edit the main Limine entry
 and remove `apparmor,` from `lsm=`.
 
+## Installed inventory
+
+The owner-requested complete inventory is in `doc/handover/installed-system-and-repo-inventory.md`.
+It covers 2,276 installed packages, 9,273 executable and symlink entries, all 809 cache files, all
+loaded profile modes, all systemd unit files, every running process label, all 570 repo manifests,
+and all 24,756 tracked repo files. Complete private JSON reports are retained under
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/keep/installed-system-and-repo-inventory/`.
+
 ## Remaining work
 
-1.  Owner reviews the measured configuration and evidence and either accepts it or requests changes.
-
-No additional reboot is required. The enforcement cold boot already occurred, the repaired policies
-are reloaded in place, and the rebuilt cache is verified for future boots. The exact LTS recovery
-entry remains untested. KeePassXC save behavior at the selected database path, portal pressure
-writes, and fresh profile-sync-daemon mount operations remain explicitly unexercised.
+No implementation work remains from the approved rollout or the requested inventory. The exact LTS
+recovery entry remains untested. KeePassXC save behavior at the selected database path, portal
+pressure writes, and fresh profile-sync-daemon mount operations remain explicitly unexercised.
+Unprofiled development and repo processes remain unconfined by design and are disclosed in the
+inventory rather than misreported as universally enforcing.
 
 This handover is not final and not owner-approved.
