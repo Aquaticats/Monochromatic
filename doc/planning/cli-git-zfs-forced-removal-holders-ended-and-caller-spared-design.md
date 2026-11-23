@@ -3349,6 +3349,13 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
 - `cb3b291f53`,
   2026-11-22T21:52:36-05:00:
   the correction of the previous commit's message spelling.
+- `5c2c841f53`,
+  2026-11-22T21:52:48-05:00:
+  this round's entries in the revision list,
+  and the paragraph saying which finding each section holds.
+- `a2bc9d9436`,
+  2026-11-22T21:53:01-05:00:
+  the duplicate sibling bullet removed.
 
 The fourth review's A1 to A13 are built in:
 the ways' propagation rule and the peer case (A1,
