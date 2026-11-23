@@ -1529,6 +1529,13 @@ rotated and reversed as every other shape.
   So the step's 4 to 5 ms is gone,
   and no add's total is resolved slower.
 
+  A note of 2026-11-23 corrects one sentence above:
+  the parse is not inside the served add's spread;
+  the integration pass measured it at 7.8 to 13.4 ms longer in `conversionFence`
+  on all four served and dirty shapes.
+  This round puts the parse back on the read's thread,
+  so the hand-over described in this section no longer exists.
+
 ## The parse on the adding thread, tested again
 
 The integration pass of 2026-11-23 measured the parse on the adding thread of every served and dirty add:
