@@ -333,6 +333,21 @@ After keyring access and the real push reached the repository, Git denied this r
 `.git/hooks/pre-push`. The hook is a POSIX shell script that runs `git lfs pre-push "$@"`. The exact
 own-hook inherit-exec rule is separate from third-party hook and build-output policy.
 
+The auto-push policy wrapper also produced `/proc/<pid>/cgroup` with `ouid=0`. Its own
+`package/git-policy/cli/src/native/foundation/runtime_limits.rs:154-166` reads that path before
+resolving resource limits:
+
+```rust
+// package/git-policy/cli/src/native/foundation/runtime_limits.rs:154-158
+#[cfg(unix)]
+fn threads_left_in_this_control_group() -> Option<u64> {
+    let text: String = std::fs::read_to_string("/proc/self/cgroup").ok()?;
+    let path: String = control_group_path(text.as_str())?;
+```
+
+That root-owned proc file requires no `owner` qualifier. The local rule covers only this proc read;
+any subsequent `pids.max` or `pids.current` denial requires its own evidence.
+
 ## Verification
 
 ### Versions and evidence scope
@@ -367,7 +382,8 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
   required separate evidence.
 - The first auto-push failed because `/usr/bin/gh` had no transition target. After a custom `gh`
   profile succeeded at `gh auth status`, the real push failed on this repository's own `pre-push`
-  hook. These were new workflow stages, not repeats of the signing-buffer incident.
+  hook. The follow-up auto-push also recorded the policy wrapper's `/proc/<pid>/cgroup` denial.
+  These were new workflow stages, not repeats of the signing-buffer incident.
 
 ### Passing catalog
 
@@ -389,9 +405,10 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
 - Fresh Helium rendered Example Domain with renderer seccomp filtering and no unexpected unconfined
   helper. Audited events proved its OS-release read, existing crash-report reads, settings
   read/write opens, and lock-file operations. It did not create a new crash dump.
-- Signed commit `02f5e836951eaa990e1c6e3f88e5017b51e39d0b` and its real push to `main` succeeded.
-  `gh auth status` read the existing keyring credential through the enforcing custom profile, and
-  `git ls-remote` returned the same commit hash. The push also exercised the exact own Git LFS hook.
+- Signed commits `02f5e836951eaa990e1c6e3f88e5017b51e39d0b` and
+  `778f7c5f9bbc5a0cacbdc7ac480bc31f4f360e3a` reached `main`. `gh auth status` read the existing
+  keyring credential through the enforcing custom profile, and `git ls-remote` returned the same
+  commit hashes. The push also exercised the exact own Git LFS hook.
 
 ## Verified workarounds
 
@@ -469,6 +486,7 @@ owner @{HOME}/temp/agent{,/**} rwlk -> @{HOME}/temp/agent{,/**},
 @{bin}/ssh-keygen px,
 owner @{tmp}/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
 owner @{HOME}/Monochromatic/.git/hooks/pre-push rix,
+@{PROC}/@{pid}/cgroup r,
 ```
 
 The signer has the same file boundary in its own profile:
