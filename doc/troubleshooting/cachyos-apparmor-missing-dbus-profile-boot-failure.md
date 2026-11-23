@@ -57,7 +57,7 @@ else if (enabled)
 policy.apparmor_mode = CONFIG_APPARMOR_DISABLED;
 ```
 
-Local `system-local.conf` and `session-local.conf` files set `<apparmor mode="disabled"/>` so this unavailable mediation probe does not control startup. This does not disable the exec-time `dbus-system` or `dbus-session` process profiles once real policy loads.
+Local `system-local.conf` and `session-local.conf` files set `<apparmor mode="disabled"/>` to make the broker's lack of message mediation explicit. This is not a separately verified startup fix. It does not disable the exec-time `dbus-system` or `dbus-session` process profiles once real policy loads.
 
 An initial interpretation blamed `After=apparmor.service` for delaying startup. That was incorrect: `After=` is ordering, not a requirement. An initial attempt to remove the dependency with an empty drop-in also failed. The installed `systemd.unit(5)` manual says dependencies cannot be reset to empty in a drop-in. A no-op profile loader was briefly considered and then removed as unnecessary. The decisive configuration is clearing the unavailable exec-time profiles during the policy-free diagnostic.
 
