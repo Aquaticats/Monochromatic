@@ -3376,7 +3376,21 @@ with each committer time from `git log --format=%cI`:
   the split names step 16,
   the questions are the review's merged ones,
   and every citation was rechecked.
-- The commit that carries this list is the one after `71de819090` on this branch,
+- `a7902e293b`,
+  2026-11-22T18:31:12-05:00:
+  the answer round's commit list.
+- `cf555b1a9f`,
+  2026-11-22T19:22:28-05:00:
+  the answer to the second gate review:
+  the moments named by the binding's step labels read at `c144499eb9eb`,
+  the scan specified,
+  the composer and the comparison moved into step 10,
+  the account's claim cited instead of root's,
+  the settle's mechanism recorded as a veto entry,
+  one Git-alone arm restored and two added,
+  the stale citations corrected,
+  and the questions reduced to the review's two.
+- The commit that carries this list is the one after `cf555b1a9f` on this branch,
   and `git log` reports its hash and time.
 
 ## Links
