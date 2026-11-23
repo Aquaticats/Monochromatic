@@ -258,20 +258,55 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
-    let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> = read_lock_metadata(pid_file.as_path()).ok().flatten();
+    let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> = pid_file_metadata(pid_file.as_path());
     std::fs::remove_file(lock).ok()?;
     // A control reaches here to act as a Git that takes the freed name at this instant.
     crate::service_fault::reach(UNLINKED_THE_LOCK);
-    // The PID file goes with the lock it belongs to, and only when it is still the very file that was judged: a Git that took
-    //  the freed name and wrote its own PID file keeps that file, because its device, inode or change time differ.
+    // The number the PID file names is read again here, after the lock's name has gone, because the metadata below is
+    //  not enough on its own: a program that takes the freed lock and writes its own number over the judged PID file
+    //  truncates that very file, so its device, inode and millisecond change time can all be the judged ones and only
+    //  the number tells it apart (gitbutlerapp/grit does exactly that: `write_lock_pid_file` opens with create and
+    //  truncate, called from `IndexLockFile::acquire` after the lock was taken). The read is the bounded one
+    //  `pid_named_by` makes of a file that holds `pid <number>`, and nothing else here reads it.
+    let still_names_the_judged: bool = i32::try_from(pid).is_ok_and(|judged_number| { return crate::stopped_git_locks::pid_named_by(pid_file.as_path()) == Some(judged_number); });
+    // The PID file goes with the lock it belongs to only when it is still the very file that was judged: its device,
+    //  inode and change time as read before the unlink, and the number it names. Git's own PID file cannot stand at that
+    //  name while the judged one does, because it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is
+    //  refused (`lockfile.c`, `create_lock_pid_file`, Git 2.56.1), so a Git that takes the freed name has none of its own
+    //  to lose. A program that writes its own number there is kept by the number, and one that writes the same number back
+    //  is not told apart: the file is gone then, and it names the holder that was just proved gone
+    //  (issue 6342, `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, cause L).
     if let Some(judged_pid_file) = pid_file_judged
-        && matches!(read_lock_metadata(pid_file.as_path()), Ok(Some(still)) if still.device == judged_pid_file.device && still.inode == judged_pid_file.inode && still.ctime_ms == judged_pid_file.ctime_ms)
+        && still_names_the_judged
+        && matches!(pid_file_metadata(pid_file.as_path()), Some(still) if still.device == judged_pid_file.device && still.inode == judged_pid_file.inode && still.ctime_ms == judged_pid_file.ctime_ms)
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
     }
     // The lease, where this platform offers one, is released only now: both names are gone.
     drop(proof);
     return Some(Clearance { lock: lock.to_path_buf(), pid, evidence: Evidence::PidFile });
+}
+
+/// What:
+///  The metadata of the PID file beside `lock`,
+///  with a control's arm answering when it names that path.
+/// Why:
+///  The removal reads this file twice,
+///  once before the lock's name goes and once at its last look,
+///  and a control that makes one term of the comparison differ does it by answering here,
+///  so the two reads and nothing else about the file change
+///  (`lock_metadata_arm.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const judged = pidFileMetadata(pidFile); // the arm's term changed on the later read
+/// ```
+fn pid_file_metadata(pid_file: &Path) -> Option<crate::index_lock_evidence::LockMetadata> {
+    let found: Option<crate::index_lock_evidence::LockMetadata> = read_lock_metadata(pid_file).ok().flatten();
+    #[cfg(test)]
+    return crate::lock_metadata_arm::armed(pid_file, found);
+    #[cfg(not(test))]
+    return found;
 }
 
 /// What:
