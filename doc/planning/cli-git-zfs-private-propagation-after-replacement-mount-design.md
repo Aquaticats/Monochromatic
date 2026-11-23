@@ -637,7 +637,7 @@ and none is a measurement of behaviour.
   `:1049` to `:1062`).
   So a clone whose old mount was lazily detached can plausibly be attached a second time while the detached mount
   stays invisible,
-  which is unmeasured (M9).
+  which is unmeasured (M5).
 - F12.
   systemd mirrors mounts made outside it:
   "Mount points created at runtime (independently of unit files or
@@ -1178,7 +1178,7 @@ and none is a measurement of behaviour.
 - L7.
   A lazily detached clone plausibly stays mounted in a second mount of the same dataset (F11),
   and this design neither releases it nor finds it.
-  What it does about that state is unmeasured (M9);
+  What it does about that state is unmeasured (M5);
   the removal's holder rules and step 9's unmount are the designs that look for holders
   ([proposal][proposal],
   "Project decisions",
@@ -1334,7 +1334,8 @@ old one.
     (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
     lines 1006 to 1008).
     systemd notices the mount (F12);
-    whether anything starts is "Triggers that could reach the step";
+    whether anything starts is "The trigger the route adds,
+    and what it must show";
     ZFS posts no
     mount event (F17);
     the new instance is shared by F3,
@@ -1433,7 +1434,7 @@ and each needs saying because the sweep's answer differs:
   Their datasets are still mounted,
   so a later attach of one plausibly becomes a second mount of the same superblock
   while the detached one stays invisible (F11),
-  which is unmeasured (M9).
+  which is unmeasured (M5).
   Nothing in the handler's namespace reaches the detached one,
   and `doctor` reports the clone with its intent
   standing.
@@ -3207,8 +3208,7 @@ with its committer time from `git log --format=%cI`:
   the triggers survey,
   both mount numbers,
   the propagation set,
-  the no-file resolution
-  (M5),
+  the no-file resolution,
   the threat-model list,
   the acceptance arm,
   the expanded veto and question lists,
