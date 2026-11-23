@@ -257,9 +257,7 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     let pid_file: PathBuf = pid_file_beside(lock);
     // The contents the PID file has when it is judged, byte for byte, and the number they name. One read gives both, and
     //  the removal holds it until its last look, where the file is unlinked only if these very bytes are still there.
-    let Some(judged_contents) = crate::stopped_git_locks::pid_file_contents(pid_file.as_path()) else {
-        return None;
-    };
+    let judged_contents: Vec<u8> = crate::stopped_git_locks::pid_file_contents(pid_file.as_path())?;
     if crate::stopped_git_locks::pid_named_in(judged_contents.as_slice()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
