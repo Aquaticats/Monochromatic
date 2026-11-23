@@ -20,6 +20,12 @@ with appropriate `--label` and `--state` filters.
    `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**:
    `gh issue close <number> --comment "..."`
+- **Mark blocked work**:
+   an issue that waits on something carries a `blockedBy:<specific>` label,
+   created when it does not exist yet;
+   `doc/agent/triage-labels.md`,
+   "Blocked work",
+   has the rule.
 
 Infer the repo from `git remote -v`;
  `gh` does this automatically when run inside a clone.

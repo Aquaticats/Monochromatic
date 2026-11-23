@@ -128,6 +128,10 @@ run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -
 description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git (pacman's current `git`)"
 run = "cargo nextest run --locked --offline --lib"
 
+[tasks."native:test:archive"]
+description = "Archive the native unit tests for a guest that has cargo-nextest but not this toolchain, so the btrfs controls run where a btrfs fixture root exists"
+run = "cargo nextest archive --locked --offline --lib --archive-file target/verification/native-tests.tar.zst"
+
 [tasks."native:test:binary:host"]
 description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git stays the authority"
 run = "cargo nextest run --locked --offline --test native_binary"

@@ -1,0 +1,2102 @@
+[
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=crlf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=crlf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=crlf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=crlf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=crlf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=crlf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=input] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=input] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[-crlf] eol=[eol=lf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[-crlf] eol=[eol=lf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[eol=lf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[eol=lf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=crlf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=crlf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[eol=lf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[eol=lf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[eol=crlf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[eol=crlf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=input] eol=[] autocrlf=[true] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=input] eol=[] autocrlf=[true] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=crlf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=crlf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[-crlf] eol=[eol=lf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[-crlf] eol=[eol=lf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=input] eol=[] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf] eol=[eol=lf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf] eol=[eol=lf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=lf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=lf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=lf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[] eol=[eol=lf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[] autocrlf=[false] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=input] eol=[] autocrlf=[false] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[] autocrlf=[true] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[-crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[-crlf] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=crlf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=crlf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=lf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=input] eol=[eol=lf] autocrlf=[false] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf] eol=[eol=lf] autocrlf=[input] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[eol=crlf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[eol=crlf] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=auto] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[crlf=auto] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=crlf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=crlf] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=lf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf] eol=[eol=lf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text] crlf=[] eol=[eol=lf] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=input] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=input] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[-crlf] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[-crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[eol=crlf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[-crlf] eol=[] autocrlf=[] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[] autocrlf=[false] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=crlf] autocrlf=[input] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[] eol=[] autocrlf=[] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[] core.eol=[native]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[-text] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf=auto] eol=[eol=lf] autocrlf=[] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[crlf] eol=[eol=crlf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[] crlf=[-crlf] eol=[eol=lf] autocrlf=[true] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[crlf=auto] eol=[eol=crlf] autocrlf=[input] core.eol=[]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=lf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=auto] crlf=[crlf=input] eol=[eol=lf] autocrlf=[false] core.eol=[crlf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[text=input] crlf=[crlf] eol=[] autocrlf=[input] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-after-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ },
+ {
+  "spec": "text=[!text] crlf=[] eol=[] autocrlf=[false] core.eol=[lf]",
+  "phase": "rules-before-the-add",
+  "result": "EQUAL",
+  "differences": [],
+  "route": "clones"
+ }
+]
