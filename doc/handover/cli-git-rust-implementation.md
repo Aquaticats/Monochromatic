@@ -569,11 +569,19 @@ and only the owner accepts one.
   now closed.
   The two that are the binding's went to its running round through its inbox
   (`note-the-projects-seven-answers.md` in its folder).
-- Running,
-  started when the binding's round ended:
-  `pi-zfs-origin-cleanup-record-design-third-check-and-the-seven-answers`,
-  on `continuation-third-check-and-the-seven-answers.md` in its folder.
-- Next:
+- The origin cleanup design's round,
+  started when the binding's ended,
+  ended at `22be706b09` after 100 turns
+  (report `keep/report-third-check-and-the-seven-answers.md` in its folder).
+- Running:
+  `pi-zfs-removal-destruction-plan-record-design-third-check-and-the-seven-answers`,
+  on `continuation-third-check-and-the-seven-answers.md` in its folder,
+  last of the three.
+  Its brief also carries what two other designs wait on:
+  one rule for what a cancellation does to the plan,
+  and what a removal does when the plan says the head is present and the clone is gone.
+- Earlier wording of this step,
+  now done:
   the plan design's round
   (its Y3,
   Y4,
