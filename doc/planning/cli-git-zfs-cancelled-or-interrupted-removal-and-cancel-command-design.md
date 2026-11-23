@@ -1181,13 +1181,26 @@ Its states are these.
   A kill here leaves the same state,
   and the next removal or cancel command settles the folder.
 - C4.
+  The all-`planned`,
+  `head=present` plan is removed,
+  after the clone and the plan are proved and before the removal claim is released.
   The folder is removed,
-  the record unlinked and the staging claim released.
+  the record unlinked and the staging claim released,
+  and the plan is gone.
   The removal is cancelled:
   the intent asks for a mount,
-  the plan (where one exists) keeps its destroyed set and its dead owner,
   and the removal claim is released.
   `doctor` reads the state as "cancelled".
+- C5.
+  The cancellation was killed between the clone's attach and the plan's unlink,
+  or between the unlink and the removal claim's release.
+  The clone is at its slot,
+  the intent asks for a mount,
+  and the plan still stands with every tuple `planned` and head `present`.
+  This is C4's state with the plan not yet removed.
+  The next removal adopts it,
+  and a later cancel command removes it after proving the clone and the plan,
+  which is the state a kill at this step leaves.
 
 The state between C1 and C2 is the one a person sees when a cancellation's wrapper is killed at its first step,
 and it is the reason the intent write comes before the folder's settlement.
@@ -1282,16 +1295,29 @@ still holding the removal claim:
     where the bind survives,
     the folder,
     record and claim are retained and reported;
-4.  releases the removal claim and prints the report,
+4.  removes an all-`planned`,
+    `head=present` plan,
+    one that witnessed nothing,
+    after proving the clone and the plan and before releasing the claim,
+    as the plan design's one rule gives both the cancelling removal and the cancel command
+    ([plan-record][plan-record],
+    "A cancellation,
+    and the plan it leaves",
+    read at `1e989acf66`);
+    every automatic arm does this,
+    and a plan that records a destroyed snapshot stays untouched;
+5.  releases the removal claim and prints the report,
     which names the holder,
     says that the removal cancelled itself because a scan saw a holder,
     and says what was destroyed:
     nothing at points 8 and 12,
     and the earlier chunks' names at point 15.
 
-No plan is written by this arm.
+This arm writes no plan field.
 At point 15 the plan already records the earlier chunks,
-and a cancellation writes nothing to it.
+and a cancellation writes nothing to it;
+the only plan action it takes is the unlink at step 4,
+in the one state that witnesses nothing.
 
 ### The arm refused at the head destroy
 
@@ -1453,8 +1479,9 @@ reads the table,
 runs every structural check,
 confirms a destination can be made,
 and compares every holder with the protected set.
-Two kinds of refusal follow from that,
-and only the second can leave a process of this run ended.
+Four kinds of refusal follow from that,
+in three groups,
+and only the last group's can leave a process of this run ended.
 
 Refused by the preflight,
 before anything is changed:
@@ -1489,8 +1516,8 @@ before anything is changed:
 4.  A holder the preflight proves cannot be ended,
     which is `holder-unendable`,
     and a read that came back blind,
-    which refuses too and which the forced arm's receipt names by its failed step rather than by one of the three
-    words.
+    which refuses too,
+    and the forced arm's receipt names it by its failed step rather than by one of the three words,
     Both refuse before any signal is sent,
     with nothing moved,
     ended or destroyed.
@@ -1502,13 +1529,16 @@ and what it leaves"):
 
 5.  The kernel refuses a change the reading could not foresee,
     such as a propagation change or a destination the kernel will not take.
-    Nothing was ended;
-    the namespaces before it were changed (a parent made a slave,
-    a directory made) and are moved back where possible
-    (the forced arm's V6);
-    and the report names the change,
-    the move back and the directory.
-    The word is `holder-unendable`.
+    Nothing was ended.
+    The namespaces before it were changed:
+    a parent made a slave stays a slave and is reported,
+    and a directory that was made is removed when it is safe;
+    no copy was moved in that stage ([forced][forced],
+    "The refusal,
+    and what it leaves",
+    and its V7).
+    The report names the change and the directory,
+    and the word is `holder-unendable`.
 
 Refused after an act,
 which are the only refusals where a process of this run has already ended:
@@ -1543,11 +1573,11 @@ and what is left is:
   and the ended set named where a refusal came after an act;
 - in the holders' namespaces,
   whatever the structural stage did before a refusal stands until it is undone:
-  a parent made a slave is moved back where possible (the forced arm's V6),
-  and a destination directory that was made and could not be removed is named by the report,
+  a parent made a slave stays a slave and is reported,
+  and a destination directory that could not be removed is named by the report,
   printed by `doctor`,
-  and removed by the next run or by this design's cancel command when it carries the reserved prefix and the clone's
-  GUID,
+  and removed by the next removal's handler sweep or by this design's cancel command when it carries the reserved
+  prefix and the clone's GUID,
   is empty,
   root-owned with mode `0700`,
   and sits directly under the parent mount's root (the forced arm's V7);
@@ -1898,17 +1928,22 @@ so a reader tells the abandoned case from a live removal without trusting the pr
 While a forced act is running,
 the handler and the wrapper each need to know the other lives,
 and the forced arm states that rule under "The act's liveness" ([forced][forced],
-read at `f7765aea32`):
+read at `2a2747ebfb`):
 the handler writes a root-owned progress file beside the scan file,
-named with the clone's GUID and carrying the request's nonce and a counter it advances at each stage and once per
-liveness interval while it waits;
+named `<guid>.removal-progress`,
+carrying the request's nonce and a counter a timer thread advances once per heartbeat period `T_h`,
+and the act also advances it at its start and at each stage,
+so a long preflight,
+wait or unmount does not read as a dead handler;
 the wrapper reads that counter while it waits,
 prints that the request still stands when its own deadline passes,
-and gives up only when the counter has not moved for the interval,
+and gives up only when the counter has not moved for the give-up window `T_g`,
+which is four `T_h`,
+counted from its first read after the request,
 saying then that the handler is gone,
 that nothing further will be ended,
 and that the request stands as non-force work.
-Both intervals are constants with no value until M12 sizes them.
+`T_h` and `T_g` are constants with no value until M12 sizes them.
 What this design's two actors do when the wrapper dies during the act:
 the handler sends no `SIGKILL`,
 stops and files `caller-gone`,
@@ -2219,7 +2254,7 @@ In every other state it:
 6.  releases the removal claim on every path out,
     including the paths that refuse.
 
-The plan design's one rule at `3cd520b6a0` is that both the removal that cancels itself and this command remove a
+The plan design's one rule at `1e989acf66` is that both the removal that cancels itself and this command remove a
 plan whose every tuple is `planned` and whose head is `present`,
 and that neither removes a plan that records a destroyed snapshot
 ([plan-record][plan-record],
@@ -2507,7 +2542,7 @@ and this design writes none of its fields:
   ([plan-record][plan-record],
   "A cancellation,
   and the plan it leaves",
-  read at `3cd520b6a0`);
+  read at `1e989acf66`);
 - a later removal of the same clone rewrites it whole,
   keeping every tuple and outcome
   ([plan-record][plan-record],
@@ -2550,7 +2585,7 @@ By state:
   ([plan-record][plan-record],
   "A cancellation,
   and the plan it leaves",
-  read at `3cd520b6a0`).
+  read at `1e989acf66`).
   Both actors here are this design's,
   so this design removes it in the automatic arm and in the command,
   writes no outcome,
@@ -2583,13 +2618,38 @@ By state:
   so a plan beside it is adopted on the head-present path under the nonce rule above,
   and every tuple and outcome it holds is kept".
 
+The kept plan has a second end,
+which the project decided on 2026-11-22 ([records-record][records-record],
+"A further answer:
+the settling command and a plan a cancellation kept"):
+a plan a cancellation kept,
+whose clone is later gone,
+is ended by the settling command after a person confirms.
+That command prints the snapshot names the plan recorded as destroyed,
+then removes the plan with the other records and frees the slot,
+and the plan design's "A clone gone whose absence cannot be proved" states it in the same words
+([plan-record][plan-record],
+read at `1e989acf66`),
+with a plan whose head is `gone` left to the finish pass.
+So the kept plan ends either at the clone's next removal,
+which reads and proves it,
+carries the loss forward and ends it,
+or at the settling command after a confirmation,
+when the clone is gone;
+and the cost is the record's own,
+that the only durable record of what the cancelled removal destroyed leaves with that command's one confirmed act.
+The plan design's section 7 was cut and its "Its end" restates that order,
+so this design cites its "A cancellation,
+and the plan it leaves",
+"The removal intent" and "A clone gone whose absence cannot be proved" only.
+
 A retry after a cancel is one of four states,
 not one,
 and the deferred-destroy design's early look runs in only the first of them,
 because the look "runs only when the clone carries no removal intent and no plan exists for it"
 ([deferred][deferred],
 "The look before the unmount").
-The plan design's text at `3cd520b6a0` gives each state's rule,
+The plan design's text at `1e989acf66` gives each state's rule,
 and where it does not,
 this design says so and asks it.
 State by state:
@@ -2628,23 +2688,29 @@ State by state:
   and any later refusal carries the plan's history,
   which the plan design's words decide.
 - A plan is kept with an `unknown` outcome.
-  The plan design adopts a plan only "if the plan has no `unknown` outcome and its identities still match live";
-  otherwise "it refuses,
-  and the cancel command is the way forward" ([plan-record][plan-record],
-  "The removal intent").
-  So the retry refuses at the plan's adoption rule,
-  before any destructive step,
-  and the look does not run because a plan exists.
-  The person is told that the plan records tuples whose outcome is unknown,
-  that none of them may be assumed either way,
-  and that the removal refuses until they are settled.
-  The plan design's stated way forward is the cancel command,
-  and for a plan a cancellation kept that command has already run;
-  its settling command is stated only for a plan whose clone is gone:
-  so this design asks the plan design,
+  The plan design gives that tuple a settling step in the retry ([plan-record][plan-record],
+  "The removal intent",
+  read at `1e989acf66`):
+  the head-present arm of the absence rule settles it against the live inventory,
+  a live snapshot carrying its GUID makes it `intact`,
+  an absent GUID makes it `destroyed`,
+  and only a live snapshot carrying the GUID with another `createtxg`,
+  or a pool that cannot be read,
+  refuses;
+  until it is settled the run prints the tuple's name and GUID and that it stopped.
+  The look does not run because a plan exists.
+  The plan design does not say where the settling step sits in the retry's order against its nonce rule,
+  which refuses a plan that has an `unknown` outcome;
+  this design reads the settling step as coming first,
+  labels that ordering as its own inference,
+  and asks the plan design to state it.
+  Where the settling step itself refuses,
+  the person is told the tuple's name and GUID and that the run stopped,
+  and the plan design's way forward is the cancel command,
+  which for a plan a cancellation kept has already run;
+  so this design also asks,
   in words it can quote,
-  "what settles a plan's `unknown` tuple while its head stands and its clone is present,
-  and what the next removal prints until then".
+  "what a person does when the unknown tuple's settling step refuses after a cancel".
 
 The look's own answer,
 where it runs,
@@ -2668,15 +2734,17 @@ which the deferred design's section now also says.
 
 What this design needs of the plan design,
 and does not define:
-the all-`planned` plan's fate at a cancellation must be one action in both of its sections,
-and that action must name which actor does it after a self-cancellation,
-where no command runs;
+the all-`planned` plan's fate at a cancellation is one action in both of its sections,
+and its text at `1e989acf66` states it as both the cancelling removal and the cancel command;
 the kept plan's lifetime is the record's,
-not this design's;
+not this design's,
+with the settling command as its second end when the clone is gone ("The plan's lifetime,
+what each actor does in each state,
+and what a retry finds");
 its reader must accept the state this design leaves,
 which is a plan whose owner is dead beside an intent that asks for a mount;
-and an `unknown` tuple of a plan whose head stands and whose clone is present needs a stated settling step,
-because the adoption rule refuses it and the cancel command has already run.
+and where an `unknown` tuple's settling step sits in the retry's order,
+which it does not say.
 
 ### The receipt's new answer field
 
@@ -3188,6 +3256,13 @@ using the stand-in device and the seams the route already has.
 - The cancellation's writer sends exactly `v1:<32 hex>:mount` on the clone and nothing else,
   asserted against a stand-in device's recorded request,
   with a negative control that an `unmount` value is not sent and that a reused nonce is refused.
+- The plan action a cancellation takes,
+  over a stand-in plan folder:
+  an all-`planned`,
+  `head=present` plan is unlinked after the clone and the plan are proved and before the claim is
+  released,
+  a plan with a destroyed tuple is left untouched,
+  and a plan that cannot be read refuses rather than being removed.
 - The removal claim's folder,
   prefix and generation names,
   with a live owner refusing,
@@ -3394,6 +3469,40 @@ as the plan's own arms do.
   and reports that nothing was destroyed;
   then the same arm at the check before the head destroy,
   where it reports the batch's destroyed names.
+- The empty plan's unlink arm,
+  which is the one plan action a cancellation takes.
+  Run a removal whose first scan is clear and whose plan is written,
+  hold a reader so that the scan before the first delete cancels,
+  and assert the plan's folder holds no plan after the cancellation,
+  that the removal claim was released after the unlink,
+  and that no tuple was written.
+  Then kill the wrapper between the attach and the unlink (C5):
+  assert the all-`planned`,
+  `head=present` plan still stands beside the attached clone,
+  that the next removal adopts it,
+  and that a later cancel command removes it after proving the clone and the plan.
+  The control is a cancellation that destroyed a chunk,
+  whose plan stands after the cancellation and is not removed.
+- The four retry-states arm,
+  one sub-arm for each state under "A retry after a cancel is one of four states".
+  (a) No plan kept:
+  cancel a removal before its plan's first write,
+  then run it again and assert the deferred look runs and no plan was presented to it.
+  (b) An all-`planned` plan a killed cancellation left:
+  run it again and assert the plan is adopted,
+  every tuple kept,
+  and the look does not run.
+  (c) A plan with some destroyed:
+  run it again and assert the adoption keeps every outcome,
+  that the loss is carried forward,
+  and that the run proceeds to the first deferred check.
+  (d) A plan with an `unknown` outcome:
+  kill the wrapper inside a chunk so that a tuple's outcome stays `unknown`,
+  run it again and assert the head-present arm of the absence rule settles the tuple,
+  that a reused name or an unreadable pool refuses,
+  and that the printed name and GUID are the recorded tuple's.
+  Each sub-arm's control is the same state with a settled tuple,
+  which proceeds without a refusal.
 - The cancel command at each kill point,
   forced by a step-indexed fault hook that ends the process at that step and not by timing:
   stop points 3,
@@ -3405,7 +3514,9 @@ as the plan's own arms do.
   10,
   12 and 17,
   and the cancelling states C1,
-  C2 and C3.
+  C2,
+  C3,
+  C4 and C5.
   Each arm asserts the command's proof,
   its settlement,
   its report and the end state,
@@ -3598,15 +3709,17 @@ nothing below adopts a sibling's answer as decided.
   what each actor does in each state,
   and what a retry finds":
   a plan that records a destroyed snapshot is never removed at a cancellation;
-  the all-`planned` plan's fate at a cancellation is one action in its two sections,
-  which disagree today;
+  the all-`planned` plan's fate at a cancellation is one action in both of its sections,
+  which its text at `1e989acf66` now states as both the cancelling removal and the cancel command;
   the record is readable while the clone is unmounted and after a reboot;
   and its `owner` names the same process the removal claim names.
   Its own list of end states has no cancelled value,
   and this design needs none.
   The deferred-destroy design's requirement on a retry after a cancel
   ([deferred][deferred],
-  "A retry after a cancel") is answered there in the words it asked for.
+  "A retry after a cancel") is answered under "A retry after a cancel is one of four states",
+  in that section's current words,
+  which that design has since reworded.
 - The add-time Git lock:
   this design's unmounted window between a kill and the next command relies on that lock keeping `git worktree prune`
   from deleting the registration (F3).
@@ -3740,15 +3853,14 @@ and this section is where a later pass reconciles them.
   This design's veto list carries its key;
   the forced arm's words are its own.
 - The kept plan's one rule.
-  The plan design at `3cd520b6a0` states one rule for a cancellation in both of its sections,
+  The plan design at `1e989acf66` states one rule for a cancellation in both of its sections,
   so the disagreement this design reported between its "The cancel command" and "A cancellation,
   and the plan it leaves" is settled:
   both the cancelling removal and the cancel command remove an all-`planned`,
   `head=present` plan and remove nothing else.
-  This design follows it in its automatic arms and in the command,
-  and asks that design for two things its text does not yet give:
-  what settles a plan's `unknown` tuple while its head stands and its clone is present,
-  and what the next removal prints until then.
+  This design follows it in every automatic arm and in the command,
+  and asks that design one thing its text does not yet give:
+  where an `unknown` tuple's settling step sits in the retry's order against its nonce rule.
 - The pre-move scan.
   The forced arm's V4 adds a scan before the handler's move,
   adopted there as "every scan under the force word";
@@ -3892,25 +4004,23 @@ At a branch tip,
 with `git show <branch>:<path>`:
 
 - `cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design`,
-  read at `f7765aea32`,
+  read at `2a2747ebfb`,
   whole enough to state the split and the disagreements,
   with its "The act's liveness",
-  "The preflight" and "The refusal,
+  "The preflight",
+  "What is still refused" and "The refusal,
   and what it leaves".
-- `cli-git-zfs-deferred-destroy-checks-design`,
-  read at `d0ff7604b7`,
-  "The look before the unmount",
-  "A retry after a cancel" and "What a refusal leaves".
 - `cli-git-zfs-removal-destruction-plan-record-design`,
-  read at `3cd520b6a0`,
+  read at `1e989acf66`,
   the grammar,
   the states,
   the order,
   the absence rule,
-  the removal intent,
+  "The removal intent",
   "A cancellation,
   and the plan it leaves",
-  the readers and the finish pass.
+  "A clone gone whose absence cannot be proved",
+  the readers and "Its end".
 - `cli-git-zfs-add-binding-record-design`,
   its home,
   format and readability.
@@ -3918,6 +4028,20 @@ with `git show <branch>:<path>`:
   what the lock is and when it is written.
 - `cli-git-zfs-origin-cleanup-record-design`,
   what the head-gone refusal leaves owed.
+
+Accepted and on `main`,
+read at their paths:
+
+- `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
+  "The look before the unmount",
+  "A retry after a cancel" and "What a refusal leaves".
+- `doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`,
+  since every forced act here depends on the checkout's propagation being repaired first.
+- `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
+  "A further answer:
+  an add whose own unmount is refused as busy".
+
+At a tag,
 
 At a tag,
 in the scratch folder:
