@@ -102,7 +102,8 @@ fn the_size_limit_declines_one_byte_below_the_pinned_bytes_for_a_source_with_cha
 ///  A clean source whose mean tracked file is exactly the pinned edge is cloned,
 /// and one byte off the total declines it,
 /// with the mean in the sentence;
-/// on a filesystem with no edge, a clean tree of the same tiny files is cloned.
+/// on a filesystem with no edge,
+/// a clean tree of the same tiny files is cloned.
 /// Why:
 ///   A clean source is judged by its mean file size,
 /// so the control is that arithmetic:
@@ -195,12 +196,15 @@ fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_su
 }
 
 /// What:
-///  ZFS takes its measured mean edge, btrfs none, and a filesystem nobody measured takes the ZFS edge.
+///  ZFS takes its measured mean edge,
+/// btrfs none,
+/// and a filesystem nobody measured takes the ZFS edge.
 /// Why:
 ///   A mapping that gave btrfs an edge would decline a clean btrfs tree `main` clones,
 /// which the recheck measured as 1.36 to 1.62 times `main` (its finding RH1),
 /// and a mapping that gave an unmeasured filesystem no edge would clone small files where no round says the copy wins.
-/// This control is what pins the mapping, and it runs on a btrfs fixture root as well as on the host.
+/// This control is what pins the mapping,
+/// and it runs on a btrfs fixture root as well as on the host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,7 +225,8 @@ fn the_mean_edge_is_the_subject_filesystems_own_measurement() {
 ///   The lead was changed because nothing of a declined add had started when a limit declined it,
 /// and the recheck's plant set the old lead back and every control stayed green (its finding RL1):
 /// a sentence can regress to the snapshot's lead and no test would see it.
-/// The three limits are asked here through their own reasons, and the route wraps each as the add tells it.
+/// The three limits are asked here through their own reasons,
+/// and the route wraps each as the add tells it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

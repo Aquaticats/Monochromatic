@@ -282,11 +282,15 @@ pub fn explain_unsupported(reason: &str) -> SlowRoute {
 /// made by Git's own checkout;
 /// the sentence names the input and says the add ended after it had read the source,
 /// then gives the check's own words,
-/// which name the path or the rules and, for the two classes a person can act on,
-/// the remedy: `git status` once in the source refreshes its record of the file times, and committing the source's
+/// which name the path or the rules and,
+/// for the two classes a person can act on,
+/// the remedy:
+/// `git status` once in the source refreshes its record of the file times,
+/// and committing the source's
 /// `.gitattributes` change makes the rules the add reads match the ones Git writes with.
 /// It names no snapshot and no rung:
-/// a person reading it ran an add that ended, and the words are plain.
+/// a person reading it ran an add that ended,
+/// and the words are plain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

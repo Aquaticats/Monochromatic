@@ -118,7 +118,8 @@ so an untracked file is no changed file.
 
 The round of 2026-11-23 after the recheck changed two of them:
 btrfs has no mean rule and the ZFS edge is 2,600 bytes a file.
-"The four answers of 2026-11-23, built" below records that and this section stays as the earlier round wrote it.
+"The four answers of 2026-11-23,
+built" below records that and this section stays as the earlier round wrote it.
 
 `package/git-policy/cli/src/native/worktree/worktree_clone_rung_limits.rs` holds the limit rules of this round,
 each with its measurement beside it:

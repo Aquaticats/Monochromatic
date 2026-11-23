@@ -20,14 +20,18 @@
 //! no btrfs mean was measured to lose,
 //! and the project answered "Clone as main does on btrfs;
 //! keep the rule on ZFS and on filesystems nobody measured"
-//! (the same record, "No size rule on btrfs").
+//! (the same record,
+//! "No size rule on btrfs").
 //! Every limit sends the add to Git's own checkout,
 //! and a declined add costs what `main` paid for the same source:
 //! the source check and then Git's own checkout,
 //! never less and never much more.
 //! A clean tree this rung declines measured 1.07 to 1.24 times Git's own checkout in the recheck's guest,
-//! the source check and, on some, a Git call inside the ladder;
-//! a dirty tree it declines measured 0.94 to 1.04 of it, inside the round's spread
+//! the source check and,
+//! on some,
+//! a Git call inside the ladder;
+//! a dirty tree it declines measured 0.94 to 1.04 of it,
+//! inside the round's spread
 //! (`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`,
 //! "RM2" and "The owner's requirement per shape").
 //! What a declined add loses is the clone's gain.
@@ -111,15 +115,24 @@ pub const THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG: u64 = 762_000_000;
 /// 31,996 0.50;
 /// 43,995 0.97 (3 of 8).
 /// The means are not monotone:
-/// 5,199 and 7,999 read 1.21 to 1.23 while 4,399, 5,999 and 6,999 read 0.71 to 0.80,
-/// so the data place the crossing only within a range, about 3,000 to 9,600 bytes a file,
+/// 5,199 and 7,999 read 1.21 to 1.23 while 4,399,
+/// 5,999 and 6,999 read 0.71 to 0.80,
+/// so the data place the crossing only within a range,
+/// about 3,000 to 9,600 bytes a file,
 /// and the identical-binary control's own spread (0.26 to 3.15 a round) is wider than the differences in that range.
 /// 2,599 is the one mean with a clear pooled loss,
-/// and the project answered "lower it to about 3,000 bytes a file ... decline only below, where the clone clearly
-/// loses" (the decision record, "The ZFS edge is lowered to about 3,000 bytes a file"),
-/// so the edge sits at 2,600, the smallest whole number of bytes above that mean.
-/// It is a new pin on the same noisy points: the sizes the project's answer names as costs, 5,199 and 7,999, clone
-/// again, and their own single-mean readings above say the clone may lose there.
+/// and the project answered "lower it to about 3,000 bytes a file ... decline only below,
+/// where the clone clearly
+/// loses" (the decision record,
+/// "The ZFS edge is lowered to about 3,000 bytes a file"),
+/// so the edge sits at 2,600,
+/// the smallest whole number of bytes above that mean.
+/// It is a new pin on the same noisy points:
+/// the sizes the project's answer names as costs,
+/// 5,199 and 7,999,
+/// clone
+/// again,
+/// and their own single-mean readings above say the clone may lose there.
 ///
 /// Provisional and open to the project's veto.
 pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 2_600;
@@ -132,8 +145,10 @@ pub const THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS: u64 = 2_600;
 /// ZFS's copy of a tree of small files costs more than Git's write of it,
 /// while no btrfs mean measured lost,
 /// and the pin of 49 bytes made a clean btrfs tree under it 1.36 to 1.62 times `main` in the recheck's guest
-/// (its finding RH1, and the project's answer "No size rule on btrfs").
-/// A filesystem nobody measured takes the safest measured edge, which is the ZFS one.
+/// (its finding RH1,
+/// and the project's answer "No size rule on btrfs").
+/// A filesystem nobody measured takes the safest measured edge,
+/// which is the ZFS one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,8 +169,12 @@ pub fn the_smallest_mean_tracked_file(kind: FilesystemKind) -> Option<u64> {
 /// Why:
 ///   XFS with reflink and overlayfs were not measured,
 /// and the ZFS edge is the only measured edge that still applies to a clean source now that btrfs has none,
-/// so they take it: a filesystem whose copy of small files costs more than Git's write is declined, as on ZFS.
-/// The alternative, no rule on an unmeasured filesystem, is put to the project in `SPEC.md` and is not decided.
+/// so they take it:
+/// a filesystem whose copy of small files costs more than Git's write is declined,
+/// as on ZFS.
+/// The alternative,
+/// no rule on an unmeasured filesystem,
+/// is put to the project in `SPEC.md` and is not decided.
 /// A fixture that must reach the clone rung on any of these sizes its anchor from this edge,
 /// so no control carries a per-filesystem number of its own.
 ///
