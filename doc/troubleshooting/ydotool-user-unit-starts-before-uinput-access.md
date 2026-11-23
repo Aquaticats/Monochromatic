@@ -12,6 +12,13 @@ Open:
 no real reboot has exercised the drop-in yet,
 and the owner had not yet confirmed Ctrl+F4 in Helium after the same-boot restart.
 
+## Boot verification at 2026-11-23T06:00:23-05:00
+
+Codex checked the current boot journal. `ydotoold` reported `failed to open uinput device: Permission denied`
+on its first three starts. The installed drop-in retried successfully at `05:44:14 EST` and the user unit stayed active.
+A live Ctrl+F4 check remains open. The helper executable hit a separate
+[startup failure after the simdjson upgrade](node-sea-keeps-stale-simdjson-soname.md).
+
 ## Symptom
 
 After the reboot on 2026-11-18 (boot at 10:13:37 EST),
