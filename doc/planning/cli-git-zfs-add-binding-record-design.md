@@ -6284,9 +6284,8 @@ and any test suite.
 - 2026-11-23T17:40:16-05:00 (`5be6220648`):
   pointed the one list's citers at the right headings,
   the definition of "cannot be proved" and the sentence in "The add's own fallback" that names the section.
-- 2026-11-23T18:05:00-05:00 (this round;
-  the two commits and their real times are the ones `git log` names for
-`246d302e24` and `7969d55b6b`):
+- 2026-11-23T18:06:31-05:00 (`246d302e24`)
+  and 2026-11-23T18:06:59-05:00 (`7969d55b6b`):
   answered the two ninth reads:
   K5 and U34 (the false premise that a `settling` binding never has a plan is gone;
   "Which command is true for a state" now has a plan row for a binding of any phase,
