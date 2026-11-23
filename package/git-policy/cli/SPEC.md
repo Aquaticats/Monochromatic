@@ -6548,11 +6548,16 @@ not described here.
 
 #### What the scan reads
 
-The scan lists the `/proc` root it is given and keeps the entries the kernel
-names by number.
-For each it reads `/proc/<pid>/ns/mnt` and groups the tasks by that kernel text,
-so two tasks of one namespace are one namespace and one table is read for both.
-It reads one `<task>/mountinfo` per distinct namespace,
+The scan lists the `/proc` root it is given and keeps the entries whose name is
+a task number.
+For each task it reads every thread's `/proc/<pid>/task/<tid>/ns/mnt` and groups
+the threads by that kernel text,
+so two threads of one namespace are one namespace and one table is read for
+both,
+and a thread that unshared a mount namespace of its own is a group of its own.
+A process whose leader has ended is read through the thread that lives,
+because the leader's ending is not the process's.
+It reads one `<thread>/mountinfo` per distinct namespace,
 under the wrapper's own bound for a table another namespace holds,
 and a mount matches when its filesystem type is `zfs` and its source is exactly
 the dataset's name.
@@ -6566,15 +6571,38 @@ because a local unmount is what that namespace answers for.
 No path,
 slot spelling or working directory takes part in the match.
 
+A table is rendered from the root of the thread it is read through,
+so each thread's `/proc/<pid>/task/<tid>/root` is read and each namespace is
+read through a thread at that namespace's own root:
+the reader's root when a thread of it is at that root,
+because a mount namespace inherits the root it was made from,
+and otherwise the one root every thread of it shares,
+which is what a container's namespace looks like.
+A namespace whose threads disagree about their root while none is at the
+reader's is reported as a read the scan could not complete,
+because the table read through one of them may omit every mount above it.
+
+The scan sets nothing aside.
+A mount of the clone's own root at a worktree's path is a holder like any
+other,
+whichever namespace it is in and whatever intent the clone carries:
+the removal refuses because that mount is present,
+which is what the staging design asks of it,
+and the exclusion of a new managed attach is the attaching sweep's own refusal
+under a standing `unmount` intent,
+built by plan step 8,
+and not a rule of the scan.
+The project decided both readings on 2026-11-23
+(`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`).
+
 #### The result and its reader
 
 One scan answers one value:
 the dataset's canonical numeric GUID,
-the request's nonce,
+the scan's own nonce,
 the exact source,
 the reader's own namespace and its mounts,
 one entry per namespace that holds the clone,
-the managed attaches set aside,
 every read that could not be completed,
 the number of namespaces read,
 and the time.
@@ -6583,17 +6611,29 @@ It is written as one fixed line grammar in
 whose size bound is derived from the scan's own detail bound and the bound of
 every field the writer fills,
 so a result the writer wrote is one the reader accepts.
+Every control byte in a path is escaped as an octal escape the reader decodes,
+so a mount point an account names cannot carry a terminal escape sequence or a
+line break into the text a later step prints.
 `parse_holder_scan` reads it back key by key:
 a truncated,
 reordered,
 padded or foreign file is refused with the line named,
 and every count is checked against the lines it introduces.
-`HolderScan::accept` then compares the GUID and the nonce with the request at
-hand,
+`HolderScan::accept` then compares the GUID and the nonce with the scan the
+caller asked for,
 so a result for another clone,
 or one written for an earlier scan of this clone,
 is refused by name before anything it holds is read.
 The GUID and the nonce are written in the file and never in its name.
+
+The nonce is the scan's own and never the clone's request nonce,
+so every destroy request's scan is a fresh answer that is told apart from the
+one before it.
+The `holder-scan` mode answers under `--nonce <32 hex digits>` when the caller
+names one and under a fresh nonce otherwise,
+and the wrapper's request before each destroy carries the nonce it will match
+(plan steps 16 and 17,
+below).
 
 A result whose own mounts,
 holders and incomplete reads are all empty is the only one reported as clear.
@@ -6605,20 +6645,30 @@ which is the destroy-anyway decision's residual and not a second rule here.
 
 Each cause is its own value,
 so a report points at a directory,
-a namespace or a task rather than at a count:
+a namespace or a thread rather than at a count:
 
 - the listing:
   the `/proc` root could not be read,
   so nothing was scanned and that is the whole finding;
+- a thread whose namespace link the scan may not read:
+  the kernel shows `ns/mnt` only to a caller that may ptrace the thread,
+  so a handler without `CAP_SYS_PTRACE` cannot see another account's threads or
+  a task with more capabilities than itself.
+  Each such thread is named with the errno,
+  so a reduced capability set cannot turn into a clear answer;
 - a task that ended:
-  the task left between the listing and its table read,
-  and the namespace is reported by whichever other task answered it,
+  the thread left between the listing and its table read,
+  and the namespace is reported by whichever other thread answered it,
   which is ordinary churn and is named so a report can say the read raced;
 - a table this process may not open:
   the namespace's mounts are unknown and it is never reported as empty;
-- a namespace with no live member:
-  every task of it ended before its table was read,
+- a namespace with no live thread:
+  every thread of it ended before its table was read,
   so the namespace may hold the clone and the scan cannot say it does not;
+- a namespace whose threads disagree about their root,
+  none of them at the reader's:
+  no table of it can be shown to be the namespace's,
+  so it is never reported as clear;
 - one namespace holding more mounts of the clone than a report lists:
   the report names the first eight and says the namespace holds more,
   because a line naming every bind a machine ever made would decide the
@@ -6636,53 +6686,40 @@ and lists at most eight mounts of the clone for one namespace;
 each bound that stops it is one of the causes above,
 so a result cut by a bound is never reported as clear.
 
-#### The managed attach it sets aside
-
-Before reporting a removal-ready unmount the scan excludes the clone's own
-managed attach while the clone carries a standing `unmount` intent.
-The exclusion is deliberately narrow,
-because its two mistakes do not cost the same:
-a managed attach reported as a holder costs a removal that refuses and a person
-reading the report,
-while a holder set aside lets a removal go on around it.
-A mount is set aside only when all of these hold:
-
-- the clone's durable intent reads as a local `unmount` request:
-  an absent,
-  inherited or malformed value sets nothing aside;
-- the caller knew the slot the managed attach stands at,
-  which the checkout and the dataset's last name component give;
-- the mount shows the dataset's own root rather than a folder inside it;
-- the mount point is exactly that slot.
-
-A bind of a folder inside the clone is never set aside,
-and neither is a mount at any other path,
-so "a bind of the clone elsewhere is a holder" stays true while a removal is in
-progress.
-What the rule cannot tell apart,
-and therefore accepts:
-a bind of the clone's own root placed at the slot's path,
-which only an administrator can make and which this route never makes.
+The 1024-namespace bound is one an account can reach at will:
+an integration pass made 1,100 processes each with a namespace of its own
+against a guest and the scan stopped at 1024 with one
+`namespaces-past-the-bound`,
+having named a holder made before the flood and none made after it.
+The scan is honest about it and not clear,
+and a later holder behind that bound is the destroy-anyway decision's own
+residual,
+not a fact the scan can state.
 
 #### What the scan cannot show
 
 A clear result is never proof that nothing holds the clone.
-The scan sees what a live task's namespace file names:
+The scan sees what a live thread's namespace file names:
 
-- a namespace held open by a handle and no task is in no file the scan reads,
+- a namespace held open by a handle and no thread is in no file the scan reads,
   so it is invisible,
   and a run that pins one that way is how the guest arms show it;
-- a task that mounts the clone after the scan is not in it,
+- a mount detached from its namespace while a working directory still pins it
+  is in no namespace's table at all:
+  the clone stays busy and the scan names no holder for it,
+  which is a limit the design chose when it matched the source rather than a
+  working directory;
+- a thread that mounts the clone after the scan is not in it,
   and nothing in the scan is race-free:
-  the tasks it listed and the tables it read are read at different moments;
-- a namespace is read through one of its tasks,
-  so a task that ended is a retry and not a second look;
-- a task whose process root is not this namespace's answers `EINVAL` for its
-  mount table when that table is read from here,
-  so its namespace is one read the scan could not complete:
-  the guest arm that chroots a task shows that answer,
-  and the scan reports the namespace as unread rather than as a holder or as
-  empty.
+  the threads it listed and the tables it read are read at different moments;
+- the reader's own namespace is reported as its own mounts and names no
+  process:
+  a working directory,
+  an open file or a mapping that holds the clone there is
+  a holder `umount` refuses on and this scan cannot name;
+- a holder's mount point is rendered from the root of the thread its table was
+  read through,
+  so a container's holder reads `/data` and not a path of the handler's root.
 
 The project's destroy-anyway decision accepts that residual rather than
 hiding it.
@@ -6706,28 +6743,32 @@ and a clean scan alone does not qualify such a deployment.
 
 #### The mode, and who reads the result
 
-`mount-git-worktree-clone-datasets holder-scan --dataset <name> --checkout <path>`
+`mount-git-worktree-clone-datasets holder-scan --dataset <name> [--nonce <32 hex digits>]`
 runs one scan for one dataset:
 
-- it reads the dataset's identity and durable intent through the binding,
+- it reads the dataset's identity through the binding,
   behind the same start-time gate every mode that makes a request runs behind;
-- it derives the slot from the checkout and the dataset's last name component;
-- it answers under the clone's own request nonce when the clone carries one and
-  under a fresh nonce otherwise;
+- it reads no durable intent and derives no path,
+  because it sets nothing aside;
+- it answers under the nonce the caller names,
+  or under a fresh one,
+  and never under the clone's request nonce;
 - it prints the result's own lines and one line that counts what it found,
   where every other mode's answer goes;
 - and it mounts,
   unmounts,
   destroys and records nothing.
 
-A checkout that is not absolute,
-a dataset the pool cannot answer,
+A dataset the pool cannot answer,
 a GUID of zero,
+a nonce that is not 32 lowercase hexadecimal digits,
 and a fresh nonce the random source cannot give are refusals with nothing
 scanned.
-The mode is the reading and not the carrying:
-how root's finding reaches the account's wrapper is step 17's,
-and this mode neither writes a receipt nor changes durable intent.
+The mode is the reading and not the carrying.
+How root's finding reaches the account's wrapper is step 17's and unbuilt;
+what this section promises them is a scan that names every holder it can read,
+a nonce per scan to match an answer with its request,
+and the GUID the answer is about.
 
 ### Post-commit
 

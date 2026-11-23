@@ -21,7 +21,7 @@
 //! expect(readOneNamespace(group, readersRoot).attempts.map((a) => a.kind)).toEqual(['ended', 'read']);
 //! ```
 
-use super::{NamespaceTableRead, TaskTableAttempt, read_one_namespace};
+use super::{MOUNT_TABLE_LIMIT, NamespaceTableRead, TaskTableAttempt, read_one_namespace};
 use crate::mount_namespace_scan::mount_namespace_tasks::{MountNamespaceTasks, RootAt, RootIdentity, ThreadAt};
 use crate::testing::test_support::fixture;
 use std::path::{Path, PathBuf};
@@ -144,4 +144,19 @@ fn a_thread_at_the_namespaces_root_is_read_before_a_chrooted_one() {
     let without_a_reader_root: NamespaceTableRead = read_one_namespace(&group, None);
     assert!(without_a_reader_root.table().is_some());
     assert_eq!(without_a_reader_root.attempts.len(), 1);
+}
+
+/// A mount table past the read's bound is refused as the read it is,
+/// and never read whole.
+#[test]
+fn a_mount_table_past_the_bound_is_refused() {
+    let root: PathBuf = fixture("namespace-table-too-large");
+    let thread: PathBuf = thread_with_table(root.as_path(), "11", "11", None);
+    let padding: String = "x".repeat(usize::try_from(MOUNT_TABLE_LIMIT).expect("the bound fits a usize") + 1);
+    std::fs::write(thread.join("mountinfo"), padding.as_str()).expect("the oversized table is written");
+    let readers: RootIdentity = root_at(root.as_path());
+    let read: NamespaceTableRead = read_one_namespace(&group_of("mnt:[7]", vec![(thread.clone(), RootAt::Known(readers))]), Some(readers));
+    assert_eq!(read.attempts.len(), 1);
+    assert!(matches!(read.attempts[0], TaskTableAttempt::Unreadable { .. }), "{:?}", read.attempts[0]);
+    assert!(read.table().is_none());
 }

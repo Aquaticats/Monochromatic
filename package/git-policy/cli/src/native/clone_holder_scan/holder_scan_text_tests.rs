@@ -96,3 +96,18 @@ fn a_result_fits_the_bound_its_reader_checks() {
     assert!(text.contains(format!("kind {RESULT_KIND}").as_str()));
     assert!(text.trim_end().ends_with(format!("{TIME_KEY} {TIME}").as_str()), "{text}");
 }
+
+/// A tab and a newline in a mount point are escaped,
+/// and an escape sequence is too,
+/// so an account's own name for a folder cannot forge a line or reach a
+/// terminal.
+#[test]
+fn a_tab_a_newline_and_an_escape_sequence_are_escaped() {
+    let awkward: PathBuf = PathBuf::from("/srv/tab\there/new\nline/esc\u{1b}[2Jforged");
+    let escaped: String = escape_path(awkward.as_path());
+    assert!(escaped.contains("\\011"), "{escaped}");
+    assert!(escaped.contains("\\012"), "{escaped}");
+    assert!(escaped.contains("\\033"), "{escaped}");
+    assert!(!escaped.contains('\t') && !escaped.contains('\n') && !escaped.contains('\u{1b}'), "{escaped}");
+    assert_eq!(unescape_path(escaped.as_str()), awkward);
+}

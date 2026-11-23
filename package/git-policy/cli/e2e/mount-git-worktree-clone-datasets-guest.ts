@@ -79,9 +79,16 @@ const SCAN_POOL = 'git-policy-cli-store';
 const EXPECTED_SCAN_MARKERS = [
   'SCAN baseline own=1 holders=0',
   'SCAN HOLDER other-namespace=1',
+  'SCAN H1 intent=mount holders=',
+  'SCAN H1 intent=unmount holders=',
+  'SCAN nonces differ=true',
+  'SCAN unreadable-link',
+  'SCAN thread-namespace found=',
+  'SCAN leader-ended found=',
+  'SCAN chrooted-lowest found=',
   'SCAN confined-consumer=',
   'SCAN churn scans=20',
-  'SCAN divergent-root',
+  'SCAN detached-mount invisible=true',
   'SCAN pinned-namespace invisible=true',
   'SCAN done',
 ] as const;

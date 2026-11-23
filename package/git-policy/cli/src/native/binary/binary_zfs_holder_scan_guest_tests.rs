@@ -62,6 +62,14 @@ const SBIN_VARIABLE: &str = "CLI_GIT_ZFS_SCAN_SBIN";
 /// The checkout the sweep walks.
 const CHECKOUT_VARIABLE: &str = "CLI_GIT_ZFS_SCAN_CHECKOUT";
 
+/// The folder the detached-mount arm mounts its own clone at before it
+/// detaches it.
+const DETACHED_FOLDER: &str = "/srv/holder-scan-detached";
+
+/// The clone the detached-mount arm may destroy,
+/// which is not the one the other arms read.
+const DETACHED_SLOT: &str = "detached";
+
 /// The checkout dataset's leaf name the design gives it.
 const CHECKOUT_LEAF: &str = "monochromatic-git-checkout";
 
@@ -98,13 +106,6 @@ const HOLDER_FOLDER: &str = "/mnt/holder-scan-holder";
 
 /// The folder a confined consumer binds the clone's root at.
 const CONFINED_FOLDER: &str = "/mnt/holder-scan-confined";
-
-/// The folder the guest's root is bound at for the divergent-root task,
-/// which is the root that task runs under.
-const ROOTED_BIND: &str = "/root/holder-scan-rootfs";
-
-/// The path the clone is mounted at inside that task's own root.
-const ROOTED_FOLDER: &str = "/mnt/holder-scan-rooted-in-root";
 
 /// How many live tasks the large half of the timing arm adds.
 const CHURN_TASKS: usize = 200;
@@ -267,10 +268,10 @@ fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, 
 /// One clone of the checkout dataset's fresh snapshot at the slot,
 /// asking for its mount,
 /// which is the shape the design's add route makes.
-fn clone_the_checkouts_snapshot(sbin: &str, checkout_dataset: &str, container: &str) -> String {
+fn clone_the_checkouts_snapshot(sbin: &str, checkout_dataset: &str, container: &str, slot: &str) -> String {
     let snapshot: String = format!("{checkout_dataset}@{ORIGIN_PREFIX}{NONCE}");
     zfs_ok(sbin, &["snapshot", snapshot.as_str()]);
-    let clone: String = format!("{container}/{SLOT}");
+    let clone: String = format!("{container}/{slot}");
     zfs_ok(sbin, &["clone", snapshot.as_str(), clone.as_str()]);
     zfs_ok(sbin, &["set", format!("{DESIRED_STATE}=v1:{NONCE}:mount").as_str(), clone.as_str()]);
     return clone;
@@ -304,12 +305,29 @@ fn result_text(said: &str) -> Option<String> {
 }
 
 /// One scan of the dataset the mode answers about,
+/// under the caller's nonce when one is named,
 /// read back from the result's own lines.
-fn scan_of(clone: &str, checkout: &Path) -> (Run, Option<HolderScan>) {
-    let checkout_text: String = checkout.display().to_string();
-    let run: Run = handler(&["holder-scan", "--dataset", clone, "--checkout", checkout_text.as_str()]);
+fn scan_of(clone: &str, nonce: Option<&str>) -> (Run, Option<HolderScan>) {
+    let run: Run = match nonce {
+        Some(digits) => handler(&["holder-scan", "--dataset", clone, "--nonce", digits]),
+        None => handler(&["holder-scan", "--dataset", clone]),
+    };
     let read: Option<HolderScan> = result_text(run.said.as_str()).and_then(|text| return parse_holder_scan(text.as_str()).ok());
     return (run, read);
+}
+
+/// One scan every control reads,
+/// which must parse,
+/// under the caller's nonce when one is named.
+fn scan_that_parses(clone: &str, nonce: Option<&str>, what: &str) -> HolderScan {
+    let (run, read): (Run, Option<HolderScan>) = scan_of(clone, nonce);
+    assert_eq!(run.status, Some(0), "the mode answers {what}: {}", run.said);
+    return read.unwrap_or_else(|| panic!("the mode's answer {what} holds a result this build parses: {}", run.said));
+}
+
+/// Set the clone's durable intent to one operation under the arm's nonce.
+fn set_intent(sbin: &str, clone: &str, operation: &str) {
+    zfs_ok(sbin, &["set", format!("{DESIRED_STATE}=v1:{NONCE}:{operation}").as_str(), clone]);
 }
 
 /// The number of live tasks the kernel lists,
@@ -439,7 +457,14 @@ fn stop(child: &mut Child) {
 }
 
 /// What:
-///  Every holder arm of plan step 9 in one run of the built programs.
+///  Every holder arm of plan step 9 in one run of the built programs:
+///  the clone attached by the built sweep,
+///  every holder the design names and the integration pass found,
+///  the scan under both intents,
+///  a scan that may not read a link,
+///  two scans of one removal,
+///  a pinned namespace with no live task,
+///  and the cost of one scan at two task counts.
 /// Why:
 ///  The arms change the guest's mounts and datasets,
 ///  so one arm owns them for the whole run and the driver's markers say which
@@ -457,18 +482,17 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     write_passing_probe_record();
     prepare_the_store(checkout.as_path());
     write_configuration(checkout.as_path());
-    let clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str());
+    let clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), SLOT);
+    let slot_folder: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
 
     // The clone is attached by the built sweep, which is where the scan's question starts.
     let sweep: Run = handler(&[]);
     assert_eq!(sweep.status, Some(0), "the built sweep attached the design's clone: {}", sweep.said);
     assert!(mounted(clone.as_str()), "the clone is mounted in the handler's own namespace: {}", sweep.said);
-    assert!(mount_row(checkout.join(".claude").join("worktrees").join(SLOT).as_path()).is_some(), "the slot is the mount point");
+    assert!(mount_row(slot_folder.as_path()).is_some(), "the slot is the mount point");
 
     // Arm 1: the handler's own namespace is not a foreign holder, and the scan answers under the clone's GUID.
-    let (baseline_run, baseline): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-    assert_eq!(baseline_run.status, Some(0), "the mode answers: {}", baseline_run.said);
-    let baseline_scan: HolderScan = baseline.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", baseline_run.said));
+    let baseline_scan: HolderScan = scan_that_parses(clone.as_str(), None, "on the baseline");
     assert_eq!(baseline_scan.own_mounts.len(), 1, "the clone is in the handler's own namespace");
     assert_eq!(baseline_scan.holder_namespaces(), 0, "no other namespace holds it yet");
     let unknown: Vec<&git_policy_cli::clone_holder_scan::IncompleteRead> =
@@ -489,27 +513,112 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     let mut holder: Task = start_task(holder_script.as_str(), "/root/holder-scan-holder.pid", sbin.as_str(), &[])
         .unwrap_or_else(|| panic!("the holder's mount namespace could not be made; see the arm's log for the mount's own refusal"));
     assert!(wait_for_the_task_table_to_mention(&holder, HOLDER_FOLDER), "the holder's own table shows its mount at {HOLDER_FOLDER}");
-    let (holder_run, held): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-    assert_eq!(holder_run.status, Some(0), "the mode answers: {}", holder_run.said);
-    let held_scan: HolderScan = held.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", holder_run.said));
+    let held_scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a holder");
     let named_holder: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = held_scan.holders.iter().find(|found| return found.namespace() == holder.namespace);
     let foreign: &git_policy_cli::clone_holder_scan::NamespaceHolder =
         named_holder.unwrap_or_else(|| panic!("the holder's own namespace {} is a holder: {:?}", holder.namespace, held_scan.holders));
     assert_ne!(foreign.namespace(), held_scan.own_namespace.as_deref().unwrap_or_default(), "the holder is not the handler's own namespace");
     println!("SCAN HOLDER other-namespace={} namespace={} mount={}", held_scan.holder_namespaces(), foreign.namespace(), foreign.mounts[0].mount_point.display());
 
-    // Arm 3: a confined consumer holding a bind of the clone,
+    // Arm 3 (H1): the same holders are named under both intents,
+    // and the inherited copy at the slot is one of them.
+    // A mount namespace made after the attach inherits the clone at the slot, so a scan that sets anything aside at the
+    // slot would hide exactly the copy the design's holders are.
+    let mut inherited: Task = start_task(format!("exec sleep {HOLDER_SECONDS}").as_str(), "/root/holder-scan-inherited.pid", sbin.as_str(), &[])
+        .unwrap_or_else(|| panic!("the inheriting namespace could not be made"));
+    assert!(wait_for_the_task_table_to_mention(&inherited, slot_folder.display().to_string().as_str()), "the inheriting task's table shows the clone at the slot");
+    let mut holders_by_intent: Vec<usize> = Vec::new();
+    for operation in ["mount", "unmount"] {
+        set_intent(sbin.as_str(), clone.as_str(), operation);
+        let scan: HolderScan = scan_that_parses(clone.as_str(), None, format!("under intent {operation}").as_str());
+        let at_the_slot: usize = scan
+            .holders
+            .iter()
+            .flat_map(|found| return found.mounts.iter())
+            .filter(|mount| return mount.mount_point == slot_folder && mount.root == Path::new("/"))
+            .count();
+        assert!(scan.holders.iter().any(|found| return found.namespace() == inherited.namespace), "the inheriting namespace {operation}: {:?}", scan.holders);
+        assert!(at_the_slot >= 1, "a copy at the slot is named under intent {operation}: {:?}", scan.holders);
+        holders_by_intent.push(scan.holder_namespaces());
+        println!("SCAN H1 intent={operation} holders={} at-the-slot={at_the_slot} own={} clear={}", scan.holder_namespaces(), scan.own_mounts.len(), scan.is_clear());
+    }
+    assert_eq!(holders_by_intent[0], holders_by_intent[1], "the intent changes no holder the scan names");
+
+    // Arm 4 (M2): two scans of one removal answer under two nonces,
+    // and a caller's nonce is the one the answer carries.
+    let first_nonce: HolderScan = scan_that_parses(clone.as_str(), None, "under a fresh nonce");
+    let second_nonce: HolderScan = scan_that_parses(clone.as_str(), None, "under another fresh nonce");
+    assert_ne!(first_nonce.nonce.as_str(), second_nonce.nonce.as_str(), "each scan answers under its own nonce");
+    assert_ne!(first_nonce.nonce.as_str(), NONCE, "and never under the clone's request nonce");
+    let named: &str = "fedcba9876543210fedcba9876543210";
+    let named_scan: HolderScan = scan_that_parses(clone.as_str(), Some(named), "under the caller's nonce");
+    assert_eq!(named_scan.nonce.as_str(), named, "the caller's nonce is the one the answer carries");
+    let expectation: git_policy_cli::clone_holder_scan::ScanExpectation<'_> = git_policy_cli::clone_holder_scan::ScanExpectation { dataset: named_scan.dataset, nonce: &named_scan.nonce };
+    assert!(first_nonce.accept(&expectation).is_err(), "an earlier scan's answer is refused at a later request");
+    assert!(named_scan.accept(&expectation).is_ok());
+    println!("SCAN nonces differ=true first={} second={} named={named}", first_nonce.nonce.as_str(), second_nonce.nonce.as_str());
+
+    // Arm 5 (M1): a handler that may not read another task's namespace link reports it and is not clear.
+    match reduced_capability_scan(clone.as_str(), sbin.as_str()) {
+        Some(scan) => {
+            let links: Vec<&git_policy_cli::clone_holder_scan::IncompleteRead> = scan
+                .incomplete
+                .iter()
+                .filter(|read| return matches!(read, git_policy_cli::clone_holder_scan::IncompleteRead::NamespaceLinkUnreadable { .. }))
+                .collect();
+            assert!(!links.is_empty(), "a handler without CAP_SYS_PTRACE reports every link it could not read: {:?}", scan.incomplete);
+            assert!(!scan.is_clear(), "and is never clear");
+            println!("SCAN unreadable-link incomplete={} holders={} clear={}", links.len(), scan.holder_namespaces(), scan.is_clear());
+        }
+        None => println!("SCAN unreadable-link=unavailable reason=this-guest-has-no-setpriv"),
+    }
+
+    // Arm 6 (M3): a thread with a mount namespace of its own is found.
+    match python_task(THREAD_NAMESPACE_SCRIPT, "/root/holder-scan-thread.pid", sbin.as_str(), clone.as_str()) {
+        Some(mut threaded) => {
+            assert!(wait_for_the_task_table_to_mention(&threaded, THREAD_FOLDER), "the thread's own namespace shows its mount at {THREAD_FOLDER}");
+            let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a thread's own namespace");
+            assert!(scan.holders.iter().any(|found| return found.namespace() == threaded.namespace), "a thread's own namespace is a holder: {:?}", scan.holders);
+            println!("SCAN thread-namespace found=true namespace={}", threaded.namespace);
+            end(&mut threaded);
+        }
+        None => println!("SCAN thread-namespace found=false reason=the-python-thread-could-not-unshare"),
+    }
+
+    // Arm 7 (M3): a task whose leader ended is read through the thread that lives.
+    match python_task(LEADER_ENDED_SCRIPT, "/root/holder-scan-leader.pid", sbin.as_str(), clone.as_str()) {
+        Some(mut leaderless) => {
+            assert!(wait_for_the_task_table_to_mention(&leaderless, slot_folder.display().to_string().as_str()), "the live thread's table shows the clone");
+            let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a task whose leader ended");
+            assert!(scan.holders.iter().any(|found| return found.namespace() == leaderless.namespace), "the namespace of a task whose leader ended is a holder: {:?}", scan.holders);
+            println!("SCAN leader-ended found=true namespace={}", leaderless.namespace);
+            end(&mut leaderless);
+        }
+        None => println!("SCAN leader-ended found=false reason=the-python-task-could-not-start"),
+    }
+
+    // Arm 8 (M3): a namespace whose lowest task is chrooted is read at its own root.
+    match python_task(CHROOTED_LOWEST_SCRIPT, "/root/holder-scan-chrooted.pid", sbin.as_str(), clone.as_str()) {
+        Some(mut chrooted) => {
+            assert!(wait_for_the_task_table_to_mention(&chrooted, CHROOT_AWAY_FOLDER), "the chrooted task's own table names the folder it was taken to");
+            let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a chrooted lowest task");
+            let found: bool = scan.holders.iter().any(|found| return found.namespace() == chrooted.namespace);
+            assert!(found, "a namespace whose lowest task is chrooted is read through a task at its root: {:?}", scan.holders);
+            println!("SCAN chrooted-lowest found=true namespace={}", chrooted.namespace);
+            end(&mut chrooted);
+        }
+        None => println!("SCAN chrooted-lowest found=false reason=the-python-task-could-not-start"),
+    }
+
+    // Arm 9: a confined consumer holding a bind of the clone,
     // or a line saying this guest could not make one.
     let confined: Option<Task> = confined_consumer(clone.as_str(), checkout.as_path(), sbin.as_str());
     match confined {
         Some(mut consumer) => {
             assert!(wait_for_the_task_table_to_mention(&consumer, CONFINED_FOLDER), "the confined consumer's own table shows its bind at {CONFINED_FOLDER}");
-            let (confined_run, after): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-            assert_eq!(confined_run.status, Some(0), "the mode answers: {}", confined_run.said);
-            let after_scan: HolderScan = after.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", confined_run.said));
+            let after_scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a confined consumer");
             let found: Option<&git_policy_cli::clone_holder_scan::NamespaceHolder> = after_scan.holders.iter().find(|found| return found.namespace() == consumer.namespace);
             assert!(found.is_some(), "the confined consumer's own namespace {} is a holder: {:?}", consumer.namespace, after_scan.holders);
-            assert_eq!(after_scan.holder_namespaces(), 2, "the confined consumer is a second holder: {:?}", after_scan.holders);
             println!("SCAN confined-consumer=held holders={} namespace={}", after_scan.holder_namespaces(), consumer.namespace);
             end(&mut consumer);
         }
@@ -518,13 +627,13 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         }
     };
 
-    // Arm 4: task churn while the scan runs never hides the holder the scan already saw.
+    // Arm 10: task churn while the scan runs never hides a holder the scan already saw.
     let mut churn: Child = start_churn();
     let mut churned_holder_seen: usize = 0;
     let mut churned_incomplete: usize = 0;
     for _scan in 0..CHURN_SCANS {
-        let (_run, scanned): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-        let scanned_scan: HolderScan = scanned.unwrap_or_else(|| panic!("every answer under churn holds a result this build parses"));
+        let (run, scanned): (Run, Option<HolderScan>) = scan_of(clone.as_str(), None);
+        let scanned_scan: HolderScan = scanned.unwrap_or_else(|| panic!("every answer under churn holds a result this build parses: {}", run.said));
         assert_eq!(scanned_scan.own_mounts.len(), 1, "the clone stays in the handler's own namespace under churn");
         if scanned_scan.holder_namespaces() >= 1 {
             churned_holder_seen += 1;
@@ -535,7 +644,7 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     assert_eq!(churned_holder_seen, CHURN_SCANS, "churn never hid a holder the scan had already found");
     println!("SCAN churn scans={CHURN_SCANS} holder-kept={churned_holder_seen} task-ended-named={churned_incomplete}");
 
-    // Arm 5: how one scan's cost grows with the number of live tasks.
+    // Arm 11: how one scan's cost grows with the number of live tasks.
     let small_tasks: usize = live_tasks();
     let small: Duration = time_a_scan(clone.as_str(), 5);
     let mut many: Vec<Child> = Vec::with_capacity(CHURN_TASKS);
@@ -553,7 +662,12 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         large.as_millis()
     );
 
-    // Arm 6: a namespace pinned by a handle and no task is invisible,
+    // Arm 12 (M3): a mount detached while a working directory pins it is in no table,
+    // so the scan names no holder for it and the dataset stays busy.
+    // This is the limit the design chose when it matched the source rather than a working directory.
+    detached_pin_arm(sbin.as_str(), checkout_dataset.as_str(), container.as_str());
+
+    // Arm 13: a namespace pinned by a handle and no task is invisible,
     // which is the residual the destroy-anyway decision accepts rather than hides.
     let held_pid: u32 = holder.pid;
     let held_namespace: String = holder.namespace.clone();
@@ -561,9 +675,7 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     assert!(wait_for_the_namespace_handle(pid_of(&pinned), held_namespace.as_str()), "the pinning task holds the namespace's handle");
     end(&mut holder);
     assert!(wait_for_the_end(held_pid), "the holder's task has ended");
-    let (pinned_run, pinned_scan): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-    assert_eq!(pinned_run.status, Some(0), "the mode answers: {}", pinned_run.said);
-    let pinned_result: HolderScan = pinned_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", pinned_run.said));
+    let pinned_result: HolderScan = scan_that_parses(clone.as_str(), None, "with a pinned namespace");
     assert_eq!(pinned_result.holder_namespaces(), 0, "a namespace with no live task is in no file the scan reads: {:?}", pinned_result.holders);
     println!(
         "SCAN pinned-namespace invisible=true holders={} incomplete={} note=the-scan-cannot-see-a-namespace-no-task-holds",
@@ -571,54 +683,159 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
         pinned_result.incomplete_reads()
     );
     stop(&mut pinned);
-
-    // Arm 7: a task whose process root is not `/`.
-    // The kernel answers EINVAL for that task's mount table read from this namespace, so the scan cannot see what
-    // the namespace holds and reports the namespace as a read it could not complete.
-    let rooted_made: Option<Task> = divergent_root(sbin.as_str(), clone.as_str());
-    let Some(mut rooted) = rooted_made else {
-        // This guest refused the task itself, and the run says so rather than passing or failing on it.
-        println!("SCAN divergent-root=unavailable reason=this-guest-refused-a-task-under-another-process-root");
-        if mounted(clone.as_str()) {
-            let slot: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
-            unmount_at(slot.as_path());
-        }
-        println!("SCAN done");
-        return;
-    };
-    let rooted_namespace: String = rooted.namespace.clone();
-    let deadline: Instant = Instant::now() + Duration::from_secs(30);
-    let mut rooted_scan: Option<HolderScan> = None;
-    while Instant::now() < deadline {
-        let (_run, scanned): (Run, Option<HolderScan>) = scan_of(clone.as_str(), checkout.as_path());
-        let named: bool = scanned.as_ref().is_some_and(|answer| return answer.incomplete.iter().any(|read| return read.namespace() == Some(rooted_namespace.as_str())));
-        rooted_scan = scanned;
-        if named {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(200));
-    }
-    let rooted_result: HolderScan = rooted_scan.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses"));
-    let found_read: Option<&git_policy_cli::clone_holder_scan::IncompleteRead> = rooted_result.incomplete.iter().find(|read| return read.namespace() == Some(rooted_namespace.as_str()));
-    let unread: &git_policy_cli::clone_holder_scan::IncompleteRead =
-        found_read.unwrap_or_else(|| panic!("a task whose root is not this namespace's makes its namespace one unread table: {:?}", rooted_result.incomplete));
-    assert!(matches!(unread, git_policy_cli::clone_holder_scan::IncompleteRead::TableUnreadable { .. }), "the cause names the table it could not read: {unread:?}");
-    assert!(rooted_result.holders.iter().all(|found| return found.namespace() != rooted_namespace), "a namespace nobody read is never reported as a holder: {:?}", rooted_result.holders);
-    assert!(!rooted_result.is_clear(), "a namespace nobody read is never a clear result");
-    println!(
-        "SCAN divergent-root incomplete=true namespace={rooted_namespace} cause={} holders={} clear={}",
-        unread.kind(),
-        rooted_result.holder_namespaces(),
-        rooted_result.is_clear()
-    );
-    end(&mut rooted);
+    end(&mut inherited);
 
     // Cleanup this arm owns: its own holders are gone, and the clone is left for the guest's own destruction.
     if mounted(clone.as_str()) {
-        let slot: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
-        unmount_at(slot.as_path());
+        unmount_at(slot_folder.as_path());
     }
     println!("SCAN done");
+}
+
+
+/// The folder a task's own thread attaches the clone at,
+/// which only that thread's namespace holds.
+const THREAD_FOLDER: &str = "/srv/holder-scan-thread";
+
+/// The folder the chrooted lowest task is taken to inside its own namespace.
+const CHROOT_AWAY_FOLDER: &str = "/srv/holder-scan-chrooted-away";
+
+/// A python task that gives one thread a mount namespace of its own and mounts
+/// the clone in it,
+/// which is a holder no read of `/proc/<pid>/ns/mnt` alone can see.
+const THREAD_NAMESPACE_SCRIPT: &str = r#"
+import os, subprocess, sys, threading, time
+clone, folder, mount_zfs = sys.argv[1], sys.argv[2], sys.argv[3]
+def worker():
+    os.unshare(os.CLONE_NEWNS)
+    subprocess.run([mount_zfs, clone, folder], check=True)
+    time.sleep(600)
+threading.Thread(target=worker, daemon=True).start()
+time.sleep(600)
+"#;
+
+/// A python task whose main thread ends while a worker lives,
+/// so `/proc/<pid>/ns/mnt` answers nothing and the live thread holds the
+/// namespace the task's launcher made.
+const LEADER_ENDED_SCRIPT: &str = r#"
+import ctypes, threading, time
+threading.Thread(target=lambda: time.sleep(600), daemon=False).start()
+time.sleep(0.2)
+ctypes.CDLL(None).pthread_exit(None)
+"#;
+
+/// A python task whose lowest task chroots away from the clone while its
+/// child mounts the clone in the same namespace.
+const CHROOTED_LOWEST_SCRIPT: &str = r#"
+import os, subprocess, sys, time
+clone, folder, away, mount_zfs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+os.unshare(os.CLONE_NEWNS)
+pid = os.fork()
+if pid == 0:
+    subprocess.run([mount_zfs, clone, folder], check=True)
+    time.sleep(600)
+else:
+    os.makedirs(away, exist_ok=True)
+    os.chroot(away)
+    os.chdir("/")
+    time.sleep(600)
+"#;
+
+/// Write one python script into the guest,
+/// start it in a mount namespace of its own with the clone and the folders its
+/// arm needs,
+/// and answer the task it is.
+fn python_task(script: &str, pid_file: &str, sbin: &str, clone: &str) -> Option<Task> {
+    let outline: String = pid_file.replace(".pid", ".py");
+    std::fs::write(outline.as_str(), script).expect("the arm's python script is written");
+    let command: String = format!("exec python3 -I {outline} {clone} {THREAD_FOLDER} {CHROOT_AWAY_FOLDER} {sbin}/mount.zfs");
+    return start_task(command.as_str(), pid_file, sbin, &[]);
+}
+
+/// Run one holder scan through a handler whose capability bounding set lacks
+/// `CAP_SYS_PTRACE`,
+/// which is how a hardened unit would start it,
+/// and answer what it said.
+fn reduced_capability_scan(clone: &str, sbin: &str) -> Option<HolderScan> {
+    let available: bool = Command::new("setpriv").arg("--help").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|status| return status.success());
+    if !available {
+        return None;
+    }
+    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+    let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    let output: Output = Command::new("setpriv")
+        .args(["--bounding-set=-sys_ptrace", binary, "holder-scan", "--dataset", clone])
+        .env("PATH", path)
+        .env("LD_LIBRARY_PATH", format!("{}/lib", sbin.trim_end_matches("/sbin")))
+        .output()
+        .expect("the reduced handler starts");
+    let said: String = format!("{}{}", String::from_utf8_lossy(output.stdout.as_slice()), String::from_utf8_lossy(output.stderr.as_slice()));
+    let text: Option<String> = result_text(said.as_str());
+    return text.and_then(|result| return parse_holder_scan(result.as_str()).ok());
+}
+
+/// What:
+///  The detached-mount arm:
+///  one clone is mounted, a task keeps a working directory on it,
+///  the mount is detached from that task's namespace,
+///  and the scan is asked.
+/// Why:
+///  A mount detached while a working directory pins it is in no namespace's
+///  table,
+///  so the scan names no holder for it while the dataset stays busy.
+///  This is the limit the design chose when it matched the source rather than
+///  a working directory, and the arm shows it rather than claiming a scan that
+///  cannot be written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = await detachAndPin(clone2); const scan = await holderScan(clone2); expect(scan.holders).toEqual([]);
+/// ```
+fn detached_pin_arm(sbin: &str, checkout_dataset: &str, container: &str) {
+    let detached: String = format!("{container}/{DETACHED_SLOT}");
+    let snapshot: String = format!("{checkout_dataset}@{ORIGIN_PREFIX}{NONCE}");
+    zfs_ok(sbin, &["clone", snapshot.as_str(), detached.as_str()]);
+    std::fs::create_dir_all(DETACHED_FOLDER).expect("the detached mount's folder is made");
+    let script: String = format!("mount -t zfs {detached} {DETACHED_FOLDER} && cd {DETACHED_FOLDER} && umount --lazy {DETACHED_FOLDER} && exec sleep {HOLDER_SECONDS}");
+    let mut pinning: Task = start_task(script.as_str(), "/root/holder-scan-detached.pid", sbin, &[])
+        .unwrap_or_else(|| panic!("the detached mount's task could not be made"));
+    let pulled: String = DETACHED_FOLDER.to_string();
+    assert!(wait_for_the_task_table_to_leave(&pinning, pulled.as_str()), "the mount is detached from the task's table");
+    let (run, read): (Run, Option<HolderScan>) = scan_of(detached.as_str(), None);
+    let scan: HolderScan = read.unwrap_or_else(|| panic!("the mode's answer holds a result this build parses: {}", run.said));
+    assert!(scan.holders.is_empty(), "a detached mount is in no namespace's table: {:?}", scan.holders);
+    assert_eq!(scan.own_mounts.len(), 0, "and in none of the handler's own mounts");
+    let (busy_ok, _busy_out, busy_error): (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-f", detached.as_str()], None);
+    let busy: bool = busy_error.contains("dataset is busy");
+    println!(
+        "SCAN detached-mount invisible={} holders={} destroy-refused={busy} refused-while-pinned={}",
+        scan.holders.is_empty(),
+        scan.holder_namespaces(),
+        !busy_ok
+    );
+    end(&mut pinning);
+    let _released: bool = wait_for_the_end(pinning.pid);
+    let (after_ok, _after_out, _after_error): (bool, String, String) = zfs(sbin, "zfs", &["destroy", "-f", detached.as_str()], None);
+    if after_ok {
+        println!("SCAN detached-mount after-release=destroyed");
+    } else {
+        println!("SCAN detached-mount after-release=refused");
+    }
+}
+
+/// Wait,
+/// bounded,
+/// for a task's own mount table to stop mentioning one folder.
+fn wait_for_the_task_table_to_leave(task: &Task, needle: &str) -> bool {
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        let mentions: bool = std::fs::read_to_string(format!("/proc/{}/mountinfo", task.pid)).is_ok_and(|text| return text.contains(needle));
+        if !mentions {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return false;
 }
 
 /// The duration of one scan of the dataset,
@@ -666,23 +883,6 @@ fn start_churn() -> Child {
         .stderr(Stdio::null())
         .spawn()
         .expect("the churn's shell starts");
-}
-
-/// A holder whose process root is not `/`:
-/// the clone is mounted,
-/// the guest's root is bound inside it,
-/// and the task then chroots into that bind,
-/// so its mount table's paths are rendered from another root.
-fn divergent_root(sbin: &str, clone: &str) -> Option<Task> {
-    std::fs::create_dir_all(ROOTED_BIND).expect("the divergent root's folder is made");
-    // The task's root becomes a bind of the guest's root, so every path its mount table renders is rendered from
-    // that root, and the clone is mounted inside it so the mount itself is a mount of that root's tree.
-    // `mount` searches its own helper folders and not the path, and this guest's OpenZFS is under /opt, so the task
-    // calls the helper by its own path, which the bind carries into the root it runs in.
-    let inner: String = format!("{sbin}/mount.zfs {clone} {ROOTED_FOLDER} && exec sleep {HOLDER_SECONDS}");
-    // The mount point is made inside the bind, because the task that mounts the clone runs there.
-    let script: String = format!("mount --bind / {ROOTED_BIND} && mkdir --parents {ROOTED_BIND}{ROOTED_FOLDER} && exec chroot {ROOTED_BIND} sh -c '{inner}'");
-    return start_task(script.as_str(), "/root/holder-scan-rooted.pid", sbin, &[]);
 }
 
 /// A task that holds another task's mount namespace open by a handle,

@@ -390,6 +390,11 @@ fn the_detail_budget_stops_the_causes_and_is_recorded() {
     mounted(proc.as_path(), "9000", "mnt:[9999]", mount_line(42, "/", "/srv/holder").as_str(), readers.as_path());
     let scan: HolderScan = scan_of(proc.as_path(), Some("mnt:[7]"), Some(readers.as_path()));
     assert_eq!(scan.incomplete_reads(), MAXIMUM_DETAIL_LINES + 1, "the budget's own findings and its marker");
+    assert!(
+        scan.namespaces_scanned < MAXIMUM_DETAIL_LINES / 2 + 8,
+        "the scan stops when the budget runs out instead of reading every namespace: {}",
+        scan.namespaces_scanned
+    );
     assert_eq!(scan.incomplete.last().map(|read| return read.kind()), Some(DETAILS_PAST_THE_BOUND_WORD));
     assert!(scan.holders.is_empty(), "a holder after the budget is in no list: {:?}", scan.holders);
     assert!(!scan.is_clear());

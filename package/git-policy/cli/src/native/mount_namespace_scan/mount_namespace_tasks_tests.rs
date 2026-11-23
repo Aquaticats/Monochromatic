@@ -20,7 +20,8 @@
 //! ```
 
 use super::{
-    ListingRefusal, ListingRequest, MountNamespaceTasks, NamespaceListing, NamespaceRoot, RootAt, RootIdentity, TaskLink, ThreadAt, UnreadableLink, task_link, threads_by_mount_namespace,
+    ListingRefusal, ListingRequest, MountNamespaceTasks, NamespaceListing, NamespaceRoot, RootAt, RootIdentity, TaskLink, ThreadAt, UnreadableLink, is_a_thread_that_ended, task_link,
+    threads_by_mount_namespace,
 };
 use crate::testing::test_support::fixture;
 use std::os::unix::fs::PermissionsExt;
@@ -126,17 +127,22 @@ fn a_process_is_read_through_the_thread_that_lives() {
 }
 
 /// A name that is no pid is skipped,
-/// whether it holds no digits or a number too large for one.
+/// whether it holds no digits or a number too large for one,
+/// and its folder holds a thread the kernel would name as `/proc/self` does:
+/// a number.
 #[test]
 fn a_name_that_is_no_pid_is_skipped() {
     let root: PathBuf = fixture("mount-namespace-threads-no-pid");
     thread(root.as_path(), "11", "11", Some("mnt:[7]"), None);
-    for name in ["self", "4294967296", "99999999999999999999"] {
-        thread(root.as_path(), name, name, Some("mnt:[9]"), None);
-    }
+    thread(root.as_path(), "self", "11", Some("mnt:[9]"), None);
+    thread(root.as_path(), "4294967296", "4294967296", Some("mnt:[9]"), None);
+    // A tree whose task folder holds a name that is no number is no tree the kernel makes, and it is read as no
+    // thread rather than as the thread numbered one.
+    thread(root.as_path(), "13", "self", Some("mnt:[9]"), None);
     let listing: NamespaceListing = listing_of(root.as_path());
-    assert_eq!(listing.namespaces.len(), 1);
+    assert_eq!(listing.namespaces.len(), 1, "{:?}", listing.namespaces);
     assert_eq!(listing.namespaces[0].namespace, String::from("mnt:[7]"));
+    assert_eq!(listing.namespaces[0].threads.len(), 1);
 }
 
 /// A `/proc` root that cannot be listed is a refusal,
@@ -175,4 +181,18 @@ fn a_namespace_root_is_the_readers_the_shared_one_or_unknown() {
     assert_eq!(shared.namespace_root(Some(first)), NamespaceRoot::Shared(other));
     assert_eq!(shared.namespace_root(None), NamespaceRoot::Shared(other));
     assert_eq!(readers.namespace_root(Some(other)), NamespaceRoot::Readers);
+}
+
+/// A thread that is going answers `ENOENT`, `ESRCH` or `EINVAL`,
+/// and every other error is a refusal this reader reports.
+#[test]
+fn a_thread_that_ends_is_what_these_three_errors_mean() {
+    for errno in [libc::ENOENT, libc::ESRCH, libc::EINVAL] {
+        let ended: std::io::Error = std::io::Error::from_raw_os_error(errno);
+        assert!(is_a_thread_that_ended(&ended), "errno {errno} is a thread that ended");
+    }
+    for errno in [libc::EACCES, libc::EPERM, libc::ENOTDIR, libc::EIO] {
+        let refused: std::io::Error = std::io::Error::from_raw_os_error(errno);
+        assert!(!is_a_thread_that_ended(&refused), "errno {errno} is a refusal to report");
+    }
 }

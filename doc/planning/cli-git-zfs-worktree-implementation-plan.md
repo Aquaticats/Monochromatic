@@ -1341,10 +1341,9 @@ That round built this step's all-namespace holder scan and nothing else of
 step 9:
 
 - the scan,
-  its bounds,
-  its result and the exclusion a standing `unmount` intent makes are
+  its bounds and its result are
   `package/git-policy/cli/src/native/clone_holder_scan/`;
-- the task grouping,
+- the thread grouping,
   the one mount table per distinct namespace and the exact ZFS source match are
   `package/git-policy/cli/src/native/mount_namespace_scan/`,
   which the start probe's arm 7 now reads too,
@@ -1352,7 +1351,7 @@ step 9:
   (`doc/planning/cli-git-zfs-start-probe-design.md`,
   "The arms",
   arm 7);
-- the handler's `holder-scan --dataset <name> --checkout <path>` mode is
+- the handler's `holder-scan --dataset <name> [--nonce <32 hex digits>]` mode is
   `package/git-policy/cli/src/native/worktree_clone_mount_handler/holder_scan_mode.rs`,
   declared and documented as the other modes are;
 - `SPEC.md` states what the scan promises and what it cannot,
@@ -1380,17 +1379,22 @@ What the steps that read this result will find:
 
 - step 16 calls `scan_holders` with the request it holds,
   or the `holder-scan` mode where a process boundary is what it needs,
+  before each snapshot-destroy request and before the head destroy,
   and reads `holders`,
   `incomplete` and `is_clear` after `accept` has matched the GUID and the
-  nonce;
-  a result for another dataset or another request is refused before anything it
+  nonce it asked under;
+  a result for another dataset or another scan is refused before anything it
   holds is read,
   and an incomplete read is reported rather than read as a clear namespace;
-- step 17 carries the result's text,
-  which `parse_holder_scan` reads back key by key,
-  and matches it with the request it wrote under the nonce the file carries;
-  this round built no receipt and no recording,
-  so the transport is that step's to choose;
+- step 17 carries the result's text to the wrapper,
+  which reads it back with `parse_holder_scan` key by key,
+  which the project decided on 2026-11-23
+  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`):
+  "before each destroy,
+  the wrapper asks root for a fresh scan and prints" the holders it names,
+  so that step builds the carrier and the wrapper's refusal and this round
+  built neither;
+- this round built no receipt and no recording;
 - step 18 reads `holders` and each holder's mounts,
   which name the kernel's namespace identity,
   the task the table came from and each mount's id,
@@ -1401,6 +1405,52 @@ The residual the destroy-anyway decision accepts is recorded in `SPEC.md`,
 and the guest arm that pins a namespace with a handle and no task shows the
 scan reporting no holder for it,
 which is the limit rather than a bug.
+
+(Amended 2026-11-23 by an agent,
+in the fix round that answers the integration pass's findings;
+this note is unapproved and non-final.)
+
+The round of 2026-11-22 built the scan with two rules the project then
+corrected,
+and this round changed all three of the parts the pass found wrong:
+
+- the scan sets nothing aside.
+  the standing-unmount rule,
+  `HolderScan`'s excluded list and the result's excluded section are gone,
+  and a mount of the clone at a worktree's path is a holder in every namespace,
+  under every intent.
+  The project chose "no set-aside" on 2026-11-23
+  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`),
+  and the staging design's "the removal refuses because that mount is
+  present" now holds;
+- the scan reads every thread and every root.
+  It groups by `/proc/<pid>/task/<tid>/ns/mnt`,
+  reads each thread's `root`,
+  reads each namespace through a thread at that namespace's own root,
+  and reports a namespace whose threads disagree about their root,
+  none of them at the reader's,
+  as an incomplete read.
+  A thread whose namespace link it may not read is an incomplete read naming
+  the thread and the errno,
+  never a silent skip;
+- every scan answers under a nonce of its own,
+  which the caller may name with `--nonce` and which is never the clone's
+  request nonce,
+  because the wrapper asks for a fresh scan before each destroy.
+
+The paragraph above still says the scan "excludes new managed attaches with the
+standing `unmount` intent".
+This note replaces that sentence,
+as the decision record reads it:
+the exclusion is the attaching sweep's refusal under the intent,
+and the scan names every holder it can read.
+
+The wrapper's carrying of root's finding and its refusal that names the holders
+are plan steps 16 and 17's and unbuilt;
+this step's mode only prints the answer where the other modes print theirs.
+The guest arms this round adds are the same files as before,
+with an arm for each of the four holders the pass found missed and one for the
+scan under a standing `unmount` intent.
 
 #### Design sections
 

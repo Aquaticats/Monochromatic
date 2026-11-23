@@ -135,9 +135,6 @@ fn holder_fields(key: &'static str, value: &str) -> Result<NamespaceHolder, Hold
     let [namespace, task, mounts @ ..] = parts.as_slice() else {
         return Err(HolderScanRefusal::Value { key, shown: String::from(value) });
     };
-    if mounts.is_empty() || mounts.len() % 3 != 0 {
-        return Err(HolderScanRefusal::Value { key, shown: String::from(value) });
-    }
     let mut held: Vec<HeldMount> = Vec::with_capacity(mounts.len() / 3);
     for triple in mounts.chunks(3) {
         let [number, root, mount_point] = triple else {
