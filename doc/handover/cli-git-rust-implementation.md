@@ -772,9 +772,29 @@ and only the owner accepts one.
   the record is one file rewritten whole by many writers.
 - The round on that review ended at `b6855dce15`
   (report `keep/report-review-after-the-answers.md` in its folder).
-  Going:
-  the reviewer's diff check,
-  to `review-diff-check-after-the-answers.md` beside its other reviews.
+  The reviewer's diff check (`review-diff-check-after-the-answers.md` beside its other reviews):
+  "fit after listed fixes",
+  nothing high;
+  the answered-entry hole is closed
+  (one file per clone named by its GUID,
+  the receipt read first)
+  and a doubling gap replaces the fixed one.
+  Mediums,
+  all short:
+  one fixed staging name that a killed writer leaves wedges that clone's nudges;
+  the text names two owners for the link that claims an attempt;
+  superseded and orphaned entries are nudged for ever;
+  the detached helper process is offered as no choice.
+  For the owner,
+  as a question and not a veto entry:
+  whether a request nothing can answer keeps being nudged for ever at the capped gap,
+  stops after a number of attempts,
+  or has a gap that grows without a cap.
+- Next:
+  that question to the owner with the record designs' questions;
+  then the lost-event design's round,
+  after the propagation round ends,
+  on a continuation still to be written.
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`
@@ -880,13 +900,17 @@ and only the owner accepts one.
   merge now,
   fix next (Recommended)" in the question tool on 2026-11-22,
   worded as a merge after a build and the touched tests pass on the merged result.
-  Going:
-  the same reviewer merges current `main` into that integration branch,
-  runs the checks and the touched modules' host tests,
-  and writes `keep/reverify-on-current-main.md` beside its review.
-  When that says fit:
-  merge the integration branch into `main`,
-  and build on `main`.
+  The same reviewer merged `main` into that integration branch (`568f9ff721`),
+  ran the build,
+  both clippy tasks,
+  `lint:types` and the touched modules' host tests,
+  whose failures are the same 29 names as before
+  (the btrfs controls and cause A),
+  and wrote `keep/reverify-on-current-main.md` beside its review:
+  fit by the owner's wording.
+  Merged into `main` as `e37566df9c` at 2026-11-22T21:00-05:00;
+  the wrapper handed the integration worktree's removal to the commit service.
+  A build of `main` after the merge is running as unit `check-main-after-the-size-read-merge`.
   The follow-up is running meanwhile:
   `pi-fence-size-read-recheck-findings-declined-add-step-cost`,
   on `continuation-recheck-findings.md` in
@@ -988,11 +1012,17 @@ and only the owner accepts one.
   and reopen it if the control fails again.
 - Issue 6347 was filed for the one case the object reader's refusal was right about;
   it is not ZFS work and waits under the owner's hold.
-- Two tests each failed once in a round's whole gate and pass alone;
-  neither is filed yet.
-  Their journal text is kept in `~/temp/agent/gate-incidents-seen-in-rounds-of-2026-11-22/keep/`:
-  `package_filling_guard::a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure`
-  and `start_probe::probe_processes::tests::a_process_group_is_made_and_its_kill_is_a_signal`.
+- Three tests each failed once in a whole gate and pass alone.
+  They are filed,
+  undiagnosed,
+  as issues 6348
+  (`package_filling_guard::a_filling_the_queue_holds_is_waited_for_rather_than_called_a_failure`),
+  6349
+  (`start_probe::probe_processes::tests::a_process_group_is_made_and_its_kill_is_a_signal`)
+  and 6350
+  (`push::push_wait_tests::a_wait_ends_when_the_connection_closes_and_the_stall_window_runs_again`).
+  Their bodies and the kept journal text are in
+  `~/temp/agent/gate-incidents-seen-in-rounds-of-2026-11-22/keep/`.
 - The scratch root measured 11,466 MiB at 2026-11-22T20:05-05:00;
   its largest folders were the propagation design's review folder (1,272 MiB)
   and the forced-removal design's round folder (1,188 MiB).
