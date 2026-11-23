@@ -51,6 +51,10 @@ const HANDOVER_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60
 /// The pause between two looks at the worktree a handed-over removal names.
 const HANDOVER_STEP: std::time::Duration = std::time::Duration::from_millis(10);
 
+/// The kind a removal's record's file name begins with,
+/// which no other record of this queue carries for a worktree.
+const RECORD_KIND: &str = "subvolume-delete-";
+
 /// Real Git's answer to a question,
 /// trimmed,
 /// as text.
@@ -230,9 +234,17 @@ fn the_handed_over_removal_finishes(scene: &HeldScene, said: &str) -> Result<(),
 /// ```
 fn what_the_queue_says(work: &Path) -> String {
     let listing: String = work_listing(work);
+    // Only a removal's record, because a queue holding a push or a maintenance record is not one of these states,
+    // and the control's scene must not read the one as the other.
     let counted: usize = [PENDING, RECOVERING, CLAIMED, DONE, FAILED]
         .iter()
-        .map(|state| { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); })
+        .map(|state| {
+            return std::fs::read_dir(work.join(state))
+                .map(|entries| {
+                    return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().starts_with(RECORD_KIND); }).count();
+                })
+                .unwrap_or(0);
+        })
         .sum();
     return match counted {
         0 => format!("no record of a removal was ever written ({listing})"),
