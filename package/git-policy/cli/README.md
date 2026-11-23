@@ -942,12 +942,14 @@ Read-only commands,
      Three provisional limit rules send an add to Git's own checkout instead:
      a source with changes whose tracked files sum to fewer than 762,000,000 bytes,
      a source with more changed tracked files than a quarter of its tracked paths,
-     and a clean source whose mean tracked file is under its filesystem's measured edge
-     (49 bytes a file on btrfs,
-     8,799 on ZFS,
-     the higher of the two on a filesystem nobody measured).
+     and a clean source whose mean tracked file is under its filesystem's measured edge,
+     which is 2,600 bytes on ZFS and the same value on a filesystem nobody measured.
+     btrfs has no mean rule:
+     a clean btrfs source clones as `main` does,
+     whatever its files average.
      All are pinned in `src/native/worktree/worktree_clone_rung_limits.rs` with the measurements they rest on,
-     and all are open to the project's veto.
+     and all are open to the project's veto,
+     and the edge an unmeasured filesystem takes is itself open to the project's veto.
      It shares disk,
      and it is measured:
      on this host (2026-11-19) an add of 24,313 tracked files through this rung took 0.51 to

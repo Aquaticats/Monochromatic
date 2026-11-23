@@ -2967,8 +2967,9 @@ and Git's own checkout makes the worktree,
 for three provisional limit rules,
 each pinned with the measurement it rests on and all open to the project's veto
 (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
-and its section "The size limit on a clean source,
-answered 2026-11-22").
+its sections "The size limit on a clean source,
+answered 2026-11-22" and "Four further answers after the recheck,
+answered 2026-11-23").
 The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
 Git's own checkout:
 a dirty source of 10,001 files of 2,600 bytes,
@@ -2985,19 +2986,43 @@ and Git's own checkout grows with the bytes,
 so the rung loses wherever a checkout is shorter than those reads;
 the pin sits at the top of that bracket,
 so no size nobody measured is cloned.
-A clean source is judged by its mean tracked file size instead,
+A clean source is judged by its mean tracked file size,
 because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
 files costs more to clone than to write:
 below the edge Git's own checkout writes a clean source,
 and at or above it the clone copies the tree as `main` does.
-Each filesystem the rung serves takes its own measured edge,
-and a filesystem nobody measured takes the higher of the two:
-btrfs at 49 bytes a file,
-where the lowest mean measured cloned at 0.86 of Git's own checkout and every larger mean cloned at parity or better;
-ZFS at 8,799 bytes a file,
-where the copy measured 1.02 of Git's own checkout and every larger mean 0.60 or less,
-with losses measured below it (1.20 at 2,599);
-and any other kind at the higher of the two.
+**btrfs has no mean rule**:
+no btrfs mean was measured to lose,
+the pin of 49 bytes a file the earlier round set made clean trees under it 1.36 to 1.62 times `main` in the recheck's
+guest,
+and the project answered "Clone as main does on btrfs;
+keep the rule on ZFS and on filesystems nobody measured".
+**ZFS is at 2,600 bytes a file**:
+the recheck's pooled points read 2,599 at 1.23 of Git's own checkout (11 of 12 rounds above 1.0),
+3,599 at 1.03,
+4,399 at 0.71,
+5,199 at 1.23,
+5,999 at 0.80,
+6,999 at 0.80,
+7,999 at 1.21,
+8,799 at 1.02 and 9,599 at 0.85,
+so the data place the crossing only within a range,
+about 3,000 to 9,600 bytes a file,
+and the edge sits just above 2,599,
+the one mean with a clear pooled loss,
+as the project's answer "lower it to about 3,000 bytes a file ... decline only below,
+where the clone clearly loses" asked.
+**A filesystem nobody measured takes the ZFS edge**:
+XFS with reflink and overlayfs are not measured,
+and the ZFS edge is the only measured edge that still applies to a clean source,
+so they are declined below 2,600 bytes a file as ZFS is.
+The alternative,
+no rule at all on an unmeasured filesystem,
+is not decided:
+it is put to the project here,
+open to its veto,
+on the ground that the only measured loss is ZFS's,
+while a copy that shares files as cheaply as btrfs's never lost and would clone small files there for free.
 The index records a tracked file's size in 32 bits,
 so a file of 4 GiB or more counts modulo 2^32 and a tree dominated by such files can read as small.
 The changed-file cut sends a source with more changed tracked files than a quarter of its tracked paths to Git's own
@@ -3007,15 +3032,28 @@ and a quarter of this repository's 24,620 tracked paths is 6,155:
 6,000 changed paths took 1.00 to 1.05 times Git's own checkout,
 which is parity,
 and 20,000 took 1.68 to 1.74 of it.
+The cut is a fraction rather than an absolute count,
+so it follows the tree:
+a source of more than about 80,000 tracked paths has a quarter above 20,000,
+the largest changed count a loss was measured at,
+and the cut then declines one path in four without a measurement of its own.
 The rung's own partial clone asks the same cut of the paths Git must write,
 before it copies anything,
 so a tracked file whose recorded times are stale but whose bytes are unchanged is a path the cut counts:
 20,000 of 24,650 such paths were 1.39 times `main` before that refusal and 1.09 of it after.
 An untracked file is no changed file:
 no worktree takes it.
-A declined add is Git's own checkout,
-so no add these limits decline is slower than the checkout it replaced,
-and what it loses is the clone's gain.
+**No floor on the number of tracked paths is decided**:
+a clean tree of only a few files is cloned when it is above its filesystem's mean edge,
+and the clone's fixed cost then makes a tree of 20 to 500 files 10 to 30 ms slower cloned than written by Git,
+which is equal to `main` (the recheck measured 1.02 to 1.28 of Git's own checkout on such trees).
+A declined add costs what `main` paid for the same source:
+the source check and then Git's own checkout,
+measured at 1.07 to 1.24 times Git's own checkout on clean small trees (the source check and,
+on some,
+a Git call
+inside the ladder) and inside the round's spread on dirty trees (0.94 to 1.04).
+What a declined add loses is the clone's gain.
 
 Rung 3 is Git's checkout and the ignored-state copy.
 Where the destination's parent is on btrfs and the rung is 2 or 3,
