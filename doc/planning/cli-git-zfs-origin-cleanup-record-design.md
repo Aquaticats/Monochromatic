@@ -4498,7 +4498,10 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   the finisher paragraph (Y5),
   and the kill list (Y4 and Y10 and Y11).
   Nothing else the check found sound was changed.
-- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `cca16e0464`.
+- `b0f6b9e676`,
+  2026-11-22T21:29:04-05:00:
+  this revision entry.
+  The commits that touch only this list are the ones `git log` reports for this path after `b0f6b9e676`.
 
 ## References
 
