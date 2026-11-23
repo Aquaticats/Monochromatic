@@ -250,7 +250,7 @@ and the project's answers recorded while it ran.
   the refused snapshot destroy and the kill points,
   with T29 to T33.
 - Y2:
-  the origin cleanup list is cited at `8cc31f59a4` under its own headings and fourteen numbers.
+  the origin cleanup list is cited at `ea271e9e1d` under its own headings and fourteen numbers.
 - Y5:
   "Who may finish that step" is one sentence:
   the pass,
@@ -1371,7 +1371,7 @@ and the other two rounds are told to line up with this section or list the diffe
   This record's writes all fall on the flushed side (V6);
   the destruction plan's outcome writes and the origin cleanup record's `owed` write fall on the other
   (the plan's Choice 5 and the origin design's V14,
-  read at `1921adf393` and `8cc31f59a4`).
+  read at `db69df972a` and `ea271e9e1d`).
 - Staging names and who removes them:
   every staging name is a dot name made by one known writer,
   and `doctor` at plan step 18 removes the known forms.
@@ -1383,7 +1383,7 @@ and the other two rounds are told to line up with this section or list the diffe
   because its entries were
   renumbered),
   and the origin cleanup record removes none and reports them (its V8,
-  read at `8cc31f59a4`),
+  read at `ea271e9e1d`),
   which is one convention with each record's own evidence;
   the store's own decided rule covers the store alone
   ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
@@ -1414,7 +1414,7 @@ and the other two rounds are told to line up with this section or list the diffe
   "What was decided").
   Neither sibling rounds either:
   the destruction plan's bound is `10,128 + 340 × count` and the origin cleanup record's is 13,368,
-  both computed from named terms (read at `1921adf393` and `8cc31f59a4`).
+  both computed from named terms (read at `db69df972a` and `ea271e9e1d`).
 
 Where the two siblings differ from the convention today,
 read from their branches:
@@ -4632,12 +4632,13 @@ and which record decides it if any does.
 The siblings' current tips,
 as this round read them,
 are the lock design at `4625537ae5`,
-the destruction plan at `28c590b4c4`,
-and the origin cleanup record at `77410b209a`,
+the destruction plan at `db69df972a`,
+and the origin cleanup record at `ea271e9e1d`,
 and nothing here adopts their answer.
-Some lines below name an older commit with "read at";
+Some lines below and above name an older commit with "read at";
 that is where the fact they state was read,
-and the tips above are the ones this design is checked against now (U33 of the eighth add-side read).
+and the tips here are the ones this design is checked against now
+(U33 of the eighth add-side read and U38 of the ninth).
 The second gate review's "Disagreements between the three record designs" is the full list,
 and "The route's record convention" is where this design answers it.
 
