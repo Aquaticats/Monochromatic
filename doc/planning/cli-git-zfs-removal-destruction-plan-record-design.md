@@ -3918,4 +3918,22 @@ meets" for the pass's binding condition,
   the claim's next generation,
   a standing inventory as the same step's leftover,
   and a plan not yet removed as the last witness.
+- `cd9ec96eff`,
+  committer time `2026-11-22T21:36:39-05:00`:
+  the revision the third check and the seven answers asked for.
+  It states one rule for a cancellation in both the cancel command's section and section 7,
+  answers the cancelled-removal design's two requirements and the deferred-destroy design's,
+  has the finish pass leave any head that is not `gone` and remove an empty folder,
+  adds the settling command's words for a plan whose head is not `gone`,
+  renames `slotName` to `cloneDataset` and derives `<slot>` from `targetHex`,
+  retires Choice 10,
+  Choice 13 and question five into "Decided by the seven answers",
+  adds the three planted test arms and lists the receipt option among the answered alternatives,
+  and corrects the V9 citation,
+  the count sentence,
+  the inside-13 state and the add's withdrawn unmount.
+  It changed the parts the earlier checks found sound only where a fix forced it:
+  the field's name and the key's derivation (Y6),
+  the clause on the pass's heads (Y13),
+  and the two decided entries (the seven answers).
   A later commit that only adds or corrects this list is not listed.
