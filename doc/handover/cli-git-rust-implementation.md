@@ -324,7 +324,7 @@ and only the owner accepts one.
 - A checkout that is shared and slave counts as shared,
   in the propagation record's section "A mount that is shared and slave at once".
 - A check of these records against what the owner chose,
-  made at 2026-11-22T20:55-05:00:
+  made at 2026-11-22T20:43:13-05:00:
   every paragraph that quotes a chosen option was put beside that option's own text
   (`decision-records-beside-the-chosen-options.txt` in the launch folder,
   made by `pair-each-decision-record-paragraph-with-the-option-the-owner-chose.ts` there).
@@ -610,9 +610,12 @@ and only the owner accepts one.
   one guest arm and one control name the first check where the head check refuses;
   and the text a person reads promises more than any record gives for a clone destroyed outside the wrapper.
   Two of the three came from wrong pointers in the earlier review and brief.
-- Running:
-  `pi-zfs-deferred-destroy-checks-design-diff-check-after-the-answers`,
-  on `continuation-diff-check-after-the-answers.md`.
+- The round on that check ended at `946578a8e5`
+  (report `keep/report-diff-check-after-the-answers.md` in its folder).
+  The design rests there:
+  its last two reviews found nothing high.
+  Owed before the owner is asked to accept it:
+  one read of that round's diff.
 - Two gaps that review leaves with other designs,
   for their next rounds:
   what a retry after a cancel does
@@ -785,16 +788,15 @@ and only the owner accepts one.
   the text names two owners for the link that claims an attempt;
   superseded and orphaned entries are nudged for ever;
   the detached helper process is offered as no choice.
-  For the owner,
-  as a question and not a veto entry:
-  whether a request nothing can answer keeps being nudged for ever at the capped gap,
-  stops after a number of attempts,
-  or has a gap that grows without a cap.
-- Next:
-  that question to the owner with the record designs' questions;
-  then the lost-event design's round,
-  after the propagation round ends,
-  on a continuation still to be written.
+  The reviewer asked that one veto entry go to the owner as a question,
+  and the owner answered it:
+  a request nothing can answer keeps being nudged for as long as it stands,
+  never more often than the longest gap
+  (the lost-event record's section "A further answer").
+- Running:
+  `pi-zfs-lost-last-event-triggers-design-diff-check-after-the-answers`,
+  on `continuation-diff-check-after-the-answers.md`,
+  started after the propagation round ended so that it cites `037bcee2e5`.
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`
@@ -814,11 +816,12 @@ and only the owner accepts one.
   and the option the owner chose said neither.
   The owner then chose that such a mount counts as shared
   (the record's section "A mount that is shared and slave at once").
-- Running:
-  `pi-zfs-private-propagation-after-replacement-mount-design-review-after-the-answers`,
-  on `continuation-review-after-the-answers.md`,
-  started after the lost-event round ended so that it cites `b6855dce15`.
-  Then a diff check.
+- The propagation design's round on that review ended at `037bcee2e5`
+  (report `keep/report-review-after-the-answers.md` in its folder;
+  it cites the lost-event document at `b6855dce15`).
+  Going:
+  the reviewer's diff check,
+  to `review-diff-check-after-the-answers.md` beside its other reviews.
 
 #### Build and diagnosis runs
 
@@ -908,9 +911,11 @@ and only the owner accepts one.
   (the btrfs controls and cause A),
   and wrote `keep/reverify-on-current-main.md` beside its review:
   fit by the owner's wording.
-  Merged into `main` as `e37566df9c` at 2026-11-22T21:00-05:00;
+  Merged into `main` as `e37566df9c` at 2026-11-22T20:46:57-05:00;
   the wrapper handed the integration worktree's removal to the commit service.
-  A build of `main` after the merge is running as unit `check-main-after-the-size-read-merge`.
+  `native:check` on `main` after the merge ended with status 0
+  (unit `check-main-after-the-size-read-merge`,
+  56 s).
   The follow-up is running meanwhile:
   `pi-fence-size-read-recheck-findings-declined-add-step-cost`,
   on `continuation-recheck-findings.md` in
