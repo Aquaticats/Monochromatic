@@ -444,14 +444,22 @@ and only the owner accepts one.
   the start-probe design's,
   was not built in step 6,
   so step 10 must build it.
+- The binding's round on the third check ended at `07858070bb`
+  (report `keep/report-third-check-findings.md` in its folder).
+  It took in both notes sent to its inbox while it ran:
+  the removal-side reviewer's findings
+  (the end of an add that falls back to Git's own checkout)
+  and the owner's two answers that are the binding's
+  (an unreadable record is refused;
+  a settling command for a clone gone and unprovable).
 - Running:
-  `pi-zfs-add-binding-record-design-third-check-findings`,
-  on `continuation-third-check-findings.md`,
-  with the removal-side reviewer's findings for the binding sent to its inbox
-  (`note-removal-side-third-check-findings.md` in its folder).
-  Then the lock design's round
-  (its X4, X6, X10 to X13 and the lock answer),
-  on a continuation still to be written.
+  `pi-zfs-add-time-git-lock-design-third-check-findings`,
+  on `continuation-third-check-findings.md`
+  (which commands write a lost lock again;
+  one order for the fallback's lock removal).
+- Next:
+  the reviewer once more on both and on step 10,
+  to `review-fourth-check.md`.
 - Questions the reviewer would put,
   none of which blocks step 10:
   reinstalling a lost lock unasked;
@@ -555,16 +563,12 @@ and only the owner accepts one.
   now closed.
   The two that are the binding's went to its running round through its inbox
   (`note-the-projects-seven-answers.md` in its folder).
-- Next,
-  when the binding's round ends:
-  the origin cleanup design's round,
-  on `continuation-third-check-and-the-seven-answers.md` in its folder
-  (written,
-  not started),
-  started with
-  `node run-a-gate-findings-round.ts zfs-origin-cleanup-record-design continuation-third-check-and-the-seven-answers.md third-check-and-the-seven-answers`
-  in the launch folder;
-  then the plan design's round
+- Running,
+  started when the binding's round ended:
+  `pi-zfs-origin-cleanup-record-design-third-check-and-the-seven-answers`,
+  on `continuation-third-check-and-the-seven-answers.md` in its folder.
+- Next:
+  the plan design's round
   (its Y3,
   Y4,
   Y6,
@@ -642,10 +646,12 @@ and only the owner accepts one.
   the unmount request reuses the binding's nonce;
   only a busy refusal is withdrawn;
   nothing tests the busy path.
-- Running:
-  `pi-zfs-dirty-main-restore-on-rung-1-design-review-after-the-further-answer`,
-  on `continuation-review-after-the-further-answer.md`.
-  Then one review.
+- The round on that review ended at `04ce55a880`
+  (report `keep/report-review-after-the-further-answer.md` in its folder).
+  Going:
+  the reviewer's check of the high finding's fix,
+  to `review-check-of-the-high-finding.md` beside its other reviews,
+  asked for the owner's questions in its words.
 - Two new questions for the owner from that review,
   which the round is told to put in the document with options and a ranking:
   who owns the state "clone gone, snapshot standing" after a failed add,
@@ -818,16 +824,22 @@ and only the owner accepts one.
   a blocker that ignores `SIGTERM` is never sent `SIGKILL` as written;
   the guest probe cannot decide the direction;
   the preflight still lets some refusals come after processes were ended.
+- The forced arm's round on that review ended at `80780ff9c2` after 49 turns
+  (report `keep/report-review-after-the-further-answers.md` in its folder);
+  its brief carried the record's correction and the answer on a unit's script.
 - Running:
-  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-review-after-the-further-answers`,
-  on `continuation-review-after-the-further-answers.md`,
-  which carries the record's correction and the answer on a unit's script.
-  Then the cancelled removal's round
+  `pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-review-after-the-further-answers`,
+  on `continuation-review-after-the-further-answers.md`
   (its one medium,
+  the kept plan as the owner decided it,
   the unit's script,
-  and the dirty-main record's second case of a withdrawn request),
-  on a continuation still to be written;
-  then one review of both.
+  and the dirty-main record's second case of a withdrawn request).
+- Next:
+  one review of both,
+  to `review-fourth.md` beside the others,
+  asked again whether the unmount inside a shared namespace is ready for the owner to confirm.
+  The forced arm's round was short for what it was asked;
+  have the reviewer check that each item of its brief was done.
   Still open for the owner,
   in the review's numbering:
   the signal and any grace (S4),
