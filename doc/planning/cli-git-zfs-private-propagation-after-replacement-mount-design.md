@@ -3845,6 +3845,9 @@ with its committer time from `git log --format=%cI`:
   and F31 cites the sibling's heading whole.
   The searches that prove each are
   `~/temp/agent/zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/proof-of-the-last-fixes.md`.
+- `7bcec9b588`,
+  2026-11-22T22:11:13-05:00:
+  this list gained the previous tip and this round's own commit.
 
 ## Links
 
