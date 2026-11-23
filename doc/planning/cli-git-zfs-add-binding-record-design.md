@@ -5659,6 +5659,26 @@ and any test suite.
   as that design's "Dependencies on the sibling designs" asks at `5237948862`.
 - 2026-11-22T22:01:18-05:00:
   broke that paragraph at its clauses for the linter.
+- 2026-11-22T22:05:25-05:00:
+  answered the fourth removal-side check:
+  W2 (the settling command refuses only a plan whose `head` is `gone`,
+  removes any other before the inventories and prints what it held,
+  never removes or rewrites the origin record,
+  and V23 weighs the three options),
+  W3 (a refused or partial pool listing is printed and named,
+  not a refusal),
+  W4 (the phase is no precondition,
+  the removal accepts a `settling` binding whose clone stands,
+  A21's busy withdrawal and the pending clause,
+  and `doctor`'s two lines),
+  W7 (`doctor` skips a fallback's worktree,
+  and a later removal takes the wrapper's own route),
+  W9 (A23's anchor),
+  W10 (the last old step numbers),
+  W11 (the origin record's two writers),
+  and W13 (the plan's current text and the bound's 43,027 against 34,797).
+  Each was proved by the searches kept in
+  `keep/fourth-removal-check-searches-2026-11-22.txt`.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
