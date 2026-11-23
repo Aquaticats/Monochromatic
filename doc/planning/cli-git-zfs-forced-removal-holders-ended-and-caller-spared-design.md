@@ -2882,11 +2882,13 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   the merge of `main` with the record's four further answers.
 - `fbbe265fff`,
   2026-11-22T20:03:41-05:00:
-  the third revision: the shared-namespace case and the six ways,
+  the third revision:
+  the shared-namespace case and the six ways,
   the recommended way and its steps,
   the read-only preflight,
   the `SIGTERM`/wait/`SIGKILL` order,
-  the `exe`, `map_files` and `root` matcher,
+  the `exe`,
+  `map_files` and `root` matcher,
   S13 and S11,
   V5 to V7,
   F38 to F46,
@@ -2895,9 +2897,13 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
 
 The four answers are built in:
 "Who ends each kind of holder" is the chosen channel,
-"The reach" is the unmount and its blockers (and, after this round, the way out of a shared namespace, the preflight and the signal order),
+"The reach" is the unmount and its blockers (and,
+after this round,
+the way out of a shared namespace,
+the preflight and the signal order),
 "The caller and its protected set" is the session plus every ancestor to pid 1 and the service-manager refusal,
-and "The refusal" carries the protected-set word in both arms, leaving the unforced cancel for a holder outside the set to the sibling.
+and "The refusal" carries the protected-set word in both arms,
+leaving the unforced cancel for a holder outside the set to the sibling.
 N2 is fixed in "The caller and its protected set" and "The time between the scan and the ending";
 N3 in "A command whose parent is the service manager";
 N4 by "The reach" and its M3 to M7 and M13;
