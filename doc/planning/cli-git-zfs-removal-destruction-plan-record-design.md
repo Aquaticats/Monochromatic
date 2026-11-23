@@ -2171,20 +2171,24 @@ and never rewrites one.
   A plan is not an instruction to mount or unmount,
   and the sweep's trigger is the intent property,
   not a record in the common directory.
-- The add (plan step 10) reads no plan,
+- The add (plan step 10) reads the plan folder to refuse and for nothing else,
   and an add writes none.
+  Where a plan names the clone of the binding the add meets,
+  it stops,
+  names the plan and the command the heading "Which resume path a removal takes" gives,
+  and acts on nothing.
+  A plan of a clone that stood at the same path before names another GUID and is not that binding's plan.
+  That read is the binding design's V24,
+  a choice it marks for the project's veto,
+  and its "Which command is true for a state" names the five readers of this folder.
   An add that fails destroys only the clone it made and then its snapshot,
   which is the evening's dirty-main decision and the add design's own path;
   before its first destroy it records the snapshot as owed cleanup in the origin cleanup design's record,
   as the dirty-main record's "Three further answers" decides,
   and an add whose own unmount is refused as busy withdraws its request and writes none either.
-  This design's readers never meet a plan from an add,
-  and its absence proof is the add design's own,
+  This design's absence proof is the add design's own,
   from its binding,
-  not the head-gone proof of section 4:
-  an add has no plan to read.
-  A new clone is a new GUID,
-  so a plan of an earlier clone at the same path cannot be its plan either.
+  not the head-gone proof of section 4.
 - The commit service's other passes read no plan.
   The ZFS removal writes no `recorded-destroys` entry and no `removals-begun` entry (Choice 6),
   so those passes never meet a plan.
@@ -3820,7 +3824,10 @@ refuses a plan it cannot read or whose identities disagree,
 refuses a reused name,
 reaches a `settling` binding with a `cloneGuid=` and no finished checkout,
 and states that a rerun after a kill is let through,
-so no requirement remains on B.
+so no requirement remains on B but one fact,
+which is B's own:
+its add reads this design's plan folder to refuse while a plan stands,
+and "Readers that do not exist" records that read rather than denying it (K9 of the tenth removal-side read).
 The requirements this design still has are on the cancelled-removal design:
 its "writes nothing" about a self-cancelling removal must keep meaning that no outcome is written,
 since both actors remove the all-`planned` plan;
