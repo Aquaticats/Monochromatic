@@ -86,6 +86,12 @@ read whole where the brief says so:
   this plan's suggestions" and "Where the tests run".
 - [`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`][measurements],
   item 6 whole and the sections it refers to.
+- [`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`][fallback],
+  113 lines,
+  recorded 2026-11-22T19:11:12-05:00,
+  whole:
+  the fallback,
+  the proof's window and what the slot holds while it is filled.
 - `doc/planning/cli-git-zfs-add-binding-record-design.md` on branch
   `docs/planning-cli-git-zfs-add-binding-record-design`,
   read by `git show` at `c144499eb9eb` (2026-11-22T19:08:37-05:00):
@@ -204,8 +210,11 @@ so `git` in the image is Git itself.
 No image was built and none was removed.
 Its arms are G1 to G9 below,
 the first revision round's own arms are G10 to G14,
-and this round's arms for the leftovers of a kill inside Git's add are G15 to G17,
+and the second revision round's arms for the leftovers of a kill inside Git's add are G15 to G17,
 run in the same image by the ID above.
+This round ran no probe:
+every Git statement it added or rechecked is source reading at `v2.56.1`,
+including the two sanitiser functions in `refs.c` and the two writes of `worktree.c:1105` to `:1134`.
 
 ### The arms, and what each showed
 
@@ -561,6 +570,32 @@ step 16):
 > the Git registration and pointer settle after proven clone destruction,
 > with the separate origin-cleanup record left standing.
 
+### The fallback, and what the slot holds while it is filled
+
+The decision of 2026-11-22 ([fallback][fallback]),
+quoted from "Whether a failed add may finish with Git's own checkout by itself":
+
+> at every step,
+> the add destroys only what this add made and recorded
+> (the clone,
+> then its snapshot),
+> runs Git's own checkout at the same slot,
+> and says which route made the worktree and why the first was abandoned.
+
+and from "What the slot holds while the add fills it":
+
+> the copied `.git` stays until the last step,
+> and the pointer and the copy then change places in one exchanging rename,
+> so that no moment and no kill leaves the folder without a `.git`.
+
+The first amends the accepted sentence for this route and makes the fallback the add's own finish,
+not a person's recovery.
+The second removes the fill window this design's first revision rested the lock on:
+the slot holds a `.git` at every moment of the fill,
+so prune keeps the registration there whether the lock stands or not.
+The lock's reasons are the moments where no `.git` stands (D1 to D2a and the failure path's rows)
+and the deleted underlay pointer that the decision of 2026-11-19 names.
+
 ### What a failed add leaves
 
 The accepted text,
@@ -587,8 +622,15 @@ lines 424 to 425):
 > an unmounted clone,
 > a mounted but unfinished clone and a verified checkout.
 
-Neither the decision nor the proposal says a failed add removes its registration,
-so this design does not remove it (V9).
+The accepted text does not remove the registration,
+and the decision of 2026-11-22 keeps it while the add destroys only the clone and the snapshot it made and finishes with
+Git's own checkout in the same slot
+(`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"Whether a failed add may finish with Git's own checkout by itself").
+So the registration stands and the lock goes:
+"A failed add,
+and the fallback when the clone route fails" says who removes
+it and by which proof.
 
 ### The record whose nonce the lock's proof rests on
 
@@ -1218,19 +1260,19 @@ lines 909 to 910;
 ## Assumptions
 
 These are this design's assumptions,
-A1 to A7.
-The binding design's add order uses the same letter for its steps,
-so every citation of one of its steps says "the binding's" beside the label,
-and every citation of an assumption here says "assumption".
+AS1 to AS7.
+The binding design's add order uses A for its steps,
+so a citation of one of its steps says "the binding's" beside the label,
+and this design's assumptions carry the two letters AS so that the two lists cannot be read for each other.
 
-A1.
+AS1.
 The binding's `nonce=` is on disk before the add's Git invocation runs,
 survives until the registration is settled,
 and is flushed with the write that made it.
 This is the binding design's stated order and durability;
 this design depends on it and would break if a write of the binding were lost.
 
-A2.
+AS2.
 The registration's `gitdir` file and the slot's `.git` are written by one Git call,
 `gitdir` first and the slot's `.git` second (`worktree.c:1132` to `:1133`),
 so a kill between those two writes leaves a registration whose `gitdir` names the slot and whose slot holds no
@@ -1238,27 +1280,27 @@ pointer,
 which is D2a,
 and no later write of that call repairs it.
 
-A3.
+AS3.
 A removal's destruction proof can say "the clone is gone" before the Git settle runs,
 as [plan][plan] step 16 states it.
 
-A4.
+AS4.
 The slot's directory on the checkout dataset is empty once the clone is destroyed,
 as [proposal][proposal] step 5 requires,
 so removing it changes nothing of a person's.
 
-A5.
+AS5.
 The request nonce is unique per add,
 so a lock whose words carry it names one add and no other.
 
-A6.
+AS6.
 A scan of `worktrees/*` that finds the composed sentence in exactly one `locked` file has found the add that
 wrote it,
 because only that add could know the nonce,
 and two registrations carrying the same sentence would mean a copied word,
 which the design reports rather than choosing between.
 
-A7.
+AS7.
 The binding's `claim=` reader rule does not refuse a record whose generation is older than the newest one present
 (the review's H2,
 the binding's to fix);
@@ -1384,10 +1426,10 @@ Why this route and not the other two,
 with the alternatives ranked in "Choices this design marks for the project's veto",
 V1:
 
-- It is the only route whose lock exists for the whole life of the registration.
-  A separate `git worktree lock` leaves the registration unlocked from the moment the add returns until that
-  command runs,
-  and a kill in that gap leaves the state item 6 measured as prunable.
+- It is the only route whose lock carries this add's sentence from the moment Git makes the registration.
+  A separate `git worktree lock` leaves whatever Git wrote (`initializing`) or nothing until that command runs,
+  so a kill inside the add leaves a lock whose words are not this add's nonce,
+  and the finder has to reach it by `gitdir` or by name instead of by the sentence.
 - The wrapper writing the file itself would need Git's private id derivation (the sanitized basename and the counter
   suffix,
   `builtin/worktree.c:496` to `:501`),
@@ -1449,12 +1491,15 @@ A locked administrative directory with nothing else.
 No prune removes it (F4),
 and `git worktree list` does not show it (F1,
 G15),
-so a re-run of the add at that slot makes `worktrees/<name>1` and leaves this one locked where it is (G16).
+so a plain `git worktree add` at that slot makes `worktrees/<name>1` and leaves this one locked where it
+is (G16),
+which is why the binding's resume clears the leftover before it re-runs A5.
 The lock's bytes equal the sentence recomposed from the binding's `nonce=`,
 and that equality is the whole of what proves it:
 there is no `registration=` and no `gitdir`,
 so the wrapper's three-fact proof (F14) cannot run.
-The scan of "The scan that finds a registration by its sentence" returns it as a half-made registration,
+The finder of "The finder,
+and the lock's part in it" returns it as a half-made registration,
 naming its state.
 
 D2a,
@@ -1518,21 +1563,28 @@ D6,
 the binding's A10
 (the mount,
 verified in the caller's namespace).
-After the mount and the discard of the copied Git administration,
-before the pointer is installed in the clone,
-the slot shows no `.git`,
-because the mount covers the underlay pointer,
-and the registration has no index.
-An explicit prune,
-`git gc` and the automatic maintenance all remove an unlocked registration here at once (F5,
-F6,
-F7):
-the lock is the only thing that stops all three (P4,
-P5).
-A kill here leaves a mounted clone with no pointer,
-a locked registration and the underlay pointer hidden;
-the binding's resume re-attaches,
-verifies and installs the pointer.
+The project decided on 2026-11-22 that the copied `.git` stays in the clone's root until the fill's last step,
+and that the pointer and the copy then change places in one exchanging rename,
+"so that no moment and no kill leaves the folder without a `.git`"
+(`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"What the slot holds while the add fills it").
+So the slot's path holds a `.git` entry at every moment:
+the copy until the exchange and the pointer after it.
+Prune's `file_exists` counts any entry (F1),
+so even unlocked the registration survives here,
+and the lock is not what stops prune at this window.
+What the lock covers is every window in which no `.git` stands at the slot:
+D1,
+D2 and D2a before Git writes one,
+the rows Git's failure path leaves,
+and an account that deletes the underlay pointer while the clone is unmounted
+(the decision of 2026-11-19,
+"Git lock + pointers (Recommended)",
+and item 6).
+A kill here leaves a mounted clone whose slot shows the copy or the pointer,
+a locked registration,
+and a prune that would keep it either way;
+the binding's resume reads the mount live and continues at A11.
 
 D7,
 the binding's A11 and A12
@@ -1543,45 +1595,123 @@ and it stays through every unmount and restart (the decision's own words).
 
 Two consequences worth stating plainly:
 
-- The window between D5 and D6 is not exposed:
-  the clone root still holds the copied `.git` directory,
-  and `file_exists` counts any entry (F1,
-  F5).
-- The window D6 opens is reopened by every unmount that leaves the underlay pointer in place only when that pointer
-  is deleted.
-  Without the deletion the unmounted slot shows the pointer again,
-  and the lock is belt to the pointer's braces.
+- The exchange is the one moment the slot's `.git` changes kind,
+  and it is one rename,
+  so no kill leaves it absent.
+  Its guest run is the sibling design's owed measurement (the decision's "Still owed"),
+  and this design does not rest a lock claim on it.
+- The lock's protection at the fill is belt to the pointer's braces,
+  and the design keeps the lock through it because the decision retains it through unmounts and restarts.
+  The windows it really covers are the ones named above.
 
-Git's own failure path is outside A5's moments:
-on any failure after `locked` is written,
-`locked` is unlinked and then the administrative and destination directories are removed (F11),
-and a kill between those two steps leaves an unlocked partial registration (L10).
-This design does nothing there,
-because nothing it writes exists before that moment;
-the binding's A6 owns what is done with each leftover,
-and this design's scan is what names the state for it.
+Git's own failure path is outside A5's moments.
+A `ret` at one of the add's `goto done` sites
+(all of them after `gitdir`,
+the slot's `.git` and `commondir` were written)
+unlinks `locked` first,
+and the process's exit handler then removes the administrative and destination directories (F11).
+A kill between those two steps therefore leaves the binding's row 7:
+`gitdir`,
+the slot's pointer,
+`commondir`,
+perhaps `HEAD`,
+and no lock.
+A `die` or a caught signal runs the same handler without the unlink,
+so it leaves nothing (F11).
+The binding's table and its recipe own what is done with each shape;
+this design's finder names the row for them.
 
-### A failed add
+### A failed add, and the fallback when the clone route fails
 
-This design does not remove a registration after a failed add.
 The accepted text keeps the claim and cleans up only what is proven,
-and a registration without a dataset is one of the resume states it names
-("What a failed add leaves").
-So for a failure after Git returned,
-such as `ENOSPC` at the snapshot or the clone,
-what stands is the claim,
+and the project decided on 2026-11-22 what becomes of the clone route:
+"at every step,
+the add destroys only what this add made and recorded (the clone,
+then its snapshot),
+runs Git's
+own checkout at the same slot,
+and says which route made the worktree and why the first was abandoned"
+(`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"Whether a failed add may finish with Git's own checkout by itself").
+That amends the accepted sentence for this route:
+the fallback is not silent,
+since the add reports it,
+and the add settles the mount and its own intents itself.
+
+What stands after such a failure is the claim,
+still held,
 the binding at its last phase,
-the locked registration,
-and the slot:
-the add resumes at the same slot,
-or the removal's settle against the binding discards it.
-For a failure inside Git,
-F11 leaves whatever Git left and nothing of this design's,
-and the binding's A6 removes what is half-made.
-The alternative,
-a rollback that releases the lock and empties the registration,
-is V9's B,
-and this design does not take it.
+the registration,
+and the slot;
+the clone and its snapshot are destroyed,
+and the worktree that results is Git's own and ordinary.
+For a mutation this add made and cannot prove,
+the accepted text still decides:
+keep it and report it
+([proposal][proposal],
+lines 429 to 431).
+The fallback's destroy is only for what the add made and recorded.
+
+The lock's part in that fallback:
+
+- Who releases it:
+  the add's fallback,
+  in the same invocation,
+  under the slot's claim.
+  Only a command that holds the claim installs or releases a lock (Q1's A,
+  and "Who may install a lock").
+- By which proof:
+  that the clone and the snapshot this add made are destroyed (the decision's "destroys only what it made"),
+  that the registration is the one the binding's A6 adopted (its five facts),
+  and that the lock is this add's own (S1:
+  its bytes equal the sentence recomposed from the binding's `nonce=`).
+- At which labelled moment:
+  after the destruction proof and after the record the binding appends for the fallback,
+  and before Git's own checkout.
+  The fallback stands where A8 to A11 stood,
+  and the binding's order has no label of its own for it;
+  the binding appends a label when a later revision adds a write,
+  so its label for the fallback's record goes after A11,
+  and this design reads the release as following that label.
+  Until the binding appends it,
+  the release follows the end of A11,
+  the clone route's last step.
+  The record comes before the release so that a kill in between leaves a state the next command can finish.
+- Why before the checkout:
+  after its checkout the worktree is ordinary,
+  and an ordinary worktree must never carry this lock.
+  A kill during the checkout then leaves an unlocked registration whose slot holds the pointer or Git's own
+  files,
+  and nothing a later command would read as a managed clone.
+
+What a kill on either side of that removal leaves:
+
+- Before the fallback's record:
+  nothing records that the clone route was abandoned,
+  so the binding still names the clone the add destroyed,
+  and its resume refuses that state as one whose object does not answer.
+  The lock stands.
+  The finisher is the removal,
+  with its destruction proof and the verified lock (S1),
+  or a person who settles the slot;
+  the next add does not finish this state by itself,
+  and saying so is the honest cost of a kill before the record.
+- After the record and before the release:
+  the lock stands,
+  so prune keeps the registration and the finder names it,
+  and the binding now says the route was abandoned.
+  The finisher is the next add at the slot,
+  under the claim,
+  which reads that record and finishes the release and the checkout.
+- After the release,
+  before the add reports:
+  the registration stands unlocked,
+  and Git's checkout may be partial.
+  Nothing of the lock's is left to finish:
+  prune keeps the registration while the slot shows a `.git`,
+  and the add's own finish (its report and the binding's record of the fallback) is the add's business,
+  which the binding's resume owns.
+
 
 ## What the reason records, and what proves ownership
 
@@ -1615,6 +1745,11 @@ the binding's 32 hexadecimal digits and the suffix are the whole of it,
 and the byte bound this design reads a lock with is that length plus one,
 computed in code from those parts (L7).
 
+That is what plan step 10's "with its recorded reason" becomes ([plan][plan],
+step 10):
+the binding's `nonce=` and the sentence recomputed from it stand for the words,
+and no second copy of them is written anywhere.
+
 The nonce earns its place:
 it makes two registrations' locks distinguishable by their words,
 so a lock copied from another worktree of the same repository does not read as this one's,
@@ -1639,7 +1774,7 @@ verified = the slot's binding has a nonce=
 Each part is a read the wrapper already knows how to make:
 
 - the binding's `nonce=`,
-  read by the binding design's reader (assumption A1);
+  read by the binding design's reader (AS1);
 - the lock,
   read as a bounded,
   no-follow regular file,
@@ -1670,8 +1805,10 @@ so `slotIdentity=` cannot be compared at that path.
 The rule is:
 
 - unmounted,
-  or through the held parent descriptor,
+  through the pinned parent descriptor,
   the variant compares the binding's `slot=` path and `slotIdentity=`;
+  a mount at the slot prevents that comparison,
+  which is why the mounted case is the next line and not this one;
 - mounted,
   it compares the binding's `slot=` path and the clone's own recorded identity (`cloneGuid=` with the mount's
   source as the route's attach checks read it),
@@ -1698,7 +1835,7 @@ and of nothing else:
 
 - `nonce=` present in the first write,
   before Git runs,
-  and unique per add (assumption A5).
+  and unique per add (AS5).
 - `nonce=` unchanged for the slot's life,
   so the sentence recomputes the same at every read.
 - `registration=` and `registrationIdentity=` at phase `registered`,
@@ -1709,20 +1846,23 @@ and of nothing else:
   so the binding's `claim=` rule is a dependency.
 - Durability at least as strong as the lock's own:
   the binding flushes its writes,
-  so a power loss that loses Git's unsynced `locked` keeps the nonce (assumption A1,
+  so a power loss that loses Git's unsynced `locked` keeps the nonce (AS1,
   L12's converse).
 
-The binding's identity fields carry a device number,
-and the repository's own specification records that number as anonymous and per mount,
-with no measurement that it survives a reboot or an export and import ([spec][spec],
-lines 5589 to 5601).
+The binding's identity fields are an inode with a birth time
+(`<inode>:<seconds>:<nanoseconds>`),
+not a device number:
+its "The identity fields",
+read at `ec2b0b14f3`,
+records that choice,
+and the device number the repository's own specification records as anonymous and per mount ([spec][spec],
+lines 5589 to 5601) is not one of its fields.
+Whether an inode and its birth survive a reboot is unmeasured,
+and the binding says so in its own limits and reserves a test for it.
 This design uses the recorded registration identity in the settle only,
 where a refused identity stops the settle instead of guessing,
-and the lock's own proof uses no identity at all.
-So the boot hazard is the binding design's to fix (its H3),
-and this design's exposure is exact:
-a reboot that changes the number makes the settle refuse until the binding's identity rule is fixed,
-and leaves the lock unaffected.
+and the lock's own proof uses no identity at all,
+so a reboot that changes the identity makes the settle refuse and leaves the lock unaffected.
 
 None of these is a change to what the binding holds today,
 by its own text:
@@ -1744,7 +1884,8 @@ and the words differ.
     no lock can be verified,
     and every lock found is S3 or S7.
 2.  Read the registration,
-    by `registration=` or by the scan of "The scan that finds a registration by its sentence".
+    by `registration=` or by the finder of "The finder,
+    and the lock's part in it".
 3.  Read `locked`:
     absent,
     or a regular file with bytes,
@@ -1755,156 +1896,53 @@ and the words differ.
     an unreadable file).
 4.  Recompose the sentence from `nonce=` and classify.
 
-### The scan that finds a registration by its sentence
+### The finder, and the lock's part in it
 
-The binding's A6 calls this scan,
-and the binding's resume decides what is done with each answer.
-This design owns the scan because it owns the sentence;
-the binding owns the order and the cleanup.
-A builder writes it as one read-only function with these parts.
+How a registration is found and matched after a kill inside Git's add is the binding design's rule,
+not this
+design's.
+It is its "A resume after a kill between Git's add and the registered write",
+its "The states Git's source can
+leave" and its "The recipe that clears rows 1 to 5,
+7 and 8",
+read at `ec2b0b14f3` (2026-11-22T19:58:00-05:00).
+That section lists one row per state Git's source can leave,
+reads each entry twice through the pinned `<common>/worktrees` parent,
+compares `locked` with the sentence recomposed from this add's `nonce=` including the newline Git's
+`write_file` appends (`wrapper.c:760` to `:783`),
+counts a proper prefix only when it covers the sentence's fixed part and the whole nonce,
+trims a `gitdir`'s newline and resolves a relative one against the registration's directory
+(`worktree.c:1105` to `:1134`),
+and derives the candidate names from the slot's name through Git's own sanitiser
+(`refs.c:191` to `:321` and `sanitize_refname_component` at `:376`)
+plus Git's decimal counter (`builtin/worktree.c:495` to `:512`),
+excluding a name another slot's binding owns.
+This design does not restate those rules,
+and a reader takes them from that section.
 
-What it reads,
-in this order:
+What stays in this document is the lock's own part,
+and it is these three things:
 
-1.  The binding's `nonce=`,
-    from the slot's record file,
-    whatever its phase,
-    and even when the binding's own reader refuses the record as foreign or ahead of the live facts (N13 of the
-    second gate review).
-    The record's name is the slot's,
-    so finding it needs no listing.
-2.  One listing of `<common>/worktrees/`.
-    It is the only listing the scan makes,
-    and it never lists the wrapper's record folder.
-3.  For each entry name,
-    the entry's `locked`,
-    read as a bounded,
-    no-follow regular file with the bound of L7,
-    and compared with the sentence recomposed from the nonce:
-    equal,
-    a proper prefix,
-    other,
-    or absent.
-4.  For an entry whose lock is equal or a prefix,
-    and for an entry with no lock,
-    the entry's `gitdir`,
-    read with the same bound and compared with `<slot>/.git`.
-5.  For an entry whose `gitdir` names this slot,
-    the completeness facts:
-    the slot's `.git` pointer exists,
-    `commondir` exists and names this repository,
-    and `HEAD` exists.
+- The sentence's composition from the binding's `nonce=`,
+  which is the bytes the finder compares ("The reason text").
+- What a lock's bytes prove about ownership,
+  and that the proof reads the nonce from any well-formed record of the slot,
+  whatever else that record is refused for ("What proves ownership").
+- Who may install,
+  complete or release a lock:
+  only a command that holds the slot's claim (Q1's A,
+  and "Who may install a lock").
 
-What it matches:
-the whole sentence,
-recomposed from the nonce,
-byte for byte,
-never a keyword and never a prefix of it.
-A prefix answer is its own answer,
-not a match.
-The nonce is the only field the scan reads,
-it reads it from the record and never from the lock,
-and no parse of the sentence decides anything.
+This design adds one rule for its own readers:
+`doctor` and the removal read the finder's rows and never run its recipe,
+and the removal's settle runs that recipe under the destruction proof ("How the wrapper's own removal releases the
+lock").
+The states S1 to S9 name the finder's rows where a lock meets them.
 
-What it returns,
-one answer per entry:
-
-- **Complete and locked (D3).**
-  The lock's bytes equal the sentence and the completeness facts all hold.
-  The binding's A6 adopts it.
-- **Complete and cut short (S2).**
-  The lock's bytes are a proper prefix of the sentence,
-  which is the only shape a killed single write leaves (F8),
-  and the completeness facts all hold.
-  A reader completes it in place (V4),
-  and the binding's A6 may adopt it once that is done.
-- **Half-made,
-  locked,
-  no `gitdir` (D2).**
-  The lock's bytes are equal or a prefix,
-  and the entry holds no `gitdir`.
-  The binding's A6 removes it in the settle's order and re-runs A5.
-- **Half-made,
-  locked,
-  no pointer (D2a).**
-  Equal or prefix,
-  `gitdir` names `<slot>/.git`,
-  and the slot holds no `.git`.
-- **Half-made,
-  locked,
-  no `commondir` (D2b).**
-  The same,
-  with the pointer standing.
-- **Half-made,
-  locked,
-  no `HEAD` (D2c).**
-  The same,
-  with `commondir` standing.
-  The three half-made answers above are removed by the binding's A6 in the same settle order,
-  then A5 is run again.
-- **Half-made,
-  unlocked,
-  no `gitdir` (D1,
-  or the failure path's leftover).**
-  No `locked`,
-  no `gitdir`,
-  and the entry's name is the slot's name or the slot's name followed by decimal digits.
-  That name rule is the binding's,
-  called a widening of this scan by its A6;
-  the removal is the same settle order.
-- **No lock,
-  `gitdir` naming this slot (S4,
-  or the failure path's leftover).**
-  The entry is this add's registration with its lock missing.
-  The binding's A6 may adopt a complete one;
-  an install writes the lock only after the completeness facts hold (Q1).
-- **Nothing.**
-  No entry names this slot.
-  The binding's slot rule and its A5 re-run decide what happens (its A3 and A4).
-- **Foreign.**
-  The lock's words are neither the sentence nor a prefix of it,
-  or the `gitdir` names another slot's `.git`.
-  The binding's A6 refuses,
-  names the entry and the first line of its words,
-  and changes nothing.
-
-What it must never return:
-
-- A registration another add made:
-  its lock's words carry another nonce or are not a prefix of this sentence,
-  or its `gitdir` names another slot's `.git`.
-- A person's worktree:
-  an entry whose slot path is not this slot,
-  whatever its lock reads.
-- Anything removed:
-  the scan reads only.
-  The removal is the settle's order,
-  run by the caller that holds the slot's claim.
-
-Why the scan is not `git worktree prune`:
-a repository-wide prune would remove another slot's registration in the mounted,
-no-pointer state of D6 (F5,
-F6),
-so the scan is per slot by construction and prunes nothing.
-
-Bounds:
-one listing,
-one bounded read of each entry's lock and `gitdir` (the bound of L7),
-no wait,
-no lock held,
-and nothing on an add's waiting path beyond the reads the binding's A6 already makes (NLK).
-
-Where the two meet:
-
-- The binding's "A resume after a kill between Git's add and the registered write" decides,
-  for each answer,
-  whether the registration is adopted,
-  removed in the settle's order with A5 re-run,
-  or the slot rebuilt by its own slot rule.
-- This design's "How the wrapper's own removal releases the lock" is the settle order that section names.
-- `doctor` and the removal read the same answers as S1,
-  S2,
-  S4 and S8.
+Why the finder is not `git worktree prune`:
+a repository-wide prune would remove another slot's half-made registration,
+whose lock may already be missing (the binding's rows 1 to 8),
+so the finder is per slot by construction and prunes nothing.
 
 ### The states, the checks and the words
 
@@ -1995,20 +2033,19 @@ the clone slot <slot> holds a registration no binding of this slot explains (<wh
 ```
 
 S8.
-**A half-made registration this add's lock names.**
-A `worktrees/<id>` answers one of the scan's half-made states (D2,
-D2a,
-D2b,
-D2c,
-or the failure path's unlocked leftover).
+**A half-made registration the finder names.**
+A `worktrees/<id>` answers one of the binding's rows 1 to 8 (its "The states Git's source can leave",
+read at `ec2b0b14f3`),
+with this add's sentence in `locked` where a lock stands.
 Doctor prints:
 
 ```text
-the worktrees directory holds a half-made registration for add nonce <nonce>, <id>, in the state <state>; no prune removes the locked ones and `git worktree list` shows none of the D2 ones; the add's own resume removes it in the settle's order and runs its Git step again
+the worktrees directory holds a half-made registration for add nonce <nonce>, <id>, in row <row>; the locked ones no prune removes and `git worktree list` shows none of the lock-only ones; the add's own resume clears it with the binding's recipe and runs its Git step again
 ```
 
-The scan is specified above;
-it runs on a resume or a doctor pass and never on an add's waiting path.
+The finder is the binding's,
+as specified above;
+doctor reads its rows and never runs its recipe.
 
 S9.
 **A lock on somebody else's worktree.**
@@ -2096,112 +2133,126 @@ lines 1760 to 1762):
 > need a destroyed clone and are built in step 16.
 
 and step 16 lists "the Git registration and pointer settle after proven clone destruction".
-It runs after the clone's destruction is proven (assumption A3),
+It runs after the clone's destruction is proven (AS3),
 and it is the authorized registration-cleanup step the decision names.
 It never runs `git worktree remove`,
 so no `--force` and no Git-side validation is involved,
 and the slot is not a valid worktree at that point anyway (S5,
 F9).
 
-The order,
-each step with what it proves:
+The order of removals is the binding design's,
+not this design's:
+its "The recipe that clears rows 1 to 5,
+7 and 8",
+in "A resume after a kill between Git's add and the registered
+write",
+read at `ec2b0b14f3`.
+This design adds nothing to it except the proof that comes first,
+because the registration's subject is gone.
+A builder reads the steps there;
+they are,
+in that order,
+the slot's `.git` when its bytes name this registration,
+`gitdir`,
+`commondir`,
+`HEAD` with `refs/` and `logs/`,
+any other entry the listing showed,
+`locked` last,
+and the registration's directory by `rmdir` from the held `worktrees` parent.
+This design states none of its own,
+and the earlier revision's order,
+which unlinked `locked` first and then asked for an empty directory,
+is withdrawn:
+the binding's recipe removes the files first and the lock last,
+so every kill before the lock's removal leaves a locked row the finder recognises,
+and every kill after it leaves a bare directory it recognises by name.
 
-1.  **Prove destruction.**
-    The persisted plan and the live reads say the recorded clone is gone (assumption A3).
-2.  **Prove the registration.**
+Before that order,
+the settle proves:
+
+1.  **Destruction.**
+    The persisted plan and the live reads say the recorded clone is gone (AS3).
+2.  **The registration.**
     Hold `worktrees`,
     the registration and the slot's parent open by descriptor,
-    and prove the registration is the recorded one:
+    and prove it is the recorded one:
     the binding's `registration=` path and identity,
     the `gitdir` back-link naming the slot's `.git`,
     and the pointer bytes against `pointer=` when the pointer exists.
-3.  **Prove the lock.**
+3.  **The lock.**
     S1 or S2,
     from the recomposed sentence.
     A missing lock is S4,
     and under Q1's A it is installed here,
     so this step then sees S1.
-4.  **Release.**
-    `unlinkat` the name `locked` through the held registration descriptor,
-    and sync the registration directory.
-    The unlink is one step:
-    the lock is there or it is not,
-    and no reader sees a half-released lock.
-    The sync is what keeps a power loss from bringing the lock back beside a registration whose files this settle
-    already removed.
-5.  **Empty the registration** through the held descriptor:
-    the wrapper's own records and pool,
-    and the destruction plan sibling's pointer file inside the registration,
-    then Git's files (F15).
-    The `locked` name is already gone,
-    which is the ordering this design adds to that step.
-6.  **Remove the registration directory** by name from the held `worktrees` directory,
-    which succeeds only when it
-    is empty (F15).
-7.  **Remove the empty slot** on the checkout dataset,
-    only with the recorded identity and only when it is empty (assumption A4).
-8.  **Record the settle** in the removal's own records.
 
-Why release before emptying:
+After the binding's recipe,
+the settle removes the empty slot on the checkout dataset,
+only with the recorded identity and only when it is empty (AS4),
+and records the settle in the removal's own records.
 
-- A kill after the emptying and before the release would leave a locked administrative directory with no `gitdir` and no `HEAD`.
-  Prune,
-  `git gc` and the automatic maintenance would never remove it (F4),
-  and `git worktree list` would not even show it (F1,
-  P3),
-  so only the scan could find it (S8).
-- A kill after the release and before the emptying leaves an unlocked,
-  partly emptied registration of a destroyed
-  clone.
-  Prune removes it once the pointer is gone or the index is old,
-  `git gc` and the automatic maintenance do the same,
-  and doctor reports it as S4 on a destroyed clone.
-  Nothing is lost by that removal,
-  because the clone is already gone.
+The slot's `.git` is the binding's first step,
+and this design's earlier revision lacked it:
+its last step removed the slot only "when it is empty",
+while the slot's underlay pointer stood in it,
+so a removal of a destroyed clone would have left the pointer and a non-empty slot.
+The review's R1 is right that the pointer's removal belongs to this order,
+and the binding's recipe is where it now lives.
+
 
 ### Who may install a lock
 
-Only a command that holds the slot's claim installs a lock,
+Only a command that holds the slot's claim installs,
+completes or releases a lock,
 and the removal's settle holds it while it releases.
 That is what keeps Q1's A from racing the settle:
 without the claim,
-a command could see S4 after the settle's step 4 and write `locked` again,
-leaving the registration locked and non-empty for step 6 (T8).
+a command could see S4 after the settle's proof and write `locked` again,
+leaving a locked entry beside a recipe that has already removed files (T8).
 The slot claim is the account's own claim,
 `<slot>.claim.<generation>`,
 taken with `take_claim`,
-the binding design's "The account's claim and root's claim" (read at `c144499eb9eb`).
+the binding design's "The account's claim and root's claim" (read at `ec2b0b14f3`).
 It is not root's claim under `/run` that [spec][spec] describes at lines 6228 to 6272,
 which is a different record with a different owner (N7 of the second gate review),
 and this rule adds no new lock and no new record.
 
 ### What a kill between the settle's steps leaves
 
-- Before step 4:
+Because the order is the binding's,
+its invariant is this design's too:
+every kill before `locked` is removed leaves a locked row the finder recognises,
+and every kill after it leaves a bare directory the finder recognises by name.
+
+- Before the destruction proof:
+  nothing is removed and the clone may stand;
+  doctor and the removal report the state,
+  and the resumed removal runs again.
+- After the proof and before the recipe's first step:
   a verified lock on a destroyed clone.
   Doctor reports S1 with the clone named as gone,
   and the resumed removal,
   or the kept cancel command,
-  releases it.
-- Inside step 4 (a kill before the unlink,
-  or after it and before the sync):
-  the lock is there or not;
-  a reboot may show it again only if the sync did not run,
-  and then step 5 had not run either,
-  so the state is the first bullet.
-- After step 4 and before step 6:
-  an unlocked registration,
-  whole or partly emptied,
-  of a destroyed clone.
-  Inert,
-  prunable,
-  and reported as S4.
-- After step 6 and before step 7:
-  a stale pointer in an empty slot,
-  with no registration.
+  runs the recipe.
+- Inside the recipe before `locked`'s step:
+  a locked row.
+  Whatever files the recipe already removed,
+  the lock stands,
+  no prune removes it (F4),
+  and the finder names the row;
+  the resumed removal repeats the recipe from the row it finds.
+- After `locked`'s step and before the `rmdir`:
+  a bare directory with no lock and an empty slot,
+  which is the finder's row 1;
+  the resumed removal removes it.
+  No sync is needed between the two:
+  the `rmdir` can succeed only when the lock's removal is in place,
+  and a power loss that loses the unlink leaves the locked row it was.
+- After the `rmdir` and before the slot's removal:
+  a stale pointer in an empty slot with no registration.
   Doctor reports S6,
   and the removal's resume removes the folder.
-- After step 7 and before step 8:
+- After the slot's removal and before the settle's record:
   everything gone,
   the records unsettled.
   The resume proves absence and settles (the proposal's own rule,
@@ -2390,10 +2441,11 @@ not to prescribe internals:
   one listing of `worktrees`,
   one bounded read per entry,
   on a resume or a doctor pass only.
-- The release and the emptying:
-  the existing registration emptying (F15),
-  with the `locked` unlink and the directory sync added as its first step,
-  in plan step 16's settle.
+- The release and the clearing:
+  the binding design's recipe (its "The recipe that clears rows 1 to 5,
+  7 and 8"),
+  cited and not restated,
+  run in plan step 16's settle after the destruction proof.
 - `doctor`'s lines:
   the filesystem report the proposal extends ([proposal][proposal],
   "What doctor checks and prints",
@@ -2432,7 +2484,8 @@ step by step:
   the two arguments the add hands Git,
   the reason's module that composes them from the binding's nonce,
   the recompose-and-compare every reader uses,
-  and the scan of "The scan that finds a registration by its sentence".
+  and the finder of "The finder,
+  and the lock's part in it".
   The binding's A5 and A6 call all four,
   and both are step 10's,
   so step 10 cannot wait for step 13 to supply them (N4 of the second gate review).
@@ -2462,11 +2515,15 @@ V7 records the choice with the plan's allocation beside the adopted one.
 
 ## Tests a build must have
 
-Each race is named with how a test forces it without timing luck.
+Each race is named with how a test forces it without timing luck,
+and each test sits under the step that builds what it tests.
 A `hook` below means a test-only seam of the kind the wrapper already uses
 (`#[cfg(test)] AFTER_THE_STAGING_FILE_IS_WRITTEN` in `foundation/private_storage.rs:432`).
 
-Step 10:
+Step 10,
+which builds the invocation's arguments,
+the sentence,
+the comparison and the finder:
 
 T1.
 The add's invocation carries `--lock` and `--reason` with the bytes recomposed from the binding's `nonce=`,
@@ -2475,8 +2532,31 @@ Forced by a seam that records the argument list the add hands Git,
 with a real-Git arm that then reads `locked` and compares it to the recomposition (F2).
 T2 was dropped in the first revision round and its number is not reused,
 so a citation after it does not move.
+T5.
+A `git worktree prune`,
+`git gc` and `git maintenance run --auto` before the exchange does not remove the registration:
+the slot holds the copied `.git`,
+which `file_exists` counts (the decision of 2026-11-22,
+"What the slot holds while the add fills it"),
+so the locked and the unlocked arm both keep it.
+Forced by the seam before the exchange,
+with a hand-built control that removes the copy first:
+the unlocked control loses the registration and the locked one keeps it,
+which proves the seam can see the difference.
+T6.
+The same three commands on either side of the exchange keep the registration in both arms,
+because the slot holds the copy or the pointer at every moment (the same decision).
+Forced by a seam before and after the single exchanging rename,
+on a host fixture whose `.git` is a directory exchanged with a file.
+The mounted-clone arm is M1's.
+
+Step 13,
+which builds the states,
+the two-fact variant,
+the install and `doctor`'s lines:
+
 T3.
-Each kill state is recognised by doctor and by removal,
+Each kill state is recognised by `doctor` and by the removal,
 not only by the add's resume.
 Forced by building the state by hand for D1,
 D2,
@@ -2492,35 +2572,10 @@ G17):
 a D4 state must read S1,
 never S3 or S7.
 T4.
-A registration at D4,
+A registration at D3,
 with the binding at phase `slot` and the lock present,
 is adopted as S1 by the next command that holds the claim.
 Forced by the fixture of T3 with the binding's first write present.
-T5.
-A concurrent `git worktree prune` during the fill does not remove the registration.
-Forced by a seam between "discard the copied Git administration" and "install the pointer in the clone",
-which runs `git worktree prune` in the main checkout;
-a locked arm must keep the registration and an unlocked control arm must lose it,
-which proves the seam can see the difference (host arm;
-the mounted-clone arm is M1).
-T6.
-`git gc` and `git maintenance run --auto` during the fill behave as T5,
-with the same seam and control arm.
-T7.
-A failed add after Git returned keeps the claim,
-the binding,
-the locked registration and the slot,
-and a later add at the same slot resumes (V9's A).
-Forced by failing the snapshot or clone step through the add's own injection point.
-T8.
-An install cannot race the settle.
-Forced by a seam after the settle's step 4,
-where a second command tries to install:
-the second must refuse for want of the slot claim,
-and the settle must finish its steps 5 to 8.
-
-Step 13:
-
 T9.
 `doctor` reports S1 to S9 with the exact words and an unchanged exit status,
 each from a fixture,
@@ -2532,13 +2587,6 @@ and proceeds for S1,
 S2,
 S4,
 S5 and S6 as specified.
-T11.
-The release order:
-a seam after the `unlinkat` and before the emptying,
-and one after the emptying and before the directory removal,
-each of which leaves the state "What a kill between the settle's steps leaves" names,
-with `git worktree prune`,
-`git gc` and `git maintenance run --auto` run against it.
 T12.
 A person's `git worktree unlock` followed by `git worktree lock --reason <the wrapper's own sentence>`
 is treated as S1.
@@ -2558,34 +2606,75 @@ T15.
 The two-fact registration proof answers for S5 (no pointer) and D2 (no `registration=`),
 and refuses a registration whose `gitdir` names another slot or whose `commondir` is another repository.
 T16.
-The scan returns exactly one answer per planted entry,
-and the answer the states name for each:
-complete and locked (D3),
-complete and cut short (S2),
-the four half-made locked states (D2,
-D2a,
-D2b,
-D2c),
-the unlocked leftover (D1 and the failure path),
-a complete or half-made registration with no lock (S4),
-nothing,
-and foreign;
-and it never returns a registration built for another slot or another nonce.
-Forced by one fixture per state,
-planted from the measured shapes (G15,
-G16,
-G17 and the source's order at `builtin/worktree.c:505` to `:605`),
-with the two-stand case reported rather than chosen (assumption A6).
+The finder returns each of the binding's rows,
+"The states Git's source can leave" at `ec2b0b14f3`,
+for a fixture planted from the source line that leaves it:
+row 1 (bare directory),
+row 2 (lock only),
+row 3 (`gitdir`),
+row 4 (the slot's pointer),
+row 5 (`commondir`),
+row 6 (complete),
+row 7 (the failure path killed after the unlink),
+row 8 (Git's own removal killed inside it),
+row 9 (nothing,
+empty slot) and
+row 10 (nothing,
+the slot holds a `.git`).
+Forced by one fixture per row,
+and the test also covers the finder's own matching rules with a second slot named `topic1` beside `topic`,
+a relative `gitdir`,
+an empty `locked`,
+and a torn one that stops before the nonce.
+
+Step 16,
+which builds the settle:
+
+T8.
+An install cannot race the settle.
+Forced by a seam after the settle's proof and before the binding's recipe's first step,
+where a second command tries to install:
+the second must refuse for want of the slot claim,
+and the settle must finish the recipe.
+T11.
+The order is the binding's recipe,
+not an order of this design's:
+a seam after each of its steps
+(the slot's `.git`,
+`gitdir`,
+`commondir`,
+`HEAD` with `refs/` and `logs/`,
+the other entries,
+`locked`,
+the `rmdir`,
+the empty slot),
+each of which leaves a row "What a kill between the settle's steps leaves" names,
+with `git worktree prune`,
+`git gc` and `git maintenance run --auto` run against it.
+T17.
+The fallback's release:
+with the clone and the snapshot this add made destroyed and their proof in hand,
+the add releases the lock before its Git checkout.
+Forced by a seam on either side of that release:
+a kill before it leaves S1 with the fallback's intent recorded,
+and the next add at the slot finishes the destruction and the checkout,
+while a kill after it leaves an unlocked registration and an ordinary worktree,
+with nothing of the lock's left to finish.
+The fixture for the recorded intent is the binding's fallback record,
+which that design owes and this test reads.
 
 Which need the guest:
 
 - M1 and M2 (below) are the only arms whose subject is a mounted clone,
   and they are guest tests.
 - T5 and T6 have a host arm and a guest arm;
-  the host arm fixes the seam,
+  the host arm fixes the seam and the exchange,
   the guest arm the mount.
 - T15's no-pointer arm is a host fixture;
   the mounted arm is M2's.
+- T17's fixture is the binding's fallback record;
+  its host arm forces the seam,
+  and a guest arm would need the mount that M1 to M3 already owe.
 - Every other test above runs on the host,
   in a throwaway repository,
   against the host's Git and the built wrapper.
@@ -2593,23 +2682,27 @@ Which need the guest:
 ## Measurements owed
 
 M1.
-**The fill window on a mounted clone,
-in the guest.**
-With the checkout mounted from the file-backed pool and a clone mounted at the slot,
-and the copied Git administration discarded so the slot shows no `.git`:
-run `git worktree prune`,
+**A deleted underlay pointer while the clone is unmounted,
+in the guest,
+on the releases this design targets.**
+Item 6 measured it on Git `2.43.0` and OpenZFS `2.4.4-1`:
+with the checkout mounted from the file-backed pool and a clone mounted at the slot,
+unmount the clone,
+delete the underlay pointer,
+then run `git worktree prune`,
 `git gc` and `git maintenance run --auto` in the main checkout,
 once with the managed lock and once without,
 and record which registration survives each of the six runs.
 The contract:
 the unlocked arms lose the registration,
 the locked arms keep it.
-Host fixtures already show the same on a plain directory,
-through the wrapper (P3 to P5) and as Git alone (G2 to
-G4);
-the guest adds the mount covering the underlay pointer,
-which is the state D6 describes.
-This is the one measurement that decides whether the design's single reason for the lock holds on a real clone.
+Host fixtures show the same on a plain directory,
+through the wrapper (P3 to P5) and as Git alone (G2 to G4).
+This is the measurement that decides whether the lock's reason holds on the releases the route ships.
+The fill no longer needs an arm:
+the decision of 2026-11-22 keeps a `.git` at the slot at every moment,
+and the exchange's guest run is that decision's own owed measurement.
+
 
 M2.
 **`git worktree repair` over a mounted and an unmounted clone slot,
@@ -2677,23 +2770,25 @@ or a separate `git worktree lock` after the add,
 or the wrapper writing `locked` itself.
 Example:
 an add at `.claude/worktrees/one` that is killed just after Git accepts it.
-Under the adopted route the registration is locked from Git's own creation of it.
-Under a separate `git worktree lock` the registration is unlocked in that window,
-with the pointer present,
-so prune keeps it and `git gc` keeps it while the index is young;
-the loss shows after the clone mounts over the pointer (D6).
-The wrapper writing the file itself is the same window plus Git's private id derivation.
+Under the adopted route the registration is locked with this add's sentence from Git's own creation of it,
+and the finder reads the sentence from the lock.
+Under a separate `git worktree lock` the registration holds Git's `initializing` or no lock at all until that
+command runs,
+so the finder reaches it only by `gitdir` or by name,
+and the add has a second command to run and another moment to be killed in.
+The wrapper writing the file itself needs Git's private id derivation and writes after the same return.
 Pros of the adopted route:
+the lock carries the sentence from the first moment,
+no second command,
 no window the wrapper adds,
-upstream's own answer to the race,
-no private name derivation (F2).
+and upstream's own answer to the race (F2).
 Cons:
 the reason must be known before the add,
-so it must be recomputable from the binding's nonce (assumption A1).
+so it must be recomputable from the binding's nonce (AS1).
 Ranking:
 `--lock --reason` > a separate `git worktree lock` > the wrapper writing the file,
-because the first removes the window,
-the second removes only part of it,
+because the first puts the sentence in the lock from the start,
+the second leaves the lock's words to Git or to nobody until it runs,
 and the third adds a name derivation Git owns.
 
 V2.
@@ -2721,31 +2816,50 @@ because a person's way out is the point of the words,
 and free text costs both the row and the comparison.
 
 V3.
-**The release order in the settle**:
-unlink `locked` first and then empty (adopted),
-or empty and release last,
-or rename the whole registration out of `worktrees` in one step and delete it under a wrapper name.
+**The settle's order and mechanism**:
+the binding design's recipe,
+which removes the slot's `.git`,
+`gitdir`,
+`commondir`,
+`HEAD` with `refs/` and `logs/`,
+the other entries,
+then `locked` last,
+and the directory by `rmdir` (adopted);
+or the earlier revision's order,
+which unlinked `locked` first and then emptied;
+or a rename of the whole registration out of `worktrees` and a delete under a wrapper name;
+or unlocking and running `git worktree remove -f -f`.
 Example:
 a removal killed after the first step of its Git settle.
-The adopted order leaves an unlocked,
-partly emptied registration of a destroyed clone,
-which every prune removes.
-Emptying first can leave a locked directory with no `gitdir`,
-which no prune removes and no listing shows (F4,
-F1).
-The rename leaves nothing Git can see from the first step,
-at the cost of a new name and a new leftover for
-`doctor`.
+The adopted order leaves a locked row the finder recognises at every kill before the lock's removal,
+and a bare directory it recognises by name after it;
+the release-first order leaves an unlocked,
+partly emptied registration at every kill,
+which only the name rule reaches;
+the rename leaves nothing Git can see from the first step,
+at the cost of a new name and a new leftover for `doctor`;
+Git's removal deletes the slot directory and needs two forces,
+which this design never forwards to a lock.
 Pros of the adopted order:
+one order for the add's resume and the removal,
 no new name,
-the existing emptying,
-and a harmless leftover.
+no force,
+and every kill lands on a state the table names.
 Cons:
-a leftover that only `doctor` names until a prune takes it.
+the lock stands while the registration's files go,
+so a kill there leaves a locked entry only the wrapper can find,
+and the wrapper must keep the recipe's names right.
 Ranking:
-unlink first > rename out > empty first,
-because a leftover prune can remove beats a leftover only the wrapper can remove,
-and no new name beats a new one while the existing emptying serves.
+the binding's recipe > release first > rename out > Git's removal with two forces,
+because one order beats two,
+the release-first order trades an attributable leftover for one only the name rule reaches,
+the rename buys a better failure mode with a new name,
+and Git's removal forwards the force this design forbids.
+This is the second gate review's N9 and the diff check's R1:
+the proposal's refusal to fall through to Git's recursive removal (lines 811 to 813) is a refusal rule,
+not a decision of this mechanism,
+and the order is the binding's to state and this design's to cite.
+
 
 V4.
 **The torn lock**:
@@ -2877,68 +2991,61 @@ and C asks a primitive that carries no payload for one (F17).
 The second gate review puts its options as B > A > C for the same reasons.
 
 V9.
-**What a failed add leaves**:
-keep the claim,
-the locked registration and the slot,
-report,
-and resume or discard explicitly (adopted);
-or roll back;
-or keep on `ENOSPC` and roll back on other failures.
+**A mutation this add made and cannot prove**:
+keep it and report it (adopted);
+or stop before acting and name the state for a person;
+or destroy it anyway.
 Example:
-the snapshot step returns "no space".
-The adopted answer leaves the claim,
-the binding at its phase,
-the locked registration and the slot,
-prints the operation,
-object and pool,
-and a later add at the same slot resumes.
-A rollback would end with no registration and an empty slot.
+the clone request returned an error and the GUID read that would identify what it made never answered.
+The adopted answer keeps the object and reports it,
+as the accepted text says ([proposal][proposal],
+lines 429 to 431);
+stopping before acting leaves the same object and stops the add with a report;
+destroying it would guess at an identity.
 Pros of the adopted answer:
-it is the accepted text's answer for `ENOSPC` and for a mutation whose identity was not recorded (proposal 427 to
-431),
-it destroys nothing,
-and it reuses the registration's recorded identity.
+it destroys nothing it cannot name,
+and it is the accepted text's own answer.
 Cons:
-a locked registration Git cannot remove without two forces stays until a person resumes or discards it,
-and for a failure of another kind with every identity recorded the accepted text is silent,
-so this is the writers' extension there.
+the object stands until a person or a later proof resolves it.
 Ranking:
-keep > keep on `ENOSPC` and roll back otherwise > roll back,
-because the first follows the accepted words wherever they speak and adds nothing that destroys,
-the second needs a failure taxonomy no record gives,
-and the third overrides an accepted sentence with no record behind it.
-The second gate review says this is not the owner's question for the cases the accepted text names;
-the extension is recorded here for a veto.
+keep and report > stop and name > destroy,
+because the first is the accepted text and destroys nothing,
+the second is the same state with the add stopped,
+and the third cannot be undone.
+The project decided on 2026-11-22 what a failed add does when it can prove what it made (the fallback,
+"A failed add,
+and the fallback when the clone route fails");
+this entry covers only the mutation it cannot prove,
+which that decision leaves to the accepted text.
+
 
 V10.
-**The settle's mechanism**:
-unlink `locked`,
-empty the registration through a held descriptor,
-and remove the empty directory by name (adopted);
-or unlock and run `git worktree remove -f -f`;
-or rename the registration out of `worktrees` first and delete it under a wrapper name.
+**When the fallback releases the lock**:
+before its Git checkout (adopted);
+after the checkout and before the add reports;
+or after the add's own record of the fallback.
 Example:
-a removal whose clone is destroyed and whose registration is locked by this add.
-The adopted route is one descriptor and three steps and has a precedent in the wrapper ([spec][spec],
-line 3377);
-Git's removal deletes the slot directory and needs two forces,
-and this removal never forwards a force to a lock;
-the rename leaves nothing Git can see from the first step at the cost of a new name and a new leftover for
-`doctor`.
-Pros of the adopted route:
-no force,
-no Git-side validation,
-and a failure mode where the leftover is prunable.
+a clone route that failed,
+its clone and snapshot destroyed,
+and the fallback about to run Git's checkout at the slot.
+The adopted point releases before the checkout,
+so a kill during the checkout leaves an unlocked registration and an ordinary worktree,
+and no later command reads the lock as a managed clone's.
+Releasing after the checkout leaves a locked ordinary worktree at every kill during it,
+which a person's `git worktree remove` refuses and which the wrapper must classify as S1;
+releasing after the record adds a second write before the release and widens the same window.
+Pros of the adopted point:
+one write before the checkout,
+and no kill leaves a locked ordinary worktree.
 Cons:
-the wrapper writes inside Git's directory and must keep the emptying right.
+the registration is unlocked for the length of the checkout,
+which costs nothing while the slot holds a `.git`.
 Ranking:
-adopted > rename out > Git's removal with two forces,
-because the first adds no name and no force,
-the second adds a name for a better failure mode,
-and the third forwards the one thing this design forbids.
-This is the second gate review's N9:
-the proposal's refusal to fall through to Git's recursive removal (lines 811 to 813) is a refusal rule,
-not a decision of this mechanism.
+before the checkout > after the record > after the checkout,
+because the first keeps the invariant that an ordinary worktree is never locked,
+the second narrows the same window at the cost of a write,
+and the third breaks the invariant at every kill.
+
 
 ## Questions only the project can answer
 
@@ -2970,8 +3077,9 @@ not step 10.
   prints that it did,
   and continues.
   Pros:
-  the protection returns before the window that needs it,
-  the fill window with no pointer.
+  the protection returns before the rows that need it:
+  a failed Git add's leftovers,
+  and an unmounted slot whose underlay pointer the account deleted.
   Cons:
   it undoes a person's deliberate unlock without asking.
 - B.
@@ -2997,7 +3105,7 @@ not step 10.
   the lock's one purpose,
   prune protection,
   is lost until a person acts,
-  and the fill window is when nobody watches.
+  and a failed add's leftovers and an unmounted slot are when nobody watches.
 
 Ranking:
 A > B > C.
@@ -3115,9 +3223,12 @@ which one.
    This design keys the lock on the slot through the binding and keeps no key of its own.
    The binding keys on the slot.
    The destruction plan keys on the clone GUID,
-   and it also keeps a pointer file inside the registration
-   (`<registration>/monochromatic-git-policy-cli-clone-destruction-plan`),
-   which this design's settle must empty with the rest (step 5).
+   and its design once kept a pointer file inside the registration
+   (`<registration>/monochromatic-git-policy-cli-clone-destruction-plan`);
+   if it still does,
+   the binding's recipe removes it with the other entries,
+   and if it does not,
+   the recipe has nothing to remove there.
 5. **The moment of writing.**
    This design writes nothing;
    the binding's first write precedes Git and its `registered` write follows it.
@@ -3129,30 +3240,37 @@ which one.
    and a power loss cannot produce a verified lock without a nonce.
 7. **How the registration is settled.**
    This design:
-   never `git worktree remove`;
-   unlink,
-   empty by descriptor,
-   remove by name,
-   because the proposal refuses falling through to Git's recursive removal for a managed slot (lines 811 to 813).
-   The binding design's A4 and "The record's end" step 3 say "Git removes with its folder (F2)".
+   the binding design's recipe,
+   with the destruction proof before it,
+   and never `git worktree remove`.
+   The binding design's "The record's end" instead cites the origin cleanup design's removal order,
+   whose step 10 settles the registration and releases the managed lock.
+   The two must be one order;
+   this design cites the recipe because it is the order the add's resume and this removal both use,
+   and if the two differ,
+   reconciling them is the binding round's,
+   not a second order here.
    The proposal's sentence (lines 811 to 813) is a refusal rule for a failed inspection,
-   not a decision of the settle's mechanism,
-   and the second gate review's N9 is right to say so.
-   The mechanism is V10's writer's choice,
-   with a precedent in the wrapper's own emptying ([spec][spec],
-   line 3377),
-   and the binding design's step 4 should name the one both documents use.
+   not a decision of the settle's mechanism (the second gate review's N9);
+   the mechanism is V3's writer's choice.
 8. **What a failed add leaves.**
-   This design now keeps the claim,
-   the binding,
-   the locked registration and the slot (V9's A),
-   which agrees with the binding design's T22 and with the proposal.
-   Neither document puts this to the project any more,
-   because the accepted text decides it for the cases it names;
-   V9 records the writers' extension for the rest.
+   The project decided on 2026-11-22 that the clone route's failure finishes by itself with Git's own checkout,
+   after destroying only what the add made,
+   and the project decided what the slot holds while the add fills it (the copied `.git`,
+   exchanged at the end).
+   This design follows both:
+   the registration stays and the lock goes on the fallback,
+   and the fill window no longer carries the lock's reason.
+   The binding design's order still names A10b as a discard,
+   which the decision replaces with the exchange;
+   that is the binding round's to correct.
+   What a failed add leaves when it cannot prove what it made is V9's entry,
+   and the accepted text decides it.
+
 9. **How a resume finds the registration after a kill before `registered`.**
    This design:
-   the scan of "The scan that finds a registration by its sentence",
+   the finder of "The finder,
+   and the lock's part in it",
    which matches the sentence recomposed from the binding's `nonce=` and returns one answer per entry.
    The binding design's current "A resume after a kill between Git's add and the registered write" owns what is
    done with each answer and calls this scan,
@@ -3168,10 +3286,13 @@ which one.
     T15);
     the binding design already records the facts it needs.
 12. **The fill window.**
-    This design's D6 falls inside the binding design's `mounted` to `filled` span,
-    which has no phase of its own.
-    The lock covers that window whatever the binding's phase says,
-    and the binding design's resume reads the live facts there.
+    This design's D6 falls inside the binding design's A10 to A11 span.
+    The project decided on 2026-11-22 that the copied `.git` stays until the exchange,
+    so the slot holds a `.git` at every moment of the fill and the lock is not that window's guard;
+    the lock covers the moments where no `.git` stands.
+    The binding's A10b still names a discard,
+    which that decision replaces with the exchange;
+    that is the binding design's to correct.
 13. **Who runs `doctor`.**
     This design's doctor reads the binding and the lock as the account,
     which is what the proposal's doctor
@@ -3409,6 +3530,7 @@ the round's report names every commit with its committer time.
 [proposal]: cli-git-zfs-worktree-design-proposal.md
 [plan]: cli-git-zfs-worktree-implementation-plan.md
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
+[fallback]: ../decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md
 [staging]: ../decision/cli-git-zfs-staging-under-cache.md
 [sweepchoices]: ../decision/cli-git-zfs-step-8-sweep-choices.md
 [slotstore]: ../decision/cli-git-zfs-slot-identity-store-format.md
