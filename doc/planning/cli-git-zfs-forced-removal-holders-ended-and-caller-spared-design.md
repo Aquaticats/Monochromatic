@@ -955,6 +955,11 @@ not a guest's.
   Linux `v7.3`,
   `fs/fhandle.c` (`may_decode_fh` at `:317` to `:323`,
   `capable(CAP_DAC_READ_SEARCH)`);
+  the descriptor it resolves on must be a readable directory descriptor,
+  because the lookup takes it with `fdget`,
+  which refuses a path-only one with `EBADF` (`fs/file.c:1206` to `:1208` and `include/linux/file.h:83` at `v7.3`,
+  `fs/fhandle.c:128` at `v6.8` and `:173` at `v7.3`,
+  and the `6.8` guest answered `EBADF` for `O_PATH`);
   `doc/planning/cli-git-zfs-staging-under-cache-design.md`,
   "The staged-folder record" and "The unmount call from staging".)
 
@@ -981,6 +986,8 @@ not a guest's.
   from `u->path`,
   in the socket's own network namespace,
   where `/proc/net/unix` lists only the reader's network namespace and prints the bind string rather than a resolved path.
+  The device it returns is the superblock's raw `dev_t` (`dentry->d_sb->s_dev` at `net/unix/diag.c:34`),
+  so a reader that compares it with `stat`'s `st_dev` re-encodes one side first.
   (Source,
   Linux `v7.3`,
   `net/unix/diag.c:29` to `:39` and `:142` to `:143`,
@@ -1811,6 +1818,9 @@ so it is usable only when the preflight's receiver closure has no member outside
 where a member is one of those,
 its copy is unmounted too or refuses until its blockers are ended,
 and a copy already gone when its turn comes is success.
+A receiver whose own mount sits over its copy loses the copy under it and keeps its own mount,
+which the kernel does by removing the covered copy and sliding the cover down;
+the act proceeds and the report names that receiver and its mount (V9).
 A kill leaves nothing to restore.
 It needs a handle recorded before the clone was mounted (D7),
 so clones that predate it fall to way 7.
@@ -1879,7 +1889,9 @@ for one holder namespace:
 in place by the handle.**
 
 1.  The preflight proved the handle;
-    the handler opens it on the checkout's mount in the holder's namespace (F53).
+    the handler opens the checkout's mount in the holder's namespace as a readable directory descriptor (`O_RDONLY`,
+    never path-only,
+    F53) and opens the handle on that descriptor.
 2.  It reads `/proc/self/mountinfo` there and requires the topmost mount at the descriptor's dentry to be the copy,
     by mount id,
     source and type (F34,
@@ -1984,10 +1996,13 @@ the first signal and the first unmount:
   and a scan that stopped at its bound is not clear.
   A namespace whose table cannot be read is reported,
   and for way 8 it refuses.
-  It keeps only members that have a mount at the slot's dentry,
-  and records each kept member's topmost mount there,
-  which must be the copy,
-  not a stacked mount.
+- It keeps only members that have a mount at the slot's dentry,
+  and records each kept member's topmost mount there.
+  A kept member whose topmost mount there is not the copy is a covered member:
+  way 8 is used anyway,
+  and the report names the namespace and the mount that sits over the copy it loses (V9).
+  The kernel removes the covered copy and slides the covering mount down onto the slot,
+  which is T0-5c's row.
 - For way 8,
   a kept receiver outside the namespaces the act handles means way 8 is not used and the act falls to way 7;
   it is not a refusal.
@@ -2017,6 +2032,7 @@ the first signal and the first unmount:
   a blind spot refuses.
 - It reads bound unix sockets by `sock_diag` with `UDIAG_SHOW_VFS` in each network namespace,
   whose answer is the bound file's device and inode (F56),
+  where the device is the raw `dev_t` the kernel reports for the superblock and is re-encoded before it is compared with `st_dev`,
   and matches the device against the clone's filesystem;
   the owning task is found by the socket's inode in `/proc/<pid>/fd` and ended like any other blocker.
 - A structural refusal,
@@ -2195,7 +2211,10 @@ or through its next peer when it has peers,
 while the service stops forwarding its own later mounts to namespaces made from it (F49).
 Way 8 changes nothing,
 and the receivers lose their copies or killed their blockers first.
-The host's mount is untouched and no table shows the host's slave list losing an entry.
+The host's own mount at the slot survives an unmount inside the service's namespace by the kernel's rule and not by a run:
+T0-1 kept H's bind at another path and its parent,
+and no arm unmounts a service's copy while the host carries a mount at the same slot,
+so the sentence rests on the unmount reaching the mount's receivers and not its master (F55).
 The directory of way 7 is visible to the host,
 `git status` and snapshots while it lives;
 a kill leaves it.
@@ -2329,6 +2348,24 @@ the shared state's difference is T0-6 and M11a with M11b;
 the peer case is T0-4 and M2;
 the sandbox's lost later mount is T0-12;
 the job's end is M1.
+The first group has run in a `6.8` guest,
+and the arms above it names are the first run's:
+it shows the in-place unmount and the receiver closure,
+a receiver with no mount at the slot,
+a covering mount,
+the private-first and slave-first halves,
+the peer rows and the delivery they corrected,
+a sandbox that holds no copy,
+and the move after the signals.
+It does not show a copy that arrived from a host mount at the slot,
+the unmount at way 7's destination,
+the directory's removal,
+a read-only parent,
+live blockers,
+the taskless namespace,
+or anything on `7.3`;
+the arms named for those are still owed,
+and the part of each statement they name rests on the kernel's rule until they run.
 
 What the guest must show first,
 in this order:
@@ -2704,7 +2741,9 @@ the reasons are in "Ranking and the recommended way".
 The recommended policy is way 8 where the preflight proves the handle and no outside receiver with a mount at the slot,
 otherwise way 7 (the parent stops propagating);
 a namespace that is not a holder and receives from the parent is not refused,
-and the report names it and what it stops receiving (V8).
+and the report names it and what it stops receiving (V8);
+a receiver whose own mount covers its copy is a covered member,
+way 8 is used there and the report names the mount (V9).
 In the repaired state the parent has no master and no peer that is the host,
 so ways 3 and 7 make the same change and the service loses nothing it was receiving;
 the difference exists only where the checkout is shared,
@@ -2760,7 +2799,7 @@ and the copy stays.
 
 Pros of the adopted option:
 the removal finishes for the commonest holder,
-and the loss is a later mount in a sandbox that never held the clone.
+and the loss is a later mount in a sandbox that holds no copy of the clone.
 Cons:
 a namespace the act does not handle changes what it receives,
 and the person must read the report to know.
@@ -2774,6 +2813,57 @@ proceed and report > refuse,
 because the removal is what the owner asked for and the loss is named;
 the refusal is the veto's alternative,
 with the sandbox case as its example.
+
+### V9. What way 8 does about a receiver whose own mount sits over the copy
+
+Options,
+each with what the person sees:
+(1) proceed and name the cover (adopted);
+(2) way 8 is not used for that namespace and the act falls to way 7.
+
+Concrete example:
+`watcher.service` holds a copy of `one`,
+and a build sandbox inside it mounted a tmpfs over its own copy of `one/target`,
+so the sandbox's topmost mount at the slot is its own tmpfs.
+Under (1) the in-place unmount in the service removes the copy under the sandbox's tmpfs and the kernel slides the tmpfs down onto the slot:
+the service's propagation is unchanged,
+no directory appears in the checkout,
+and the report names the sandbox and the mount it lost the copy under,
+so the job's `findmnt` at `one/target` still shows its tmpfs and the folder under it is the checkout's own.
+Under (2) the act makes the service's mount stop propagating,
+moves and unmounts the service's copy,
+writes a `0700` directory in the checkout and removes it,
+and the sandbox keeps its tmpfs and the copy under it;
+way 7's move of a copy that a mount covers was not run,
+so (2) either leaves that copy and reports it or stops.
+
+Pros of (1):
+the service's sharing is untouched and no directory is written,
+every receiver of the parent mount loses the copy in one act,
+cover or not,
+and the person is told which sandbox's mount sat over a copy.
+Cons:
+a mount in a namespace the act does not otherwise handle changes what it shows,
+the person must read the report to know,
+and the rule that removes a covered copy and re-parents the cover is shown on `6.8` and read,
+not run,
+on `7.3`.
+Pros of (2):
+nothing under a covering mount changes.
+Cons:
+the larger change is made for the whole service,
+the covered copy survives the act,
+and the person is asked to handle a copy the removal had in its reach.
+Ranking:
+(1) over (2),
+because (1) leaves the service's mounts and the checkout as they are and takes every copy that receives from the parent mount,
+where (2) makes the larger change and still leaves the covered copy behind;
+(1)'s costs are a report line and a rule that rests on a kernel reading,
+which are costs to state and not reasons to place it lower.
+The project confirms this together with the policy of V5;
+this entry is a recommendation,
+not an adoption,
+and the veto is (2).
 
 ## The record of who a forced removal ended, and the questions left
 
@@ -3066,6 +3156,20 @@ and `subprocess` for `unshare`,
 Each arm's `Bound:` is its own (60 s or 120 s) and overrides the 900 s harness timeout,
 because it runs no handler.
 
+The first group ran in a disposable guest:
+`6.8.0-147-generic`,
+Ubuntu 24.04.5,
+hand-made mounts on ext4,
+every arm twice.
+The record is the section headed `Tier 0 mounts and namespaces in a guest, 2026-11-23T05:24:20-05:00` in `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
+on the branch `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured` at commit `6319b2f7a3`;
+it is unapproved and decides nothing this design decides.
+Where an arm here says a row was observed,
+that record is what observed it,
+and the arms below carry the corrections its rows asked for.
+A second round is running the arms that gap left on a `7.3` guest and Tier 1's arms with a ZFS pool;
+nothing of it is cited here.
+
 The common start (H).
 Every arm runs in one fresh private mount namespace,
 H,
@@ -3139,24 +3243,42 @@ and the check and the tables are recorded.
 - **T0-3.
   A slave parent before the unmount stops it.**
   Start:
-  two variants of T0-1's state.
+  two variants.
   (a) With a master:
-  U is a slave of H,
-  and P is shared in U,
-  so U's P is a slave of P in H with a master.
+  U = `unshare --mount --propagation slave` from H,
+  P shared in U,
+  so U's P is a slave of P in H with a master,
+  and S = `unshare --mount --propagation slave` from U after the copy,
+  so S holds the copy.
   (b) Without one:
   P is made private in U,
   then `mount --make-slave P`,
-  which sets no master.
+  which sets no master,
+  and S made the same way.
+  No variant's action is T0-1's:
+  a plain unmount on variant (a)'s start removes S's copy,
+  which is T0-1's result and the first run's row for it.
   One action:
-  `umount2` the copy in U,
+  `mount --make-slave P` in U,
+  read U's and S's rows,
+  then `umount2` the copy in U,
   once per variant.
   Positive control:
-  T0-1's plain unmount on each variant's start removes the copy.
+  on each variant's start,
+  a mount made in H under P reaches S before the change,
+  recorded first;
+  and a plain unmount in U without the change removes S's copy in its own phase.
   Expected:
-  S's copy stays in both;
-  variant (a)'s P row reads `master:<P's group in H>`,
-  variant (b)'s reads as private with no `master:`.
+  variant (a)'s U row reads `master:<the former group>` with no `shared:`,
+  S's row keeps a `master:`,
+  and S's copy stays;
+  variant (b)'s U row reads as private with no `master:`,
+  S's row carries no tag,
+  and S's copy stays,
+  which that state gives without any change,
+  as its own control shows.
+  The with-master row variant (a) asks for was observed in the first run where T0-12's second start made it,
+  and this variant now builds that start.
   Bound:
   60 s.
   Decides:
@@ -3178,34 +3300,40 @@ and the check and the tables are recorded.
   before the change,
   a mount made under P' reaches P and S;
   the arm records that delivery first.
-  Expected (derived from `fs/pnode.c` 93 to 124 and `fs/proc_namespace.c` 159 to 169,
-  not yet run):
+  Expected (read from `fs/pnode.c` 93 to 124 and `fs/proc_namespace.c` 159 to 169):
   P's row becomes `master:<the former group>` without `shared:`;
-  P' keeps its `shared:` and its own `master:`;
-  S's row still prints `master:<the former group>`;
-  after the change a mount made under P' no longer reaches P or S,
-  and one under P reaches neither.
+  P' keeps its `shared:`,
+  which is the former group's number;
+  S's row still prints a `master:`;
+  after the change a mount made under P' still reaches P,
+  a slave of P',
+  and reaches S,
+  and one made under P reaches neither,
+  because P's new master is P' and a master does not receive from its slave.
   Bound:
   60 s.
   Decides:
   the peer case's rows and that a slave made with peers takes its next peer as master.
   Tier 0;
-  the rows are derived,
-  not run.
+  the rows and the delivery under P' are the first run's,
+  and its delivery sentence is the one that run corrected.
 
 - **T0-5a.
   The nested-in-nested receiver.**
   Start:
   H and P as the common start,
   with the covered directory and a stand-in handle taken with `name_to_handle_at` on H's root filesystem before the cover (if that filesystem refuses a handle,
-  the arm records unrun),
-  and the handle opened later inside U with `open_by_handle_at` on an `O_PATH` descriptor of U's covering filesystem root;
-  U = `unshare --mount --propagation slave` from H;
+  the arm records unrun);
+  U = `unshare --mount --propagation slave` from H,
+  then `mount --make-shared P` in U,
+  so a namespace made from U receives from it;
   the copy mounted under P in U;
   V = `unshare --mount --propagation slave` from U,
   the second-level receiver.
   One action:
-  open the handle with `open_by_handle_at` on an `O_PATH` descriptor of the covering filesystem's root,
+  open U's parent as a readable directory descriptor (`O_RDONLY`;
+  a path-only one is refused `EBADF`),
+  open the handle with `open_by_handle_at` on that descriptor,
   read the topmost mount at its dentry,
   and `umount2("/proc/self/fd/<n>", 0)`.
   Positive control:
@@ -3214,7 +3342,12 @@ and the check and the tables are recorded.
   recorded first.
   Expected:
   a closure script over the tables (T0-5's oracle) finds V in the set,
-  and the set of namespaces whose copy vanished equals it.
+  and the set of namespaces whose copy vanished equals it;
+  a handle opened on the guest's `/` instead of on the parent mount resolves to the covered directory's path on the root mount,
+  where no mount sits,
+  and `umount2` answers `EINVAL`,
+  which the first run recorded,
+  so the descriptor's mount is what the arm decides as well.
   Bound:
   60 s.
   Decides:
@@ -3251,22 +3384,29 @@ and the check and the tables are recorded.
   the same handle unmount.
   Positive control:
   T0-5a's V without the stack,
-  where way 8 is chosen and the copy vanishes.
+  where the copy vanishes.
   Expected:
-  the closure script's predicate says way 8 is not chosen,
-  because V's topmost mount at the slot is not the copy,
-  and the stacked mount is untouched.
+  the preflight's predicate records V as a covered member,
+  because its topmost mount at the slot is not the copy,
+  and way 8 is used under V9's policy,
+  which proceeds and names the cover;
+  the kernel removes the covered copy and slides V's tmpfs down onto the slot,
+  so V's table after the action holds its parent row and the tmpfs and no copy row,
+  and the tmpfs itself stays mounted.
   Bound:
   60 s.
   Decides:
-  the topmost-mount check and that way 8 is not chosen.
+  that a covering mount stops neither the unmount nor the copies' removal,
+  that V's cover is named in the report,
+  and that the mount the person put there stays.
   Tier 0.
 
 - **T0-5's oracle**:
   a Python closure over the tables:
   map every group number to the order it first appears,
   compute the set from the seed and the members rule of "The preflight",
-  and compare it with the namespaces whose copy vanished.
+  record which members' topmost mount at the slot is the copy and which are covered,
+  and compare the set with the namespaces whose copy vanished.
   The normalisation is the comparison rule for every arm (Z9),
   and the members rule is the one "The preflight" states.
 
@@ -3278,22 +3418,31 @@ and the check and the tables are recorded.
   U = `unshare --mount --propagation unchanged` from H,
   so U's P is a peer of P in H;
   S = `unshare --mount --propagation slave` from U;
-  a second copy mounted in H under P,
+  a second copy mounted in H under P before the change in both ways,
   which reaches U;
-  the host mount and the host unmount run in H.
+  then H mounts a later copy,
+  and unmounts it,
+  after the change.
   One action:
-  in U `mount --make-slave P` (way 7);
+  in U `mount --make-slave P` (way 7) in one phase;
   then,
-  in a second run from the same start,
+  in a second phase from the same start with the second copy mounted before the change,
   `mount --make-private P` (way 3).
   Positive control:
   before either change,
   a mount and an unmount in H under P reach U,
   recorded first.
-  Expected:
-  the way 7 U keeps receiving H's mount and unmount of the second copy,
-  because its master or next peer is a receiver;
-  the way 3 U loses both.
+  Expected,
+  the mount and the unmount reported apart for each way:
+  under way 7,
+  U receives H's later mount of the second copy and its later unmount;
+  under way 3,
+  U receives neither,
+  since the mount never arrives and there is nothing to remove;
+  S receives both in either way,
+  because S's parent is a slave of H's group itself and not of U's parent.
+  The first run's way 3 phase mounted the second copy after the change,
+  so its unmount showed only that nothing was there to remove.
   Bound:
   120 s.
   Decides:
@@ -3322,7 +3471,10 @@ and the check and the tables are recorded.
   Expected:
   with the move after the signals the write lands in the mounted copy and the slot's folder is empty when the move is due.
   Bound:
-  `T_wait` 10 s.
+  30 s,
+  because it waits `T_wait` and then moves,
+  reads and unmounts;
+  a bound of `T_wait` alone is shorter than the phase and cuts it off.
   Decides:
   the old order's hazard exists and the new order avoids it.
   Tier 0.
@@ -3338,7 +3490,9 @@ and the check and the tables are recorded.
   Positive control:
   the same request for a socket bound outside the copy returns a device that does not match the clone's filesystem.
   Expected:
-  the bound file's device and inode name the copy's filesystem;
+  the bound file's device and inode name the copy's filesystem,
+  the device being the superblock's raw `dev_t` that the kernel reports,
+  re-encoded before it is compared with `stat`'s `st_dev` (F56);
   the owning task is found by the socket's inode in `/proc/<pid>/fd`.
   Bound:
   60 s.
@@ -3371,7 +3525,11 @@ and the check and the tables are recorded.
 - **T0-10.
   The taskless namespace.**
   Start:
-  a namespace pinned by a descriptor with no task.
+  a namespace pinned by a descriptor with no task,
+  on a guest of kernel `6.19` or newer:
+  syscall 470 first appears in `v6.19`'s table and is absent from `v6.18`'s and `v6.17`'s,
+  and the `6.8` guest answers `ENOSYS` to it,
+  which is the first run's row.
   One action:
   the `listns` syscall,
   number 470 on x86-64,
@@ -3383,20 +3541,24 @@ and the check and the tables are recorded.
   `ns_type`,
   `spare2`,
   `user_ns_id`;
-  `include/uapi/linux/nsfs.h` at `v7.3`) and `listns(req, ids, nr_ns_ids, flags)`;
-  then `setns` on the returned id and a table read.
+  `include/uapi/linux/nsfs.h` at `v7.3`) and `listns(req, ids, nr_ns_ids, flags)`,
+  and numbers 471 to 473 never called,
+  because at `v7.3` they are `rseq_slice_yield` and `fchroot`,
+  which would take the low half of a pointer as a descriptor;
+  then compare the listed ids with the pinned namespace's id and `setns` on that id,
+  with a table read.
   Positive control:
-  the same call lists the namespace the arm itself created.
+  the same call lists the namespace the arm itself created,
+  and its id is among the listed ones.
   Expected:
-  the pinned namespace is found and entered;
-  a guest whose `listns` refuses or is absent records the arm unrun,
-  and the group shows everything else.
+  the pinned namespace's id is in the list and `setns` on it enters it;
+  a guest whose `listns` answers `ENOSYS` records the arm unrun and shows nothing,
+  which is what the first run did.
   Bound:
   60 s.
   Decides:
   the taskless route and the call's own arguments.
-  Tier 0,
-  but a guest that answers `listns` only.
+  Tier 0 on a guest of `6.19` or newer only.
 
 - **T0-11.
   The chain:
@@ -3411,15 +3573,24 @@ and the check and the tables are recorded.
   the arm checks U's P row.
   One action:
   in H `mount --make-private P` (the repair),
+  read U's row;
+  make a mount in H under P and read whether it reaches U,
+  which is the repair's own effect and runs before the change;
+  then in U `mount --make-slave P` (way 7),
   read U's row,
-  then in U `mount --make-slave P` (way 7) and read it again.
+  and make the same mount in H again.
   Positive control:
   before the repair,
   a mount made in H under P reaches U.
   Expected:
   after the repair U's copy of P has no master (H's P had no peers) or keeps its next peer's master (it had peers);
-  after the way 7 change it is a slave of its next peer or of no master,
+  the probe between the repair and the change says the repair alone stopped a delivery that H's mount made,
+  so the change is not credited with it;
+  after the way 7 change U's row is a slave of its next peer or of no master,
+  the second probe says what if anything the change added,
   and in the no-master case the change equals way 3's.
+  The first run made only the no-master start,
+  so a second start where H's P has a peer is what shows the other branch.
   Bound:
   120 s.
   Decides:
@@ -3428,13 +3599,21 @@ and the check and the tables are recorded.
   Tier 0.
 
 - **T0-12.
-  A sandbox that never held the clone,
+  A sandbox that holds no copy,
   after way 7.**
   Start:
   H and P as the common start;
-  U = `unshare --mount --propagation slave` from H with the copy;
-  V = `unshare --mount --propagation slave` from U,
-  with no copy of the slot.
+  U = `unshare --mount --propagation slave` from H,
+  then `mount --make-shared P` in U,
+  so a namespace made from U receives from it;
+  the copy mounted under P in U;
+  V = `unshare --mount --propagation slave` from U after the copy,
+  which therefore holds one,
+  and V's copy removed in V by a local `umount2`,
+  which is the state the statement is about.
+  A start that keeps V without a copy cannot deliver into it,
+  and one that shares U's parent gives V a copy;
+  the first run tried both and only this state measures the statement.
   One action:
   `mount --make-slave P` in U and `umount2` the copy in U,
   then in U make a later mount of the service's own under P.
@@ -3450,7 +3629,7 @@ and the check and the tables are recorded.
   Bound:
   120 s.
   Decides:
-  a sandbox that never held the clone stops receiving the service's own later mounts after way 7.
+  a sandbox that holds no copy stops receiving the service's own later mounts after way 7.
   Tier 0.
 ### Tier 1: a ZFS pool, no route
 
