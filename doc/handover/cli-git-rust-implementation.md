@@ -273,10 +273,11 @@ the owner accepts the two designs,
 and confirms or changes the direction to unmount inside a holder's mount namespace.
 
 State:
-the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design` at `cf9a0e44b8`,
-the cancelled removal on
-`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design` at `4fe792a697`,
-each after a round on the reviewer's sixth read.
+the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design` at `b62601213f`,
+after a round on the reviewer's seventh read,
+and the cancelled removal on
+`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design`,
+which was at `4fe792a697` before its round on the same read.
 The reviewer's seventh read
 (`review-seventh-read.md` in
 `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`)
@@ -285,21 +286,27 @@ Of the forced arm's first group of probe arms it found two ready to be scripted 
 no arm starts in a fresh private mount namespace,
 and none builds the peer group its rows assume.
 It holds both veto lists and the confirmation question's wording.
+The forced arm's round gave every arm a common start,
+the mode of `unshare` it uses and a positive control;
+the coordinator read that section,
+and no review follows it,
+because the guest round is its test.
 Running:
-`pi-zfs-forced-removal-holders-ended-and-caller-spared-design-seventh-read`,
-on those arms.
-No review follows that round:
-the guest round is its test.
+`pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-seventh-read`,
+on the cancelled removal's one medium
+(it still refused a kept receiver the forced arm no longer refuses);
+and `pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
+a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
+Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
+and it writes its results as a new section of
+`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`
+on the branch `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`.
+The fixture's guest has kernel 6.8,
+and the machine runs 7.3.
 
 Next:
-a round on the cancelled removal's one medium
-(it still refuses a kept receiver the forced arm no longer refuses),
-citing the forced arm's new commit;
-a Pi round with one guest that scripts and runs the first group of arms,
-on the fixture's guest,
-whose kernel is 6.8,
-while the machine runs 7.3;
-then the confirmation question with the guest's results;
+read the guest round's results against its logs;
+then the confirmation question with those results;
 then the acceptance question.
 
 #### Accepted designs that wait for their build steps
