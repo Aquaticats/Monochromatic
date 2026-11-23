@@ -95,6 +95,163 @@ and each stays in force until the owner changes it.
   the skill `pi-as-subagent`,
   section "Who writes and who reviews".
 
+## The restart the owner announced on 2026-11-23
+
+The owner,
+on 2026-11-23,
+shortly before this state was read at 2026-11-23T05:30:24-05:00:
+"I need to restart Claude Code very soon.
+Try to make sure everything can survive that."
+And then:
+"In fact,
+I'd have to restart my whole system soon too.
+Don't abandon anything,
+tell me whenever it is a good time."
+
+So no new round or agent is started until the machine is back.
+That sets aside "its next step started in the same turn" under "Standing directions" for that time.
+The machine is back:
+the current boot began at 2026-11-23T15:12:47-05:00,
+after several restarts from about 05:42,
+and AppArmor enforces on it since (`doc/handover/full-system-policy-handover.md`).
+The owner,
+on the session's return:
+"I'm back.
+apparmor is now on.
+Add rules to unblock whatever you need to do as you go this session."
+Every run that the restarts ended was picked up at 16:31 as "Picking a run up" says,
+and the two Pi rounds go on as
+`pi-zfs-step-9-unmount-after-the-machine-restarted` and `pi-clone-rung-partial-clone-after-the-machine-restarted`,
+on `opencode-go`.
+Writer rounds had run on standard Neuralwatt DeepSeek,
+a pool the owner closed on 2026-11-11,
+because the skill `pi-as-subagent` listed it first and the round launchers named it;
+the owner saw the calls on 2026-11-23:
+"I'm seeing a lot of deepseek-v4.1-flash (standard) calls in neuralwatt which has drained a lot of my quota.
+This shouldn't happen."
+The skill is corrected in `e24cf7d46d`,
+and the launchers now take their pool from `writer-pool-for-a-round.ts` in the launch folder,
+which refuses that pool.
+`drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names;
+the round `pi-driver-refuses-a-run-on-a-closed-pool`,
+on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool`,
+makes it and the worktree launcher refuse one.
+A run that ends is still read and recorded here.
+Under each sub-initiative,
+"Running" and "Next" say what was going at that reading and what is started first afterwards.
+
+### What a restart ends
+
+- A restart of Claude Code ends the coordinating session's own agents,
+  which are the Sonnet passes and the sorters,
+  and its waiting shell commands.
+  Units of the account's service manager go on:
+  the Pi rounds,
+  the gates and scopes the passes started,
+  and a guest.
+- A restart of the machine ends those too.
+- Nothing under `~/temp/agent` is counted on to outlast a restart of the machine.
+  "Only in scratch" lists what would be lost with it.
+
+### A good time, by checks
+
+Safe,
+meaning a restart loses no work and costs only what was running:
+
+- this page is on `origin`;
+- `list-what-a-restart-would-lose.ts` in the launch folder prints only the main checkout,
+  whose four changed files are not this session's and are left alone;
+- `git log --branches --not --remotes --oneline` prints nothing;
+- every run still going has a commit of its work on `origin` or a `state-so-far.md` in its `keep/`.
+
+Clean,
+meaning nothing is interrupted:
+no `pi-*` unit,
+gate unit or guest is running,
+no gate container is left,
+and every agent has returned.
+
+### Picking a run up
+
+Every running round and agent was told at 2026-11-23T05:25-05:00 to commit its work at each step,
+a broken state too,
+to keep each commit on `origin`,
+and to keep `state-so-far.md` current in its `keep/` folder.
+
+A Pi round that the restart ended goes on from its own session:
+from the launch folder,
+`node resume-a-build-round.ts <round folder> <worktree name> <branch> <continuation file> <a new unit name>`.
+It starts Pi from the newest session of that worktree and makes the worktree again when it is gone.
+The continuation file is the round's own,
+in its round folder,
+and the session already holds its turns.
+A round that ended by itself has `summary.json` in its run folder
+and its report under the round folder's `keep/`.
+
+A Sonnet pass or sorter that a restart ended is resumed,
+not started again:
+its transcript outlives a restart of Claude Code and of the machine
+(`~/.claude/projects/-home-user-Monochromatic/<session id>/subagents/agent-<id>.jsonl`,
+with its description in the `.meta.json` beside it),
+and SendMessage to its agent ID resumes it from there.
+The six passes and the sorter that a usage-limit refusal stopped at about 05:30 were resumed that way at 2026-11-23T16:31-05:00,
+each told what the restarts ended and to read its `state-so-far.md` first.
+A fresh agent with its brief is the fallback when a transcript is gone.
+The briefs are in the launch folder
+(`brief-*.md`,
+and `rules-for-an-integration-pass.md`,
+which every pass reads)
+and in the housekeeping folder (`brief-sorter-*.md`).
+The second pass on the no-configuration branch and the fourth recheck of the object reader have no brief file:
+each is briefed again from the rules file,
+the earlier review in its `keep/` folder and its state file.
+
+Units a pass started,
+seen running at that reading and its own to stop:
+`ipass-holder-scan-plants-4`,
+`declined-step-pass-loadlog`,
+`recheck-f4-gate-2-20261123`,
+`ssc2-6344-followups-gate-20261123`,
+and the scope `ipnc2-drivers`.
+After a restart of Claude Code alone,
+a gate unit whose pass is gone is left to end,
+and its containers and image tag are then cleared as the gate rules say.
+
+### Results that are not acted on yet
+
+- Issue 6342's follow-up round ended by itself after 109 turns.
+  Its report,
+  `keep/report-pi-lock-control-second-pass-lows.md` under
+  `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/`,
+  and its diff are unread,
+  and its Sonnet pass is not started.
+- The binding record's round on both seventh reads ended by itself after 62 turns,
+  at `86ce40be3c`.
+  Its report,
+  `keep/report-seventh-reads.md` in its round folder,
+  and its diff are unread.
+- The guest round on the forced removal's first probe arms ended.
+  Its report and its results are unread.
+- The origin cleanup record and the plan record have lows from the record reviewer's seventh read,
+  and no round on them is started.
+- Two sorters' ledgers are complete and neither is applied
+  ("The handover holds only open work").
+
+### Only in scratch
+
+These exist only under `~/temp/agent`,
+and a lost scratch folder would cost redoing them:
+
+- the launch folder's scripts and briefs;
+- each reviewer's files under `gate-review-*/keep/` and `integration-*/keep/`,
+  which hold the findings,
+  the veto lists in plain words and the wording of the questions for the owner;
+- the two finished sorters' ledgers and issue drafts;
+- the backlog's ledger with the links of what was filed and labelled,
+  which GitHub itself also shows.
+
+The owner is asked whether these go onto a branch on `origin` before the restart.
+
 ## Initiatives
 
 ### The ZFS worktree route
@@ -131,20 +288,30 @@ branch `feat/git-policy-cli-zfs-sweep-and-start-probe-need-no-configuration-file
 after a fix round on its first integration pass.
 The owner's answers are in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "Four further answers on the look-up with no configuration file".
+Its second Sonnet pass
+(`review-second-pass.md` in
+`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/`)
+found it fit after two fixes:
+the documents say the route cannot read `snapdir`,
+which it can (B1),
+and the probe's refusal prints the sweep's remedy,
+which does not settle the probe (B2).
+Told what hiding snapshot directories comes to,
+the owner chose `snapdir=disabled` on the checkout and the clone container,
+set by step 19 and reported by step 18
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"What hiding comes to,
+answered 2026-11-23").
 Running:
-its second Sonnet pass,
-to `review-second-pass.md` in
-`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/`.
+`pi-zfs-no-configuration-second-pass-findings`,
+on B1,
+B2,
+B4 and the lows,
+with that answer in its inbox.
 
 Next:
-tell the owner what "hide snapshot directories" comes to.
-The fix round reports that only `snapdir=disabled` stops the snapshot mounts,
-that it exists from OpenZFS 2.3.0,
-and that the route as built cannot read the property,
-so nothing would report a checkout on which it is not set.
-The pass is checking that.
-Then merge,
-or a fix round.
+read its diff;
+then merge.
 
 #### Step 8's follow-up: the recheck's findings and the sweep's cost
 
@@ -169,15 +336,24 @@ a removal learns which processes in any mount namespace hold a clone.
 
 State:
 branch `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces` at `1b574285f3`.
+Its Sonnet pass
+(`~/temp/agent/integration-pass-zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/keep/review.md`)
+found it not fit:
+under intent `unmount` the scan sets aside every copy of the clone and answers clear while four namespaces hold it,
+and four medium findings.
+Nothing `main` does got worse.
+The owner answered its three questions
+(`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`):
+no set-aside,
+read every thread and root,
+and the wrapper names the holders before each destroy.
 Running:
-its Sonnet pass,
-to `~/temp/agent/integration-pass-zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/keep/review.md`.
-The pass was sent the sibling's verdict and the answer a stopped unmount files.
+`pi-zfs-step-9-holder-scan-integration-pass-findings`,
+with the answers in its inbox.
 
 Next:
-merge,
-or a fix round.
-The unmount's reviewer says this branch should land first.
+a second Sonnet pass.
+This branch lands before the unmount.
 
 #### Step 9: the unmount, staging and reattach
 
@@ -200,8 +376,8 @@ The owner chose that a stopped unmount files an answer in an extended format
 "The answer a stopped unmount files,
 answered 2026-11-23").
 Running:
-`pi-zfs-step-9-unmount-integration-pass-findings`,
-with that answer in its inbox as its last item.
+`pi-zfs-step-9-unmount-after-the-machine-restarted`,
+the same round resumed from its session after the restarts ended it at 05:42.
 
 Next:
 a second Sonnet pass.
@@ -224,12 +400,42 @@ a stale test paragraph,
 and a hazard in the settling command,
 which on a `settling` binding could remove the registration of a worktree Git had already checked out.
 That file holds both veto lists in plain words and the two plan sentences as they would read after the change.
+The same reviewer's seventh read,
+`review-seventh-read-before-acceptance.md` beside it,
+found the lock design fit to put to the owner as it stands,
+with two lows that can ride with its next commit,
+and plan step 10 buildable from the two documents and the accepted records.
+It found the binding fit after three mediums,
+all in the settling command and none of them step 10's:
+its two modes overlap on a half-made checkout;
+a settling command that was killed and is run again once the pool answers has no command the text shows to work;
+and the third option of the veto entry V23 sends a person in a circle.
+The record reviewer's seventh read found the same overlap from its side,
+and one more state with no command:
+a clone destroyed by hand before any removal ran.
+The binding's round on both reads ended at `86ce40be3c`
+(`continuation-seventh-reads.md` in its round folder is what it was asked);
+its report,
+`keep/report-seventh-reads.md`,
+says all eight items are done,
+H1 and H2 among them.
+Both reviewers' eighth reads
+(`review-eighth-read-before-acceptance.md` beside each seventh read;
+the lock reviewer is agent `a162ea896d0a950e2`,
+the record reviewer `a6207db50e3431e04`)
+found the lock design fit to put to the owner as it stands,
+and the binding fit after one narrow round:
+a `settling` binding with no plan is told two different commands
+(the lock reviewer's U26,
+the record reviewer's J1),
+with lows and the unrecorded clone at `snapshotted` (U27).
 Running:
-the same reviewer's read of both last diffs,
-to `review-seventh-read-before-acceptance.md` beside it.
+`pi-zfs-add-binding-record-design-eighth-reads`.
 
 Next:
-the acceptance question.
+a read of that diff;
+then the acceptance questions,
+step 10's two designs and the three records.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
 step 10's "discarded copied Git administration",
@@ -251,12 +457,28 @@ The reviewer's sixth read
 found each fit after listed fixes and the set not yet ready,
 for two things in the binding its round has since been given.
 It holds the three veto lists in plain words.
-Running:
-the same reviewer's read of the three last diffs,
-to `review-seventh-read-before-acceptance.md` beside it.
+The same reviewer's seventh read,
+`review-seventh-read-before-acceptance.md` beside it,
+found the two records fit after lows,
+and the set not ready for two things in the binding
+("Step 10's designs").
+Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
+each with the words that should replace it.
+The rounds on H9 and H10 ended with every low done:
+the origin cleanup record at `ea271e9e1d`,
+the plan record at `db69df972a`.
+The record reviewer's eighth read found the three fit with lows and the set ready to go to the owner with its list of accepted-design sentences
+(now its check 4,
+with entries 2,
+3,
+5,
+12 and 13 changed),
+once the binding's J1 is mended.
 
 Next:
-the acceptance question for the three.
+a round on each record's lows;
+then the acceptance question for the three,
+with that list.
 
 The plan record's one rule for a kept plan with an `unknown` outcome leaves sentences of two accepted designs untrue:
 four in `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
@@ -293,7 +515,8 @@ because the guest round is its test.
 The cancelled removal's round closed its one medium
 (it no longer refuses a kept receiver the forced arm does not refuse);
 the coordinator read its diff.
-Running:
+Ended,
+with its report and results unread:
 `pi-zfs-forced-removal-first-probe-arms-in-a-guest`,
 a fresh Pi round with one guest that scripts and runs the first group of arms from the design at `b62601213f`.
 Its folder is `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`,
@@ -349,7 +572,8 @@ The owner's four answers are in `doc/decision/cli-git-clone-rung-partial-clone-o
 "Four further answers after the recheck,
 answered 2026-11-23".
 Running:
-`pi-clone-rung-partial-clone-recheck-findings-and-four-answers`.
+`pi-clone-rung-partial-clone-after-the-machine-restarted`,
+the same round resumed from its session after the restarts ended it at 05:42.
 
 Next:
 a third Sonnet pass.
@@ -362,14 +586,18 @@ rung 1 reads sizes without making a declined add slower.
 State:
 merged as `e37566df9c`.
 Its follow-up is on `feat/git-policy-cli-fence-size-read-beside-source-check` at `9329642a95`.
+Its Sonnet pass
+(`~/temp/agent/integration-pass-fence-size-read-declined-add-step-cost-2026-11-22/keep/review.md`)
+found it not fit:
+the declined add's step cost is gone,
+but the parse moved onto the adding thread,
+so the `conversionFence` step of every served and dirty add is 7.8 to 13.4 ms longer than `main`'s.
 Running:
-its Sonnet pass,
-to `~/temp/agent/integration-pass-fence-size-read-declined-add-step-cost-2026-11-22/keep/review.md`.
-The pass was sent the four partial-clone answers.
+`pi-fence-size-read-integration-pass-findings`,
+which puts the parse back off the adding thread.
 
 Next:
-merge,
-or a fix round.
+a second Sonnet pass.
 
 #### The object reader's declined branches
 
@@ -378,14 +606,21 @@ each branch on which the merged object reader declines is held by a control.
 
 State:
 branch `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows` at `daa0836b75`.
+Its fourth Sonnet recheck
+(`review-fourth-recheck.md` in
+`~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/`)
+found it fit after one fix:
+the note's reason for a replacement base the command names is false.
+The owner chose to record that case as a limit
+(`doc/decision/cli-git-object-reader-named-replacement-base-is-a-recorded-limit.md`),
+filed as issue 6396.
 Running:
-its fourth Sonnet recheck,
-to `review-fourth-recheck.md` in the earlier recheck's `keep/` folder,
-`~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/`.
+`pi-object-reader-fourth-recheck-findings`,
+on that and the recheck's two lows.
 
 Next:
-merge,
-or a fix round.
+read its diff;
+then merge.
 Issue 6347,
 the one case the reader's refusal was right about,
 is held work.
@@ -407,12 +642,13 @@ merged as `1ba2fe767d`.
 The merged code compares the number the PID file names,
 and the owner chose that its contents be compared
 (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
-Running:
-`pi-lock-control-second-pass-lows`,
-which builds the byte comparison and folds in the second pass's lows.
+The round that builds the byte comparison and folds in the second pass's lows has ended,
+on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`;
+its report and diff are unread.
 
 Next:
-a Sonnet pass,
+read its diff;
+then a Sonnet pass,
 since it changes product code.
 
 #### Issue 6344: the sibling shadow control
@@ -449,19 +685,66 @@ and causes N and G are rewritten.
 Its gate had one failure that is on no list,
 `fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout`.
 
+Its third Sonnet pass
+(`~/temp/agent/integration-third-pass-worktree-removal-held-commit-control-2026-11-23/keep/review.md`)
+found it not fit as it stands:
+the fourth control passes on `main`'s wait too,
+so it guards nothing,
+and the troubleshooting text says things the runs contradict.
+The wait and the fixture's drop are sound,
+and its gate was void under the missing AppArmor rules.
+That failure is filed as issue 6397,
+and the pass drafted the comment for issue 6345 at the merge (its report,
+`keep/report-from-the-agents-last-message.md` beside the review).
+Running:
+`pi-worktree-removal-control-third-pass-findings`.
+
 Next:
-a third Sonnet pass,
-which also judges that failure.
-Its brief is `brief-third-pass-issue-6345-worktree-removal-control.md` in the launch folder.
-It is not started:
-the harness runs ten subagents at once and refused it,
-so it starts when one ends.
+read its diff;
+one whole gate when gates may run;
+then merge and post the comment.
 The three product defects the pass confirmed are issues 6353,
 6354 and 6355.
 Issue 6354 is decided
 (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`)
 and is built after this branch merges,
 because its round edits the same documents.
+
+#### The tests and the gate under AppArmor
+
+Outcome:
+the wrapper's host tests and its container gate run under the AppArmor enforcement of 2026-11-23 with no denial.
+
+State:
+the host's `git` profile confined the container's own Git and refused the tests' fixtures,
+so every gate and host test run after the restart failed for that reason.
+Two batches of rules are in,
+with their causes and tradeoffs in
+`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+"The Git wrapper's own tests,
+gate and helpers under enforcement".
+The owner:
+"No,
+please do rules for everything instead of a dedicated profile that agents would have to remember to use."
+Every running pass and round was told to run no gate until a note says the gate is clean,
+and that a gate result after the restart and before the rules is void.
+Running:
+`apparmor-shakedown-gate-on-main-20261123`,
+one whole gate on `main` started before the second batch,
+with its output under `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
+A third batch since covers the wrapper's own `/proc` and cgroup reads,
+and `systemd-run --scope` of the account's own programs.
+The kernel's audit backlog dropped 69,301 records at its default of 64;
+the owner chose 8192,
+kept across reboots,
+which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.rules`.
+That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
+
+Next:
+read the gate's denials and failures;
+add rules for what it still meets;
+one more whole gate on `main`;
+then tell every pass and round that gates may run.
 
 #### Tests that failed once and are not diagnosed
 
@@ -503,22 +786,44 @@ and the old text is frozen in the file named under "Where the rest of this page 
 The sorting's working files,
 and the ledger of which range went where,
 are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
-Ranges sorted so far:
+The held backlog is on GitHub
+("Held work").
+Ranges applied so far:
 none.
+
+Two sorters have ended,
+each with a ledger that covers its range exactly once and with issue drafts,
+under `sorter-lines-<first>-to-<last>/keep/` in that folder:
+
+- lines 44,768 to 46,713,
+  in 307 items.
+  The coordinator's check script passed its coverage,
+  and one stretch read by hand agreed with it.
+  A second check lists the quoted passages inside its `delete` items that stand nowhere else in the repository:
+  66 of 85,
+  among them answers of the owner's such as "Per command (Recommended)".
+  That figure is an upper bound,
+  because the check matches the first forty characters as written and has had no positive control.
+  Its `delete` items are not applied until each such quotation is moved or shown to be held.
+- lines 46,714 to 49,499,
+  in 151 items,
+  after the same lesson was sent to it:
+  it moved the owner's sentences and answer labels out of `delete`.
+  Four of its items are private and get no target.
+  Not yet checked by the coordinator.
+
+Each sorter's report came as its last message,
+with contradictions between the old text and current documents and proposals for rule text.
+The second sorter's is also in its `keep/state-so-far.md`;
+the first sorter's is only in the session's record until it is copied into its `keep/`.
+
 Running:
-three Sonnet sorters on the owner's decisions,
-one each for lines 41,470 to 44,767,
-44,768 to 46,713 and 46,714 to 49,499,
-writing to `sorter-lines-<first>-to-<last>/keep/` in that folder;
-and one Sonnet agent that checks the held backlog's entries against `main` and GitHub
-and drafts their issues under `backlog-to-github-issues/keep/`,
-creating nothing on GitHub.
-A fourth sorter,
-for the open review findings,
-the picks and the working rules,
-has its brief ready (`brief-sorter-findings-picks-and-working-rules.md` in that folder)
-and was refused twice at the harness's limit of ten subagents;
-it starts when one ends.
+the sorter of lines 41,470 to 44,767,
+and the sorter of the open review findings,
+the picks and the working rules
+(40,844 to 41,469 and 49,500 to 49,707).
+Their briefs are `brief-sorter-owner-decisions-first-and-last-parts.md`
+and `brief-sorter-findings-picks-and-working-rules.md` in that folder.
 
 Next,
 in this order:

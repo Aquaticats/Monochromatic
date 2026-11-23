@@ -205,6 +205,43 @@ since a directory that is merely not listed can still be entered by name;
 who applies it and when;
 and whether any part of the route reads a snapshot through that directory.
 
+#### What hiding comes to, answered 2026-11-23
+
+Asked in the question tool on 2026-11-23,
+after the branch's second integration pass measured the setting on OpenZFS 2.4.4
+(`~/temp/agent/integration-pass-zfs-sweep-and-start-probe-need-no-configuration-file-2026-11-22/keep/review-second-pass.md`).
+What the project was shown:
+only `snapdir=disabled` stops those mounts;
+`hidden`,
+the default,
+still lets anyone enter a snapshot by name.
+`disabled` exists from OpenZFS 2.3.0.
+Accounts cannot undo it.
+It does not stop an account that had already listed the directory before it was set.
+Browsing `.zfs/snapshot` and `zfs diff` on that dataset are lost.
+Each clone keeps its own snapshot directory unless the clone container is set too,
+and clones get snapshots during removal.
+As built,
+nothing sets or checks it
+(plan steps 19 and 18 are unbuilt).
+
+The project chose "A:
+checkout + clone container (Recommended)":
+"Step 19's setup sets `snapdir=disabled` on the checkout and on the clone container (clones inherit it);
+step 18's `doctor` reports either one where it isn't disabled (the route can read the setting);
+setup says so plainly where the ZFS module is older than 2.3.0 and refuses the value.
+Pros:
+closes the growth through both.
+Cons:
+no `.zfs/snapshot` browsing and no `zfs diff` on the checkout or the clones."
+
+Not chosen:
+"B:
+checkout only";
+and "C:
+back to bound + document",
+which would have undone the answer of 2026-11-22.
+
 ### An empty configuration file is refused
 
 Asked:
