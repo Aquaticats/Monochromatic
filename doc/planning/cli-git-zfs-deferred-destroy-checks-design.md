@@ -1158,6 +1158,16 @@ back needs a person to reconcile that first, and `cancel-worktree-removal <slot>
 rather than attaching anything. Ways forward: <the reads and the acts a person has>.
 ```
 
+Form C's "reports the same mismatch rather than attaching anything" is the accepted reversal rule:
+whatever reverses a removal must prove the clone,
+its original lineage,
+the Git registration,
+the mount state and the exact destruction outcomes,
+and "If a destroy outcome is unknown or the head is gone,
+do not issue `mount`;
+report the matching resume step or administrator recovery required"
+(proposal `:1018` to `:1021`).
+
 Each form claims only what its refusal point read,
 plus the two states the removal's own order produced:
 at the look,
@@ -3522,9 +3532,13 @@ nothing here claims their behaviour.
 - `dfc6e64739`,
   committed `2026-11-22T19:59:58-05:00`:
   the metadata-only commit that listed the two above with their times.
+- `31e65839dd`,
+  committed `2026-11-22T20:00:07-05:00`:
+  the metadata-only commit that recorded `dfc6e64739`'s time,
+  and the entry above it was "the commit that writes this line" until this commit.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  record the review round's metadata commit":
+  cite the reversal rule the refused causes rest on":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
