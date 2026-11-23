@@ -226,8 +226,9 @@ what re-runs the setting and what it verifies,
 and how a failure is reported.
 The answer this design
 gives is that the setting is re-applied by **the same root-run handler,
-as the first step of every entry point it has,
-before that entry point enumerates,
+as the first step of both entry points that decide about attaches,
+after the compatibility gate,
+before either one enumerates,
 attaches or unmounts anything**,
 and that the boot unit remains the setter it was
 decided to be,
@@ -267,18 +268,25 @@ and this section quotes each and names its consequence.
   and records that it did"
   ([record][repair-record],
   "Who may set the propagation when no person is present").
-  The design does exactly this:
-  the step is the first act of both entry points,
+  The design does this in both attach-deciding entry points,
+  and in neither of the other three modes:
+  the step is their first act,
   after the compatibility gate ("Where it runs,
   as whom,
   and in what order"),
   and every trigger starts one of those entry points
   ("The trigger the route adds,
   and what it must show").
-  The record's costs stand as it states them,
-  and this host's reading of one of them is F40:
-  nothing is repaired while `zfs-zed.service` is stopped,
+  The record's costs stand as it states them.
+  Its second one is about runs the event daemon starts,
+  and this host's reading of it is F40:
+  an event-driven run repairs nothing while `zfs-zed.service` is stopped,
   and it is stopped here.
+  The other entry points run without it:
+  a boot,
+  a provider start the lost-event hook follows,
+  the trigger the project chose,
+  and the root command.
 - Which triggers the route adds.
   The record:
   "The project chose one:
@@ -294,22 +302,35 @@ and this section quotes each and names its consequence.
   and what it must show" states it with its reach and its kill criterion,
   and "The propagation service and its drop-in" gives both files.
 - What the repair does with a state that is neither private nor shared.
-  The record:
-  "The repair sets the mount private only when it is shared;
-  a mount that is slave,
-  unbindable or a combination is left as it is,
-  the route goes on,
-  and the state is reported"
+  The record,
+  in the option's own words:
+  "Set the mount private only when it is shared;
+  for any other state,
+  leave it,
+  go on,
+  and report what was found"
   ([record][repair-record],
   "What the repair does with a state that is neither private nor shared").
-  "The call that sets it" acts on `MS_SHARED` alone and records the set it found.
+  The record first carried a sentence that "a combination is left as it is",
+  withdrew it on 2026-11-22T20:21:19-05:00 as something the option did not say and the project was not asked,
+  and then answered the combination in a section of its own:
+  "the repair sets a checkout that is shared and slave private,
+  like any shared one",
+  whose stated cost is that "the checkout also stops receiving mounts its master makes beneath it"
+  ([record][repair-record],
+  "A mount that is shared and slave at once").
+  "The call that sets it" acts on a set that carries `MS_SHARED`,
+  the shared and slave set included,
+  leaves a set of `slave` or `unbindable` alone with the outcome `left`,
+  and reports both.
 - How far the setting reaches.
   The record:
-  "The repair changes the checkout's own mount and no mount beneath it,
+  "the repair changes the checkout's own mount and no mount beneath it,
   and reports a shared mount it finds beneath"
   ([record][repair-record],
   "How far the setting reaches").
   "The call that sets it" sends no `AT_RECURSIVE`,
+  "What it reports beneath the checkout" reads the mounts under it and reports a shared one without changing it,
   and "What it verifies after" checks the one instance.
 - The boot unit's `ExecReload=` line.
   The lost-event record chose
@@ -972,9 +993,11 @@ and none is a measurement of behaviour.
   while the reload job itself is failed when the unit is active and its reload did not succeed
   (`src/core/unit.c:2666` to `:2670`).
   So after the first boot,
-  where every repair reaches the unit as a reload,
+  while the unit is active and every repair therefore arrives as a reload,
   a refusal leaves it active with its reload result set,
-  and only a start-path refusal fails it and runs the stop pass.
+  and only a start-path refusal fails it and runs the stop pass;
+  a refused start that left the unit failed stays on the start path,
+  where the next request starts it again and fails again.
 - F36.
   A mount unit that systemd learned only from the mount table cannot be started,
   and a start job on it fails:
@@ -1026,8 +1049,12 @@ and none is a measurement of behaviour.
   it becomes a reload when the unit is active or reloading and a start otherwise
   (systemd `v262`,
   `src/core/job.c:505` to `:510`),
-  which needs an `ExecReload=` to be applicable (`service_can_reload`,
+  and a reload needs an `ExecReload=` to be applicable (`service_can_reload`,
   `src/core/service.c:3778` to `:3786`).
+  Without that line the request is a plain restart,
+  which systemd mangles the job type to
+  (`unit_queue_job_check_and_mangle_type`,
+  `src/core/unit.c:7192` to `:7197`).
   A start job merges into one already installed on the unit (`job_install`,
   `src/core/job.c:240` to `:279`),
   and a start is refused `-EALREADY` when the unit is already active or reloading and `-EAGAIN` when it is
@@ -1076,7 +1103,7 @@ and none is a measurement of behaviour.
   and the accepted design puts every mount under the checkout in the handler's hands.
 - A3.
   The lost-event sibling owns the triggers,
-  and at its tip `88f6a15194` the provider hook is two files:
+  and at its tip `b6855dce15` the provider hook is two files:
   a `zfs-mount.service` drop-in whose `ExecStartPost=` is prefixed `-` and asks the boot unit to act with
   `systemctl --no-block --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service`,
   and the boot unit's `ExecReload=`,
@@ -1092,7 +1119,9 @@ and none is a measurement of behaviour.
   This design assumes that hook and that filter,
   and it assumes the sibling keeps citing this design's order inside an entry point instead of stating one,
   which it does at that tip in "Order inside a trigger".
-  Both are unapproved proposals,
+  The hook is not an unapproved proposal:
+  the lost-event record accepts it.
+  The filter's V2 is one,
   and "Dependencies on sibling designs" states every remaining difference.
 - A4.
   The build may add a mode or a step to the installed handler binary and a field list to a root-owned record,
@@ -1111,10 +1140,12 @@ and none is a measurement of behaviour.
   repository today,
   so its use here is new code on a kernel interface the ABI gate does not yet cover.
   The callers are two:
-  the handler's step and the sweep's admission,
+  the handler's step,
   and the wrapper's `doctor`,
   which opens the checkout path and reads the unique mount number (F21,
   F37).
+  The sweep's own admission is not a third:
+  it reads the live table through the repository's parser (F18).
   Whether the release targets' `libc` exposes `SYS_statmount` and `struct statmount` is unverified here.
 - A6.
   The checkout's path and dataset reach the step through whatever the handler resolves them with:
@@ -1157,7 +1188,11 @@ and none is a measurement of behaviour.
   F33).
   The propagation step cannot prevent that;
   it can only shorten the window to the next run of the handler,
-  which the project's first answer makes the repair for everything the trigger misses.
+  which the project's first answer makes the repair for everything the trigger misses,
+  and where no event comes,
+  that next run is the root command a person runs
+  ("The trigger the route adds,
+  and what it must show").
 - L5.
   Whether systemd notices a quick unmount and mount,
   and how the three limits behave under a flap of the mount unit,
@@ -1363,7 +1398,7 @@ with the same request the lost-event design's readiness hook uses.
 The root command stays whatever is chosen,
 and it is the sibling design's:
 `systemctl --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service`,
-printed by the wrapper's refusal and by `doctor` (sibling `88f6a15194`,
+printed by the wrapper's refusal and by `doctor` (sibling `b6855dce15`,
 "T5:
 a trigger the project fires").
 
@@ -1385,7 +1420,7 @@ read from source and not observed (L2):
 A restart of `zfs-mount.service` is not a replacement either:
 it re-runs the boot unit through `Requires=`,
 but `zfs mount -a` replaces nothing when the checkout is already mounted (F28),
-so the re-run finds a private checkout and records that it did.
+so the re-run finds whatever the checkout is and records what it found.
 A replacement is what the two misses above are about.
 
 What covers the two it misses is the project's first answer:
@@ -1394,24 +1429,61 @@ started by any event the route has,
 checks the checkout and sets it private before it attaches anything (F18,
 "The step that re-applies the setting").
 
-Two things it costs,
-in the record's words:
-a `systemctl` request from a unit's start is untested until a guest runs it (the sibling's A9,
-and this design's M4),
-and it adds one unit and one drop-in to install and to report.
+What it costs,
+with each sentence's own owner named,
+because the repair record states no cost for this trigger:
+the untested-call cost is the lost-event record's for the same request,
+"a `systemctl` call from a unit's start is untested until a guest runs it"
+([record][lost-record],
+"Which trigger runs after the checkout becomes ready"),
+and the cost of one unit and one drop-in to install and to report is the writer's own,
+stated here for the project to weigh against the trigger it chose.
 
 The guest measurement that decides whether it stays is M4,
-and it must show three things:
-that the trigger sees a replacement typed by hand,
-that it does not loop,
-and how the three limits behave,
-which are the upheld queue's 16 starts in 10 seconds,
-the service's own 5 in 10 seconds,
-and systemd's own mount-table limit of 5 events in 1 second (F38,
-F23).
-If it misses a typed replacement or loops,
-the record drops it,
-and the root command is what remains (L12).
+and the record's criterion becomes two pass-or-fail readings and one description.
+The rule that turns readings into "stays" or "dropped" is this design's;
+the numbers that fill it belong to the guest round,
+which sizes them against the run (rule `LQM`).
+
+- Seen.
+  A replacement counts as seen when,
+  after it is complete,
+  the propagation unit starts once and the boot unit completes a reload,
+  and the checkout reads `private` when that reload finishes,
+  all inside the reading window the guest round states.
+  A replacement not seen inside that window is a miss.
+  A scripted `zfs unmount && zfs mount` in one shell line is information only:
+  the record's criterion is a replacement typed by hand,
+  and a miss there is the case systemd may not show at all (F38).
+- Loops.
+  A loop is any of three things over the quiet interval the guest round states:
+  more than one start of the propagation unit for one replacement;
+  any start of it that no mount-table change preceded;
+  and boot-unit reloads that keep arriving after the last replacement.
+  One of the three is a failure,
+  however few replacements caused it.
+- The limits.
+  The guest round records where the three sit,
+  which are the upheld queue's 16 starts in 10 seconds,
+  the service's own 5 in 10 seconds,
+  and systemd's own mount-table limit of 5 events in 1 second (F38,
+  F23).
+  That reading describes the cost and is not itself a pass or a fail.
+
+If either rule fails,
+the record drops the trigger,
+and the route without it needs no redesign:
+the step stays at the head of both attach-deciding entry points,
+the root command is what runs it,
+and the wrapper's refusal,
+`doctor` and the acceptance arm already print that command.
+What goes with the trigger is its `doctor` finding and the arms that exercise it.
+So the run that repairs a replacement with no event behind it is the root command a person runs,
+which is the command the wrapper's refusal prints,
+and "the next run of the handler" throughout this design means the two entry points that pass the gate and the
+filter,
+or that command (L12,
+F40).
 
 The triggers the project did not choose are listed once under "The project's four answers,
 and what this design does
@@ -1456,7 +1528,7 @@ in the same order as "The ways a checkout mount instance is replaced":
 2.  A lazy unmount and a mount:
     detached,
     and the new instance is the one a later attach has to work from (F11,
-    M9).
+    M5).
 3.  A mount after a late key load:
     never attached,
     and the boot unit's earlier run had refused the checkout as not
@@ -1671,16 +1743,29 @@ which such a mount carries (`src/native/worktree_clone_mount_handler/sweep_check
 A set with `MS_SLAVE` or `MS_UNBINDABLE` and no `MS_SHARED` carries no `shared:` tag and is admitted by the built check
 today (F18),
 which is what the project decided:
-"the repair sets the mount private only when it is shared",
-and "a mount that is slave,
-unbindable or a combination is left as it is,
-the route goes on,
-and the state is reported" ([record][repair-record],
+"Set the mount private only when it is shared;
+for any other state,
+leave it,
+go on,
+and report what was found" ([record][repair-record],
 "What the repair does with a state that is neither private nor shared").
-The record carries the set it found.
+Such a set is left as it is,
+its outcome is `left`,
+and the sweep goes on,
+because the built check admits it (F18).
+The record carries the set it found,
+so the state is reported where the repair is reported.
+
 Where the set carries `MS_SHARED` and `MS_SLAVE` together,
-setting `MS_PRIVATE` also detaches the mount from its master,
+the project treats it as shared ([record][repair-record],
+"A mount that is shared and slave at once"),
+and setting `MS_PRIVATE` also detaches the mount from its master,
 so it stops receiving the master's mounts (`fs/pnode.c:93` to `:124`).
+That cost is the project's,
+stated beside the answer,
+and the step prints it where a person meets it:
+the record's `master` field names the master the set detached,
+and the summary line and `doctor` say the checkout no longer receives that master's mounts.
 
 No `AT_RECURSIVE`,
 and the reason is written beside the call:
@@ -1701,7 +1786,9 @@ which is the gap the design's earlier question about recursion put to the projec
 
 ### What it verifies after
 
-The same descriptor,
+The after-read follows a set and nothing else:
+a run reached `applied` because it changed the mount,
+so it proves the change on the same descriptor,
 read again with `statmount(STATMOUNT_BY_FD)`,
 and all three must hold:
 `mnt_id` is the unique
@@ -1717,6 +1804,10 @@ and the record says which one.
 Test 5 forces a set that reports success and leaves `MS_SHARED` standing,
 and test 6 the instance that is detached
 between the two reads.
+A run whose outcome is `already-private` or `left` runs no after-read,
+because it changed nothing to verify:
+its `after` equals its `before`,
+and the record says so.
 
 Then,
 and separately,
@@ -1728,6 +1819,44 @@ set,
 and the sweep proves what it is about to attach under,
 and a replacement in between is caught by the second read
 and refused (test 8).
+
+### What it reports beneath the checkout
+
+The fourth answer has two halves,
+and the second one is a read:
+"the repair changes the checkout's own mount and no mount beneath it,
+and reports a shared mount it finds beneath" ([record][repair-record],
+"How far the setting reaches").
+The step takes the mounts under the checkout from the table it already read in step 5 of "What it verifies before",
+which the repository's reader has already bounded:
+`crate::plain_file::MOUNT_TABLE_LIMIT` is 4 MiB,
+sized beside the measurement it carries (`src/native/foundation/plain_file.rs:204` to `:209`),
+and the table is refused past it rather than read,
+so the scan is one pass over a table whose size is already capped and needs no second read and no device call.
+
+It reports and does not change:
+a mount whose mount point lies inside the checkout and whose set carries `MS_SHARED` is counted,
+named in the record up to the bound "The propagation record" states,
+and left exactly as it is.
+A shared mount beneath is not a reason to refuse,
+because the answer says the route reports it and goes on,
+and the checkout it sits under is private by then,
+so the sweep's own check (F18) is unaffected.
+The mounts of other namespaces are not in this table and are not part of this report,
+which is L3's limit stated where it bears.
+A table the reader refuses refuses the run at step 5 (`before-table`) and never reaches this scan,
+so a `beneath` of `0` is always a table somebody read.
+
+The finding has four readers:
+the record's `beneath` and `beneath-paths` fields,
+the summary line,
+the handler's journal,
+and `doctor`,
+which prints them beside the live tag.
+On this host the case is real rather than hypothetical:
+`zfs mount -a` mounts the vm-builder output dataset under the checkout before any handler run (F29,
+F33),
+and a mount made under a shared checkout comes up shared (F3).
 
 ### What it writes
 
@@ -1747,8 +1876,10 @@ the last `rename` wins whole,
 and a reader sees one
 complete record (rule `NLK`).
 "The propagation record" states its fields and their bounds,
-including the two mount numbers and the propagation as a
-set.
+including the two mount numbers,
+the propagation as a set,
+the master a set detached,
+and the shared mounts found beneath the checkout.
 
 ## What each check owes the threat model
 
@@ -1895,6 +2026,8 @@ it prints the checkout's live propagation set,
 the record's boot,
 both mount numbers,
 outcome and failing step,
+the shared mounts the record found beneath the checkout,
+the master a set detached and the mounts that master no longer delivers beneath it,
 and whether the record still describes the live instance.
 That last comparison opens the checkout path and reads the descriptor's unique `mnt_id` the way the step does,
 which needs no capability in this namespace (F37),
@@ -1922,13 +2055,16 @@ and none of them a prompt:
   the handler's status for every refusal,
   and what that status does depends on the path (F35):
   on the start path it fails the boot unit,
-  and after the first boot the repairs this design names arrive as reloads,
+  and while the boot unit is active the repairs this design names arrive as reloads,
   where it sets the unit's reload result and leaves the unit active.
 - The handler's summary line,
   which an operator and a guest arm read:
   `applied`,
-  `already-private` or `refused` for the
+  `already-private`,
+  `left` or `refused` for the
   checkout,
+  with the cost the set paid where it detached a master,
+  and with the shared mounts it found beneath it (R1's read),
   with both mount numbers,
   the propagation set before and after,
   the failing step and the errno on a
@@ -1953,6 +2089,10 @@ and none of them a prompt:
   the unit stays active,
   `systemctl --failed` shows nothing,
   and the job is failed only for a blocking caller.
+  `doctor` prints that command rather than asking the manager,
+  because the lost-event design's V9 option A has `doctor` read no service manager;
+  the record,
+  the journal and the summary line are what it reads.
 - The readiness record and the sweep's refusal,
   which are unchanged in shape:
   a shared checkout is `not-ready` (F18),
@@ -1985,7 +2125,7 @@ and what it runs is a job request rather than a reconcile (sibling,
 in one form a sibling can cite").
 A refusal there is the boot unit's,
 and it shows in that unit's journal and in the propagation record,
-which is the consequence the sibling states as Q-A's cons.
+which is the consequence the sibling's "The shape the project did not take" sets out.
 
 Nothing is reported anywhere but those five places,
 and nothing asks for a credential or a password:
@@ -2067,6 +2207,9 @@ in this order:
 `source`;
 `before`;
 `after`;
+`master`;
+`beneath`;
+`beneath-paths`;
 `outcome`;
 `step`;
 `errno`;
@@ -2093,8 +2236,28 @@ in this order:
   which is how the kernel reports the bits (F30).
   `unbindable` never joins another word,
   because setting it clears the peer group and the master (`fs/pnode.c:93` to `:124`).
+- `master` is the master the set detached,
+  as `statmount`'s `mnt_master` named it,
+  in decimal,
+  or `none` when the mount had no master or nothing was set (F8).
+  It is what says that a shared and slave checkout no longer receives that master's mounts,
+  which is the cost the record states with that answer.
+- `beneath` is the count of mounts whose mount point lies inside the checkout and whose set carries `MS_SHARED`,
+  in decimal (`0` when there are none),
+  and `beneath-paths` names the first four of them by mount point,
+  joined by `,`,
+  or is `none`.
+  The count is exact and the paths are capped at four,
+  which is one more than the one nested dataset this host has (F33);
+  a reader that needs the rest reads the table.
 - `outcome` is one of `applied`,
-  `already-private` or `refused`.
+  `already-private`,
+  `left` or `refused`.
+  `left` is the project's "leave it,
+  go on,
+  and report what was found" for a set of `slave` or `unbindable` with no `MS_SHARED` ([record][repair-record],
+  "What the repair does with a state that is neither private nor shared"),
+  and it carries `step none` and an `after` equal to its `before`.
 - `step` is `none` on a success,
   and otherwise the step that refused:
   `resolve`,
@@ -2116,6 +2279,9 @@ The field bounds are the kernel's and the existing records':
 36 bytes for the boot id,
 20 decimal digits for each of the
 two mount numbers and for the namespace id,
+20 for `master` and for the count,
+4,095 for each of up to four paths in `beneath-paths`,
+which the count and the table carry beyond,
 4095 for the path (`MAXIMUM_CHECKOUT_PATH_BYTES`,
 the readiness record's
 own),
@@ -2322,6 +2488,39 @@ and no test waits.
     and a record whose unique number matches is current.
     Where the descriptor read is refused,
     the line says the record names the same reused number and not a proven instance.
+21. A set of `slave` and a set of `unbindable`,
+    one test each.
+    The read says the set;
+    the setter is a double that fails the test if called;
+    the outcome is `left`,
+    `step` is `none`,
+    `after` equals `before`,
+    no after-read runs,
+    and the run goes on to the sweep,
+    which admits an attach because the mount carries no `shared:` tag (F18).
+    The record carries the set,
+    which is the report the project's answer asks for.
+22. A set of `shared+slave` (race-free).
+    The read says `shared+slave` and names a master;
+    the setter is called once with the instance's descriptor;
+    the after-read says `private` with the same unique number,
+    `master` is clear,
+    and the record's `before` is `shared+slave` with the master in `master`.
+    The summary line and `doctor`'s line say the checkout no longer receives that master's mounts,
+    which is the cost the record states with this answer.
+23. The report beneath the checkout (R1's read).
+    A private checkout with one shared mount under it:
+    the outcome is `already-private`,
+    `beneath` is `1`,
+    `beneath-paths` names that mount point,
+    and the child's own propagation is unchanged by the run.
+    The same with a private mount under the checkout:
+    `beneath` is `0` and `beneath-paths` is `none`.
+    With five shared mounts under it:
+    `beneath` is `5` and `beneath-paths` names four,
+    which is the bound the record states.
+    A table the reader refuses (test 3's `before-table`) never reaches this scan,
+    so `beneath 0` is never a stand-in for a table nobody read.
 
 ## Measurements owed
 
@@ -2393,11 +2592,18 @@ They are additions to the record the build already owes ([measurements][measurem
   In one guest,
   with a mount unit `home-guest-chk.mount` that systemd learned from the mount table (F12,
   F33):
-  `zfs unmount tank/chk && zfs mount tank/chk`;
-  `zfs rename tank/chk tank/chk2` and back;
-  `zfs mount -a` after an
-  unmount;
-  and a two-command script that unmounts and mounts as fast as the shell can.
+  `zfs unmount tank/chk && zfs mount tank/chk` in one shell line,
+  which is information and not the criterion;
+  a two-command script that unmounts and mounts as fast as the shell can,
+  also information;
+  and,
+  for the record's criterion,
+  each of the three replacements done at a person's pace,
+  which is `zfs unmount tank/chk`,
+  a pause long enough to type the next command,
+  `zfs mount tank/chk`,
+  and the same pair for `zfs rename tank/chk tank/chk2` and back and for `zfs mount -a` after an unmount,
+  repeated the number of times the guest round states.
   After each,
   read `systemctl --no-ask-password show --property=ActiveState,InvocationID home-guest-chk.mount` and
   `journalctl --unit reconcile-git-worktree-clone-mounts.service --since '-2 min'`.
@@ -2416,10 +2622,24 @@ They are additions to the record the build already owes ([measurements][measurem
   with a sweep long enough to observe,
   replace the checkout again during it,
   and read whether the request starts a second run or is absorbed (F39).
-  Would show:
+  Would show,
+  for the paced pair and for each of the other two replacements,
+  the readings "The trigger the route adds,
+  and what it must show" defines:
+  whether the replacement was seen,
+  which is one start of the propagation unit and one completed boot-unit reload with the checkout private when it
+  finished,
+  inside the window the guest round states;
+  whether it looped,
+  which is more than one start per replacement,
+  a start no table change preceded,
+  or reloads that keep arriving after the last replacement,
+  over that quiet interval;
+  and where the three limits sit.
+  It would also show:
   which acts leave the mount unit dead and then mounted with a new invocation id (F12);
   whether anything starts without the drop-in (F13);
-  whether the upheld unit starts for an extrinsic mount and for the quick act;
+  whether the upheld unit starts for an extrinsic mount and for the quick acts;
   what each exit does to it and to the boot unit,
   by path:
   a clean run leaves the propagation unit active and nothing restarts it,
@@ -2436,6 +2656,7 @@ They are additions to the record the build already owes ([measurements][measurem
   L2,
   L5,
   L12,
+  whether the provisional trigger stays,
   and the sentence on the activating state under "The propagation service and its drop-in".
 - M5.
   What a lazy unmount does to a clone,
@@ -2546,6 +2767,29 @@ They are additions to the record the build already owes ([measurements][measurem
   Would change:
   way 5's and way 6's clone outcomes,
   and L4.
+- M10.
+  The report beneath the checkout,
+  which is the second half of the fourth answer.
+  In one guest,
+  with the checkout private and `tank/nested` mounted at `/home/guest/chk/nested` while `/home/guest` is shared,
+  so that the child comes up shared (F3):
+  run the step,
+  then read `/run/git-worktree-clone-mount-propagation/result` for `beneath` and `beneath-paths`,
+  the step's summary line and `doctor`'s line,
+  and `findmnt --output TARGET,PROPAGATION --target /home/guest/chk/nested`.
+  Then make the child private with `mount --make-private`,
+  run the step again,
+  and read the same four places.
+  Then mount five datasets under the checkout and read `beneath` and the four paths.
+  Would show:
+  whether the scan finds a shared child and names it,
+  whether it leaves the child exactly as it was,
+  whether a private child is not reported,
+  and what `beneath 5` with four paths reads like.
+  Would change:
+  "What it reports beneath the checkout",
+  the record's `beneath` bounds,
+  and test 23.
 
 ### The acceptance arm step 19 owes
 
@@ -2574,19 +2818,25 @@ each run in the guest on the built step:
     assert `shared` in the window,
     the
     wrapper's refusal for an add in that window,
-    and `private` after the trigger the project chose ("The trigger the route adds,
+    and `private` after the trigger the project chose,
+    or after the root command if the trigger is dropped ("The trigger the route adds,
     and what it must show").
 3.  `zfs rename` of the checkout dataset:
     the same three assertions (F27).
 4.  `zfs mount -a` after an unmount:
     the same,
     with the nested dataset's propagation read as well (F28,
-    F29).
-5.  For each of the four,
-    the same sequence repeated with the sibling's proposed filter in place,
-    which decides whether
-    a ZED event reaches the step at all (F31,
-    A3).
+    F29),
+    and with the record's `beneath` read for the shared child this host produces.
+5.  A checkout event does not reach the step.
+    With the sibling's filter in place (A3),
+    a `zfs snapshot` of the checkout dataset is run,
+    and the assertion is that the propagation step did not run for it:
+    the record's `time` is unchanged and the journal shows no run of the step for that event.
+    The project decided the filter does not gain the checkout's dataset for this purpose
+    ([record][repair-record],
+    "Which triggers the route adds"),
+    so this arm asserts the decision and not an option.
 
 ## What must be applied to the machine, and where that is recorded
 
@@ -2697,8 +2947,14 @@ and a restart of the boot unit runs `ExecStopPost=shutdown-unmount` and unmounts
 Two checks keep that order:
 the setup runbook writes the line with the boot unit it belongs to,
 before the pair,
-and `doctor` reads the installed boot unit's `ExecReload=` and reports the trigger as not installed
-when it is absent.
+and `doctor` reports the pair installed beside a boot unit that cannot reload it as a finding that says it is
+unsafe,
+not as an absent trigger.
+`doctor` reads the line from the unit file and its drop-in directory,
+which is a read and not a manager call (the lost-event design's V9 option A has `doctor` read no service manager),
+and its line says that a copy systemd has not reloaded is not seen;
+it prints `systemctl show --property=CanReload reconcile-git-worktree-clone-mounts.service`
+for the project to run where it wants the manager's own answer.
 
 `Type=oneshot` with `RemainAfterExit=yes` is what keeps a clean run from repeating:
 the service exits after its request,
@@ -2756,6 +3012,7 @@ read from source and not measured (L2):
   What repairs it is the project's first answer:
   the next run of the handler,
   started by any event,
+  or the root command where no event follows,
   checks the checkout and sets it private before it attaches anything (F18).
   The window is the length of one boot reconcile or one long reload,
   and a sweep makes it as long as the number of clones reaches.
@@ -2999,16 +3256,24 @@ A veto changes the sentence named and nothing else.
     because a reader that has only the table can still find the row,
     while the proof of the instance stays with the number the kernel never reuses (F37).
 
+One cost this design states is the writer's and not a record's:
+the trigger's one unit and one drop-in to install and to report
+("The trigger the route adds,
+and what it must show").
+It is not a choice and has no entry here;
+it is named so that the project weighs it against the trigger it chose.
+
 ## Dependencies on sibling designs
 
 The sibling documents were read with `git show <branch>:<path>` at the tips below.
 Each is an unapproved proposal,
-and none of its answers is treated as decided here.
+except where one of the two records has answered a point it states,
+and there this design follows the record and says so.
 
 - "Which triggers a lost last event waits for"
   (`docs/planning-cli-git-zfs-lost-last-event-triggers-design`,
-  tip `88f6a15194`,
-  2026-11-22T19:34:54-05:00).
+  tip `b6855dce15`,
+  2026-11-22T20:33:29-05:00).
   One mechanism,
   and each document owns half of it:
 
@@ -3049,8 +3314,8 @@ and none of its answers is treated as decided here.
   - The propagation service and its drop-in is the trigger the project chose,
     and its `ExecStart=` is the same job request the sibling's hook uses,
     so both documents reach `boot-reconcile` one way and no second reconcile path exists.
-    The sibling's Q-A option C rejects a companion unit on the checkout's behalf only in the shape that needs a
-    generated `.mount` and exclusion from `zfs mount -a`;
+    The sibling's "The shape the project did not take" rejects a companion unit on the checkout's behalf only in
+    the shape that needs a generated `.mount` and exclusion from `zfs mount -a`;
     this design's drop-in needs neither (F24,
     F33),
     so the two are about different shapes and M4 measures which one this host gives.
@@ -3060,21 +3325,22 @@ and none of its answers is treated as decided here.
     and the repair record's "Which triggers the route adds").
   - Its A9 calls a `systemctl` request from a unit's start unprobed,
     which is this design's M4 too,
-    and its D1 lists four sentences of this design that assumed its earlier direct hook;
-    this round rewrites all four (A3,
+    and its D1 reports the four sentences of this design that once assumed its earlier direct hook,
+    which last round rewrote (A3,
     this section's hook bullet,
     the printed-command paragraph and L11).
-  - The sibling's citations of this design are pointers by commit and accurate at the commits they name:
-    its D1 reads this document at `30274435f3` (its lines 3728 to 3760),
-    which this round moves.
-    Two of the things it reads there have changed kind,
-    not just place:
-    the `ExecReload=` line is no longer this design's veto choice 3 but a decided fact the lost-event record accepts,
-    and this design's question 2 is gone as a question,
-    so what its D1 calls "its question 2 option 1" is now the
-    trigger the project chose ("The trigger the route adds,
-    and what it must show").
-    A later agreement check should read this document at this round's tip.
+  - The sibling's citations of this design are pointers by commit.
+    Its D1 reads this document at `c7708953c0`,
+    where it cites "The project's four answers" at its lines 248 to 356,
+    this design's order at 1483 to 1560,
+    and "The propagation service and its drop-in" at 2658 to 2700,
+    and it says the repair record takes the trigger provisionally and declines the wider filter.
+    This round moves all three sections,
+    and the first of them is the section that now also carries the repair record's third and fourth answers,
+    so a later agreement check should read this document at this round's tip.
+    The two things the sibling said changed kind have not changed back:
+    the `ExecReload=` line is the record's accepted fact and not this design's veto choice 3,
+    and the trigger is the project's answer and not this design's question.
 - The eight other siblings
   (`docs/planning-cli-git-zfs-add-time-git-lock-design`,
   `docs/planning-cli-git-zfs-add-binding-record-design`,
@@ -3265,7 +3531,7 @@ with its committer time from `git log --format=%cI`:
   the third rate limit,
   the man-page line,
   the `doctor` namespace note and the `statmount` callers are fixed;
-  and every sibling citation is re-pointed at `88f6a15194`.
+  and every sibling citation is re-pointed at the sibling's then-current tip.
 - `3b57582319`,
   2026-11-22T19:55:48-05:00:
   this list gained the commit that recorded this round.
