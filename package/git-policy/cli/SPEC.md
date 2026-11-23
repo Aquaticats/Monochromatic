@@ -6522,17 +6522,30 @@ a restart or a sweep never moves a mount back implicitly.
 
 #### Receipts an unmount files
 
-An unmount request files a receipt under its nonce:
-`done` when the clone and the bind left,
-`reattached` when the busy answer put the mount back at its slot,
-`refused` when the turn refused before moving anything,
-and `failed` with the failed step and errno when a mount was left behind.
-A turn that refuses before it can build its request (an unreadable store,
-an unavailable account home,
-an unopenable cache or a missing pin) files `refused` naming that step,
-so a waiting wrapper is not left to its deadline.
-The mount fields of an `unmount` receipt are `none`,
-as the receipt grammar already requires.
+The accepted decisions give two unmount receipts.
+A successful unmount files `done` under its nonce,
+with `none` in every mount field,
+because the wrapper's cleanup reads that receipt.
+A successful rollback of a clone that landed on a stacked mount files a
+`refused` receipt naming the outcome in `failed-step` as
+`misplaced-rolled-back`,
+which is the one refusal receipt the staging record gives
+(`doc/decision/cli-git-zfs-staging-under-cache.md`,
+"When the move lands on a mount the account stacked on the folder":
+"the removal writes a refusal receipt naming the outcome").
+Every other unmount refusal files no receipt,
+under step 8's decision
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Receipts for refusals":
+"a refusal files no receipt,
+except an unavailable key").
+A busy unmount that reattaches,
+a retained staged mount,
+and a refusal before the turn builds its request therefore answer through the
+sweep's line and the handler's journal.
+The receipt format's outcomes are `done`,
+`refused` and `failed`;
+this build adds no fourth word and the outcome bound stays seven bytes.
 
 #### The interface later steps call
 
