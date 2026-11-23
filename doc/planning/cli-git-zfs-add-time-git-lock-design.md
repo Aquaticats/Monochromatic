@@ -94,7 +94,7 @@ read whole where the brief says so:
   the proof's window and what the slot holds while it is filled.
 - `doc/planning/cli-git-zfs-add-binding-record-design.md` on branch
   `docs/planning-cli-git-zfs-add-binding-record-design`,
-  read by `git show` at `c144499eb9eb` (2026-11-22T19:08:37-05:00):
+  read by `git show` at `ec2b0b14f3` (2026-11-22T19:58:00-05:00):
   "The add's writes in one order",
   "A resume after a kill between Git's add and the registered write",
   "The account's claim and root's claim",
@@ -637,7 +637,7 @@ it and by which proof.
 The add's durable binding record is the sibling design's,
 `doc/planning/cli-git-zfs-add-binding-record-design.md`
 on branch `docs/planning-cli-git-zfs-add-binding-record-design`,
-read by `git show` at `c144499eb9eb` (2026-11-22T19:08:37-05:00),
+read by `git show` at `ec2b0b14f3` (2026-11-22T19:58:00-05:00),
 its "The record family",
 "The binding" and "The add's writes in one order".
 That document is the sibling's design and nothing in it is adopted here as decided.
@@ -652,7 +652,7 @@ A2,
 read at that commit).
 Its grammar is one `key=value` line per field (binding design,
 "The binding",
-lines 1317 to 1320 at that commit):
+lines 1359 to 1362 at that commit):
 
 > claim=<generation>
 > nonce=<32 lowercase hexadecimal digits>
@@ -1240,7 +1240,7 @@ and its `registered` write carries `registration=`,
 `registrationIdentity=` and `pointer=`.
 Source:
 the binding design (`doc/planning/cli-git-zfs-add-binding-record-design.md` on its branch),
-read at `c144499eb9eb` (2026-11-22T19:08:37-05:00),
+read at `ec2b0b14f3` (2026-11-22T19:58:00-05:00),
 its "The binding" and "What the writer confirms before each write";
 read as the sibling's design,
 not as a decision of this one.
@@ -1442,8 +1442,8 @@ V1:
 
 The order is not this design's.
 It is the binding design's "The add's writes in one order",
-read at `c144499eb9eb`
-(2026-11-22T19:08:37-05:00),
+read at `ec2b0b14f3`
+(2026-11-22T19:58:00-05:00),
 and this design adds no step to it and reorders none.
 Each moment below names that section's step labels as they read at that commit,
 and says only what the lock is at that point and what proves it.
