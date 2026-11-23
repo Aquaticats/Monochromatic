@@ -1,8 +1,13 @@
 # The dirty-main restore on rung 1 and its frozen proof
 
-Non-final,
-unapproved design proposal by an agent.
-It is not approved by the project owner and nothing in it is final.
+Design by an agent,
+accepted by the project as written on 2026-11-23
+(`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+"The design is accepted",
+which lists the sixteen choices accepted with it).
+Nothing in it has been run:
+its measurements are owed by the build steps,
+and its statements about designs that are still unapproved bind nothing until those are accepted.
 It designs one open item of the accepted ZFS worktree design,
 "The dirty-main restore on rung 1",
 and it decides nothing the design,
@@ -4265,13 +4270,13 @@ for this document's shape:
 - The measurement record:
 `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`.
 
-[m1]:
-#measurements-owed [m2]:
-#measurements-owed [m3]:
-#measurements-owed [m4]:
-#measurements-owed [m5]:
-#measurements-owed [m6]:
-#measurements-owed [m7]:
-#measurements-owed [m8]:
-#measurements-owed [vm-register]:
-../planning/cli-git-zfs-measurements-owed-before-acceptance.md
+[m1]: #measurements-owed
+[m2]: #measurements-owed
+[m3]: #measurements-owed
+[m4]: #measurements-owed
+[m5]: #measurements-owed
+[m6]: #measurements-owed
+[m7]: #measurements-owed
+[m8]: #measurements-owed
+[m9]: #measurements-owed
+[vm-register]: cli-git-zfs-measurements-owed-before-acceptance.md
