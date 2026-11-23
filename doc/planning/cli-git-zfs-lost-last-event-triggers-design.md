@@ -4492,6 +4492,41 @@ which is that design's answer.
   the one-page bound now points at the start-time gate,
   and the pending-check sentence at the add-records section that carries it,
   with `WorktreeIdentity` narrowed to the shapes that are repositories.
+- 2026-11-22T20:32:51-05:00:
+  the review of the revision after the answers.
+  `main` was merged first,
+  at 2026-11-22T20:25:49-05:00,
+  bringing the propagation repair record.
+  The nudge on Git commands is designed again:
+  the record is a folder of one file per clone in the Git common directory,
+  named by the clone's GUID and attempt,
+  published by a staging name and a link,
+  with the staging name removed by `doctor`;
+  a command reads the receipt by GUID and removes an answered entry before it spends anything else;
+  the entry carries an attempt number and the gap doubles from `G0` to `Gmax`;
+  no age removes a pending entry;
+  the gate,
+  the device and the transaction-group wait are the detached helper's,
+  and the command waits only for a spawn;
+  a refused device is recorded in the next attempt and prints nothing on the common path.
+  The waiting command's own nudge returns,
+  after a delay `D`,
+  which the previous revision had dropped without listing it,
+  and V16 lists both options.
+  V14 (how long a lost request is nudged) and V15 (when an entry is written) are new,
+  V3 now carries the backoff,
+  and V2 lost the checkout-dataset option the repair record declined.
+  The hook section,
+  F38,
+  F42,
+  D1,
+  D2 and D3 cite the sibling at `c7708953c0` and the repair record,
+  D8 and D9 name the folder,
+  the helper,
+  the attempt words and the switch,
+  tests 15 to 20 are rewritten and test 8's Git arm loses its confound,
+  and M8 carries the answered-entry,
+  gate-control and root-side arms.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
