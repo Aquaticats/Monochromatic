@@ -3511,9 +3511,17 @@ nothing here claims their behaviour.
 - `0e816c603b`,
   committed `2026-11-22T19:21:43-05:00`:
   the metadata-only commit that listed the three above with their times.
+- `1f7a0800fa`,
+  committed `2026-11-22T19:21:49-05:00`:
+  the metadata-only commit that recorded `0e816c603b`'s time,
+  and the entry above it was "the commit that writes this line" until this round.
+- `128da19117`,
+  committed `2026-11-22T19:59:45-05:00`:
+  the version that answers the review of the answers round,
+  with the changes the fifth part of "What this revision rewrote" lists.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  record the answers round's metadata commit":
+  list the review round's commits":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
