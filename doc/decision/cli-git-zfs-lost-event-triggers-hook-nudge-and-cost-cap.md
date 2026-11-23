@@ -60,7 +60,9 @@ The cost the question stated with this option:
 every Git command pays a device open and a property read,
 unmeasured,
 and every Git call becomes coupled to the ZFS route.
-The design therefore owes a way for a command to learn cheaply that a repository has no unanswered request,
+What follows from that cost is the coordinator's requirement on the design,
+not a part of the option the project chose:
+the design owes a way for a command to learn cheaply that a repository has no unanswered request,
 and a measurement of what a command pays in each case,
 before this ships.
 
