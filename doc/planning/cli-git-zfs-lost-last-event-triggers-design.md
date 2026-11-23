@@ -355,7 +355,7 @@ so a printed command is printed and never run by a step,
 and it carries `--no-ask-password` so that no shell of a script waits on the agent
 ([sibling propagation][sibprop],
 its fact F22,
-lines 637 to 650 at `5e6a2ff9dc`).
+lines 649 to 662 at `30274435f3`).
 That is why this design prints levers and runs none.
 
 Concurrency is lock-free first,
@@ -717,9 +717,10 @@ decides whether it exists.
   a `--no-block` request to `reload-or-restart` the boot unit.
   The hook itself runs no handler and makes no pass.
   Its reload arm is never reached on its own:
-  the one state in which the unit is active during a provider start is the provider's restart,
-  which already queued a restart job on the unit,
-  and a reload merges into a restart
+  a provider `restart` stops the boot unit first,
+  because the unit orders after the provider,
+  and by the time the provider's start-post runs the unit is stopped or failed and holds a pending start,
+  so the request collapses to a start and merges into that pending start
   (`src/core/job.c`,
   the merging table at lines 416 to 424 at `v262`).
   The reload is the project's lever,
@@ -768,7 +769,10 @@ decides whether it exists.
   and `D` is owed to step 22
   (measurement M7).
   Until step 22 sets `D` and turns the call on,
-  step 10 ships it off and T4 writes nothing ("Counts and numbers this design does not ship").
+  step 10 ships it off and T4 writes nothing ("Counts and numbers this design does not ship"),
+  and the shipped readiness refusal still lists the caller's own sweep nudge among the next triggers
+  (fact F27),
+  which D9's `SPEC.md` edit narrows until then.
 - As which user:
   the account writes the property,
   which its `mount,userprop` grant on the parent's descendants allows
@@ -1087,36 +1091,80 @@ sense that the first is a refusal.
 
 One statement,
 and every other place in this document refers here.
-The provider hook is two lines:
+The provider hook is two files.
+The drop-in is shown whole,
+so a copy of it is a working file;
+the boot unit's line is shown with the section header that carries it,
+and the rest of that unit is plan step 19's.
 
-- the drop-in carries this line:
+```ini
+# /etc/systemd/system/zfs-mount.service.d/reconcile-git-worktree-clone-mounts-after-checkout.conf
+[Service]
+ExecStartPost=-/usr/bin/systemctl --no-block --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service
+```
 
-  ```text
-  # /etc/systemd/system/zfs-mount.service.d/reconcile-git-worktree-clone-mounts-after-checkout.conf
-  ExecStartPost=-/usr/bin/systemctl --no-block --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service
-  ```
+```ini
+# /etc/systemd/system/reconcile-git-worktree-clone-mounts.service
+[Service]
+ExecReload=/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-mount-datasets boot-reconcile
+```
 
-- the boot unit carries this line,
-  which is the propagation sibling's veto choice 3 at `5e6a2ff9dc`
-  ([sibling propagation][sibprop],
-  lines 2420 to 2446):
+The `[Service]` header is not decoration:
+systemd ignores an assignment outside a section ("Assignment outside of section.
+Ignoring.",
+`src/shared/conf-parser.c`,
+line 252 at tag `v262`),
+so a copy without it is an inert file.
 
-  ```text
-  ExecReload=/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets boot-reconcile
-  ```
+What the drop-in's line is,
+stated here so that a sibling can cite this section alone:
 
-The drop-in asks the unit that owns the ordering,
-the probe,
-the namespace,
-the journal and the stop pass;
-the `ExecReload=` is what the hook's reload arm and T5's printed lever both use.
+- The request.
+  It asks the boot unit,
+  `reconcile-git-worktree-clone-mounts.service`,
+  to reconcile:
+  `--no-block` queues the job and returns,
+  and the hook runs no handler and makes no pass itself.
+- The verb,
+  per state of the boot unit.
+  `reload-or-restart` reloads an active unit through the `ExecReload=` above and starts an inactive or failed one;
+  it never takes `restart`'s stop pass,
+  a plain `reload` is refused while the unit is inactive,
+  and `start` alone does nothing while it is active
+  (`systemctl(1)`,
+  `reload-or-restart`,
+  lines 530 to 537;
+  `src/core/unit.c`,
+  lines 2154 to 2156 at `v262`;
+  fact F15).
+- The provider is never failed.
+  The `-` prefix makes a non-zero request a logged failure instead of a failed unit
+  (`systemd.service(5)`,
+  `ExecStartPost=`,
+  lines 434 to 436 and 456 to 459 at `v262`),
+  so `zfs-mount.service` stays `active (exited)` and the boot unit's `Requires=` on it stays satisfied (fact F17).
+  The request's own lines are in `zfs-mount.service`'s journal;
+  the pass it starts is in the boot unit's.
+- The root command.
+  The same verb with `--no-ask-password` is the project's lever and the line `doctor` prints:
+  `systemctl --no-ask-password reload-or-restart reconcile-git-worktree-clone-mounts.service` (T5).
+  Its one condition is the `ExecReload=` above:
+  without it,
+  an active unit's `reload-or-restart` is a restart whose stop pass unmounts every clone,
+  and the printed command becomes `start` for a failed or inactive unit and nothing for an active one.
+
+The `ExecReload=` is the propagation sibling's veto choice 3
+([sibling propagation][sibprop],
+lines 2676 to 2699 at `30274435f3`,
+2026-11-22T18:50:22-05:00),
+and the same line serves its printed lever.
 A sibling cites this section by name.
 
 ### The shape this design recommends
 
 Q-A's option B,
 and the only shape that avoids all five of the direct hook's problems:
-the two lines "The hook,
+the two files "The hook,
 in one form a sibling can cite" gives.
 The hook asks the unit that already owns the ordering,
 the namespace,
@@ -1138,8 +1186,9 @@ Sharing one mechanism with the sibling:
 the propagation sibling proposes the same `ExecReload=` line as its veto choice 3 and
 names `reload-or-restart` as its manual lever
 ([sibling propagation][sibprop],
-lines 2420 to 2446,
-read at `5e6a2ff9dc`).
+lines 2676 to 2699,
+read at `30274435f3`,
+2026-11-22T18:50:22-05:00).
 This design's Q-A option B uses exactly that line:
 one `ExecReload=`,
 two consumers (the hook's job request and the project's printed lever).
@@ -1171,7 +1220,7 @@ and where each part is recorded:
   this host's provider has nothing
   to mount for the hook to follow.
 - The drop-in and the boot unit's `ExecReload=`,
-  the two lines "The hook,
+  the two files "The hook,
   in one form a sibling can cite" gives.
   Both are step 19's interface and are recorded in its runbook;
   the commands that apply them are step 19's printed
@@ -1255,7 +1304,11 @@ beside the receipts and readiness folders this route already publishes (fact F16
   a pass's cost is charged to the window when the pass ends,
   because a pass's duration is known only then.
   When the next taker finds the window older than `P`,
-  it starts a new window with nothing spent.
+  it starts a new window with nothing spent,
+  and a charge that lands after the window expired opens a new window at the charge,
+  so a pass longer than `P` is charged to a live window instead of a window the next taker would discard.
+  The window is tumbling,
+  V13's second choice inside its first option.
 
 All three live under `/run`,
 so a boot clears them,
@@ -1279,7 +1332,7 @@ The order inside either mode is the propagation sibling's and not this design's
 "Where it runs,
 as whom,
 and in what order",
-lines 1204 to 1245):
+lines 1334 to 1409 at `30274435f3`):
 read the configuration and resolve the checkout,
 its propagation step,
 the start probe's record,
@@ -1288,11 +1341,14 @@ and then the sweep.
 This design adds one thing to that order and states nothing else about it:
 the cost decision below is taken when the sweep is entered,
 after the sibling's checks,
-and a held run has paid the filter,
+and the run claim is taken there too,
+so a refused prerequisite needs no claim to release.
+A run held at the claim has paid the filter,
 the gate,
-the configuration read,
-the sibling's propagation step and its checks,
-and nothing else.
+the sibling's entry order and one failed claim attempt,
+and nothing else;
+a run held by the budget has paid those,
+the claim and the budget read.
 
 ### What a taker does
 
@@ -1300,10 +1356,24 @@ A handler that may pass,
 which is T1's or T4's delivery,
 does this in order:
 
-1.  Take the run claim with the repository's numbered claim (fact F22).
+1.  Run the mode's entry order,
+    which is the sibling's own:
+    read the configuration and resolve the checkout,
+    its propagation step,
+    the start probe's record,
+    and the pool and the checkout checks
+    ([sibling propagation][sibprop],
+    "Where it runs,
+    as whom,
+    and in what order",
+    lines 1334 to 1409 at `30274435f3`).
+    A prerequisite that refuses exits 2,
+    and it records no start and removes no mark,
+    because nothing will be enumerated and no claim was taken.
+2.  Take the run claim with the repository's numbered claim (fact F22).
     If it is held,
     go to step 8.
-2.  Read `pass-budget`.
+3.  Read `pass-budget`.
     If the window it names is older than `P`,
     the window is reset to now with nothing spent.
     If what it records as spent has reached the budget,
@@ -1313,51 +1383,48 @@ does this in order:
     the window and the time spent,
     and exit 2,
     because it did no work.
-3.  Read the pass's prerequisites:
-    the probe record,
-    and the pool and the checkout (fact F19).
-    A prerequisite that refuses releases the claim and exits 2,
-    and it records no start and removes no mark,
-    because nothing will be enumerated.
 4.  Remove `another-pass-is-due` if it is there:
     this pass will enumerate.
 5.  Enumerate:
     each clone's turn under its slot claim,
     and the receipts.
     When the pass ends,
-    add its own duration to `pass-budget`'s spent time and replace the file whole,
+    charge its own duration to `pass-budget`:
+    if the window the file names expired while the pass ran,
+    open a new window at the charge and put the duration in it,
+    so a pass longer than `P` is charged to a live window;
+    then replace the file whole,
     because only the ended pass knows its cost.
 6.  Release the claim.
 7.  Look for `another-pass-is-due`.
     If it is absent,
     report and exit 0 or 2 as the pass's own outcome.
     If it is there,
-    take the claim once more and do steps 2 to 6 once more,
+    take the claim once more and do steps 3 to 6 once more,
     without step 7;
     a mark that survives the second pass is
     left standing for the next taker,
     and the line says so.
-8.  When step 1 found the claim held:
+8.  When step 2 found the claim held:
     write `another-pass-is-due`,
     then try the claim once more.
     If that second try
     succeeds,
-    continue at step 2,
-    which removes the mark the handler wrote.
+    continue at step 3,
+    and step 4 removes the mark the handler wrote.
     If it fails,
     print the held line and exit 2.
     The second try never waits (fact F22).
 
 A readiness trigger,
 T2 or T3's unit run,
-does steps 3 to 5 only:
-it never takes the run claim,
-never reads or writes
-`pass-budget`,
+does steps 1,
+4 and 5:
+it runs the entry order,
+removes the mark and enumerates.
+It never takes the run claim and never reads or writes `pass-budget`,
 so step 5's charge is skipped,
-and is never held (V5's first option).
-It may remove the mark at step 4,
-because it enumerates.
+and it is never held (V5's first option).
 Its pass may overlap an event-driven pass,
 which the per-slot
 claim makes safe for each clone (fact F24),
@@ -1382,7 +1449,7 @@ Two things are weaker than an absolute rule would be:
   report.
   L3 states it.
 - A mark written by a rate-refused handler,
-  step 2,
+  step 3,
   is followed by its release and nothing else;
   a later taker removes
   it at step 4,
@@ -1646,6 +1713,11 @@ it says so in one line and prints the levers of T5.
   step 18 builds these readings before step 19 creates the claim and the mark and before step 22 creates `pass-budget`,
   so the report prints `not built yet` for a record whose step has not run,
   rather than an error.
+  The report cannot tell that sentence from a record that is absent in this boot,
+  so it prints the same words for both;
+  step 19 and step 22 replace the sentence with the real reading when they land,
+  each reading the record its own step creates,
+  and neither makes step 18 depend on it.
 - The handler's last decisions,
   from V8's answer;
   a ZED-started handler's own lines are not in any journal today (fact
@@ -1676,6 +1748,13 @@ The two `fix` lines are T5's
 levers,
 and `doctor` never runs them;
 the account lever works only while ZED is alive.
+
+If the sibling's choice 3 is vetoed,
+`doctor` prints one root command in the `fix as root:` line instead:
+`systemctl --no-ask-password start reconcile-git-worktree-clone-mounts.service`,
+and the same line says that `start` does nothing on an active unit,
+because `doctor` reads no service manager (V9's first option)
+and cannot tell the unit's state.
 A record that cannot be read,
 or
 a check that cannot be proved,
@@ -2541,7 +2620,11 @@ Nothing here is new measurement on this host.
   The pass budget is charged when a pass ends,
   so one pass can overshoot it,
   and a pass killed before it ends is charged nothing (V13's cons).
-  A tumbling window can also admit a burst at the end of one window and the start of the next.
+  A charge that lands after the window expired opens a new window at the charge,
+  so the overshoot is not discarded with the old window and `P` need not exceed the longest pass;
+  the price is that such a pass starts the next window with its whole duration spent.
+  A tumbling window can also admit a burst at the end of one window and the start of the next,
+  up to twice the budget inside a span shorter than `P`.
 
 ## Choices this design marks for the project's veto
 
@@ -3040,6 +3123,40 @@ The first option is what the rest of the document describes.
   B leaves the cost
   unbound until step 22,
   and C ships an unmeasured limit.
+- The nudge's switch is a second choice in A:
+  - Off until step 22,
+    adopted:
+    step 10 builds the call behind a compiled switch that is off,
+    and step 22 sets `D` and turns it on.
+    Example:
+    an add at 17:30:04 after step 10 and before step 22 writes one event,
+    its intent,
+    and no nudge,
+    however long it waits.
+    Pro:
+    no timer value ships before the wait it is sized from (M7),
+    and the route keeps one event per add until the measurement exists.
+    Con:
+    the trigger set is missing T4 for two build steps,
+    and the shipped readiness refusal still lists the caller's own sweep nudge (fact F27)
+    until step 22 turns the call on,
+    or the `SPEC.md` edit D9 lists narrows the sentence.
+  - On from step 10 with a provisional `D`,
+    as step 7 shipped a provisional deadline.
+    Example:
+    the same add writes its nudge after the provisional delay,
+    and step 22 replaces the value.
+    Pro:
+    all three of the answer's triggers exist from step 10.
+    Con:
+    an unmeasured delay decides when a second event is written,
+    and the number would ship as if measured.
+  - Ranking:
+    off until step 22 > on with a provisional `D`,
+    because the nudge's only number is a wait the route has not timed and a switch that is off ships nothing,
+    while the cost,
+    one trigger absent until step 22,
+    is disclosed in the counts list and in the refusal text.
 
 ### V13. The unit the bound counts in
 
@@ -3085,6 +3202,38 @@ The first option is what the rest of the document describes.
   step 22's M3 reports what each candidate threshold would allow,
   and the project asks the threshold after the cost branch merges and M3 runs,
   with the measured numbers beside it.
+- The window kind is a second choice inside A,
+  and A takes the tumbling one:
+  - A tumbling window,
+    adopted:
+    `P` starts at the first charge in it and the spent time resets once `P` has passed.
+    Example:
+    with an illustrative window of ten minutes,
+    a burst at 17:29 and another at 17:31 share the window started at 17:29,
+    and the window that starts at 17:39 begins with nothing spent.
+    Pro:
+    one line,
+    one start time and one spent time,
+    replaced whole by the single claim holder (A10).
+    Con:
+    a burst at the end of one window and the start of the next can pass twice the budget inside a span shorter
+    than `P`;
+    L15 states it.
+  - A sliding window,
+    one start time per pass kept in the record.
+    Example:
+    the same two bursts,
+    with the 17:31 pass admitted only if the 17:29 one has fallen outside the last `P`.
+    Pro:
+    no boundary burst.
+    Con:
+    a row per pass to write and read,
+    and the record's size depends on how many passes fit in `P`.
+  - Ranking:
+    tumbling > sliding,
+    because the record stays one line the single holder replaces whole,
+    and the boundary burst is a bounded overshoot L15 states,
+    where sliding buys that bound with a record sized by the pass rate.
 
 ## Questions only the project can answer
 
@@ -3311,11 +3460,11 @@ A head-count budget stays reachable there as V13's second option.
 
 - D1.
   The propagation sibling ([sibling propagation][sibprop]),
-  read at `5e6a2ff9dc`
-  (2026-11-22T18:18:14-05:00).
+  read at `30274435f3`
+  (2026-11-22T18:50:22-05:00).
   Its veto choice 3 is the manual re-run:
   `ExecReload=` on the boot unit plus `reload-or-restart` as the printed command
-  (its lines 2420 to 2446),
+  (its lines 2676 to 2699),
   and this design's Q-A option B,
   T5 and `doctor` block use that line and that command;
   if its choice 3 is vetoed,
@@ -3326,27 +3475,32 @@ A head-count budget stays reachable there as V13's second option.
   ("Where it runs,
   as whom,
   and in what order",
-  lines 1204 to 1245)
+  lines 1334 to 1409)
   is the order this design cites and states no other:
   configuration and checkout,
   its propagation step,
   the probe record,
   the pool and checkout checks,
-  the sweep.
-  Four of its sentences still assume this design's earlier direct hook:
-  its A3 (lines 805 to 815) and its provider-hook bullet in "Dependencies on sibling designs"
-  (lines 2790 to 2815) assume a drop-in that runs `boot-reconcile` and a failing `ExecStartPost=` that fails
-  `zfs-mount.service`;
-  its printed-root-command bullet (lines 2815 to 2822) and its L11 (lines 916 to 921) assume this design prints
-  the handler's `boot-reconcile`.
-  This design's hook is the one line in "The hook,
-  in one form a sibling can cite",
-  and its lever is `reload-or-restart`,
-  so the sibling's L11 is met by one command and those four sentences should be re-read against it.
-  Its F31 (lines 727 to 745) relies on this design's filter keeping the checkout dataset's events out,
+  the sweep;
+  this design's taker runs those prerequisites first and takes its claim only after them.
+  At this tip its A3 (lines 892 to 903),
+  its hook bullet in "Dependencies on sibling designs" (lines 3063 to 3079)
+  and its L11 (lines 1009 to 1018)
+  read this design's hook as this design states it:
+  a `-`-prefixed `ExecStartPost=` that asks the boot unit to act,
+  the boot unit's `ExecReload=`,
+  and `reload-or-restart` as the printed root command,
+  with the same fallback for a veto of its choice 3.
+  Its own note (lines 3106 to 3115) lists the four sentences of its own that assumed this design's earlier direct
+  hook,
+  says its round rewrites all four,
+  and records that its two pointers to this design's V3 and order are accurate at their commit `5e6a2ff9dc`;
+  this round moves those lines,
+  so a later agreement check should re-read them.
+  Its F31 (lines 752 to 766) relies on this design's filter keeping the checkout dataset's events out,
   which V2's first option does;
   V2's second option would reopen its question 2's option 2.
-  Its F22 (lines 637 to 650) is the authorization-agent fact the records section cites.
+  Its F22 (lines 649 to 662) is the authorization-agent fact the records section cites.
 - D2.
   The forced-removal sibling ([sibling forced][sibforced]) assumes "each removal request is one nudge-shaped property
   write" and that the handler may "coalesce sweeps without merging two nonces" (its D5,
@@ -3406,9 +3560,10 @@ A head-count budget stays reachable there as V13's second option.
   which gains `pass-budget` and the rule;
   step 18's
   "ZED and service wiring" check,
-  which V9 narrows to the printed commands and the plan's text should say so;
-  and step 18's dependency list,
-  which gains steps 19 and 22 for the three cost records its readings name.
+  which V9 narrows to the printed commands and the plan's text should say so.
+  Steps 19 and 22 update the readings they create,
+  so step 18 gains no dependency on either;
+  the `not built yet` sentence is the report's own rule until they land.
 - D9.
   The `SPEC.md` edits owed:
   a section for the three cost records,
@@ -3417,8 +3572,10 @@ A head-count budget stays reachable there as V13's second option.
   the timeout sentence of
   V11;
   the filter's line in the default invocation;
-  and the handler paragraph's note that a held or filtered run exits
-  2.
+  the handler paragraph's note that a held or filtered run exits
+  2;
+  and the readiness refusal's trigger list (fact F27),
+  which names the caller's own sweep nudge while step 10 ships the call off.
 - D10.
   Siblings that state no dependency on this design and gain none from it:
   the add-time Git lock,
@@ -3439,6 +3596,7 @@ A head-count budget stays reachable there as V13's second option.
   with its number owed,
   so that con is weaker than the sibling states;
   whether its carrier needs this design's records is its own answer.
+
 ## What this design does not cover
 
 The pass's own checks and order (step 8's),
