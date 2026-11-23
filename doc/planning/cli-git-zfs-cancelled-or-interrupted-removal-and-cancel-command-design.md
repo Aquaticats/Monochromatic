@@ -4259,3 +4259,32 @@ oldest first.
 - The commits that carry this entry,
   written from 2026-11-22T22:04:03-05:00:
   add the entries for `f9c2d811f7` and `a959d0427c`.
+- `b45b46183e`,
+  2026-11-23T03:59:02-05:00:
+  merges `main` into this branch so that the accepted designs and the siblings as they now stand are read here.
+  It changes nothing in this document.
+- `3b50c17d8d`,
+  2026-11-23T04:04:42-05:00:
+  answers the fifth review's diff read and the project's further answer on the settling command.
+  It gives the empty plan's unlink its step in the arm blocked by a scan,
+  its own C4 and the kill state C5,
+  a device-free test and two guest arms (the unlink and the four retry states),
+  and adds C4 and C5 to the kill-point list;
+  says that a cancellation writes no plan field but removes an all-`planned` plan;
+  states the kept plan's second end,
+  the settling command after a confirmation when the clone is gone;
+  moves the plan's unknown-tuple settling step to the plan design at `1e989acf66`,
+  labels the order it reads as its own inference and asks that design for it;
+  splits a forced removal's refusals into four kinds in three groups,
+  corrects what the structural stage leaves (a slave parent that stays a slave,
+  a directory removed when safe,
+  no copy
+  moved),
+  and takes the forced arm's two liveness values,
+  its progress file's name and V7's `doctor` role;
+  removes the stale ask of the plan design and the dangling pointer to the deferred design's deleted words;
+  and reads the forced arm at `2a2747ebfb`,
+  the plan design at `1e989acf66` and the three accepted designs at their paths.
+- The commits that carry this entry,
+  written from 2026-11-23T04:04:46-05:00:
+  add the entries for `b45b46183e` and `3b50c17d8d`.
