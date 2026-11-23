@@ -4480,6 +4480,35 @@ and any test suite.
 - 2026-11-22T19:08:27-05:00:
   kept the add order's A-labels apart from the Assumptions section's,
   which share the same letters and are a different list.
+- 2026-11-22T19:56:45-05:00:
+  answered the two diff checks:
+  R1 (the rows of "The states Git's source can leave",
+  walked from `builtin/worktree.c`:495 to :604 and
+  `worktree.c`:1105 to :1134,
+  the recipe that removes the files before the lock and the directory after it,
+  the slot's pointer among the names it removes,
+  the failure path's leftover as row 7,
+  and T20 to T20c),
+  R2 (the finder's names,
+  prefix,
+  newline,
+  relative `gitdir` and second read),
+  R3 (the add refuses and the pass or the next removal finishes),
+  R4 (A10a and A10b,
+  D6's boundary,
+  the lock design at `86f122c2b1`,
+  the `HEAD` fact from its scan,
+  "assumption" beside the assumption labels,
+  and four name forms),
+  Z1 ("The condition a finisher meets" and the pass as the finisher),
+  Z3 (the inventories first and the binding last),
+  and Z4 (every statement about the two removal-side records at `b4dc758a76` and `0973f2fc2a`).
+- 2026-11-22T19:57:34-05:00:
+  corrected the row and recipe line numbers to the source's own (`:526 to :530`,
+  `:543 to :544`,
+  `:555 to :566`,
+  `:601 to :603`,
+  and the sanitiser's ranges at `refs.c`).
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
