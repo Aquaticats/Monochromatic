@@ -709,8 +709,10 @@ and only the owner accepts one.
   its record for an add that made no clone;
   the moment an add writes the record);
   the plan design's round
-  (running as `pi-zfs-removal-destruction-plan-record-design-fourth-check-findings`,
-  on `continuation-fourth-check-findings.md` in its folder:
+  (ended at `8ae3f1d6e6`,
+  report `keep/report-fourth-check-findings.md` in its folder;
+  the reviewer's read of the three diffs is going,
+  to `review-fifth-diff-read.md` beside its other reviews:
   the high finding,
   its words for the cancelled-removal design and for the accepted deferred-destroy design,
   the settling command's order);
@@ -818,10 +820,21 @@ and only the owner accepts one.
 - The round on that check ended at `b377d175de`
   (report `keep/report-check-before-acceptance.md` in its folder;
   its brief asked for each fix to be proved by a search of the document).
-  Going:
-  the same reviewer's read of that diff,
-  to `review-last-diff-read.md` beside its other reviews.
-  Then the design is put to the owner for acceptance with its veto list
+  The same reviewer's read of that diff
+  (`review-last-diff-read.md` beside its other reviews):
+  "fit after listed fixes",
+  nothing high;
+  the three answers and the waiver are built as the record states them,
+  and the round made what it said it made.
+  Two mediums:
+  the settle says the binding's last step prints nothing where the binding says it prints the add's sentence;
+  and two paths for the busy state still write the property back before reading the mount.
+  Running:
+  `pi-zfs-dirty-main-restore-on-rung-1-design-last-diff-read`,
+  on `continuation-last-diff-read.md` in its folder.
+  Then the coordinator reads that diff,
+  and the design is put to the owner for acceptance with its veto list
+  (now V1 to V16)
   (V1 to V15,
   one line each in that review).
 - Still owed by a build step:
