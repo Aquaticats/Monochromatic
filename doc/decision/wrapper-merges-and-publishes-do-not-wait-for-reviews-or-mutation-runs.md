@@ -5,7 +5,7 @@
 The owner's standing rule,
 said on 2026-11-04 for reviews and mutation runs,
 and on 2026-11-23 for gates and passes before a merge;
-recorded 2026-11-23T19:05:00-05:00.
+recorded 2026-11-23T18:24:26-05:00.
 
 ## What the owner said
 
