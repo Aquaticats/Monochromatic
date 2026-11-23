@@ -1573,9 +1573,17 @@ A look is the five worktree commands' look.
   and the origin record stands only if it was blocked.
   The plan is the last witness here,
   and the finish pass or the next removal removes it after proving that nothing of the binding stands.
-  No state reachable by a kill now leaves a binding with no plan and no registration,
+  No kill of this removal leaves a binding with no plan and no registration,
   which is the state the binding design's "What a record whose clone is gone means" calls an outside change:
-  after this order that reading means what it says.
+  after this order that reading means what it says for the removal's own kills,
+  and for the finish pass's,
+  which runs the same tail.
+  A kill of the settling command is another order and not this one:
+  that command removes the registration and the plan before the binding (the binding design's "The settling
+  command"),
+  so a kill inside it does leave a binding with no plan and no registration,
+  and the finisher there is that command's own next run,
+  which treats a registration its recipe already removed as that step done.
 - Inside 13.
   The plan's own unlink may be the point of the kill.
   A kill before it leaves the plan for the finish pass or the next removal to remove,
@@ -2699,8 +2707,15 @@ a key out of order;
 a GUID with a sign or a leading zero;
 a `snapshot` field that differs from the file's name;
 a record missing a key the grammar requires,
-which is any key except `cloneGuid`.
-`cloneGuid`'s absence is the defined state of an add that made no clone.
+which is any of the JSON object's keys except `cloneGuid`,
+which is absent only for an add that made no clone;
+and `slotPath`,
+absent when the path needs an escape;
+among the short lines `state` is always required,
+and the outcome's own lines,
+`attemptedAt` or `blockedReason` or `blockedErrno` or `numClones` or `userRefs`,
+exactly when the state is `blocked`,
+so an `owed` record without `attemptedAt` is whole and a `blocked` one without it is refused;
 a file wider than 13,368 bytes;
 and an empty file.
 T3 A file name outside the grammar is never read.
@@ -2992,17 +3007,18 @@ and all three now refuse a wrongly owned one (F24 and F25,
 and this design's "What a reader refuses about owner and mode").
 For an unreadable record all three refuse in place and name it:
 this design refuses and reports,
-the plan design refuses and never moves a plan aside (F25),
-and the binding design refuses by the same rule (its "The route's record convention"),
-and leaves the question whether a reader may move one aside to its Q7.
-The project decided that a reader refuses an unreadable record and names it
+the plan design's "What every reader refuses" says a plan that does not read is never moved aside or deleted,
+and the binding design's "The route's record convention" refuses by the same rule.
+That is the project's answer
 (the seven answers,
 under the heading "A record that cannot be read"),
-so the plan design's Choice 10 and the binding design's Q7 retire.
+and neither sibling asks the question any more:
+the plan design's Choice 10 now weighs one record with no count cap against a folder of chunks,
+and the binding design counts its Q7 as decided,
+with four name forms and no reader that moves a record aside.
 An earlier revision of this section said the binding design's folder held a `<slot>.unreadable` form for a record a
 reader moves aside;
-Its current text has four name forms and no such form,
-and the move aside is only its Q7's option.
+its current text has no such form.
 
 ### 9. Who removes staging names
 
