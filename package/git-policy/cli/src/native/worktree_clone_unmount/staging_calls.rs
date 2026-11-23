@@ -229,23 +229,24 @@ impl StagingCalls for LiveStagingCalls {
             return Err(refused(StagingCall::Bind, std::io::Error::last_os_error()));
         }
         // The open by name follows the topmost mount, so a mount the account stacked after the bind would be taken for
-        // the bind. The bind's own row names its parent, its source and its root; the descriptor must be on that row.
-        let cache_path: PathBuf = observed_path(cache).map_err(|error| return refused(StagingCall::OpenBind, error))?;
+        // the bind. The descriptor's own row says what it is: a bind of the folder (root not `/`) whose parent and source
+        // are the cache's.
         let cache_id: u64 = mount_id_of(cache).map_err(|error| return refused(StagingCall::Bind, error))?;
-        let table: Vec<MountFacts> = parse_mount_table(std::fs::read(MOUNTINFO_PATH).map_err(|error| return refused(StagingCall::MountTable, error))?.as_slice());
-        let cache_source: Option<&str> = table.iter().find(|facts| return facts.mount_id == cache_id).map(|facts| return facts.source.as_str());
-        let folder_path: PathBuf = cache_path.join(name);
-        let candidate = table
-            .iter()
-            .filter(|facts| return facts.mount_point == folder_path && facts.parent_id == cache_id && Some(facts.source.as_str()) == cache_source && facts.root != std::path::Path::new("/"))
-            .max_by_key(|facts| return facts.mount_id);
-        let Some(bind_row) = candidate else {
-            return Err(StagingCallRefusal { call: StagingCall::Bind, errno: libc::ENOENT, detail: format!("no row names the bind at {}", folder_path.display()) });
-        };
         let opened: std::fs::File = crate::fs_beneath::open_directory_crossing_one_mount(cache, name).map_err(|error| return refused(StagingCall::OpenBind, error))?;
         let opened_id: u64 = mount_id_of(&opened).map_err(|error| return refused(StagingCall::OpenBind, error))?;
-        if opened_id != bind_row.mount_id {
-            return Err(StagingCallRefusal { call: StagingCall::OpenBind, errno: libc::EBUSY, detail: format!("the topmost mount at {} is {opened_id}, and the bind this call made is {}", folder_path.display(), bind_row.mount_id) });
+        let table: Vec<MountFacts> = parse_mount_table(std::fs::read(MOUNTINFO_PATH).map_err(|error| return refused(StagingCall::MountTable, error))?.as_slice());
+        let Some(cache_source) = table.iter().find(|facts| return facts.mount_id == cache_id).map(|facts| return facts.source.clone()) else {
+            return Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: format!("no row names the cache's mount {cache_id}") });
+        };
+        let Some(row) = table.iter().find(|facts| return facts.mount_id == opened_id) else {
+            return Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: format!("no row names the opened mount {opened_id}") });
+        };
+        if row.parent_id != cache_id || row.source != cache_source || row.root == std::path::Path::new("/") {
+            return Err(StagingCallRefusal {
+                call: StagingCall::OpenBind,
+                errno: libc::EBUSY,
+                detail: format!("the topmost mount at the folder is {opened_id}, whose parent is {} and source `{}`; the bind of the cache folder is the cache's own child with a root under it", row.parent_id, row.source),
+            });
         }
         return Ok(opened);
     }
