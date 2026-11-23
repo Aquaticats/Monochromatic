@@ -66,6 +66,8 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP rollback unmount=EBUSY',
   'SWEEP rollback unmount=ok',
   'SWEEP bound stopped=true',
+  'SWEEP stale flags-changed=refused',
+  'SWEEP stale replaced=refused',
   'SWEEP done',
 ] as const;
 

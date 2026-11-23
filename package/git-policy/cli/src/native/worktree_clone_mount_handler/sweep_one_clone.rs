@@ -332,8 +332,8 @@ impl LiveStandingMounts {
     fn refresh(&self) {
         self.reads.set(self.reads.get() + 1);
         match self.source.read() {
-            Ok(facts) => {
-                *self.table.borrow_mut() = facts.into_iter().map(|facts| return (facts.mount_id, facts)).collect();
+            Ok(read) => {
+                *self.table.borrow_mut() = read.into_iter().map(|mount| return (mount.mount_id, mount)).collect();
             }
             Err(error) => {
                 // A table the run cannot read leaves the snapshot empty, and each standing answer falls back to the

@@ -593,5 +593,67 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     assert!(bounded.said.contains(&format!("more than the {} children", git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN)), "the stop names the bound: {}", bounded.said);
     println!("MEASUREMENT child-bound-listing-ms={} children={} bound={}", bounded.elapsed.as_millis(), children, git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN);
     println!("SWEEP bound stopped=true children={children}");
+
+    // Item P-H1: the pass's two plants at 1,024 mounted clones. The sweep is started, the last child's mount is changed
+    // 400 ms later, and the line about that clone must be a refusal rather than the stale table's attached answer.
+    let stale_count: usize = 1_024;
+    let stale_base: String = format!("{pool}/step8-stale");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", stale_base.as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=none", stale_base.as_str()]);
+    let stale_checkout_dataset: String = format!("{stale_base}/{CHECKOUT_LEAF}");
+    let stale_checkout: PathBuf = PathBuf::from("/root/sweep-stale-checkout");
+    std::fs::create_dir_all(stale_checkout.as_path()).expect("the stale checkout path is made");
+    zfs_ok(sbin.as_str(), &["create", "-o", format!("mountpoint={}", stale_checkout.display()).as_str(), stale_checkout_dataset.as_str()]);
+    command_ok("mount", &["--make-private", stale_checkout.display().to_string().as_str()]);
+    let stale_container: String = format!("{stale_base}/{CONTAINER_LEAF}");
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", stale_container.as_str()]);
+    std::fs::create_dir_all(stale_checkout.join(".claude").join("worktrees").as_path()).expect("the stale checkout chain is made");
+    write_passing_probe_record();
+    prepare_the_store(stale_checkout.as_path());
+    let stale_nonce: &str = "00112233445566778899aabbccddee99";
+    for index in 0..stale_count {
+        let slot: String = format!("c{index}");
+        make_the_slot(stale_checkout.as_path(), slot.as_str());
+        let stale_suffix: String = format!("{stale_nonce}{index:04}");
+        clone_the_checkouts_snapshot(sbin.as_str(), stale_checkout_dataset.as_str(), stale_container.as_str(), slot.as_str(), stale_suffix.as_str(), Some(mount_request(stale_nonce).as_str()));
+    }
+    write_configuration(stale_checkout.as_path(), Some(stale_container.as_str()), Some(stale_checkout_dataset.as_str()));
+    let stale_cold: Run = sweep();
+    assert_eq!(stale_cold.status, Some(0), "the stale arm's cold sweep exits successfully: {}", stale_cold.said);
+    assert!(stale_cold.said.contains(&format!(": {stale_count} attached,")), "the stale arm's cold sweep attached every clone: {}", stale_cold.said);
+    let stale_order: Run = sweep();
+    let stale_last: &str = stale_order.said.lines().filter(|line| return line.starts_with("attached ")).next_back().expect("the steady sweep listed an attached clone");
+    let stale_fields: Vec<&str> = stale_last.split(' ').collect();
+    let stale_clone: String = String::from(stale_fields[1]);
+    let stale_slot: String = String::from(stale_fields[2].trim_start_matches("slot="));
+    let stale_slot_folder: PathBuf = stale_checkout.join(".claude").join("worktrees").join(stale_slot.as_str());
+    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+
+    // The flags removed in place: the mount keeps its number, so only a fresh read sees the cleared flags.
+    let running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+    std::thread::sleep(Duration::from_millis(400));
+    command_ok("mount", &["-o", "remount,bind,suid,dev", stale_slot_folder.display().to_string().as_str()]);
+    let flags_output: Output = running.wait_with_output().expect("the stale sweep ends");
+    let flags_said: String = format!("{}{}", String::from_utf8_lossy(flags_output.stdout.as_slice()), String::from_utf8_lossy(flags_output.stderr.as_slice()));
+    let flags_line: &str = line_about(flags_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the changed clone");
+    assert!(flags_line.starts_with("refused "), "the flags removed in place are refused: {flags_line}");
+    println!("SWEEP stale flags-changed=refused slot={stale_slot}");
+    command_ok("mount", &["-o", "remount,bind,nosuid,nodev", stale_slot_folder.display().to_string().as_str()]);
+
+    // The mount replaced: the replacement may take the old mount's number, so a table keyed by that number would answer
+    // with the mount that held it before. The poll must make the sweep read again and refuse.
+    let old_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
+    let replaced_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+    std::thread::sleep(Duration::from_millis(400));
+    unmount_at(stale_slot_folder.as_path());
+    command_ok("mount", &["-t", "tmpfs", "stale-bystander", stale_slot_folder.display().to_string().as_str()]);
+    let new_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
+    let replaced_output: Output = replaced_running.wait_with_output().expect("the stale sweep ends");
+    let replaced_said: String = format!("{}{}", String::from_utf8_lossy(replaced_output.stdout.as_slice()), String::from_utf8_lossy(replaced_output.stderr.as_slice()));
+    let replaced_line: &str = line_about(replaced_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the replaced clone");
+    assert!(replaced_line.starts_with("refused "), "the mount replaced under the old number is refused: {replaced_line}");
+    println!("SWEEP stale replaced=refused slot={stale_slot} reused={}", old_mount_id == new_mount_id);
+    unmount_at(stale_slot_folder.as_path());
+
     println!("SWEEP done pool={pool} layout=design slot={SLOT}");
 }

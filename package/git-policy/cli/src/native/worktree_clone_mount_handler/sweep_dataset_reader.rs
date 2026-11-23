@@ -39,31 +39,42 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  bound are left unattached rather than half swept.
 ///  The measurements beside the number are the mounted shape a parent of
 ///  clones holds,
-///  measured 2026-11-22 in the throwaway guest
-///  `zfs-step-8-recheck-cost-guest`
+///  measured again 2026-11-23 after the standing answer began polling the
+///  mount table,
+///  in the throwaway guest `zfs-step-8-followup-guest`
 ///  (Ubuntu 24.04,
 ///  kernel 6.8.0-147-generic,
 ///  OpenZFS 2.4.4,
-///  four vCPUs and 8 GB),
-///  with every clone attached and one one-child control in the same round:
-///  cold is the sweep that attaches them all,
-///  steady is a later sweep over the standing mounts.
-///  64 children took 1254 milliseconds cold and 303 to 402 steady
-///  beside a control of 340 cold and 137 to 222 steady;
-///  1,024 took 42181 cold and 2646 to 2783 steady
-///  beside 397 cold and 131 to 363 steady;
-///  2,048 took 71004 cold and 5763 to 6363 steady
-///  beside 3297 cold and 157 to 391 steady;
-///  and 4,096 took 174754 cold and 20092 to 22288 steady
-///  beside 413 cold and 219 to 385 steady.
+///  four vCPUs and 7,941 MB),
+///  with the pass's interleaved method:
+///  main's handler,
+///  this branch's handler,
+///  and main again as an identical-binary control,
+///  each round rotated,
+///  and a one-child control beside every many-child sweep.
+///  Every figure is a median of one arm's sweeps in that run,
+///  and the raw lines are `perf/sweep-cost-2026-11-23-poll-interleaved.json`.
+///  Steady sweeps over standing mounts were 285 ms against main's 297 and its
+///  repeat's 293 at 64 children (ratio 0.96,
+///  0.95 to 0.99, control spread 0.82 to 1.29),
+///  and 3,089 ms against 9,129 and 9,971 at 1,024 (ratio 0.37,
+///  0.28 to 0.45, control spread 1.05 to 1.18).
+///  Cold sweeps that attach every clone were 957 against 1,193 and 990 at 64
+///  (ratio 1.00,
+///  0.78 to 1.23) and 27,328 against 22,690 and 24,762 at 1,024
+///  (ratio 1.29,
+///  0.87 to 1.72,
+///  control 0.99 to 1.22);
+///  the 1,024 cold arm is the one figure whose range lies outside the control.
+///  The one-child controls were 155, 167 and 151 ms steady at 64 and 190, 213
+///  and 184 ms at 1,024.
+///  No 2,048 or 4,096 figure is cited here because no raw line for that shape
+///  is kept for this build;
+///  the earlier 4,097-child figure counted children the origin check refuses,
+///  which is not a parent of mounted clones,
+///  and its raw lines are not kept either.
 ///  The bound stays the project's to change,
 ///  and these are the measurements it is carried with now.
-///  The earlier figure this replaces counted 4,097 children the origin check
-///  refuses,
-///  which is not the shape of a parent of mounted clones;
-///  its 14,183 milliseconds and the 99-millisecond one-child run are kept in
-///  the step 8 review's evidence,
-///  not here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
