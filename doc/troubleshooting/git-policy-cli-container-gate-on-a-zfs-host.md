@@ -1463,7 +1463,7 @@ the new holder keeps its own PID file
 
   The two are 698 µs apart and in one millisecond,
   and their nanoseconds differ,
-  which the earlier sentences of this section read as one tick of a coarse clock.
+  which the account under The reproduction and what it measured read as one tick of a coarse clock.
   That reading was wrong:
   every value ending in `…060000` ns is what a stamp taken with no read between two writes looks like,
   and the pair that failed has nanosecond values of its own.
@@ -1490,7 +1490,7 @@ read and rewrite in place
   closes nothing on this host's ZFS and something on the gate's tmpfs,
   and a comparison of the bytes closes it on both.
   That is the pass's finding,
-  and this section's earlier claim that a millisecond of the clock is a window the control enters rarely holds only
+  and the claim under The reproduction and what it measured that a millisecond of the clock is a window the control enters rarely holds only
   because the untouched control puts one to two milliseconds between the plant and the write after the unlink.
 
 ### What the comparison is now, and why
@@ -1498,26 +1498,41 @@ read and rewrite in place
 The last look at the PID file compares its device,
 its inode,
 its change time in whole milliseconds,
-and the number it names,
-which is read again there
-(`pid_named_by`,
+and its contents,
+which are read again there
+(`pid_file_contents`,
 `abandoned_lock_proving.rs`,
 the block under `reach(UNLINKED_THE_LOCK)`).
-A program that wrote its own number over the judged file is told apart by that number at every clock granularity and on
-every file system,
+A program that wrote anything else over the judged file is told apart by those contents at every clock granularity and
+on every file system,
 which the metadata alone could not promise.
+It compares the file's contents byte for byte with the contents it judged,
+and the one case left open is a program that writes the very same bytes back,
+and the instant between the last read and the unlink.
+
+The number the file names is no longer parsed at that look:
+equal contents entail the judged number,
+so the comparison of the number was strictly weaker than the comparison of the contents,
+and the judged contents are read once before the lock goes and give both the number the proof was already asked for
+and the bytes the look compares.
+The removal therefore reads the file as often as before,
+once at the judged point and once at the last look.
 
 The project chose this on 2026-11-22,
 in the question tool,
 as "B:
 also compare bytes (Recommended)",
+whose words were "Before deleting the PID file,
+read it again and delete only if its contents are also unchanged",
 over correcting these words alone and leaving the route open.
+The limit the owner was shown with that choice is the one case above:
+a program that rewrote the very same bytes in place would still lose the file.
 
 What it costs,
 from the code:
 
-- one more read of the PID file at the removal's last look:
-  `pid_named_by` opens the name without following a link and without blocking,
+- one bounded read of the PID file at the judged point and one at the last look:
+  `pid_file_contents` opens the name without following a link and without blocking,
   and reads at most `PID_FILE_LIMIT`,
   which is 4096 bytes
   (`stopped_git_locks.rs`,
@@ -1538,7 +1553,7 @@ from the code:
 Two states stay open,
 and both are recorded here so the next reader does not have to find them:
 
-- a program that writes the judged number back,
+- a program that writes the very same bytes back,
   whether over the file or into a new one,
   is not told apart:
   the file goes,
@@ -1546,89 +1561,118 @@ and both are recorded here so the next reader does not have to find them:
   which named a process this boot has not.
   Its lock stands,
   because the lock was unlinked before this look;
-- the instant between the read and the unlink is not closed:
-  no system call unlinks a name only when it still names a given file
+- the instant between the last read and the unlink is not closed:
+  no system call unlinks a name only when it still holds given contents
   (`service_index_unheld_removal.rs` says the same of the lock's own removal).
-
 ### The fix
 
 `src/native/lock/abandoned_lock_proving.rs` is the file whose comparison changed,
 with `src/native/lock/abandoned_lock_proving_tests.rs`,
-the new test-only `src/native/lock/lock_metadata_arm.rs`,
+the test-only `src/native/lock/lock_metadata_arm.rs`,
+`src/native/lock/stopped_git_locks.rs` for the one read that gives the contents,
 and the bullet in `SPEC.md` that had said what the control and the product had wrong.
 
-The arm answers the removal's two reads of one path,
+The arm answers the removal's reads of one path,
 so each term of the comparison can be made to differ on its own:
 a device number a fixture cannot present,
 a change time this host's ZFS hands out in jiffies,
-and an inode number a file system may hand back to the next file are all armed there,
-while the bytes of the file are always the file's own.
+an inode number a file system may hand back to the next file,
+and one change time both reads report,
+so no clock decides what a control holds.
+The contents are always the file's own,
+so a control that writes them writes a state.
 
+- `a_pid_file_whose_number_gained_a_leading_zero_is_left_alone`,
+  `a_pid_file_with_trailing_padding_is_left_alone`,
+  `a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone` and
+  `a_pid_file_with_no_newline_is_left_alone`
+  each have the hook write the judged number in other bytes over the judged file:
+  every one of those parses to the judged number,
+  and none of them is the bytes the removal judged.
+  Each file stands,
+  which is the pin of the comparison of the contents.
+- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
+  has the hook write the very bytes the file was judged with,
+  under one change time for both reads:
+  all four facts equal the judged ones,
+  so the removal takes the file,
+  and the control says so and says what that costs.
+  This is the one case the comparison leaves open.
 - `a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone`
   holds grit's state:
   the hook writes the new lock and then writes its own number over the judged PID file,
   through the same inode,
-  with the arm reporting one inode for every file and one tick holding both writes.
-  The file stands and names the new holder,
-  so the bytes are the term that kept it.
+  with the arm reporting one inode for every file and one change time both reads report.
+  The file stands,
+  and the control says what the real program does.
 - `a_pid_file_of_another_inode_is_left_alone`
   has the hook remove the judged file and write the judged number again,
   a new file with the same bytes,
-  under the same coarse tick:
-  the inode is the only term that differs.
+  and the arm answers the later read with another inode number:
+  the inode is the term that decides,
+  whichever number the file system gives the new file.
 - `a_pid_file_of_another_change_time_is_left_alone`
   arms the later read with a change time one millisecond back and touches nothing else.
 - `a_pid_file_of_another_device_is_left_alone`
   arms the later read with the next device number and touches nothing else.
-- `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
-  holds the state the bytes comparison does not close:
-  the same number written back over the judged file inside one armed tick and under one armed inode,
-  where all four facts equal the judged ones.
-  The removal takes the file,
-  and the control says so and says what that costs.
-
-`/src/native/lock/abandoned_lock_proving.rs` was run with one term of the last look left out at a time,
-and with the unlink itself planted away,
-and each run failed one control at its own assertion:
-
-```text
-term left out: device      a_pid_file_of_another_device_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:881:5: a PID file of another device is left alone
-term left out: inode       a_pid_file_of_another_inode_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:818:5: a PID file of another inode is left alone
-term left out: change time a_pid_file_of_another_change_time_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:851:5: a PID file whose change time reads another millisecond is left alone
-term left out: bytes       a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:785:5: a PID file another program wrote over the judged one is left alone
-unlink planted away      a_pid_file_that_still_names_the_judged_number_goes_with_the_lock
-panicked at src/native/lock/abandoned_lock_proving_tests.rs:936:5: a PID file that still names the judged number goes with the lock it belongs to
-```
-
-Each run exited 100 with `1 test run: 0 passed, 1 failed, 8619 skipped`,
-and the term was put back before the next one.
 - `a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock`
   holds what a Git does at that instant:
   its exclusive create is refused,
   its lock stands,
   and the abandoned holder's file goes with the abandoned lock.
+- `an_arm_is_put_back_when_the_control_panics`
+  panics inside the arm's body and finds the arm gone afterwards,
+  which holds the drop guard `with_arm` puts it back with.
+
+Each plant below was applied to the committed product file and the whole module run,
+then the file was put back:
+
+```text
+term left out: device            a_pid_file_of_another_device_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1047:5: a PID file of another device is left alone
+term left out: inode             a_pid_file_of_another_inode_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:984:5: a PID file of another inode is left alone
+term left out: change time       a_pid_file_of_another_change_time_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1017:5: a PID file whose change time reads another millisecond is left alone
+contents put back to the number  a_pid_file_whose_number_gained_a_leading_zero_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:871:5: a PID file whose number gained a leading zero is left alone
+contents put back to the number  a_pid_file_with_trailing_padding_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:898:5: a PID file with spaces before its newline is left alone
+contents put back to the number  a_pid_file_with_a_carriage_return_before_the_newline_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:925:5: a PID file with a carriage return before its newline is left alone
+contents put back to the number  a_pid_file_with_no_newline_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:952:5: a PID file with no newline is left alone
+unlink planted away              a_lock_of_a_dead_recorded_holder_with_a_free_number_is_cleared
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:267:5: the PID file of a cleared lock goes with it
+unlink planted away              a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:1160:5: the abandoned holder's PID file goes with its lock, and the new holder has none to lose
+```
+
+Each run exited 100,
+every failing control is named,
+and the module was green before the first plant and after the last one
+(`Summary [0.176s] 22 tests run: 22 passed, 8632 skipped`).
 
 ### What the product guarantees here
 
 The removal unlinks the PID file beside a lock it cleared only when that file is still the one it judged,
 as its device,
 its inode,
-its change time in whole milliseconds and the number it names show.
+its change time in whole milliseconds and its contents show.
+It compares the file's contents byte for byte with the contents it judged,
+and the one case left open is a program that writes the very same bytes back,
+and the instant between the last read and the unlink.
+Because equal contents entail the judged number,
+a program that writes any other bytes there is told apart on every file system and at every clock granularity,
+and the number the proof already asked for costs no second read.
 For a Git,
 nothing else can be at that name while the judged file stands,
 because Git creates its PID file with `O_EXCL` and silently writes none when the name is taken,
 so a live Git that takes the freed name has no PID file there to lose.
-For a program that writes its own number over the judged file,
-the number is the proof that the file is not the judged one,
-whatever its inode number is and whatever the clock says.
-What is not promised is the state where the same number is written back,
-and the instant between the last read and the unlink;
-both are named above,
-and neither is a lock.
+What is not promised is the state where the very same bytes are written back,
+which costs that writer the PID file and never its lock,
+and the instant between the last read and the unlink,
+which no system call closes for a name.
 
 
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
