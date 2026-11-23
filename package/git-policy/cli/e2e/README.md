@@ -988,6 +988,11 @@ and reads the mount table afterwards.
 Every attempt prints one `DELEGATION` line with its rows,
 and the driver fails a run whose pulled log lacks one.
 
+The arm does not test the distro's mount generator: the integration pass ran that
+question with its own positive control and found a unit for the checkout dataset
+and none for a clone-container child, and this arm's attempt at the same reading
+was dropped rather than kept without one.
+
 What the run of 2026-11-22 showed:
 the account may clone the checkout to a dataset named
 `monochromatic-git-checkout` inside the container,

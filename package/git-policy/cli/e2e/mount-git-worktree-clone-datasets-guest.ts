@@ -80,8 +80,6 @@ const EXPECTED_DELEGATION_MARKERS = [
   'DELEGATION create-pool-as-account=refused',
   'DELEGATION import-pool-as-account=refused',
   'DELEGATION root-mount-a=mounted-nothing-of-the-accounts',
-  'DELEGATION generator checkout-unit=true',
-  'DELEGATION generator clone-unit=false',
   'DELEGATION done',
 ] as const;
 
@@ -544,25 +542,6 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
     'zfs mount -a',
     'if rows | grep --quiet --fixed-strings "/home/account"; then say root-mount-a mounted-the-accounts; else say root-mount-a mounted-nothing-of-the-accounts; fi',
     'zfs list -H -o name,mountpoint,canmount -r "$POOL" | sed "s/^/  /"',
-    // The distro generator, given the list cache the event daemon's cacher writes, must write a unit for the ordinary
-    // checkout dataset (the positive control) and none for any child of a clone container.
-    'CACHE=/opt/openzfs-2.4.4/etc/zfs/zfs-list.cache',
-    'mkdir --parents "$CACHE"',
-    'zfs list -H -p -o name,used,avail,refer,mountpoint -t filesystem -r "$POOL" > "$CACHE/$POOL"',
-    'rm -rf /tmp/generator-normal /tmp/generator-early /tmp/generator-late',
-    'mkdir --parents /tmp/generator-normal',
-    'if test -x /usr/lib/systemd/system-generators/zfs-mount-generator; then',
-    '  /usr/lib/systemd/system-generators/zfs-mount-generator /tmp/generator-normal /tmp/generator-early /tmp/generator-late || true',
-    '  units=$(cat /tmp/generator-normal/* 2>/dev/null | tr "\\n" " ")',
-    '  if printf "%s" "$units" | grep --quiet --fixed-strings "monochromatic-git-checkout.mount"; then echo "DELEGATION generator checkout-unit=true"; else echo "DELEGATION generator checkout-unit=false"; fi',
-    '  if printf "%s" "$units" | grep --quiet --fixed-strings "monochromatic-git-worktree-clone-datasets"; then echo "DELEGATION generator clone-unit=true"; else echo "DELEGATION generator clone-unit=false"; fi',
-    'else',
-    '  echo "DELEGATION generator absent"',
-    'fi',
-    'findmnt --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings monochromatic-git | sed "s/^/  row /" || true',
-    // The layout goes away, so no later arm meets a second pool's dataset of the leaf name.
-    'zpool destroy -f "$POOL"',
-    'rm --force "$IMAGE" "$IMAGE_SECOND"',
     'echo "DELEGATION done"',
   ].join('\n');
   guest({ chosen, script: attempts, log: 'guest-delegation.log', timeout: ARM_TIMEOUT_MS, });
