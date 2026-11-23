@@ -69,6 +69,88 @@ and the cancel command is the way back.
   and cancelling with the record dropped,
   at the second check.
 
+## The design is accepted
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T22:08:21-05:00.
+The design is `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md` as it stood at commit `56e04f766d`
+on its own branch,
+for plan step 16 of `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
+
+The project chose "A:
+accept as written (Recommended)":
+"All ten choices stand."
+The ten choices,
+as the project was shown them,
+each with the alternative not taken,
+and the design's own number for it:
+
+1.  The check runs before every snapshot destroy;
+    skipped only in a run that destroys no snapshot.
+    Not taken:
+    run it even then.
+    (V1)
+2.  It compares against what the removal's plan recorded.
+    Not taken:
+    against what the add recorded.
+    (V2)
+3.  A mark that cannot be read counts as marked:
+    refuse.
+    Not taken:
+    treat unreadable as unmarked.
+    (V3)
+4.  The check writes nothing.
+    Not taken:
+    keep a record of each check.
+    (V5)
+5.  Two small readers move to folders of their own in the code.
+    Not taken:
+    leave them where they are.
+    (V6)
+6.  A refusal prints what it read and decided,
+    never a destructive command to paste.
+    Not taken:
+    print the exact `zfs destroy`.
+    (V7)
+7.  The refusal names the two ZFS counters it read
+    (clones of the snapshot,
+    holds on it).
+    Not taken:
+    say only that it is marked.
+    (V8)
+8.  Three identity reads,
+    one of them the origin dataset's own.
+    Not taken:
+    two reads.
+    (V9)
+9.  If something the plan names is already gone,
+    refuse and let the next attempt settle it.
+    Not taken:
+    settle it in the same run.
+    (V10)
+10. The early look runs only on a first removal.
+    A retry after a cancel that kept a plan does not look early
+    and reports the mark after the worktree is down again.
+    Not taken:
+    also look in one more state,
+    by reading the plan first.
+    (V11)
+
+What the project was told with the question:
+the design's last four reviews found nothing high;
+the coordinator,
+and no reviewer,
+checked the last review's wording fixes against the diff;
+nothing in the design has been run,
+every probe being a specification the build step writes and runs;
+and it quotes the destruction plan design,
+which is unapproved,
+keeping the accepted rule where that design disagrees.
+
+Not chosen:
+accepting with a veto,
+and not accepting yet.
+
 ## What this record does not decide
 
 Whether the wrapper may ever finish a removal over a marked origin was not asked:
