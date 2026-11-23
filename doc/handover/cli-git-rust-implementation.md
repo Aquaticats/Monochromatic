@@ -216,9 +216,12 @@ and only the owner accepts one.
   when a round's tool call is older than 100 minutes
   or holds more than 45 minutes of processor time while running,
   or after three hours.
-  It has not yet been shown to flag anything:
-  run it once with its thresholds at a minute to see it list a live call,
-  and start it again whenever it ends while rounds are going.
+  It was shown able to flag at 2026-11-22T19:24-05:00:
+  run once with both thresholds at one minute
+  (`node watch-pi-rounds-for-a-command-that-never-returns.ts 0 60 60`),
+  it listed eight live tool calls,
+  the freed no-configuration round's new one among them.
+  Start it again whenever it ends while rounds are going.
 - A writer's invented task:
   the lock design's first fix round reported that a message asking for unrelated "Aerospace Clip" HTML work arrived.
   It did not come through the run's inbox,
@@ -443,9 +446,16 @@ and only the owner accepts one.
   which no tool ran and the driver took for the final message.
   It was started again as `...-second-pass-findings-carried-on`
   on `continuation-resume-after-a-tool-call-written-as-text.md`,
-  from its kept session.
+  from its kept session,
+  and ended at `70a863eeb5` with its report
+  (`keep/report-second-pass-findings.md` in its folder):
+  every scan point now cancels without `--force` before the next delete,
+  a scan after the unmount is a stop point of its own,
+  and what each refusal of a forced removal leaves is stated.
+  It read the forced arm at `1931987673`,
+  before that design's round had pushed.
 - Next:
-  one diff check of both when both have ended.
+  one diff check of both when the forced arm's round has ended.
   Still open for the owner,
   in the review's numbering:
   the signal and any grace (S4),
