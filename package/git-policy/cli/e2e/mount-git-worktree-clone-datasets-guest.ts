@@ -515,6 +515,9 @@ function delegation({ chosen, }: { readonly chosen: Options; }): void {
     'if rows | grep --quiet --fixed-strings "/home/account"; then say root-mount-a mounted-the-accounts; else say root-mount-a mounted-nothing-of-the-accounts; fi',
     'zfs list -H -o name,mountpoint,canmount -r "$POOL" | sed "s/^/  /"',
     'findmnt --noheadings --output TARGET,SOURCE --type zfs | grep --fixed-strings monochromatic-git | sed "s/^/  row /" || true',
+    // The layout goes away, so no later arm meets a second pool's dataset of the leaf name.
+    'zpool destroy -f "$POOL"',
+    'rm --force "$IMAGE" "$IMAGE_SECOND"',
     'echo "DELEGATION done"',
   ].join('\n');
   guest({ chosen, script: attempts, log: 'guest-delegation.log', timeout: ARM_TIMEOUT_MS, });
