@@ -1281,6 +1281,10 @@ with `client build`'s `childrenMs` 2023;
 ### The cause
 
 The record was right and the control's window was wrong.
+That is shown for the second failure,
+whose record is quoted here;
+the first failure's journal line was never kept,
+so its cause is inferred from the same control and not shown.
 
 `offsetMs` counts from the command's start
 (`package/git-policy/cli/src/native/transaction/transaction_step_durations.rs`,
@@ -1320,12 +1324,15 @@ Nothing of the stopped `git commit`'s 2023 ms lies outside the build either:
 the step's whole duration,
 so its stretch is at least as long as the step,
 and the 16 ms between the notice's `stoppedAfterMs` 2007 and the step's 2023
-are the step's own end and reap,
-inside `buildMs`,
-because the build closes after that unwind
-(`close_an_open_build` at `package/git-policy/cli/src/native/commit/commit_command.rs:418`,
-after `output_watched_within_...` and `note_step_asked` at
-`package/git-policy/cli/src/native/transaction/transaction_git.rs:417-418`).
+is time the step ran past the ceiling,
+consistent with its own end and reap on this host,
+where natural `git commit` steps of the same control lasted 2017 to 2047 ms against a 2000 ms ceiling,
+and inside `buildMs`,
+which is closed after the step's time is read
+(`note_step(step, began, began.elapsed())` at
+`package/git-policy/cli/src/native/commit/commit_preparation.rs:281`,
+after `run_guarded_child` at `:275`;
+`close_an_open_build` at `package/git-policy/cli/src/native/commit/commit_command.rs:418`).
 No stretch is stated twice:
 14 parts,
 `calls` 1 each,
@@ -1333,24 +1340,36 @@ No stretch is stated twice:
 No Git child spans a build seam:
 the build's one child is stated wholly in one part.
 
-Rounding is not it either.
-A stretch's `ms` and `childrenMs` are two cuts of one duration,
+Rounding is not it either,
+and neither is counting the figures.
+Every figure the accounting sums is a duration cut to whole milliseconds on its own
+(`package/git-policy/cli/src/native/commit/commit_prepare_part_durations.rs:180-182`,
+`package/git-policy/cli/src/native/transaction/transaction_step_durations.rs:264-265`,
+`package/git-policy/cli/src/native/commit/commit_timing.rs:613`),
+and a cut never raises a sum:
+a stretch's `ms` and `childrenMs` are two cuts of one duration,
 and `floor(a) + floor(b) <= floor(a + b)`,
-so a build's parts can only fall below their phase and never pass it.
-And even one whole millisecond per figure summed,
-14 + 3 + 1 = 18,
-leaves the failure's 2105 over 2086 + 18 = 2104,
-so the fixed 12 ms allowance did not decide this failure either.
-That fixed number still did not hold what it meant to hold once a record has more figures than it counted,
-so the two controls now derive the allowance from the figures they sum.
+so a right record states the build's parts and the steps that began in them at `buildMs` or under it.
+The one cut that can add is the window's origin,
+`routeMs + prepareMs`,
+two cuts that can begin the window up to two whole milliseconds early;
+the step such a band admits is one the preparation had already awaited,
+so it ran in under those two milliseconds and states at most one whole one.
+The controls hold that one whole millisecond (`WINDOW_ORIGIN_ROUNDING_MS`),
+and the failure's 2105 passes 2086 + 1 = 2087 by 18,
+so no cut decides it.
+The fixed 12 ms allowance the controls held before that was too small for a record with more figures than it counted,
+and a count of figures is too large:
+the integration pass of 2026-11-22 read it as 16 on the stopped control and 19 on the landing one,
+where a planted step stating 20 ms more than it ran passed both.
 
 Every other way this could be false was checked and excluded:
 the build's own figure by `otherMs` 0 and 101 + 111 + 2086 = 2298 of 2299,
 a record of several builds by `attempts` 1,
 a step list cut short by `stepsDropped` 0,
-and the window's own edges,
-which are cut to whole milliseconds and can move only a step within 1 ms of one of them,
-by the two preparation steps beginning 92 ms and 59 ms before the true start.
+and the window's own origin,
+which can admit only a step that began in the two milliseconds before the build and ran in less than those two,
+by the two preparation steps beginning 92 ms and 59 ms before it.
 A step that began in the build's last `routeMs` was not counted at all,
 so the same off-by-a-route could also hide a defect at the window's end;
 the window now ends where the build does.
@@ -1408,16 +1427,19 @@ the delay was planted in the stand-in and one run of the control showed it.
   `routeMs + prepareMs + buildMs`,
   and both controls assert `attempts` 1,
   because a record of several builds is several windows and no single pair states their union;
-- `rounding_of` derives the allowance from the figures the sum is made of:
-  one whole millisecond for each `buildParts` entry,
-  each step the window holds and `buildMs`,
-  so no fixed number decides a record with more figures than the old constant counted;
+- `WINDOW_ORIGIN_ROUNDING_MS` is the bound:
+  one whole millisecond,
+  because every figure summed is a cut that cannot raise a sum,
+  and the window's origin,
+  two cuts,
+  can admit only a preparation step that ran in under two milliseconds;
+- both controls assert that the window holds the scratch `git commit`,
+  so a frame that moved cannot leave an empty selection that passes by adding nothing;
 - `a_preparations_last_steps_are_not_counted_inside_the_build` holds this gate's own record:
-  it asserts the window,
-  the one step inside it,
-  the sums 34 and 2023 that fit,
-  and the sums 34 and 2071 the old reading counts,
-  which pass even the derived allowance.
+  it derives the window,
+  the selected step,
+  and the sums from that record,
+  and asserts that the old reading's 2071 ms passes even the origin's bound.
   With `steps_inside_the_build` reading its window from `prepareMs`,
   the control fails at its step list:
   `left: ["git add", "git rev-parse", "git commit"]` against `right: ["git commit"]`,
@@ -1428,8 +1450,9 @@ the delay was planted in the stand-in and one run of the control showed it.
 `package/git-policy/cli/SPEC.md` now says what the build's window is,
 so a later reader does not derive it again.
 
-Nothing in the record changed:
-both failures' records were right.
+Nothing in the record changed for the second failure,
+whose record is quoted here and was right;
+the first failure's record was never kept.
 
 ## Cause M: a shadow control counted its starts in a file the cut start writes (issues 6343 and 6344)
 
