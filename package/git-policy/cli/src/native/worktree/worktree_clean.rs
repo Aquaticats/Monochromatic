@@ -372,7 +372,9 @@ impl State {
 ///   The judgement of cleanliness and the snapshot of a worktree that is not clean start from the same reading;
 /// every shape
 ///  the readers do not know is a refusal of kind `Unreadable`.
-///  A proof by content judges this worktree's own files, so it reads the repository's own store, as `main`'s reader did,
+///  A proof by content judges this worktree's own files,
+/// so it reads the repository's own store,
+/// as `main`'s reader did,
 ///  and a store or a base a command's environment names does not move that reading.
 ///
 /// In TS you'd write (pseudocode):

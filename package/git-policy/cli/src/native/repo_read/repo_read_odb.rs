@@ -213,7 +213,8 @@ fn ref_store_is_reftable(common_dir: &Path) -> bool {
 ///  Whether the repository's own files keep its references in the reftable backend's tables,
 ///  asking nothing of the environment.
 /// Why:
-///  A proof of *this worktree's own* files reads the repository's own store, as `main`'s reader did,
+///  A proof of *this worktree's own* files reads the repository's own store,
+/// as `main`'s reader did,
 ///  and a command's environment moves what Git reads and not what this repository keeps:
 ///  `ObjectDatabase::open_of_the_repository_alone` asks this,
 ///  and `ObjectDatabase::open` asks the environment first and then this.
@@ -370,11 +371,15 @@ impl ObjectDatabase {
     ///  The database of *this worktree's own* files,
     ///  asked by a proof that compares the index with the worktree and never asks what a command reads.
     /// Why:
-    ///  A content proof reads the repository's own store, as `main`'s reader did, whatever store a command's
+    ///  A content proof reads the repository's own store,
+    /// as `main`'s reader did,
+    /// whatever store a command's
     ///  environment names:
-    ///  the files it judges are this worktree's own, and a store the environment moves is read by Git's own answers,
+    ///  the files it judges are this worktree's own,
+    /// and a store the environment moves is read by Git's own answers,
     ///  not by this one.
-    ///  Every other decline stays, so a store the repository itself moved away still refuses.
+    ///  Every other decline stays,
+    /// so a store the repository itself moved away still refuses.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

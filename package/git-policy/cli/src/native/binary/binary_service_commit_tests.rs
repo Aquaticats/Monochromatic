@@ -714,8 +714,12 @@ fn git_holding(fixture: &Fixture, repo: &Path, held: &[(&str, &str)], arguments:
 ///  so a replacement base it holds makes the amend stand on the parents Git reads,
 ///  and a store it names is what the landing asks;
 ///  a service that answered from its own reading while Git read elsewhere would be the wrong answer.
-///  The answer is kept right by two doors together: `history_is_plain` lists the variables, so the landing leaves the
-///  parents to Git, and the reader declines them, so a landing that read in process asks Git too.
+///  The answer is kept right by two doors together:
+/// `history_is_plain` lists the variables,
+/// so the landing leaves the
+///  parents to Git,
+/// and the reader declines them,
+/// so a landing that read in process asks Git too.
 ///  This control is therefore red only with both doors closed;
 ///  `a_graft_file_the_service_names_lands_as_git_reads_it` and
 ///  `a_ref_store_the_service_names_lands_as_git_reads_it` hold one door each.
@@ -789,22 +793,26 @@ fn nothing_held(_paths: &RowPaths) -> Vec<(&'static str, String)> {
     return Vec::new();
 }
 
-/// The repository's own object store, as Git reads it when told nothing.
+/// The repository's own object store,
+/// as Git reads it when told nothing.
 fn the_object_store_in_use(paths: &RowPaths) -> Vec<(&'static str, String)> {
     return vec![("GIT_OBJECT_DIRECTORY", paths.objects.display().to_string())];
 }
 
-/// The same store, spelled the way the worktree's own pathspecs would spell it.
+/// The same store,
+/// spelled the way the worktree's own pathspecs would spell it.
 fn the_object_store_in_use_spelled_relatively(_paths: &RowPaths) -> Vec<(&'static str, String)> {
     return vec![("GIT_OBJECT_DIRECTORY", String::from(".git/objects"))];
 }
 
-/// An empty directory beside the repository, as a cache a CI job would name.
+/// An empty directory beside the repository,
+/// as a cache a CI job would name.
 fn an_empty_cache_directory(paths: &RowPaths) -> Vec<(&'static str, String)> {
     return vec![("GIT_ALTERNATE_OBJECT_DIRECTORIES", paths.cache.display().to_string())];
 }
 
-/// The repository's own store as an alternate, which adds no object at all.
+/// The repository's own store as an alternate,
+/// which adds no object at all.
 fn the_object_store_as_an_alternate(paths: &RowPaths) -> Vec<(&'static str, String)> {
     return vec![("GIT_ALTERNATE_OBJECT_DIRECTORIES", paths.objects.display().to_string())];
 }
@@ -814,7 +822,8 @@ fn a_replacement_base_with_nothing_under_it(_paths: &RowPaths) -> Vec<(&'static 
     return vec![("GIT_REPLACE_REF_BASE", String::from("refs/probe/"))];
 }
 
-/// The reference store the repository already keeps, named for the command.
+/// The reference store the repository already keeps,
+/// named for the command.
 fn the_ref_store_the_repository_already_keeps(_paths: &RowPaths) -> Vec<(&'static str, String)> {
     return vec![("GIT_REFERENCE_BACKEND", String::from("reftable"))];
 }
@@ -867,8 +876,12 @@ struct AnEnvironmentRow {
 /// The rows of the integration recheck's environment situations in which `main` lands the right commit,
 /// under the names it gives them (`r01` to `r32` of its `env-situations.ts`).
 /// Why:
-///  These are the rows the commit refusal this round added refused: a value that names what the repository already
-///  uses, an empty cache directory, a replacement base with nothing under it, a reftable store naming what it is,
+///  These are the rows the commit refusal this round added refused:
+/// a value that names what the repository already
+///  uses,
+/// an empty cache directory,
+/// a replacement base with nothing under it,
+/// a reftable store naming what it is,
 ///  and an effective setting the service holds too.
 fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
     return vec![
@@ -892,10 +905,15 @@ fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
 ///  Every row of the recheck's environment situations in which `main` lands the right commit still lands it,
 ///  with the parents Git reads and a whole commit.
 /// Why:
-///  The commit refusal this round added refused these rows, and the merge bar is that a branch may not make anything
+///  The commit refusal this round added refused these rows,
+/// and the merge bar is that a branch may not make anything
 ///  `main` does well worse:
-///  a value that names what the repository already uses, an empty cache directory, a replacement base with nothing under
-///  it, a reftable store naming what it is, and an effective setting the service holds too are all cases `main` lands.
+///  a value that names what the repository already uses,
+/// an empty cache directory,
+/// a replacement base with nothing under
+///  it,
+/// a reftable store naming what it is,
+/// and an effective setting the service holds too are all cases `main` lands.
 ///  Each row has a fixture and a commit service of its own.
 #[test]
 fn a_setting_the_command_or_the_service_holds_still_lands() {
@@ -966,17 +984,22 @@ fn a_setting_the_command_or_the_service_holds_still_lands() {
     }
 }
 
-/// The text of one Git answer, without its trailing line feed.
+/// The text of one Git answer,
+/// without its trailing line feed.
 fn text_of(output: Output) -> String {
     return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
 }
 
 /// What:
-///  A graft file the service names is what Git reads, and the amendment stands where Git reads it.
+///  A graft file the service names is what Git reads,
+/// and the amendment stands where Git reads it.
 /// Why:
-///  This is the landing's first door for a history Git may show differently: `history_is_plain` lists
-///  `GIT_GRAFT_FILE`, so the parents are left to Git.
-///  The repository's own `info/grafts` is empty here, so the reader opens and the second door does not apply:
+///  This is the landing's first door for a history Git may show differently:
+/// `history_is_plain` lists
+///  `GIT_GRAFT_FILE`,
+/// so the parents are left to Git.
+///  The repository's own `info/grafts` is empty here,
+/// so the reader opens and the second door does not apply:
 ///  this control is red with `GIT_GRAFT_FILE` taken out of that list and nothing else.
 #[test]
 fn a_graft_file_the_service_names_lands_as_git_reads_it() {
@@ -1027,8 +1050,10 @@ fn a_graft_file_the_service_names_lands_as_git_reads_it() {
 ///  A replace ref keeps the amendment on the parents Git reads,
 ///  with no variable of the landing's history list set anywhere.
 /// Why:
-///  This is the landing's second door alone: the reader declines a repository holding a replace ref,
-///  so the base's parents are asked of Git, and the fixture closes the first door by setting nothing that
+///  This is the landing's second door alone:
+/// the reader declines a repository holding a replace ref,
+///  so the base's parents are asked of Git,
+/// and the fixture closes the first door by setting nothing that
 ///  `history_is_plain` lists (a `refs/replace` entry is not one of its variables).
 ///  This control is red with the replace refs taken out of the reader's decline and nothing else.
 #[test]

@@ -575,7 +575,8 @@ fn a_gitfile_that_names_a_directory_that_is_not_text_names_it() {
 ///  A layout's proof taken before a ref store migration declines after it.
 /// Why:
 ///  `open_where_the_layout_proved_the_store` trusts the layout's proof of the ref store,
-///  and `git refs migrate --ref-format=reftable` inside a command that holds the layout (a forwarded `merge`, say)
+///  and `git refs migrate --ref-format=reftable` inside a command that holds the layout (a forwarded `merge`,
+/// say)
 ///  leaves that proof stale:
 ///  the proved open must decline as the unproved one does,
 ///  or it reads the object's own bytes where Git reads a replacement that now lives in the tables.

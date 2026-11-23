@@ -415,8 +415,10 @@ fn the_process_environment_names_an_attribute_source() {
 /// The four variables a command's environment can hold that the reader declines,
 /// by name.
 /// Why:
-///  The value each is given in the child names what this fixture already has (its own store, an empty directory beside
-///  it, a replacement base with nothing under it),
+///  The value each is given in the child names what this fixture already has (its own store,
+/// an empty directory beside
+///  it,
+/// a replacement base with nothing under it),
 ///  so Git's own starts in the proof still run and the reader's decline is the only thing the variable moves.
 const THE_VARIABLES_A_COMMAND_NAMES: [&str; 4] = ["GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE", "GIT_REFERENCE_BACKEND"];
 
@@ -444,9 +446,12 @@ fn the_value_that_moves_nothing(name: &str, worktree: &Path, common: &Path, root
 ///  as it does on `main`.
 /// Why:
 ///  A `git worktree remove` of a tree that holds a foreign volume proves the state by content when the stat proof
-///  cannot vouch for it, and refusing there where `main` proceeds is a regression.
-///  The proof reads the repository's own store, so a store or a base a command names does not move it.
-///  The variable belongs to one process and names paths this fixture makes, so each arm runs in a child that sets it
+///  cannot vouch for it,
+/// and refusing there where `main` proceeds is a regression.
+///  The proof reads the repository's own store,
+/// so a store or a base a command names does not move it.
+///  The variable belongs to one process and names paths this fixture makes,
+/// so each arm runs in a child that sets it
 ///  after the repository exists.
 #[test]
 fn a_content_proof_answers_under_each_variable_a_command_names() {
