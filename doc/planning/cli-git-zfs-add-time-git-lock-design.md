@@ -104,15 +104,14 @@ read whole where the brief says so:
   for the two answers this design leans on:
   a record that cannot be read is refused and named,
   and a slot whose recorded clone is gone and cannot be proved gone gets a settling command.
-- `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md` on branch
-  `docs/planning-cli-git-zfs-dirty-main-restore-on-rung-1-design`,
-  read by `git show` at `04ce55a880`:
-  "What happens when the proof fails or the restore cannot finish" and
+- [`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`][dirtymain],
+  accepted and on `main`,
+  its "What happens when the proof fails or the restore cannot finish" and
   "Which build step builds which part",
   for the settle marker and the destroys the fallback runs.
 - `doc/planning/cli-git-zfs-add-binding-record-design.md` on branch
   `docs/planning-cli-git-zfs-add-binding-record-design`,
-  read by `git show` at `7d041d773b` (2026-11-22T22:05:30-05:00):
+  read by `git show` at `3b4b073f0e` (2026-11-23T03:55:16-05:00):
   "The add's writes in one order",
   "A resume after a kill between Git's add and the registered write",
   "The account's claim and root's claim",
@@ -661,7 +660,7 @@ it and by which proof.
 The add's durable binding record is the sibling design's,
 `doc/planning/cli-git-zfs-add-binding-record-design.md`
 on branch `docs/planning-cli-git-zfs-add-binding-record-design`,
-read by `git show` at `7d041d773b` (2026-11-22T22:05:30-05:00),
+read by `git show` at `3b4b073f0e` (2026-11-23T03:55:16-05:00),
 its "The record family",
 "The binding" and "The add's writes in one order".
 That document is the sibling's design and nothing in it is adopted here as decided.
@@ -1265,7 +1264,7 @@ and its `registered` write carries `registration=`,
 `registrationIdentity=` and `pointer=`.
 Source:
 the binding design (`doc/planning/cli-git-zfs-add-binding-record-design.md` on its branch),
-read at `7d041d773b` (2026-11-22T22:05:30-05:00),
+read at `3b4b073f0e` (2026-11-23T03:55:16-05:00),
 its "The binding" and "What the writer confirms before each write";
 read as the sibling's design,
 not as a decision of this one.
@@ -1469,7 +1468,7 @@ V1:
 
 The order is not this design's.
 It is the binding design's "The add's writes in one order",
-read at `7d041d773b`
+read at `3b4b073f0e`
 (2026-11-22T19:58:00-05:00),
 and this design adds no step to it and reorders none.
 Each moment below names that section's step labels as they read at that commit,
@@ -1598,7 +1597,7 @@ The binding states this window's boundary itself,
 in its A11:
 D6 begins at A10's write and ends at the exchange,
 "that is the one statement of D6's boundary between the two documents"
-(read at `7d041d773b`).
+(read at `3b4b073f0e`).
 The project decided on 2026-11-22 what holds at the slot while the add fills it:
 the copied `.git` stays until the exchange,
 "so that no moment and no kill leaves the folder without a `.git`"
@@ -1673,10 +1672,10 @@ since the add reports it,
 and the add settles the mount and its own intents itself.
 
 The fallback's steps are the binding design's A20 to A27,
-read at `7d041d773b`,
+read at `3b4b073f0e`,
 and the mechanics of the destroys and the checkout are the dirty-main design's
 ("What happens when the proof fails or the restore cannot finish",
-read at `04ce55a880`).
+in `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`).
 The order is theirs,
 and this design states none of its own:
 
@@ -1694,7 +1693,10 @@ and this design states none of its own:
   the origin cleanup record is published as `owed` before A22,
   or before A23 when A22 is skipped because the add made no clone,
   and the origin snapshot is destroyed from the identities A8 recorded,
-  with `ENOENT` counted as done.
+  with `ENOENT` counted as done,
+  which is the deferred-destroy design's rule for an add ("An add's own destroy does not pass through these
+  checks",
+  accepted and on `main`).
   A refused destroy leaves the record `owed` and the add goes on.
 - A24:
   the managed lock is released and the registration kept.
@@ -1702,6 +1704,10 @@ and this design states none of its own:
   Git's own checkout runs at the slot.
 - A26 and A27:
   the binding is closed and the claim released.
+  A27 prints nothing:
+  the add's own sentence is the restoring design's,
+  and it is printed after A25 and before A26,
+  as the binding's A27 says.
 
 The lock's part is A24,
 and this design owns three things in it,
@@ -1910,7 +1916,7 @@ The binding's identity fields are an inode with a birth time
 (`<inode>:<seconds>:<nanoseconds>`),
 not a device number:
 its "The identity fields",
-read at `7d041d773b`,
+read at `3b4b073f0e`,
 records that choice,
 and the device number the repository's own specification records as anonymous and per mount ([spec][spec],
 lines 5589 to 5601) is not one of its fields.
@@ -1962,7 +1968,7 @@ It is its "A resume after a kill between Git's add and the registered write",
 its "The states Git's source can
 leave" and its "The recipe that clears rows 1 to 5,
 7 and 8",
-read at `7d041d773b` (2026-11-22T22:05:30-05:00).
+read at `3b4b073f0e` (2026-11-23T03:55:16-05:00).
 That section lists one row per state Git's source can leave,
 reads each entry twice through the pinned `<common>/worktrees` parent,
 compares `locked` with the sentence recomposed from this add's `nonce=` including the newline Git's
@@ -2038,7 +2044,7 @@ S3.
 The bytes are neither equal to the sentence nor a prefix that covers its fixed part and the whole nonce,
 or the binding is absent or unreadable so that nothing can be recomposed.
 An empty file is S3 here.
-The binding's resume reads an empty `locked` as no lock for attribution (its A6 and T20b),
+The binding's resume reads an empty `locked` as no lock for attribution (its "The states Git's source can leave" and its T20b),
 and the two readers differ on purpose:
 an empty file is also what a person's `git worktree lock` with no reason leaves,
 and a removal must not release a lock it cannot attribute to this add.
@@ -2102,7 +2108,7 @@ the clone slot <slot> holds a registration no binding of this slot explains (<wh
 S8.
 **A half-made registration the finder names.**
 A `worktrees/<id>` answers one of the binding's rows 1 to 8 (its "The states Git's source can leave",
-read at `7d041d773b`),
+read at `3b4b073f0e`),
 with this add's sentence in `locked` where a lock stands.
 Doctor prints:
 
@@ -2215,7 +2221,7 @@ its "The recipe that clears rows 1 to 5,
 7 and 8",
 in "A resume after a kill between Git's add and the registered
 write",
-read at `7d041d773b`.
+read at `3b4b073f0e`.
 This design adds nothing to it except the proof that comes first,
 because the registration's subject is gone.
 A builder reads its steps 1 to 8 there;
@@ -2288,7 +2294,7 @@ Every command that writes it again holds the slot's claim:
 `<slot>.claim.<generation>`,
 taken with `take_claim`
 (the binding design's "The account's claim and root's claim",
-read at `7d041d773b`).
+read at `3b4b073f0e`).
 It is not root's claim under `/run` that [spec][spec] describes at lines 6228 to 6272.
 
 The commands,
@@ -2698,7 +2704,7 @@ The mounted-clone arm is M1's.
 
 T16.
 The finder returns each of the binding's rows,
-"The states Git's source can leave" at `7d041d773b`,
+"The states Git's source can leave" at `3b4b073f0e`,
 for a fixture planted from the source line that leaves it:
 row 1 (bare directory),
 row 2 (lock only),
@@ -2807,7 +2813,7 @@ with `git worktree prune`,
 The fallback's step,
 which the dirty-main design allocates to step 11
 (its "Which build step builds which part",
-read at `04ce55a880`),
+in `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`),
 and whose order is the binding's A20 to A27:
 
 T17.
@@ -3047,7 +3053,8 @@ or leaves it and reports,
 or refuses the slot until a person acts.
 Example:
 a kill inside Git's write of the reason,
-leaving the first 20 bytes.
+leaving the first 140 bytes,
+which covers the sentence's fixed part and the whole nonce.
 The adopted completion rewrites the same bytes with one truncating write,
 so the lock is never absent (F8).
 Leaving it means the registration stays protected but every removal refuses until a person unlocks it.
@@ -3059,7 +3066,7 @@ Cons:
 the wrapper writes inside Git's directory for a state it did not create.
 Ranking:
 complete > leave and report > refuse,
-because the bytes are provably the wrapper's own (a prefix of its recomposed sentence),
+because the bytes are provably the wrapper's own (a prefix that covers the nonce),
 and a person cannot fix it
 faster than one write.
 
@@ -3113,7 +3120,8 @@ V7.
 12,
 13 and 16**,
 and where the composer and the comparison live:
-the plan's allocation with those two in step 10 (adopted);
+the plan's allocation with those two in step 10,
+and step 10 refusing an unlocked complete entry until step 13's installer (adopted);
 or the plan's allocation read literally,
 with them in step 13 while step 10 inlines its own copies;
 or keeping the add route refusing until step 13.
@@ -3581,8 +3589,13 @@ and the sibling branches by `git show`:
   `WTU`,
   `HOM` and `RXI`.
 
-The sibling designs,
-read by `git show` of their branches and treated as unreviewed:
+The sibling designs.
+Three are accepted and on `main`,
+and this design cites them there by heading:
+the dirty-main restore design ([dirtymain][dirtymain]),
+the deferred-destroy checks and
+the private propagation after a replacement mount.
+The others are read by `git show` of their branches and treated as unreviewed:
 
 - [`doc/planning/cli-git-zfs-add-binding-record-design.md`][binding],
   "The claim",
@@ -3596,7 +3609,6 @@ read by `git show` of their branches and treated as unreviewed:
 - `doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
   its stop points.
 - `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`.
-- `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`.
 
 ## Revisions
 
@@ -3689,8 +3701,8 @@ with each committer time from `git log --format=%cI`:
   2026-11-22T22:07:27-05:00:
   main merged with `--no-ff`,
   bringing the owner's further answer on who records what when the add undoes what it made.
-- The commit after `ba39ffa043` that carries this list,
-  whose hash `git log` reports:
+- `9e3ceff079`,
+  2026-11-22T22:09:48-05:00:
   the fourth check's fixes:
   A24's proof and T17's refused-destroy arm,
   the A23 bullet,
@@ -3704,6 +3716,19 @@ with each committer time from `git log --format=%cI`:
   the binding at `7d041d773b`,
   and W19's cost beside the veto entries.
 
+- `a7b9f02924`,
+  2026-11-23T03:57:11-05:00:
+  main merged with `--no-ff`,
+  bringing the accepted dirty-main restore design and the two other accepted designs.
+- The commit after `a7b9f02924` that carries this list,
+  whose hash `git log` reports:
+  the fifth diff read's fixes:
+  V4's example and V7's clause,
+  the binding at `3b4b073f0e`,
+  A27's printed nothing,
+  the empty lock's cite,
+  and the accepted designs cited from `main`.
+
 Any commit after those carries this list;
 the round's report names every commit with its committer time.
 
@@ -3714,6 +3739,7 @@ the round's report names every commit with its committer time.
 [plan]: cli-git-zfs-worktree-implementation-plan.md
 [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
 [fallback]: ../decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md
+[dirtymain]: cli-git-zfs-dirty-main-restore-on-rung-1-design.md
 [lostlock]: ../decision/cli-git-zfs-add-time-git-lock-put-back-when-lost.md
 [sevenanswers]: ../decision/cli-git-zfs-clone-worktree-records-seven-answers.md
 [staging]: ../decision/cli-git-zfs-staging-under-cache.md
