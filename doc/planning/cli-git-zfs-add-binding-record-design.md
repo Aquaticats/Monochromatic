@@ -6138,6 +6138,9 @@ and any test suite.
   U20 (`--force` for a partial checkout),
   and U23 (the accepted design's quoted sentence and the replacement words in "Where the siblings disagree").
   Each was proved by the searches kept in `keep/seventh-reads-searches-2026-11-22.txt`.
+- 2026-11-23T05:28:52-05:00 (`cc141f5133`):
+  named the settling command's own kill state in the after-A20 list,
+  which U16 of the seventh add-side read asked for.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
