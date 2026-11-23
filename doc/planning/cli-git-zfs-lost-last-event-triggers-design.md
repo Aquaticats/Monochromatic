@@ -4527,6 +4527,8 @@ which is that design's answer.
   tests 15 to 20 are rewritten and test 8's Git arm loses its confound,
   and M8 carries the answered-entry,
   gate-control and root-side arms.
+- 2026-11-22T20:32:59-05:00:
+  recorded the answer's commit time above.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
