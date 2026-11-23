@@ -4357,6 +4357,26 @@ because the filesystem writes both facts into every subvolume itself
 (`BTRFS_IOC_GET_SUBVOL_INFO`):
 the subvolume a snapshot was taken from,
 and the transaction that created it.
+The source's UUID is read for every btrfs subvolume,
+a nested one as much as the filesystem's top-level one.
+Before `c5615e51eb`
+(`doc/troubleshooting/btrfs-get-subvol-info-returns-one-on-success.md`),
+the request's answer of 1 was read as a failure,
+which is the answer a source subvolume gives where its backref search ends inside a leaf,
+so the record named no source,
+and the stage a kill left beside its destination was kept and reported;
+the record now names that source,
+and the proof removes the stage a kill left.
+The controls that hold this are the ioctl's own
+(`a_positive_ioctl_answer_is_not_a_failure` on the reader,
+`answers_of_one_and_zero_return_the_subvolume_record_and_a_negative_answer_fails` on every host,
+`btrfs_a_positive_answer_to_the_subvolume_record_is_a_success` and
+`btrfs_the_top_level_subvolumes_answer_of_zero_is_read_as_a_record` on a btrfs fixture root),
+the `worktree_copy_stage_snapshot_origin` controls that read an origin,
+and the `worktree_copy_stage_claim` controls
+`btrfs_the_snapshot_created_before_its_record_is_removed`,
+`a_snapshot_holding_a_newer_entry_is_kept` and
+`a_different_snapshot_at_the_stage_name_is_not_taken_for_the_one_a_kill_left`.
 A later command removes that folder only when it is a btrfs subvolume root,
 taken from the recorded source,
 and created in a transaction later than the recorded one,
@@ -7778,7 +7798,7 @@ of the review call and of the whole review).
   tables the second run does not replace:
   50 of 104 cuts differed);
   its one form,
-  the argv `shadow_create.rs` runs on a shadow
+  the argv `shadow_create_init.rs` runs on a shadow
   request,
   keeps its ceiling because `init_with_git` discards the partial directory and starts a fresh one when the start was cut,
   refused as a finished command,

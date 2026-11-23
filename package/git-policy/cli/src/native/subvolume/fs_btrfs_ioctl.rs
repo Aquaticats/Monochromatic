@@ -706,7 +706,7 @@ pub struct SubvolumeInfo {
 /// Why:
 ///   An ioctl answers `-1` and sets `errno` when the request failed,
 /// and every answer from zero up is the request's own value:
-///  `BTRFS_IOC_GET_SUBVOL_INFO` answers 1 for a subvolume that has a parent backref,
+///  `BTRFS_IOC_GET_SUBVOL_INFO` answers 1 for a subvolume whose root-backref search did not end at a leaf boundary,
 /// so a check against zero reads a filled
 ///  structure as an error and reports whatever `errno` the process last set.
 ///
@@ -719,26 +719,33 @@ fn is_a_failure(answered: &libc::c_int) -> bool {
 }
 
 /// What:
-///  Read what the subvolume holding `path` says about itself (`BTRFS_IOC_GET_SUBVOL_INFO`).
+///  The record the request filled,
+/// read from the answer it gave,
+/// with the request itself handed in as a closure,
+/// so a control on any filesystem can answer with the value it names.
 /// Why:
-///   The request is answered for the subvolume the opened directory belongs to,
-/// so any directory inside it answers,
-/// and the kernel needs no privilege the caller does not already have on that directory.
-/// The kernel answers 1 for a subvolume that has a parent backref and 0 for the top-level subvolume,
-/// so the answer is a value the request defines rather than a status.
+///   The answer is a value the request defines rather than a status,
+/// so the one place that decides whether the request failed is also the place a portable control drives,
+///  with an answer of 1 and an answer of 0 and an answer of -1:
+/// a comparison against zero written back here fails wherever the suite runs,
+/// and no nested subvolume's record is
+///  lost on a host whose kernel never answers 1.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const info = await subvolumeInfo(path); // { uuid, parentUuid, generation, transidAtCreation }
+/// function recordFromAnswer(operation: string, path: string, answerTheRequest: (arguments: SubvolumeInfoArgs) => number): SubvolumeInfo
 /// ```
-pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
-    let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
-    let directory: File = open_directory(path, operation)?;
+fn record_from_answer(
+    operation: &'static str,
+    path: &Path,
+    answer_the_request: impl FnOnce(&mut SubvolumeInfoArgs) -> libc::c_int,
+) -> Result<SubvolumeInfo, PrimitiveError> {
     // SAFETY: `SubvolumeInfoArgs` is plain integers and bytes, so the all-zero value is a valid value.
     let mut arguments: SubvolumeInfoArgs = unsafe { std::mem::zeroed() };
-    // SAFETY: `directory` is open for the call; `arguments` is the 504-byte structure the request number states.
-    let result: libc::c_int = unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, &mut arguments) };
-    if is_a_failure(&result) {
+    // What: the answer the caller's request gave, read once.
+    // Why: both the failure check and the record this returns need it, and `errno` stops being reliable after any call.
+    let answered: libc::c_int = answer_the_request(&mut arguments);
+    if is_a_failure(&answered) {
         return Err(PrimitiveError::last_os_error(operation, path));
     }
     return Ok(SubvolumeInfo {
@@ -747,6 +754,34 @@ pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
         generation: arguments.generation,
         transid_at_creation: arguments.otransid,
     });
+}
+
+/// What:
+///  Read what the subvolume holding `path` says about itself (`BTRFS_IOC_GET_SUBVOL_INFO`).
+/// Why:
+///   The request is answered for the subvolume the opened directory belongs to,
+/// so any directory inside it answers,
+/// and the kernel needs no privilege the caller does not already have on that directory.
+/// The kernel answers 1 for a subvolume that has a parent backref
+/// (or 0 when that search ends at a leaf boundary)
+/// and 0 for the top-level subvolume,
+/// so the answer is a value the request defines rather than a status,
+/// and the reading of it lives in one function a control on any filesystem drives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const info = await subvolumeInfo(path); // { uuid, parentUuid, generation, transidAtCreation }
+/// ```
+pub fn subvolume_info(path: &Path) -> Result<SubvolumeInfo, PrimitiveError> {
+    let operation: &'static str = "BTRFS_IOC_GET_SUBVOL_INFO";
+    let directory: File = open_directory(path, operation)?;
+    // What: the request itself, handed to the one reader so this call site never holds its answer.
+    // Why: a comparison here would answer for every nested subvolume with a stale `errno` and no portable control could see it.
+    let answer_the_request = |arguments: &mut SubvolumeInfoArgs| -> libc::c_int {
+        // SAFETY: `directory` is open for the call; `arguments` is the 504-byte structure the request number states.
+        return unsafe { libc::ioctl(directory.as_raw_fd(), BTRFS_IOC_GET_SUBVOL_INFO, arguments) };
+    };
+    return record_from_answer(operation, path, answer_the_request);
 }
 
 /// Btrfs ioctl controls stay out of the release executable.
