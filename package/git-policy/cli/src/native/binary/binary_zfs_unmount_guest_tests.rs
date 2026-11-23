@@ -273,13 +273,18 @@ fn folder(name: &str) -> PathBuf {
 
 /// The record one handle arm writes before its reopen.
 fn record(guid: DatasetGuid, folder_path: &Path, _cache: &std::fs::File, boot: &str) -> StagedFolderRecord {
+    return record_of(guid, folder_path, "tmpfs", boot);
+}
+
+/// The record one handle or kill-point arm writes, for a named dataset.
+fn record_of(guid: DatasetGuid, folder_path: &Path, dataset: &str, boot: &str) -> StagedFolderRecord {
     let held: std::fs::File = std::fs::File::open(folder_path).expect("the staging folder opens");
     let identity: StagedFolderIdentity = StagedFolderIdentity::of(&held).expect("the staging folder's identity is read");
     let (handle_type, handle): (i32, Vec<u8>) = LiveStagingCalls.name_handle(&held).expect("the folder's handle is read");
     let (namespace_device, namespace_inode): (u64, u64) = LiveStagingCalls.namespace_pair().expect("the namespace pair is read");
     return StagedFolderRecord {
         component: staging_name(guid.file_name().as_str()),
-        dataset: String::from("tmpfs"),
+        dataset: String::from(dataset),
         guid,
         identity,
         handle_type,
@@ -343,4 +348,83 @@ fn zfs_unmount_guest_handle_child() {
     let reading = read_staged_record(&cache, guid, boot.as_str(), cache_folder.join(staging_name(guid.file_name().as_str())).as_path(), &calls);
     assert!(matches!(reading, RecordReading::Current { .. }), "the child reads a current record: {}", reading.word());
     println!("HANDLE reopened=true");
+}
+
+/// What:
+///  The four states a killed handler leaves,
+/// each finished by a later handler run.
+/// Why:
+///  The record's whole point is that a later run finishes what an interrupted one
+///  left;
+///  the states are built directly,
+/// because the shipped handler carries no pause
+///  seam a kill could be aimed at,
+///  and each state is exactly what the pass measured a kill leaving:
+///  a staged clone,
+/// a left bind,
+/// a bind over the slot's clone,
+/// and nothing
+///  mounted but the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const state of ['staged','between-unmounts','bind-over-slot','none']) { build(state); expect(sweep()).toContain('unmounted'); }
+/// ```
+#[test]
+fn zfs_unmount_guest_kill_points() {
+    if !guest() {
+        return;
+    }
+    let sbin: String = required(SBIN_VARIABLE);
+    let pool: String = required(POOL_VARIABLE);
+    let checkout: PathBuf = PathBuf::from(required(CHECKOUT_VARIABLE));
+    let (checkout_dataset, container): (String, String) = make_the_designs_layout(sbin.as_str(), pool.as_str(), checkout.as_path());
+    command_ok("chown", &["--recursive", "ubuntu:ubuntu", checkout.display().to_string().as_str()]);
+    write_configuration(checkout.as_path(), Some(container.as_str()), Some(checkout_dataset.as_str()));
+    write_passing_probe_record();
+    prepare_the_store(checkout.as_path());
+    std::fs::create_dir_all(checkout.join(".git/worktrees").as_path()).expect("the Git administration folder is made");
+    let _ = make_the_cache_and_pin(sbin.as_str(), pool.as_str());
+    let _wall: std::path::PathBuf = std::path::PathBuf::from("/home/ubuntu/.cache");
+    let cache: std::fs::File = git_policy_cli::worktree_clone_unmount::user_cache_pin::open_cache(Path::new("/home/ubuntu")).expect("the cache opens");
+    let boot: String = LiveStagingCalls.boot().expect("this boot is read");
+    for (label, slot) in [("staged", "five"), ("between-unmounts", "six"), ("bind-over-slot", "seven"), ("none", "eight")] {
+        let clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), slot, format!("nine-{slot}").as_str(), Some(mount_request(NONCE).as_str()));
+        make_the_slot(checkout.as_path(), slot);
+        let attached: Run = sweep();
+        assert!(line_about(attached.said.as_str(), clone.as_str()).is_some_and(|line| return line.starts_with("attached ")), "the {label} clone attaches: {}", attached.said);
+        let guid: DatasetGuid = DatasetGuid::parse(guid_of(sbin.as_str(), clone.as_str()).as_str()).expect("the clone GUID parses");
+        let folder_path: PathBuf = _wall.join(staging_name(guid.file_name().as_str()));
+        let _ = std::fs::remove_dir_all(folder_path.as_path());
+        std::fs::create_dir_all(folder_path.as_path()).expect("the staging folder is made");
+        std::fs::set_permissions(folder_path.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the staging folder holds 0700");
+        let slot_path: PathBuf = checkout.join(".claude/worktrees").join(slot);
+        let written: StagedFolderRecord = record_of(guid, folder_path.as_path(), clone.as_str(), boot.as_str());
+        write_record(&cache, &written).expect("the record is written");
+        let folder: std::fs::File = std::fs::File::open(folder_path.as_path()).expect("the staging folder opens");
+        if label != "none" {
+            let bind: std::fs::File = LiveStagingCalls.bind_the_folder(&folder, &cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the folder binds");
+            LiveStagingCalls.make_private(&bind).expect("the bind is private");
+            drop(bind);
+            if label != "bind-over-slot" {
+                let clone_at_slot: std::fs::File = std::fs::File::open(slot_path.as_path()).expect("the clone's slot opens");
+                let bind_again: std::fs::File = LiveStagingCalls.open_by_name(&cache, std::ffi::OsStr::new(staging_name(guid.file_name().as_str()).as_str())).expect("the bind opens");
+                LiveStagingCalls.move_clone(&clone_at_slot, &bind_again).expect("the clone moves onto the bind");
+                drop(clone_at_slot);
+                drop(bind_again);
+                if label == "between-unmounts" {
+                    LiveStagingCalls.unmount_top(&folder).expect("the clone's unmount works");
+                }
+            }
+        }
+        ask_to_unmount(sbin.as_str(), clone.as_str(), "77777777777777777777777777777777");
+        let finished: Run = sweep();
+        let line: &str = line_about(finished.said.as_str(), clone.as_str()).unwrap_or("");
+        assert!(line.starts_with("unmounted "), "the later run finishes the {label} state: {}", finished.said);
+        assert!(receipt(guid.file_name().as_str()).is_some_and(|text| return text.contains("outcome done")), "the later run files done for {label}");
+        assert!(row_at(slot_path.as_path()).is_none(), "the {label} state leaves no row at the slot");
+        zfs_ok(sbin.as_str(), &["destroy", clone.as_str()]);
+        println!("UNMOUNT kill={label} finished=unmounted");
+    }
+    println!("UNMOUNT kill-points=done");
 }

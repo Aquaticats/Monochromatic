@@ -83,6 +83,11 @@ const EXPECTED_UNMOUNT_MARKERS = [
   'UNMOUNT reattach-then-unmounted=true',
   'UNMOUNT two-at-once=both-unmounted',
   'UNMOUNT handle-reopened=true',
+  'UNMOUNT kill=staged finished=unmounted',
+  'UNMOUNT kill=between-unmounts finished=unmounted',
+  'UNMOUNT kill=bind-over-slot finished=unmounted',
+  'UNMOUNT kill=none finished=unmounted',
+  'UNMOUNT kill-points=done',
   'UNMOUNT done',
 ] as const;
 
