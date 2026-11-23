@@ -4023,7 +4023,7 @@ the pending text's warning clause,
 and the sibling statements,
 which are corrected there.
 
-- `9760814eee` at `2026-11-22T22:03:31-05:00`:
+- `9760814eee` at `2026-11-22T22:01:59-05:00`:
 `main` merged with `--no-ff`,
 bringing the record's "The merge bar is waived for an add above the warning's count".
 - `e039824135` at `2026-11-22T22:04:05-05:00`:
@@ -4033,7 +4033,8 @@ and the busy subsection reads the mount before writing anything back and treats 
 with the state texts split for a mounted clone,
 an unmounted clone and a clone gone;
 the origin cleanup record is published after the unmount receipt and the identities are re-proved,
-before the clone's destroy;
+before the clone's destroy,
+and its place in the step list was corrected in the commit after this one;
 the settle's sibling bullets are rewritten by heading and label at `07858070bb` and `7d0dcdd875`,
 the binding's requirement is quoted in that design's words,
 and the lock and cancelled bullets say what those designs now state;
