@@ -4814,6 +4814,10 @@ which is that design's answer.
   The sibling statements cite it by heading at `12ff579a2c` without line numbers,
   and the heading,
   the Status and the veto introduction are corrected for the fourth answer and V14's retirement.
+- 2026-11-22T21:43:35-05:00:
+  recorded the answer's commit time above.
+- 2026-11-22T21:43:43-05:00:
+  said in the cost cases that a folder holds one file per clone at rest.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
