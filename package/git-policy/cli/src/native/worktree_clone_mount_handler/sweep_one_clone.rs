@@ -10,9 +10,10 @@
 //!  record the slot's first observation,
 //!  attach,
 //!  record the first attach's outcome,
+//!  answer the request with its receipt (the attach's answer before the release,
+//!  a standing mount's after it),
 //!  release the claim,
-//!  read the intent once more,
-//!  and publish the receipt that answers the request.
+//!  and read the intent once more.
 //! Why:
 //!  The order is the design's:
 //!  the checks,
@@ -70,6 +71,9 @@ use crate::worktree_clone_mount::{
 };
 use crate::worktree_clone_mount_handler::per_slot_root_claim::SlotClaimDirectory;
 use crate::worktree_clone_mount_protocol::{IntentReading, MountIntent, MountOperation, ReceiptsFolder, read_intent};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 
 /// Module tag for diagnostics.
@@ -183,8 +187,94 @@ pub trait StandingMounts {
 }
 
 /// What:
+///  One source of the kernel's mount table and the signal that the table
+///  changed.
+/// Why:
+///  A control needs to answer with a table it built,
+///  and the release source is the kernel's own file:
+///  opening it makes the kernel remember the namespace's event number,
+///  and `poll` reports a later event as `POLLPRI` or `POLLERR`.
+///  The descriptor is opened before the first table read,
+///  so a change between the open and the read fires the next poll rather than
+///  being missed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface MountTableSource { changed(): boolean; read(): MountFacts[] }
+/// ```
+pub(crate) trait MountTableSource {
+    /// Whether this namespace's mount table changed since the last poll.
+    fn changed(&self) -> bool;
+
+    /// The whole table,
+    /// bounded as the route reads it.
+    fn read(&self) -> Result<Vec<MountFacts>, String>;
+}
+
+/// What:
+///  The release source:
+///  `/proc/self/mountinfo`,
+///  held open for its poll and read by path when it fires.
+/// Why:
+///  The kernel's `mounts_poll` sets `POLLPRI|POLLERR` when the namespace's
+///  event counter differs from the one the open remembered,
+///  and `fs/namespace.c` raises that counter after a mount,
+///  an unmount,
+///  a move and a `mount_setattr` or remount that changes flags,
+///  so every change to what the own-mount predicate reads raises it.
+///  A file that cannot be opened leaves the poll quiet,
+///  and the read still tries by path,
+///  which is the answer the route had before the snapshot existed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const source = LiveMountTableSource.open();
+/// ```
+pub(crate) struct LiveMountTableSource {
+    /// The descriptor the kernel's poll watches.
+    descriptor: Option<std::fs::File>,
+}
+
+impl LiveMountTableSource {
+    /// Open the descriptor before the first read,
+    /// so a change after this call fires the next poll.
+    fn open() -> Self {
+        let path: &Path = Path::new(crate::fs_mount_options::MOUNTINFO_PATH);
+        let descriptor: Option<std::fs::File> = match std::fs::File::open(path) {
+            Ok(file) => Some(file),
+            Err(error) => {
+                debug(TAG, format!("the mount table {path:?} could not be opened for its poll: {error}").as_str());
+                None
+            }
+        };
+        return Self { descriptor };
+    }
+}
+
+impl MountTableSource for LiveMountTableSource {
+    fn changed(&self) -> bool {
+        let Some(file) = &self.descriptor else {
+            return false;
+        };
+        let mut watched: libc::pollfd = libc::pollfd { fd: file.as_raw_fd(), events: libc::POLLPRI | libc::POLLERR, revents: 0 };
+        // SAFETY: `watched` is one initialised `pollfd`, the call writes only its `revents` field, and the timeout is
+        // zero so it never waits.
+        let ready: libc::c_int = unsafe { libc::poll(&mut watched, 1, 0) };
+        return ready > 0 && (watched.revents & (libc::POLLPRI | libc::POLLERR)) != 0;
+    }
+
+    fn read(&self) -> Result<Vec<MountFacts>, String> {
+        let path: &Path = Path::new(crate::fs_mount_options::MOUNTINFO_PATH);
+        let bytes: Vec<u8> = crate::plain_file::read_plain_file(path, crate::plain_file::MOUNT_TABLE_LIMIT)
+            .map_err(|error| return format!("the mount table {path:?} could not be read: {error}"))?;
+        return Ok(crate::fs_mount_options::parse_mount_table(bytes.as_slice()));
+    }
+}
+
+/// What:
 ///  The release reader:
-///  the mount table one sweep read at its start,
+///  the mount table one sweep read,
+///  refreshed when the kernel says the namespace's table changed,
 ///  and the canonical slot's mount named as this clone's own only when its
 ///  source is the clone's dataset.
 /// Why:
@@ -195,8 +285,12 @@ pub trait StandingMounts {
 ///  because each child scanned the same table again;
 ///  one table for the run makes that work independent of how many children
 ///  stand.
-///  The slot is still walked again under its claim,
-///  and a mount id the run's table does not hold is read fresh,
+///  The table is not trusted while the namespace changes:
+///  the poll is checked before every answer,
+///  and a firing re-reads the whole table.
+///  A change between the poll and the answer is the same window `main` has
+///  between its read and its answer,
+///  and a mount id the table does not hold is read live,
 ///  so a mount another sweep made during the run is judged on the live table
 ///  rather than on the snapshot.
 ///
@@ -204,41 +298,76 @@ pub trait StandingMounts {
 /// ```ts
 /// const standing = LiveStandingMounts.read().standingMountOf(request, clone);
 /// ```
-#[derive(Clone, Debug, Default)]
 pub struct LiveStandingMounts {
-    /// The kernel's mount table as this sweep read it,
+    /// The kernel table and the signal that it changed.
+    source: Box<dyn MountTableSource>,
+    /// The kernel's mount table as this sweep last read it,
     /// by mount id.
-    table: std::collections::HashMap<u64, MountFacts>,
+    table: RefCell<HashMap<u64, MountFacts>>,
+    /// How many times this sweep read the table.
+    reads: Cell<usize>,
 }
 
 impl LiveStandingMounts {
-    /// Read the sweep's one copy of the kernel's mount table.
+    /// Read the sweep's first copy of the kernel's mount table.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const standing = LiveStandingMounts.read();
     /// ```
     pub fn read() -> Self {
-        let path: &Path = Path::new(crate::fs_mount_options::MOUNTINFO_PATH);
-        return match crate::plain_file::read_plain_file(path, crate::plain_file::MOUNT_TABLE_LIMIT) {
-            Ok(bytes) => Self {
-                table: crate::fs_mount_options::parse_mount_table(bytes.as_slice()).into_iter().map(|facts| return (facts.mount_id, facts)).collect(),
-            },
+        return Self::from_source(Box::new(LiveMountTableSource::open()));
+    }
+
+    /// Build one reader over a source a control owns.
+    fn from_source(source: Box<dyn MountTableSource>) -> Self {
+        let standing: Self = Self { source, table: RefCell::new(HashMap::new()), reads: Cell::new(0) };
+        standing.refresh();
+        return standing;
+    }
+
+    /// Read the whole table again,
+    /// clearing it when the read refuses so every child falls back to its own
+    /// live read.
+    fn refresh(&self) {
+        self.reads.set(self.reads.get() + 1);
+        match self.source.read() {
+            Ok(facts) => {
+                *self.table.borrow_mut() = facts.into_iter().map(|facts| return (facts.mount_id, facts)).collect();
+            }
             Err(error) => {
                 // A table the run cannot read leaves the snapshot empty, and each standing answer falls back to the
                 // child's own read, which is the answer the route gave before the snapshot existed.
-                debug(TAG, format!("the mount table {path:?} could not be read for this sweep: {error}").as_str());
-                Self::default()
+                debug(TAG, format!("the mount table could not be read for this sweep: {error}").as_str());
+                self.table.borrow_mut().clear();
             }
-        };
+        }
+    }
+
+    /// Re-read the table when the kernel says this namespace's table changed.
+    fn refresh_if_changed(&self) {
+        if self.source.changed() {
+            debug(TAG, "the mount table of this namespace changed, so this sweep reads it again");
+            self.refresh();
+        }
+    }
+
+    /// How many times this sweep has read the table,
+    /// which a control uses to prove one read for many standing children.
+    #[cfg(test)]
+    pub(crate) fn table_reads(&self) -> usize {
+        return self.reads.get();
     }
 
     /// One mount's facts from this sweep's table,
     /// or the live table when the run did not see the mount.
     fn facts_of(&self, mount_id: u64) -> Result<MountFacts, String> {
-        if let Some(facts) = self.table.get(&mount_id) {
+        self.refresh_if_changed();
+        let table = self.table.borrow();
+        if let Some(facts) = table.get(&mount_id) {
             return Ok(facts.clone());
         }
+        drop(table);
         return mount_facts_of(mount_id).map_err(|refusal| return refusal.message());
     }
 }

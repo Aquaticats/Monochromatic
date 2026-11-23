@@ -19,7 +19,7 @@
 //! expect(sweepOneClone(context, CLONE).kind).toBe('attached');
 //! ```
 
-use super::{CloneOutcome, IDENTITY_RECORD_STEP, StandingMounts, SweepContext, UNMOUNT_AWAITS_STEP_NINE, is_this_clones_own_mount, sweep_one_clone};
+use super::{CloneOutcome, IDENTITY_RECORD_STEP, LiveMountTableSource, MountTableSource, StandingMounts, SweepContext, UNMOUNT_AWAITS_STEP_NINE, is_this_clones_own_mount, sweep_one_clone};
 use crate::start_probe::first_attach_record::{FIRST_ATTACH_NAME, FirstAttachClaim, FirstAttachOutcome, FirstAttachPlace};
 use crate::start_probe::probe_fingerprint::ProbeFingerprint;
 use crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace;
@@ -35,6 +35,7 @@ use crate::worktree_clone_mount_handler::sweep_first_attach::FirstAttachRecorder
 use crate::worktree_clone_mount_protocol::{CloneMountReceipt, DESIRED_STATE_PROPERTY, DatasetGuid, MOUNT_WORD, ReceiptOutcome, ReceiptsFolder, clone_mount_receipt::ReceiptMountIdentity};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, DmuObjsetStats, NvList};
 use std::cell::{Cell, RefCell};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -1208,3 +1209,453 @@ fn the_first_attach_is_claimed_once_and_records_the_mount() {
     let _again: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &second, &receipts, &claims), CLONE);
     assert_eq!(fixture.first_attach.recorded(), Some(recorded), "a later turn records nothing over this boot's first attach");
 }
+
+
+//region The mount table's one read and its poll
+
+/// What:
+///  A table source a control owns:
+///  the tables it answers in order,
+///  whether the poll says the table changed,
+///  and how many reads it was asked for.
+/// Why:
+///  The one-read property and the refresh after a change have to be provable
+///  without a mount on the host,
+///  so the source is the seam and the answer is a table the control wrote.
+#[derive(Clone)]
+struct ScriptedTable {
+    /// The tables in order; the last one answers every later read.
+    tables: std::rc::Rc<RefCell<Vec<Vec<MountFacts>>>>,
+    /// Whether the poll says the table changed.
+    changed: std::rc::Rc<Cell<bool>>,
+    /// How many reads were asked for.
+    reads: std::rc::Rc<Cell<usize>>,
+}
+
+impl ScriptedTable {
+    /// A source holding `tables`, with the poll quiet.
+    fn new(tables: Vec<Vec<MountFacts>>) -> Self {
+        return Self { tables: std::rc::Rc::new(RefCell::new(tables)), changed: std::rc::Rc::new(Cell::new(false)), reads: std::rc::Rc::new(Cell::new(0)) };
+    }
+
+    /// Mark that one change happened since the last poll.
+    fn change(&self) {
+        self.changed.set(true);
+    }
+}
+
+impl MountTableSource for ScriptedTable {
+    fn changed(&self) -> bool {
+        if self.changed.get() {
+            self.changed.set(false);
+            return true;
+        }
+        return false;
+    }
+
+    fn read(&self) -> Result<Vec<MountFacts>, String> {
+        self.reads.set(self.reads.get() + 1);
+        let mut tables = self.tables.borrow_mut();
+        if tables.len() > 1 {
+            return Ok(tables.remove(0));
+        }
+        return Ok(tables.first().cloned().unwrap_or_default());
+    }
+}
+
+/// One table mount the controls build.
+fn table_mount(id: u64, point: &str, source: &str) -> MountFacts {
+    return MountFacts {
+        mount_id: id,
+        parent_id: 40,
+        root: PathBuf::from("/"),
+        optional_fields: Vec::new(),
+        mount_point: PathBuf::from(point),
+        filesystem_type: String::from("zfs"),
+        source: String::from(source),
+        mount_options: vec![String::from("rw"), String::from("nosuid"), String::from("nodev")],
+        super_options: Vec::new(),
+    };
+}
+
+/// What:
+///  A table read once answers many standing children,
+///  and one change makes it read again.
+/// Why:
+///  The cost win is the one read per sweep;
+///  a later edit that reads the table per child would pass every other control
+///  and give the cost back unseen.
+#[test]
+fn a_standing_sweep_reads_the_mount_table_once_and_again_after_one_change() {
+    let source: ScriptedTable = ScriptedTable::new(vec![vec![table_mount(7_000_001, "/fixture/first", "pool/one")], vec![table_mount(7_000_001, "/fixture/second", "pool/two")]]);
+    let control: ScriptedTable = source.clone();
+    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_source(Box::new(source));
+    assert_eq!(standing.table_reads(), 1, "the first read is the sweep's own");
+    for _child in 0..64 {
+        let facts: MountFacts = standing.facts_of(7_000_001).expect("the table holds this mount");
+        assert_eq!(facts.mount_point, PathBuf::from("/fixture/first"), "the table answers each child");
+    }
+    assert_eq!(standing.table_reads(), 1, "64 standing children cost one table read");
+    control.change();
+    let after: MountFacts = standing.facts_of(7_000_001).expect("the changed table still holds the id");
+    assert_eq!(after.mount_point, PathBuf::from("/fixture/second"), "one change makes the sweep read the table again");
+    assert_eq!(standing.table_reads(), 2, "the change costs exactly one more read");
+}
+
+/// What:
+///  A mount id the table does not hold is read from the live table.
+/// Why:
+///  A mount made after the sweep's read must not be refused because the old
+///  table never saw it.
+#[test]
+fn a_mount_the_table_does_not_hold_is_read_live() {
+    let source: ScriptedTable = ScriptedTable::new(vec![Vec::new()]);
+    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_source(Box::new(source));
+    let root: std::fs::File = std::fs::File::open("/").expect("the root opens");
+    let live_id: u64 = crate::fs_beneath_mount_facts::mount_id_of(&root).expect("the root's mount number reads");
+    let facts: MountFacts = standing.facts_of(live_id).expect("an id the table lacks is read live");
+    assert_eq!(facts.mount_point, PathBuf::from("/"), "the live table answered for the root");
+    assert_eq!(standing.table_reads(), 1, "a live fallback is not a table read");
+}
+
+/// What:
+///  A mount replaced under the table's mount id is answered from the table only
+///  until the poll fires,
+///  and from the new mount after it.
+/// Why:
+///  The kernel gives a freed mount number to the next mount,
+///  so a table keyed by that number can name the mount that held it before;
+///  the poll is what makes the replacement visible.
+#[test]
+fn a_mount_replaced_under_a_reused_id_is_read_again_after_the_poll() {
+    let source: ScriptedTable = ScriptedTable::new(vec![vec![table_mount(7_000_002, "/fixture/one", "pool/one")], vec![table_mount(7_000_002, "/fixture/one", "pool/bystander")]]);
+    let control: ScriptedTable = source.clone();
+    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_source(Box::new(source));
+    let before: MountFacts = standing.facts_of(7_000_002).expect("the first table holds the id");
+    assert!(is_this_clones_own_mount(&before, "pool/one"), "the first table names the clone's own mount");
+    control.change();
+    let after: MountFacts = standing.facts_of(7_000_002).expect("the second table holds the same id");
+    assert_eq!(after.source, "pool/bystander", "the replacement under the same id is read after the poll");
+    assert!(!is_this_clones_own_mount(&after, "pool/one"), "the replacement is not the clone's own mount");
+    assert_eq!(standing.table_reads(), 2, "the replacement costs one re-read");
+}
+
+/// One tmpfs mount a control makes,
+/// taken down however the control ends.
+struct PolledMount {
+    /// The mount point.
+    path: PathBuf,
+}
+
+impl Drop for PolledMount {
+    fn drop(&mut self) {
+        let target: std::ffi::CString = std::ffi::CString::new(self.path.as_os_str().as_bytes()).expect("no NUL in the path");
+        // SAFETY: `target` is a NUL-terminated path that outlives the call, and no flag is passed.
+        let _taken: libc::c_int = unsafe { libc::umount2(target.as_ptr(), 0) };
+    }
+}
+
+/// Mount one tmpfs at `path` with `flags`.
+fn mount_tmpfs(source: &str, path: &Path, flags: libc::c_ulong) {
+    let source_name: std::ffi::CString = std::ffi::CString::new(source).expect("no NUL in the source");
+    let target: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
+    let kind: std::ffi::CString = std::ffi::CString::new("tmpfs").expect("no NUL in the type");
+    // SAFETY: both strings outlive the call, the type is a NUL-terminated name, and no data pointer is read.
+    let mounted: libc::c_int = unsafe { libc::mount(source_name.as_ptr(), target.as_ptr(), kind.as_ptr(), flags, std::ptr::null()) };
+    assert_eq!(mounted, 0, "the control's tmpfs mounts: {}", std::io::Error::last_os_error());
+}
+
+/// Remount one tmpfs in place with `flags`.
+fn remount_tmpfs(path: &Path, flags: libc::c_ulong) {
+    let target: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in the path");
+    // SAFETY: the target is a NUL-terminated path that outlives the call, and `MS_REMOUNT|MS_BIND` with no type or data
+    // changes the per-mount flags in place.
+    let changed: libc::c_int = unsafe { libc::mount(std::ptr::null(), target.as_ptr(), std::ptr::null(), libc::MS_REMOUNT | libc::MS_BIND | flags, std::ptr::null()) };
+    assert_eq!(changed, 0, "the control's tmpfs remounts in place: {}", std::io::Error::last_os_error());
+}
+
+/// One table source that reads the live table and shapes the control's tmpfs as
+/// the clone's own mount while it carries both enforced flags.
+struct CloneShapedTable {
+    /// The live source and its poll.
+    live: LiveMountTableSource,
+}
+
+impl MountTableSource for CloneShapedTable {
+    fn changed(&self) -> bool {
+        return self.live.changed();
+    }
+
+    fn read(&self) -> Result<Vec<MountFacts>, String> {
+        let mut facts: Vec<MountFacts> = self.live.read()?;
+        for mount in &mut facts {
+            if mount.source == "zfs-step-8-poll-clone" && mount.has_option("nosuid") && mount.has_option("nodev") {
+                mount.filesystem_type = String::from("zfs");
+                mount.source = String::from(CLONE);
+                mount.root = PathBuf::from("/");
+            }
+        }
+        return Ok(facts);
+    }
+}
+
+/// What:
+///  A mount whose enforced flags are removed in place while a sweep runs is
+///  no longer recognised after the poll.
+/// Why:
+///  The pass showed `main` refusing a clone whose `nosuid` and `nodev` were
+///  cleared mid-run while the snapshot build answered `attached`;
+///  the in-place remount changes the mount's number not at all,
+///  so only the poll can make the table read again.
+#[test]
+fn a_mount_whose_flags_change_in_place_is_read_again_after_the_poll() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_mount_whose_flags_change_in_place_is_read_again_after_the_poll") {
+        return;
+    }
+    let root: PathBuf = crate::test_support::fixture("standing-poll-flags");
+    let slot: PathBuf = root.join("checkout").join(".claude").join("worktrees").join("one");
+    std::fs::create_dir_all(slot.as_path()).expect("the slot folder is made");
+    mount_tmpfs("zfs-step-8-poll-clone", slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
+    let _guard: PolledMount = PolledMount { path: slot.clone() };
+    let source: CloneShapedTable = CloneShapedTable { live: LiveMountTableSource::open() };
+    let standing: super::LiveStandingMounts = super::LiveStandingMounts::from_source(Box::new(source));
+    let checkout: PathBuf = root.join("checkout");
+    let request: LookAgainAtSlotRequest<'_> = LookAgainAtSlotRequest { checkout: checkout.as_path(), slot: "one" };
+    assert!(standing.standing_mount_of(&request, CLONE).is_some(), "the clone's own mount is recognised first");
+    remount_tmpfs(slot.as_path(), 0);
+    assert!(standing.standing_mount_of(&request, CLONE).is_none(), "the flags removed in place are seen after the poll");
+    remount_tmpfs(slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
+    assert!(standing.standing_mount_of(&request, CLONE).is_some(), "the flags restored in place are seen after the poll");
+}
+
+//endregion
+
+
+//region The receipt skip and the two remaining releases
+
+/// A pool that answers one clone from a script of replies,
+/// a `None` being a failed read,
+/// then the last reply for ever.
+struct Sequenced {
+    /// The replies in order.
+    script: Vec<Option<NvList>>,
+    /// The reply after the script.
+    last: NvList,
+    /// How many reads were answered.
+    reads: Cell<usize>,
+}
+
+impl DatasetReader for Sequenced {
+    fn identity(&self, _dataset: &str) -> Result<DatasetIdentity, ReadFailure> {
+        let at: usize = self.reads.get();
+        self.reads.set(at + 1);
+        return match self.script.get(at) {
+            Some(Some(reply)) => Ok(DatasetIdentity { stats: stats_of_a_clone(), properties: reply.clone() }),
+            Some(None) => Err(ReadFailure::at(String::from("the scripted pool fails this read"))),
+            None => Ok(DatasetIdentity { stats: stats_of_a_clone(), properties: self.last.clone() }),
+        };
+    }
+
+    fn next_child(&self, _parent: &str, _cursor: u64) -> Result<Option<ListedChild>, String> {
+        return Ok(None);
+    }
+}
+
+/// The clone's receipt GUID.
+fn receipt_guid() -> DatasetGuid {
+    return DatasetGuid::parse(GUID.to_string().as_str()).expect("the GUID is canonical");
+}
+
+/// Attach once,
+/// leave the mount standing,
+/// and answer a second turn with a scripted attach that must never be asked.
+fn attached_once(fixture: &Fixture, receipts: &ReceiptsFolder, claims: &SlotClaimDirectory) -> ScriptedAttach {
+    let reader: ScriptedReader = reader_with(Some(request_nonce().as_str()), CLONE);
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let first: CloneOutcome = sweep_one_clone(&context(fixture, &reader, &attach, receipts, claims), CLONE);
+    assert!(matches!(first, CloneOutcome::Attached { mount_id: 41, .. }), "{first:?}");
+    fixture.standing.mount.replace(Some(mounted()));
+    return ScriptedAttach { answer: AttachStepOutcome::Refused { step: String::from("walk"), errno: None, said: String::from("a standing mount is never walked") }, asked: Cell::new(0) };
+}
+
+/// What:
+///  A new request on a standing mount files its own receipt.
+/// Why:
+///  The all-equal control cannot tell a comparison that ignores the nonce,
+///  and a waiting command whose request carries a new nonce would never get its
+///  answer.
+#[test]
+fn a_standing_mount_answers_a_new_nonce_with_a_new_receipt() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_standing_mount_answers_a_new_nonce_with_a_new_receipt") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("new-nonce-receipt");
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let second: ScriptedAttach = attached_once(&fixture, &receipts, &claims);
+    let second_digits: &str = "ffeeddccbbaa99887766554433221100";
+    let reader: ScriptedReader = reader_with(Some(mount_request(second_digits).as_str()), CLONE);
+    let again: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &second, &receipts, &claims), CLONE);
+    assert!(matches!(again, CloneOutcome::Attached { mount_id: 41, .. }), "{again:?}");
+    let kept: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("a receipt stands");
+    assert_eq!(kept.nonce.as_str(), second_digits, "a new request on a standing mount gets its own receipt");
+}
+
+/// What:
+///  A receipt replaced by a refused one is filed again as the done answer.
+/// Why:
+///  A comparison that ignores the outcome would leave a caller reading
+///  `refused` for a mount that stands.
+#[test]
+fn a_receipt_replaced_by_a_refused_one_is_filed_again() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_receipt_replaced_by_a_refused_one_is_filed_again") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("refused-over-done");
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let second: ScriptedAttach = attached_once(&fixture, &receipts, &claims);
+    let mut tampered: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("the receipt stands");
+    tampered.outcome = ReceiptOutcome::Refused;
+    tampered.mount = None;
+    tampered.failed_step = Some(String::from("key-unavailable"));
+    receipts.publish(&tampered).expect("the tampered receipt is filed");
+    let reader: ScriptedReader = reader_with(Some(request_nonce().as_str()), CLONE);
+    let again: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &second, &receipts, &claims), CLONE);
+    assert!(matches!(again, CloneOutcome::Attached { mount_id: 41, .. }), "{again:?}");
+    let kept: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("the receipt stands");
+    assert_eq!(kept.outcome, ReceiptOutcome::Done, "the done answer is filed again over a refused one");
+}
+
+/// What:
+///  A receipt naming another mount is filed again with the mount that stands.
+/// Why:
+///  A comparison that ignores the mount would leave a caller confirming a
+///  mount the slot no longer holds.
+#[test]
+fn a_receipt_naming_another_mount_is_filed_again() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_receipt_naming_another_mount_is_filed_again") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("other-mount-receipt");
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let second: ScriptedAttach = attached_once(&fixture, &receipts, &claims);
+    let mut tampered: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("the receipt stands");
+    tampered.mount.as_mut().expect("a done receipt names its mount").mount_id = 99;
+    receipts.publish(&tampered).expect("the tampered receipt is filed");
+    let reader: ScriptedReader = reader_with(Some(request_nonce().as_str()), CLONE);
+    let again: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &second, &receipts, &claims), CLONE);
+    assert!(matches!(again, CloneOutcome::Attached { mount_id: 41, .. }), "{again:?}");
+    let kept: CloneMountReceipt = receipts.read(receipt_guid()).expect("the folder reads").expect("the receipt stands");
+    assert_eq!(kept.mount.as_ref().map(|mount| return mount.mount_id), Some(41), "the receipt names the mount that stands now");
+}
+
+/// What:
+///  A receipt truncated by hand is filed again.
+/// Why:
+///  A receipt the route cannot parse cannot be compared with the answer,
+///  so the sweep must write a whole one.
+#[test]
+fn a_truncated_receipt_is_filed_again() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_truncated_receipt_is_filed_again") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("truncated-receipt");
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let second: ScriptedAttach = attached_once(&fixture, &receipts, &claims);
+    let path: PathBuf = receipts.directory().join(receipts.entry_name(receipt_guid()));
+    let text: String = std::fs::read_to_string(path.as_path()).expect("the receipt reads");
+    std::fs::write(path.as_path(), &text[..text.len() / 2]).expect("the receipt is truncated by hand");
+    let reader: ScriptedReader = reader_with(Some(request_nonce().as_str()), CLONE);
+    let again: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &second, &receipts, &claims), CLONE);
+    assert!(matches!(again, CloneOutcome::Attached { mount_id: 41, .. }), "{again:?}");
+    let kept: CloneMountReceipt = receipts.read(receipt_guid()).expect("the receipt parses again").expect("the receipt stands");
+    assert_eq!(kept.outcome, ReceiptOutcome::Done);
+}
+
+/// What:
+///  A re-read refused under the claim still gets the turn after the release.
+/// Why:
+///  The holder reads the intent again after every release of a claim it took,
+///  and a refused re-read is one of the five releases.
+#[test]
+fn a_refused_reread_under_the_claim_is_read_again_after_the_release() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::a_refused_reread_under_the_claim_is_read_again_after_the_release") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("refused-reread-release");
+    let unmounting: String = format!("v1:{MOUNT_NONCE}:unmount");
+    let reader: Sequenced = Sequenced {
+        script: vec![Some(reply_of_a_clone(Some(request_nonce().as_str()), CLONE)), None],
+        last: reply_of_a_clone(Some(unmounting.as_str()), CLONE),
+        reads: Cell::new(0),
+    };
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let outcome: CloneOutcome = sweep_one_clone(
+        &SweepContext {
+            parent_dataset: PARENT,
+            checkout: fixture.checkout.as_path(),
+            checkout_dataset: CHECKOUT_DATASET,
+            store: fixture.store.as_path(),
+            claims: &claims,
+            receipts: &receipts,
+            boot: BOOT,
+            time: &|| return String::from(TIME),
+            reader: &reader,
+            attach: &attach,
+            first_attach: &fixture.first_attach,
+            standing: &fixture.standing,
+        },
+        CLONE,
+    );
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == UNMOUNT_AWAITS_STEP_NINE), "the second turn answers the request that arrived: {outcome:?}");
+}
+
+/// What:
+///  A refusal of the first observation's record still gets the turn after the
+///  release.
+/// Why:
+///  The holder reads the intent again after every release of a claim it took,
+///  and the identity-record refusal is one of the five releases.
+#[test]
+fn an_identity_record_refusal_is_read_again_after_the_release() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::an_identity_record_refusal_is_read_again_after_the_release") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("identity-refusal-release");
+    let pointer: PathBuf = fixture.checkout.join(".claude").join("worktrees").join("one").join(".git");
+    std::fs::remove_file(pointer.as_path()).expect("the fixture's pointer is removed");
+    let unmounting: String = format!("v1:{MOUNT_NONCE}:unmount");
+    let reader: Sequenced = Sequenced {
+        script: vec![Some(reply_of_a_clone(Some(request_nonce().as_str()), CLONE)), Some(reply_of_a_clone(Some(request_nonce().as_str()), CLONE))],
+        last: reply_of_a_clone(Some(unmounting.as_str()), CLONE),
+        reads: Cell::new(0),
+    };
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let outcome: CloneOutcome = sweep_one_clone(
+        &SweepContext {
+            parent_dataset: PARENT,
+            checkout: fixture.checkout.as_path(),
+            checkout_dataset: CHECKOUT_DATASET,
+            store: fixture.store.as_path(),
+            claims: &claims,
+            receipts: &receipts,
+            boot: BOOT,
+            time: &|| return String::from(TIME),
+            reader: &reader,
+            attach: &attach,
+            first_attach: &fixture.first_attach,
+            standing: &fixture.standing,
+        },
+        CLONE,
+    );
+    assert!(matches!(outcome, CloneOutcome::Refused { ref step, .. } if step == UNMOUNT_AWAITS_STEP_NINE), "the second turn answers the request that arrived: {outcome:?}");
+}
+
+//endregion

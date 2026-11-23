@@ -6000,14 +6000,17 @@ mount and keeps the same `done` receipt for the request's nonce,
 instead of walking a slot that stands on another device and refusing it.
 A sweep reads the kernel's mount table once for its own standing-mount
 answers,
-and a standing clone whose `done` receipt is already the one this request would
+and re-reads it when the namespace's event poll says the table changed;
+the canonical slot is still walked under the claim.
+A standing clone whose `done` receipt is already the one this request would
 file is answered without writing anything.
 A slot holding another dataset's mount is refused as the walk refuses it.
 The holder reads the intent again after every release of a claim the turn took:
 after an attach,
 after answering a standing mount,
 after a reading that changed under the claim,
-and after a refused re-read.
+after a refused re-read,
+and after the refusal of the first observation's record.
 When the nonce or the operation changed it turns once more,
 so a request made during a sweep is acted on rather than left to a trigger.
 A turn whose own answer is a failure keeps that failure when the second turn
@@ -6192,6 +6195,10 @@ renaming it over the GUID's name and syncing the directory,
 so a caller reads one whole receipt.
 A live clone's next result replaces its own entry,
 and nothing in this build removes a receipt for a destroyed clone.
+A standing clone's receipt is not rewritten when the file already agrees with
+the answer,
+so its `time` is when that answer was first filed,
+not when a sweep last confirmed it.
 
 #### The readiness record
 

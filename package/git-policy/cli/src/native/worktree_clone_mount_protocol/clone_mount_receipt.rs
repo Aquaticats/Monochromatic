@@ -241,8 +241,10 @@ pub struct CloneMountReceipt {
     /// The boot the result belongs to,
     /// as the kernel's own identifier.
     pub boot: String,
-    /// When the result was filed,
-    /// as ISO 8601 with offset.
+    /// When this answer was first filed,
+    /// as ISO 8601 with offset;
+    /// a standing clone's unchanged answer is not rewritten,
+    /// so a later sweep does not move this time.
     pub time: String,
 }
 
