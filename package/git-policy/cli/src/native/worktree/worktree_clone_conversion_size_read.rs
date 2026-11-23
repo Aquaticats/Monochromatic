@@ -118,7 +118,8 @@ const NO_LAZY_FETCH: &str = "GIT_NO_LAZY_FETCH";
 /// how long it took,
 /// and the `ls-tree` output or the reason it cannot be read.
 /// Why:
-///   The output is parsed by the add that uses it, never by a read a declined add abandons:
+///   The output is parsed by the add that uses it,
+/// never by a read a declined add abandons:
 /// a declined add then frees one buffer rather than a map of 24,634 entries on its waiting path.
 type ReadAnswer = (Duration, Result<Vec<u8>, String>);
 
@@ -244,7 +245,7 @@ pub fn start_beside_the_check(context: &GitContext, identity: &WorktreeIdentity)
 /// Why:
 ///   The thread owns what it reads,
 /// so it takes the context,
-///  the worktree root and the commit by value and answers both the cost and the map;
+///  the worktree root and the commit by value and answers both the cost and the `ls-tree` output;
 /// a send nobody waits for any more is dropped,
 ///  because the add moved past its deadline.
 ///
@@ -547,10 +548,10 @@ impl SizeReadBesideTheCheck {
                 None
             }
         };
-        // The answered output is one buffer, not a map of 24,634 entries: a declined add frees it here
-        //  in microseconds, where the map it used to hold cost 1.8 to 3.2 ms to free
-        //  (the integration recheck's Medium 1 of 2026-11-22).
-        drop(answered);
+        // The answered output is one buffer, not a map of 24,634 entries: a declined add leaves it to the
+        //  kernel, where the map it used to hold cost 1.8 to 3.2 ms to free and its late allocations cost more
+        //  (the integration recheck's Medium 1 of 2026-11-22). The add's process ends after it.
+        std::mem::forget(answered);
         end_step(take_entered);
         let child_entered: bool = begin_step("abandonEndTheChild");
         let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);
