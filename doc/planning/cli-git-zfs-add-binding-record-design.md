@@ -1980,7 +1980,8 @@ and the name compared with the ones Git could derive from this slot.
   and what the wrapper's own reader does with a pointer (`worktree_add_binding.rs`:89 to :113).
 - A name is a candidate when Git could derive it from this slot:
   the slot's name through Git's own sanitiser (`check_refname_component` and `check_or_sanitize_refname`,
-  `refs.c`:376 and :386,
+  `refs.c`:191 to :321,
+  and `sanitize_refname_component` at :376,
   which collapses `..`,
   replaces a forbidden byte and a leading dot with `-`,
   and strips a trailing `.lock` and a trailing dot),
@@ -2034,7 +2035,7 @@ walked from `add_worktree` at `v2.56.1`
 `worktree.c`:1105 to :1134).
 Our route passes `--lock`,
 so `keep_locked` is set,
-and Git's `done:` label unlinks `locked` only on a failure (`builtin/worktree.c`:600 to :604);
+and Git's `done:` label unlinks `locked` only on a failure (`builtin/worktree.c`:601 to :603);
 a `die` or a caught signal runs `remove_junk` instead and never unlinks it (`:273 to :300`).
 
 - row 1,
@@ -2051,9 +2052,10 @@ a `die` or a caught signal runs `remove_junk` instead and never unlinks it (`:27
   and a candidate name.
   Cleared by:
   no pointer;
-  the recipe's steps 6 and 7 alone.
+  the directory alone;
+  there is no lock and no file to remove.
 - row 2,
-  after `locked` (`:530 to :533`).
+  after `locked` (`:526 to :530`).
   Registration:
   `locked`.
   Slot:
@@ -2100,7 +2102,7 @@ a `die` or a caught signal runs `remove_junk` instead and never unlinks it (`:27
   `locked`;
   the directory.
 - row 5,
-  after `commondir` (`:545 to :546`).
+  after `commondir` (`:543 to :544`).
   Registration:
   `locked`,
   `gitdir`,
@@ -2117,7 +2119,7 @@ a `die` or a caught signal runs `remove_junk` instead and never unlinks it (`:27
   `locked`;
   the directory.
 - row 6,
-  after `HEAD` and the ref store (`:551 to :575`).
+  after `HEAD` and the ref store (`:555 to :566`).
   Registration:
   `locked`,
   `gitdir`,
@@ -2132,7 +2134,7 @@ a `die` or a caught signal runs `remove_junk` instead and never unlinks it (`:27
   Adopted,
   not cleared.
 - row 7,
-  Git's failure path killed after the unlink (`:600 to :604`,
+  Git's failure path killed after the unlink (`:601 to :603`,
   then `remove_junk` at exit).
   Registration:
   `gitdir`,
@@ -4237,7 +4239,7 @@ each rechecked against the source or the sibling at the commit now cited:
 The rows of "The states Git's source can leave" were read this round from one clone at `v2.56.1`:
 `builtin/worktree.c`:273 to :300 and :495 to :604,
 `worktree.c`:1105 to :1134,
-`refs.c`:376 and :386,
+`refs.c`:191 to :321 and :376,
 `wrapper.c`:760 to :783,
 and the two tips of the removal-side pair were read at `b4dc758a76` and `0973f2fc2a`.
 
