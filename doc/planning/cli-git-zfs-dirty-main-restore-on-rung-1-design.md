@@ -1884,12 +1884,16 @@ in the wrapper's voice,
 and what the journal keeps:
 
 - one sentence for both routes,
-which is the snapshot rung's own line with the route named,
-not the clone rung's (`SPEC.md:1911` to `:1920`,
+which keeps the snapshot rung's own prefix rather than inventing one (`SPEC.md:1911` to `:1920`,
 "this worktree was not made as a snapshot,
 so it took longer,
 because "):
-`monochromatic-git-policy-cli: this worktree was made by Git's own checkout, so it took longer, because <reason>; the next add makes a clone once <what makes the next add quick>.` It names no internal step and gives the cause in the reason's own words (R10).
+`monochromatic-git-policy-cli: this worktree was not made as a snapshot, so it took longer, because <reason>; the next add makes a clone once <what makes the next add quick>.` The prefix names the route the owner's answer asks for,
+"not made as a snapshot",
+and the cause is the reason's own words (R10,
+Y6).
+The wrapper is not named a second time,
+and Git's own checkout is the route the prefix states.
 - the reason's own words name the path and the field,
 for example `the frozen proof refused AGENTS.md: its change time changed in the main checkout while the add read it`;
 - for a settle that failed,
