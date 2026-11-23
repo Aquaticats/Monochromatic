@@ -291,13 +291,56 @@ executable inside this confined Git profile does not automatically receive an un
 The narrow repair transitions only `ssh-keygen` to its existing enforcing profile and grants the
 same buffer and `.sig` paths there.
 
+Auto-push then reached a different missing profile: managed Git declares `@{bin}/gh px`, but no
+packaged `gh` target exists. The AVCs were `profile transition not found` for exec and a read denial
+on `/usr/bin/gh`.
+
+GitHub CLI 2.105.0's [keyring
+wrapper](https://github.com/cli/cli/blob/e1219499a578b69e3437adaa31cd60614e23c802/internal/keyring/keyring.go#L36-L47)
+uses the system keyring through its `Get` function:
+
+```go
+// internal/keyring/keyring.go:36-47
+func Get(service, user string) (string, error) {
+    ch := make(chan struct {
+        val string
+        err error
+    }, 1)
+    go func() {
+        defer close(ch)
+        val, err := keyring.Get(service, user)
+        ch <- struct {
+            val string
+            err error
+        }{val, err}
+    }()
+```
+
+Its [Git
+client](https://github.com/cli/cli/blob/e1219499a578b69e3437adaa31cd60614e23c802/git/client.go#L80-L93)
+executes Git with the caller's standard streams:
+
+```go
+// git/client.go:80-93
+cmd := exec.CommandContext(ctx, c.GitPath, args...)
+cmd.Stderr = c.Stderr
+cmd.Stdin = c.Stdin
+cmd.Stdout = c.Stdout
+return &Command{cmd}, nil
+```
+
+After keyring access and the real push reached the repository, Git denied this repository's own
+`.git/hooks/pre-push`. The hook is a POSIX shell script that runs `git lfs pre-push "$@"`. The exact
+own-hook inherit-exec rule is separate from third-party hook and build-output policy.
+
 ## Verification
 
 ### Versions and evidence scope
 
 The measured host runs AppArmor 4.1.8-2.1, Sanoid 2.3.0-2, Capture::Tiny 0.50-4, File::Temp from
 Perl 5.44.0-1.1, Cachy-Update 4.4.7-1, pacman-contrib 1.13.1-1.2, Go 1.27.4-X:nodwarf5, Incus
-7.6.0-1.1, KeePassXC 2.8.0-4.1, Git 2.56.1-1.1, and the custom confined Helium package.
+7.6.0-1.1, KeePassXC 2.8.0-4.1, Git 2.56.1-1.1, GitHub CLI 2.105.0-1, and the custom confined Helium
+package.
 
 Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/`. Reports marked
 `ownerAcceptance: false` are not final approval.
@@ -322,6 +365,9 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
   problem. After the buffer rule, the next attempt failed with
   `fatal: cannot exec 'ssh-keygen': Permission denied`, with a separate exec AVC. The two denials
   required separate evidence.
+- The first auto-push failed because `/usr/bin/gh` had no transition target. After a custom `gh`
+  profile succeeded at `gh auth status`, the real push failed on this repository's own `pre-push`
+  hook. These were new workflow stages, not repeats of the signing-buffer incident.
 
 ### Passing catalog
 
@@ -343,6 +389,9 @@ Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17
 - Fresh Helium rendered Example Domain with renderer seccomp filtering and no unexpected unconfined
   helper. Audited events proved its OS-release read, existing crash-report reads, settings
   read/write opens, and lock-file operations. It did not create a new crash dump.
+- Signed commit `02f5e836951eaa990e1c6e3f88e5017b51e39d0b` and its real push to `main` succeeded.
+  `gh auth status` read the existing keyring credential through the enforcing custom profile, and
+  `git ls-remote` returned the same commit hash. The push also exercised the exact own Git LFS hook.
 
 ## Verified workarounds
 
@@ -419,6 +468,7 @@ Git's local rules are:
 owner @{HOME}/temp/agent{,/**} rwlk -> @{HOME}/temp/agent{,/**},
 @{bin}/ssh-keygen px,
 owner @{tmp}/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
+owner @{HOME}/Monochromatic/.git/hooks/pre-push rix,
 ```
 
 The signer has the same file boundary in its own profile:
@@ -428,9 +478,43 @@ The signer has the same file boundary in its own profile:
 owner @{tmp}/.git_signing_buffer_tmp@{rand6}{,.sig} rw,
 ```
 
-Tradeoff: Git can mutate and lock the private source-audit workspace, but receives no new execution
-permission for hooks or build output. Agents and unprofiled development programs remain unconfined
-outside this specific Git profile boundary.
+The custom `/etc/apparmor.d/gh` profile supplies the existing `px` target without an unconfined
+helper:
+
+```text
+# /etc/apparmor.d/gh
+abi <abi/4.0>,
+include <tunables/global>
+@{exec_path} = @{bin}/gh
+@{att} = ""
+profile gh /{,usr/}bin/gh {
+  include <abstractions/base-strict>
+  include <abstractions/consoles>
+  include <abstractions/golang-strict>
+  include <abstractions/nameservice-strict>
+  include <abstractions/ssl_certs>
+  include <abstractions/bus-session>
+  network inet dgram,
+  network inet6 dgram,
+  network inet stream,
+  network inet6 stream,
+  network netlink raw,
+  @{exec_path} mr,
+  @{bin}/git px,
+  /etc/gitconfig r,
+  /etc/os-release r,
+  owner @{HOME}/.gitconfig* r,
+  owner @{user_config_dirs}/git/{,*} r,
+  owner @{user_config_dirs}/gh/{,**} rw,
+  include if exists <local/gh>
+}
+```
+
+Tradeoff: `gh` receives its own config, keyring, network, TLS, and Git subprocess access. It has no
+blanket home or temporary-directory grant. Git can mutate and lock the private source-audit
+workspace, but only this repository's measured `pre-push` receives new inherit-exec permission.
+Third-party hooks and build output receive none. Agents and unprofiled development programs remain
+unconfined outside these specific profile boundaries.
 
 ## What does not work
 
@@ -455,6 +539,9 @@ outside this specific Git profile boundary.
   exec mismatches. The exact buffer and `.sig` names plus the existing enforcing `ssh-keygen`
   profile are sufficient; the separate literal-key temporary file is not needed for this configured
   key file. Leaving the signer unlisted produced a denial, not an unconfined fallback.
+- Leaving `gh` unprofiled broke the managed `px` transition. Disabling the credential helper or
+  repository hooks would avoid the workload rather than repair it. The custom enforcing `gh` profile
+  and exact own-hook rule address the measured stages separately.
 - Extending the updater rule to six random characters would accommodate a harness error, not the
   installed wrapper's five-character `mktemp` call.
 - Unit status, profile names, empty denial queries, CDP readiness, and returned process handles are

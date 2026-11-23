@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-23T14:34:42-05:00
+## Status at 2026-11-23T14:50:49-05:00
 
 Incomplete and unapproved. Default enforcement and current-boot workload verification are in place. A genuinely new enforcement cold boot and explicit owner review remain required. Do not describe this as owner-approved or universally enforcing.
 
@@ -19,7 +19,8 @@ The owner selected the broad `apparmor.d` collection for network-facing and loca
 ## Local workload rules
 
 - `/etc/apparmor.d/local/sanoid` allows owner-matched flat `File::Temp` files with ten source-derived characters and `Capture::Tiny` readiness markers with the confined parent PID suffix. It grants no other temporary-directory tree.
-- `/etc/apparmor.d/local/git` allows owner-matched read, write, and lock operations only beneath `/home/user/temp/agent`, plus Git 2.56.1's six-character `.git_signing_buffer_tmp` file and its `.sig` sibling under `/tmp`. It transitions only `ssh-keygen` to its existing enforcing profile for commit signing. `/etc/apparmor.d/local/ssh-keygen` grants the same buffer and signature paths. Hooks and build output receive no new execution permission.
+- `/etc/apparmor.d/local/git` allows owner-matched read, write, and lock operations only beneath `/home/user/temp/agent`, plus Git 2.56.1's six-character `.git_signing_buffer_tmp` file and its `.sig` sibling under `/tmp`. It transitions only `ssh-keygen` to its existing enforcing profile for commit signing. `/etc/apparmor.d/local/ssh-keygen` grants the same buffer and signature paths. Only this repository's measured `.git/hooks/pre-push` receives inherit-exec permission; third-party hooks and build output receive none.
+- Custom `/etc/apparmor.d/gh` confines GitHub CLI 2.105.0 with its own config scope, session-bus keyring access, network and TLS access, and `git` through the existing profile. It closes the managed Git profile's previously missing `px` target without an unconfined helper.
 - `/etc/apparmor.d/local/apparmor_parser` allows read access to Incus-generated profiles and read/write access to its parser cache tree.
 - `/etc/apparmor.d/local/aa-install` and `/etc/apparmor.d/local/aa-mode` each allow only the observed flat `system.slice/*.scope/cpu.max` read. The broader shared `golang-strict.d` override was removed.
 - `/etc/apparmor.d/local/helium` allows read-only root-owned `/etc/os-release` with audit enabled. The custom profile uses the real `net.imput.helium` configuration and cache scopes. No `/home/user/temp` browser grant was added.
@@ -33,9 +34,10 @@ The recorded boot is `2035a996-2f6f-45e8-a409-7712c793864b`. It is not the final
 
 - The early loader previously reported `Successfully loaded all binary profiles from AppArmor early policy cache (/etc/apparmor/earlypolicy/48da56f3.0).` before `apparmor.service`.
 - `verification-pre-cold-boot-local-tuning-runtime.json` verifies current source modes, loaded kernel modes, and zero managed drift.
-- `verified-selected-pre-cold-boot-local-tuning-2026-11-23T14-20-00-0500.json` verifies all 808 cache profiles, source-only compilation, live feature bytes, cache hits, successful loader reload, and rollback preservation. Current-boot Podman and strengthened Incus workloads passed after that selection. No new denials occurred at or after 2026-11-23T19:20:00Z in `current-boot-avc-after-enforcement-2035a996-2f6f-45e8-a409-7712c793864b-2026-11-23T19-21-18.355Z.json`; older denials remain in scope.
+- `verified-selected-final-cache-with-gh-2026-11-23T14-50-00-0500.json` verifies all 809 cache profiles, including custom `gh`, source-only compilation, live feature bytes, cache hits, successful loader reload, and rollback preservation. Earlier current-boot Podman and strengthened Incus workloads also passed after the 808-profile selection. No new denials occurred at or after 2026-11-23T19:20:00Z in `current-boot-avc-after-enforcement-2035a996-2f6f-45e8-a409-7712c793864b-2026-11-23T19-21-18.355Z.json`; older denials and later measured Git repair denials remain in scope.
 - `positive-enforcement-control-2035a996-2f6f-45e8-a409-7712c793864b-before-cold-boot-2026-11-23T16-05-41-295Z-103181.json` verifies an allowed read, an exact denied PID and AVC, and removal of the temporary source, kernel profile, and cache artifact.
-- `markdown-rendered-review/final-workload-tuning/browser-evidence-aggregated-with-git.json` records successful light and dark rendering, keyboard focus, an empty local console, and all thirteen source citations across the full run and targeted retries. The loopback server and disposable documentation-browser processes and profiles are removed.
+- Signed commit `02f5e836951eaa990e1c6e3f88e5017b51e39d0b` and its real push to `main` succeeded with the enforcing `ssh-keygen` and `gh` profiles plus the exact own-hook rule. `gh auth status` read the existing keyring credential successfully. `git ls-remote` returned that same commit hash.
+- `markdown-rendered-review/final-workload-tuning/browser-evidence-aggregated-with-github-cli.json` records successful light and dark rendering, keyboard focus, an empty local console, and all fifteen source citations across the full run and targeted retries. The loopback server and disposable documentation-browser processes and profiles are removed.
 - The real scheduled `sanoid.service` initially failed with `Capture::Tiny` status 2. After the readiness-marker correction, the unchanged tee reproduction returned exact captured stderr, and the already-scheduled 14:00 EST service exited 0. Direct ZFS queries confirmed the home, root, and varlog snapshots from that run. `sanoid-narrow-tempfile-verified-2035a996-2f6f-45e8-a409-7712c793864b-2026-11-23T18-59-31.197Z.json` separately proves nonempty readback and a retained self-label denial in the same confined process.
 - `checkupdates-runtime-database-verification-4LaKN.json` proves the real five-character directory, the raw and canonical local database targets, nonempty synchronized databases, package comparisons, and fixture removal. An incorrect six-character harness path remained denied and was not added to policy.
 - KeePassXC PID 4210 is enforcing. Its explicitly audited database opens are `apparmor="AUDIT"` with paired `SYSCALL success=yes`; an `ALLOWED` matcher was the wrong acceptance condition for this audit rule.
@@ -56,7 +58,7 @@ Older denied Helium paths under `/home/user/temp` and cache paths from before it
 
 ## Cache and recovery
 
-The active cache includes the latest Sanoid, KeePassXC, and checkupdates local changes. `build-verify-and-select-tuned-early-policy-cache.ts` compiled source without reading old cache, checked all 808 expected profile artifacts and live feature bytes, verified cache hits, preserved prior runtime policy, and reloaded the real loader.
+The active cache includes the latest Sanoid, KeePassXC, checkupdates, Git signing, own-hook, and custom `gh` changes. `build-verify-and-select-tuned-early-policy-cache.ts` compiled source without reading old cache, checked all 809 expected profile artifacts and live feature bytes, verified cache hits, preserved prior runtime policy, and reloaded the real loader.
 
 Original recovery cache: `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
