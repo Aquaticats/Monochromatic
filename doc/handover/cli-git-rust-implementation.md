@@ -1249,12 +1249,24 @@ by step:
   the lock design's at `f45d05a96d`,
   the plan design's at `2a333a511e`;
   the origin cleanup design stays at `f17455b786`.
+  The step 10 reviewer's read is in
+  (`review-sixth-read-before-acceptance.md` in its folder):
+  the lock design fit to put to the owner with three lows;
+  the binding fit after two fixes,
+  a stale test paragraph (its U12,
+  which is all that stands before step 10 is buildable)
+  and a hazard in the settling command (its U13:
+  on a `settling` binding whose clone cannot be proved gone it removes the registration of a worktree Git may have
+  checked out,
+  which must be fixed before the owner reads that veto entry).
+  It holds both veto lists in plain words and the two plan sentences as they would read.
   Running:
-  the step 10 reviewer's and the record reviewer's reads of those diffs,
-  each to `review-sixth-read-before-acceptance.md` in its folder,
-  each asked for the veto lists in plain words.
+  the record reviewer's read of the binding and the plan design,
+  to the same file name in its folder.
   Next:
-  the two acceptance questions.
+  one binding round on both reads,
+  the lock design's lows citing the binding's last commit,
+  then the two acceptance questions.
 - Step 17.
   The forced arm's round ended at `2a2747ebfb`,
   the cancelled removal's at `3f2475e430`.
@@ -1266,16 +1278,15 @@ by step:
   the guest round for the arms that need only mounts and namespaces
   (task 465).
 - The lost-event design:
-  two short rounds on the reviewer's read
-  (`review-read-before-acceptance.md`,
-  fit after two mediums in its V18)
-  and on the coordinator's read of the diff,
-  tip `c8c22c3285`,
-  rendering clean.
-  It now says what the answer a stopped unmount files changes for it.
-  Next:
-  the acceptance question,
-  with its seventeen veto entries.
+  accepted by the owner as written,
+  seventeen choices,
+  and on `main` at its commit `c8c22c3285`
+  (`doc/decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`,
+  "The design is accepted").
+  It is built in plan steps 19 and 22.
+  The wrapper left its worktree in place at the merge;
+  the one before it was gone on a later look,
+  so look again before removing it by hand.
 - The no-configuration branch (`ae7e91e94b`):
   its second Sonnet pass is going,
   to `review-second-pass.md` in the first pass's folder.
@@ -1308,9 +1319,11 @@ by step:
   running `pi-worktree-removal-held-commit-control-second-pass-findings`.
   Issues 6353,
   6354 and 6355 are filed.
-  One question of its pass is not asked yet:
-  what a removal whose wake missed should do
-  (issue 6354).
+  The pass's question on a removal whose wake missed is answered
+  (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`;
+  the decision is posted on issue 6354):
+  the warning names the way out,
+  built after this branch merges because its round edits the same documents (task 467).
   Next:
   a third pass.
 - The partial clone (`45499c3154`):
