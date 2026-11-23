@@ -1901,7 +1901,7 @@ so `doctor` can say the step never looked rather than that nothing was found;
 "refused" and "none found" are two different answers and the record holds them apart.
 
 The finding has four readers:
-the record's `beneath` and `beneath-paths` fields,
+the record's `beneath` and `beneath-path` fields,
 the summary line,
 the handler's journal,
 and `doctor`,
@@ -2263,7 +2263,7 @@ in this order:
 `after`;
 `master`;
 `beneath`;
-`beneath-paths`;
+zero or more `beneath-path` lines;
 `outcome`;
 `step`;
 `errno`;
@@ -2351,7 +2351,7 @@ The field bounds are the kernel's and the existing records':
 20 decimal digits for each of the
 two mount numbers and for the namespace id,
 20 for `master` and for the count,
-4,095 for each of up to four paths in `beneath-paths`,
+4,095 for each of up to four `beneath-path` lines,
 which the count and the table carry beyond,
 4095 for the path (`MAXIMUM_CHECKOUT_PATH_BYTES`,
 the readiness record's
@@ -2583,12 +2583,12 @@ and no test waits.
     A private checkout with one shared mount under it:
     the outcome is `already-private`,
     `beneath` is `1`,
-    `beneath-paths` names that mount point,
+    `beneath-path` names that mount point,
     and the child's own propagation is unchanged by the run.
     The same with a private mount under the checkout:
-    `beneath` is `0` and `beneath-paths` is `none`.
+    `beneath` is `0` and no `beneath-path` line stands.
     With five shared mounts under it:
-    `beneath` is `5` and `beneath-paths` names four,
+    `beneath` is `5` and four `beneath-path` lines name four,
     which is the bound the record states.
     A run that refuses at `source` before it reads the table writes `beneath unread` and no `beneath-path` line,
     and `doctor` prints that the step never looked;
@@ -2856,7 +2856,7 @@ They are additions to the record the build already owes ([measurements][measurem
   this host's own order is the same one,
   `zfs mount -a` mounting the nested dataset under the shared checkout before any handler run (F29,
   F33).
-  Then read `/run/git-worktree-clone-mount-propagation/result` for `beneath` and `beneath-paths`,
+  Then read `/run/git-worktree-clone-mount-propagation/result` for `beneath` and its `beneath-path` lines,
   the step's summary line and `doctor`'s line,
   and `findmnt --output TARGET,PROPAGATION --target /home/guest/chk/nested`.
   Then make the child private with `mount --make-private`,
