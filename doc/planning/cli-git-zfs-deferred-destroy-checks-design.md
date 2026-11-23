@@ -2929,9 +2929,18 @@ nothing here claims their behaviour.
 - `0f394ae4c0`,
   committed `2026-11-22T18:40:45-05:00`:
   the list completed with every section the second pass turned over.
+- `f82f20ecab`,
+  committed `2026-11-22T18:40:52-05:00`:
+  the commit whose subject begins "docs(planning):
+  close the revision list",
+  which wrote the entry above it as "the commit that writes this line".
+- `6a479f16a7`,
+  committed `2026-11-22T19:02:32-05:00`:
+  the version that answers the diff check,
+  with the changes the third part of "What this revision rewrote" lists.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  close the revision list":
+  list the diff check round's commits":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
