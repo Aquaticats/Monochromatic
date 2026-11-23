@@ -1314,7 +1314,7 @@ the failure's excess exactly.
 Read from 212,
 the window holds `git commit` alone,
 and 34 + 2023 = 2057 fits 2086,
-and 2086 + 1.
+and so fits 2086 + 1 as well.
 
 The record is right on both sides:
 58 + 48 = 106 <= 111 in the preparation,
@@ -1327,7 +1327,9 @@ so its stretch is at least as long as the step,
 and the 16 ms between the notice's `stoppedAfterMs` 2007 and the step's 2023
 is time the step ran past the ceiling,
 consistent with its own end and reap on this host,
-where the integration pass's 17 clean stopped records show natural `git commit` steps lasting 2013 to 2091 ms against a 2000 ms ceiling,
+where the 17 clean stopped records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+show natural `git commit` steps lasting 2013 to 2091 ms against a 2000 ms ceiling,
 and inside `buildMs`,
 which is closed after the step's time is read
 (`note_step(step, began, began.elapsed())` at
@@ -1361,12 +1363,19 @@ and states at most one whole one.
 The controls hold that one whole millisecond (`WINDOW_ORIGIN_ROUNDING_MS`),
 and the failure's 2105 passes 2086 + 1 = 2087 by 18,
 so no cut decides it.
-In the controls' clean records of 2026-11-22 the excess was -5 to -3 ms,
-so the bound leaves 4 to 6 ms of headroom there.
+In the 34 clean records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+the excess was -12 to -3 ms
+(stopped control -12 to -3,
+landing control -5 to -3),
+so the bound leaves 4 to 13 ms of headroom,
+and never less than 4.
 The fixed 12 ms allowance was larger than any right record needs,
 so a step stating 10 or 14 ms too much passed it,
 and a count of figures is larger still:
-the integration pass of 2026-11-22 read the count as 16 on the stopped control and 19 on the landing one,
+the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+read the count as 16 on the stopped control and 19 on the landing one,
 where a planted step stating 20 ms more than it ran passed both.
 
 Every other way this could be false was checked and excluded:
@@ -1382,12 +1391,14 @@ the window now ends where the build does.
 
 Why the control passes alone:
 the band is as wide as `routeMs`,
-which a quiet host reads as 3 to 6 ms here.
-The same control run alone on 2026-11-22 printed `routeMs` 6,
-`prepareMs` 21,
-`git add` 4 ms and `git rev-parse` 3 ms,
-so the band held no step and the same sum fitted.
-The gate's record states 101 ms with both steps inside it.
+and a preparation step it takes in ran only until the preparation ended,
+so it adds at most its own few milliseconds to a sum the build leaves 3 to 5 ms uncovered.
+The 17 clean stopped records of the second integration pass,
+whose merge was `a33a1a6d16` at 2026-11-22T21:15:49-05:00,
+read `routeMs` as 3 to 7 ms and stayed green.
+The gate's record states 101 ms,
+and the band took in both preparation steps,
+which had run 12 and 36 ms.
 Host load is no cause here (rule `NQH`);
 what load changes is how much of the preparation falls inside the band,
 because the band is as wide as the route the load stretched.
@@ -1419,10 +1430,10 @@ Read from `prepareMs` 275,
 the window selects all three steps,
 2243 ms,
 and 11 + 2243 passes 2045 + 12 by 197 ms
-(and 2045 + 1 by 198).
+(and 2045 + 1 by 208).
 Read from 711 it selects `git commit` alone,
 and 11 + 2029 = 2040 fits 2045,
-and 2045 + 1.
+and so fits 2045 + 1 as well.
 
 No whole-suite rerun was used to wait for this failure:
 the delay was planted in the stand-in and one run of the control showed it.
