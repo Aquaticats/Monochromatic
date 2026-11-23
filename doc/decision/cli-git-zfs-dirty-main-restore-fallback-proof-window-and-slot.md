@@ -12,6 +12,10 @@ questions Q1,
 Q3 and Q4),
 about the open item "Dirty-main restore on rung 1" of `doc/planning/cli-git-zfs-worktree-design-proposal.md`
 and plan step 11 of `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
+The fourth,
+Q2,
+is answered in the section "Three further answers",
+with two questions a later review put.
 The design it binds is still unapproved:
 `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 on its own branch.
@@ -138,8 +142,119 @@ Not chosen:
 leaving the request standing,
 so that the handler unmounts the clone when the holder leaves.
 
+## Three further answers
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T21:37:01-05:00,
+on the review of the design's last round
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-of-the-high-finding.md`,
+section "What is left for the owner",
+questions Q-O,
+Q-S and Q-B).
+Each answer is given as the option's label and its own description,
+as the project was shown them.
+
+### Who records what when the add undoes what it made
+
+Asked:
+four designs each described part of the failed add's undoing and disagreed on who records what;
+the deciding case is a clone already destroyed and a snapshot whose destroy is refused because a backup tool holds it.
+The project chose "B:
+record the snapshot as owed (Recommended)":
+"Before destroying anything,
+the add records the snapshot as owed cleanup (the same record a removal uses).
+You get a finished worktree made by Git's own checkout,
+one line saying the snapshot stays for now,
+and the next `git worktree` command destroys it once the hold is gone (your earlier answer)."
+The costs stated with it:
+the add writes two more records before its first destroy,
+and a fallback leaves an owed-cleanup record a person may not expect.
+
+Not chosen:
+the add owning the path alone,
+with no owed-cleanup record and the worktree pending until the same add is run again.
+
+### The pending text warns against running Git in the folder
+
+Asked:
+the pending folder holds a full working copy of the main repository's `.git`,
+frozen when the proof failed,
+and a person still in that folder can run Git there.
+The project chose "B:
+add the warning (Recommended)":
+"The pending message and `doctor`'s line gain one clause:
+do not run Git in this folder until it is removed."
+The cost stated with it:
+it only warns;
+it cannot stop a plain `git` there.
+
+Not chosen:
+leaving the text as it is.
+
+### A very dirty main checkout is warned about and still takes this route
+
+Asked:
+this route restores each changed file after cloning,
+so with very many changed files it can be slower than Git's own checkout;
+should it decline above a measured count,
+as the other clone route does.
+The project selected "A:
+decline above a measured count (Recommended)" with the note
+"warn about a measured count,
+but still do it."
+Asked which of the two readings was meant,
+the project chose "A:
+warn,
+still use the fast route (Recommended)":
+"Above the measured count the add clones and restores as usual
+and prints a warning that Git's own checkout may have been quicker for this many changed files.
+It never declines for dirtiness."
+The cost stated with it:
+an add can be slower than Git's own checkout on a very dirty checkout.
+The count comes from a measurement and is not decided here.
+
+Not chosen:
+declining above the count,
+and no warning at all.
+
+## The merge bar is waived for an add above the warning's count
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T22:00:52-05:00,
+on a finding of the review of the design's next round
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-before-acceptance.md`,
+"What Q-B costs that the document does not say").
+
+Asked:
+the project's merge bar says a branch may make nothing `main` does well worse.
+On `main`,
+as far as the records say,
+an add from a dirty main checkout on ZFS ends in Git's own checkout.
+Once plan step 11 lands,
+an add above the warning's count clones and restores every changed file instead,
+and is slower than `main` by an amount not yet measured.
+An integration pass would refuse that branch unless a record waives the bar for this case,
+as `doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md` once did for the clone rung.
+
+The project chose "B:
+waive for good":
+"Taking this route above the count is the intended behaviour and the bar never applies to it."
+The cost stated with it:
+it ships without anyone having shown the project how slow a very dirty add gets.
+
+Not chosen:
+a waiver that ends when the slowdown is measured,
+which was the option recommended;
+and no waiver,
+with the add declining above the count after all.
+
+What the question did not cover,
+and this record therefore does not waive:
+an add below the count,
+and an add that fails its proof and finishes with Git's own checkout.
+Each still owes its measured time against `main`.
+
 ## What this record does not decide
 
-Whether rung 1 may decline a very dirty main checkout as rung 2 does
-is the same review's question Q2,
-which waits for the measurement that would size the cut.
+The count above which the warning prints,
+which a measurement gives.
