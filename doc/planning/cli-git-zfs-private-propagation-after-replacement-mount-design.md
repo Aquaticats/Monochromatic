@@ -3763,8 +3763,7 @@ with its committer time from `git log --format=%cI`:
   2026-11-22T20:48:10-05:00:
   the list gained the last two commits of that round and their order.
 - `81fa3efddb`,
-  2026-11-22T21:16:00-05:00,
-  on the merge of `main` at `249da7f102`'s line:
+  2026-11-22T21:16:00-05:00:
   the diff check's high finding is answered by restoring the project's reading:
   F39 now says a boot unit without `ExecReload=` takes the request as a restart,
   the install paragraph and L11 say the stop pass unmounts every clone,
@@ -3779,6 +3778,9 @@ with its committer time from `git log --format=%cI`:
 - `3fe3022909`,
   2026-11-22T21:16:18-05:00:
   the kernel's path escaping and the parser's parent rule are cited beside the scan.
+- `5e85c13b8c`,
+  2026-11-22T21:16:27-05:00:
+  this list gained this round's commits and the correction of the previous entry's claim.
 
 ## Links
 
