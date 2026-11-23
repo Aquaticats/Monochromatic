@@ -4047,9 +4047,12 @@ nothing here claims their behaviour.
   committed `2026-11-22T21:59:46-05:00`:
   the wording fixes the last diff read listed,
   with the changes the eighth part of "What this revision rewrote" lists.
+- `2ebfa3f513`,
+  committed `2026-11-22T21:59:52-05:00`:
+  the metadata-only commit that listed the two above with their times.
 - The commit that writes this line,
   subject beginning "docs(planning):
-  close the wording round's revision list":
+  record the wording round's metadata commit":
   its own committer time can only be read from `git log --format=%cI` for it,
   because a document cannot name the time of the commit that writes it.
 
