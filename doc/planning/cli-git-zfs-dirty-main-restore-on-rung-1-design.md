@@ -2989,6 +2989,12 @@ the printed sentence is the snapshot rung's,
 F37 cites the one-transaction and one-log-record lines,
 and `doctor`'s line is replaced by the binding design's;
 the sibling commits are read at the tips this revision names.
+- `9f6016928d` at `2026-11-22T19:58:31-05:00`:
+the Revisions entry of the third-pass revision and the sibling tips it read,
+at `ec2b0b14f3` for the binding record and `c7708953c0` for the private propagation among them.
+- `eae362d6b6` at `2026-11-22T19:58:59-05:00`:
+the status paragraphs at the top brought to the third pass,
+and "What it ran" naming the OpenZFS clone this revision read for the exchange's transaction and log lines.
 
 ## Sources read
 
