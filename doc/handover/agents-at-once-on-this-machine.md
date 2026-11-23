@@ -178,6 +178,60 @@ So:
   and is written down as one;
 - the number only says when not to start one more yet.
 
+## The freeze of 2026-11-22 set no limit on runs
+
+The desktop froze for minutes on 2026-11-22,
+between about 20:50 and 21:01 local time,
+while many agent runs,
+six guests and an uncounted number of whole container gates were going.
+The stall was on memory,
+not on the drive:
+swap here is zram only,
+free memory was down to 1,966 MiB,
+and the kernel's all-task memory stall trend over 300 seconds read 45.76 at the read after it.
+The probe this document describes writes to the drive and would not have seen it.
+The whole account,
+with every figure's source,
+is `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`.
+
+No limit on runs came of it.
+The owner,
+asked whether to hold runs back:
+"I am confident we have enough memory.
+We have 64G of physical RAM.
+There's no way that isn't enough.
+We might have to change our swap or zram or whatever conf."
+So no session starts fewer runs,
+or runs heavy things one at a time,
+on account of memory.
+
+What changed instead,
+on the owner's "Apply both now",
+at 2026-11-22T21:07:36-05:00 and at runtime only
+(a reboot puts both back):
+`vm.watermark_scale_factor` from 10 to 125,
+and the multi-generation LRU's `min_ttl_ms` from 100 to 1000.
+The owner kept 125 for now on 2026-11-23,
+after learning that the distribution once shipped that value and removed it,
+and chose no disk swap for now.
+Their effect is unverified:
+two later readings exist,
+both under lighter loads than the freeze's,
+in `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`.
+The comparison under a load like the freeze's is still owed,
+and the persistent form of the two settings waits for it;
+applying that form to this machine is the owner's act.
+
+A session that sees the desktop freeze again saves,
+before anything else,
+`/proc/pressure/memory`,
+the reclaim and swap counters of `/proc/vmstat`,
+`free --mebi`,
+and what was running,
+with the time,
+beside those readings:
+a pair of readings that brackets the freeze is what the first one lacked.
+
 ## How to count before a start
 
 1.  Count the Pi runs going,

@@ -502,6 +502,60 @@ and each of the notes names this record.
   where the sentence "with its open items still open" gains a note that this open item is designed and accepted,
   and that the other open items stay open.
 
+## The answer a stopped unmount files, answered 2026-11-23
+
+Accepted in the question tool,
+recorded 2026-11-23T04:06:17-05:00,
+on the integration pass of the build of plan step 9's unmount,
+staging and reattach
+(`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`,
+"For the owner").
+
+Asked:
+when a removal asks the handler to unmount a clone and the unmount stops short,
+whether the handler tells the waiting command,
+and in which words.
+The case put:
+a person removes the worktree `one`;
+an editor has its working directory inside it;
+the handler moves the clone to staging,
+the unmount answers "busy",
+and the handler puts the clone back.
+The build filed an answer only when the unmount worked,
+or when it undid a move onto a mount the account had stacked.
+This record's design describes an answer for a put-back too,
+`doc/decision/cli-git-zfs-step-8-sweep-choices.md` says a refusal files no receipt,
+and the answer format on `main` cannot carry a put-back.
+
+The project chose "C:
+extend the answer format (Recommended)":
+"Add a fourth outcome word (such as `cancelled`) and let that answer carry the mount facts,
+as the accepted staging design says."
+The costs stated with it:
+it changes plan step 7's accepted format and every reader of it,
+and it is more to build than steps 9 to 14 need today.
+The example shown with it:
+the waiting command prints that the removal was cancelled,
+that the clone is back at `one` and the staging mount is gone,
+and that something still uses the worktree;
+the wrapper may then remove the staging folder.
+
+Not chosen:
+reusing the existing words `refused` and `failed` with a step word and no format change;
+and writing nothing,
+as built.
+
+What follows,
+in the coordinator's reading and not the project's words:
+step 8's rule that a refusal files no receipt stays the rule of the attaching sweep;
+the outcome word itself,
+the bound it needs and the fields the new answer carries are the build's to propose from this record's design,
+and the three other cases the pass listed
+(a staged mount kept after a failed reattach or rollback,
+a refusal before the turn can build its request,
+and the format's missing outcome word)
+are settled by the same extension.
+
 ## What the acceptance does not do
 
 - It measures nothing.
