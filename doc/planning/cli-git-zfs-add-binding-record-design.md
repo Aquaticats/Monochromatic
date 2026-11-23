@@ -154,9 +154,9 @@ The section names are the ones in this revision.
 - Every citation:
   "Citations" reports the count checked and corrected.
 
-This round answers the two second passes,
-the add-time lock review of `428040d45d` and the removal-side review of the three record designs.
-Each line names the finding and the section that answers it.
+The second revision answered the first two passes as follows,
+at `c144499eb9`;
+the next list is this round's.
 
 - N3,
   the kill inside Git's add:
@@ -207,6 +207,48 @@ Each line names the finding and the section that answers it.
 - The questions:
   Q1 to Q4 and Q9 are retired into V11 and V16 to V19,
   and Q7 and Q8 are the two that remain.
+
+This round answers the two diff checks,
+the add-side check of `c144499eb9` and the removal-side check of the three texts.
+Each line names the finding and the section that answers it.
+
+- R1:
+  "The states Git's source can leave" replaces the three-step recipe with one row per state,
+  each walked from `builtin/worktree.c`:495 to :604 and `worktree.c`:1105 to :1134,
+  with the recipe that removes the files before the lock and the directory after it,
+  the slot's pointer among the names it removes,
+  the failure path's leftover as R7,
+  and T20 to T20c as one fixture per row.
+- R2:
+  the same section's finder takes Git's own sanitiser and counter for a candidate name,
+  a prefix only when it covers the fixed part and the nonce,
+  the newline Git completes the lock with,
+  the relative `gitdir` resolved against the registration,
+  and a second read under the descriptor before the first removal;
+  T20c is the name case.
+- R3:
+  "A resumed add" refuses a `filled` binding whose clone is gone,
+  "The record's end" and "Which step" name the plan design's pass or the next removal as the finisher,
+  and step 10 settles nothing.
+- R4:
+  A10a and A10b are appended for the frozen-content comparison and the discard,
+  D6 has one boundary owner,
+  the lock design is cited at `86f122c2b1`,
+  the `HEAD` fact comes from its scan and not its F14,
+  the assumption labels say "assumption",
+  and the count is four name forms.
+- Z1:
+  "The condition a finisher meets" is the plan's arm or the origin record's,
+  the origin record's absence is not a failure when a plan stands,
+  and the pass that takes the claim is the finisher.
+- Z3:
+  step 5 removes the two inventories first and the binding last,
+  V20 weighs only that,
+  and the resume refuses an orphan inventory with no binding.
+- Z4:
+  every statement about the two removal-side records is rewritten at `b4dc758a76` and `0973f2fc2a`,
+  the tail cites the merged list's steps 10 to 13,
+  and the three records' one flush rule and one staging convention are named as such.
 
 ## The gap this design answers
 
@@ -813,7 +855,7 @@ F5).
 A9.
 The sibling designs named under "Where the siblings disagree" place their records in the wrapper's own folder in
 the common directory or in a registration,
-and this design's folder holds only its own five name forms.
+and this design's folder holds only its own four name forms.
 
 A10.
 A folder's inode number and birth time are stable while its dataset is mounted and across a remount of that dataset,
@@ -1141,7 +1183,7 @@ This design is the first of them to be written by an add,
 so this section is the one place the other two rounds can cite for the shape all three should follow.
 Each part names the precedent it follows,
 and each part no project record decides is marked with the question that puts it to the project.
-Neither sibling is reviewed,
+Neither sibling is unreviewed:
 and nothing here decides its design:
 the second gate review's "Disagreements between the three record designs" is the material,
 and the other two rounds are told to line up with this section or list the difference for the project's veto.
@@ -1186,7 +1228,7 @@ and the other two rounds are told to line up with this section or list the diffe
   which the wrapper's own JSON reader says is unsafe.
   Precedent:
   the btrfs binding's two encodings and the slot store's token grammar.
-  The destruction plan writes the same three encodings (read at `76849b8d9b`),
+  The destruction plan writes the same three encodings (read at `b4dc758a76`),
   so all three now agree here.
 - Publication:
   one private file,
@@ -1200,24 +1242,24 @@ and the other two rounds are told to line up with this section or list the diffe
   whose decision record chose exactly this over a lock.
 - Flush:
   flush every write of a record whose facts a later command must not have to rediscover.
-  This record flushes every write (V6).
-  The destruction plan publishes unsynced by default (its Choice 5,
-  read at `76849b8d9b`)
-  and the origin cleanup record is unflushed too,
-  so the route has two rules today;
-  V19 puts one rule to the project,
-  and M1 is the number that would settle it.
-  No project record fixes one rule for the three,
-  so it is V19,
-  the second review's merged question four.
+  The three records now share one rule by position (V19):
+  a write made before an irreversible ZFS step,
+  or one that reports an outcome,
+  needs no flush,
+  and a write made after an object exists that nothing else can prove is flushed.
+  This record's writes all fall on the flushed side (V6);
+  the destruction plan's outcome writes and the origin cleanup record's `owed` write fall on the other
+  (the plan's Choice 5 and the origin design's V14,
+  read at `b4dc758a76` and `0973f2fc2a`).
 - Staging names and who removes them:
   every staging name is a dot name made by one known writer,
   and `doctor` at plan step 18 removes the known forms.
   Where a writer holds a claim across a long step,
   `doctor` removes a staging name only when the folder holds no live claim (V8).
   The destruction plan removes one only when a plan with that GUID stands and its `owner` is gone (its Choice 12),
-  and the origin cleanup record removes none and reports them (read at `987a3ba886`),
-  so the route has three rules here;
+  and the origin cleanup record removes none and reports them (its V8,
+  read at `0973f2fc2a`),
+  which is one convention with each record's own evidence;
   the store's own decided rule covers the store alone
   ([`../decision/cli-git-zfs-slot-identity-store-format.md`](../decision/cli-git-zfs-slot-identity-store-format.md),
   "Who removes a killed writer's staging file").
@@ -1244,7 +1286,7 @@ and the other two rounds are told to line up with this section or list the diffe
   "What was decided").
   Neither sibling rounds either:
   the destruction plan's bound is `10,128 + 340 × count` and the origin cleanup record's is 13,375,
-  both computed from named terms (read at `76849b8d9b` and `987a3ba886`).
+  both computed from named terms (read at `b4dc758a76` and `0973f2fc2a`).
 
 Where the two siblings differ from the convention today,
 read from their branches:
@@ -1253,7 +1295,7 @@ read from their branches:
   the earlier revision's pointer is dropped,
   and the plan reads its folder by one `stat` before every forwarded command and lists it only when it exists
   (its "What finds a plan",
-  read at `76849b8d9b`).
+  read at `b4dc758a76`).
   Its finish pass is a second command that settles a registration,
   which this record's step 5 must survive (F2).
 - The destruction plan's key is the clone's decimal GUID,
@@ -1501,6 +1543,8 @@ so a value cannot have two spellings:
   then the argument exactly as the command was given,
   in lowercase hexadecimal,
   or `-` when the word is `detach` and no commit-ish was given.
+  An argument longer than `PATH_MAX` refuses the add at A2 rather than being truncated,
+  which is what the bound's 4096-byte term assumes.
   Hexadecimal is what makes the value safe:
   a refname may hold `=`,
   and a commit-ish may hold `~`,
@@ -1638,7 +1682,7 @@ and the order below,
 in which Git's invocation is one step and no lock record is written at all.
 A step's owner is named beside it,
 and so is the lock design's moment for that step,
-read at `a7902e293b` ("The moments of an add",
+read at `86f122c2b1` ("The moments of an add",
 D0 to D7).
 
 The labels do not move again:
@@ -1735,10 +1779,13 @@ where the sentence is a pure function of the recorded `nonce=`,
 and `request=` records the commit-ish and the form this step was given.
 Owner:
 the lock design for the invocation and the sentence's wording (its "The invocation",
-read at `a7902e293b`);
+read at `86f122c2b1`);
 this design for the order,
 for the nonce being recorded before this step runs,
 and for the request being recorded so a resume can compare it.
+The reason the plan's step 10 says the registration records is this sentence:
+the binding's `nonce=` and the sentence recomputed from it stand for the words,
+and no second copy of them is written anywhere.
 Lock moment:
 D1,
 D2,
@@ -1755,8 +1802,8 @@ A6.
 Finding and proving what Git made,
 and clearing what Git's failure path left.
 Run the scan of "A resume after a kill between Git's add and the registered write",
-decide each entry by that section's table,
-and either adopt the complete registration or remove the incomplete one in the settle's order before A5 is run
+decide each entry by that section's rows,
+and either adopt the complete registration or clear the incomplete one with that section's recipe before A5 is run
 again.
 For an adopted one,
 read the slot's `.git` pointer,
@@ -1783,8 +1830,8 @@ the next command's scan meets it.
 A7.
 Retired.
 The earlier revision put the lock design's own record here;
-the lock design keeps none (its "The order of the add's writes" step 5,
-read at `a7902e293b`),
+the lock design keeps none,
+and its "The record whose nonce the lock's proof rests on" says so (read at `86f122c2b1`),
 so no write stands at this label.
 The labels after it keep their numbers so that a citation from either document does not move.
 
@@ -1805,7 +1852,7 @@ D5.
 A kill leaves a snapshot the recorded name identifies,
 and no inventory;
 the resume rebuilds the inventory,
-because its set is fixed by that snapshot's transaction group (A6).
+because its set is fixed by that snapshot's transaction group (assumption A6).
 
 A9.
 The clone,
@@ -1826,14 +1873,47 @@ A10.
 The mount,
 verified in the caller's namespace,
 then `phase=mounted`.
+This step ends at that write.
 Owner:
 this design with the route's attach checks.
 Lock moment:
-D6,
-whose no-pointer window the lock protects.
+D6 begins after A10b's discard below,
+not here;
+the no-pointer window the lock protects is that one.
 A kill leaves a clone that may be mounted;
 the resume reads the mount live,
 and compares the identities "The identity fields" says are comparable while mounted.
+
+A10a.
+The frozen-content comparison inside the clone,
+before any Git runs against the copied administration:
+the index and tracked content against the proof the add captured,
+as the proposal's add step 4 asks ([proposal](cli-git-zfs-worktree-design-proposal.md):397 to :400).
+Owner:
+the dirty-main restore design for the proof,
+and this design only for the order.
+Lock moment:
+still before D6.
+A kill leaves a mounted clone with the comparison unmade;
+the resume redoes it or,
+with the proof gone,
+refuses ("What this design does not cover").
+
+A10b.
+The copied Git administration discarded,
+and the boundaries omitted:
+the copied `.claude/worktrees`,
+the wrapper's caches and stages,
+and the nested mount locations the source walk identified.
+Owner:
+this design,
+from the proposal's add step 4.
+Lock moment:
+D6 is the window this step's discard opens,
+and A11 closes it;
+so D6 begins where this step ends.
+A kill leaves a mounted clone whose slot shows no `.git` and whose registration has no index,
+which is exactly D6.
 
 A11.
 The pointer inside the clone,
@@ -1843,7 +1923,7 @@ which the proposal's "Mark the binding usable only after the fill is verified" i
 Owner:
 this design.
 Lock moment:
-D6 and D7.
+D6 ends here and D7 begins.
 A kill leaves a mounted clone whose pointer state the resume reads live.
 
 A12.
@@ -1872,30 +1952,54 @@ and V16 puts the choice to the project with the lock design's rollback beside it
 The claim is held and the binding's phase is `slot` (or `claimed`,
 when A5 began but the `slot` write did not land),
 so Git's add may have left anything from a bare directory to a complete registration.
-The finder is the lock design's scan,
-widened by one name check:
+Everything below runs under the claim,
+through one descriptor opened on the pinned `<common>/worktrees` parent,
+and it reads each entry twice:
+once to recognise it and once,
+immediately before the first removal,
+to prove it still answers the row the first read chose.
+A second read that differs refuses and changes nothing.
+
+The finder is the lock design's scan (its S8,
+read at `86f122c2b1`) widened by two rules of this record's:
 one listing of `<common>/worktrees/`,
-one read of each entry's `locked` with the lock design's bound,
-comparing it with the sentence recomposed from this add's `nonce=` (its S8 and S2,
-read at `a7902e293b`),
-one read of each entry's `gitdir`,
-and the entry's name compared with the slot's.
-The name check is what reaches the entry that holds no lock at all (D1 and Git's failure path),
-which no lock scan can find,
-and it is why a complete registration is never removed on a name alone.
+one read of each entry's `locked` and `gitdir`,
+and the name compared with the ones Git could derive from this slot.
 
-A directory is this add's when one of these holds:
+- The sentence is recomposed from this add's `nonce=` and compared with `locked`'s bytes as Git wrote them,
+  **including the newline `write_file` completes it with** (`wrapper.c`:760 to :783).
+  A proper prefix counts only when it covers the sentence's fixed part and the whole nonce;
+  a shorter prefix,
+  including an empty file,
+  is what any just-opened lock looks like and attributes nothing.
+- A `gitdir`'s text is trimmed of its ending newline and,
+  when it is relative,
+  resolved against the registration's directory,
+  which is what Git writes under `worktree.useRelativePaths` or `--relative-paths`
+  (`worktree.c`:1120 to :1134),
+  and what the wrapper's own reader does with a pointer (`worktree_add_binding.rs`:89 to :113).
+- A name is a candidate when Git could derive it from this slot:
+  the slot's name through Git's own sanitiser (`check_refname_component` and `check_or_sanitize_refname`,
+  `refs.c`:376 and :386,
+  which collapses `..`,
+  replaces a forbidden byte and a leading dot with `-`,
+  and strips a trailing `.lock` and a trailing dot),
+  then no suffix or a decimal counter (`builtin/worktree.c`:495 to :512),
+  and no other slot's binding in this record folder owns that name.
 
-- its `locked` bytes equal the recomposed sentence;
-- its `locked` bytes are a proper prefix of the sentence,
-  which is what a killed single write leaves (the lock design's F8 and S2);
-- it holds no `locked` and no `gitdir`,
-  and its name is the slot's name or the slot's name followed by decimal digits,
-  which is D1 of the lock design's moments and the directory Git's failure path leaves after it unlinks `locked`
-  (its F11).
+An entry is this add's when one of these holds:
 
-A directory whose `locked` holds other words,
-or whose `gitdir` names another slot's `.git`,
+- `locked` equals the recomposed sentence,
+  newline included;
+- `locked` is a proper prefix that covers the fixed part and the nonce (the lock design's F8 and S2);
+- there is no `locked`,
+  and `gitdir` resolves to `<slot>/.git`;
+- there is neither `locked` nor `gitdir`,
+  the name is a candidate as above,
+  and the slot stands empty.
+
+An entry whose `locked` holds other words,
+or whose `gitdir` names another slot,
 is never this add's:
 the resume refuses,
 names the entry and the first line of its words,
@@ -1903,65 +2007,225 @@ and changes nothing.
 It is a person's `git worktree unlock` and lock again,
 or another command's add.
 
-An entry that is this add's is complete when all five answers name each other:
-the slot's `.git` pointer exists,
-its bytes will be `pointer=`,
-the `gitdir` file names exactly `<slot>/.git`,
+An entry that is this add's is complete when these five answers name each other:
+the slot's `.git` exists and its bytes will be `pointer=`,
+`gitdir` names exactly `<slot>/.git`,
 `commondir` exists,
 and `HEAD` exists.
-That is the wrapper's own three-fact proof plus the `HEAD` the lock design's F14 names (read at `a7902e293b`).
-Then:
+That is the wrapper's own three-fact proof (`same_file` over the pointer,
+the back-link and `commondir`) plus the
+`HEAD` that the lock design's scan lists among its completeness facts (its S8's list,
+read at `86f122c2b1`).
+Complete:
+adopt it.
+A lock cut short is completed in place first (the lock design's S2),
+and then `registration=`,
+`registrationIdentity=`,
+`pointer=` and `phase=registered` are written and the add continues at A8.
 
-- Complete:
-  adopt it.
-  Write `registration=`,
-  `registrationIdentity=`,
-  `pointer=` and `phase=registered`,
-  and continue at A8.
-- Incomplete:
-  remove it in the settle's order and re-run A4 and A5.
-  The states,
-  each with what it holds:
-  - D1,
-    a bare directory,
-    holds nothing.
-    No recordable fact is lost:
-    Git created it at `mkdir` (`builtin/worktree.c`:505 to :512) and wrote nothing in it.
-  - D2,
-    `locked` and nothing else,
-    holds only Git's lock,
-    whose bytes are recomposed from our nonce.
-  - D2a,
-    `gitdir` names `<slot>/.git` and the slot has no pointer:
-    the pointer's bytes cannot be read,
-    so `pointer=` cannot be written.
-  - D2b,
-    the pointer stands and `commondir` is missing:
-    the wrapper's proof cannot pass.
-  - D2c,
-    `commondir` stands and `HEAD` is missing:
-    the proof is short its last fact.
-  In every incomplete case the removal is the lock design's own settle order,
-  "How the wrapper's own removal releases the lock" (read at `a7902e293b`):
-  1. unlink `locked`,
-     so no lock stands in the way and no prune is stopped by one on a half-made directory;
-  2. prove the directory empty through a descriptor opened on the pinned `worktrees` parent,
-     so a name that pointed elsewhere is not removed;
-  3. remove the entry by that descriptor's parent and name.
-  The add prints the entry it removed and why.
-- Nothing found:
+Incomplete:
+clear it with the recipe below.
+
+#### The states Git's source can leave
+
+One row per state,
+walked from `add_worktree` at `v2.56.1`
+(`builtin/worktree.c`:495 to :604,
+`worktree.c`:1105 to :1134).
+Our route passes `--lock`,
+so `keep_locked` is set,
+and Git's `done:` label unlinks `locked` only on a failure (`builtin/worktree.c`:600 to :604);
+a `die` or a caught signal runs `remove_junk` instead and never unlinks it (`:273 to :300`).
+
+- row 1,
+  before `locked` (`mkdir`,
+  `:511`).
+  Registration:
+  empty.
+  Slot:
+  empty,
+  as A3 made it.
+  Recognised by:
+  no `locked`,
+  no `gitdir`,
+  and a candidate name.
+  Cleared by:
+  no pointer;
+  the recipe's steps 6 and 7 alone.
+- row 2,
+  after `locked` (`:530 to :533`).
+  Registration:
+  `locked`.
+  Slot:
+  empty.
+  Recognised by:
+  the lock.
+  Cleared by:
+  no pointer;
+  `locked`;
+  the directory.
+- row 3,
+  after `gitdir` (`worktree.c`:1129 or :1132,
+  the first of the two writes).
+  Registration:
+  `locked`,
+  `gitdir`.
+  Slot:
+  empty.
+  Recognised by:
+  the lock,
+  or,
+  after a failure-path unlink,
+  `gitdir` naming `<slot>/.git`.
+  Cleared by:
+  no pointer;
+  `gitdir`;
+  `locked`;
+  the directory.
+- row 4,
+  after the slot's `.git` (`worktree.c`:1130 or :1133,
+  the second write).
+  Registration:
+  `locked`,
+  `gitdir`.
+  Slot:
+  `.git`,
+  whose bytes name this registration.
+  Recognised by:
+  the lock,
+  or `gitdir`.
+  Cleared by:
+  the slot's `.git`;
+  `gitdir`;
+  `locked`;
+  the directory.
+- row 5,
+  after `commondir` (`:545 to :546`).
+  Registration:
+  `locked`,
+  `gitdir`,
+  `commondir`.
+  Slot:
+  `.git`.
+  Recognised by:
+  the lock,
+  or `gitdir`.
+  Cleared by:
+  the slot's `.git`;
+  `commondir`;
+  `gitdir`;
+  `locked`;
+  the directory.
+- row 6,
+  after `HEAD` and the ref store (`:551 to :575`).
+  Registration:
+  `locked`,
+  `gitdir`,
+  `commondir`,
+  the ref store's `refs/` and `logs/`,
+  and `HEAD`.
+  Slot:
+  `.git`.
+  Recognised by:
+  the lock,
+  and complete by the five facts.
+  Adopted,
+  not cleared.
+- row 7,
+  Git's failure path killed after the unlink (`:600 to :604`,
+  then `remove_junk` at exit).
+  Registration:
+  `gitdir`,
+  `commondir`,
+  `refs/`,
+  `logs/`,
+  `HEAD`,
+  and no `locked`.
+  Slot:
+  `.git`.
+  Recognised by:
+  no lock and a `gitdir` naming `<slot>/.git`;
+  its contents then pick the row it is cleared as.
+  Cleared as that row,
+  with no `locked` to remove.
+- row 8,
+  Git's own removal of a failed add killed inside it (`remove_dir_recursively`,
+  `:273 to :289`).
+  Registration:
+  whatever Git had removed so far,
+  with `locked` still there unless the unlock ran.
+  Slot:
+  `.git`,
+  or the slot itself,
+  may be gone.
+  Recognised by:
+  the lock while it stands,
+  then `gitdir`,
+  then a candidate name.
+  Cleared by the recipe for the names that stand.
+- row 9,
+  nothing found and the slot has no `.git`.
+  Action:
   re-run A5,
   after the slot rule below.
+- row 10,
+  nothing found and the slot holds a `.git`.
+  Action:
+  refuse and name it.
+  Nothing proves this add wrote a pointer whose registration is gone.
+
+#### The recipe that clears rows 1 to 5, 7 and 8
+
+Each step removes one name the row proved stands,
+through the pinned parent descriptor,
+and the lock goes last so the entry stays attributable at every earlier kill:
+
+1. the slot's `.git`,
+   when the row has one and its bytes name this registration;
+   a `.git` naming anything else is left and the resume refuses;
+2. `gitdir`;
+3. `commondir`,
+   when it stands;
+4. `HEAD`,
+   then `refs/` and `logs/` as Git's own directories,
+   when they stand;
+5. any other entry the row's listing showed,
+   and nothing else;
+6. `locked` last,
+   so every kill before this point leaves a locked entry and every kill after it leaves an empty
+   directory;
+7. the registration's directory by name from the pinned parent (a plain `rmdir`,
+   which answers `ENOTEMPTY` rather
+   than removing anything it did not account for).
+
+Then re-run A4 and A5 and print what was removed.
+Every kill inside the recipe leaves one of the rows above:
+rows 1 to 5 while `locked` stands,
+and row 1's bare directory after it,
+because the recipe removes the files before the lock and the directory after it.
+The earlier revision's recipe unlinked the lock first and then asked for an empty directory,
+which fails for R3,
+R4 and R5,
+whose registration holds files.
+This recipe is the lock design's settle order with the step its own list lacks:
+the slot's pointer,
+which its settle removes only "when it is empty" (its "How the wrapper's own removal releases the
+lock",
+read at `86f122c2b1`),
+and which this record removes before the registration's own files so that the slot is free again.
+The lock design's round is where that step belongs too.
 
 The resume never runs `git worktree prune` instead:
 a repository-wide prune would remove another slot's registration in the mounted,
 no-pointer state the lock design's D6 names,
 so this rule is per slot by construction.
 
-A removal of a leftover that is itself killed is harmless:
-the next resume finds what is left and repeats the same three steps,
-because each step removes one fact (the lock,
-then the directory) and the entry stays attributable until the last one.
+A standing inventory with no binding refuses the add at A2 as well:
+the inventories are published with an exclusive link,
+so a second publication answers `EEXIST`,
+and an orphan inventory is the tail's leftover,
+not the add's to clear (Z3 and "The record's end").
+The add names it and points at the finisher.
 
 The resume's other half is the slot Git's failure path may have deleted.
 Git's own failure path removes the destination directory it was given,
@@ -1987,7 +2251,8 @@ The rule is:
   no registration is named,
   no dataset exists and no clone was made.
   The add prints that it re-made the slot.
-- The slot holds a `.git` pointer or anything else:
+- The slot holds a `.git` pointer or anything else,
+  after the recipe has removed the row's pointer:
   refuse,
   naming what stands there.
   A folder with a pointer is a registration's subject,
@@ -2001,9 +2266,17 @@ The rule is:
   a slot whose identity differs refuses,
   because the registration's `gitdir` names `<slot>/.git` and a re-created folder is another subject for it.
 
-T20 forces every state of the table with a planted entry,
-T20a the bare directory and the failure path's unlocked one,
-T20b the two foreign cases,
+T20 plants one fixture per row,
+R1 to R10,
+each built from the source line that leaves it,
+and asserts the recipe's order name by name,
+that `locked` goes last,
+and that every kill between two steps leaves a
+row the table still recognises.
+T20a plants rows 7 and 8 and the two failure-path kills,
+T20b the foreign cases (other words,
+another slot's `gitdir`,
+a relative `gitdir`),
 and T21 the slot's deletion and the identity's rewrite.
 
 ## The phases, and a kill at each step
@@ -2078,7 +2351,7 @@ this section gives the recovery each phase's gap needs when the fact is missing.
   and its name carries the nonce,
   so a snapshot at that name whose `createtxg` is later than the add's claim is the add's.
 - The origin inventory is rebuildable while the origin snapshot exists,
-  because its set is fixed by that snapshot's transaction group (A6).
+  because its set is fixed by that snapshot's transaction group (assumption A6).
   A reader that finds no origin inventory rebuilds it and publishes it,
   and says it did.
 - The clone's initial inventory is rebuildable only while the clone holds no snapshot of its own (V13).
@@ -2230,7 +2503,17 @@ when the record is:
 - ahead of the live facts:
   a phase whose object does not answer,
   or answers with another identity.
-  This is the one arm a reader meets when another hand destroyed an object (see "What no reader may conclude");
+  This is the one arm a reader meets when another hand destroyed an object (see "What no reader may conclude").
+  A killed removal leaves the same arm,
+  and the add refuses it too:
+  a binding at `filled` whose clone dataset is gone is not the add's to settle.
+  The add names the record,
+  the plan if one stands,
+  and the finisher ("The record's end").
+  The tail belongs to the removal's order,
+  and the plan design's finish pass,
+  which runs before every forwarded command,
+  or the next removal of the slot finishes it without the add (R3);
 - a live owner of the newest claim generation:
   the only claim fact a reader refuses on,
   and the refusal names the owner's process id (see "What a reader may ask of the claim").
@@ -2276,7 +2559,7 @@ and reports:
 - each inventory whose `entries=` disagrees with its lines,
   each record filed under a name its `slot=` or `kind=` refuses,
   each file whose owner or mode is not this account's,
-  and each entry whose name is none of the five forms;
+  and each entry whose name is none of the four forms;
 - the two known staging forms,
   whose names it removes only when the folder holds no live claim;
 - each released claim,
@@ -2306,33 +2589,28 @@ Its own plan is another record,
 whose home is the destruction plan design's,
 and the binding's phase stays at `filled` for the whole removal.
 What the removal does with this binding is read it,
-compare its origin fields with the origin cleanup record,
-and remove it at the step the route's one removal order places.
+confirm its origin fields,
+and remove it where the route's one removal order places it.
 
 That order is the origin cleanup design's list,
 and this design states none of its own:
 "The order,
-and what a kill at each point leaves" at `987a3ba886`,
-its steps 1 to 11.
-Read at that commit,
-the list ends at step 11,
-the plan's removal,
-and it does not yet hold this binding's removal or the claim's release;
-that round is writing one merged list of every write and removal a removal makes across the three records and the
-registration.
-What this record needs from that merged list is three rules,
-stated here as requirements and not as step numbers:
-
-- this binding's three files are removed before the plan's removal,
-  so the plan is the last witness of a removal that was killed at its end;
-- the claim is released last,
-  after the binding's removal and the plan's;
-- the origin cleanup record's confirmation stays where that list puts it,
-  before the first delete (its step 6),
-  and this record's confirmation of it is the same step's other half.
-
-V20 marks those three rules as the writer's choice they are until the merged list lands,
-and the list's round owns the numbering.
+and what a kill at each point leaves" at `0973f2fc2a`,
+its steps 1 to 13 (its step 10 settles the registration,
+its step 11 removes this binding's files,
+its step 12 removes the plan,
+its step 13 releases the claim).
+Its rule is that the plan is the last witness and the claim is released last,
+and its kill list gives each point's state and finisher.
+What this record adds to that list is one sentence about its own three files (Z3 of the third removal-side check):
+the two inventories are removed first and `<slot>.binding` last,
+so the binding stands while step 11 is unfinished and every kill inside the step leaves a binding a finisher can
+recognise:
+a kill after both inventories and before the binding leaves the binding alone,
+which is step 11's state before its first removal;
+one after a single inventory leaves the binding and the other inventory,
+and the finisher removes the rest.
+A finisher that finds a standing inventory with no binding treats it as the same step's leftover and finishes it.
 
 What a removal does with this record is then,
 in this record's terms:
@@ -2348,7 +2626,7 @@ in this record's terms:
    It writes nothing there:
    that record's writer is the removal command,
    and its own design publishes it at its step 6 (its V4,
-   read at `987a3ba886`).
+   read at `0973f2fc2a`).
    A removal that finds no such record,
    or one whose fields differ,
    refuses before its first delete,
@@ -2356,12 +2634,11 @@ in this record's terms:
 3. The destroys are the siblings' steps (its steps 7 to 9).
 4. It settles the registration,
    which either Git removes with its folder (F2,
-   A4) or the wrapper's own settle removes by descriptor,
+   step A4) or the wrapper's own settle removes by descriptor,
    and releases the managed lock (its step 10).
    The binding is not inside the registration,
    so it survives either route.
-5. It removes `<slot>.binding`,
-   `<slot>.origin-inventory` and `<slot>.clone-inventory`,
+5. It removes the two inventories and then `<slot>.binding`,
    then releases its claim,
    which leaves the newest generation file as a released claim.
    It prints what it removed.
@@ -2376,14 +2653,47 @@ So the binding is the carrier of the origin's identity only up to step 2,
 and the slot is freed at the settle rather than at the cleanup's end.
 The earlier revision kept the binding while the origin cleanup was blocked,
 which the second gate review's X2 showed contradicts those two sentences.
-The binding stays,
-and the slot stays blocked,
-only when step 2 cannot be confirmed:
-no origin cleanup record,
-one that cannot be read,
-or one whose fields disagree.
-Then the binding is the only record that names the origin,
-and keeping it is the safe arm X2 allows.
+
+### The condition a finisher meets
+
+A removal meets step 5's condition itself,
+because it made the confirmation at step 2.
+A finisher meets it after a kill,
+and its condition cannot be "the origin cleanup record stands":
+on the ordinary path that record is gone at step 9,
+before the settle,
+so a finisher after a kill between 10 and 11 would keep every binding of an ordinary removal and block the slot
+(Z1 of the third removal-side check).
+The condition is therefore either of these:
+
+- a plan stands for `cloneGuid=` with `head=gone`,
+  and the plan's `originDataset=`,
+  `originDatasetGuid=`,
+  `originSnapshot=`,
+  `originSnapshotGuid=` and `originSnapshotCreatetxg=` equal this binding's
+  (the plan carries all five,
+  read at `b4dc758a76`);
+- no plan stands,
+  and the origin cleanup record stands with those five fields equal.
+
+The origin cleanup record's absence is not a failure when a plan stands.
+When neither holds,
+the binding stays and the slot stays blocked,
+which is Q8's case.
+
+The finishers are the plan design's pass,
+which now takes the claim,
+proves the clone's absence,
+settles the registration,
+finishes step 11 for the binding that names the plan's clone and removes the plan
+(its "The finish pass that settles a registration",
+read at `b4dc758a76`),
+and the next removal of the slot,
+which resumes from the plan.
+The add is not a finisher:
+a resumed add that meets a `filled` binding whose clone is gone refuses and names the pass (R3 of the third add-side
+check,
+and "A resumed add").
 
 ### What a record whose clone is gone means
 
@@ -2398,7 +2708,10 @@ and the order is what tells them apart.
   because V20 puts the plan's removal after this binding's,
   a kill after the settle and before step 5 leaves the plan standing beside this binding.
   `doctor` prints the plan's standing intent and this record's origin names,
-  and the next removal resumes from the plan and finishes step 5.
+  and the finisher above finishes step 11:
+  the pass before the next forwarded command,
+  or the next removal,
+  meeting the plan's arm of the condition.
   If the plan reports the head's destroy as unresolved,
   nothing in the binding is regenerated and nothing is settled on a guess.
 - No plan stands.
@@ -2421,15 +2734,6 @@ is kept,
 and the slot it names refuses the next add until a person settles it.
 That is Q8,
 because it trades a blocked slot against a guessed settlement.
-
-The command that finishes step 5 when the removal that owned it is dead is the next removal of that slot,
-which resumes from the plan,
-or,
-when an add reaches the slot first,
-the add's own settle under the claim before it writes its own binding.
-The plan design's finish pass is not one of them:
-it holds no claim,
-so it must leave the plan standing (V20) rather than remove the last witness of a binding that still stands.
 
 ## What Git does to a file it does not know here
 
@@ -2501,8 +2805,9 @@ no recorded path yet.
   the slot rule when Git's failure path deleted it,
   the checks a resumed add makes,
   and the refusals.
-  It also builds the add's own settle of a standing binding whose clone is gone and whose removal is dead,
-  which is the same three files under the same claim as step 16's step 5.
+  The add settles nothing:
+  a `filled` binding whose clone is gone is refused,
+  and the plan design's finish pass or the next removal finishes the tail (R3 of the third add-side check).
   Its "Design sections" gain this document,
   and `SPEC.md`'s "### The records an add writes for itself" gains the claim and binding records,
   as the plan already says ([plan](cli-git-zfs-worktree-implementation-plan.md):1439 to :1443).
@@ -2510,7 +2815,9 @@ no recorded path yet.
   the refusals of "The removal's lineage proof",
   and the claim the removal takes.
 - Step 16 builds the record's end,
-  which is this design's assignment rather than the plan's:
+  which is this design's assignment rather than the plan's,
+  together with the plan design's finish pass,
+  which finishes step 11 after a kill:
   plan step 14 sends origin cleanup and the Git settle to step 16,
   and the record's removal belongs with them.
   It builds absence proven by the recorded GUID,
@@ -2687,42 +2994,57 @@ and one whose stored identity is the `-:-` form reads.
 
 T20.
 `a_resume_reads_each_state_gits_add_can_leave`:
-one arm per state of the table,
-each planted rather than raced:
-D3,
-a complete registration whose `locked` holds the recomposed sentence,
-is adopted and written as `registered`;
-D2,
-`locked` and nothing else,
-D2a,
-`gitdir` naming `<slot>/.git` with no pointer,
-D2b,
-a pointer with no `commondir`,
-and D2c,
-`commondir` with no `HEAD`,
-are each removed in the settle's order and the add re-runs A5;
-and a kill during that removal leaves the entry attributable and the next resume repeats it.
-Each arm asserts the three removal steps in order:
-`locked` unlinked,
-the directory proved empty through the descriptor,
-the name removed.
+one arm per row of "The states Git's source can leave",
+each fixture planted as the source line leaves it,
+never raced.
+R1,
+an empty `worktrees/<name>` whose name is the slot's through Git's sanitiser;
+R2,
+the same with `locked` holding the recomposed sentence and its newline;
+R3,
+R2 plus `gitdir` holding `gitdir: <slot>/.git`;
+R4,
+R3 plus `<slot>/.git` holding the pointer's bytes;
+R5,
+R4 plus `commondir` holding `../..`;
+R6,
+R5 plus `refs/`,
+`logs/` and `HEAD`.
+row 6 is adopted and written as `registered`;
+rows 2 to 5 are cleared by the recipe and the add re-runs A5 and A6.
+Every arm asserts the recipe's order name by name,
+that `locked` is the last file removed,
+that the directory goes by `rmdir` from the pinned parent,
+and that a kill before each step leaves a row the table still recognises.
 
 T20a.
-`a_bare_directory_and_a_failure_path_leftover_are_removed_before_the_add_reruns`:
-D1,
-a bare `worktrees/<slot>`,
-and the directory Git's failure path leaves after unlinking `locked`,
-both of which hold no `gitdir` and no lock,
-are removed,
-and the re-run's registration is at the slot's own name and not at `<slot>1`,
-which F1's counter would otherwise make.
+`the_failure_paths_leftover_and_a_kill_inside_gits_removal_are_cleared`:
+R7,
+no `locked` with `gitdir`,
+the slot's pointer,
+`commondir` and `HEAD`,
+recognised by the `gitdir` and cleared as R6's row would be;
+R8,
+`locked`,
+`gitdir` and the pointer with the slot partly gone,
+cleared by the recipe for the names that stand;
+and a `gitdir` written relative (`../..`-style) resolves against the registration's directory and is cleared the
+same way.
 
 T20b.
-`a_foreign_lock_and_a_foreign_gitdir_are_refused`:
+`a_foreign_lock_a_foreign_gitdir_and_a_short_prefix_are_refused`:
 a registration whose `locked` holds other words,
-and one whose `gitdir` names another slot,
-are both refused with the entry and the words' first line,
+one whose `gitdir` names another slot,
+and one whose `locked` holds a prefix shorter than the sentence's fixed part and nonce,
+are each refused with the entry and the words' first line,
 and nothing is removed.
+
+T20c.
+`a_name_git_could_not_derive_and_a_name_another_slot_owns_are_left`:
+a bare directory named after another slot,
+and one whose name this slot's sanitiser cannot produce,
+are left and named,
+so a resume for one slot never removes another slot's directory.
 
 T21.
 `a_slot_identity_is_written_only_after_the_slot_exists`:
@@ -2895,9 +3217,9 @@ Each line names this design's position,
 the sibling's,
 and which record decides it if any does.
 The siblings are read at their current tips,
-the lock design at `a7902e293b`,
-the destruction plan at `76849b8d9b`,
-and the origin cleanup record at `987a3ba886`,
+the lock design at `86f122c2b1`,
+the destruction plan at `b4dc758a76`,
+and the origin cleanup record at `0973f2fc2a`,
 and nothing here adopts their answer.
 The second gate review's "Disagreements between the three record designs" is the full list,
 and "The route's record convention" is where this design answers it.
@@ -2928,11 +3250,14 @@ and "The route's record convention" is where this design answers it.
   A8 and A9 at D5,
   A10 at D6,
   A11 and A12 at D6 and D7,
-  and A7 retired because the lock design writes no record (its "The order of the add's writes" step 5).
+  and A7 retired because the lock design writes no record
+  (its "The record whose nonce the lock's proof rests on",
+  read at `86f122c2b1`).
   A kill inside Git's add,
   D1 to D2c,
   is this design's A6 and the table under "A resume after a kill between Git's add and the registered write":
-  the lock design's S8 scan finds the entries and this design decides what happens to each.
+  the lock design's S8 scan finds the entries and this design decides what happens to each,
+  and each row of that table names the source line that leaves it.
   The next pass judges whether that is one order.
 - The lock design's two-fact variant compares the slot's recorded identity at a path the mount may cover.
   This design's "The identity fields" states the same rule from this side:
@@ -2945,27 +3270,31 @@ and "The route's record convention" is where this design answers it.
   owed there.
 - The destruction plan keys its record by the clone's GUID and keeps no pointer inside a registration
   (its "What finds a plan",
-  read at `76849b8d9b`).
+  read at `b4dc758a76`).
   This design keys by the slot and keeps its record outside any registration.
   Neither record can be read by the other's key alone,
   and the set still reaches from any one key through this record's fields (V17).
 - The destruction plan publishes unsynced by default (its Choice 5),
   and this design flushes every write;
-  the origin cleanup record is unflushed too (its option C premise and its F21).
-  The route has two rules today,
-  and V19 with M1 is where one rule would come from.
-- The destruction plan's finish pass settles a registration and removes the plan,
-  and it holds no claim.
-  This design's V20 requires the plan to stay until this binding is removed,
-  so the pass must leave a plan whose binding still stands.
-  This is the second gate review's X3,
-  and the placement is the plan design's.
+  the origin cleanup record is unflushed too (its V14's option C and its L8).
+  All three now rank the same rule by position first,
+  and V19 is that rule:
+  this record's writes all fall on the flushed side.
+- The destruction plan's finish pass takes the claim,
+  proves the clone's absence,
+  settles the registration,
+  finishes step 11 for the binding that names the plan's clone and removes the plan
+  (its "The finish pass that settles a registration",
+  read at `b4dc758a76`).
+  This design's V20 keeps the same order among the binding's three files and the same condition for a finisher,
+  so the pass is the finisher and the add is not;
+  the second gate review's X3 and the third's Z1 are the two findings that made both sentences necessary.
 - The origin cleanup record publishes at its step 6,
   after every refusal and before the first destroy,
   and says a new add may take the freed slot at once.
   This design agrees with both:
   step 2 of "The record's end" only confirms that record,
-  and V20 puts this binding's removal before the plan's.
+  and V20 keeps this binding's removal before the plan's and the claim's release last.
   The proposal decides the freeing ("settling does not wait for the origin",
   [proposal](cli-git-zfs-worktree-design-proposal.md):468 to :469).
 - The origin cleanup record's moment is its own V4,
@@ -2973,7 +3302,8 @@ and "The route's record convention" is where this design answers it.
   This design's step 2 depends on that veto:
   if the owner moves the origin record later than the first delete,
   this design's step 2 reopens with it.
-- The origin cleanup record removes no staging entry and reports the ones it finds,
+- The origin cleanup record removes no staging entry and reports the ones it finds (its V8,
+  read at `0973f2fc2a`),
   where this design removes one only when no live claim stands (V8).
   Each rule is its own document's,
   and the store's decision covers the store alone.
@@ -3254,7 +3584,7 @@ What `doctor` removes.
   removing a live writer's staging file makes its publication fail,
   and a ZFS add holds a claim across a snapshot and a clone,
   where the store's writer holds nothing.
-  The origin cleanup record removes none and reports them (read at `987a3ba886`),
+  The origin cleanup record removes none and reports them (read at `0973f2fc2a`),
   so neither sibling takes this option today,
   and it stays listed for the store's precedent alone.
 - Ranking:
@@ -3670,49 +4000,51 @@ or one per record.
   M1 and the plan's and the origin record's own measurements are the numbers that could change the ranking.
 
 V20.
-Where this binding's removal and the claim's release fall in the removal's one order.
+Which of this record's three files goes first,
+and what condition a finisher meets.
 
 - A,
-  the binding before the plan,
-  the claim last (adopted):
-  exactly the three rules "The record's end" states,
-  for the origin cleanup design's merged list to place.
+  the inventories first and the binding last,
+  so the binding stands while step 11 is unfinished (adopted).
   Example:
-  a removal killed after the settle leaves the plan and the binding standing,
-  which reads as a removal in flight,
-  and the next removal finishes step 5 and then removes the plan.
+  a kill between the origin inventory's removal and the clone inventory's leaves the binding and one inventory,
+  and a finisher repeats step 11 and then removes the plan.
   Pros:
-  the plan is the last witness,
-  so no kill leaves this binding standing where "What a record whose clone is gone means" would read it as an
-  outside change;
-  and the claim covers the whole tail.
+  every kill inside step 11 leaves a binding the finisher recognises;
+  an orphan inventory with no binding cannot arise from an ordinary kill;
+  the plan stays the last witness the origin design's list makes it.
   Cons:
-  the plan's finish pass cannot remove a plan whose binding still stands,
-  so it must leave it and report it.
+  a finisher must treat a standing inventory with no binding as the same step's leftover.
 - B,
-  the plan before the binding.
+  the binding first,
+  then the inventories.
   Example:
-  the same kill leaves the binding alone,
-  and the next add reads it as an outside destruction and may block the slot (Q8's default).
+  the same kill leaves two inventories and no binding,
+  and the next add refuses at A2 because an inventory's second publication answers `EEXIST`,
+  with nothing naming the dead removal.
   Pros:
-  the plan's finish pass needs no new rule.
+  the binding is gone as early as possible.
   Cons:
-  it creates exactly that misreading on the normal path.
-- C,
-  each record's own document decides,
-  as the three stand today.
-  Example:
-  three placements for one tail.
-  Pros:
-  no coordination.
-  Cons:
-  no reader can tell a killed removal from an outside change.
+  it creates exactly the orphan-inventory refusal Z3 names.
 - Ranking:
   A,
-  then B,
-  then C.
-  A beats B because it removes the misreading X3 found without weakening the plan's finish pass.
-  B beats C because one wrong placement is still one placement a reader can learn.
+  then B.
+  A beats B because it keeps the binding as the step's witness and leaves no state nothing names.
+
+The tail's order across the three records is not this entry's to weigh:
+the origin cleanup design's V13 decides it (the binding's files,
+then the plan,
+then the claim),
+its list places the steps,
+and this design cites that list and states no order of its own.
+The finisher's condition is not a choice either;
+it is the two arms "The condition a finisher meets" states,
+whose first arm is the plan's:
+a standing plan whose `head` is `gone` with origin fields equal to this binding's,
+or,
+with no plan,
+the origin record with equal fields.
+The origin record's absence is not a failure when a plan stands (Z1).
 
 ## Questions only the project can answer
 
@@ -3886,6 +4218,29 @@ The errors this round fixed:
 - the earlier revision's own summary,
   which named the origin cleanup record's flush (now V19).
 
+This round's two diff checks listed four things still wrong here,
+and this round fixed them,
+each rechecked against the source or the sibling at the commit now cited:
+
+- the lock design's quotations,
+  refreshed from `a7902e293b` to `86f122c2b1`,
+  and the statement that its "The order of the add's writes" has a step 5,
+  which it no longer has;
+- the `HEAD` fact,
+  which is the scan's completeness list and not the lock design's F14;
+- the "(A6)" and "(F2,
+  A4)" collisions,
+  now written as "assumption A6" and "step A4";
+- the count of this record's name forms in the home section,
+  which said five beside four.
+
+The rows of "The states Git's source can leave" were read this round from one clone at `v2.56.1`:
+`builtin/worktree.c`:273 to :300 and :495 to :604,
+`worktree.c`:1105 to :1134,
+`refs.c`:376 and :386,
+`wrapper.c`:760 to :783,
+and the two tips of the removal-side pair were read at `b4dc758a76` and `0973f2fc2a`.
+
 The earlier round's checking,
 which this one reuses where nothing changed,
 ran two scratch scripts:
@@ -3965,35 +4320,37 @@ and the wrapper's code under `package/git-policy/cli/src/native/`:
 The three siblings,
 read with `git show` from their branches this round and not adopted as decided:
 "The add-time Git lock of a ZFS clone worktree"
-at `a7902e293b` (branch `docs/planning-cli-git-zfs-add-time-git-lock-design`,
-read for its "The order of the add's writes",
-"The moments of an add" D0 to D7,
+at `86f122c2b1` (branch `docs/planning-cli-git-zfs-add-time-git-lock-design`,
+read for its "The moments of an add" D0 to D7,
 "What Git's failure path leaves",
 "How doctor and removal tell the states apart" S1 to S8 and its scan,
+"The record whose nonce the lock's proof rests on",
 "How the wrapper's own removal releases the lock",
-its F8,
-F11 and F14,
+its F8 and F11,
 its M2 and its sibling section),
 "Where a removal's persisted destruction plan lives,
-and its format" at `76849b8d9b` (branch `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
-read for what finds a plan,
-the finish pass,
+and its format" at `b4dc758a76` (branch `docs/planning-cli-git-zfs-removal-destruction-plan-record-design`,
+read for "What finds a plan",
+the finish pass that takes the claim and finishes steps 11 to 13,
+its order and kill list,
+its fields' origin lines,
 its choices 5,
 10,
 11 and 12 and its sibling section)
 and "The record that carries origin cleanup after a registration is settled"
-at `987a3ba886` (branch `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
+at `0973f2fc2a` (branch `docs/planning-cli-git-zfs-origin-cleanup-record-design`,
 read for "The order,
-and what a kill at each point leaves",
+and what a kill at each point leaves" and its 13 steps,
 its home,
 its V2,
-V4 and V8,
-its question one and its F21).
-At `987a3ba886` the origin cleanup design does not yet hold the one merged list of the removal's writes across the
-three records:
-its list ends at step 11,
-the plan's removal,
-and this design's V20 states what it needs from the merged list instead.
+V4,
+V8,
+V13 and V14 and its F21).
+At `0973f2fc2a` the merged list of the removal's writes across the three records stands:
+its steps 10 to 13 are the settle,
+the binding's files,
+the plan and the claim,
+and this design cites it for the order and states none of its own.
 
 Read at a tag,
 in clones under this round's scratch folder:
