@@ -1277,9 +1277,26 @@ as `ubuntu` was allowed,
 the same `create -o mountpoint=...` was refused,
 `zfs mount` of it was refused,
 and root's `zfs mount -a` mounted nothing of the account's),
-so a row whose dataset's parent carries the container's leaf name is a managed
-clone the route attaches at a slot,
+so a row whose dataset is mounted directly inside the clone container this run
+uses is a managed clone the route attaches at a slot,
 and the discovery ignores it rather than counting it as a second instance.
+The project decided exactly that on 2026-11-22 in the fourth answer of the
+section "Four further answers on the look-up with no configuration file"
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`):
+"A:
+the container this run uses (Recommended)":
+"Ignore a dataset mounted directly inside whichever clone container this run
+uses:
+the designed one,
+or the one root's file names."
+So the container the rule knows is `cloneMounts.parent` when the file names it,
+and the designed sibling `monochromatic-git-worktree-clone-datasets` otherwise;
+the start probe reads that same key,
+which is the one key of the file it did not read before.
+A row inside a container of another name,
+which this run does not use,
+still counts,
+and two such rows are "several".
 The design's dataset is a sibling of the container and never a child of it,
 so ignoring that shape loses no checkout,
 and a deployment whose checkout dataset really sits inside a container-named
@@ -1348,9 +1365,16 @@ which asks for `CAP_SYS_ADMIN` in the user namespace that owns that mount namesp
 and `move_mount` at `fs/namespace.c:4754`,
 Linux v7.3).
 For the host's mount namespace that namespace is the initial user namespace,
-so an account has no route to a row in it,
-by mount,
-bind mount or remount.
+so an account makes no row in it by calling `mount`,
+`fsopen` or `move_mount`,
+and cannot mount its own dataset there.
+It does reach rows in two other ways,
+and neither steers the handler:
+listing a snapshot's directory makes the kernel mount that snapshot as root,
+and its source then carries `@<snapshot>`,
+so the last name component is never the checkout's leaf;
+and the route mounts the account's own clone when the account asks for it,
+which the container rule above ignores.
 ZFS does carry `FS_USERNS_MOUNT` (`module/os/linux/zfs/zpl_super.c:1092`,
 `:1096` to `:1099`),
 so an account may attach a dataset inside a user and mount namespace pair of its own,
@@ -1374,10 +1398,10 @@ over `secpolicy_sys_config`,
 `module/os/linux/zfs/policy.c:95` to `:102`).
 A clone the account creates under the container and names `monochromatic-git-checkout`,
 once root attaches it because the route does,
-adds a second row and makes the next discovery refuse:
-a denial,
-never a redirection,
-because several matches are refused rather than ordered.
+adds a row the discovery ignores by the rule above,
+so it makes neither a second instance nor the only one.
+A row inside a container of another name that this run does not use still counts,
+which is the cost the project accepted with the fourth answer.
 
 #### Design sections
 
