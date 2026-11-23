@@ -243,3 +243,58 @@ fn every_refusal_names_the_journal_and_authorizes_nothing() {
     assert!(message.contains("journalctl -u reconcile-git-worktree-clone-mounts.service"), "{message}");
     assert!(message.contains("Nothing was matched"), "{message}");
 }
+
+/// A cancelled unmount carries the clone at its slot and round-trips.
+#[test]
+fn a_cancelled_unmount_with_a_mount_round_trips() {
+    let mut cancelled: CloneMountReceipt = done();
+    cancelled.operation = MountOperation::Unmount;
+    cancelled.outcome = ReceiptOutcome::Cancelled;
+    cancelled.failed_step = Some(String::from("bind-gone"));
+    let text: String = cancelled.text();
+    assert_eq!(parse_receipt(text.as_str()).expect("the route's own cancelled text parses"), cancelled);
+}
+
+/// A cancelled unmount with no mount at all round-trips.
+#[test]
+fn a_cancelled_unmount_without_a_mount_round_trips() {
+    let mut cancelled: CloneMountReceipt = done();
+    cancelled.operation = MountOperation::Unmount;
+    cancelled.outcome = ReceiptOutcome::Cancelled;
+    cancelled.mount = None;
+    cancelled.failed_step = Some(String::from("staging-folder"));
+    let text: String = cancelled.text();
+    assert_eq!(parse_receipt(text.as_str()).expect("the route's own cancelled text parses"), cancelled);
+}
+
+/// An unknown outcome word is refused, and a word one byte over the bound with it.
+#[test]
+fn an_unknown_or_oversized_outcome_word_is_refused() {
+    for word in ["cancelledx", "finished"] {
+        let text: String = done().text().replace("outcome done", format!("outcome {word}").as_str());
+        assert!(matches!(parse_receipt(text.as_str()), Err(ReceiptRefusal::Value { key: "outcome", .. })), "{word}");
+    }
+}
+
+/// A mount field on a cancelled answer must be all present or all absent.
+#[test]
+fn a_partly_filled_mount_on_a_cancelled_answer_is_refused() {
+    let mut cancelled: CloneMountReceipt = done();
+    cancelled.operation = MountOperation::Unmount;
+    cancelled.outcome = ReceiptOutcome::Cancelled;
+    cancelled.failed_step = Some(String::from("bind-gone"));
+    let text: String = cancelled.text().replace("mount-id 41", "mount-id none");
+    assert!(matches!(parse_receipt(text.as_str()), Err(ReceiptRefusal::MountField { .. })));
+}
+
+/// A missing field, a newline inside a field and a NUL are refused.
+#[test]
+fn a_missing_field_a_newline_and_a_nul_are_refused() {
+    let text: String = done().text();
+    let missing: String = text.replace("boot 0f3a5c7e-1b2d-4f60-8a9b-0c1d2e3f4a5b\n", "");
+    assert!(parse_receipt(missing.as_str()).is_err());
+    let newline: String = text.replace("source zpcachyos/nosnap/clones/one", "source zpcachyos/nosnap/clones\none");
+    assert!(parse_receipt(newline.as_str()).is_err());
+    let nul: String = text.replace("source zpcachyos/nosnap/clones/one", "source zpcachyos/nosnap/clones\u{0}one");
+    assert!(parse_receipt(nul.as_str()).is_err());
+}

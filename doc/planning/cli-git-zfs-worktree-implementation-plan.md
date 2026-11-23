@@ -1414,9 +1414,9 @@ The interface steps 14,
 16 and 17 call is
 `staged_unmount::unmount_the_staged_mount` for a held descriptor and
 `staged_unmount::finish_a_staged_unmount` for a fresh process.
-Step 16 will find the retained clone and bind named by the turn's `failed` receipt,
+Step 16 will find the retained clone and bind named by the turn's `cancelled` receipt,
 and it must still mount the all-namespace holder scan before its snapshot requests.
-Step 17 will find the reattach's `reattached` receipt and the bind's state,
+Step 17 will find the reattach's `cancelled` receipt, whose failed step names whether the bind is gone,
 which its cancel path reuses.
 Step 18 will find the folder,
 record and claim under the names the SPEC section states,

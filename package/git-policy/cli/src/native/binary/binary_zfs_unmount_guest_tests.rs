@@ -208,10 +208,10 @@ fn zfs_unmount_guest() {
     let busy: Run = sweep();
     assert!(line_about(busy.said.as_str(), two.as_str()).is_some_and(|line| return line.starts_with("reattached ")), "the busy unmount moves the same mount back: {}", busy.said);
     assert!(row_at(two_slot.as_path()).is_some(), "the clone's row is back at its slot");
-    assert!(
-        receipt(two_guid.as_str()).is_none_or(|text| return !text.contains("operation unmount")),
-        "a busy reattach files no unmount receipt under the step 8 decision"
-    );
+    let cancelled: String = receipt(two_guid.as_str()).expect("a busy reattach files its cancelled answer");
+    assert!(cancelled.contains("operation unmount"), "the answer answers the unmount: {cancelled}");
+    assert!(cancelled.contains("outcome cancelled"), "the answer is cancelled: {cancelled}");
+    assert!(cancelled.contains("failed-step bind-gone"), "the answer names the bind gone: {cancelled}");
     let _ = holder.kill();
     let _ = holder.wait();
     println!("UNMOUNT busy=reattached holder=ended");

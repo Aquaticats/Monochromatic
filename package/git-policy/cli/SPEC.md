@@ -6268,7 +6268,8 @@ the dataset GUID,
 the request's nonce,
 operation and boot,
 the outcome (`done`,
-`refused` or `failed`),
+`refused`,
+`failed` or `cancelled`),
 the mount identity a done mount observed (mount id,
 device,
 inode,
@@ -6476,9 +6477,9 @@ because it is the one refusal a waiting command can act on.
 A local `unmount` intent is answered by the unmount turn described under
 "Unmount,
 staging and reattach of a ZFS worktree clone":
-a `done`,
-`reattached`,
-`refused` or `failed` receipt under the intent's nonce,
+a `done` receipt when it worked,
+a `refused` receipt naming `misplaced-rolled-back` after a successful rollback,
+and a `cancelled` receipt when it stopped short,
 and the durable intent stays on the clone unchanged.
 
 A run reports one summary line and one line per clone it reached,
@@ -6628,6 +6629,10 @@ The accepted decisions give two unmount receipts.
 A successful unmount files `done` under its nonce,
 with `none` in every mount field,
 because the wrapper's cleanup reads that receipt.
+`done` means the clone and its bind are gone from the handler's own mount
+namespace only;
+a holder in another namespace can keep the dataset busy,
+which the all-namespace holder scan reports and a `zfs destroy` still refuses.
 A successful rollback of a clone that landed on a stacked mount files a
 `refused` receipt naming the outcome in `failed-step` as
 `misplaced-rolled-back`,

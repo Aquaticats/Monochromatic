@@ -158,7 +158,8 @@ fn read_word(lines: &[&str], index: usize, key: &'static str) -> Result<Option<S
 /// const mount = readMount(lines, outcome, operation); // identity | null
 /// ```
 fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation) -> Result<Option<ReceiptMountIdentity>, ReceiptRefusal> {
-    let wanted: bool = outcome == ReceiptOutcome::Done && operation == MountOperation::Mount;
+    let may_carry: bool = (outcome == ReceiptOutcome::Done && operation == MountOperation::Mount)
+        || (outcome == ReceiptOutcome::Cancelled && operation == MountOperation::Unmount);
     let present_keys: [&'static str; 5] = [RECEIPT_KEYS[6], RECEIPT_KEYS[7], RECEIPT_KEYS[8], RECEIPT_KEYS[9], RECEIPT_KEYS[10]];
     let words: [&str; 5] = [
         value_of(lines, 6, present_keys[0])?,
@@ -167,12 +168,20 @@ fn read_mount(lines: &[&str], outcome: ReceiptOutcome, operation: MountOperation
         value_of(lines, 9, present_keys[3])?,
         value_of(lines, 10, present_keys[4])?,
     ];
-    for (key, word) in present_keys.iter().zip(words.iter()) {
-        if (*word == ABSENT_WORD) == wanted {
-            return Err(ReceiptRefusal::MountField { key, wanted });
+    let all_absent: bool = words.iter().all(|word| return *word == ABSENT_WORD);
+    let all_present: bool = words.iter().all(|word| return *word != ABSENT_WORD);
+    if !may_carry {
+        for (key, word) in present_keys.iter().zip(words.iter()) {
+            if *word != ABSENT_WORD {
+                return Err(ReceiptRefusal::MountField { key, wanted: false });
+            }
         }
+        return Ok(None);
     }
-    if !wanted {
+    if !all_absent && !all_present {
+        return Err(ReceiptRefusal::MountField { key: present_keys[0], wanted: true });
+    }
+    if all_absent {
         return Ok(None);
     }
     let mount_id: u64 = decimal_of(present_keys[0], words[0])?;
@@ -262,7 +271,7 @@ fn check_outcome_words(outcome: ReceiptOutcome, failed_step: &Option<String>, er
             }
             Ok(())
         }
-        ReceiptOutcome::Refused | ReceiptOutcome::Failed => {
+        ReceiptOutcome::Refused | ReceiptOutcome::Failed | ReceiptOutcome::Cancelled => {
             if failed_step.is_none() {
                 return Err(ReceiptRefusal::MountField { key: RECEIPT_KEYS[11], wanted: true });
             }

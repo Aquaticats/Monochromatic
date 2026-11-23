@@ -244,7 +244,18 @@ fn answer_the_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, requ
         UnmountOutcome::Reattached { cause: ReattachCause::MisplacedRolledBack, .. } => {
             Some(receipt_of(context, verified, request, ReceiptOutcome::Refused, None, Some("misplaced-rolled-back"), None))
         }
-        UnmountOutcome::Reattached { cause: ReattachCause::Busy, .. } | UnmountOutcome::Retained { .. } | UnmountOutcome::Refused { .. } => None,
+        UnmountOutcome::Reattached { mount_id, slot, bind_gone, device, inode, cause: ReattachCause::Busy } => Some(receipt_of(
+            context,
+            verified,
+            request,
+            ReceiptOutcome::Cancelled,
+            Some(ReceiptMountIdentity { mount_id: *mount_id, device: *device, inode: *inode, source: verified.dataset_name.clone(), canonical_path: slot.display().to_string() }),
+            Some(if *bind_gone { "bind-gone" } else { "bind-present" }),
+            None,
+        )),
+        UnmountOutcome::Retained { step, .. } | UnmountOutcome::Refused { step, .. } => {
+            Some(receipt_of(context, verified, request, ReceiptOutcome::Cancelled, None, Some(step.as_str()), None))
+        }
     };
     if let Some(filed_receipt) = receipt
         && let Err(filed) = context.receipts.publish(&filed_receipt)
@@ -260,8 +271,12 @@ fn answer_the_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, requ
 }
 
 /// Answer a refusal that stopped the unmount before its turn could build a request.
-fn refuse_an_unmount(_context: &SweepContext<'_>, verified: &VerifiedClone, _request: &MountIntent, step: &str, said: String) -> CloneOutcome {
+fn refuse_an_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent, step: &str, said: String) -> CloneOutcome {
     warn(TAG, format!("slot `{}` refused the unmount at {step}: {said}", verified.slot).as_str());
+    let receipt = receipt_of(context, verified, request, ReceiptOutcome::Cancelled, None, Some(step), None);
+    if let Err(filed) = context.receipts.publish(&receipt) {
+        return CloneOutcome::Failed { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(RECEIPT_STEP), said: format!("{said} The receipt could not be filed either: {}", filed.message()) };
+    }
     return CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(step), said };
 }
 
