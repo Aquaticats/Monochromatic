@@ -180,7 +180,7 @@ verified cache hits, preserved prior runtime policy, and reloaded the real loade
 Original recovery cache: `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-23T15-56-00-0500`. All 18
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-23T16-11-00-0500`. All 19
 copied objects compared equal. The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.
 

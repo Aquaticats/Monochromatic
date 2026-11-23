@@ -100,8 +100,12 @@ The complete reports are private under
 `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/keep/installed-system-and-repo-inventory/`.
 The paths in this document are relative to that directory.
 
-The latest full audit still has zero new denials after 2026-11-23T20:49:00Z. No failed units or
-managed background processes remain. `zfs-nvme-gen3.service` remains successful at 8.0 GT/s x4.
+The full audit initially showed zero new denials after 2026-11-23T20:49:00Z. A later root-run
+`git ls-files` probe was correctly rejected for `dac_read_search` and `dac_override`; it was a
+harness error, not a reason to grant bypass capabilities. The corrected desktop-user inventory
+passed. The final direct audit-window check has zero new denials after 2026-11-23T21:12:16.815Z. DMI
+denials remain intentional. No failed units or managed background processes remain.
+`zfs-nvme-gen3.service` remains successful at 8.0 GT/s x4.
 
 Exact-name matching is only a lookup aid. It does not prove that a profile attaches to a process or
 that a workload is confined. Process labels, measured operations, and workload results decide that.
