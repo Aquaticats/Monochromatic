@@ -212,6 +212,174 @@ The control `a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_a
 and goes red when the guard is removed.
 The shape's re-timing is in "The measured clean-source mean-file edge".
 
+### The four answers of 2026-11-23, built
+
+The integration recheck
+(`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`)
+put four decisions to the project,
+and they are recorded in `doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`
+under "Four further answers after the recheck,
+answered 2026-11-23".
+This round builds them.
+
+**No size rule on btrfs.**
+`the_smallest_mean_tracked_file` answers nothing for btrfs,
+so a clean btrfs source clones as `main` does whatever its files average.
+The control that subtracts one from the edge takes that no-edge form instead of underflowing,
+and the mapping control pins btrfs to no edge.
+The recheck measured the cost of the pin this removes:
+a clean tree of 10,001 files of 49 bytes was 1.62 times `main` (1.25 to 1.89,
+8 of 8 rounds) and 1.24 of Git's own
+checkout,
+and a tree of 20-byte files was 1.36 times `main` (1.10 to 2.11,
+8 of 8).
+In this round's own btrfs guest,
+on the recheck's two shapes,
+clean,
+in a plain directory,
+the route of both the branch and the control arm is
+"clones" in every counted round for both shapes and both arms,
+and the add is at mean 48 0.97 of `main` (0.80 to 2.29,
+above 1.0 in 3 of 8 rounds) and 0.86 of Git's own checkout
+(0.65 to 2.10,
+3 of 8),
+the identical-binary control over the branch arm 0.99 (0.52 to 1.54,
+4 of 8),
+and at mean 20 0.89 of `main` (0.71 to 1.28,
+3 of 8) and 1.04 of Git (0.83 to 1.19,
+5 of 8),
+the control 0.99 (0.64 to 1.37,
+4 of 8).
+The round's own files are `keep/item1-btrfs-measured.json` and `keep/item1-btrfs-measure.log`.
+
+**The ZFS edge is 2,600 bytes a file.**
+The recheck's pooled points place the loss clearly at 2,599 (1.23 of Git's own checkout,
+11 of 12 rounds above 1.0)
+and are not monotone above it (0.71 to 1.23 between 3,600 and 8,800),
+so they place the crossing only within a range,
+about 3,000 to 9,600 bytes,
+and the project answered "lower it to about 3,000 bytes a file ... decline only below,
+where the clone clearly loses".
+The edge sits just above 2,599,
+the one mean with a clear pooled loss.
+In this round's own ZFS guest:
+the two shapes either side of the new edge,
+clean,
+in a plain directory,
+both route as the answer asks:
+mean 2,599 takes "Git's checkout" and 2,600 takes "clones",
+as does 3,599.
+The declined 2,599 add is 0.90 of `main` (0.75 to 1.10,
+above 1.0 in 2 of 8 rounds) and 1.08 of Git's own checkout
+(1.00 to 1.27,
+8 of 8),
+the identical-binary control over the branch arm 1.01 (0.92 to 1.27,
+5 of 8);
+the cloned 2,600 add is 1.06 of `main` (0.87 to 1.22,
+5 of 8) and 1.14 of Git (0.84 to 1.44,
+5 of 8),
+control 0.99
+(0.81 to 1.32,
+4 of 8);
+and the cloned 3,599 add is 1.05 of `main` (0.79 to 1.31,
+5 of 8) and 1.14 of Git (0.91 to 1.38,
+6 of 8),
+control 0.94
+(0.80 to 1.06,
+3 of 8).
+The round's own files are `keep/item2-zfs-measured.json` and `keep/item2-zfs-measure.log`.
+The 28 ZFS guest controls of `worktree_clone_conversion::*`,
+`worktree_clone_zfs::*` and
+`worktree_clone_zfs_measurement::*` ran on this final tree:
+26 of the 28 passed in the first run and two failed,
+and both are explained:
+`worktree_clone_conversion::a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind` failed because
+this round changed the sentence a rung that ends after its reads prints (RL2) and that control still pinned the old
+words;
+the control and both texts now quote the new sentence,
+and the module was rerun green in the same guest
+(`keep/item2-zfs-controls-rerun.log`).
+`worktree_clone_zfs::a_dataset_without_block_cloning_ends_in_gits_checkout_not_a_byte_copy` fails on `main` in the same
+guest with the same message:
+it expects the line "the clone rung ended" while the ladder refuses a clone into a pool
+whose block cloning is off before the rung starts,
+so it is not this branch's.
+The first run's file is `keep/item2-zfs-controls.log`.
+
+**A declined add costs what `main` paid for the same source.**
+The module doc and `SPEC.md` said a declined add is Git's own checkout and so no slower than it;
+measured,
+it is the source check and then Git's own checkout:
+1.07 to 1.24 times Git's own checkout on clean small trees and 0.94 to 1.04 on dirty ones,
+inside the round's spread.
+Both texts now say that,
+with the numbers beside them.
+
+**No floor on the number of tracked paths.**
+`SPEC.md` says so,
+with the recheck's cost:
+a clean tree of 20 to 500 files is 10 to 30 ms slower cloned than written by Git,
+which is equal to `main` (1.02 to 1.28 of Git's own checkout on those trees).
+
+**A filesystem nobody measured takes the ZFS edge.**
+In the code before this round,
+`the_smallest_mean_tracked_file`'s `FilesystemKind::Overlayfs | FilesystemKind::Other` arm took
+`the_safest_mean_tracked_file()`,
+the higher of btrfs's 49 and ZFS's 8,799,
+so 8,799.
+After this round it takes the only measured edge a clean source still has,
+the ZFS 2,600:
+an unmeasured filesystem follows the ZFS value down.
+That is a proposal,
+not a decided rule:
+the alternative,
+no mean rule on an unmeasured filesystem,
+is in `SPEC.md` as open to the project's veto,
+on the ground that the only measured loss is ZFS's.
+
+**The provenance is rewritten from the pooled points.**
+Both edges' doc comments and `SPEC.md` now say what the pooled rounds say,
+the ZFS text says the crossing is placed only within a range,
+and the duplicated paragraphs are gone.
+
+**The lows.**
+A control pins every limit sentence's decline lead and the absence of "took longer" (RL1);
+the split's refusal and the `.gitattributes` refusal name the input,
+say what happened and give the remedy (RL2);
+the split module's comment on a racy entry says what `metadata_verdict` does (RL3);
+`SPEC.md` says the cut is a fraction and what that means above the measured bracket (RL4).
+
+**The Git call a clean decline pays.**
+Measured again in the same ZFS guest,
+with the step records,
+on a clean declined tree
+(10,001 files of 49 bytes,
+mean 48),
+four arms interleaved in a Williams square,
+one warm-up and eight counted rounds,
+every arm the branch's release binary (`keep/clean-decline-git-call.py`,
+`keep/item8-decline-git-call.log`,
+`keep/item8-decline-git-call.json`):
+the ladder's Git call is 1.00 of Git's own checkout (0.96 to 1.11,
+above 1.0 in 4 of 8 rounds),
+the identical-binary control 1.02 (0.98 to 1.04),
+and the whole declined add is 1.14 of Git's own checkout (1.11 to 1.27,
+8 of 8),
+whose difference the step records place in the source check:
+`checkSource` 40.1 ms,
+`git ls-files` 12.5 against 9.8,
+`git check-ignore` 4.2,
+while `gitAdd` is 252.0 against 255.7 ms and `copyIgnored` 39.4 against 39.1.
+Typing the person's own `-c checkout.workers=1` makes the same Git call 2.17 times slower (2.00 to 2.20,
+8 of 8),
+so the one measured lever on the call is the parallel-checkout option the wrapper already sets on both arms.
+The recheck's 1,023 against 725 ms is therefore not this branch's code and not reproducible here;
+what it found is written,
+with the evidence and how to repeat it,
+in
+`keep/slower-git-call-on-clean-declines.md`,
+and no code changed for it.
+
 ### The measured clean-source mean-file edge
 
 The decision of 2026-11-22 left the edge to this round,
