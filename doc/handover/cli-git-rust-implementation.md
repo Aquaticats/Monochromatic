@@ -1206,128 +1206,183 @@ and only the owner accepts one.
 #### Results that came in while a question waited overnight, each with its next step (2026-11-23T03:48:32-05:00)
 
 The acceptance question for the dirty-main design was open from about 2026-11-22T22:25-05:00 until 2026-11-23T03:48-05:00.
-Everything here arrived in that time and was waiting when the answer came.
-An item leaves this list when its next step is started and recorded in its own entry.
+Everything here arrived in that time or follows from it.
+This list was brought up to date at 2026-11-23T04:22:00-05:00:
+every item's next step is started or named.
+A question to the owner blocks the coordinator until it is answered,
+so start every round that can run before asking one.
+An answer changes the bar for reviewers already running:
+send it to each of them the turn it is recorded
+(this was missed twice on 2026-11-22 and once on 2026-11-23,
+and the advisor caught each).
+
+Answers of 2026-11-23,
+each in its record:
+
+- the partial clone,
+  four answers
+  (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+  "Four further answers after the recheck,
+  answered 2026-11-23"):
+  no size rule on btrfs;
+  a declined add costs what `main` paid;
+  no floor on the file count;
+  the ZFS edge lowered to about 3,000 bytes a file.
+- the answer a stopped unmount files
+  (`doc/decision/cli-git-zfs-staging-under-cache.md`,
+  the section of that name):
+  the answer format is extended with a fourth outcome word.
+- the test wait's third look
+  (`doc/decision/cli-git-test-support-wait-for-an-idle-commit-service-takes-a-third-look.md`).
+- written down late,
+  from 2026-11-22:
+  the lock cleanup compares the PID file's contents
+  (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
+
+The runs,
+by step:
 
 - The dirty-main design (step 11):
-  accepted by the owner as written,
-  sixteen choices.
-  Its tip is `23a2afe0bd`;
-  the coordinator read the last diff
-  (`b377d175de` to `23a2afe0bd`),
-  which changes what the last review asked.
+  accepted and on `main`.
+- Step 10 and the record set.
+  The binding's round ended at `3b4b073f0e`,
+  the lock design's at `f45d05a96d`,
+  the plan design's at `2a333a511e`;
+  the origin cleanup design stays at `f17455b786`.
+  The step 10 reviewer's read is in
+  (`review-sixth-read-before-acceptance.md` in its folder):
+  the lock design fit to put to the owner with three lows;
+  the binding fit after two fixes,
+  a stale test paragraph (its U12,
+  which is all that stands before step 10 is buildable)
+  and a hazard in the settling command (its U13:
+  on a `settling` binding whose clone cannot be proved gone it removes the registration of a worktree Git may have
+  checked out,
+  which must be fixed before the owner reads that veto entry).
+  It holds both veto lists in plain words and the two plan sentences as they would read.
+  Running:
+  the record reviewer's read of the binding and the plan design,
+  to the same file name in its folder.
   Next:
-  the record,
-  the merge,
-  the opening's status,
-  a rendered check.
-- Step 10,
-  the reviewer's read of both diffs
-  (`review-fifth-diff-read.md` in `~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/`):
-  the lock design (`9e3ceff079`) fit after lows U7 to U9;
-  the binding (`7d041d773b`) fit after U1 to U3
-  (the rule for an unlocked complete registration is contradicted in three places;
-  the busy-unmount text names a command that does not exist;
-  a `settling` binding whose clone is gone and unprovable has no command true for it);
-  step 10 buildable without asking once U1 is fixed,
-  apart from what lies outside the two documents.
-- The record set,
-  the reviewer's read of the three diffs
-  (`review-fifth-diff-read.md` in `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`):
-  the fourth check's high finding is closed;
-  the set is "not yet" for N1
-  (the binding's veto entry V20 was deleted while four sentences still cite it),
-  N2 (the same state as U3),
-  N3 (the plan design and the binding disagree on a reused clone name,
-  and the settling command's order and its refusal for an unreadable plan are unstated),
-  N4 (the plan design's rule for an `unknown` tuple is half changed)
-  and N13 (the binding's test for the settling command builds the option the owner did not choose).
-  The origin cleanup design (`f17455b786`) has nothing blocking.
-  Next for both:
-  one binding round on U1 to U6,
-  N1 to N3 and N13,
-  with the dirty-main design's requirement on its last step;
-  then the lock design's lows and the plan design's N3 and N4;
-  then the coordinator reads those diffs,
-  and the two acceptance questions follow.
-- Step 17,
-  the reviewer's read of both diffs
-  (`review-fifth-diff-read.md` in `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`):
-  the forced arm (`f7765aea32`) fit after six mediums,
-  the cancelled removal (`3035d29766`) after one;
-  the probe is not ready to be scripted
-  (no bounds,
-  no values for its constants,
-  no stated invocation,
-  several actions in one arm,
-  and no guest with the production kernel exists).
+  one binding round on both reads,
+  the lock design's lows citing the binding's last commit,
+  then the two acceptance questions.
+- Step 17.
+  The forced arm's round ended at `2a2747ebfb`,
+  the cancelled removal's at `3f2475e430`.
+  The reviewer's read of both is in
+  (`review-sixth-read.md` in its folder):
+  each fit after listed fixes,
+  nothing high,
+  and the first group of probe arms not ready to be scripted as written
+  (three of ten can be;
+  the rest lack a named program,
+  a state or a control,
+  and one needs a guest that answers `listns`).
+  It also says what the answer a stopped unmount files makes out of date in each,
+  and holds both veto lists and the confirmation question's wording.
+  Running:
+  `pi-zfs-forced-removal-holders-ended-and-caller-spared-design-sixth-read`.
   Next:
-  the forced arm's round,
-  then the cancelled removal's,
-  then the guest round for the arms that need only mounts and namespaces.
+  the cancelled removal's round on the same read
+  (its words for two refusals differ from the forced arm's;
+  three places still contradict the empty plan's unlink),
+  citing the forced arm's new tip;
+  then the guest round for the first group of arms
+  (task 465),
+  on the fixture's guest,
+  whose kernel is 6.8.
 - The lost-event design:
-  its round on the last read ended at `9945b5ada5`
-  (report `keep/report-last-diff-read.md` in its folder).
+  accepted by the owner as written,
+  seventeen choices,
+  and on `main` at its commit `c8c22c3285`
+  (`doc/decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`,
+  "The design is accepted").
+  It is built in plan steps 19 and 22.
+  The wrapper left its worktree in place at the merge;
+  the one before it was gone on a later look,
+  so look again before removing it by hand.
+- The no-configuration branch (`ae7e91e94b`):
+  its second Sonnet pass is going,
+  to `review-second-pass.md` in the first pass's folder.
+  What hiding snapshot directories comes to
+  (`snapdir=disabled`,
+  from OpenZFS 2.3.0,
+  with no live check)
+  goes back to the owner with the pass's result.
+- Issue 6342:
+  merged as `1ba2fe767d`.
+  Running:
+  `pi-lock-control-second-pass-lows` on the second pass's lows.
+  Its sixth item was corrected by a note in its inbox:
+  the project chose that the file's contents be compared,
+  and the merged code compares the number the file names,
+  so the round builds the byte comparison.
   Next:
-  the reviewer's read of that diff,
-  then the acceptance question.
-- The no-configuration branch:
-  the owner's four answers are recorded
-  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
-  "Four further answers on the look-up with no configuration file");
-  its fix round ended at `ae7e91e94b`.
+  a Sonnet pass,
+  since it is a code change.
+- Issue 6346's branch:
+  the wording round ended at `dd4898b867`,
+  comments and documents only by the coordinator's read of its diff.
+  Running:
+  a short third Sonnet pass,
+  to `~/temp/agent/integration-third-pass-commit-timing-control-wording-2026-11-23/keep/review.md`.
   Next:
-  read its report for what it found about hiding snapshot directories,
-  then a second Sonnet pass.
-- Issue 6342's branch (`cdf3b3d6fd`):
-  the second pass says fit to merge now,
-  every finding low
-  (`~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`).
+  merge,
+  with the issue comment that pass words.
+- Issue 6345's branch:
+  running `pi-worktree-removal-held-commit-control-second-pass-findings`.
+  Issues 6353,
+  6354 and 6355 are filed.
+  The pass's question on a removal whose wake missed is answered
+  (`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`;
+  the decision is posted on issue 6354):
+  the warning names the way out,
+  built after this branch merges because its round edits the same documents (task 467).
   Next:
-  merge it,
-  check `main`,
-  post the corrected sentence the review gives as a comment on commit `39610f128b`,
-  and fold its lows in a short round after.
-- Issue 6346's branch (`963d51627e`):
-  the second pass says not fit for wording alone
-  (`~/temp/agent/integration-second-pass-commit-timing-control-2026-11-22/keep/review.md`);
-  the 1 ms bound is sound and no plant `main` catches passes the merge.
+  a third pass.
+- The partial clone (`45499c3154`):
+  running `pi-clone-rung-partial-clone-recheck-findings-and-four-answers`,
+  on the recheck's findings and the four answers.
   Next:
-  a wording round,
-  then merge.
-- Issue 6345's branch (`ef0bbe214f`):
-  the second pass says not fit for wording its runs contradict,
-  and found that the wait still misses a record moved by a recovery of an expired claim
-  (`~/temp/agent/integration-second-pass-worktree-removal-held-commit-control-2026-11-22/keep/review.md`).
-  Next:
-  a round on the wording and a third sample in the wait;
-  file the three issues whose corrected texts the review gives.
-- The partial clone's recheck (`45499c3154`):
-  not fit,
-  for one finding:
-  on btrfs a clean tree of files averaging under 49 bytes is slower than `main`
-  (`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`).
-  Four decisions for the owner are in the review.
+  a third pass.
 - Step 9's unmount,
   staging and reattach (`59f2bd1876`):
-  the pass says not fit
-  (`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`).
-  Two high findings from guest runs:
-  the reopen of the staged folder by its handle does not work on a real kernel;
-  and no recovery after a kill is wired,
-  so a killed unmount is never finished.
-  Its receipts question for the owner ranks extending the format first.
-  Everything is behind a pin that step 19 writes,
-  so nothing reaches a user today.
-- Rounds that ended and need their Sonnet pass:
-  step 9's holder scan (`1b574285f3`),
+  running `pi-zfs-step-9-unmount-integration-pass-findings`;
+  the answer a stopped unmount files is in its inbox,
+  to be built after the two highs,
+  in commits of its own.
+  Next:
+  a second pass.
+- Sonnet passes going on rounds that ended:
+  step 9's holder scan (`1b574285f3`;
+  sent the unmount pass's verdict and the answer),
   step 8's follow-up (`c87a50a09b`),
-  the size read's follow-up (`9329642a95`),
-  the object reader's fix (`daa0836b75`).
-- The short Pi review of the freeze's troubleshooting document ended;
-  its report is to be read.
-- Both watchers have ended;
-  no round was running when this was written.
+  the size read's follow-up (`9329642a95`;
+  sent the four partial-clone answers),
+  the object reader's fourth recheck (`daa0836b75`).
+- The freeze's troubleshooting document:
+  its revision after the short review is merged.
+  A reading taken at 2026-11-23T04:20:03-05:00 while these rounds ran is in the freeze's scratch folder,
+  `keep/counters-during-the-rounds-of-the-early-morning-of-2026-11-23.txt`:
+  over the night kswapd did 73.1% of the scanning and tasks were stalled on memory 1.97% of the time,
+  with free memory at 6,572 MiB at the read.
+  It is an average over a night nobody watched,
+  not the comparison under a load like the freeze's,
+  which is still owed (task 463).
+- Issue 6344's follow-ups (task 460):
+  running `pi-shadow-sibling-control-follow-ups-after-the-merge`
+  on what its integration pass left
+  (cause M's reasoning about a refused start,
+  two guards without a committed control,
+  and smaller wording).
+  The coordinator took the pass's first-ranked option for the guards,
+  a committed delay that adds about a second to each gate run,
+  open to the owner's veto.
+  Next:
+  a Sonnet pass,
+  since it changes test code.
+- The watcher for a Pi round stuck in one command runs until about 2026-11-23T07:00-05:00.
 
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
 
