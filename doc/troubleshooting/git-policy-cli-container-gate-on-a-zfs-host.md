@@ -1525,7 +1525,8 @@ also compare bytes (Recommended)",
 whose words were "Before deleting the PID file,
 read it again and delete only if its contents are also unchanged",
 over correcting these words alone and leaving the route open.
-The limit the owner was shown with that choice is the one case above:
+The limit the owner was shown with that choice is the one case named under What the comparison is now,
+and why:
 a program that rewrote the very same bytes in place would still lose the file.
 
 What it costs,
@@ -1624,7 +1625,7 @@ so a control that writes them writes a state.
   panics inside the arm's body and finds the arm gone afterwards,
   which holds the drop guard `with_arm` puts it back with.
 
-Each plant below was applied to the committed product file and the whole module run,
+Each plant was applied to the committed product file and the whole module run,
 then the file was put back:
 
 ```text
