@@ -4239,4 +4239,18 @@ meets" for the pass's binding condition,
   its order,
   its unreadable-plan refusal and the rerun it lets through after a kill.
   It changed only the cells and sentences the check named.
+- `58c04a39c5`,
+  committer time `2026-11-23T17:17:29-05:00`:
+  the revision the seventh read's lows asked for.
+  The section that described one round becomes "What supports this document,
+  and what has never been run",
+  which names the sources,
+  the three kept logs and the checks and says what has never been run,
+  and the neighbouring round phrases are corrected with it.
+  The permanent refusal now names the read a person makes and the two ends they can choose,
+  says no wrapper command settles it and why,
+  and says nothing here ends the keep arm by itself;
+  `doctor`'s list gains the clause that such a tuple is printed with its name,
+  GUID and group,
+  and that `doctor` reads no pool for it.
   A later commit that only adds or corrects this list is not listed.
