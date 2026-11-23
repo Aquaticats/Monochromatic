@@ -541,16 +541,26 @@ and only the owner accepts one.
   Mediums:
   the plan design says in one section that a cancel deletes no plan and in another that it removes one;
   the origin and plan designs disagree on whether the finish pass finishes a plan whose head is not yet gone.
-- The reviewer says its seven questions can be put to the owner now,
-  since no listed fix moves one
-  (its section "Check 7";
-  the sixth and seventh are also the step 17 review's S8 and S11,
-  to be asked once).
-  Next:
-  ask them;
-  then the origin and plan designs' rounds,
+- The owner answered the reviewer's seven questions,
+  recorded in `doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`:
+  only `git worktree` commands destroy a leftover origin snapshot;
+  the removal's printed report is the only trace;
+  a pending cleanup speaks on a change only;
+  an unreadable record is refused and named;
+  a slot whose clone is gone and cannot be proved gone gets a settling command a person confirms
+  (the owner chose this over the recommended blocked slot);
+  a plan kept by a cancellation stays until that clone's next removal;
+  and a forced removal's journal alone records who it ended.
+  The sixth and seventh are also the step 17 designs' S8 and S11,
+  now closed.
+  The two that are the binding's went to its running round through its inbox
+  (`note-the-projects-seven-answers.md` in its folder).
+- Next:
+  the origin and plan designs' rounds,
   one after the other,
-  on the mediums and the answers.
+  on their mediums and these answers,
+  on continuations still to be written;
+  then the reviewer once more on the set.
 - The reviewer's single set of four questions for the owner,
   carried by the origin cleanup document:
   who may destroy a leftover origin snapshot;
