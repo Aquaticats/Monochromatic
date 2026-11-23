@@ -349,9 +349,11 @@ fn the_flow_runs_where_no_file_can_be_cloned() {
     std::os::unix::fs::symlink("empty.txt", repository.join("link")).expect("link");
     crate::test_support::age(repository.join("link").as_path());
     tracked(repository.as_path(), "edited.txt", COMMITTED_EDIT);
-    // Unchanged paths, so the changed-file cut stays above the path this control changes.
+    // Unchanged paths, so the changed-file cut stays above the path this control changes. They are empty, like the
+    // fixture's own file, because the point of this control is a clone that needs no FICLONE at all: a root that cannot
+    // reflink a file with bytes must still serve it.
     for index in 0..6 {
-        tracked(repository.as_path(), format!("kept/unchanged-{index}.txt").as_str(), KEPT);
+        tracked(repository.as_path(), format!("kept/unchanged-{index}.txt").as_str(), b"");
     }
     commit_all(repository.as_path(), "the commit the person edits");
     std::fs::write(repository.join("edited.txt"), PERSONAL_EDIT).expect("the person's change");
