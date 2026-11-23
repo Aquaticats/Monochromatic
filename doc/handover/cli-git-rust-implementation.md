@@ -73,6 +73,15 @@ and each stays in force until the owner changes it.
   for one case:
   `doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
   "The merge bar is waived for an add above the warning's count".
+- A branch merges into `main` when its round has ended and its report is read:
+  no gate,
+  pass,
+  review or mutation run holds a merge.
+  Sonnet passes run only at a release,
+  over everything merged since the last one;
+  one whole gate runs on `main` after each batch of merges;
+  a design branch merges when its round ends and stays a proposal until accepted
+  (`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`).
 - This session answers for the wrapper,
   the Pi driver,
   mpm and the way Cargo is run here.
@@ -132,19 +141,25 @@ This shouldn't happen."
 The skill is corrected in `e24cf7d46d`,
 and the launchers now take their pool from `writer-pool-for-a-round.ts` in the launch folder,
 which refuses that pool.
-`drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names;
-the round `pi-driver-refuses-a-run-on-a-closed-pool`
-made it and the worktree launcher refuse one,
-and reopened the qwen plan's DeepSeek pool for runs that name it,
-on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool` at `c1c1c1a1f8`
-(report:
-`~/temp/agent/pi-driver-refuses-a-run-on-a-closed-pool-2026-11-23/keep/report-pi-driver-refuses-a-run-on-a-closed-pool.md`).
-Its whole unit suite failed a different real-process test on each of three runs,
-each passing alone,
-and its `lint` task cannot run in a fresh worktree (issue 6339).
+The driver and the worktree launcher now refuse a run on a closed pool,
+and the qwen plan's DeepSeek pool is open for runs that name it:
+merged as `65a1dc0e78`.
+Its pass,
+stopped early by the owner's choice that passes run only at a release
+(`~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`),
+found two things that make `main` worse:
+a pool reopened with `PI_RUNS_POOL_LIMITS` through the gate or the worktree launcher is refused inside the run's unit,
+which gets only `PATH` and `HOME`;
+and `lint` is red.
+The round launchers in the launch folder call `drive-pi-subagent.ts` directly and set no `PI_RUNS_POOL_LIMITS`,
+so they are not reached.
 Running:
-its Sonnet integration pass,
-to `~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`.
+`pi-driver-closed-pool-follow-ups-on-main`,
+on both and the pass's other findings,
+on `fix/pi-shared-subagent-driver-closed-pool-follow-ups-forward-pool-limits`.
+A fresh worktree's `lint` and `lint:types` fail on a stale store link
+(`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` when the wrapper relinks it),
+seen by three passes today (issue 6339's family).
 The repository's tool links folder `.cache/toolchain-bin` is missing,
 so `file-enforcer` and `monochromatic-lint` are not on `PATH`;
 only `toolchain:install` makes it,
@@ -476,10 +491,28 @@ The round on both ended at `64b0ce5a36`,
 every item done by its report (`keep/report-ninth-reads.md`).
 It adds one rule:
 the add refuses while a plan stands.
+Both tenth reads
+(`review-tenth-read-before-acceptance.md` beside each ninth read)
+found the lock design fit as it stands,
+and three new states in the binding:
+a loop of refusals over a `settling` binding with a plan and a gone clone
+(K7,
+U40),
+a gone-clone row the add's readers contradict
+(K8,
+U39,
+which reaches step 10),
+and an add that reads the plan folder the plan design says it does not
+(K9,
+U41).
+Both designs,
+and the four other designs of this section and the next two,
+merged into `main` as proposals on 2026-11-23 at 18:29,
+by the owner's choice that a design merges when its round ends.
 Running:
-each reviewer's tenth read of that diff
-(`review-tenth-read-before-acceptance.md` beside each ninth read),
-with the acceptance material updated to it.
+the binding's round on both tenth reads
+(`continuation-tenth-reads.md` in its round folder),
+which also writes the plan record's paragraph K9 asks for.
 
 Next:
 the acceptance questions,
@@ -673,41 +706,6 @@ which puts the parse back off the adding thread.
 Next:
 a second Sonnet pass.
 
-#### The object reader's declined branches
-
-Outcome:
-each branch on which the merged object reader declines is held by a control.
-
-State:
-branch `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows` at `daa0836b75`.
-Its fourth Sonnet recheck
-(`review-fourth-recheck.md` in
-`~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/`)
-found it fit after one fix:
-the note's reason for a replacement base the command names is false.
-The owner chose to record that case as a limit
-(`doc/decision/cli-git-object-reader-named-replacement-base-is-a-recorded-limit.md`),
-filed as issue 6396.
-The round on that and the recheck's two lows ended at `cd6f2e1185`
-(`~/temp/agent/object-reader-commit-memory-is-per-landing-2026-11-22/keep/report-pi-object-reader-fourth-recheck-findings.md`):
-the false sentence corrected,
-the limit recorded with issue 6396 in the note and the README,
-the ladder target's open held by a control shown red and green,
-and the words made to read alone.
-Its host tests fail the same nine that `main` fails on the same filter.
-Running:
-one whole gate on its tip,
-`gate-object-reader-declined-branches-20261123`,
-its summary written to `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
-
-Next:
-read the gate against `main`'s baseline
-("The tests and the gate under AppArmor");
-then merge.
-Issue 6347,
-the one case the reader's refusal was right about,
-is held work.
-
 ### The wrapper's test gate tells the truth
 
 Why:
@@ -725,83 +723,58 @@ merged as `1ba2fe767d`.
 The merged code compares the number the PID file names,
 and the owner chose that its contents be compared
 (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`).
-The round that builds the byte comparison and folds in the second pass's lows has ended,
-on `fix/git-policy-cli-lock-control-freed-name-pid-file-failed-once-in-a-gate` at `3ad5c8752a`.
+The byte comparison and the second pass's lows merged as `33546ca1c3`.
+Its third pass,
+stopped early by the owner's choice that passes run only at a release
+(`review-third-pass.md` in
+`~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/`),
+found the code doing what the decision says,
+and one mutant the old tests killed that now survives,
+because the test arm answers a read by its count;
+with lows.
 Running:
-its third Sonnet pass,
-the second-pass reviewer resumed as agent `a53733389dde02725`,
-to `review-third-pass.md` in its earlier pass's `keep/`.
+`pi-lock-control-pid-file-follow-ups-on-main`,
+on `fix/git-policy-cli-lock-control-pid-file-follow-ups-arm-answers-by-phase`.
 
 Next:
-merge,
-or a fix round.
+merge when it ends.
 
 #### Issue 6344: the sibling shadow control
 
 State:
 merged as `0b7a48def4`.
-The follow-up round on what its pass left ended on
-`fix/git-policy-cli-shadow-sibling-control-two-timing-windows` at `48346ef6c2`,
-all seven items done,
-its gate (before enforcement) failing only the cause-H pair.
-The guard costs about one second per gate,
+The follow-ups merged as `a87967fe57`;
+the guard costs about one second per gate,
 and the owner kept it
 (`doc/decision/cli-git-shadow-sibling-control-guard-costs-a-second-per-gate.md`).
+Their pass,
+stopped early
+(`review-follow-ups.md` in
+`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/`),
+found each guard red when broken,
+and one medium in cause M's words with lows.
 Running:
-its Sonnet pass on the follow-ups,
-the integration pass's reviewer resumed as agent `a8d0bc7335c71001c`,
-to `review-follow-ups.md` in that pass's `keep/`.
+`pi-shadow-sibling-control-follow-ups-on-main`,
+on `fix/git-policy-cli-shadow-sibling-control-follow-ups-cause-m-words`.
 
 Next:
-merge,
-or a fix round.
+merge when it ends.
 
-#### Issue 6345: the worktree-removal control
+#### Issue 6354: the "recorded and not woken" warning
 
 State:
-branch `fix/git-policy-cli-worktree-removal-held-commit-control-failed-in-two-gates` at `1b68b52819`.
-Its second pass found the code sound and the wording wrong,
-and one case the test wait misses
-(`~/temp/agent/integration-second-pass-worktree-removal-held-commit-control-2026-11-22/keep/review.md`).
-The owner chose a third look for the wait
-(`doc/decision/cli-git-test-support-wait-for-an-idle-commit-service-takes-a-third-look.md`).
-The round on both has ended:
-the wait asks for three empty samples in the order a record moves,
-with a control for each,
-and causes N and G are rewritten.
-Its gate had one failure that is on no list,
-`fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout`.
-
-Its third Sonnet pass
-(`~/temp/agent/integration-third-pass-worktree-removal-held-commit-control-2026-11-23/keep/review.md`)
-found it not fit as it stands:
-the fourth control passes on `main`'s wait too,
-so it guards nothing,
-and the troubleshooting text says things the runs contradict.
-The wait and the fixture's drop are sound,
-and its gate was void under the missing AppArmor rules.
-That failure is filed as issue 6397,
-and the pass drafted the comment for issue 6345 at the merge (its report,
-`keep/report-from-the-agents-last-message.md` beside the review).
-The round on the third pass's findings ended at `04b255e004`.
+issue 6345's control and its test wait merged as `41e55743cf`,
+the comment is posted and the issue is closed;
+6353 and 6355 are open on GitHub.
+Issue 6354 is decided
+(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`).
 Running:
-one whole gate on that tip,
-`gate-worktree-removal-control-6345-20261123`,
-its summary written to `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
+`pi-worktree-removal-not-woken-warning-names-the-way-out`,
+on `fix/git-policy-cli-worktree-removal-not-woken-warning-names-the-way-out`,
+made from 6345's tip.
 
 Next:
-read the gate against `main`'s baseline
-("The tests and the gate under AppArmor");
-then merge and post the comment.
-The three product defects the pass confirmed are issues 6353,
-6354 and 6355.
-Issue 6354 is decided
-(`doc/decision/cli-git-worktree-removal-not-woken-warning-names-the-way-out.md`)
-and edits the same documents,
-so it is built on a branch made from this one's tip,
-`fix/git-policy-cli-worktree-removal-not-woken-warning-names-the-way-out`,
-by the round `pi-worktree-removal-not-woken-warning-names-the-way-out`,
-and merged after it.
+merge when it ends.
 
 #### The tests and the gate under AppArmor
 
@@ -840,13 +813,28 @@ No denial maps to the three `stale_ref_lock` controls
 and no signal denial was logged.
 The audit's lost count stayed at 69,301 through that gate,
 so the raised backlog dropped nothing.
-Gates were released at 2026-11-23T18:20-05:00,
+Gates were released at 2026-11-23T18:02:32-05:00,
 with those ten as `main`'s baseline that counts against no branch
 (`note-gates-may-run-against-mains-baseline.md` in the rounds' launch folder,
 sent to every running round and pass).
-A gate runs on a branch through `run-one-whole-gate-in-a-worktree.ts` in the AppArmor folder,
+A gate runs through `run-one-whole-gate-in-a-worktree.ts` in the AppArmor folder,
 which writes the summary and failures to its `keep/`,
 clears the run's containers by label and removes the tag.
+The two branch gates after the fifth batch
+(object reader at `cd6f2e1185`,
+issue 6345 at `04b255e004`)
+each failed eight,
+all in that baseline:
+the signed-commit control and the unknown-host-key `ssh_terminal` control pass now,
+and the three `stale_ref_lock` controls still fail.
+The sixth batch lets Git run hooks of fixtures under `~/temp/agent`
+(72 denied executions of `reference-transaction` in one pass's host tests)
+and lets `git//ssh` run `/usr/bin/false`,
+the passphrase program of the two `ssh_terminal` controls still failing (6 denials).
+Running:
+`gate-on-main-after-the-evening-merges-20261123`,
+one whole gate on `main` at `20c4bfa018`,
+after the evening's merges and the sixth batch.
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -854,11 +842,10 @@ which is set for this boot and written to `/etc/audit/rules.d/10-backlog-limit.r
 That file is loaded at boot only once the owner runs `sudo systemctl enable audit-rules.service`.
 
 Next:
-read each branch gate's denials as it ends,
+read the gate on `main` against the baseline and its denials,
 and add rules for what it still meets;
-find why the three `stale_ref_lock` controls fail under enforcement,
-by one of them run alone in the gate's image;
-then a whole gate on `main` again to shrink the baseline.
+if the three `stale_ref_lock` controls still fail,
+run one alone in the gate's image.
 
 #### Tests that failed once and are not diagnosed
 
