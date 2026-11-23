@@ -1470,24 +1470,31 @@ the global `--no-lazy-fetch` is Git 2.45.0's,
 and an older Git refuses it before reading anything (exit 129),
 which sent a plain source from the snapshot to Git's whole checkout;
 the variable alone leaves the route as it was on every Git that honours it.
-The variable is honoured from the May 2024 maintenance releases
+The variable is honoured by the May 2024 maintenance releases
 (`v2.39.4`,
 `v2.40.2`,
 `v2.41.1`,
 `v2.42.2`,
 `v2.43.4`,
-`v2.44.1`,
-`v2.45.1`,
-the commit `7b70e9efb`)
-and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`:
-with it an unavailable size prints `BAD` in the size column,
+`v2.44.1`;
+the commit `7b70e9efb`),
+by `v2.45.0` and later
+(which set `fetch_if_missing = 0`,
+and from `v2.45.1` also read the variable in `promisor-remote.c`),
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.1` and later,
+which backport the fix.
+What the read does on a missing blob differs by release:
+the maintenance releases and Ubuntu's package refuse the lazy fetch,
+and the read exits 128
+("lazy fetching disabled ... could not fetch ... from promisor remote"),
+so the rung declines to Git's checkout;
+`v2.45.0` and later never attempt the fetch,
+so an unavailable size prints `BAD` in the size column,
 the run exits 0 with its output,
-and the clone is unchanged.
-A Git older than those releases that does not carry the fix
-(Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores the variable and can fetch a missing blob,
-which is the recorded limit of this read there;
-a size it cannot parse only ever sends its path to Git's writing,
-so the fence's answer is unchanged,
+and only that path goes to Git's writing.
+A Git older than the fix that does not carry it ignores the variable and can fetch a missing blob,
+and its fetch can outlive the command:
+that is the recorded limit of this read there,
 and such a Git is older than the wrapper's tested minimum (`MINIMUM_GIT_VERSION`,
 2.56.0).
 The read also leaves the process-wide failed-step note alone
@@ -1525,9 +1532,18 @@ ends its Git child there (`SIGKILL` to the id the read's runner published),
 and a read abandoned before its thread published a child has that child ended the moment the runner publishes it;
 the thread then ends with the process.
 A refused or declined add therefore does not wait for the read,
-and the read cannot run its whole length beside Git's own checkout:
-what it can still pay is the time between its start and the abandon,
-measured in one btrfs guest on Git 2.56 as a few milliseconds.
+and the read cannot run its whole length beside Git's own checkout.
+What it can still pay differs by shape:
+a source that refuses at once pays about a millisecond of a child,
+started and ended at publication;
+a declined add runs the read in the background for its whole length beside `git check-attr`
+(66 to 68 ms in the integration recheck's declined rows),
+and the read hands its `ls-tree` output over unparsed,
+so the abandon drops one buffer (about 0.3 ms)
+and the map is never built for it;
+the fence parses the output only when it uses it.
+No declined add's total is slower than `main`'s
+(the ratios are beside the timings below).
 A read still running when the process ends carries `PR_SET_PDEATHSIG`,
 so its child ends with the thread that started it,
 however the process ends.
@@ -1535,26 +1551,40 @@ Which of an add's other reads it already paid depends on where it ends:
 a source check that refuses costs Git's own checkout and the read it started and ended,
 an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
-Measured in one btrfs guest of 2026-11-22
+The integration recheck's 576 counted adds
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
 "The re-time on Git 2.56.1,
 2026-11-22"),
-eight rounds for the served shapes,
-forty for the add whose Git fails at once,
-twenty for the cone sparse and five or six for the others,
+12 to 40 rounds a shape,
 position-balanced,
-on Git 2.56.1 built from source in the guest,
-with an identical-binary control:
-a served loose add 1282.8 ms against `main`'s 1692.9,
-and a packed one 752.1 against 831.5;
-a refused loose add 4540.6 against 4945.9,
-and a packed one 3393.3 against 2951.1 (six rounds do not resolve it);
-a declined loose add 9358.1 against 8634.6,
-and a packed one 8882.5 against 8651.8;
-a cone sparse refused add 190.6 against 203.2 loose and 159.2 against 169.3 packed;
-a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
-No shape is resolved slower by the reading rule.
-The ratios and the control's spread are in that section.
+on Git 2.56.1 built from source in a btrfs guest,
+with an identical-binary control,
+give these median ratios of an add's whole time
+(branch to `main`,
+with the identical twin's ratio to the branch beside it):
+a served loose add 0.763 (0.701 to 0.814),
+twin 1.040 (0.983 to 1.061);
+a served packed one 0.945 (0.783 to 0.981),
+twin 1.021 (0.970 to 1.156);
+a refused loose one 0.999 (0.916 to 1.047),
+twin 0.992 (0.882 to 1.050);
+a refused packed one 0.968 (0.927 to 1.078),
+twin 1.033 (0.941 to 1.065);
+a cone sparse loose one 1.015 (0.980 to 1.066),
+twin 0.980 (0.935 to 1.050);
+a cone sparse packed one 0.981 (0.905 to 1.040),
+twin 0.998 (0.954 to 1.097);
+a declined loose one 0.992 (0.952 to 1.032),
+twin 0.980 (0.941 to 1.039);
+a declined packed one 0.995 (0.952 to 1.026),
+twin 1.009 (0.971 to 1.037);
+a refused loose add whose Git fails at once 0.985 (0.899 to 1.125),
+twin 1.060 (0.895 to 1.126);
+and the same packed 1.030 (0.974 to 1.071),
+twin 0.985 (0.929 to 1.031).
+No add's total is resolved slower,
+and this round's step-level run on the declined shape confirms its total after the output is handed over unparsed.
+The rows are in that section.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,

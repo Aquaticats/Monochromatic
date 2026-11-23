@@ -842,12 +842,18 @@ Read-only commands,
      `v2.41.1`,
      `v2.42.2`,
      `v2.43.4`,
-     `v2.44.1`,
-     `v2.45.1`,
-     the commit `7b70e9efb`)
-     and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`;
-     a Git older than those that does not carry the fix
-     (Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores it and can fetch a missing blob,
+     `v2.44.1`;
+     the commit `7b70e9efb`),
+     by `v2.45.0` and later
+     (which set `fetch_if_missing = 0`,
+     and from `v2.45.1` also read the variable in `promisor-remote.c`),
+     and by Ubuntu 24.04's `2.43.0-1ubuntu7.1` and later.
+     The maintenance releases and Ubuntu's package refuse the lazy fetch and the read exits 128,
+     so the rung declines to Git's checkout;
+     `v2.45.0` and later never attempt it,
+     so an unavailable size prints `BAD` and the run exits 0,
+     and only that path goes to Git's writing.
+     A Git older than the fix that does not carry it ignores the variable and can fetch a missing blob,
      which is the recorded limit of this read there.
      The read's answer is used only when it listed the commit the check proved,
      and when no path needs a size it is not used at all;
@@ -862,18 +868,30 @@ Read-only commands,
      a read an add will not use is ended at the refusal or the decline,
      a read abandoned before its child was published has that child ended the moment it is published,
      and the thread and child end with the process.
-     Re-timed in one btrfs guest of 2026-11-22 on Git 2.56.1 built from source,
-     position-balanced,
-     with an identical-binary control:
-     a served loose add 1282.8 ms against `main`'s 1692.9,
-     a served packed one 752.1 against 831.5,
-     a refused loose one 4540.6 against 4945.9,
-     a declined packed one 8882.5 against 8651.8,
-     a cone sparse refused one 190.6 against 203.2 loose and 159.2 against 169.3 packed,
-     and a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
-     No shape is resolved slower;
-     the ratios,
-     the rounds and the control's spread are in
+     A refused-at-once add pays about a millisecond of a child;
+     a declined add runs the read in the background beside `git check-attr`,
+     and the read hands its `ls-tree` output over unparsed,
+     so a declined add drops one buffer and never builds the map.
+     The integration recheck's 576 counted adds,
+     position-balanced on Git 2.56.1 in a btrfs guest with an identical-binary control,
+     give a median ratio of an add's whole time
+     (branch to `main`,
+     then the twin to the branch):
+     a served loose add 0.763 (0.701 to 0.814),
+     twin 1.040 (0.983 to 1.061);
+     a served packed one 0.945 (0.783 to 0.981),
+     twin 1.021 (0.970 to 1.156);
+     a refused loose one 0.999 (0.916 to 1.047),
+     a refused packed one 0.968 (0.927 to 1.078);
+     a cone sparse loose one 1.015 (0.980 to 1.066),
+     packed 0.981 (0.905 to 1.040);
+     a declined loose one 0.992 (0.952 to 1.032),
+     packed 0.995 (0.952 to 1.026);
+     a refused loose add whose Git fails at once 0.985 (0.899 to 1.125),
+     packed 1.030 (0.974 to 1.071).
+     No add's total is resolved slower;
+     the rounds,
+     the twin's spread and the rows are in
      `doc/planning/cli-git-fence-size-read-beside-source-check.md`,
      "The re-time on Git 2.56.1,
      2026-11-22".
