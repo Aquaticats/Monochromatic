@@ -111,7 +111,7 @@ read whole where the brief says so:
   for the settle marker and the destroys the fallback runs.
 - `doc/planning/cli-git-zfs-add-binding-record-design.md` on branch
   `docs/planning-cli-git-zfs-add-binding-record-design`,
-  read by `git show` at `3b4b073f0e` (2026-11-23T03:55:16-05:00):
+  read by `git show` at `c077bdb1e1` (2026-11-23T04:37:58-05:00):
   "The add's writes in one order",
   "A resume after a kill between Git's add and the registered write",
   "The account's claim and root's claim",
@@ -660,7 +660,7 @@ it and by which proof.
 The add's durable binding record is the sibling design's,
 `doc/planning/cli-git-zfs-add-binding-record-design.md`
 on branch `docs/planning-cli-git-zfs-add-binding-record-design`,
-read by `git show` at `3b4b073f0e` (2026-11-23T03:55:16-05:00),
+read by `git show` at `c077bdb1e1` (2026-11-23T04:37:58-05:00),
 its "The record family",
 "The binding" and "The add's writes in one order".
 That document is the sibling's design and nothing in it is adopted here as decided.
@@ -673,9 +673,10 @@ before anything has mutated (binding design,
 "The add's writes in one order",
 A2,
 read at that commit).
-Its grammar is one `key=value` line per field (binding design,
-"The binding",
-lines 1480 to 1484 at that commit):
+Its grammar is one `key=value` line per field (the binding design at `c077bdb1e1`,
+its "The binding",
+the
+`phase=` and `settleReason=` lines),
 
 > claim=<generation>
 > nonce=<32 lowercase hexadecimal digits>
@@ -1264,7 +1265,7 @@ and its `registered` write carries `registration=`,
 `registrationIdentity=` and `pointer=`.
 Source:
 the binding design (`doc/planning/cli-git-zfs-add-binding-record-design.md` on its branch),
-read at `3b4b073f0e` (2026-11-23T03:55:16-05:00),
+read at `c077bdb1e1` (2026-11-23T04:37:58-05:00),
 its "The binding" and "What the writer confirms before each write";
 read as the sibling's design,
 not as a decision of this one.
@@ -1468,7 +1469,7 @@ V1:
 
 The order is not this design's.
 It is the binding design's "The add's writes in one order",
-read at `3b4b073f0e`
+read at `c077bdb1e1`
 (2026-11-22T19:58:00-05:00),
 and this design adds no step to it and reorders none.
 Each moment below names that section's step labels as they read at that commit,
@@ -1597,7 +1598,7 @@ The binding states this window's boundary itself,
 in its A11:
 D6 begins at A10's write and ends at the exchange,
 "that is the one statement of D6's boundary between the two documents"
-(read at `3b4b073f0e`).
+(read at `c077bdb1e1`).
 The project decided on 2026-11-22 what holds at the slot while the add fills it:
 the copied `.git` stays until the exchange,
 "so that no moment and no kill leaves the folder without a `.git`"
@@ -1672,7 +1673,7 @@ since the add reports it,
 and the add settles the mount and its own intents itself.
 
 The fallback's steps are the binding design's A20 to A27,
-read at `3b4b073f0e`,
+read at `c077bdb1e1`,
 and the mechanics of the destroys and the checkout are the dirty-main design's
 ("What happens when the proof fails or the restore cannot finish",
 in `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`).
@@ -1764,6 +1765,13 @@ A kill on either side of A24 leaves:
   The lock is already released,
   and the add's own Git child is not a forwarded wrapped command,
   so nothing on that path writes it again.
+
+The command that finishes each of these states is the binding's,
+in its section on the add's own fallback (A20 to A27):
+the add's re-run where it can prove the clone's absence,
+the person's removal while the clone stands,
+and the settling command where the absence cannot be proved.
+This design states none of it.
 
 A kill between the failure and A20's write has destroyed nothing,
 so the ordinary resume applies and no state is left that only a person can settle;
@@ -1916,7 +1924,7 @@ The binding's identity fields are an inode with a birth time
 (`<inode>:<seconds>:<nanoseconds>`),
 not a device number:
 its "The identity fields",
-read at `3b4b073f0e`,
+read at `c077bdb1e1`,
 records that choice,
 and the device number the repository's own specification records as anonymous and per mount ([spec][spec],
 lines 5589 to 5601) is not one of its fields.
@@ -1968,7 +1976,7 @@ It is its "A resume after a kill between Git's add and the registered write",
 its "The states Git's source can
 leave" and its "The recipe that clears rows 1 to 5,
 7 and 8",
-read at `3b4b073f0e` (2026-11-23T03:55:16-05:00).
+read at `c077bdb1e1` (2026-11-23T04:37:58-05:00).
 That section lists one row per state Git's source can leave,
 reads each entry twice through the pinned `<common>/worktrees` parent,
 compares `locked` with the sentence recomposed from this add's `nonce=` including the newline Git's
@@ -2108,7 +2116,7 @@ the clone slot <slot> holds a registration no binding of this slot explains (<wh
 S8.
 **A half-made registration the finder names.**
 A `worktrees/<id>` answers one of the binding's rows 1 to 8 (its "The states Git's source can leave",
-read at `3b4b073f0e`),
+read at `c077bdb1e1`),
 with this add's sentence in `locked` where a lock stands.
 Doctor prints:
 
@@ -2221,7 +2229,7 @@ its "The recipe that clears rows 1 to 5,
 7 and 8",
 in "A resume after a kill between Git's add and the registered
 write",
-read at `3b4b073f0e`.
+read at `c077bdb1e1`.
 This design adds nothing to it except the proof that comes first,
 because the registration's subject is gone.
 A builder reads its steps 1 to 8 there;
@@ -2294,7 +2302,7 @@ Every command that writes it again holds the slot's claim:
 `<slot>.claim.<generation>`,
 taken with `take_claim`
 (the binding design's "The account's claim and root's claim",
-read at `3b4b073f0e`).
+read at `c077bdb1e1`).
 It is not root's claim under `/run` that [spec][spec] describes at lines 6228 to 6272.
 
 The commands,
@@ -2330,7 +2338,7 @@ and what is proved first:
   and states no put-back;
   that design's round carries it.
 - The binding design's settling command,
-  after its third read proves the registration and before its own removal step,
+  after its fourth read (the slot's registration) proves the registration and before its own removal step,
   which then releases it with the rest.
 - No other command:
   `doctor` never writes (it holds no claim and is read-only),
@@ -2649,7 +2657,11 @@ step by step:
   the states' classification,
   the two-fact proof variant,
   the install of a lost lock,
-  and `doctor`'s lines.
+  `doctor`'s lines,
+  and the release the fallback calls at the binding's A24:
+  one `unlinkat` of `locked` through the held registration descriptor and one sync of the registration's
+  directory,
+  which the dirty-main design's fallback expects from this step.
 - Step 16:
   the settle's release ordering and emptying,
   which this design's "How the wrapper's own removal releases the lock" specifies.
@@ -2704,7 +2716,7 @@ The mounted-clone arm is M1's.
 
 T16.
 The finder returns each of the binding's rows,
-"The states Git's source can leave" at `3b4b073f0e`,
+"The states Git's source can leave" at `c077bdb1e1`,
 for a fixture planted from the source line that leaves it:
 row 1 (bare directory),
 row 2 (lock only),
@@ -3224,8 +3236,9 @@ Releasing after the checkout leaves a locked ordinary worktree at every kill dur
 which a person's `git worktree remove` refuses and which the wrapper must classify as S1.
 Releasing at the failure,
 before A20's record,
-leaves an unlocked managed registration whose clone may still stand,
-which is the one state where prune can remove a registration whose clone exists.
+leaves an unlocked managed registration whose clone may still stand;
+the loss needs the one state this design's D6 names,
+where the account deleted the underlay pointer while the clone is unmounted.
 Pros of the adopted point:
 it is the binding's label,
 no second order,
@@ -3686,8 +3699,8 @@ with each committer time from `git log --format=%cI`:
   2026-11-22T21:21:14-05:00:
   main merged with `--no-ff`,
   bringing the project's answers on a lost lock and on the seven record questions.
-- The commit after `567e3c02f8` that carries this list,
-  whose hash `git log` reports:
+- `7d0dcdc875`,
+  2026-11-22T21:26:44-05:00:
   the third check's fixes:
   the lost lock written again by the commands that hold the slot,
   the decided section that replaces the two questions,
@@ -3720,14 +3733,26 @@ with each committer time from `git log --format=%cI`:
   2026-11-23T03:57:11-05:00:
   main merged with `--no-ff`,
   bringing the accepted dirty-main restore design and the two other accepted designs.
-- The commit after `a7b9f02924` that carries this list,
-  whose hash `git log` reports:
+- `f45d05a96d`,
+  2026-11-23T04:01:18-05:00:
   the fifth diff read's fixes:
   V4's example and V7's clause,
   the binding at `3b4b073f0e`,
   A27's printed nothing,
   the empty lock's cite,
   and the accepted designs cited from `main`.
+
+- `f06e272178`,
+  2026-11-23T04:41:49-05:00:
+  main merged with `--no-ff`.
+- The commit after `f06e272178` that carries this list:
+  the sixth read's lows:
+  the grammar quoted by heading and label at `c077bdb1e1`,
+  V10's example aligned with its ranking,
+  the settling command's fourth read,
+  the split's A24 release,
+  the command for each state after A20 cited,
+  and the fifth round's commit named.
 
 Any commit after those carries this list;
 the round's report names every commit with its committer time.
