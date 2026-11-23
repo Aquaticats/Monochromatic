@@ -1128,3 +1128,167 @@ fn a_read_and_the_fence_complete_on_the_current_thread_stand_in() {
     assert_eq!(crate::lazy_runtime::built_flavor(), Some(crate::lazy_runtime::BuiltFlavor::CurrentThreadAfterDeadline), "the process ran on the stand-in");
     remove(root.as_path());
 }
+
+// ===== The integration recheck's own controls (uncommitted, in the integration worktree only) =====
+
+/// Take every promisor flag of the clone's own configuration away (the remote's two keys and the extension),
+/// and the pack markers with them,
+/// so only the shape under test can name a promisor remote.
+fn the_clone_without_promisor_flags_of_its_own(clone: &Path) {
+    let _unset_promisor: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.promisor"]);
+    let _unset_filter: std::process::Output = git_output(clone, &["config", "--unset", "remote.origin.partialclonefilter"]);
+    let _unset_extension: std::process::Output = git_output(clone, &["config", "--unset", "extensions.partialclone"]);
+    remove_every_promisor_marker(clone);
+}
+
+/// Keep a fetch from starting a detached maintenance run that would still write into the fixture when it is removed.
+fn without_background_maintenance(clone: &Path) {
+    git(clone, &["config", "maintenance.auto", "false"]);
+    git(clone, &["config", "gc.auto", "0"]);
+}
+
+/// The fixture context with some variables of its overlay set or replaced.
+fn a_context_with(pairs: &[(&str, &str)]) -> GitContext {
+    let mut context: GitContext = git_context();
+    for (name, value) in pairs {
+        context.overlay.retain(|(held, _)| return held != &OsString::from(*name));
+        context.overlay.push((OsString::from(*name), OsString::from(*value)));
+    }
+    return context;
+}
+
+/// One shape,
+/// counted twice:
+/// the early read must leave the clone alone,
+/// and the same read without the variable
+/// (the serial read of the fence,
+/// which carries none)
+/// must move the count on an identical twin,
+/// so the count can move.
+fn the_early_read_fetches_nothing_where_the_serial_read_does(shape: &str, build: fn(&Path, &Path, &str) -> (PathBuf, GitContext)) {
+    let root: PathBuf = fixture(shape);
+    let origin: PathBuf = a_partial_clone_origin(root.as_path());
+    let (clone, context): (PathBuf, GitContext) = build(origin.as_path(), root.as_path(), "early");
+    let (before, after): ((usize, usize), (usize, usize)) = an_early_read_joined_leaves_the_clone_alone(clone.as_path(), &context);
+    assert!(before.0 > 0, "{shape}: the clone is missing blobs the read could fetch: {before:?}");
+    assert_eq!(after, before, "{shape}: the early read fetched into the clone");
+    let (twin, twin_context): (PathBuf, GitContext) = build(origin.as_path(), root.as_path(), "twin");
+    let before_twin: (usize, usize) = missing_and_packs(twin.as_path());
+    let _serial: Result<BlobSizes, String> = blob_sizes(&twin_context, twin.as_path(), the_head_commit(twin.as_path()).as_str());
+    assert_ne!(missing_and_packs(twin.as_path()), before_twin, "{shape}: the serial read, which has no variable, must fetch here, or this shape cannot show the early read's variable");
+    remove(root.as_path());
+}
+
+fn build_global_config(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+    let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
+    without_background_maintenance(clone.as_path());
+    the_clone_without_promisor_flags_of_its_own(clone.as_path());
+    let global: PathBuf = root.join(format!("global-{name}.cfg"));
+    std::fs::write(global.as_path(), "[remote \"origin\"]\n\tpromisor = true\n\tpartialclonefilter = blob:none\n").expect("the global config");
+    return (clone, a_context_with(&[("GIT_CONFIG_GLOBAL", global.to_str().expect("utf8"))]));
+}
+
+/// A promisor remote that only the user's global configuration names fetches nothing.
+#[test]
+fn a_read_with_the_promisor_remote_in_the_global_config_fetches_nothing() {
+    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-global", build_global_config);
+}
+
+fn build_object_directory(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+    let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
+    without_background_maintenance(clone.as_path());
+    the_promisor_flags_in_an_included_file(clone.as_path());
+    let objects: PathBuf = clone.join(".git/objects");
+    return (clone, a_context_with(&[("GIT_OBJECT_DIRECTORY", objects.to_str().expect("utf8"))]));
+}
+
+/// A source whose environment sets `GIT_OBJECT_DIRECTORY`
+/// (flags in an include,
+/// no markers)
+/// fetches nothing.
+#[test]
+fn a_read_with_git_object_directory_set_fetches_nothing() {
+    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-object-directory", build_object_directory);
+}
+
+fn build_extension_only(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+    let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
+    without_background_maintenance(clone.as_path());
+    let _unset_promisor: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.promisor"]);
+    let _unset_filter: std::process::Output = git_output(clone.as_path(), &["config", "--unset", "remote.origin.partialclonefilter"]);
+    remove_every_promisor_marker(clone.as_path());
+    // Git 2.56 writes the remote's own two keys and no extension, so the extension is set here:
+    //  it is then the one key that names the promisor remote, and it holds no word `promisor`.
+    git(clone.as_path(), &["config", "core.repositoryformatversion", "1"]);
+    git(clone.as_path(), &["config", "extensions.partialclone", "origin"]);
+    let kept: std::process::Output = git_output(clone.as_path(), &["config", "--get", "extensions.partialclone"]);
+    assert_eq!(String::from_utf8_lossy(kept.stdout.as_slice()).trim(), "origin", "the extension is the one thing left naming the remote");
+    return (clone, git_context());
+}
+
+/// A promisor remote named only by `extensions.partialclone` fetches nothing.
+#[test]
+fn a_read_with_only_the_partial_clone_extension_fetches_nothing() {
+    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-extension-only", build_extension_only);
+}
+
+fn build_worktree_config(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+    let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
+    without_background_maintenance(clone.as_path());
+    the_clone_without_promisor_flags_of_its_own(clone.as_path());
+    git(clone.as_path(), &["config", "extensions.worktreeConfig", "true"]);
+    git(clone.as_path(), &["config", "--worktree", "remote.origin.promisor", "true"]);
+    git(clone.as_path(), &["config", "--worktree", "remote.origin.partialclonefilter", "blob:none"]);
+    return (clone, git_context());
+}
+
+/// A promisor remote that only `config.worktree` names fetches nothing.
+#[test]
+fn a_read_with_the_promisor_flags_in_the_worktree_config_fetches_nothing() {
+    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-worktree-config", build_worktree_config);
+}
+
+fn build_inherited_zero(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+    let clone: PathBuf = a_sparse_partial_clone(origin, root, name);
+    without_background_maintenance(clone.as_path());
+    the_promisor_flags_in_an_included_file(clone.as_path());
+    return (clone, a_context_with(&[("GIT_NO_LAZY_FETCH", "0")]));
+}
+
+/// A caller that exports `GIT_NO_LAZY_FETCH=0` does not turn the read's variable off:
+/// the request's own pair is applied after the overlay.
+/// The twin's serial read inherits the 0 and fetches,
+/// which is the positive control.
+#[test]
+fn a_read_inheriting_git_no_lazy_fetch_zero_still_fetches_nothing() {
+    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-inherited-zero", build_inherited_zero);
+}
+
+fn build_alternate(origin: &Path, root: &Path, name: &str) -> (PathBuf, GitContext) {
+    // `holder` is a sparse partial clone whose object store is the alternate;
+    // the source itself holds no objects of its own and names the promisor remote only through an include.
+    let holder: PathBuf = a_sparse_partial_clone(origin, root, format!("holder-{name}").as_str());
+    let source: PathBuf = root.join(name);
+    git(root, &["init", "--quiet", "--initial-branch=main", source.to_str().expect("utf8")]);
+    let alternates: PathBuf = source.join(".git/objects/info/alternates");
+    std::fs::create_dir_all(alternates.parent().expect("a parent")).expect("info directory");
+    std::fs::write(alternates.as_path(), format!("{}\n", holder.join(".git/objects").display())).expect("the alternates file");
+    let head: String = the_head_commit(holder.as_path());
+    git(source.as_path(), &["update-ref", "refs/heads/main", head.as_str()]);
+    git(source.as_path(), &["config", "maintenance.auto", "false"]);
+    git(source.as_path(), &["config", "gc.auto", "0"]);
+    git(source.as_path(), &["remote", "add", "origin", format!("file://{}", origin.display()).as_str()]);
+    git(source.as_path(), &["config", "include.path", "remote-flags.cfg"]);
+    let flags: PathBuf = source.join(".git/remote-flags.cfg");
+    git(source.as_path(), &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.promisor", "true"]);
+    git(source.as_path(), &["config", "--file", flags.to_str().expect("utf8"), "remote.origin.partialclonefilter", "blob:none"]);
+    return (std::fs::canonicalize(source).expect("canonical"), git_context());
+}
+
+/// A source whose objects live in an alternate that is a partial clone,
+/// with the flags in an include,
+/// fetches nothing.
+#[test]
+fn a_read_beside_a_source_whose_alternate_is_a_partial_clone_fetches_nothing() {
+    the_early_read_fetches_nothing_where_the_serial_read_does("promisor-alternate", build_alternate);
+}
