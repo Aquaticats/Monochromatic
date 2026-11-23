@@ -11,10 +11,9 @@ Both rounds' sources and findings are on `main` from merge `96d965f9f8`,
 in `package/git-policy/cli/src/native/repo_read/repo_read_odb.rs`,
 `package/git-policy/cli/src/native/landing/service_object_questions_left_to_git.rs`
 and this note.
-A follow-up round on 2026-11-22,
-from the integration pass of
-`/home/user/temp/agent/integration-pass-object-reader-declined-branches-controls-and-lows-2026-11-22/keep/review.md`,
-gave the memory of commits read the landing that made it,
+A follow-up round on 2026-11-22
+answered an integration pass's findings:
+it gave the memory of commits read the landing that made it,
 drove the declined questions through their callers,
 made a failed or cut input file a failure of the question,
 declined the stores and the replacement base the environment names,
@@ -300,7 +299,8 @@ a linked worktree of a reftable repository and a files payload are left to Git,
   or is cut short by a file-size limit in a child process,
   answers that it failed and leaves no part of the file behind.
 - `service_commit::a_setting_the_command_or_the_service_holds_still_lands`:
-  the thirteen rows of the integration recheck's environment situations in which `main` lands the right commit,
+  the thirteen environment rows it lists itself,
+  in which `main` lands the right commit,
   each with a fixture and a commit service of its own,
   asserting the row lands,
   that the commit stands on the parents Git reads and that Git finds every object it names.
@@ -317,7 +317,7 @@ a linked worktree of a reftable repository and a files payload are left to Git,
   driven through their callers".
 
 Each was run failing before its fix was in place,
-and every entry below was re-run after the integration recheck with its own guard removed and nothing else:
+and every entry below was re-run with its own guard removed and nothing else:
 each red run printed a `panicked at` line and the assertion it failed on,
 and none was a build that did not compile.
 
@@ -497,7 +497,7 @@ so its reflog row still falls back to the request's own message on `main` and he
 
 ## The call sites, driven through their callers
 
-The recheck found that deleting the call sites of three declined questions left every test green:
+Deleting the call sites of three declined questions once left every test green:
 the trees question and the built-commit question of `batch_content_missing`,
 and the client's commit question of `prepared_content_missing`.
 The controls held the four question functions and not their use,
@@ -512,7 +512,7 @@ in a reftable repository and in a files repository holding a replace ref:
   a request for a commit Git built names that commit and nothing else,
   and both callers see its object gone.
 - `service_pruned::tests::a_submodule_entry_below_an_embedded_tree_is_not_removed_content_where_the_reader_declines`:
-  the gitlink fixture the recheck asked for,
+  the gitlink fixture (a tree entry whose commit belongs to another repository),
   with the positive control that the same question sees a blob beside the gitlink that is gone.
 - `service_pruned::a_blob_removed_below_an_amended_tree_fails_plainly_where_the_reader_declines` (binary):
   the same amendment through the built wrapper and service answers the plain content-pruned words,
@@ -571,7 +571,7 @@ For the four variables that move a read the reader declines
 
 Both open the reader from a common directory and not from a layout,
 so the layout's environment gate does not stand in front of them,
-which the integration pass left unestablished.
+which had been read once and not run.
 Read on this branch:
 
 - The clean check (`worktree_clean.rs`):
@@ -626,23 +626,86 @@ Read on this branch:
   as `main`'s reader read it,
   and so does every proof of this worktree's own state:
   the objects they ask for are this repository's,
-  and their names are their bytes,
-  so a store or a base a command names cannot change the answer,
-  and where the repository's own store lacks them the proof refuses as `main` refused.
+  and for `GIT_OBJECT_DIRECTORY` and `GIT_ALTERNATE_OBJECT_DIRECTORIES` that settles the answer,
+  because an object found in the repository's own store is the same object wherever else Git looks,
+  and where the store lacks it the proof refuses as `main` refused.
+  `GIT_REPLACE_REF_BASE` is not such a variable:
+  it names no place for objects,
+  it changes what Git reads for an object name,
+  so a replacement base the command names does change the answer.
+  That case is a recorded limit
+  (`An effective replacement base the command names on the worktree-add path`).
   The controls are one per variable
   (`worktree_add_source_proof::a_worktree_add_proves_its_source_under_the_object_store_a_command_names`,
   `..._under_the_alternate_directories_a_command_names` and
   `..._under_the_replacement_base_a_command_names`),
   each counting the routes one add states,
   and red together with the environment-aware open planted again.
-  In a btrfs guest of this round,
-  five adds an arm:
-  `main` made five snapshots,
-  this branch before the change made two
-  (the three it did not being exactly `GIT_OBJECT_DIRECTORY`,
-  `GIT_ALTERNATE_OBJECT_DIRECTORIES` and
-  `GIT_REPLACE_REF_BASE`),
-  and this branch after the change five.
+  A btrfs guest measured the route an add takes,
+  once per arm,
+  on 2026-11-23:
+  Ubuntu 24.04,
+  kernel 6.8,
+  Git 2.43,
+  a loop-file btrfs mounted with `user_subvol_rm_allowed`,
+  one fresh subvolume repository of three committed files per arm and case,
+  the wrapper as `git` on `PATH`,
+  and the fixture's files older than its index so that the stat proof is settled.
+  The arms are `main`'s release build,
+  this branch before the change,
+  and this branch after it.
+  Nine cases,
+  each an add,
+  and what the three arms stated:
+  this branch before the change made a copy where `main` made a snapshot in the three cases whose decline an
+  earlier round added (below),
+  and took `main`'s answer in the rest.
+
+- Nothing held:
+  snapshot on all three arms.
+- The repository's own store as `GIT_OBJECT_DIRECTORY`:
+  snapshot on `main` and after,
+  copy before.
+- An empty directory as `GIT_ALTERNATE_OBJECT_DIRECTORIES`:
+  snapshot on `main` and after,
+  copy before.
+- `GIT_REPLACE_REF_BASE=refs/probe/` with nothing under it:
+  snapshot on `main` and after,
+  copy before.
+- `GIT_REFERENCE_BACKEND=files`:
+  snapshot on all three.
+- `GIT_OBJECT_DIRECTORY` at another empty store:
+  copy and exit 128 on all three,
+  because Git cannot find the base there either.
+- `GIT_ALTERNATE_OBJECT_DIRECTORIES` with the whole history only there:
+  copy on all three.
+- `GIT_REFERENCE_BACKEND=reftable` on a files repository:
+  snapshot on `main` and after,
+  copy before.
+- `GIT_REPLACE_REF_BASE=refs/probe/` holding a replacement of the tip:
+  snapshot on `main` and after,
+  copy before,
+  and the snapshot is of the commit's own three files
+  (the recorded limit below).
+
+  The five cases whose decline an earlier round added are snapshots on all three arms but the middle,
+  which made two of the five;
+  the two effective store cases take Git's own answer on every arm;
+  and the empty store and the replacement of the tip are the two recorded limits,
+  the second of them below.
+  The same guest measured the removals,
+  with the fixture settled:
+  on `main` and on this branch,
+  a clean subvolume worktree added with nothing held is destroyed in one step under every one of the nine cases
+  (`removed the btrfs subvolume of the worktree in one step`),
+  and a worktree holding a volume of the person's own is removed around that volume
+  (`removed the worktree … and Git no longer lists it`,
+  the volume and its file left),
+  again under every case.
+  The control on the destination's own open is
+  `worktree::worktree_ladder_target::tests::the_target_reads_its_own_objects_under_each_variable_a_command_names`,
+  one variable per child,
+  red with that open asking the environment again.
 
 ### The two doors
 
@@ -681,13 +744,55 @@ An effective store the command alone holds does not land wrongly but fails loudl
 and the history moved into a directory only the command names),
 and that belongs to the same issue.
 
+### An effective replacement base the command names on the worktree-add path
+
+A worktree add and a removal read the repository's own store
+(`The clean check and the ladder target`),
+so a replacement base the command names reaches Git's own reads and not the wrapper's proofs.
+The measured case is a repository of three committed files whose tip has a replacement under `refs/probe/`
+whose own tree holds `f1.txt` alone with other content,
+with a settled checkout and `GIT_REPLACE_REF_BASE=refs/probe/` held by the command,
+measured in a btrfs guest on 2026-11-23:
+
+- plain Git,
+  `git worktree add ../wt -b topic` under the variable,
+  checks out the replacement's own tree:
+  the new worktree holds one file,
+  and `git status` there is clean;
+- the wrapper,
+  on `main` and on this branch,
+  makes a snapshot of the original commit's three files,
+  and Git under the variable then reports that new worktree `M  f1.txt A  f2.txt A  f3.txt`,
+  which is what the plain Git refusal below rests on;
+- a later `git worktree remove` of a worktree added with nothing held,
+  under the variable,
+  is refused by plain Git (`contains modified or untracked files, use --force to delete it`),
+  and the wrapper destroys the subvolume in one step,
+  because its proof of the repository's own store calls the worktree clean.
+
+No uncommitted work is lost in that fixture:
+the files the removal destroys are the commit's own.
+A base that holds nothing keeps `main`'s fast route,
+because a base with no ref under it changes no answer,
+which is the harmless value.
+The default base `refs/replace` is declined by the reader on both,
+so a replacement there is read by Git alone.
+This is a recorded limit,
+not a fixed case:
+the add and the removal keep `main`'s behaviour,
+and issue 6396 asks for the design that would judge whether a named base holds a ref.
+It sits beside issue 6347's class,
+which is the same shape for a commit:
+a setting only the command holds,
+and the wrapper answering from the store rather than from what Git reads under that setting.
+
 ## What the refusal costs a files-backend repository
 
 The baseline of this section is `main` as it stood before the first fix merged (`main` at `e3c9b7e62d`):
 the `reftable` folder check and the configuration read are on `main` as well now,
 so this section measures what the first round added to the `main` of that day and not a difference between today's
 `main` and this branch.
-The third recheck measured today's two:
+A later measurement of today's two gives:
 this branch's unproved open is 0.989 of `main`'s (0.789 to 1.267,
 25 rounds),
 and the proved open 0.763 of `main`'s (0.550 to 0.968).
@@ -929,10 +1034,10 @@ so the whole-command ratios are read as medians;
 the service's step counts are the measured saving,
 one Git start per declined landing where two commits were asked once each.
 
-## Rows the recheck left open
+## Rows once read and not run
 
-The recheck's "What I could not do or establish" named rows it had read but not run.
-Each was run on this host with Git 2.56.1,
+These rows were read once and left unrun.
+Each was then run on this host with Git 2.56.1,
 and each has a control in the default build:
 
 - The `files://<path>` payload form.
@@ -980,8 +1085,8 @@ Git resolves them.
   `GIT_ALTERNATE_OBJECT_DIRECTORIES` and `GIT_REPLACE_REF_BASE`,
   and `GIT_REFERENCE_BACKEND=files`),
   the worktree and its registration gone and the volume of the person's own left in place.
-  The add under the same variables has its own guest run in this round
-  (see "The clean check and the ladder target"),
+  The add under the same variables has its own guest run,
+  whose counts are in "The clean check and the ladder target",
   and it makes a snapshot on `main` and on this branch alike.
 - The `files://` payload store given to the service alone is not claimed to work:
   its payload must hold the branch as well as the replacement,

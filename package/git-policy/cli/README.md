@@ -5806,6 +5806,17 @@ and issue 6347 covers that class
 (`doc/object-database-and-a-reftable-ref-store.md`,
 "An effective setting the command alone holds").
 
+A `git worktree add` and a `git worktree remove` read the repository's own store,
+so `GIT_REPLACE_REF_BASE` naming a base that holds a replacement of the commit reaches Git's own reads and not the
+wrapper's proofs:
+the add snapshots the commit's own files where Git under the variable checks out the replacement's,
+and the removal destroys such a worktree where plain Git refuses it as dirty.
+That is what `main` does,
+a base with nothing under it keeps the snapshot,
+and issue 6396 holds it as a recorded limit
+(`doc/object-database-and-a-reftable-ref-store.md`,
+"An effective replacement base the command names on the worktree-add path").
+
 ## Operating conditions
 
 This package is one of the few that must keep working under the conditions its host lives in every day,

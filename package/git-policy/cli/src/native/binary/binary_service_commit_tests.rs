@@ -856,7 +856,7 @@ fn put_a_parentless_replacement_under_the_base(fixture: &Fixture, paths: &RowPat
     std::fs::write(paths.repo.join(".git/refs/probe").join(base.as_str()), format!("{replacement}\n")).expect("the replacement ref");
 }
 
-/// One row of the integration recheck's environment situations:
+/// One environment row:
 /// what the command's own environment holds,
 /// what the service's holds,
 /// what the row does first,
@@ -876,18 +876,17 @@ struct AnEnvironmentRow {
     amend: bool,
 }
 
-/// The rows of the environment survey the integration rechecks ran,
+/// The environment rows this control lists,
 /// in which `main` lands the right commit,
-/// each named here for what it holds (`r01` to `r32` are the survey's own row names).
+/// each named for what it holds.
 /// Why:
-///  These are the rows the commit refusal a later round removed refused:
-/// a value that names what the repository already
-///  uses,
-/// an empty cache directory,
-/// a replacement base with nothing under it,
-/// a reftable store naming what it is,
-///  and an effective setting the service holds too.
-fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
+///  A value that names what the repository already uses,
+///  an empty cache directory,
+///  a replacement base with nothing under it,
+///  a reftable store naming what it is,
+///  and an effective setting the service holds too are all cases `main` lands,
+///  and a commit refusal this branch once held refused every one of them.
+fn rows_of_the_environment() -> Vec<AnEnvironmentRow> {
     return vec![
         AnEnvironmentRow { name: "r01 the object store in use", reftable: false, command: the_object_store_in_use, service: nothing_held, prepare: nothing_to_prepare, amend: false },
         AnEnvironmentRow { name: "r02 the object store in use, held by the service too", reftable: false, command: the_object_store_in_use, service: the_object_store_in_use, prepare: nothing_to_prepare, amend: false },
@@ -906,11 +905,13 @@ fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
 }
 
 /// What:
-///  Every row of the recheck's environment situations in which `main` lands the right commit still lands it,
+///  Every row of the list above,
+/// in which `main` lands the right commit,
+/// still lands it,
 ///  with the parents Git reads and a whole commit,
 ///  and every row that does not is named in one failure.
 /// Why:
-///  The commit refusal a later round removed refused these rows,
+///  A commit refusal this branch once held refused these rows,
 /// and the merge bar is that a branch may not make anything
 ///  `main` does well worse:
 ///  a value that names what the repository already uses,
@@ -924,7 +925,7 @@ fn rows_of_the_recheck() -> Vec<AnEnvironmentRow> {
 /// so a regression names every row it breaks and not only the first of a variable.
 #[test]
 fn a_setting_the_command_or_the_service_holds_still_lands() {
-    let rows: Vec<AnEnvironmentRow> = rows_of_the_recheck();
+    let rows: Vec<AnEnvironmentRow> = rows_of_the_environment();
     let mut failures: Vec<String> = Vec::new();
     for (index, row) in rows.iter().enumerate() {
         if let Err(why) = one_row_lands(index, row) {
