@@ -217,6 +217,8 @@ function noConfiguration(chosen: Options): void {
     '  fi',
     '}',
     'cp $CONF /root/no-configuration-config.jsonc',
+    // Every exit puts the configuration back, so a failing check leaves the next arm a file to read.
+    "trap 'cp /root/no-configuration-config.jsonc $CONF' EXIT",
     'rm --force $CONF',
     '$H start-probe > /root/no-configuration-run.log 2>&1 || true',
     'cat /root/no-configuration-run.log',
@@ -241,7 +243,6 @@ function noConfiguration(chosen: Options): void {
     '  echo "MISSING the setup commands in the mode line"; cat /root/no-configuration-absent-run.log; exit 1',
     'fi',
     `zfs rename ${PROBE_DATASET}-absent ${PROBE_DATASET}`,
-    'cp /root/no-configuration-config.jsonc $CONF',
     'echo "NO-CONFIGURATION done"',
   ]);
   guest({ chosen, script, log: 'guest-no-configuration.log', timeout: ARM_TIMEOUT_MS, });
