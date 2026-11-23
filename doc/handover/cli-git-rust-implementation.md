@@ -323,6 +323,21 @@ and only the owner accepts one.
   in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`.
 - A checkout that is shared and slave counts as shared,
   in the propagation record's section "A mount that is shared and slave at once".
+- A check of these records against what the owner chose,
+  made at 2026-11-22T20:55-05:00:
+  every paragraph that quotes a chosen option was put beside that option's own text
+  (`decision-records-beside-the-chosen-options.txt` in the launch folder,
+  made by `pair-each-decision-record-paragraph-with-the-option-the-owner-chose.ts` there).
+  Two sentences were the coordinator's and not the owner's,
+  and are withdrawn in the records:
+  that a shared and slave checkout is left alone,
+  and that the answer on a shared namespace authorised "the clone's own copy and nothing wider".
+  One requirement in the lost-event record,
+  a cheap negative and a measurement before the nudge ships,
+  is now labelled as the coordinator's.
+  The rest match.
+  A record quotes the option and adds nothing the owner was not shown;
+  a consequence the coordinator draws is labelled as such.
 - The size read's reviewed branch merges now and its measured step cost is fixed next:
   "A:
   merge now,
@@ -586,10 +601,29 @@ and only the owner accepts one.
   the look runs once,
   in the first proof;
   each refusal text says only what its check read).
-- Going:
-  the reviewer's diff check,
-  to `review-diff-check-after-the-answers.md` beside its other reviews.
-- Nothing is left for the owner from its three answers.
+- The reviewer's diff check (`review-diff-check-after-the-answers.md` beside its other reviews):
+  "fit after the listed fixes",
+  nothing high;
+  the look runs once and the rerun is refused by the right check with the right history.
+  Mediums:
+  the gate on the look ("no intent and no plan") narrows the owner's answer and is on no veto list;
+  one guest arm and one control name the first check where the head check refuses;
+  and the text a person reads promises more than any record gives for a clone destroyed outside the wrapper.
+  Two of the three came from wrong pointers in the earlier review and brief.
+- Running:
+  `pi-zfs-deferred-destroy-checks-design-diff-check-after-the-answers`,
+  on `continuation-diff-check-after-the-answers.md`.
+- Two gaps that review leaves with other designs,
+  for their next rounds:
+  what a retry after a cancel does
+  (the plan record's two rules and the cancelled design's open question give three readings);
+  and what a removal does when the plan says the head is present and the clone is gone
+  because a person destroyed it
+  (the plan record states no rule).
+- For the owner afterwards,
+  as veto entries and not questions:
+  the gate on the look,
+  and whether the first check runs even when no snapshot request is sent.
 
 #### Step 17: the forced arm and the cancelled or interrupted removal
 
@@ -879,12 +913,12 @@ and only the owner accepts one.
   the bytes comparison the owner chose,
   the words corrected,
   and a test-only arm in product source (`src/native/lock/lock_metadata_arm.rs`) that answers the removal's reads.
-  Its second Sonnet pass is not started:
-  the harness refused it at 2026-11-22T20:42-05:00 with ten subagents already going,
-  its limit.
-  Start it when one ends,
-  as a general-purpose agent on Sonnet whose prompt is the whole of
-  `brief-second-pass-issue-6342-lock-control-pid-file.md` in the launch folder.
+  Its second Sonnet pass is going
+  (the harness takes ten subagents at once and refused it once;
+  it started when a reviewer ended),
+  on `brief-second-pass-issue-6342-lock-control-pid-file.md` in the launch folder,
+  to `~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`,
+  integration branch `integrate/git-policy-cli-lock-control-freed-name-pid-file-second-pass`.
   The pass left an orphaned cargo build folder,
   `~/.cargo/build/68/a5e436cd0c0598` (770 MB),
   and its gate met a third test that failed once and passes alone,
