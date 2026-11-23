@@ -954,7 +954,8 @@ and none is a measurement of behaviour.
   lines 6277 to 6285).
   The sibling design proposes a filter that runs a pass only for the parent subtree
   ([`cli-git-zfs-lost-last-event-triggers-design.md`](cli-git-zfs-lost-last-event-triggers-design.md),
-  "The event filter"),
+  "The event filter,
+  in brief"),
   which the checkout dataset,
   a sibling of the container,
   is outside.
@@ -1901,9 +1902,8 @@ and the checkout it sits under is private by then,
 so the sweep's own check (F18) is unaffected.
 The mounts of other namespaces are not in this table and are not part of this report,
 which is L3's limit stated where it bears.
-A run that refuses before it reads the table writes `unread`,
-not `0`,
-for `beneath` and `beneath-path`,
+A run that refuses before it reads the table writes `beneath unread` and no `beneath-path` line,
+not `beneath 0`,
 so `doctor` can say the step never looked rather than that nothing was found;
 "refused" and "none found" are two different answers and the record holds them apart.
 
@@ -2874,7 +2874,8 @@ They are additions to the record the build already owes ([measurements][measurem
   Then the bound,
   as a builder can script it:
   the state before is the checkout private and `/home/guest` shared;
-  the one action is `mount --make-shared /home/guest/chk`,
+  the one setup is three steps in this order:
+  `mount --make-shared /home/guest/chk`,
   which makes the checkout shared again,
   then mounting five datasets under it,
   each of which comes up shared under a shared destination (F3,
@@ -2883,10 +2884,11 @@ They are additions to the record the build already owes ([measurements][measurem
   which is why the checkout is made shared first),
   then running the step;
   the expected record is `beneath 5` with four `beneath-path` lines and `outcome applied`;
-  and the bound on the wait is the run's own return,
-  or,
-  when the step is started through the boot unit,
-  the unit's `ActiveState` settling back to active inside the deadline the guest round states.
+  and the bound on the wait is one deadline for both ways of starting it,
+  which is the record's `time` appearing after the run returns,
+  or the boot unit's `ActiveState` settling back to active after it has been asked,
+  and which the guest round sizes (rule `LQM`):
+  the arm does not ship without that number.
   Would show:
   whether the scan finds a shared child and names it,
   whether it leaves the child exactly as it was,
@@ -3268,7 +3270,8 @@ A veto changes the sentence named and nothing else.
     `already-private`,
     `left`,
     `refused`,
-    and the word `unread` for a field the run never reached,
+    and the word `unread` for the count of shared mounts beneath when the table was never read,
+    with `none` for every other field a refusal never reached,
     and the step words in "The
     propagation record".
     Replaced:
@@ -3399,7 +3402,9 @@ A veto changes the sentence named and nothing else.
 7.  The record's path bound.
     Taken:
     four paths,
-    which is one more than this host's single nested dataset (F33).
+    which is the writer's choice and leaves room above this host's one nested dataset (F33):
+    it names that dataset and three more,
+    and the count carries whatever lies beyond.
     Replaced:
     one `beneath-path` line for every shared mount found,
     bounded only by the table's own 4 MiB limit.
@@ -3791,7 +3796,8 @@ with its committer time from `git log --format=%cI`:
   the install paragraph and L11 say the stop pass unmounts every clone,
   M11 is reframed as the guest confirmation of that reading,
   and the previous round's contrary claim is corrected here;
-  the record gains `unread` for a field a refusal never reached,
+  the record gains `unread` for the count of shared mounts beneath when the table was never read,
+  and `none` for every other field a refusal never reached,
   the four-path bound becomes V7,
   the guest arm mounts its shared child while the checkout is still shared,
   V1 and V2 are corrected,
