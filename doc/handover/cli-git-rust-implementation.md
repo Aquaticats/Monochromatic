@@ -1107,9 +1107,32 @@ and only the owner accepts one.
   on `fix/git-policy-cli-object-reader-declined-branches-controls-and-lows`
   (report `keep/report-recheck-findings.md` in its folder,
   its session kept beside it).
-  Its third Sonnet recheck is going,
-  to `~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/review.md`,
-  integration branch `integrate/git-policy-cli-object-reader-the-commit-refusal-is-out`.
+  Its third Sonnet recheck found everything it was asked to check fixed,
+  and still said not fit
+  (`~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/review.md`;
+  integration branch `integrate/git-policy-cli-object-reader-the-commit-refusal-is-out` at `b3626a5d0f`).
+  Closed:
+  the commit refusal is gone and the merge equals `main` in all 32 environment rows;
+  each guard removed alone turns its own control red.
+  The one finding,
+  not in its brief:
+  with `GIT_OBJECT_DIRECTORY`,
+  `GIT_ALTERNATE_OBJECT_DIRECTORIES` or `GIT_REPLACE_REF_BASE` set,
+  even to a value that changes nothing,
+  `git worktree add` makes a snapshot on `main` and a copy on the branch
+  (three of five cases in its btrfs guest).
+  Running:
+  `pi-object-reader-third-recheck-findings-worktree-add-snapshot`,
+  on `continuation-third-recheck-findings.md` in the round's folder.
+  Then a fourth recheck.
+  Two controls the branch does not touch failed in the recheck's runs and are not filed yet:
+  a `health::doctor` control,
+  once in the gate,
+  whose cause the recheck showed
+  (a maintenance child's `objects/maintenance.lock` in a first listing and gone by a second);
+  and the control whose name starts `the_hashed_bytes_`,
+  which fails alone on this host on `main` too,
+  undiagnosed.
 - The size read
   (`feat/git-policy-cli-fence-size-read-beside-source-check` at `f752fe3cab`):
   its Sonnet recheck found nothing high and no add slower
