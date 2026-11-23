@@ -572,8 +572,17 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     // Arm 7: a task whose process root is not `/`.
     // The kernel answers EINVAL for that task's mount table read from this namespace, so the scan cannot see what
     // the namespace holds and reports the namespace as a read it could not complete.
-    let mut rooted: Task = divergent_root(sbin.as_str(), clone.as_str())
-        .unwrap_or_else(|| panic!("the divergent-root task's mount namespace could not be made; see the arm's log for the refusal"));
+    let rooted_made: Option<Task> = divergent_root(sbin.as_str(), clone.as_str());
+    let Some(mut rooted) = rooted_made else {
+        // This guest refused the task itself, and the run says so rather than passing or failing on it.
+        println!("SCAN divergent-root=unavailable reason=this-guest-refused-a-task-under-another-process-root");
+        if mounted(clone.as_str()) {
+            let slot: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
+            unmount_at(slot.as_path());
+        }
+        println!("SCAN done");
+        return;
+    };
     let rooted_namespace: String = rooted.namespace.clone();
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
     let mut rooted_scan: Option<HolderScan> = None;

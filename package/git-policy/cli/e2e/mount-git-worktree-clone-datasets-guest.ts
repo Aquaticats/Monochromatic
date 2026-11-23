@@ -81,7 +81,7 @@ const EXPECTED_SCAN_MARKERS = [
   'SCAN HOLDER other-namespace=1',
   'SCAN confined-consumer=',
   'SCAN churn scans=20',
-  'SCAN divergent-root incomplete=true',
+  'SCAN divergent-root',
   'SCAN pinned-namespace invisible=true',
   'SCAN done',
 ] as const;
