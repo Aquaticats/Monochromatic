@@ -1,10 +1,13 @@
 # Private propagation after a replacement mount of the checkout
 
-Non-final,
-unapproved design proposal by an agent.
-It is not approved by the project,
-and nothing in it is
-final.
+Design by an agent,
+accepted by the project as written on 2026-11-22
+(`doc/decision/cli-git-zfs-checkout-propagation-repair.md`,
+"The design is accepted",
+which lists the eight choices accepted with it).
+Nothing in it has been run:
+its guest arms are specifications the build step writes and runs,
+and whether its provisional trigger stays is decided by a guest measurement still owed.
 It designs the open item "What re-applies private propagation after a replacement mount" of the accepted ZFS
 worktree design,
 and it makes no decision that design or the project's answers did not make beyond the writer's
