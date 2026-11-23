@@ -408,6 +408,10 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     `zfs destroy -r -f ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
     `zfs destroy -r -f ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
     `zfs destroy -r -f ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/account-clones 2>/dev/null || true`,
+    `zfs destroy -r -f ${SWEEP_POOL}/nosnap 2>/dev/null || true`,
+    // Every mount under the checkout goes first, the slots an earlier run attached included, then the checkout itself.
+    'for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ' + SWEEP_CHECKOUT + ' || true); do umount "$target" 2>/dev/null || true; done',
     `umount ${SWEEP_CHECKOUT} 2>/dev/null || true`,
     `rm --recursive --force ${SWEEP_CHECKOUT}`,
     `mkdir --parents ${SWEEP_CHECKOUT}`,

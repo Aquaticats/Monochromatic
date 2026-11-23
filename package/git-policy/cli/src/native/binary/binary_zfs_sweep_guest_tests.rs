@@ -196,6 +196,12 @@ fn mount_row(folder: &Path) -> Option<String> {
     return table.lines().find(|line| return line.split(' ').nth(4) == Some(wanted.as_str())).map(|line| return String::from(line));
 }
 
+/// Take one mount down by its path where the arm cannot be sure it stands,
+/// which is cleanup of a fixture rather than a proof.
+fn unmount_if_it_stands(folder: &Path) {
+    let _ignored: std::io::Result<std::process::ExitStatus> = Command::new("umount").arg(folder).status();
+}
+
 /// Take one mount down by its path,
 /// which is this arm's own cleanup and never the route's unmount.
 fn unmount_at(folder: &Path) {
@@ -654,7 +660,10 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     // A clone of another checkout dataset's snapshot is another lineage.
     let foreign_checkout: String = format!("{pool}/step8-foreign/{CHECKOUT_LEAF}");
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/step8-foreign").as_str()]);
-    zfs_ok(sbin.as_str(), &["create", "-p", foreign_checkout.as_str()]);
+    // The foreign checkout is a fixture and never mounted: a mounted dataset of the checkout's leaf name would be a
+    // second instance for the arms after this one.
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=none", foreign_checkout.as_str()]);
+    zfs_ignored(sbin.as_str(), &["unmount", foreign_checkout.as_str()]);
     let foreign_slot: &str = "four";
     make_the_slot(checkout.as_path(), foreign_slot);
     zfs_ok(sbin.as_str(), &["snapshot", &format!("{foreign_checkout}@{ORIGIN_PREFIX}{nonce}")]);
@@ -671,6 +680,11 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     // because a row inside the container this run uses is no instance of the checkout
     // (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`, "Four further answers on the look-up with no configuration
     // file", the first answer).
+    // The probe needs its own dataset and its empty `ready` snapshot, which plan step 19's setup creates.
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/nosnap").as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=legacy", "-o", "canmount=off", format!("{pool}/nosnap").as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "com.sun:auto-snapshot=false", format!("{pool}/nosnap/git-worktree-probe").as_str()]);
+    zfs_ok(sbin.as_str(), &["snapshot", format!("{pool}/nosnap/git-worktree-probe@ready").as_str()]);
     let named_container: String = format!("{pool}/account-clones");
     zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", named_container.as_str()]);
     zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", named_container.as_str()]);
@@ -720,7 +734,12 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let probe_without_the_key: Run = start_probe();
     let several_record: String = probe_record();
     assert_eq!(record_line(several_record.as_str(), "verdict"), Some("blocked"), "the probe blocks on several without the key: {several_record}");
-    assert_eq!(record_line(several_record.as_str(), "source-refusal"), Some("several-mounted-checkouts"), "{several_record}");
+    // The word sits on the checkout-root step's line; the record's own source-refusal field names the source step, which
+    // fails for want of a checkout to take the pool from.
+    assert!(
+        several_record.lines().any(|line| return line.starts_with("step checkout-root not-exercised") && line.contains("reason several-mounted-checkouts")),
+        "the probe's checkout-root step names several: {several_record}"
+    );
     for named in [checkout_dataset.as_str(), account_clone.as_str()] {
         assert!(probe_without_the_key.said.contains(named), "the printed listing names {named} with its path: {}", probe_without_the_key.said);
     }
@@ -732,7 +751,10 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let probe_with_nothing: Run = start_probe();
     let none_record: String = probe_record();
     assert_eq!(record_line(none_record.as_str(), "verdict"), Some("blocked"), "the probe blocks when nothing carries the leaf name: {none_record}");
-    assert_eq!(record_line(none_record.as_str(), "source-refusal"), Some("no-mounted-checkout"), "{none_record}");
+    assert!(
+        none_record.lines().any(|line| return line.starts_with("step checkout-root not-exercised") && line.contains("reason no-mounted-checkout")),
+        "the probe's checkout-root step names none: {none_record}"
+    );
     assert!(
         probe_with_nothing.said.contains("no row's source carried it") || probe_with_nothing.said.contains("is an instance of the checkout dataset"),
         "the printed listing says what the table held: {}",
@@ -744,10 +766,15 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     command_ok("mount", &["--make-private", checkout.display().to_string().as_str()]);
 
     // The account's clone, its snapshot and the container go away, so no later arm meets a second leaf row.
+    unmount_if_it_stands(checkout.join(".claude").join("worktrees").join(CHECKOUT_LEAF).as_path());
     zfs_ok(sbin.as_str(), &["destroy", "-r", "-f", named_container.as_str()]);
     let _snapshot_gone: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["destroy", account_snapshot.as_str()], None);
     let _in_use_record_cleared: std::io::Result<()> = std::fs::remove_file(Path::new(STORE).join(CHECKOUT_LEAF));
     let _in_use_slot_cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.join(".claude").join("worktrees").join(CHECKOUT_LEAF));
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", format!("{pool}/nosnap").as_str()]);
+    // This arm's probes wrote their own verdicts, the last of them `blocked`; the arms after this one need the passing
+    // record the earlier arms handed in.
+    write_passing_probe_record();
     println!("STOPPAGE cleanup done container={named_container}");
 
     // The descriptor unmount a rollback makes: the mount a held descriptor placed stands at the moved path while a
