@@ -3749,6 +3749,14 @@ the silently decided choices are listed as V9 to V12;
 the stale cites and sibling tips are corrected,
 and the binding record is read last at `21cbe938f5`.
 
+- `75de92b781` at `2026-11-22T21:19:12-05:00`:
+the fallback line keeps the snapshot rung's own prefix,
+"this worktree was not made as a snapshot,
+so it took longer,
+because ",
+rather than one adapted from it,
+which is Y6.
+
 ## Sources read
 
 Git `v2.56.1`,
