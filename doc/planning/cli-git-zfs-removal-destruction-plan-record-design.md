@@ -4260,4 +4260,12 @@ meets" for the pass's binding condition,
   `doctor`'s list gains the clause that such a tuple is printed with its name,
   GUID and group,
   and that `doctor` reads no pool for it.
+- `c54601afd8`,
+  committer time `2026-11-23T18:43:49-05:00`:
+  "Readers that do not exist" no longer says an add reads no plan;
+  it records that the add reads this folder to refuse and for nothing else,
+  names the command "Which resume path a removal takes" gives,
+  and says a plan of an earlier clone at the same path is not that binding's plan,
+  which is the binding design's V24 and its "Which command is true for a state".
+  The dependency sentence beside it says one fact remains and is B's own.
   A later commit that only adds or corrects this list is not listed.
