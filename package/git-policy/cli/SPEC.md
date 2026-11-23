@@ -20919,8 +20919,17 @@ in this order:
   it prints each mounted dataset it found with its path."
   The mode recomputes the look-up in its own process,
   which is in the host mount namespace,
-  and prints the refusal's own words;
-  the record keeps its closed word and its format.
+  and prints the refusal's own words.
+  Those words name the probe's own keys:
+  the remedy is `startProbe.checkout` or `startProbe.dataset`,
+  never the sweep's `cloneMounts` entries,
+  which the probe does not read
+  (the second pass's finding B2).
+  Every other refusal the probe's configuration can produce gets its sentence
+  the same way,
+  and the empty file's says an empty file is not the same as no file,
+  as the project's fourth answer asks.
+  The record keeps its closed word and its format.
   A file that is absent,
   or that holds no `startProbe` object,
   is therefore no refusal:

@@ -432,6 +432,11 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
       return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/sweep-arm.log`;
     }),
     'cp /root/sweep-arm.log /mnt/shared/sweep-arm.log',
+    // The arm's own layout goes, so a driver that runs afterwards finds one instance of the checkout's leaf name and
+    // not two: the probe's no-configuration arm reads the whole mount table.
+    `for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ${SWEEP_CHECKOUT} || true); do umount "$target" 2>/dev/null || true; done`,
+    `umount ${SWEEP_CHECKOUT} 2>/dev/null || true`,
+    `for layout in step8 step8-encrypted step8-foreign step8-bound account-clones nosnap; do zfs destroy -r -f ${SWEEP_POOL}/$layout 2>/dev/null || true; done`,
   ].join('\n');
   guest({ chosen, script, log: 'guest-sweep.log', timeout: ARM_TIMEOUT_MS * 2, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/sweep-arm.log', join(chosen.logDir, 'sweep-arm.log'),], log: 'host-pull-sweep.log', });
