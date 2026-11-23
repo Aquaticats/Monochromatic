@@ -1203,6 +1203,132 @@ and only the owner accepts one.
   It cites the lost-event design at `95d3b2074e`,
   which is still moving.
 
+#### Results that came in while a question waited overnight, each with its next step (2026-11-23T03:48:32-05:00)
+
+The acceptance question for the dirty-main design was open from about 2026-11-22T22:25-05:00 until 2026-11-23T03:48-05:00.
+Everything here arrived in that time and was waiting when the answer came.
+An item leaves this list when its next step is started and recorded in its own entry.
+
+- The dirty-main design (step 11):
+  accepted by the owner as written,
+  sixteen choices.
+  Its tip is `23a2afe0bd`;
+  the coordinator read the last diff
+  (`b377d175de` to `23a2afe0bd`),
+  which changes what the last review asked.
+  Next:
+  the record,
+  the merge,
+  the opening's status,
+  a rendered check.
+- Step 10,
+  the reviewer's read of both diffs
+  (`review-fifth-diff-read.md` in `~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/`):
+  the lock design (`9e3ceff079`) fit after lows U7 to U9;
+  the binding (`7d041d773b`) fit after U1 to U3
+  (the rule for an unlocked complete registration is contradicted in three places;
+  the busy-unmount text names a command that does not exist;
+  a `settling` binding whose clone is gone and unprovable has no command true for it);
+  step 10 buildable without asking once U1 is fixed,
+  apart from what lies outside the two documents.
+- The record set,
+  the reviewer's read of the three diffs
+  (`review-fifth-diff-read.md` in `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`):
+  the fourth check's high finding is closed;
+  the set is "not yet" for N1
+  (the binding's veto entry V20 was deleted while four sentences still cite it),
+  N2 (the same state as U3),
+  N3 (the plan design and the binding disagree on a reused clone name,
+  and the settling command's order and its refusal for an unreadable plan are unstated),
+  N4 (the plan design's rule for an `unknown` tuple is half changed)
+  and N13 (the binding's test for the settling command builds the option the owner did not choose).
+  The origin cleanup design (`f17455b786`) has nothing blocking.
+  Next for both:
+  one binding round on U1 to U6,
+  N1 to N3 and N13,
+  with the dirty-main design's requirement on its last step;
+  then the lock design's lows and the plan design's N3 and N4;
+  then the coordinator reads those diffs,
+  and the two acceptance questions follow.
+- Step 17,
+  the reviewer's read of both diffs
+  (`review-fifth-diff-read.md` in `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`):
+  the forced arm (`f7765aea32`) fit after six mediums,
+  the cancelled removal (`3035d29766`) after one;
+  the probe is not ready to be scripted
+  (no bounds,
+  no values for its constants,
+  no stated invocation,
+  several actions in one arm,
+  and no guest with the production kernel exists).
+  Next:
+  the forced arm's round,
+  then the cancelled removal's,
+  then the guest round for the arms that need only mounts and namespaces.
+- The lost-event design:
+  its round on the last read ended at `9945b5ada5`
+  (report `keep/report-last-diff-read.md` in its folder).
+  Next:
+  the reviewer's read of that diff,
+  then the acceptance question.
+- The no-configuration branch:
+  the owner's four answers are recorded
+  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+  "Four further answers on the look-up with no configuration file");
+  its fix round ended at `ae7e91e94b`.
+  Next:
+  read its report for what it found about hiding snapshot directories,
+  then a second Sonnet pass.
+- Issue 6342's branch (`cdf3b3d6fd`):
+  the second pass says fit to merge now,
+  every finding low
+  (`~/temp/agent/integration-second-pass-lock-control-freed-name-pid-file-2026-11-22/keep/review.md`).
+  Next:
+  merge it,
+  check `main`,
+  post the corrected sentence the review gives as a comment on commit `39610f128b`,
+  and fold its lows in a short round after.
+- Issue 6346's branch (`963d51627e`):
+  the second pass says not fit for wording alone
+  (`~/temp/agent/integration-second-pass-commit-timing-control-2026-11-22/keep/review.md`);
+  the 1 ms bound is sound and no plant `main` catches passes the merge.
+  Next:
+  a wording round,
+  then merge.
+- Issue 6345's branch (`ef0bbe214f`):
+  the second pass says not fit for wording its runs contradict,
+  and found that the wait still misses a record moved by a recovery of an expired claim
+  (`~/temp/agent/integration-second-pass-worktree-removal-held-commit-control-2026-11-22/keep/review.md`).
+  Next:
+  a round on the wording and a third sample in the wait;
+  file the three issues whose corrected texts the review gives.
+- The partial clone's recheck (`45499c3154`):
+  not fit,
+  for one finding:
+  on btrfs a clean tree of files averaging under 49 bytes is slower than `main`
+  (`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`).
+  Four decisions for the owner are in the review.
+- Step 9's unmount,
+  staging and reattach (`59f2bd1876`):
+  the pass says not fit
+  (`~/temp/agent/integration-pass-zfs-step-9-unmount-staging-and-reattach-2026-11-22/keep/review.md`).
+  Two high findings from guest runs:
+  the reopen of the staged folder by its handle does not work on a real kernel;
+  and no recovery after a kill is wired,
+  so a killed unmount is never finished.
+  Its receipts question for the owner ranks extending the format first.
+  Everything is behind a pin that step 19 writes,
+  so nothing reaches a user today.
+- Rounds that ended and need their Sonnet pass:
+  step 9's holder scan (`1b574285f3`),
+  step 8's follow-up (`c87a50a09b`),
+  the size read's follow-up (`9329642a95`),
+  the object reader's fix (`daa0836b75`).
+- The short Pi review of the freeze's troubleshooting document ended;
+  its report is to be read.
+- Both watchers have ended;
+  no round was running when this was written.
+
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
 
 - The owner reported the machine stuck for about five minutes at about 20:51 to 20:56.
