@@ -784,8 +784,9 @@ read at `a8514d9d6a` in `doc/planning/cli-git-zfs-add-binding-record-design.md`,
 puts its folder inside the wrapper's own folder,
 at `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`
 (`:974` of that document at that commit),
-keys its files by the slot name (`:1067`),
-writes ZFS names verbatim and paths in hex (`:1163` to `:1300`),
+keys its files by the slot name (`:1032` to `:1084` and `:1208` to `:1220`),
+writes ZFS names verbatim,
+paths in hex and GUIDs in canonical decimal (`:1221` to `:1232`),
 flushes every write that falls on the flushed side of the route's rule (`:1243` to `:1251`),
 refuses a record whose owner or mode is not the account's,
 and lets `doctor` remove a staging name only when the folder holds no live claim.
@@ -1137,7 +1138,7 @@ The steps:
 3.  It verifies the handler's unmount and the receipt's own fields for its nonce,
     and a forced receipt may cover more than one namespace.
     Without `--force`,
-    a holder the fresh all-namespace scan sees cancels the removal here,
+    a holder the unmount's request or its receipt names cancels the removal here,
     before any delete,
     and the clone is attached at its slot again with no plan written.
 4.  It writes the plan's first record,
@@ -1287,7 +1288,7 @@ A look is this design's per-command look wherever question one places it.
   A later removal re-verifies the unmount and writes the plan.
 - Between 3 and 4.
   A verified unmount stands,
-  or a holder the scan saw without `--force` has cancelled the removal and the clone is attached again.
+  or a holder the unmount named without `--force` has cancelled the removal and the clone is attached again.
   Nothing was destroyed.
   A later removal writes the plan.
 - Between 4 and 5.
@@ -2861,6 +2862,14 @@ Two steps build what this design reads and does not own.
 Step 10 writes the add's binding record whose origin identities the removal copies (A1),
 and steps 10 and 13 own the Git lock whose release settling performs (the proposal `:466` to `:468`).
 
+The list's other points belong to the steps that own them:
+the two deferred-destroy checks to step 15,
+the forced request to step 17,
+and the add that destroys what it made to step 11.
+This design states them so that the three records have one order,
+and it designs none of them;
+"What this design does not cover" says so for each.
+
 Step 16's build writes three passages into `package/git-policy/cli/SPEC.md`:
 
 - The removal section gains the cleanup record's folder,
@@ -2883,16 +2892,13 @@ under `package/git-policy/cli/src/native/worktree/`,
 with the folder rules `LYD` and `LYL` applied to any folder it adds,
 and `doctor`'s lines join the ZFS part of `health/doctor_filesystem.rs`.
 
-The plan needs four amendments when this design is accepted:
+The plan needs three amendments when this design is accepted:
 
 - Step 16's "What it builds" gains
   "the origin cleanup record at its moment in the order,
   and the look every triggering command makes at it".
 - Step 18's `doctor` list gains the record's lines and the unaccounted snapshot line.
 - Step 16's acceptance tests gain the settle-while-blocked arm with a pending record.
-- The order's step 9 becomes "read and confirm the origin cleanup record already published",
-  for the plan design,
-  whose own step 9 now writes it after the settle (F25).
 
 ## Measurements owed
 
@@ -4213,6 +4219,66 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   with the findings and the statement of what changed above.
   A later commit that touches only this list is the one `git log --format=%cI` reports for this path after
   `65a6c4c008`.
+- `0973f2fc2a`,
+  2026-11-22T19:08:52-05:00:
+  the revision entry's own commit line.
+- `9c530c80ad`,
+  2026-11-22T19:58:53-05:00:
+  the fourth round,
+  which answers the diff check,
+  after merging `main` at `e3c26ae8b7` with `git merge --no-ff` into `a95a179338`,
+  which brought the evening's three decisions and changed nothing this document owns.
+  Its findings and where each is fixed:
+  - Z2,
+    the promote guard:
+    the proof's second step now refuses a dataset whose origin snapshot's `createtxg` is at or above the recorded
+    one,
+    with F20 corrected to the man page's "and any snapshots previous to this snapshot" and item 11's measurement,
+    L11 restated,
+    T10's three arms and G6's two promote arms;
+    the name comparison of `0973f2fc2a` is gone.
+  - Z4,
+    the sibling statements:
+    the "Sources read" list,
+    the fourteen-point section and F24 and F25 are rewritten at the plan design's `b4dc758a76`
+    and the binding design's `a8514d9d6a`,
+    with the remaining stale statements named,
+    including the step-number shift the second check causes.
+  - Z6:
+    point 12's tail numbers are 10 to 14,
+    the stale "step 7 publishes" sentence is gone with the rewritten subsection,
+    and the finisher's bullet now finishes the binding before the plan.
+  - Z7:
+    the kill list gains points inside 6,
+    inside 12,
+    inside 13,
+    at the second check between 7 and 8,
+    and inside 1's early look.
+  - The evening's forced-removal decision:
+    step 2 gains the request the root handler reads,
+    the kill list gains the point while a forced request stands and says a deadline is not a cancellation,
+    and the cancel after step 6 is the manual cancel only.
+  - The evening's deferred-destroy decision:
+    step 1 gains the early look,
+    step 5's refusal is pending with the clone unmounted and out of use,
+    and the second check is the new step 8 with the state its refusal leaves.
+  - The evening's dirty-main decision:
+    "The add that fails and destroys what it made" makes the add a second caller of the writer and the attempt,
+    and the unaccounted line says why it calls none of that litter.
+  - Z9:
+    question one's scene is a hold rather than a second clone.
+  - Z10:
+    the blank line before "What this design does not cover" and the implementation plan's step 6 in the gate rule.
+  - The questions:
+    the four are in the diff check's current wording,
+    and the list of what an accepted record decides gains the evening's three decisions.
+  Text the check found sound that a fix forced to change:
+  the merged list,
+  which gains the second check and the forced request and so renumbers its tail;
+  the proof's second step (Z2);
+  question one's scene and wording (Z9);
+  and the doctor section's unaccounted line (the dirty-main decision).
+  Nothing else the check found sound was changed.
 
 ## References
 
