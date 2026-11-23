@@ -178,9 +178,10 @@ a clean source is judged by its mean tracked file size,
 the index's tracked bytes over its tracked paths,
 which is the decision's answer of 2026-11-22 ("The size limit on a clean source").
 The changed-file cut is asked of both.
-The index is parsed once there and the same entries go to the copies and the fence,
-so the limits and the rung cost
-one parse rather than three (the integration pass's low L1).
+The index is parsed once there and the same entries go to the rung's copies,
+and the fence's own two reads of the same index are now one,
+so an add costs two parses of it rather than four
+(the integration pass's low L1).
 The two sentences name the input and the numbers,
 and a decline line says which checkout wrote the worktree instead
 of saying an add took longer (low L4):
@@ -661,6 +662,78 @@ and was equal to Git's own checkout by `diff --recursive --no-dereference`.
   with the two standing cause-H failures
   `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` names,
   and nothing else.
+
+### This round's checks, 2026-11-22
+
+- `native:check`,
+  `native:clippy`,
+  `native:clippy:measurement` and `lint:types` all exit 0.
+- The touched modules on the host:
+  122 tests run,
+  122 passed
+  (`worktree_clone_partial`,
+  its split and index,
+  `worktree_clone_rung_limits`,
+  `worktree_ladder_finish`,
+  `..._run`,
+  `..._target_tree_skip`,
+  `worktree_clone`,
+  `add_standing_notice`).
+- The class harness reads every library test under `worktree::`,
+  `worktree_copying::`,
+  `worktree_clone_mount::` and
+  `subvolume::`,
+  on this branch and on `main` at `8484e7f817`,
+  and the binary tests whose names mention a clone.
+  Branch:
+  1,790 run,
+  1,763 passed,
+  27 failed.
+  `main`:
+  1,754 run,
+  1,728 passed,
+  26 failed.
+  The only name that failed on the branch and not on `main` was
+  `worktree::add_standing_notice::tests::every_step_an_add_enters_has_its_own_sentence`,
+  red because this round's `trackedEntries` step had no sentence of its own;
+  it has one now and the control passes.
+  `worktree::worktree_clean_content::safety_tests::the_hashed_bytes_are_the_bytes_of_the_one_file_that_was_judged`
+  failed in the second branch run and passed in the first and on `main`'s;
+  three focused reruns read one pass and two
+  failures,
+  so it is a timing flake of a module this branch does not touch,
+  and it is worth an incident of its own.
+- The seeded sample,
+  seed 11,
+  150 combinations:
+  300 checks,
+  300 passed,
+  routes `a partial clone 70`,
+  `Git's checkout 80`.
+- The container gate ran as its own unit,
+  `clone-rung-mean-edge-gate-20261122.service`
+  (`RuntimeMaxSec=3600`,
+  image tag `clone-rung-mean-edge-gate-20261122`,
+  run id `YwoRG0`):
+  `Summary [1156.781s] 9806 tests run: 9804 passed (8 slow), 2 failed, 36 skipped`,
+  the two being the cause-H pair `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` names.
+  Its Clippy step finished in 4m 51s with no warning.
+  Its first run failed this round's own control `the_flow_runs_where_no_file_can_be_cloned`
+  (`FICLONE on unchanged-0.txt failed: Operation not supported`),
+  because the paths this round added for the cut
+  carried bytes and the gate's tmpfs cannot reflink them;
+  they are empty now.
+  That run also failed `shadow::shadow_create::tests::a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`,
+  which passes in a focused host run and is a busy-run failure no cause in that document covers yet.
+- The linter,
+  `monochromatic-lint 0.5.2-alpha.8`,
+  over the 33 changed files:
+  no finding.
+  `rust/avoidable-closure` was skipped because `cargo-dylint` is not installed.
+- The guard plants:
+  the mean rule's guard removed put the two mean-edge controls red;
+  a clean source judged by the whole-tree sum put the six H1 controls and the clean-source control red;
+  the split's cut guard removed put the stat-stale control red and left the other 26 of the partial clone green.
 
 ### The guest arm
 
