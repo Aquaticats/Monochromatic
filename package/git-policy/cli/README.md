@@ -870,31 +870,28 @@ Read-only commands,
      and the thread and child end with the process.
      A refused-at-once add pays about a millisecond of a child;
      a declined add runs the read in the background beside `git check-attr`,
-     and the read hands its `ls-tree` output over unparsed,
-     so a declined add drops one buffer and never builds the map.
-     The integration recheck's 576 counted adds,
+     and the abandon hands the answered map to a thread of its own to free,
+     so the free is off the adding thread (its take step measures 0.002 ms)
+     and the parse stays on the read's thread,
+     where `main` had it.
+     The integration pass's twelve-round shapes of 2026-11-23,
      position-balanced on Git 2.56.1 in a btrfs guest with an identical-binary control,
      give a median ratio of an add's whole time
-     (branch to `main`,
-     then the twin to the branch):
-     a served loose add 0.763 (0.701 to 0.814),
-     twin 1.040 (0.983 to 1.061);
-     a served packed one 0.945 (0.783 to 0.981),
-     twin 1.021 (0.970 to 1.156);
-     a refused loose one 0.999 (0.916 to 1.047),
-     a refused packed one 0.968 (0.927 to 1.078);
-     a cone sparse loose one 1.015 (0.980 to 1.066),
-     packed 0.981 (0.905 to 1.040);
-     a declined loose one 0.992 (0.952 to 1.032),
-     packed 0.995 (0.952 to 1.026);
-     a refused loose add whose Git fails at once 0.985 (0.899 to 1.125),
-     packed 1.030 (0.974 to 1.071).
+     (this build to `main`,
+     then the twin to this build):
+     a served loose add 0.962 (0.928 to 1.001),
+     packed 0.985 (0.955 to 0.995);
+     a dirty loose one 1.007 (0.914 to 1.026),
+     packed 0.982 (0.940 to 1.042);
+     a declined loose one 0.989 (0.910 to 1.083),
+     packed 1.017 (0.959 to 1.067);
+     the twins 0.981 to 1.022.
      No add's total is resolved slower;
      the rounds,
      the twin's spread and the rows are in
      `doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-     "The re-time on Git 2.56.1,
-     2026-11-22".
+     "The parse on the adding thread,
+     tested again".
      The snapshot shares every data block with its source and carries the source's whole ignored state
      (`node_modules` included),
      so the ignored-state copy is skipped for it.

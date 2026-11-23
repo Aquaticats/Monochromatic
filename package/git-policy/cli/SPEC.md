@@ -1538,10 +1538,16 @@ a source that refuses at once pays about a millisecond of a child,
 started and ended at publication;
 a declined add runs the read in the background for its whole length beside `git check-attr`
 (66 to 68 ms in the integration recheck's declined rows),
-and the read hands its `ls-tree` output over unparsed,
-so the abandon drops one buffer (about 0.3 ms)
-and the map is never built for it;
-the fence parses the output only when it uses it.
+and the abandon hands the answered map to a thread of its own to free
+(the abandonment's take step measures 0.002 ms on the adding thread),
+so the map and its 24,634 entries are freed off the adding thread
+and stay resident for the few milliseconds that free takes rather than to the end of the add
+(3.1 MB for this crate's fixture,
+about 128 bytes a path);
+the parse itself stays on the read's thread,
+where `main` had it,
+so an add that uses the answer does not parse it on its waiting path
+(the integration pass's Medium 1 of 2026-11-23).
 No declined add's total is slower than `main`'s
 (the ratios are beside the timings below).
 A read still running when the process ends carries `PR_SET_PDEATHSIG`,
@@ -1551,40 +1557,30 @@ Which of an add's other reads it already paid depends on where it ends:
 a source check that refuses costs Git's own checkout and the read it started and ended,
 an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
-The integration recheck's 576 counted adds
+The integration pass of 2026-11-23's twelve-round shapes
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-"The re-time on Git 2.56.1,
-2026-11-22"),
-12 to 40 rounds a shape,
-position-balanced,
-on Git 2.56.1 built from source in a btrfs guest,
+"The parse on the adding thread,
+tested again"),
+position-balanced on Git 2.56.1 built from source in a btrfs guest,
 with an identical-binary control,
 give these median ratios of an add's whole time
-(branch to `main`,
-with the identical twin's ratio to the branch beside it):
-a served loose add 0.763 (0.701 to 0.814),
-twin 1.040 (0.983 to 1.061);
-a served packed one 0.945 (0.783 to 0.981),
-twin 1.021 (0.970 to 1.156);
-a refused loose one 0.999 (0.916 to 1.047),
-twin 0.992 (0.882 to 1.050);
-a refused packed one 0.968 (0.927 to 1.078),
-twin 1.033 (0.941 to 1.065);
-a cone sparse loose one 1.015 (0.980 to 1.066),
-twin 0.980 (0.935 to 1.050);
-a cone sparse packed one 0.981 (0.905 to 1.040),
-twin 0.998 (0.954 to 1.097);
-a declined loose one 0.992 (0.952 to 1.032),
-twin 0.980 (0.941 to 1.039);
-a declined packed one 0.995 (0.952 to 1.026),
-twin 1.009 (0.971 to 1.037);
-a refused loose add whose Git fails at once 0.985 (0.899 to 1.125),
-twin 1.060 (0.895 to 1.126);
-and the same packed 1.030 (0.974 to 1.071),
-twin 0.985 (0.929 to 1.031).
-No add's total is resolved slower,
-and this round's step-level run on the declined shape confirms its total after the output is handed over unparsed.
-The rows are in that section.
+(this build to `main`,
+with the identical twin's ratio to this build beside it):
+a served loose add 0.962 (0.928 to 1.001),
+twin 0.997 (0.956 to 1.036);
+a served packed one 0.985 (0.955 to 0.995),
+twin 1.001 (0.966 to 1.031);
+a dirty loose one 1.007 (0.914 to 1.026),
+twin 0.994 (0.963 to 1.031);
+a dirty packed one 0.982 (0.940 to 1.042),
+twin 0.981 (0.935 to 1.027);
+a declined loose one 0.989 (0.910 to 1.083),
+twin 0.987 (0.972 to 1.074);
+and a declined packed one 1.017 (0.959 to 1.067),
+twin 1.022 (0.998 to 1.075).
+No add's total is resolved slower in any of the six,
+and on the declined shape the step on the adding thread is 2.1 to 2.9 ms shorter than `main`'s,
+not longer.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,

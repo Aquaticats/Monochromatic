@@ -145,9 +145,14 @@ the read ran beside `git check-attr` for its whole length
 and the answered map of 24,634 entries was built by the read thread and freed on the adding thread,
 which the recheck measured at 1.8 to 3.2 ms in a control and
 4 to 5 ms in the declined add's `chooseRung`.
-This round has the read hand its `ls-tree` output over unparsed,
-so a declined add drops one buffer (about 0.3 ms) and the map is never built for it,
-and the fence parses the output only when it uses it;
+This round hands that answered map to a thread of its own on the abandon,
+so the free is off the adding thread (the take step measures 0.002 ms there),
+and the parse goes back to the read's thread,
+where `main` had it,
+so a served or dirty add does not parse it on its waiting path
+(the integration pass's Medium 1 of 2026-11-23).
+The map stays resident for the few milliseconds that free takes rather than to the end of the add
+(3.1 MB for this crate's fixture).
 "The declined add's step cost,
 before and after" below states the split.
 
@@ -459,6 +464,35 @@ the three shapes fetch without the variable
 packs to three to seven)
 and fetch nothing with it.
 
+**The integration recheck's six shapes are controls too.**
+They live in the same file,
+one control each,
+and each runs the early read on one clone and the serial read as its positive control on an identical twin:
+
+- a promisor remote that only the user's global configuration names
+  (`GIT_CONFIG_GLOBAL`),
+  with the clone's own promisor keys and markers taken away;
+- `GIT_OBJECT_DIRECTORY` set in the environment,
+  with the flags in an include and no markers;
+- only `extensions.partialclone=origin` on a `core.repositoryformatversion=1` clone,
+  with no `remote.origin.promisor` and no marker;
+- the flags only in `config.worktree`;
+- a source whose objects are an alternate that is a partial clone,
+  with the flags in an include;
+- an inherited `GIT_NO_LAZY_FETCH=0`,
+  which the request's own pair overrides.
+
+With the variable removed from `the_early_read_request`,
+all six turn red on their own assertions
+(`promisor-global`,
+`promisor-object-directory`,
+`promisor-extension-only`,
+`promisor-worktree-config`,
+`promisor-alternate`,
+`promisor-inherited-zero`);
+the run reads 23 passed and 11 failed,
+and with the variable back it reads 34 of 34.
+
 **The abandon ends the child wherever it comes.**
 - A read held before its Git run,
   abandoned,
@@ -468,7 +502,18 @@ and fetch nothing with it.
 - A read whose fake Git ends at once,
   joined and held after its wait:
   the published-child cell is zero,
-  so an abandon there signals no reaped process id.
+  so an abandon there signals an id no process has only inside the window that clear leaves,
+  and that window is written beside the `abandon`.
+- An abandon that comes while the runner is held between the child's end and its clear:
+  the clear is a compare-exchange,
+  so it leaves the abandon's marker alone
+  (`the_clear_keeps_an_abandon_that_comes_before_it`;
+  red when the clear is a plain store).
+- An abandon of a read that already answered:
+  the map is freed,
+  and freed on a thread of its own
+  (`the_abandon_frees_the_answered_map_off_the_adding_thread`;
+  red when `abandon` drops it on the adding thread).
 - A fence with no path to size,
   holding a reading fake Git:
   the fence ends the child where it decides it has no use for it.
@@ -1483,6 +1528,148 @@ rotated and reversed as every other shape.
   the parse the fence now pays is inside the served add's spread.
   So the step's 4 to 5 ms is gone,
   and no add's total is resolved slower.
+
+## The parse on the adding thread, tested again
+
+The integration pass of 2026-11-23 measured the parse on the adding thread of every served and dirty add:
+`conversionFence` 7.8 to 13.4 ms longer than `main`'s in all four shapes,
+each resolved against the identical twin,
+because the read handed its `ls-tree` output over unparsed and the fence parsed it after the join
+(the pass's Medium 1).
+This round puts the parse back on the read's thread,
+where `main` had it,
+and frees an abandoned answer on a thread of its own,
+so a declined add still never pays the map's free on its waiting path.
+
+Measured in one throwaway `libvirt` guest,
+`never-fetches-parse-guest`
+(Ubuntu 24.04.5,
+kernel 6.8.0-147,
+4 vCPU,
+7.9 GiB,
+a 6 GiB btrfs loop image whose source is a subvolume,
+Git 2.56.1 built from the kernel.org tarball with `NO_RUST=1`),
+with the pass's four arms rotated one place a round and reversed every second pass,
+one uncounted warm-up per arm,
+`sync --file-system` before every add:
+`base` (`75a8440193`,
+`main` before the feature),
+`main` (`9852f60358`,
+which holds the earlier build),
+this round's build,
+and its identical twin.
+The reading rule was fixed before any row
+(`keep/reading-rule-fixed-before-rows.md` in the round's folder):
+per-round paired differences,
+the median with a 95 percent percentile bootstrap interval,
+the twin's same statistic,
+and "resolved worse" only when the interval lies above zero,
+the twin's interval does not cover it,
+and the median is at least 0.1 ms.
+
+The positive control came first and reproduced:
+`main` minus `base` on the declined step is +4.23 ms,
+6 of 6 rounds positive
+(the recheck measured 4 to 6 ms).
+
+The fence's step (`conversionFence`),
+12 rounds a shape,
+median of the per-round paired difference with its interval and the twin's:
+
+- served loose:
+  `main` minus this build +3.03 ms (-7.89 to 5.88),
+  twin -0.03 (-6.38 to 2.51);
+  not resolved either way.
+- served packed:
+  -2.14 ms (-9.78 to 7.83),
+  twin +0.46 (-2.30 to 12.65);
+  not resolved.
+- dirty loose:
+  -2.00 ms (-4.89 to 3.15),
+  twin -1.04 (-2.28 to 2.87);
+  not resolved.
+- dirty packed:
+  +3.26 ms (-6.33 to 7.49),
+  twin -1.48 (-8.67 to 4.48);
+  not resolved.
+
+So the pass's 7.8 to 13.4 ms on all four shapes is gone;
+this build is `main`'s within the twin's own spread.
+`base` reads 6 to 16 ms *higher* than either,
+because its fence runs the serial `git ls-tree` inside `conversionFence`
+where this build's fence takes the read's answer with a 0.01 ms wait.
+
+The declined step
+(`chooseRung` on `main`,
+and `chooseRung + startBesideTheCheck + abandonRead + abandonTakeTheAnswer + abandonEndTheChild` here):
+
+- loose:
+  `main` minus this build +2.93 ms (0.59 to 5.92),
+  so this build is 2.9 ms *faster* than `main` on the step;
+  against `base` it is 3.17 ms slower (0.03 to 4.31),
+  which the twin's own interval (a median of -1.13,
+  -4.44 to +4.50) covers.
+- packed:
+  `main` minus this build +2.14 ms (0.32 to 5.56),
+  and against `base` 2.06 ms slower (-0.18 to 5.05),
+  an interval that contains zero.
+
+The whole add,
+this build over `main`,
+per-round ratio,
+its median with a 95 percent interval,
+with the twin's ratio to this build:
+
+- served loose:
+  0.962 (0.928 to 1.001),
+  twin 0.997 (0.956 to 1.036);
+- served packed:
+  0.985 (0.955 to 0.995),
+  twin 1.001 (0.966 to 1.031);
+- dirty loose:
+  1.007 (0.914 to 1.026),
+  twin 0.994 (0.963 to 1.031);
+- dirty packed:
+  0.982 (0.940 to 1.042),
+  twin 0.981 (0.935 to 1.027);
+- declined loose:
+  0.989 (0.910 to 1.083),
+  twin 0.987 (0.972 to 1.074);
+- declined packed:
+  1.017 (0.959 to 1.067),
+  twin 1.022 (0.998 to 1.075).
+
+No add's total is resolved slower in any of the six.
+
+**What the residual on the declined arm is.**
+This build is 2 to 3 ms slower than `base` there,
+and `base` starts no read at all.
+Three planted builds in the same guest separate the pieces:
+
+- a build whose `abandon` does nothing at all
+  (the read starts,
+  parses,
+  and its answer is leaked):
+  the declined step is 3.6 to 4.1 ms,
+  the same as this build's,
+  so the abandon's take,
+  its free and its kill are not where the residual sits;
+- a build in which `start_beside_the_check` returns `None`
+  (no read is started,
+  everything else this build's):
+  the declined step is 0.63 ms against `base`'s 0.76 and `main`'s 9.68
+  in the same 8 rounds,
+  so the residual arrives with the read's own thread and its Git child competing for the guest's four vCPUs.
+`main` carries the same competition and the map's free besides,
+which is why it is 2 to 9.68 ms above this build there.
+
+The rows are the guest's
+`declined-positive-control-loose-*`,
+`served-{loose,packed}-12rounds-*`,
+`dirty-{loose,packed}-12rounds-*` and
+`declined-{loose,packed}-12rounds-*`,
+copied beside the crate under
+`package/git-policy/cli/perf/fence-size-read-parse-beside-the-check-2026-11-23-*`.
 
 ## What the first round did not do
 
