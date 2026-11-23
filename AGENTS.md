@@ -738,10 +738,6 @@ SFN:
  `wrapper-commit-timing-against-real-git-2026-11-13`,
  never `pkgrepair` or `ff-carry`.
 
-SZR:
- Every coordinator pass reports the measured size of `${HOME}/temp/agent` and its largest folders to the user,
- so growth is seen before a drive fills.
-
 CLN:
  Investigating package source:
  `gh repo clone <repo> "${HOME}/temp/agent/<name>-<date>" -- --depth 1`,

@@ -709,8 +709,10 @@ and only the owner accepts one.
   its record for an add that made no clone;
   the moment an add writes the record);
   the plan design's round
-  (running as `pi-zfs-removal-destruction-plan-record-design-fourth-check-findings`,
-  on `continuation-fourth-check-findings.md` in its folder:
+  (ended at `8ae3f1d6e6`,
+  report `keep/report-fourth-check-findings.md` in its folder;
+  the reviewer's read of the three diffs is going,
+  to `review-fifth-diff-read.md` beside its other reviews:
   the high finding,
   its words for the cancelled-removal design and for the accepted deferred-destroy design,
   the settling command's order);
@@ -818,10 +820,21 @@ and only the owner accepts one.
 - The round on that check ended at `b377d175de`
   (report `keep/report-check-before-acceptance.md` in its folder;
   its brief asked for each fix to be proved by a search of the document).
-  Going:
-  the same reviewer's read of that diff,
-  to `review-last-diff-read.md` beside its other reviews.
-  Then the design is put to the owner for acceptance with its veto list
+  The same reviewer's read of that diff
+  (`review-last-diff-read.md` beside its other reviews):
+  "fit after listed fixes",
+  nothing high;
+  the three answers and the waiver are built as the record states them,
+  and the round made what it said it made.
+  Two mediums:
+  the settle says the binding's last step prints nothing where the binding says it prints the add's sentence;
+  and two paths for the busy state still write the property back before reading the mount.
+  Running:
+  `pi-zfs-dirty-main-restore-on-rung-1-design-last-diff-read`,
+  on `continuation-last-diff-read.md` in its folder.
+  Then the coordinator reads that diff,
+  and the design is put to the owner for acceptance with its veto list
+  (now V1 to V16)
   (V1 to V15,
   one line each in that review).
 - Still owed by a build step:
@@ -1092,10 +1105,27 @@ and only the owner accepts one.
   the helper-process entry ranked A > C > B;
   the claim's sync dropped,
   as a new veto entry.
-  Going:
-  the reviewer's read of that diff,
-  to `review-last-diff-read.md` beside its other reviews.
-  Then the acceptance question with its veto list.
+  The reviewer's read of that diff
+  (`review-last-diff-read.md` beside its other reviews):
+  "fit after listed fixes",
+  nothing high,
+  three mediums.
+  The one that matters:
+  the claim written without a sync can be lost in a way the text denied.
+  By the reviewer's reading of OpenZFS `zfs-2.4.4`,
+  an fsync of any other file in the dataset commits the claim's link and the unlinks of the lower attempts without the
+  claim's data,
+  so a crash can leave an empty highest attempt and no lower one,
+  and the command's trigger for that request is gone.
+  Also:
+  the basis cited for two requests on one clone not overlapping does not hold;
+  one test line contradicts the record.
+  Running:
+  `pi-zfs-lost-last-event-triggers-design-last-diff-read`,
+  on `continuation-last-diff-read.md` in its folder.
+  Then one more read of its diff,
+  and the acceptance question with its veto list
+  (in plain words in that review's section 7).
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`
@@ -1160,12 +1190,149 @@ and only the owner accepts one.
   The coordinator read its diff:
   it changes the six places asked and the Revisions list,
   nothing else.
-- Next:
-  the acceptance question with its veto list
-  (V1 to V8,
-  in plain words in that review's section 4),
-  put together with the lost-event design's when that design's last read is back,
-  since the two cite each other.
+- The propagation design is accepted by the owner as written on 2026-11-22,
+  with the eight choices its record lists:
+  `doc/decision/cli-git-zfs-checkout-propagation-repair.md`,
+  section "The design is accepted".
+  It is on `main`,
+  `doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`,
+  merged as `7747980fbd`,
+  and renders with no Markdown left literal.
+  Nothing in it has been run;
+  the guest measurement that decides whether the provisional trigger stays is owed by plan step 19.
+  It cites the lost-event design at `95d3b2074e`,
+  which is still moving.
+
+#### Results that came in while a question waited overnight, each with its next step (2026-11-23T03:48:32-05:00)
+
+The acceptance question for the dirty-main design was open from about 2026-11-22T22:25-05:00 until 2026-11-23T03:48-05:00.
+Everything here arrived in that time.
+This list was brought up to date at 2026-11-23T03:58:05-05:00:
+every item's next step is started or named.
+A question to the owner blocks the coordinator until it is answered,
+so start every round that can run before asking one.
+
+- The dirty-main design (step 11):
+  accepted by the owner as written,
+  sixteen choices
+  (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
+  "The design is accepted").
+  It is on `main`,
+  `doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`;
+  its link definitions,
+  which a line wrap had broken so that about forty references rendered as raw brackets,
+  are fixed there,
+  and it renders with no Markdown left literal.
+  The wrapper's line at the merge said the worktree was left in place;
+  a look at 2026-11-23T03:59:28-05:00 found the worktree gone,
+  and the round's proofs are in the design's scratch folder under `keep/`,
+  not in the worktree.
+- Step 10 and the record set.
+  The step 10 reviewer's read of both diffs and the record reviewer's read of the three
+  (each `review-fifth-diff-read.md` in its folder)
+  found nothing high and left blockers in the binding
+  (the rule for an unlocked complete registration stated three ways;
+  a pending text naming a command that does not exist;
+  a `settling` binding whose clone is gone and unprovable with no command true for it;
+  a veto entry deleted while four sentences cite it;
+  the settling command's test building the option the owner did not choose)
+  and in the plan design
+  (its rule for an `unknown` tuple half changed;
+  a reused clone name).
+  The origin cleanup design (`f17455b786`) has nothing blocking.
+  The binding's round on both ended at `3b4b073f0e`
+  (report `keep/report-fifth-diff-reads.md` in its folder).
+  Running:
+  `pi-zfs-add-time-git-lock-design-fifth-diff-read` and
+  `pi-zfs-removal-destruction-plan-record-design-fifth-diff-read`,
+  each on `continuation-fifth-diff-read.md` in its folder.
+  Next:
+  the step 10 reviewer reads the binding's and the lock design's last diffs,
+  the record reviewer the binding's and the plan design's;
+  then the two acceptance questions,
+  step 10's naming what lies outside its two documents
+  (the accepted dirty-main design,
+  and the two plan sentences).
+- Step 17.
+  The reviewer's read of both diffs
+  (`review-fifth-diff-read.md` in its folder):
+  the forced arm fit after six mediums,
+  the cancelled removal after one,
+  and the probe not ready to be scripted.
+  The forced arm's round ended at `2a2747ebfb`
+  (report `keep/report-fifth-diff-read.md` in its folder),
+  told to regroup its arms by what each needs.
+  Running:
+  `pi-zfs-cancelled-or-interrupted-removal-and-cancel-command-design-fifth-diff-read`.
+  Next:
+  the reviewer's read of both;
+  then the guest round for the arms that need only mounts and namespaces
+  (task 465).
+- The lost-event design (`9945b5ada5`):
+  its reviewer is reading the round's diff,
+  to `review-read-before-acceptance.md` beside its other reviews.
+  Then the acceptance question.
+- The no-configuration branch (`ae7e91e94b`):
+  its second Sonnet pass is going,
+  to `review-second-pass.md` in the first pass's folder.
+  The round reports that only `snapdir=disabled` stops the snapshot mounts,
+  that it exists from OpenZFS 2.3.0,
+  and that the route as built cannot read the property,
+  so nothing reports a checkout on which it is not set.
+  The owner chose hiding snapshot directories from a one-line description;
+  what it comes to goes back to the owner with the pass's result.
+- Issue 6342:
+  merged as `1ba2fe767d` at 2026-11-23T03:53:33-05:00,
+  `main` builds,
+  the issue closed with the merge,
+  and the corrective comment is on commit `39610f128b`.
+  Its lows are task 466.
+- Issue 6346's branch:
+  running `pi-commit-timing-control-second-pass-wording`,
+  a round that changes words only.
+  Then merge,
+  with the comment the second pass's review gives for the issue.
+- Issue 6345's branch:
+  running `pi-worktree-removal-held-commit-control-second-pass-findings`
+  (the wording,
+  and a third sample in the wait,
+  which the coordinator took from the pass's ranking as the option that buys the better result;
+  open to the owner's veto).
+  The three product defects the pass confirmed are filed:
+  issues 6353,
+  6354 and 6355.
+  Then a third pass.
+- The partial clone's recheck (`45499c3154`):
+  not fit,
+  for one finding
+  (on btrfs a clean tree of files averaging under 49 bytes is slower than `main`).
+  Its four decisions for the owner are to be asked:
+  the mean rule on btrfs;
+  what a declined add may cost;
+  a floor on the file count;
+  the ZFS edge.
+- Step 9's unmount,
+  staging and reattach (`59f2bd1876`):
+  not fit,
+  two high findings from guest runs.
+  Running:
+  `pi-zfs-step-9-unmount-integration-pass-findings`.
+  Its receipts question is to be asked of the owner;
+  the answer goes to the round's inbox or its next round.
+- Sonnet passes going on rounds that ended:
+  step 9's holder scan (`1b574285f3`),
+  step 8's follow-up (`c87a50a09b`),
+  the size read's follow-up (`9329642a95`),
+  the object reader's fourth recheck (`daa0836b75`).
+  Their briefs are in the launch folder.
+- The freeze's troubleshooting document:
+  its short review said fit after listed fixes
+  (`keep/short-review-of-the-merged-document.md` in the freeze's scratch folder).
+  Running:
+  `pi-desktop-freeze-troubleshooting-doc-short-review-findings`,
+  which also adds the second reading and the owner's choice to keep 125.
+- The watcher for a Pi round stuck in one command was started again at about 2026-11-23T03:59-05:00,
+  for three hours.
 
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
 
@@ -2083,6 +2250,12 @@ This session wrote the opposite on 2026-11-12 and again on 2026-11-13 without re
   (one session's container images took about 20 GB of that drive in an hour on 2026-11-13; twenty runs ended once it read 1 GiB free).
   This replaces the reasoning from one run's scratch size given under "Corrections to this section".
 - The rules `1SF`, `SFN` and `SZR` stand as written; they concern the scratch folder wherever it is.
+  (Note of 2026-11-22: `SZR` no longer stands.
+  The owner removed it that day,
+  "Please remove the SZR rule.
+  It unnecessarily uses tons and tons of compute.",
+  so no pass measures the scratch folder's size any more.
+  `1SF` and `SFN` stand.)
   A rule for what agent work leaves on the home drive (container images above all) waits for the measurement.
 
 #### Issue 6293, filed by the other session at 10:55:20
@@ -44538,6 +44711,9 @@ stated in this entry. What follows from them, as work:
   briefs' ban on searching the scratch root as a whole (an agent's `rg` there ran 15.5 hours, in the 2026-11-15 entry
   on silent runs) into a ban on measuring it; the measurement is the coordinator's by rule `SZR`, and earlier passes
   ran it.
+  (Note of 2026-11-22: the owner removed rule `SZR` that day for the compute it used,
+  so the measurement is nobody's duty now;
+  the ban on searching the scratch root as a whole stands.)
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
