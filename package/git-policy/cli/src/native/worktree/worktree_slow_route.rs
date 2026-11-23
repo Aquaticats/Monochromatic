@@ -280,18 +280,20 @@ pub fn explain_unsupported(reason: &str) -> SlowRoute {
 /// Why:
 ///   The add is whole,
 /// made by Git's own checkout;
-/// the sentence names the rung that ended and gives the check's own words,
-///  which say whether the fence declined or could not read its inputs.
-/// It names no snapshot:
-/// a person reading it ran an add whose clone rung ended,
-///  and a sentence about a snapshot would send them looking at the other rung.
+/// the sentence names the input and says the add ended after it had read the source,
+/// then gives the check's own words,
+/// which name the path or the rules and, for the two classes a person can act on,
+/// the remedy: `git status` once in the source refreshes its record of the file times, and committing the source's
+/// `.gitattributes` change makes the rules the add reads match the ones Git writes with.
+/// It names no snapshot and no rung:
+/// a person reading it ran an add that ended, and the words are plain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const route = explainCloneFailure('a line-ending rule ... so this rung declines');
 /// ```
 pub fn explain_clone_failure(reason: &str) -> SlowRoute {
-    return SlowRoute { lead: LEAD, word: "clone-ended", detail: reason.to_string(), sentence: format!("the clone rung could not finish ({}), and Git's own checkout made the worktree.", plain(reason)) };
+    return SlowRoute { lead: LEAD, word: "clone-ended", detail: reason.to_string(), sentence: format!("the add ended after it had read the source ({}), so Git's own checkout wrote the worktree.", plain(reason)) };
 }
 
 /// What:

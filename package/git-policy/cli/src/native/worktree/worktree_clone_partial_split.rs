@@ -163,16 +163,19 @@ fn judgeable(indexed: &crate::repo_read_index::IndexEntry, entry: &StatEntry, sh
 ///  Whether the file at `path` below the held root is the one its entry recorded,
 /// by the strict comparison the restore already trusts.
 /// Why:
-///   A file whose recorded stat data is its own to the nanosecond is the one instant the index was written
-/// at,
-/// so its bytes are the entry's,
-/// whatever Git's own racy rule says about an index and a file written in the same
-///  second;
-/// every other verdict,
-/// including a missing file and a path reached through a link,
-/// hands the path to Git,
-/// which
-///  writes the tree's bytes there.
+///   Only an "agrees" verdict is the entry's to prove:
+/// a file whose recorded stat data is its own to the nanosecond,
+/// with no racy or stale finding before it,
+/// holds the entry's bytes.
+/// An entry as new as the index is racy,
+/// and `metadata_verdict` answers "unproven" for it before it compares the nanoseconds,
+/// so the path is handed to Git,
+/// as every other verdict is:
+/// a file that differs,
+/// a missing file,
+/// a path reached through a link,
+/// and a file the index cannot vouch for all go to Git,
+/// which writes the tree's bytes there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

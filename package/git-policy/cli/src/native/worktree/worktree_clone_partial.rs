@@ -188,7 +188,7 @@ pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned,
     // ```
     let cut: usize = crate::worktree_clone_rung_limits::the_changed_file_cut(tracked.entries.len());
     if split.writes.len() > cut {
-        return Err(format!("{} of the {} tracked paths of {} would be written by Git, more than the {} whose changes the clone copies and lets Git write the rest of", split.writes.len(), tracked.entries.len(), crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str()), cut));
+        return Err(format!("the file times recorded for {} of the {} tracked files of {} are out of date though their bytes are unchanged, and Git must write those {}, more than the {} the add copies before Git writes the rest; run `git status` once in {} to refresh the times, and the next add clones", split.writes.len(), tracked.entries.len(), crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str()), split.writes.len(), cut, crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str())));
     }
     let staged_entered: bool = begin_step("partStaged");
     let staged_outcome = staged_paths(context, source).and_then(|staged| {

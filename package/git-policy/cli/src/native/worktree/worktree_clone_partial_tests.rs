@@ -491,7 +491,7 @@ fn a_path_staged_after_the_source_check_is_refused() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// touchMostTrackedFiles(repo); // the index is not refreshed
-/// expect(() => cloneTheUnchanged({ source, ... })).toThrow(/would be written by Git/);
+/// expect(() => cloneTheUnchanged({ source, ... })).toThrow(/file times recorded for/);
 /// ```
 #[test]
 fn a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy() {
@@ -529,7 +529,8 @@ fn a_split_that_leaves_git_more_paths_than_the_cut_is_refused_before_any_copy() 
         Err(reason) => reason,
         Ok(_) => panic!("a split that leaves Git more paths than the cut is refused rather than cloned"),
     };
-    assert!(refusal.contains("would be written by Git"), "{refusal}");
+    assert!(refusal.contains("are out of date though their bytes are unchanged"), "{refusal}");
+    assert!(refusal.contains("run `git status` once in"), "the sentence gives the remedy: {refusal}");
     assert!(refusal.contains(stale.to_string().as_str()), "the sentence names how many: {refusal}");
     assert!(refusal.contains(cut.to_string().as_str()), "and the cut: {refusal}");
     let copied: Vec<PathBuf> = std::fs::read_dir(destination.as_path()).expect("the destination").map(|entry| { return entry.expect("an entry").path(); }).filter(|path: &PathBuf| { return path.file_name().is_some_and(|name: &std::ffi::OsStr| return name != ".git"); }).collect();

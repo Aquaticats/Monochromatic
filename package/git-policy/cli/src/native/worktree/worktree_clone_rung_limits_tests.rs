@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::worktree_slow_route::{DECLINED_LEAD, explain_decline};
 use crate::test_support::{fixture, git_context, repository};
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
 use crate::worktree_snapshot_source::{SnapshotSource, source_or_dirty};
@@ -100,34 +101,47 @@ fn the_size_limit_declines_one_byte_below_the_pinned_bytes_for_a_source_with_cha
 /// What:
 ///  A clean source whose mean tracked file is exactly the pinned edge is cloned,
 /// and one byte off the total declines it,
-/// with the mean in the sentence.
+/// with the mean in the sentence;
+/// on a filesystem with no edge, a clean tree of the same tiny files is cloned.
 /// Why:
 ///   A clean source is judged by its mean file size,
 /// so the control is that arithmetic:
 /// the total divided by the paths,
 /// floored,
 /// and compared with the edge.
+/// btrfs has no edge (the project's "No size rule on btrfs"),
+/// so there is no value there to subtract one from,
+/// and the control says so instead of underflowing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(mean(tree(4, THE_SMALLEST))).toBe(THE_SMALLEST); expect(reason(tree(4, THE_SMALLEST) with one byte fewer)).toContain('average');
+/// expect(mean(tree(4, EDGE))).toBe(EDGE); expect(reason(tree(4, EDGE) with one byte fewer)).toContain('average');
+/// if (EDGE === undefined) expect(reason(tree(4, 1))).toBeUndefined();
 /// ```
 #[test]
 fn the_mean_limit_declines_one_byte_below_the_pinned_mean_and_clones_it() {
     let files: usize = 4;
     let at: PathBuf = fixture("limit-at-the-mean");
-    let edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(at.as_path()).expect("the fixture's filesystem"));
+    let at_kind: FilesystemKind = filesystem_kind(at.as_path()).expect("the fixture's filesystem");
+    let Some(edge): Option<u64> = the_smallest_mean_tracked_file(at_kind) else {
+        // A filesystem with no mean edge clones every clean tree, the tiniest included.
+        let tiny: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), 1); }).collect();
+        let tiny_source: SnapshotSource = source_of(at.as_path(), tiny.as_slice());
+        assert!(reason_the_mean_file_is_too_small(&tiny_source, entries_of(&tiny_source).as_slice()).is_none(), "a filesystem with no edge declines no clean tree by its mean");
+        assert!(decline_before_cloning(&tiny_source, entries_of(&tiny_source).as_slice()).is_none(), "and the ladder clones it");
+        crate::test_support::remove(at.as_path());
+        return;
+    };
     let at_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), edge); }).collect();
     let at_source: SnapshotSource = source_of(at.as_path(), at_files.as_slice());
     assert_eq!(mean_tracked_file(entries_of(&at_source).as_slice()), Some(edge), "a tree of the edge's mean");
     assert!(reason_the_mean_file_is_too_small(&at_source, entries_of(&at_source).as_slice()).is_none(), "a tree of the pinned mean is cloned");
     crate::test_support::remove(at.as_path());
     let below: PathBuf = fixture("limit-below-the-mean");
-    let below_edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(below.as_path()).expect("the fixture's filesystem"));
-    let below_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), if index == 0 { below_edge - 1 } else { below_edge }); }).collect();
+    let below_files: Vec<(String, u64)> = (0..files).map(|index: usize| { return (format!("file-{index}.txt"), if index == 0 { edge - 1 } else { edge }); }).collect();
     let below_source: SnapshotSource = source_of(below.as_path(), below_files.as_slice());
     let mean: u64 = mean_tracked_file(entries_of(&below_source).as_slice()).expect("a mean");
-    assert!(mean < below_edge, "one byte off the total is under the edge: {mean}");
+    assert!(mean < edge, "one byte off the total is under the edge: {mean}");
     let reason: String = reason_the_mean_file_is_too_small(&below_source, entries_of(&below_source).as_slice()).expect("one byte fewer of the mean is declined");
     assert!(reason.contains("average"), "{reason}");
     assert!(reason.contains(mean.to_string().as_str()), "{reason}");
@@ -149,10 +163,10 @@ fn the_mean_limit_declines_one_byte_below_the_pinned_mean_and_clones_it() {
 #[test]
 fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_sum() {
     let few_large: PathBuf = fixture("limit-clean-few-large");
-    let edge: u64 = the_smallest_mean_tracked_file(filesystem_kind(few_large.as_path()).expect("the fixture's filesystem"));
-    // Two files of eight times the edge average eight times it: a clean tree far above the mean edge and far below the
-    // whole-tree pin, which is the shape that must clone and that the whole-tree rule declined.
-    let large_files: Vec<(String, u64)> = vec![(String::from("first.bin"), edge * 8), (String::from("second.bin"), edge * 8)];
+    // A mean well above any edge (or any file size at all on a filesystem with no edge), and a total far below the
+    // whole-tree pin: the shape that must clone and that the whole-tree rule declined.
+    let per_file: u64 = the_safest_mean_tracked_file() * 8;
+    let large_files: Vec<(String, u64)> = vec![(String::from("first.bin"), per_file), (String::from("second.bin"), per_file)];
     let large_source: SnapshotSource = source_of(few_large.as_path(), large_files.as_slice());
     assert!(tracked_bytes(entries_of(&large_source).as_slice()) < THE_FEWEST_TRACKED_BYTES_THAT_KEEP_THE_CLONE_RUNG, "the total is far below the whole-tree pin");
     assert!(large_source.dirty.is_none(), "the few large files are a clean source");
@@ -160,9 +174,17 @@ fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_su
     crate::test_support::remove(few_large.as_path());
     let small: PathBuf = fixture("limit-clean-small");
     let small_source: SnapshotSource = source_of(small.as_path(), &[(String::from("one.txt"), 1), (String::from("two.txt"), 1)]);
-    let reason: String = decline_before_cloning(&small_source, entries_of(&small_source).as_slice()).expect("a clean tree of tiny files is declined");
-    assert!(reason.contains("average"), "the clean source's decline is about its mean: {reason}");
-    assert!(!reason.contains("sum to"), "the whole-tree sum says nothing about a clean source: {reason}");
+    let small_kind: FilesystemKind = filesystem_kind(small.as_path()).expect("the fixture's filesystem");
+    match the_smallest_mean_tracked_file(small_kind) {
+        Some(_edge) => {
+            let reason: String = decline_before_cloning(&small_source, entries_of(&small_source).as_slice()).expect("a clean tree of tiny files is declined");
+            assert!(reason.contains("average"), "the clean source's decline is about its mean: {reason}");
+            assert!(!reason.contains("sum to"), "the whole-tree sum says nothing about a clean source: {reason}");
+        }
+        None => {
+            assert!(decline_before_cloning(&small_source, entries_of(&small_source).as_slice()).is_none(), "a filesystem with no mean edge clones a clean tree of tiny files");
+        }
+    }
     // The same two files with one of them changed: now the whole-tree sum decides.
     std::fs::write(small_source.root.join("one.txt"), b"a change\n").expect("the change");
     let dirty_source: SnapshotSource = source_or_dirty(&git_context(), &main_identity(small_source.root.as_path())).expect("a source with changes");
@@ -173,25 +195,65 @@ fn a_clean_source_is_judged_by_its_mean_file_and_a_source_with_changes_by_its_su
 }
 
 /// What:
-///  Each filesystem takes its own measured mean edge,
-/// and one nobody measured takes the safer of the two.
+///  ZFS takes its measured mean edge, btrfs none, and a filesystem nobody measured takes the ZFS edge.
 /// Why:
-///   The two measured filesystems cross at different means,
-/// so a mapping that swapped them would decline the wrong
-/// shapes on both;
-/// this control is what pins the mapping.
+///   A mapping that gave btrfs an edge would decline a clean btrfs tree `main` clones,
+/// which the recheck measured as 1.36 to 1.62 times `main` (its finding RH1),
+/// and a mapping that gave an unmeasured filesystem no edge would clone small files where no round says the copy wins.
+/// This control is what pins the mapping, and it runs on a btrfs fixture root as well as on the host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(edge('btrfs')).toBe(THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS); expect(edge('zfs')).toBe(THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS); expect(edge('other')).toBe(Math.max(...));
+/// expect(edge('btrfs')).toBeUndefined(); expect(edge('zfs')).toBe(2600); expect(edge('other')).toBe(2600);
 /// ```
 #[test]
 fn the_mean_edge_is_the_subject_filesystems_own_measurement() {
-    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Btrfs), THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS);
-    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Zfs), THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS);
-    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Overlayfs), the_safest_mean_tracked_file());
-    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Other), the_safest_mean_tracked_file());
-    assert_eq!(the_safest_mean_tracked_file(), THE_SMALLEST_MEAN_TRACKED_FILE_ON_BTRFS.max(THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS), "the safer edge is the higher one measured");
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Btrfs), None, "the project answered no size rule on btrfs");
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Zfs), Some(THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS));
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Overlayfs), Some(the_safest_mean_tracked_file()));
+    assert_eq!(the_smallest_mean_tracked_file(FilesystemKind::Other), Some(the_safest_mean_tracked_file()));
+    assert_eq!(the_safest_mean_tracked_file(), THE_SMALLEST_MEAN_TRACKED_FILE_ON_ZFS, "the only measured edge a clean source still takes is ZFS's");
+}
+
+/// What:
+///  Every limit sentence a person can see starts with the decline's own lead and never says the add took longer.
+/// Why:
+///   The lead was changed because nothing of a declined add had started when a limit declined it,
+/// and the recheck's plant set the old lead back and every control stayed green (its finding RL1):
+/// a sentence can regress to the snapshot's lead and no test would see it.
+/// The three limits are asked here through their own reasons, and the route wraps each as the add tells it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const reason of reasons) expect(describeDecline(reason).line().startsWith(DECLINED_LEAD)).toBe(true);
+/// ```
+#[test]
+fn every_limit_sentence_starts_with_the_decline_lead_and_never_says_it_took_longer() {
+    let root: PathBuf = fixture("limit-decline-lead");
+    let repo: PathBuf = std::fs::canonicalize(repository(root.as_path(), "repo")).expect("canonical");
+    tracked(repo.as_path(), "one.txt", b"the commit's bytes\n");
+    tracked(repo.as_path(), "two.txt", b"the commit's bytes\n");
+    commit_all(repo.as_path(), "fixture");
+    std::fs::write(repo.join("one.txt"), b"a change\n").expect("the change");
+    let dirty: SnapshotSource = source_or_dirty(&git_context(), &main_identity(repo.as_path())).expect("a source with changes");
+    let entries: Vec<StatEntry> = entries_of(&dirty);
+    let mut reasons: Vec<String> = Vec::new();
+    reasons.push(reason_the_tree_is_too_small(&dirty, entries.as_slice()).expect("a tree this small is declined by its sum"));
+    reasons.push(reason_too_many_changed_paths(&dirty, entries.as_slice()).expect("one changed path of two is over the cut"));
+    crate::test_support::remove(root.as_path());
+    let clean: PathBuf = fixture("limit-decline-lead-mean");
+    let clean_source: SnapshotSource = source_of(clean.as_path(), &[(String::from("one.txt"), 1), (String::from("two.txt"), 1)]);
+    let clean_entries: Vec<StatEntry> = entries_of(&clean_source);
+    if the_smallest_mean_tracked_file(filesystem_kind(clean.as_path()).expect("the fixture's filesystem")).is_some() {
+        reasons.push(reason_the_mean_file_is_too_small(&clean_source, clean_entries.as_slice()).expect("a clean tree of tiny files is declined by its mean"));
+    }
+    crate::test_support::remove(clean.as_path());
+    assert!(!reasons.is_empty(), "the controls built the limits' sentences");
+    for reason in &reasons {
+        let line: String = explain_decline(reason.as_str()).line();
+        assert!(line.starts_with(DECLINED_LEAD), "the sentence starts with the decline's lead: {line}");
+        assert!(!line.contains("took longer"), "a declined add started nothing, so nothing took longer: {line}");
+    }
 }
 
 /// What:
