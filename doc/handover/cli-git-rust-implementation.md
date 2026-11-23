@@ -133,9 +133,23 @@ The skill is corrected in `e24cf7d46d`,
 and the launchers now take their pool from `writer-pool-for-a-round.ts` in the launch folder,
 which refuses that pool.
 `drive-pi-subagent.ts` itself still starts a run on a closed pool that a caller names;
-the round `pi-driver-refuses-a-run-on-a-closed-pool`,
-on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool`,
-makes it and the worktree launcher refuse one.
+the round `pi-driver-refuses-a-run-on-a-closed-pool`
+made it and the worktree launcher refuse one,
+and reopened the qwen plan's DeepSeek pool for runs that name it,
+on `fix/pi-shared-subagent-driver-refuses-a-run-on-a-closed-pool` at `c1c1c1a1f8`
+(report:
+`~/temp/agent/pi-driver-refuses-a-run-on-a-closed-pool-2026-11-23/keep/report-pi-driver-refuses-a-run-on-a-closed-pool.md`).
+Its whole unit suite failed a different real-process test on each of three runs,
+each passing alone,
+and its `lint` task cannot run in a fresh worktree (issue 6339).
+Running:
+its Sonnet integration pass,
+to `~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`.
+The repository's tool links folder `.cache/toolchain-bin` is missing,
+so `file-enforcer` and `monochromatic-lint` are not on `PATH`;
+only `toolchain:install` makes it,
+and the owner said it waits for issue 6316:
+"Because we need to make mpm-shadow prefer system package managers on non-atomic distros first."
 A run that ends is still read and recorded here.
 Under each sub-initiative,
 "Running" and "Next" say what was going at that reading and what is started first afterwards.
@@ -429,12 +443,18 @@ a `settling` binding with no plan is told two different commands
 (the lock reviewer's U26,
 the record reviewer's J1),
 with lows and the unrecorded clone at `snapshotted` (U27).
+The round on both eighth reads ended at `abeb058f63`,
+its report saying every item done,
+with one section,
+"Which command is true for a state",
+that the other rules cite.
 Running:
-`pi-zfs-add-binding-record-design-eighth-reads`.
+each reviewer's ninth read of that diff alone,
+with the acceptance material in plain words
+(`review-ninth-read-before-acceptance.md` beside each eighth read).
 
 Next:
-a read of that diff;
-then the acceptance questions,
+the acceptance questions,
 step 10's two designs and the three records.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
