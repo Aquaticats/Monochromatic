@@ -3927,8 +3927,8 @@ then the claim.
   which records a finished removal,
   is gone before anything can act on it again.
   Cons:
-  the standing binding is exactly the state the binding design's third reading calls a clone destroyed outside the
-  wrapper,
+  the standing binding is exactly the state the binding design's "What a record whose clone is gone means" calls an
+  outside change,
   so a later reader keeps the binding and may refuse the next add at the slot;
   a normal kill then reads as a foreign event.
 - C One combined step that removes the plan and the binding's files and reports success only when both are gone,
@@ -4693,7 +4693,10 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   the doctor lines,
   and the add subsection.
   Nothing else the check found sound was changed.
-- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `a93c305da4`.
+- `2befde256d`,
+  2026-11-23T04:53:30-05:00:
+  this revision entry.
+  The commits that touch only this list are the ones `git log` reports for this path after `2befde256d`.
 
 ## References
 
