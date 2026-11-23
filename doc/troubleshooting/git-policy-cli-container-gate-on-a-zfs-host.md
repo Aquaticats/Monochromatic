@@ -2030,6 +2030,12 @@ gives the thread back its class's ceiling before the attempt after it,
 forgets the plant at that attempt,
 and `clear_the_planted_cut` (`:100`) does the same once the creation returned,
 so no other test on that thread inherits a shortened ceiling.
+`a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared`
+holds that clearing:
+with the function's body emptied it fails at `Some(700ms)` against `None`,
+while the two shadow controls stay green,
+and nextest runs each test in a process of its own,
+so no gate run could have seen an inherited ceiling.
 The start made again is therefore waited for as production waits for a start of `init`,
 `PLUMBING_STEP_CEILING` or `OBJECT_STEP_CEILING` (minutes),
 and the control holds only what it means to hold:
