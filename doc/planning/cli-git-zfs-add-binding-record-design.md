@@ -4118,6 +4118,9 @@ and any test suite.
 - 2026-11-22T19:07:27-05:00:
   removed the veto option the proposal's own sentences decide (a binding kept until the origin cleanup finishes)
   and corrected V8's statement about the origin cleanup record's staging rule.
+- 2026-11-22T19:08:27-05:00:
+  kept the add order's A-labels apart from the Assumptions section's,
+  which share the same letters and are a different list.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
