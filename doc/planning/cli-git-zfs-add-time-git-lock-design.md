@@ -2149,16 +2149,11 @@ write",
 read at `ec2b0b14f3`.
 This design adds nothing to it except the proof that comes first,
 because the registration's subject is gone.
-A builder reads the steps there;
-they are,
-in that order,
-the slot's `.git` when its bytes name this registration,
-`gitdir`,
-`commondir`,
-`HEAD` with `refs/` and `logs/`,
-any other entry the listing showed,
-`locked` last,
-and the registration's directory by `rmdir` from the held `worktrees` parent.
+A builder reads its steps 1 to 7 there;
+in its terms the slot's `.git` goes first,
+the registration's files follow,
+`locked` goes last,
+and the registration's directory goes by `rmdir` from the held `worktrees` parent.
 This design states none of its own,
 and the earlier revision's order,
 which unlinked `locked` first and then asked for an empty directory,
