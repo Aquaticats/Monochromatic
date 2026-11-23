@@ -4980,6 +4980,36 @@ which is that design's answer.
   and the sibling statements cite the propagation design at `467d05e307` by heading.
 - 2026-11-22T22:19:29-05:00:
   recorded the answer's commit time above.
+- 2026-11-23T04:04:09-05:00:
+  the read before acceptance.
+  `main` was merged first,
+  at 2026-11-23T04:00:53-05:00,
+  bringing the accepted propagation design,
+  the dirty-main restore design and the deferred-destroy checks design.
+  A claim takes the number one past the highest attempt name present,
+  empty or readable,
+  and the gap is read from the highest readable attempt,
+  so a crash that leaves an empty highest attempt does not stop every later claim;
+  test 16 adds an empty highest attempt,
+  a claim and a second claim.
+  Where a helper never records its outcome,
+  the folder gains one file per `Gmax` and every command's `read_dir` grows with it,
+  which V18's con,
+  L24 and the cost cases now say plainly;
+  no cap is proposed,
+  and M8's decides list takes the transaction-group age a cap would need.
+  The doctor lists now carry both attempts of a clone whose last claim was never recorded,
+  the answered removal and its cost case say every attempt of the clone,
+  D10 names the binding record design at `7d041d773b` and quotes its V9,
+  the folder's bound names F28 as the pass's enumeration bound,
+  the recreating rename names the settled-clone healing,
+  A15 carries the common directory's ZFS assumption,
+  test 16 says a helper killed before it records,
+  V18's synced example says what the sync makes durable,
+  and test 17 reads `written-at` against the spec's mount-request deadline.
+  The propagation design is cited on `main`,
+  accepted,
+  with the commit its text equals.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
