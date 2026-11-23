@@ -106,8 +106,114 @@ at and after it leaves.
   and making the copy inert before the fill,
   for what the slot holds.
 
+## A further answer: an add whose own unmount is refused as busy
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:21:19-05:00,
+after the design was rewritten to the three answers of this record and reviewed again
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-after-the-owners-answers.md`,
+section "What is left for the owner",
+question Q-R5).
+
+Asked:
+by the first answer of this record an add that fails its proof unmounts and destroys the clone it just made.
+When something else already sits in the new folder,
+another session's shell for example,
+the unmount is refused as busy and the add's unmount request to the root handler is left standing.
+The accepted design allows no remount or unmount by itself after a failure,
+with one exception,
+a removal that cancels itself.
+
+The project chose "A:
+yes,
+withdraw it (Recommended)":
+the add writes its request back to the mounted state,
+nothing having been unmounted,
+prints that the worktree is pending and the command that removes it,
+and the clone stays mounted as it was.
+So the exception now covers an add that withdraws its own request,
+beside a removal that cancels itself.
+
+Not chosen:
+leaving the request standing,
+so that the handler unmounts the clone when the holder leaves.
+
+## Three further answers
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T21:37:01-05:00,
+on the review of the design's last round
+(`~/temp/agent/gate-review-zfs-dirty-main-restore-on-rung-1-design-2026-11-22/keep/review-check-of-the-high-finding.md`,
+section "What is left for the owner",
+questions Q-O,
+Q-S and Q-B).
+Each answer is given as the option's label and its own description,
+as the project was shown them.
+
+### Who records what when the add undoes what it made
+
+Asked:
+four designs each described part of the failed add's undoing and disagreed on who records what;
+the deciding case is a clone already destroyed and a snapshot whose destroy is refused because a backup tool holds it.
+The project chose "B:
+record the snapshot as owed (Recommended)":
+"Before destroying anything,
+the add records the snapshot as owed cleanup (the same record a removal uses).
+You get a finished worktree made by Git's own checkout,
+one line saying the snapshot stays for now,
+and the next `git worktree` command destroys it once the hold is gone (your earlier answer)."
+The costs stated with it:
+the add writes two more records before its first destroy,
+and a fallback leaves an owed-cleanup record a person may not expect.
+
+Not chosen:
+the add owning the path alone,
+with no owed-cleanup record and the worktree pending until the same add is run again.
+
+### The pending text warns against running Git in the folder
+
+Asked:
+the pending folder holds a full working copy of the main repository's `.git`,
+frozen when the proof failed,
+and a person still in that folder can run Git there.
+The project chose "B:
+add the warning (Recommended)":
+"The pending message and `doctor`'s line gain one clause:
+do not run Git in this folder until it is removed."
+The cost stated with it:
+it only warns;
+it cannot stop a plain `git` there.
+
+Not chosen:
+leaving the text as it is.
+
+### A very dirty main checkout is warned about and still takes this route
+
+Asked:
+this route restores each changed file after cloning,
+so with very many changed files it can be slower than Git's own checkout;
+should it decline above a measured count,
+as the other clone route does.
+The project selected "A:
+decline above a measured count (Recommended)" with the note
+"warn about a measured count,
+but still do it."
+Asked which of the two readings was meant,
+the project chose "A:
+warn,
+still use the fast route (Recommended)":
+"Above the measured count the add clones and restores as usual
+and prints a warning that Git's own checkout may have been quicker for this many changed files.
+It never declines for dirtiness."
+The cost stated with it:
+an add can be slower than Git's own checkout on a very dirty checkout.
+The count comes from a measurement and is not decided here.
+
+Not chosen:
+declining above the count,
+and no warning at all.
+
 ## What this record does not decide
 
-Whether rung 1 may decline a very dirty main checkout as rung 2 does
-is the same review's question Q2,
-which waits for the measurement that would size the cut.
+The count above which the warning prints,
+which a measurement gives.
