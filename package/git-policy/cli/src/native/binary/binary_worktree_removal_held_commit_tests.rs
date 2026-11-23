@@ -21,8 +21,10 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::wrapped_commit;
-use super::support::{Fixture, Observed, fixture, git, observe, remove, run_direct, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, observe, remove, run_direct, run_wrapped, stderr_of, work_listing};
 use git_policy_cli::held_commit_record::{Held, write};
+use git_policy_cli::service_work::work_directory;
+use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, PENDING, RECOVERING};
 use git_policy_cli::worktree_added_by_the_wrapper::record;
 use std::path::{Path, PathBuf};
 
@@ -159,7 +161,8 @@ fn a_held_commit(label: &str) -> HeldScene {
 /// What:
 ///  Wait,
 /// bounded,
-/// for the worktree whose landed branch a merge handed to the commit service to go.
+/// for the worktree whose landed branch a merge handed to the commit service to go,
+/// and for its registration to go with it.
 /// Why:
 ///   The merge records that removal and returns
 ///  (`SPEC.md`,
@@ -168,11 +171,17 @@ fn a_held_commit(label: &str) -> HeldScene {
 ///  and the sweep's own line says as much
 ///  (`done` under the record means the worktree is gone).
 ///  Reading the worktree right after the merge is therefore reading a state the merge is allowed to leave
-///  (issue 6345,
-///  where the service lost the race with the merge's remaining work in two whole container gates).
+///  (issue 6345).
+///  Git deletes the worktree's files and then its registration
+///  (`builtin/worktree.c`,
+/// `remove_worktree`),
+///  so the worktree is gone before the registration is,
+///  and a wait for the directory alone lets the next assertion read the moment between the two.
 ///  A worktree that stays is the product's own answer,
-///  and the reason it kept the worktree is the repository's record of a kept worktree,
-///  which this names so a failure says why instead of guessing.
+///  and what the queue and the repository say about it is what a failure names,
+///  so a failure says whether no record was ever written,
+/// whether the record settled and left the files,
+///  or whether the service wrote a reason for keeping it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -180,8 +189,9 @@ fn a_held_commit(label: &str) -> HeldScene {
 /// ```
 fn the_handed_over_removal_finishes(scene: &HeldScene, said: &str) -> Result<(), String> {
     let began: std::time::Instant = std::time::Instant::now();
+    let registration: PathBuf = scene.common.join(LINKED_REGISTRATION);
     while began.elapsed() < HANDOVER_PATIENCE {
-        if !scene.linked.exists() {
+        if !scene.linked.exists() && !registration.exists() {
             return Ok(());
         }
         std::thread::sleep(HANDOVER_STEP);
@@ -190,11 +200,44 @@ fn the_handed_over_removal_finishes(scene: &HeldScene, said: &str) -> Result<(),
         Ok(listing) => listing.flatten().filter_map(|entry| { return std::fs::read_to_string(entry.path()).ok(); }).collect(),
         Err(_unreadable) => Vec::new(),
     };
+    let state: &str = match scene.linked.exists() {
+        true => "still there",
+        false => "gone",
+    };
     return Err(format!(
-        "the worktree {} is still there {:?} after the merge handed its removal to the commit service, so the removal did not finish. What the merge said: {said} What this repository recorded about keeping it: {notices:?}",
+        "the hand-over the merge made did not finish within {HANDOVER_PATIENCE:?}: the worktree {} is {state}, its registration {}, and the queue says {}; what this repository recorded about keeping it is {notices:?}. What the merge said: {said}",
         scene.linked.display(),
-        HANDOVER_PATIENCE
+        match registration.exists() {
+            true => "still stands",
+            false => "is gone",
+        },
+        what_the_queue_says(work_directory(scene.common.as_path()).as_path())
     ));
+}
+
+/// What:
+///  What the repository's work queue says about the removal the merge handed over,
+///  in words that tell a record never written from one that settled and left the worktree standing.
+/// Why:
+///   The merge's line promises that `failed` means the worktree was kept with the reason on the next command,
+///  and a reader of a failed control needs to know which of those two states it met beyond the raw listing:
+/// an empty queue is a hand-over that wrote nothing,
+///  and `done` with the worktree standing is a removal that reported itself finished without removing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = whatTheQueueSays(workDir(scene.common));
+/// ```
+fn what_the_queue_says(work: &Path) -> String {
+    let listing: String = work_listing(work);
+    let counted: usize = [PENDING, RECOVERING, CLAIMED, DONE, FAILED]
+        .iter()
+        .map(|state| { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); })
+        .sum();
+    return match counted {
+        0 => format!("no record of a removal was ever written ({listing})"),
+        _ => format!("the record of the removal stands as {listing}"),
+    };
 }
 
 /// What:
