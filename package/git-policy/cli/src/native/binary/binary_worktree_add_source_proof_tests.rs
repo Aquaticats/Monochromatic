@@ -34,12 +34,35 @@ use std::process::Command;
 /// a proof of this worktree's own files must answer under these variables.
 const THE_READERS_REFUSAL: &str = "could not be read to prove it unchanged";
 
-/// How many of the two routes one add stated:
+/// The route lines one add stated:
 /// the snapshot it made,
 /// and the slow route it explained.
-fn routes_of(seen: &Observed) -> (usize, usize) {
-    let text: String = String::from_utf8_lossy(seen.stderr.as_slice()).into_owned();
-    return (text.matches(MAIN_SNAPSHOT_NOTE.trim_end()).count(), text.matches(LEAD.trim_end()).count());
+/// Why:
+///  An add on a filesystem that cannot make a snapshot states nothing where the filesystem's own limit is expected,
+///  and states its own reason where it is not;
+///  either way the lines are what the route came to,
+///  and they must not change because a variable is held.
+fn route_lines_of(seen: &Observed) -> Vec<String> {
+    return String::from_utf8_lossy(seen.stderr.as_slice())
+        .lines()
+        .filter(|line| { return line.trim_end() == MAIN_SNAPSHOT_NOTE.trim_end() || line.starts_with(LEAD.trim_end()); })
+        .map(str::to_owned)
+        .collect();
+}
+
+/// What:
+///  One `git worktree add` through the wrapper,
+///  with one setting held or none.
+/// Why:
+///  The control and its arm differ in the setting alone,
+///  so the command line and the environment are made in one place.
+fn add_through_the_wrapper(fixture: &Fixture, repo: &Path, branch: &str, held: Option<(&str, &str)>) -> Observed {
+    let mut command: Command = wrapped(fixture);
+    command.current_dir(repo).args(["worktree", "add", format!("../{branch}").as_str(), "-b", format!("topic-{branch}").as_str()]);
+    if let Some((variable, value)) = held {
+        command.env(variable, value);
+    }
+    return observe(&mut command, b"");
 }
 
 /// What:
@@ -58,29 +81,26 @@ fn assert_the_snapshot_rung_decides(name: &'static str, setting: fn(&Fixture, &P
     git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
     let (variable, value): (&'static str, String) = setting(&fixture, repo.as_path());
-    for (branch, held) in [("with-the-setting", Some((variable, value.as_str()))), ("with-nothing", None)] {
-        let mut command: Command = wrapped(&fixture);
-        command.current_dir(repo.as_path()).args(["worktree", "add", format!("../{branch}").as_str(), "-b", format!("topic-{branch}").as_str()]);
-        if let Some((held_variable, held_value)) = held {
-            command.env(held_variable, held_value);
-        }
-        let seen: Observed = observe(&mut command, b"");
-        let said: String = String::from_utf8_lossy(seen.stderr.as_slice()).into_owned();
-        let (snapshots, slow): (usize, usize) = routes_of(&seen);
-        let label: &str = match held {
-            Some(_) => variable,
-            None => "nothing held",
-        };
-        assert_eq!(seen.code, Some(0), "{name} with {label}: the add lands: {said}");
-        assert_eq!(snapshots + slow, 1, "{name} with {label}: the add states one route: {said}");
-        assert!(!said.contains(THE_READERS_REFUSAL), "{name} with {label}: the source is proved, so the route is not the reader's: {said}");
-        assert!(
-            snapshots == 1 || said.contains("not a btrfs subvolume") || said.contains("not on one btrfs filesystem"),
-            "{name} with {label}: the route is the snapshot or the filesystem's own refusal: {said}"
-        );
-    }
-    // The positive control at the level of this control's own report: this host makes no snapshot, so the counts above
-    //  are 0 snapshots on both arms here and the guest run beside it counts the same adds on btrfs.
+    // The control first: the same add with nothing held states the route this filesystem gives an add.
+    let nothing: Observed = add_through_the_wrapper(&fixture, repo.as_path(), "with-nothing", None);
+    let nothing_said: String = String::from_utf8_lossy(nothing.stderr.as_slice()).into_owned();
+    assert_eq!(nothing.code, Some(0), "{name}: the add with nothing held lands: {nothing_said}");
+    let nothing_routes: Vec<String> = route_lines_of(&nothing);
+    assert!(nothing_routes.len() <= 1, "{name}: the add with nothing held states one route: {nothing_said}");
+    // The arm: the same add with the variable held states the same route, and never the reader's refusal of the source.
+    let held: Observed = add_through_the_wrapper(&fixture, repo.as_path(), "with-the-setting", Some((variable, value.as_str())));
+    let said: String = String::from_utf8_lossy(held.stderr.as_slice()).into_owned();
+    let routes: Vec<String> = route_lines_of(&held);
+    assert_eq!(held.code, Some(0), "{name} with {variable}: the add lands: {said}");
+    assert!(routes.len() <= 1, "{name} with {variable}: the add states one route: {said}");
+    assert!(!said.contains(THE_READERS_REFUSAL), "{name} with {variable}: the source is proved, so the route is not the reader's: {said}");
+    assert_eq!(
+        routes, nothing_routes,
+        "{name} with {variable}: the route the add states is the one it states with nothing held, which is the snapshot where the filesystem can make one: {said}"
+    );
+    // What the counts are on this filesystem: the guest run beside this control counts the same five adds on btrfs.
+    let snapshots: usize = routes.iter().filter(|line| { return line.trim_end() == MAIN_SNAPSHOT_NOTE.trim_end(); }).count();
+    assert!(snapshots <= 1, "{name}: at most one snapshot is stated: {said}");
     super::support::remove(&fixture);
 }
 
