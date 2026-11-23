@@ -525,6 +525,12 @@ that saved list is the only complete record of the backlog.
   Start every round that can run before asking one.
 - A round's report is not evidence of its edits.
   Read the diff before a design goes to the owner or a branch is merged.
+- A Pi round can hang in one command of its own without the driver noticing.
+  The unit `watch-pi-rounds-for-a-command-that-never-returns`,
+  started from the script of that name in the launch folder,
+  ends and prints the process when a round's tool call is older than 100 minutes.
+  It runs for three hours at a time;
+  start it again while rounds are going.
 - Orphaned cargo build folders under `~/.cargo/build`,
   left by integration passes
   (`68/a5e436cd0c0598` and four from issue 6342's second pass),
