@@ -102,6 +102,12 @@ pub mod forwarded_lock_notice;
 /// with the arm a control hides or coarsens.
 pub mod lock_birth_times;
 
+/// What a read of the abandoned lock's PID file reports,
+/// with the arm a control changes one term of.
+#[cfg(test)]
+#[path = "lock_metadata_arm.rs"]
+pub(crate) mod lock_metadata_arm;
+
 /// The record a command writes about the processes it starts in a repository,
 /// and the proof that one of them is gone.
 pub mod lock_holder_records;
