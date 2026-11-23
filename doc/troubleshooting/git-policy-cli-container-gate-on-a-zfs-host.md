@@ -1571,37 +1571,41 @@ while the bytes of the file are always the file's own.
   with the arm reporting one inode for every file and one tick holding both writes.
   The file stands and names the new holder,
   so the bytes are the term that kept it.
-  Its red run,
-  with the bytes term alone left out:
-  ``thread … a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone … panicked at src/native/lock/abandoned_lock_proving_tests.rs:785:5:`,
-  `a PID file another program wrote over the judged one is left alone``
 - `a_pid_file_of_another_inode_is_left_alone`
   has the hook remove the judged file and write the judged number again,
   a new file with the same bytes,
   under the same coarse tick:
   the inode is the only term that differs.
-  Its red run,
-  with the inode term alone left out:
-  ``thread … a_pid_file_of_another_inode_is_left_alone … panicked at src/native/lock/abandoned_lock_proving_tests.rs:818:5:`,
-  `a PID file of another inode is left alone``
 - `a_pid_file_of_another_change_time_is_left_alone`
   arms the later read with a change time one millisecond back and touches nothing else.
-  Its red run,
-  with the change time term alone left out:
-  ``thread … a_pid_file_of_another_change_time_is_left_alone … panicked at src/native/lock/abandoned_lock_proving_tests.rs:851:5:`,
-  `a PID file whose change time reads another millisecond is left alone``
 - `a_pid_file_of_another_device_is_left_alone`
   arms the later read with the next device number and touches nothing else.
-  Its red run,
-  with the device term alone left out:
-  ``thread … a_pid_file_of_another_device_is_left_alone … panicked at src/native/lock/abandoned_lock_proving_tests.rs:881:5:`,
-  `a PID file of another device is left alone``
 - `a_pid_file_that_still_names_the_judged_number_goes_with_the_lock`
   holds the state the bytes comparison does not close:
   the same number written back over the judged file inside one armed tick and under one armed inode,
   where all four facts equal the judged ones.
   The removal takes the file,
   and the control says so and says what that costs.
+
+`/src/native/lock/abandoned_lock_proving.rs` was run with one term of the last look left out at a time,
+and with the unlink itself planted away,
+and each run failed one control at its own assertion:
+
+```text
+term left out: device      a_pid_file_of_another_device_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:881:5: a PID file of another device is left alone
+term left out: inode       a_pid_file_of_another_inode_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:818:5: a PID file of another inode is left alone
+term left out: change time a_pid_file_of_another_change_time_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:851:5: a PID file whose change time reads another millisecond is left alone
+term left out: bytes       a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:785:5: a PID file another program wrote over the judged one is left alone
+unlink planted away      a_pid_file_that_still_names_the_judged_number_goes_with_the_lock
+panicked at src/native/lock/abandoned_lock_proving_tests.rs:936:5: a PID file that still names the judged number goes with the lock it belongs to
+```
+
+Each run exited 100 with `1 test run: 0 passed, 1 failed, 8619 skipped`,
+and the term was put back before the next one.
 - `a_git_that_takes_the_freed_name_writes_no_pid_file_and_keeps_its_lock`
   holds what a Git does at that instant:
   its exclusive create is refused,
