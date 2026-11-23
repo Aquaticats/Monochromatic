@@ -4585,7 +4585,10 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   the two settling-command sections,
   and Sources read.
   Nothing else the check found sound was changed.
-- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `52b2e7ccea`.
+- `e4f591b6a8`,
+  2026-11-22T22:12:14-05:00:
+  this revision entry.
+  The commits that touch only this list are the ones `git log` reports for this path after `e4f591b6a8`.
 
 ## References
 
