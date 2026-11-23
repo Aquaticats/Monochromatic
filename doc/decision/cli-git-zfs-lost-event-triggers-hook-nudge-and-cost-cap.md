@@ -101,7 +101,43 @@ which the project's threat model accepts.
   and no bound,
   for the cost rule.
 
+## A further answer: how long a lost request keeps being nudged
+
+Accepted 2026-11-22 in the question tool,
+recorded 2026-11-22T20:49:43-05:00,
+after the design was rewritten to the three answers of this record and reviewed twice more
+(`~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review-diff-check-after-the-answers.md`,
+section "What is left for the owner",
+on the design's veto entry V14).
+
+Asked:
+the design spaces a clone's nudges,
+each wait twice the last up to a longest gap that a measurement sizes.
+A request that nothing can ever answer,
+an attach that keeps being refused for example,
+is then nudged by ordinary Git use for as long as it stands,
+once per longest gap,
+and each nudge makes the root handler run one pass.
+The project had not been shown that when it chose the nudge on Git commands.
+
+The project chose "A:
+forever,
+at the capped gap (Recommended)":
+a request is nudged as long as it stands,
+never more often than the longest gap.
+
+The cost the question stated with this option:
+a request nothing can answer costs one root handler pass per longest gap,
+for ever,
+while Git is used in that repository.
+The question's "once a minute" was an example and decides no number.
+
+Not chosen:
+a gap that doubles without a cap,
+and stopping after a set number of tries.
+
 ## What this record does not decide
 
 The size of the budget and its window,
-which wait for the measurement that sizes them.
+the first gap and the longest gap,
+which wait for the measurements that size them.
