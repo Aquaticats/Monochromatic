@@ -382,6 +382,15 @@ and no code changed for it.
 
 ### The measured clean-source mean-file edge
 
+The measurements below are this round's and stand as taken.
+The btrfs pin they placed,
+49 bytes a file,
+was removed by the round of 2026-11-23
+("The four answers of 2026-11-23,
+built"):
+btrfs has no mean rule now,
+and the ZFS edge is 2,600 bytes a file.
+
 The decision of 2026-11-22 left the edge to this round,
 and the waiver record's ZFS figures came from step 3's builds
 (`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
