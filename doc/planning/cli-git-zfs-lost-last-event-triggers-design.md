@@ -438,7 +438,7 @@ so a printed command is printed and never run by a step,
 and it carries `--no-ask-password` so that no shell of a script waits on the agent
 ([sibling propagation][sibprop],
 its fact F22,
-lines 649 to 662 at `30274435f3`).
+lines 796 to 809 at `c7708953c0`).
 That is why this design prints levers and runs none.
 
 Concurrency is lock-free first,
@@ -1799,7 +1799,7 @@ The order inside either mode is the propagation sibling's and not this design's
 "Where it runs,
 as whom,
 and in what order",
-lines 1334 to 1409 at `30274435f3`):
+lines 1483 to 1560 at `c7708953c0`):
 read the configuration and resolve the checkout,
 its propagation step,
 the start probe's record,
@@ -1833,7 +1833,7 @@ does this in order:
     "Where it runs,
     as whom,
     and in what order",
-    lines 1334 to 1409 at `30274435f3`).
+    lines 1483 to 1560 at `c7708953c0`).
     A prerequisite that refuses exits 2,
     and it records no start and removes no mark,
     because nothing will be enumerated and no claim was taken.
