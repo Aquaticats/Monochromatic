@@ -5509,6 +5509,27 @@ and any test suite.
   Q8 as "The settling command" with V21,
   and the lock answer in the decisions,
   A6 and "The record's end" step 4.
+- 2026-11-22T22:00:32-05:00:
+  answered the fourth check and the fallback record's "Three further answers":
+  W1 (the settling command runs the recipe's first step on the slot's pointer,
+  and T33 plants it),
+  W2 (the guard is two spellings plus the clone GUID's last four digits,
+  both masked in the printed line,
+  with what it catches and cannot said),
+  W3 (the removals follow the recipe and the lost lock is written again),
+  W4 (the states after A20 each with their command,
+  the busy-unmount line with its new clause,
+  and A20's write order),
+  W5 (which failures enter the fallback,
+  `registered` included,
+  and V16 agrees),
+  W6 (the fallback at step 11,
+  the settling command at step 16,
+  and step 10's keep-report-resume),
+  W11 to W18 and W21,
+  the empty-lock rule,
+  the two nothing-found rows,
+  and V21 and V22 rewritten.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
