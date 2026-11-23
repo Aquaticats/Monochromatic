@@ -379,7 +379,8 @@ fn the_value_that_moves_nothing(name: &str, objects: &Path, root: &Path) -> std:
 ///  with the environment-aware open there instead,
 ///  this control fails on the variable's own reason
 ///  (`the object database is not plain`).
-///  The variable belongs to one process, so each arm runs in a child that sets it after the repository exists.
+///  The variable belongs to one process,
+/// so each arm runs in a child that sets it after the repository exists.
 #[test]
 fn the_target_reads_its_own_objects_under_each_variable_a_command_names() {
     let held: Option<std::ffi::OsString> = std::env::var_os(THE_VARIABLE_CHILD);
