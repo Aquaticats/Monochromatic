@@ -95,7 +95,7 @@ Accepted 2026-11-22 in the question tool,
 recorded 2026-11-22T20:21:19-05:00,
 on the integration pass of the step 8 follow-up
 (`~/temp/agent/integration-pass-zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/keep/review.md`,
-section "Owner item 2: the bound of 4,096 children and the figures beside it").
+the section whose heading starts "Owner item 2").
 
 Asked with that pass's figures:
 the only count on record is the owner's "Up to 64" worktrees at once;
