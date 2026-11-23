@@ -3710,6 +3710,41 @@ the cancelled-removal bullet states the second exception it must carry,
 and the forced-arm bullet cites what the person's removal of a pending add meets;
 the build steps place the settle in step 11 and its two primitives in steps 9 and 13.
 
+- `099fa2ed30` at `2026-11-22T19:59:15-05:00`:
+the Revisions list of the third-pass round's commits.
+- `420cd703f9` at `2026-11-22T20:33:30-05:00`:
+the Revisions entry of the busy-unmount round.
+- `4dadc5fd27` at `2026-11-22T20:33:58-05:00`:
+the two evening records added to "Sources read".
+- `4f78bbc096` at `2026-11-22T21:18:42-05:00`:
+the fourth-pass revision.
+The capture's header and the two markers carry the add's `nonce=`,
+a reader refuses a foreign one,
+a fresh add clears another add's records,
+and the settle removes them in order before it closes the binding and releases the claim,
+with T15's three arms and `doctor`'s report of a foreign record;
+the settle publishes the origin cleanup record and the binding's label before its first destroy under Q-O's option (b),
+leaves the record `owed` for a refused snapshot destroy,
+and has its own text for the state the clone is gone and the snapshot stands,
+with Q-O put to the project and its three sibling statements reconciled;
+the printed removal is `git worktree remove <slot>` with the route cited;
+every request carries a fresh nonce and only its own receipt counts,
+the withdrawal covers every outcome but `done`,
+the mount is re-read after the write-back,
+and the text says what the re-read found;
+the pending folder's reach is stated as it is,
+with Q-S put to the project;
+the resume repeats D1 on the copy's index before the exchange;
+T14 and T15 are added,
+T5's kill points gain the settle's,
+and T12's three missing arms and the typed judge answer are named;
+the trash entry's manifest rewrite is atomic and its identity device-free,
+the row for a standing snapshot without a clone is split,
+and the same-tick residual is stated in "Where the result differs" and L8;
+the silently decided choices are listed as V9 to V12;
+the stale cites and sibling tips are corrected,
+and the binding record is read last at `21cbe938f5`.
+
 ## Sources read
 
 Git `v2.56.1`,
