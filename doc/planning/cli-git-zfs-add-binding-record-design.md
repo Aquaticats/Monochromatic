@@ -6219,6 +6219,9 @@ and any test suite.
   U33 (the first entry's real time and the tips sentence),
   and item 7 (the copy of the removal sentence matches "The record's end" word for word).
   Each was proved by the searches kept in `keep/eighth-reads-searches-2026-11-23.txt`.
+- 2026-11-23T17:40:16-05:00 (`5be6220648`):
+  pointed the one list's citers at the right headings,
+  the definition of "cannot be proved" and the list after A20.
 - The commits after this list's last entry record only a corrected path reference or a time,
   and are not listed,
   because a list cannot name a commit's time before that commit exists.
