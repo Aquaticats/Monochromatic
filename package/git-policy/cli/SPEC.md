@@ -1442,7 +1442,7 @@ Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet`
 The same conversion fence decides the snapshot rung,
 before the snapshot and before its stage name is claimed:
 the attributes are read and the decline decided first,
-the rest of the fence (`git ls-tree` and the per-path decision) is decided in the same step,
+the per-path decision follows them in the same step,
 and the index the snapshot installs holds the fenced paths with no stat data,
 so no path is recorded clean before Git's own write records the bytes it checked out.
 In the stage,
@@ -1453,9 +1453,108 @@ intersected with the index the tree difference left.
 A fence that cannot read its inputs ends the rung and Git's own checkout completes the worktree,
 and so does the fence's decline rule,
 before the snapshot rather than after it.
-The fence's two reads run on the add's waiting path in this rung:
-a snapshot copies everything anyway,
-so there is no copy for them to run beside.
+The fence's size read starts in this rung before the source check,
+which is why rung 1 is the one rung where the read leaves the add's waiting path:
+it needs only the source's root,
+the commit `HEAD` names and the object format,
+all answered in process from the plain ref files,
+so it starts on a thread of its own before `checkSource`
+(`worktree_clone_conversion_size_read.rs`).
+That read runs `git ls-tree -r -l -z` of that commit with `GIT_NO_LAZY_FETCH=1` on every source,
+so a partial clone fetches nothing into a source the check may refuse,
+whether the promisor remote's flags are in the common config,
+an included file,
+a worktree config or the environment.
+There is no second switch:
+the global `--no-lazy-fetch` is Git 2.45.0's,
+and an older Git refuses it before reading anything (exit 129),
+which sent a plain source from the snapshot to Git's whole checkout;
+the variable alone leaves the route as it was on every Git that honours it.
+The variable is honoured from the May 2024 maintenance releases
+(`v2.39.4`,
+`v2.40.2`,
+`v2.41.1`,
+`v2.42.2`,
+`v2.43.4`,
+`v2.44.1`,
+`v2.45.1`,
+the commit `7b70e9efb`)
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`:
+with it an unavailable size prints `BAD` in the size column,
+the run exits 0 with its output,
+and the clone is unchanged.
+A Git older than those releases that does not carry the fix
+(Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores the variable and can fetch a missing blob,
+which is the recorded limit of this read there;
+a size it cannot parse only ever sends its path to Git's writing,
+so the fence's answer is unchanged,
+and such a Git is older than the wrapper's tested minimum (`MINIMUM_GIT_VERSION`,
+2.56.0).
+The read also leaves the process-wide failed-step note alone
+(`GitRequest::beside_another_step`),
+because the add's own steps may fail while it runs.
+At the fence it is joined inside the step that decides the attributes and the paths,
+under the plumbing step's ceiling plus the wait the runner gives an ended child,
+and its answer decides the paths only when the commit it listed is the one the check proved;
+a read of another commit,
+or one that no path needs,
+is ended where the fence decides it cannot use it and the fence reads the proved commit itself when it needs sizes.
+Only that join waits.
+A read that answers nothing within it (a deadline or a dead thread)
+ends the rung in the sentence a failed read gives,
+never in a wait:
+the join is a receive with a deadline,
+measured from entering it,
+and the read's own runner still ends its Git step at that step's ceiling.
+A thread the system refuses never starts a read;
+the fence reads where it stands.
+A snapshot copies everything anyway,
+so this rung has no copy to run the read beside;
+rung 2 keeps the read beside its copies.
+An add that ends before the fence's join states the read in its record:
+when the read has already answered,
+its time is the record's `fenceSizesBesideTheCheck` work,
+and when it has not,
+the record says `started and not joined`,
+and the add ends without it.
+An add that will not use the read,
+because the source check refused,
+the fence declined,
+no path needed a size or the read listed another commit,
+ends its Git child there (`SIGKILL` to the id the read's runner published),
+and a read abandoned before its thread published a child has that child ended the moment the runner publishes it;
+the thread then ends with the process.
+A refused or declined add therefore does not wait for the read,
+and the read cannot run its whole length beside Git's own checkout:
+what it can still pay is the time between its start and the abandon,
+measured in one btrfs guest on Git 2.56 as a few milliseconds.
+A read still running when the process ends carries `PR_SET_PDEATHSIG`,
+so its child ends with the thread that started it,
+however the process ends.
+Which of an add's other reads it already paid depends on where it ends:
+a source check that refuses costs Git's own checkout and the read it started and ended,
+an untracked `.gitattributes` costs the same,
+and the decline rule costs those and the `git check-attr` read and the count over it.
+Measured in one btrfs guest of 2026-11-22
+(`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+"The re-time on Git 2.56.1,
+2026-11-22"),
+eight rounds for the served shapes,
+forty for the add whose Git fails at once,
+twenty for the cone sparse and five or six for the others,
+position-balanced,
+on Git 2.56.1 built from source in the guest,
+with an identical-binary control:
+a served loose add 1282.8 ms against `main`'s 1692.9,
+and a packed one 752.1 against 831.5;
+a refused loose add 4540.6 against 4945.9,
+and a packed one 3393.3 against 2951.1 (six rounds do not resolve it);
+a declined loose add 9358.1 against 8634.6,
+and a packed one 8882.5 against 8651.8;
+a cone sparse refused add 190.6 against 203.2 loose and 159.2 against 169.3 packed;
+a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
+No shape is resolved slower by the reading rule.
+The ratios and the control's spread are in that section.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
@@ -2780,7 +2879,10 @@ and more than a thousand,
 have a rule of their own that converts them,
 the rung declines before any copy and Git's checkout writes the worktree,
 with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
-a declined add is Git's own checkout plus one `git check-attr` and the count over it.
+a declined add is Git's own checkout plus one `git check-attr` and the count over it,
+and,
+on rung 1,
+the size read that rung started before its source check.
 A rung that ends after the fence,
 for any other reason,
 says
