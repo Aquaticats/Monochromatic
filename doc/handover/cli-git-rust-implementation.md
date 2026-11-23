@@ -1092,10 +1092,27 @@ and only the owner accepts one.
   the helper-process entry ranked A > C > B;
   the claim's sync dropped,
   as a new veto entry.
-  Going:
-  the reviewer's read of that diff,
-  to `review-last-diff-read.md` beside its other reviews.
-  Then the acceptance question with its veto list.
+  The reviewer's read of that diff
+  (`review-last-diff-read.md` beside its other reviews):
+  "fit after listed fixes",
+  nothing high,
+  three mediums.
+  The one that matters:
+  the claim written without a sync can be lost in a way the text denied.
+  By the reviewer's reading of OpenZFS `zfs-2.4.4`,
+  an fsync of any other file in the dataset commits the claim's link and the unlinks of the lower attempts without the
+  claim's data,
+  so a crash can leave an empty highest attempt and no lower one,
+  and the command's trigger for that request is gone.
+  Also:
+  the basis cited for two requests on one clone not overlapping does not hold;
+  one test line contradicts the record.
+  Running:
+  `pi-zfs-lost-last-event-triggers-design-last-diff-read`,
+  on `continuation-last-diff-read.md` in its folder.
+  Then one more read of its diff,
+  and the acceptance question with its veto list
+  (in plain words in that review's section 7).
 - The propagation design's round on its four answers,
   started when the lost-event round ended,
   ended at `c7708953c0`
@@ -1160,12 +1177,18 @@ and only the owner accepts one.
   The coordinator read its diff:
   it changes the six places asked and the Revisions list,
   nothing else.
-- Next:
-  the acceptance question with its veto list
-  (V1 to V8,
-  in plain words in that review's section 4),
-  put together with the lost-event design's when that design's last read is back,
-  since the two cite each other.
+- The propagation design is accepted by the owner as written on 2026-11-22,
+  with the eight choices its record lists:
+  `doc/decision/cli-git-zfs-checkout-propagation-repair.md`,
+  section "The design is accepted".
+  It is on `main`,
+  `doc/planning/cli-git-zfs-private-propagation-after-replacement-mount-design.md`,
+  merged as `7747980fbd`,
+  and renders with no Markdown left literal.
+  Nothing in it has been run;
+  the guest measurement that decides whether the provisional trigger stays is owed by plan step 19.
+  It cites the lost-event design at `95d3b2074e`,
+  which is still moving.
 
 #### The desktop froze under these runs, and two kernel settings were changed (2026-11-22T21:07:36-05:00)
 
