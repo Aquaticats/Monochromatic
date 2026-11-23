@@ -3532,6 +3532,28 @@ with its committer time from `git log --format=%cI`:
   the man-page line,
   the `doctor` namespace note and the `statmount` callers are fixed;
   and every sibling citation is re-pointed at the sibling's then-current tip.
+- `4156ef6cdf`,
+  2026-11-22T20:44:41-05:00,
+  on the merge of `main` at `249da7f102`:
+  the repair record is re-read after its correction,
+  and its third answer is quoted in the option's own words,
+  with the withdrawn sentence and the new section on a shared and slave mount;
+  the shared and slave cost is stated where a person meets it,
+  in the record's `master` field and in the summary and `doctor` lines;
+  the read beneath the checkout is designed with its bound,
+  its record fields,
+  its readers,
+  test 23 and M10;
+  the `left` outcome,
+  its after-read rule and tests 21 and 22 are added;
+  the trigger's kill criterion is defined as two pass-or-fail readings and one description,
+  M4 gains the person-paced arm,
+  and the route without the trigger is stated;
+  the trigger's two costs are attributed one by one;
+  the diff check's thirteen lows are fixed,
+  among them the fourth second-mount reference that the previous entry said was fixed and was not;
+  and every sibling citation is re-pointed at `b6855dce15`,
+  whose own reads of this document are recorded as stale at this tip.
 - `3b57582319`,
   2026-11-22T19:55:48-05:00:
   this list gained the commit that recorded this round.
