@@ -273,6 +273,17 @@ LFS branch's build, passed on `main`'s) and
 flood control decides a process's ending from a short look; both are the shape that a loaded host
 moves. They are not causes of the gate's failure on this host, and none of them names a mount fact.
 
+One more control has this shape and an issue of its own:
+`fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout` failed in the gate of 2026-11-23T04:12-05:00 (run `native-uN7Nqs`) after 78.850 s with
+"native Git /usr/bin/timeout --signal=KILL 60 /usr/bin/git rev-list --count --merges HEAD … was ended at its 60 s bound:
+the control was waiting for Git to answer".
+It is issue 6397.
+This document's cause N changes the wait for the commit service's after-commit work,
+and that control never calls it:
+`binary_fault_trace_tests.rs` starts the wrapper under `strace` and asks Git through `support::git`,
+and neither that file nor `binary_fault_run.rs` calls `observe`,
+`run_wrapped` or `settle_service_work`.
+
 One more control had this shape,
 failed twice,
 and has a cause of its own.
@@ -283,11 +294,12 @@ and that control's fixture holds no LFS key.
 It passed in the gate of 2026-11-21T13:55:00-05:00 and in four filtered runs of that image,
 and it failed again in the gate of 2026-11-22T16:51:52-05:00.
 The second failure is cause N's opening quotation.
-Its own words say the removal's record was moved by another look of the same service while the
-worktree stayed;
+The two service lines in that journal are the fixture teardown's,
+not the failure's,
+which cause N's section "The fixture's drop,
+and the journal's two service lines" shows;
 whether the first failure had the same cause is not shown,
-because that gate's
-journal is not kept.
+because that gate's journal is not kept.
 Cause N holds the evidence,
 the fix and the controls for the second.
 
@@ -2411,11 +2423,13 @@ It needed the linked worktree's directory to be gone by the moment the `merge` c
   The service's look then answers `failed` ("nothing was removed:
   …") and writes no kept-worktree notice,
   so no command says anything;
-  that limit is tracked as an issue of its own.
+  that limit is tracked as issue 6355.
 - The fixture's teardown removed the tree under a look that was still running.
   That is the journal's `.git/worktrees cannot be resolved` line,
   and it needs the registration tree to go between the look's second and third path resolution.
-  It is shown below and it is not what made the assertion fail:
+  The section "The fixture's drop,
+  and the journal's two service lines" shows it,
+  and it is not what made the assertion fail:
   the assertion ran first.
 
 ### The cause
@@ -2424,7 +2438,8 @@ Two things,
 and the first is what the controls show.
 The merge returns before the removal finishes,
 by design,
-in the three places quoted above.
+in the three places named under "What the assertion needed,
+and each way it could be false".
 The wait that hides that reads three folders one after another,
 while a record being claimed moves from `pending` into `recovering` and then into `claimed`,
 a recovery of an expired claim moves a `claimed` record into `recovering` and then into `pending`,
@@ -2439,10 +2454,12 @@ the third closes a recovery whose two renames straddle two samples.
 The comment on `settle_service_work` lists every move a record makes between these folders,
 from the code.
 What three samples do not close,
-measured by the integration pass that reviewed this change over schedules of one record's moves placed among the wait's reads:
-they closed all 3,350 schedules of up to three moves and all but 4 of 18,365 of up to four;
-so a chain of four or more moves that a thread's stall stretches across every sample is still missed,
-and so is a record renamed inside one folder while that folder is read.
+over schedules of one record's moves placed among the wait's reads,
+counted by a reviewer's run kept outside the repository,
+and reproduced by the pass after it:
+they closed all 3,350 schedules of up to three moves and all but 4 of 18,365 of up to four,
+so a chain of four or more moves that a thread's stall stretches across every sample is still missed.
+A record renamed inside one folder while that folder is read was not tested.
 
 Shown:
 
@@ -2451,15 +2468,17 @@ Shown:
   `a_read_in_the_order_a_record_moves_catches_what_a_claim_and_a_recovery_move_between_its_reads` is red when the folders are read in the old order with three samples kept;
   `a_second_sample_catches_what_a_recovery_takes_back_between_two_reads` is red with one sample;
   `a_third_sample_catches_a_recovery_whose_two_renames_straddle_two_samples` is red with two samples;
-  `a_record_that_moves_between_two_reads_is_not_a_settled_queue` is red only when both halves are put back,
-  which is the wait `main` has;
-- the integration pass's four plants (the claim's stay in `recovering` 300 ms,
+  `a_record_that_moves_between_two_reads_is_not_a_settled_queue` is red on the wait `main` has,
+  and green with the order alone and with the second sample alone;
+- a reviewer's four plants (the claim's stay in `recovering` 300 ms,
   the first sample 100 ms late,
   400 ms after the second read of a sample,
-  a 600 ms removal) made the control as it stood fail with the gate's own sentence on `main`'s wait and pass on this one;
-- the unplanted code,
-  with real renames and a record moved between the wait's reads by the wait's own step,
-  returns with a live record on the schedules the four controls above make.
+  a 600 ms removal) made the control as it stood fail with the gate's own sentence on `main`'s wait and pass on this one,
+  and the pass that reviewed this round saw it again;
+- the wait as it stood before its third sample (two samples),
+  with real renames made by the wait's own step,
+  returns with a live record on the third control's schedule;
+  the wait now in the tree does not return on any of the four controls' schedules.
 
 Inferred,
 and not shown:
@@ -2468,7 +2487,7 @@ and not shown:
   Neither gate logged the queue when the wait returned.
   The move that makes the window needs a stall of the waiting thread;
   the pass measured the recovery of an expired claim at 227 to 1131 microseconds (median 249,
-  300 runs) against about 39 microseconds for the wait's three samples,
+  300 runs) against about 55 microseconds for a whole call of the wait with three samples,
   so a capped four-thread container can hold a thread that long,
   and no rate is claimed here.
   The next occurrence must capture the queue at the moment the wait returns.
@@ -2495,21 +2514,21 @@ FAIL support_observation::tests::a_record_that_moves_between_two_reads_is_not_a_
 
 Each red prints the queue at the wait's return,
 with the record still in it,
-for example `pending=[] claimed=["subvolume-delete-0000000000000000000000000000000000000000~…"] recovering=[] done=[] failed=[]`.
+for example `a read of the wait sees the record while it moves between the folders a claim passes through, and none did: pending=[] claimed=["subvolume-delete-0000000000000000000000000000000000000000"] recovering=[] done=[] failed=[]`.
 
 ### The fix
 
-`settle_service_work` reads the three folders in the order a record moves through them and requires three empty samples;
-the cost is about 20 microseconds on a call that finds nothing,
-against `main`'s one sample.
-The four controls above hold the order and each sample,
+`settle_service_work` reads the three folders in the order a record moves through them and requires three empty samples.
+A whole call on an empty queue costs about 55 microseconds against `main`'s 19,
+a ratio of 2.9 (range 2.6 to 3.5 over two sets of 36 interleaved rounds,
+where identical code ranged 0.91 to 1.14),
+measured by a reviewer's run kept outside the repository.
+The four controls hold the order and each sample,
 and the pair of halves.
 The wait keeps its 60 s bound,
 its 20 ms pause and its failure message.
-In the last whole container gate on this branch,
-979 tests of files that reach the wait were paired against tests of files that do not:
-the wait users' summed time was 0.86 of that gate's predecessor and the control tests' 1.12,
-so no shift of the wait is visible in a gate.
+No test-level timing was made:
+the whole gate that would pair the wait's users has no usable result for this branch.
 
 ### The fixture's drop, and the journal's two service lines
 
@@ -2523,7 +2542,8 @@ The drop stops the services at once now,
 before `end_processes_working_in` and `settle_fixture`.
 
 Shown with a look held between its second and third path resolution,
-and a test that ends while the look waits (the integration pass's runs of it):
+and a test that ends while the look waits (a reviewer's runs of it,
+kept outside the repository):
 
 - the old order printed the look's line in 13 of 28 runs,
   two of those with the second line too,
@@ -2549,10 +2569,19 @@ and a test that ends while the look waits (the integration pass's runs of it):
   and no later command says anything about it;
   the merge's line is the only word,
   and it gives the command that removes the worktree.
-- The service keeps the worktree:
+  This was run once,
+  by the first pass that reviewed this control,
+  and not since.
+- The service keeps the worktree because it is locked:
   the record reaches `failed`,
   and the next command that reads notices prints the kept-worktree line once,
-  with Git's own sentence.
+  with the product's own sentence about the lock.
+  A reviewer ran this.
+- The service keeps the worktree because Git refused the removal:
+  the record reaches `failed`,
+  and the notice carries Git's own sentence.
+  This was not run since the first pass that reviewed this control;
+  it stands on the code (`keep_the_worktree(…, "Git refused to remove it: …")`).
 - The merge's line names the hand-over,
   where the record is,
   what `done` and `failed` mean,
@@ -2560,10 +2589,12 @@ and a test that ends while the look waits (the integration pass's runs of it):
 
 #### Which commands wake the service
 
-Measured by the integration pass against a removal record parked in `pending`:
+Measured against a removal record parked in `pending`:
 thirteen commands,
 eight seconds each,
-and only `git commit --allow-empty` woke the service (the record left `pending` 312 ms after it).
+and only `git commit --allow-empty` woke the service.
+Two runs put the record's leaving `pending` at 312 ms and at 1652 ms after the command started,
+so the wait it took is what one run of a loaded host gives and no bound is claimed.
 The other twelve left it `pending`:
 `git status`,
 `git status --short`,
@@ -2595,7 +2626,7 @@ From the code:
   and the next merge that hands over a removal were not run either;
   they stand on the code.
 
-A removal left `pending` by a missed wake is tracked as an issue of its own;
+A removal left `pending` by a missed wake is tracked as issue 6354;
 nothing here changes that behaviour.
 
 ### A limit the fix does not close
@@ -2607,7 +2638,7 @@ The merge's line promises that a `failed` record's reason reaches the next comma
 for this state no notice is written,
 so no command shows one.
 The state is rare (the worktree is already half gone when it is met),
-and it is tracked as an issue of its own.
+and it is tracked as issue 6355.
 
 ### What the next occurrence must capture
 
