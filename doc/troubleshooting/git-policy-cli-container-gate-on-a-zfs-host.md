@@ -1313,7 +1313,8 @@ and 19 - 12 = 7,
 the failure's excess exactly.
 Read from 212,
 the window holds `git commit` alone,
-and 34 + 2023 fits 2086 + 12.
+and 34 + 2023 = 2057 fits 2086,
+and 2086 + 1.
 
 The record is right on both sides:
 58 + 48 = 106 <= 111 in the preparation,
@@ -1326,7 +1327,7 @@ so its stretch is at least as long as the step,
 and the 16 ms between the notice's `stoppedAfterMs` 2007 and the step's 2023
 is time the step ran past the ceiling,
 consistent with its own end and reap on this host,
-where natural `git commit` steps of the same control lasted 2017 to 2047 ms against a 2000 ms ceiling,
+where the integration pass's 17 clean stopped records show natural `git commit` steps lasting 2013 to 2091 ms against a 2000 ms ceiling,
 and inside `buildMs`,
 which is closed after the step's time is read
 (`note_step(step, began, began.elapsed())` at
@@ -1353,16 +1354,19 @@ so a right record states the build's parts and the steps that began in them at `
 The one cut that can add is the window's origin,
 `routeMs + prepareMs`,
 two cuts that can begin the window up to two whole milliseconds early;
-the step such a band admits is one the preparation had already awaited,
-so it ran in under those two milliseconds and states at most one whole one.
+the step such a band admits is one the preparation had awaited,
+so it ended before the preparation did,
+ran in under those two milliseconds,
+and states at most one whole one.
 The controls hold that one whole millisecond (`WINDOW_ORIGIN_ROUNDING_MS`),
 and the failure's 2105 passes 2086 + 1 = 2087 by 18,
 so no cut decides it.
 In the controls' clean records of 2026-11-22 the excess was -5 to -3 ms,
 so the bound leaves 4 to 6 ms of headroom there.
-The fixed 12 ms allowance the controls held before that was too small for a record with more figures than it counted,
-and a count of figures is too large:
-the integration pass of 2026-11-22 read it as 16 on the stopped control and 19 on the landing one,
+The fixed 12 ms allowance was larger than any right record needs,
+so a step stating 10 or 14 ms too much passed it,
+and a count of figures is larger still:
+the integration pass of 2026-11-22 read the count as 16 on the stopped control and 19 on the landing one,
 where a planted step stating 20 ms more than it ran passed both.
 
 Every other way this could be false was checked and excluded:
@@ -1414,9 +1418,11 @@ and `prepareParts` states the two preparation steps' time as
 Read from `prepareMs` 275,
 the window selects all three steps,
 2243 ms,
-and 11 + 2243 passes 2045 + 12 by 197 ms.
+and 11 + 2243 passes 2045 + 12 by 197 ms
+(and 2045 + 1 by 198).
 Read from 711 it selects `git commit` alone,
-and 11 + 2029 = 2040 fits 2045 + 12.
+and 11 + 2029 = 2040 fits 2045,
+and 2045 + 1.
 
 No whole-suite rerun was used to wait for this failure:
 the delay was planted in the stand-in and one run of the control showed it.
