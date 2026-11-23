@@ -419,14 +419,23 @@ its report,
 `keep/report-seventh-reads.md`,
 says all eight items are done,
 H1 and H2 among them.
+Both reviewers' eighth reads
+(`review-eighth-read-before-acceptance.md` beside each seventh read;
+the lock reviewer is agent `a162ea896d0a950e2`,
+the record reviewer `a6207db50e3431e04`)
+found the lock design fit to put to the owner as it stands,
+and the binding fit after one narrow round:
+a `settling` binding with no plan is told two different commands
+(the lock reviewer's U26,
+the record reviewer's J1),
+with lows and the unrecorded clone at `snapshotted` (U27).
 Running:
-the eighth read by each reviewer of that diff alone
-(the lock reviewer resumed as agent `a162ea896d0a950e2`,
-the record reviewer as `a6207db50e3431e04`),
-each to `review-eighth-read-before-acceptance.md` beside its seventh read.
+`pi-zfs-add-binding-record-design-eighth-reads`.
 
 Next:
-the acceptance question.
+a read of that diff;
+then the acceptance questions,
+step 10's two designs and the three records.
 It names what the owner accepts for step 10,
 and puts one sentence of the plan to the owner:
 step 10's "discarded copied Git administration",
@@ -458,8 +467,13 @@ each with the words that should replace it.
 The rounds on H9 and H10 ended with every low done:
 the origin cleanup record at `ea271e9e1d`,
 the plan record at `db69df972a`.
-Running:
-the record reviewer's eighth read of all three diffs and of check 6's list.
+The record reviewer's eighth read found the three fit with lows and the set ready to go to the owner with its list of accepted-design sentences
+(now its check 4,
+with entries 2,
+3,
+5,
+12 and 13 changed),
+once the binding's J1 is mended.
 
 Next:
 a round on each record's lows;
