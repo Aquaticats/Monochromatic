@@ -701,19 +701,16 @@ and only the owner accepts one.
   (ended at `7d041d773b`,
   see step 10's entry);
   the origin cleanup design's round
-  (running as `pi-zfs-origin-cleanup-record-design-fourth-check-findings`,
-  on `continuation-fourth-check-findings.md` in its folder:
+  (ended at `f17455b786`,
+  report `keep/report-fourth-check-findings.md` in its folder:
   its lows;
   its V15 retired,
   decided by the dirty-main record;
   its record for an add that made no clone;
   the moment an add writes the record);
   the plan design's round
-  (written and not started,
-  `continuation-fourth-check-findings.md` in its folder,
-  to start with
-  `node run-a-gate-findings-round.ts zfs-removal-destruction-plan-record-design continuation-fourth-check-findings.md fourth-check-findings`
-  when the origin round ends:
+  (running as `pi-zfs-removal-destruction-plan-record-design-fourth-check-findings`,
+  on `continuation-fourth-check-findings.md` in its folder:
   the high finding,
   its words for the cancelled-removal design and for the accepted deferred-destroy design,
   the settling command's order);
@@ -1376,12 +1373,14 @@ and only the owner accepts one.
   `pi-object-reader-third-recheck-findings-worktree-add-snapshot`,
   on `continuation-third-recheck-findings.md` in the round's folder.
   Then a fourth recheck.
-  Two controls the branch does not touch failed in the recheck's runs and are not filed yet:
+  Two controls the branch does not touch failed in the recheck's runs and are filed:
+  issue 6351,
   a `health::doctor` control,
   once in the gate,
   whose cause the recheck showed
   (a maintenance child's `objects/maintenance.lock` in a first listing and gone by a second);
-  and the control whose name starts `the_hashed_bytes_`,
+  and issue 6352,
+  the control whose name starts `the_hashed_bytes_`,
   which fails alone on this host on `main` too,
   undiagnosed.
 - The size read
