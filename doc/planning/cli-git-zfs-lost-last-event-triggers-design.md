@@ -5052,6 +5052,30 @@ which is that design's answer.
   with the commit its text equals.
 - 2026-11-23T04:04:21-05:00:
   recorded the answer's commit time above.
+- 2026-11-23T04:18:00-05:00:
+  the coordinator's read of the last diff,
+  and the answer a stopped unmount files.
+  `main` was merged first,
+  at 2026-11-23T04:15:51-05:00,
+  bringing that answer's record.
+  Both `doctor` lists say every attempt of a clone whose last claim was never recorded,
+  each with its number,
+  with a count line and the one line that removes them all when there are more than two,
+  and test 16 leaves two attempts for one killed helper and one per kill for a chain.
+  Since 2026-11-23 an `unmount` request whose unmount stops short is answered at once,
+  in an extended format whose fourth outcome word and fields are step 9's to propose
+  ([staging decision](../decision/cli-git-zfs-staging-under-cache.md),
+  "The answer a stopped unmount files,
+  answered 2026-11-23"):
+  the records rule names it,
+  the loss list names it,
+  the cost rule and its exception treat such an event as idle,
+  the waiting command's own nudge says such a wait never reaches `D` and its entry is removed by the answer,
+  `doctor` reads the fourth word as any other outcome,
+  and no trigger,
+  cost case,
+  lever,
+  test or measurement changes.
 - Any commit touching this file after the entries above is newer than all of them,
   and `git log --format=%cI -- doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`
   lists it with its committer time.
