@@ -2483,28 +2483,31 @@ The commit that carries this list is the one `git log --format=%cI -1 -- <path>`
   2026-11-22T18:32:10-05:00:
   the chain-carrier commit named in the revision list.
 
-### The round that answered the four questions
-
-- The four answers are built in:
-  "Who ends each kind of holder" is the chosen channel,
-  "The reach" is the unmount and blockers,
-  "The caller and its protected set" is the session plus every ancestor to pid 1 and the service-manager refusal,
-  and "The refusal" carries the force-only refusal and leaves the unforced cancel to the sibling.
-- The options not chosen are listed once,
-  under "Who ends each kind of holder",
-  with the record.
-- N2 is fixed in "The caller and its protected set" and "The time between the scan and the ending";
-  N3 in "A command whose parent is the service manager";
-  N4 by "The reach" and its M3 to M7 and M13;
-  N5 in "What a holder is".
-- The sibling is cited by section at `2fb7caea17`,
-  its current words are used,
-  and no "currently says" statement remains.
-- The questions left are S4,
+- `f6743550d2`,
+  2026-11-22T19:16:06-05:00:
+  the record's four answers built in,
+  the reach designed (the entering child,
+  the move by descriptor,
+  the unmount from the destination's descriptor,
+  the blockers,
+  and the refusals),
+  the options not chosen listed once,
+  N2 to N5 fixed,
+  the sibling cited by section at `2fb7caea17` with its current words,
+  the questions reduced to S4,
   S6 and S11,
-  and the veto list has V6.
-- F8 and F10's citations are corrected;
-  the lows and citation notes the second pass listed for this document are applied.
+  the veto list extended to V6,
+  and F8 and F10 corrected.
+
+The four answers are built in:
+"Who ends each kind of holder" is the chosen channel,
+"The reach" is the unmount and its blockers,
+"The caller and its protected set" is the session plus every ancestor to pid 1 and the service-manager refusal,
+and "The refusal" carries the force-only refusal and leaves the unforced cancel to the sibling.
+N2 is fixed in "The caller and its protected set" and "The time between the scan and the ending";
+N3 in "A command whose parent is the service manager";
+N4 by "The reach" and its M3 to M7 and M13;
+N5 in "What a holder is".
 
 ## What this revision left as it was
 
