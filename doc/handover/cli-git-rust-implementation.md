@@ -2106,6 +2106,12 @@ This session wrote the opposite on 2026-11-12 and again on 2026-11-13 without re
   (one session's container images took about 20 GB of that drive in an hour on 2026-11-13; twenty runs ended once it read 1 GiB free).
   This replaces the reasoning from one run's scratch size given under "Corrections to this section".
 - The rules `1SF`, `SFN` and `SZR` stand as written; they concern the scratch folder wherever it is.
+  (Note of 2026-11-22: `SZR` no longer stands.
+  The owner removed it that day,
+  "Please remove the SZR rule.
+  It unnecessarily uses tons and tons of compute.",
+  so no pass measures the scratch folder's size any more.
+  `1SF` and `SFN` stand.)
   A rule for what agent work leaves on the home drive (container images above all) waits for the measurement.
 
 #### Issue 6293, filed by the other session at 10:55:20
@@ -44561,6 +44567,9 @@ stated in this entry. What follows from them, as work:
   briefs' ban on searching the scratch root as a whole (an agent's `rg` there ran 15.5 hours, in the 2026-11-15 entry
   on silent runs) into a ban on measuring it; the measurement is the coordinator's by rule `SZR`, and earlier passes
   ran it.
+  (Note of 2026-11-22: the owner removed rule `SZR` that day for the compute it used,
+  so the measurement is nobody's duty now;
+  the ban on searching the scratch root as a whole stands.)
 
 ### The Qwen plan's terms fit the Pi runs on it (2026-11-19T11:20:00-05:00)
 
