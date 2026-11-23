@@ -1932,6 +1932,10 @@ no listing of `worktrees/` per command,
 and no pass that reads a plan without a reason to.
 The pass takes the claim and finishes the list's steps 12 and 13 in the order the list gives,
 so a kill in that tail has one command that finishes it without an add.
+A kill inside the pass leaves the state of the list's point it was in:
+its claim names a dead owner and the next claimant takes the next generation,
+an inventory it had not removed is the same step's leftover,
+and a plan it had not removed is still the last witness.
 The one cost is the `stat` per command while the folder exists,
 which is one `stat` in the healthy state and a listing only while a leftover stands;
 a `head=gone` plan adds the claim,
