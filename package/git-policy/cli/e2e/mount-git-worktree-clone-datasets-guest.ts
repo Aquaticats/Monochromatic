@@ -9,9 +9,14 @@
  with OpenZFS 2.4.4 and the Rust toolchain, then builds this crate's `native_binary` test target inside it, runs the
  adoption and store controls there, runs the store's publication-fsync probe, and destroys the guest.
 
- Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|destroy|all> [--name <guest>]
+ Usage: node e2e/mount-git-worktree-clone-datasets-guest.ts <create|prepare|run|delegation|destroy|all> [--name <guest>]
           [--log-dir <dir>] [--keep-guest]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
+
+ `delegation` answers the owner's question of 2026-11-22 by a run: under the
+ design's own grants, as `ubuntu`, it tries every route that could give a
+ dataset of the checkout's leaf name a row in the host's mount table, and then
+ runs root's `zfs mount -a` and reads the table.
 
  The evidence of one run is `adoption-arm.log` and `store-fsync.log`, pulled back into the log directory, and a run
  passes only when the first carries every `ADOPTION` and `STORE` line below, the second carries both `PROBE` lines, and

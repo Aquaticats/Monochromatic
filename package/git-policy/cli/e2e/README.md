@@ -967,6 +967,41 @@ The arms print `MEASUREMENT sweep-attach-ms=` and
 `MEASUREMENT child-bound-listing-ms=` lines beside their assertions,
 and the driver fails a run whose pulled log lacks a line or a marker.
 
+### The delegation arm
+
+`delegation` answers the owner's question of 2026-11-22 by a run rather than by
+reading:
+under the design's own grants
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Scoped delegation"),
+as the guest's `ubuntu`,
+it tries to create a dataset of the checkout's leaf name under the container,
+to create one with a mountpoint of its own,
+to snapshot and clone the checkout,
+to rename onto that leaf name,
+to mount the clone into the host's namespace,
+to set its `mountpoint` and `canmount`,
+to make a pool and to import one,
+and then it runs root's `zfs mount -a`,
+which is what a boot's `zfs-mount.service` does,
+and reads the mount table afterwards.
+Every attempt prints one `DELEGATION` line with its rows,
+and the driver fails a run whose pulled log lacks one.
+
+What the run of 2026-11-22 showed:
+the account may clone the checkout to a dataset named
+`monochromatic-git-checkout` inside the container,
+and may do none of the rest.
+The clone inherits `mountpoint=legacy`,
+which the distro's `zfs-mount-generator` and `zfs mount -a` both skip,
+so root mounts that name into the host's namespace only through the route's own
+descriptor attach at a slot.
+A row inside the container is therefore a managed clone and never the checkout,
+and the sweep ignores it
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 8,
+"Where the checkout and the datasets are found").
+
 ## The ZFS start-probe arms
 
 `start-probe-guest.ts` runs the root probe's own arms in a guest of the same
