@@ -61,8 +61,8 @@ fn assert_the_snapshot_rung_decides(name: &'static str, setting: fn(&Fixture, &P
     for (branch, held) in [("with-the-setting", Some((variable, value.as_str()))), ("with-nothing", None)] {
         let mut command: Command = wrapped(&fixture);
         command.current_dir(repo.as_path()).args(["worktree", "add", format!("../{branch}").as_str(), "-b", format!("topic-{branch}").as_str()]);
-        if let Some((variable, value)) = held {
-            command.env(variable, value);
+        if let Some((held_variable, held_value)) = held {
+            command.env(held_variable, held_value);
         }
         let seen: Observed = observe(&mut command, b"");
         let said: String = String::from_utf8_lossy(seen.stderr.as_slice()).into_owned();
