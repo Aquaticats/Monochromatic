@@ -151,20 +151,20 @@ and the launchers now take their pool from `writer-pool-for-a-round.ts` in the l
 which refuses that pool.
 The driver and the worktree launcher now refuse a run on a closed pool,
 and the qwen plan's DeepSeek pool is open for runs that name it:
-merged as `65a1dc0e78`.
-Its pass,
-stopped early by the owner's choice that passes run only at a release
-(`~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`),
-found two things that make `main` worse:
-a pool reopened with `PI_RUNS_POOL_LIMITS` through the gate or the worktree launcher is refused inside the run's unit,
-which gets only `PATH` and `HOME`;
-and `lint` is red.
-The round launchers in the launch folder call `drive-pi-subagent.ts` directly and set no `PI_RUNS_POOL_LIMITS`,
-so they are not reached.
+merged as `65a1dc0e78`,
+and its pass's findings merged as `cdc21b3661`:
+a reopened pool now reaches the run's unit (shown on real units),
+`lint` is green,
+and a malformed `PI_RUNS_POOL_LIMITS` refuses only the pool it touches.
+The owner answered the pass's three questions on 2026-11-23
+(`doc/decision/pi-driver-closed-pools-and-the-worktree-launchers-default.md`):
+the qwen plan's pool keeps 5,
+a reopened pool is forwarded into the unit,
+and a worktree launch naming no provider takes the first open pool instead of refusing.
 Running:
-`pi-driver-closed-pool-follow-ups-on-main`,
-on both and the pass's other findings,
-on `fix/pi-shared-subagent-driver-closed-pool-follow-ups-forward-pool-limits`.
+`pi-driver-launcher-takes-the-first-open-pool`,
+on that last answer,
+on `fix/pi-shared-subagent-driver-launcher-takes-the-first-open-pool`.
 A fresh worktree's `lint` and `lint:types` fail on a stale store link
 (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` when the wrapper relinks it),
 seen by three passes today (issue 6339's family).
@@ -436,228 +436,91 @@ on the same branch.
 Next:
 merge when it ends.
 
-#### Step 10's designs: the add-time lock and the binding record
+#### Step 10: the add route from registration to a verified fill
 
 Outcome:
-the owner accepts the two designs step 10 is built from.
+a `git worktree add` on ZFS claims its slot,
+registers the worktree already locked,
+snapshots and clones the main checkout,
+and fills and checks the slot,
+resuming after a kill.
 
 State:
-the lock design is on `docs/planning-cli-git-zfs-add-time-git-lock-design` at `4625537ae5`,
-the binding record on `docs/planning-cli-git-zfs-add-binding-record-design` at `c077bdb1e1`,
-each after a round on the reviewer's sixth read.
-The reviewer's sixth read
-(`review-sixth-read-before-acceptance.md` in
+the owner accepted step 10's two designs on 2026-11-23,
+kept all 21 of their choices,
+reworded the plan's pointer sentence,
+and put the add's read of the plan folder in step 10
+(`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`).
+The designs are on `main` as proposals:
+`doc/planning/cli-git-zfs-add-binding-record-design.md` and `doc/planning/cli-git-zfs-add-time-git-lock-design.md`.
+The lock reviewer's eleventh read
+(`review-eleventh-read-and-step-10-question.md` in
 `~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/`)
-found the lock design fit with three lows,
-and the binding fit after fixes its round has since made:
-a stale test paragraph,
-and a hazard in the settling command,
-which on a `settling` binding could remove the registration of a worktree Git had already checked out.
-That file holds both veto lists in plain words and the two plan sentences as they would read after the change.
-The same reviewer's seventh read,
-`review-seventh-read-before-acceptance.md` beside it,
-found the lock design fit to put to the owner as it stands,
-with two lows that can ride with its next commit,
-and plan step 10 buildable from the two documents and the accepted records.
-It found the binding fit after three mediums,
-all in the settling command and none of them step 10's:
-its two modes overlap on a half-made checkout;
-a settling command that was killed and is run again once the pool answers has no command the text shows to work;
-and the third option of the veto entry V23 sends a person in a circle.
-The record reviewer's seventh read found the same overlap from its side,
-and one more state with no command:
-a clone destroyed by hand before any removal ran.
-The binding's round on both reads ended at `86ce40be3c`
-(`continuation-seventh-reads.md` in its round folder is what it was asked);
-its report,
-`keep/report-seventh-reads.md`,
-says all eight items are done,
-H1 and H2 among them.
-Both reviewers' eighth reads
-(`review-eighth-read-before-acceptance.md` beside each seventh read;
-the lock reviewer is agent `a162ea896d0a950e2`,
-the record reviewer `a6207db50e3431e04`)
-found the lock design fit to put to the owner as it stands,
-and the binding fit after one narrow round:
-a `settling` binding with no plan is told two different commands
-(the lock reviewer's U26,
-the record reviewer's J1),
-with lows and the unrecorded clone at `snapshotted` (U27).
-The round on both eighth reads ended at `abeb058f63`,
-its report saying every item done,
-with one section,
-"Which command is true for a state",
-that the other rules cite.
-Both ninth reads
-(`review-ninth-read-before-acceptance.md` beside each eighth read)
-found the lock design fit as it stands,
-and the binding not yet:
-its new section said a `settling` binding never has a plan,
-which is false,
-so a plan a killed removal left could end with no clone,
-no binding and no command
-(the record reviewer's K5,
-blocking),
-and the removal's rule had lost its scope
-(U34 and K2).
-The round on both ended at `64b0ce5a36`,
-every item done by its report (`keep/report-ninth-reads.md`).
-It adds one rule:
-the add refuses while a plan stands.
-Both tenth reads
-(`review-tenth-read-before-acceptance.md` beside each ninth read)
-found the lock design fit as it stands,
-and three new states in the binding:
-a loop of refusals over a `settling` binding with a plan and a gone clone
-(K7,
-U40),
-a gone-clone row the add's readers contradict
-(K8,
-U39,
-which reaches step 10),
-and an add that reads the plan folder the plan design says it does not
-(K9,
-U41).
-Both designs,
-and the four other designs of this section and the next two,
-merged into `main` as proposals on 2026-11-23 at 18:29,
-by the owner's choice that a design merges when its round ends.
-The round on both tenth reads ended with every item done
-(`keep/report-tenth-reads.md` in its round folder):
-the loop closed,
-the gone-clone row gives the settling command,
-and the add's read of the plan folder is offered as V24,
-with the plan record's paragraph to match;
-the binding merged as `b6011a59eb` and the plan record as `98a81d8f79`,
-both proposals.
+left two fixes to the binding,
+neither step 10's:
+a wrong sentence about a `snapshotted` resume,
+and `doctor` naming two commands for one plan state.
 Running:
-each reviewer's eleventh read of that diff,
-writing the final text of its acceptance question
-(`review-eleventh-read-and-step-10-question.md` and `review-eleventh-read-and-the-records-question.md`).
+`pi-zfs-step-10-add-route-to-a-verified-fill`,
+the build,
+on `feat/git-policy-cli-zfs-step-10-add-route-to-a-verified-fill`;
+and the binding's round on the two fixes
+(`continuation-eleventh-read.md` in its round folder).
 
 Next:
-the acceptance questions,
-step 10's two designs and the three records.
-It names what the owner accepts for step 10,
-and puts one sentence of the plan to the owner:
-step 10's "discarded copied Git administration",
-which the accepted dirty-main design keeps and the binding calls wrong.
+merge each when it ends.
 
 #### The removal-side records: the destruction plan and the origin cleanup record
 
 Outcome:
-the owner accepts the records a removal persists,
-together with the binding record they share states with.
+the owner accepts the records a removal persists.
 
 State:
-the plan record is on `docs/planning-cli-git-zfs-removal-destruction-plan-record-design` at `28c590b4c4`,
-and the origin cleanup record on `docs/planning-cli-git-zfs-origin-cleanup-record-design` at `77410b209a`,
-each after a round on the reviewer's sixth read.
-The reviewer's sixth read
-(`review-sixth-read-before-acceptance.md` in
-`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`)
-found each fit after listed fixes and the set not yet ready,
-for two things in the binding its round has since been given.
-It holds the three veto lists in plain words.
-The same reviewer's seventh read,
-`review-seventh-read-before-acceptance.md` beside it,
-found the two records fit after lows,
-and the set not ready for two things in the binding
-("Step 10's designs").
-Its check 6 lists fourteen sentences of accepted designs that the three documents leave untrue,
-each with the words that should replace it.
-The rounds on H9 and H10 ended with every low done:
-the origin cleanup record at `ea271e9e1d`,
-the plan record at `db69df972a`.
-The record reviewer's eighth read found the three fit with lows and the set ready to go to the owner with its list of accepted-design sentences
-(now its check 4,
-with entries 2,
-3,
-5,
-12 and 13 changed),
-once the binding's J1 is mended.
-Its ninth read retracted that set verdict on K5
-("Step 10's designs"),
-and found the two records fit as they stand once the binding takes K5's fix.
+the plan record and the origin cleanup record are on `main` as proposals
+(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`).
+The binding they share states with is accepted for step 10.
+Running:
+the record reviewer's eleventh read of the binding's last diff against the set,
+writing the acceptance question with its list of accepted-design sentences that the records leave untrue
+(`review-eleventh-read-and-the-records-question.md` in
+`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`).
 
 Next:
-its tenth read
-("Step 10's designs");
-then the acceptance question for the three,
-with that list.
-
-The plan record's one rule for a kept plan with an `unknown` outcome leaves sentences of two accepted designs untrue:
-four in `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-and the sentences on A27 and on what a removal names in
-`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`.
-The review gives the replacement text for each.
-An edit to an accepted design is the owner's to allow,
-so these go to the owner with the acceptance question.
+the acceptance question for the two records.
 
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
 Outcome:
-the owner accepts the two designs,
-and confirms or changes the direction to unmount inside a holder's mount namespace.
+the owner accepts the two designs.
 
 State:
-the forced arm is on `docs/planning-cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design` at `b62601213f`,
-and the cancelled removal on
-`docs/planning-cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design` at `c8cd85501c`,
-each after a round on the reviewer's seventh read.
-The reviewer's seventh read
-(`review-seventh-read.md` in
-`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`)
-found each fit after listed fixes and nothing high.
-Of the forced arm's first group of probe arms it found two ready to be scripted as written:
-no arm starts in a fresh private mount namespace,
-and none builds the peer group its rows assume.
-It holds both veto lists and the confirmation question's wording.
-The forced arm's round gave every arm a common start,
-the mode of `unshare` it uses and a positive control;
-the coordinator read that section,
-and no review follows it,
-because the guest round is its test.
-The cancelled removal's round closed its one medium
-(it no longer refuses a kept receiver the forced arm does not refuse);
-the coordinator read its diff.
-The guest round `pi-zfs-forced-removal-first-probe-arms-in-a-guest` scripted and ran Tier 0 from the design at `b62601213f`
-on kernel 6.8 with hand-made mounts,
-and wrote the results as a section of
-`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`
-on `docs/planning-cli-git-zfs-forced-removal-first-probe-arms-measured`
-(folder `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/`).
-The design's reviewer read it against the logs
-(`review-guest-probe-arms.md` in that review's `keep/`):
-every result follows from its log,
-every arm started fresh,
-and the direction holds there,
-with five mediums:
-way 3's unmount half shows nothing,
-one variant of T0-3 shows nothing of its own,
-no arm starts from the production shape where the host mounts the clone,
-T0-5c gives two answers to whether way 8 is taken,
-and way 7 end to end never ran.
-Nothing is shown on kernel 7.3 or on ZFS.
-The design places the confirmation after Tier 0,
-Tier 1 (ZFS,
-no route) and Tier 2 (step 17's code);
-the reviewer drafted the question with every slot the guest could not fill left empty.
+both are on `main` as proposals
+(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+`doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`).
+The owner confirmed the direction on 2026-11-23:
+unmount by the marker inside a holder's namespace,
+and go ahead and report for both sandbox cases
+(`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
+"The unmount inside a holder's namespace,
+confirmed as a direction on 2026-11-23").
+That rests on Tier 0 on kernel 6.8 and in a rootless container on 7.3 over ZFS,
+and Tier 1 on a guest pool
+(`doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`;
+read against the logs in `review-second-probe-round.md` in
+`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`).
+Tier 2 needs step 17's code.
 Running:
-`pi-zfs-forced-removal-probe-arms-gaps-kernel-7-and-tier-1`,
-on the mediums' arms,
-Tier 0 on kernel 7.3 (a guest of 6.19 or newer,
-or a rootless container on this machine's kernel),
-and Tier 1;
-and the design writer's round on the text edits the read asks for,
-G4's policy among them
-(`continuation-guest-read-edits.md` in `~/temp/agent/zfs-forced-removal-holders-ended-and-caller-spared-design-2026-11-22/`).
+`pi-zfs-forced-removal-probe-arms-second-read-findings`,
+on the read's faults in the measurements section
+(which program ran where,
+the heading's time,
+a user-namespace holder named as unshown,
+one misleading T0-10 line).
 
 Next:
-a read of both against the logs;
-then the confirmation question for the direction,
-since Tier 2 needs step 17's code;
-then the acceptance question.
+merge it;
+then the acceptance question for the two designs.
 
 #### Accepted designs that wait for their build steps
 
