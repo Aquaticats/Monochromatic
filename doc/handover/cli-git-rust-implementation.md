@@ -508,10 +508,17 @@ Waiting for the memory stall to ease
 `pi-zfs-root-modes-second-revision`,
 prompt ready in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
 (branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
-Running too:
-`pi-mvm-fedora-guest-refuses-every-file-route`,
-with its prompt in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
-(branch `fix/mvm-fedora-guest-refuses-every-file-route`).
+mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
+(`8ca430dd2f`;
+`doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
+This host's cached `template-fedora.qcow2` is still the old one,
+because step 19's revision round has a Fedora guest backed by it;
+once that guest is destroyed,
+delete the cached template so the next Fedora guest bakes the fixed one
+(`package/mvm/cli/README.md`, the re-bake step).
+Open:
+a template cache that never reuses a path,
+so a re-bake cannot corrupt a running guest's backing file.
 
 Next:
 start the second revision when the stall eases,
