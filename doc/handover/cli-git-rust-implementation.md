@@ -816,6 +816,36 @@ Next:
 merge each fix when it ends,
 and turn the clone rung pass's findings into fixes.
 
+#### Markdown line breaks in the files changed on 2026-11-23
+
+Outcome:
+every Markdown file changed that day passes `monochromatic-lint`.
+
+State:
+`markdown/semantic-line-breaks` reported findings in 117 of the 169 Markdown files changed on 2026-11-23,
+mostly where the old handover's entries were moved verbatim with that file's wrapping
+(the cull's apply script ran no linter).
+The linter's whitespace-only `--fix` is committed for 108 files,
+each equal to its committed version with whitespace collapsed,
+and nine records' moved headings were raised to one level below their section;
+both scripts are in `~/temp/agent/lint-line-breaks-of-the-2026-11-23-markdown/`.
+Left out:
+the files that unmerged branches change
+(among them `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` with 580 findings and
+`package/pi-shared/subagent-driver/README.md`),
+everything under `package/git-policy/cli/`,
+and two files whose fix changed more than whitespace,
+step 19's proposal and `doc/troubleshooting/cachyos-apparmor-missing-dbus-profile-boot-failure.md`
+(their fix is kept as `two-files-left-out.patch` there).
+`monochromatic-lint` is not on the main checkout's `PATH`,
+so `mise run //:lint:monochromatic-lint` fails with "command not found";
+the binary is under `~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-lint/`.
+
+Next:
+when those branches have merged,
+run `fix-whitespace-only-line-breaks.ts` again for the rest,
+and fix the two left-out files by hand.
+
 #### Tests that failed once and are not diagnosed
 
 Issues 6348 to 6352 on GitHub hold them,
