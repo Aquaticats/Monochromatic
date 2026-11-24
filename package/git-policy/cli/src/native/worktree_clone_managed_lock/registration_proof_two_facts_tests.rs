@@ -1,0 +1,130 @@
+//! What:
+//!  Controls for the two-fact proof:
+//!  a matching registration,
+//!  a `gitdir` naming another path,
+//!  a `commondir` naming another repository,
+//!  a slot folder whose identity moved,
+//!  a registration with no `gitdir`,
+//!  and a record with no identity to compare.
+//! Why:
+//!  The proof is what lets a lock be judged after the slot's pointer is gone,
+//!  so each fact must fail on its own and none may pass by another's agreement.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! expect(proveTheRegistration(facts, repository, registration)).toBeUndefined();
+//! ```
+
+use super::{TwoFactRefusal, prove_the_registration};
+use crate::worktree_clone_managed_lock::test_fixtures::{Fixture, RecordSpec};
+use crate::worktree_clone_managed_lock::read_the_recorded_facts;
+use std::path::PathBuf;
+
+/// The fixture's nonce.
+const NONCE: &str = "9f2c41d7b0a34e6c8f5d1a2b3c4d5e6f";
+
+/// A fixture whose record holds the slot's own identity and names one registration.
+fn a_recorded_fixture(label: &str) -> (Fixture, PathBuf) {
+    let fixture: Fixture = Fixture::new(label);
+    let registration: PathBuf = fixture.write_registration("entry");
+    let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
+    spec.slot_identity = Some(fixture.slot_identity());
+    spec.registration = Some(registration.clone());
+    fixture.write_record(&spec);
+    return (fixture, registration);
+}
+
+/// The proof holds when the `gitdir` names this slot's `.git`,
+/// the `commondir` names this repository,
+/// and the folder at the recorded path is the recorded one.
+#[test]
+fn the_proof_holds_for_its_own_registration() {
+    let (fixture, registration): (Fixture, PathBuf) = a_recorded_fixture("proof-holds");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    assert_eq!(prove_the_registration(&facts, fixture.common_dir.as_path(), registration.as_path()), Ok(()));
+}
+
+/// A `gitdir` naming another worktree is the proof's own refusal,
+/// with both paths in it.
+#[test]
+fn a_gitdir_naming_another_path_is_refused() {
+    let (fixture, registration): (Fixture, PathBuf) = a_recorded_fixture("proof-other-path");
+    std::fs::write(registration.join("gitdir"), format!("{}\n", fixture.root.join("elsewhere/.git").display()).as_bytes()).expect("the back-link is rewritten");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    let refused: TwoFactRefusal = prove_the_registration(&facts, fixture.common_dir.as_path(), registration.as_path()).expect_err("the proof refuses another path");
+    assert!(matches!(refused, TwoFactRefusal::GitdirNamesAnotherPath { .. }), "the refusal names the path it compared: {refused:?}");
+}
+
+/// A relative `gitdir` is resolved against the registration,
+/// which is the spelling another command may write.
+#[test]
+fn a_relative_gitdir_is_resolved() {
+    let (fixture, registration): (Fixture, PathBuf) = a_recorded_fixture("proof-relative");
+    let relative: PathBuf = pathdiff(fixture.slot_path.join(".git").as_path(), registration.as_path());
+    std::fs::write(registration.join("gitdir"), format!("{}\n", relative.display()).as_bytes()).expect("the back-link is written relative");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    assert_eq!(prove_the_registration(&facts, fixture.common_dir.as_path(), registration.as_path()), Ok(()));
+}
+
+/// A `commondir` naming another repository is refused.
+#[test]
+fn a_commondir_naming_another_repository_is_refused() {
+    let (fixture, registration): (Fixture, PathBuf) = a_recorded_fixture("proof-other-repository");
+    let elsewhere: PathBuf = fixture.root.join("elsewhere");
+    std::fs::create_dir_all(elsewhere.as_path()).expect("another repository is made");
+    std::fs::write(registration.join("commondir"), format!("{}\n", elsewhere.display()).as_bytes()).expect("the common directory's record is rewritten");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    assert!(matches!(
+        prove_the_registration(&facts, fixture.common_dir.as_path(), registration.as_path()),
+        Err(TwoFactRefusal::CommondirNamesAnotherRepository { .. })
+    ));
+}
+
+/// A folder at the recorded slot path whose identity moved is not the recorded folder,
+/// which is how a mount covering the slot refuses rather than passing.
+#[test]
+fn a_slot_folder_whose_identity_moved_is_refused() {
+    let (fixture, registration): (Fixture, PathBuf) = a_recorded_fixture("proof-identity-moved");
+    let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
+    spec.slot_identity = Some(String::from("1:2:3"));
+    spec.registration = Some(registration.clone());
+    fixture.write_record(&spec);
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    assert!(matches!(
+        prove_the_registration(&facts, fixture.common_dir.as_path(), registration.as_path()),
+        Err(TwoFactRefusal::TheSlotIsNotTheRecordedFolder { .. })
+    ));
+}
+
+/// A registration with no `gitdir` proves nothing,
+/// and a record with no identity cannot compare the folder.
+#[test]
+fn a_missing_gitdir_and_a_missing_identity_are_refused() {
+    let (fixture, registration): (Fixture, PathBuf) = a_recorded_fixture("proof-missing-facts");
+    std::fs::remove_file(registration.join("gitdir")).expect("the back-link goes");
+    let facts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    assert_eq!(prove_the_registration(&facts, fixture.common_dir.as_path(), registration.as_path()), Err(TwoFactRefusal::NoGitdir));
+    fixture.write_registration("entry");
+    let mut spec: RecordSpec = RecordSpec::for_nonce(NONCE);
+    spec.registration = Some(registration.clone());
+    fixture.write_record(&spec);
+    let without: crate::worktree_clone_managed_lock::RecordedLockFacts = read_the_recorded_facts(fixture.common_dir.as_path(), fixture.slot.as_str()).expect("the record reads");
+    assert_eq!(
+        prove_the_registration(&without, fixture.common_dir.as_path(), registration.as_path()),
+        Err(TwoFactRefusal::NoRecordedSlotIdentity)
+    );
+}
+
+/// What:
+///  One path spelled relative to another,
+///  for the control that plants a relative `gitdir`.
+/// Why:
+///  Git itself may write either spelling,
+///  and this control needs an honest relative one rather than a hand-counted run of `..`.
+fn pathdiff(target: &std::path::Path, from: &std::path::Path) -> PathBuf {
+    let mut up: PathBuf = PathBuf::new();
+    for _component in from.components() {
+        up.push("..");
+    }
+    return up.join(target.strip_prefix("/").unwrap_or(target));
+}

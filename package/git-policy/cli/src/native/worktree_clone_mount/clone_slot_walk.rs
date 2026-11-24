@@ -26,7 +26,7 @@ use super::slot_identity_store::SlotIdentityStore;
 use super::slot_name::slot_name_refusal;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{ObjectId, device_of, handle_directory_at, identity_of, open_directory_at, open_root};
-use crate::fs_beneath_mount_facts::{mount_id_of, observed_path};
+use crate::fs_beneath_mount_facts::{mount_id_of, observed_path, unique_mount_number_of};
 use crate::fs_beneath_walk_chain::{open_chain_beneath, open_directory_at_a_mount};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -136,6 +136,12 @@ pub struct FreshSlotLookup {
     pub mount_id: u64,
     /// The mount the walk's parent folder is on.
     pub parent_mount_id: u64,
+    /// The unique number of the mount the slot is on,
+    /// which the kernel never reuses,
+    /// or nothing where this kernel reports none
+    /// (`statx(2)`,
+    /// `STATX_MNT_ID_UNIQUE`).
+    pub unique_mount_number: Option<u64>,
     /// The path the slot's descriptor names now.
     pub observed_path: PathBuf,
 }
@@ -552,7 +558,10 @@ pub fn look_again_at_the_slot(request: &LookAgainAtSlotRequest<'_>) -> Result<Fr
     let mount_id: u64 = mount_id_of(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
     let parent_mount_id: u64 = mount_id_of(&parent).map_err(|error| return fields_refusal(".claude/worktrees", &error))?;
     let observed: PathBuf = observed_path(&slot).map_err(|error| return fields_refusal(component.as_str(), &error))?;
-    return Ok(FreshSlotLookup { parent_identity, slot_identity, mount_id, parent_mount_id, observed_path: observed });
+    // A kernel that reports no unique number leaves it out rather than answering the reused one, and the caller then
+    // reads the live table for this mount.
+    let unique_mount_number: Option<u64> = unique_mount_number_of(&slot).ok();
+    return Ok(FreshSlotLookup { parent_identity, slot_identity, mount_id, parent_mount_id, unique_mount_number, observed_path: observed });
 }
 
 /// Controls stay out of the release executable.

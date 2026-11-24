@@ -4,8 +4,8 @@
 //!  its mode grammar,
 //!  the two paths it is installed at,
 //!  the modes whose plan steps have not landed,
-//!  and the administrator's parent adoption,
-//!  which is the one mode this build performs.
+//!  the administrator's parent adoption,
+//!  and the refusal both root modes answer a caller that is not root with.
 //! Why:
 //!  The design keeps the clone mount out of the Git wrapper:
 //!  a root-installed program the ZED event and the boot and shutdown units start
@@ -19,8 +19,12 @@
 //!  the build order is `doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 5).
 //!  Each mode refuses until the plan step that builds it lands,
-//!  except the administrator's adoption:
-//!  its decision table is step 4's and its end-to-end arm is this step's.
+//!  except the modes whose steps are in:
+//!  the default sweep,
+//!  `boot-reconcile`,
+//!  `start-probe`,
+//!  `holder-scan` and the administrator's adoption,
+//!  whose decision table is step 4's and whose end-to-end arm is step 5's.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -34,6 +38,8 @@
 //!   the refusals and the usage and version lines.
 //! - `mode_awaiting_its_step.rs`:
 //!   the refusal of a mode whose plan step has not landed.
+//! - `root_mode_caller.rs`:
+//!   the refusal a root mode answers a caller that is not root with.
 //! - `sweep_checkout_mount.rs`:
 //!   the checkout's own mount,
 //!   its dataset and its propagation,
@@ -78,6 +84,9 @@ pub mod handler_mode_arguments;
 /// The refusal of a mode whose step has not landed.
 pub mod mode_awaiting_its_step;
 
+/// The refusal a root mode answers a caller that is not root with.
+pub mod root_mode_caller;
+
 /// The unmount arm's GUID read and refusal answer.
 mod sweep_unmount_answers;
 
@@ -111,6 +120,15 @@ pub mod sweep_dataset_reader;
 /// This boot's first attach,
 /// claimed after the key check and written before the receipt.
 pub mod sweep_first_attach;
+
+/// One mount's source,
+/// asked of the kernel by the mount's unique number.
+pub mod sweep_standing_mount_source;
+
+/// Whether a clone's own mount stands at its slot,
+/// from one polled read of the kernel's mount table and that one mount's
+/// source.
+pub mod sweep_standing_mounts;
 
 /// One clone's whole turn of the sweep.
 pub mod sweep_one_clone;

@@ -9,14 +9,21 @@
 //!  The program is what ZED runs on a history event and what the boot and shutdown units start,
 //!  so its whole process setup is here and every decision is in the library
 //!  (`worktree_clone_mount_handler`).
-//!  It reads no configuration and takes no answer from the environment:
+//!  It reads no configuration of its own and takes no answer from the environment about what to do:
 //!  an invocation is a mode word and,
 //!  for an adoption,
 //!  the replacement's own device and inode.
-//!  The one thing it does take from the environment is the repository's own verbosity switch,
+//!  What it reads from the environment is two things and nothing else:
+//!  the repository's own verbosity switch,
 //!  `MONOCHROMATIC_VERBOSE` and `MONOCHROMATIC_WARN`
 //!  (`foundation/diagnostic_log.rs`),
-//!  which changes what it logs and nothing it decides.
+//!  which changes what it logs and nothing it decides;
+//!  and the start probe's three test-only switches,
+//!  `CLI_GIT_TEST_ONLY_START_PROBE`,
+//!  `CLI_GIT_TEST_ONLY_START_PROBE_KEEP_DESCRIPTOR` and
+//!  `CLI_GIT_TEST_ONLY_START_PROBE_DEADLINE_MS`,
+//!  which are inert unless set and whose values `SPEC.md` names
+//!  ("The start probe beside the gate").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

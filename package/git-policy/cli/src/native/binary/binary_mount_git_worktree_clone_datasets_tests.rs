@@ -1,7 +1,8 @@
 //! What:
 //!  The release's two executables as a person's machine meets them:
 //!  both start,
-//!  the handler refuses every mode whose step has not landed,
+//!  the handler refuses every mode whose step has not landed and every caller
+//!  that is not root,
 //!  and neither links one of OpenZFS's CDDL libraries.
 //! Why:
 //!  The wrapper must start even when OpenZFS is absent
@@ -160,6 +161,32 @@ fn the_handler_answers_its_version_and_refuses_its_request_modes_behind_the_gate
         assert!(said.contains("registrations and durable recovery state"), "{arguments:?} says nothing was changed: {said}");
         assert!(!said.contains("plan step"), "{arguments:?} never enters the mode: {said}");
     }
+}
+
+/// What:
+///  A caller that is not root is refused by `start-probe` before any write,
+///  with the refusal status and the sentence the adoption answers with.
+/// Why:
+///  Every write the probe makes is root's,
+///  and before this refusal the command answered zero for a probe that reached
+///  no step and told an account to make `/run` writable by root.
+///  A host control is what shows it:
+///  the arm states its environment before it claims anything,
+///  so a run as root prints that it skipped and why.
+#[test]
+fn a_start_probe_that_is_not_root_is_refused_before_any_write() {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    let effective_user: u32 = unsafe { libc::geteuid() };
+    if effective_user == 0 {
+        eprintln!("SKIPPED: this run is root, so a caller that is not root cannot be shown here; the dispatch control drives the same refusal in process");
+        return;
+    }
+    let (status, said) = started(RELEASE_BINS[1], &["start-probe"]);
+    assert_eq!(status, Some(2), "a caller that is not root must be refused: {said}");
+    assert!(said.contains("the start-probe mode runs as root"), "the refusal names the mode and the rule: {said}");
+    assert!(said.contains(&format!("effective user is {effective_user}")), "the refusal names the user the kernel reported: {said}");
+    assert!(!said.contains("compatibility gate"), "the gate is not asked for a caller that is not root: {said}");
+    assert!(!said.contains("make /run writable by root"), "the way forward is the caller's own: {said}");
 }
 
 /// The wrapper answers its own help namespace,
