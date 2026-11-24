@@ -547,14 +547,28 @@ Step 19's two open design parts merged as a proposal,
 (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`:
 `zfs-mount.service` mounts the checkout on this host,
 with the ordering and its failure control shown in a guest over unattended reboots).
+Its Sonnet gate review
+(`review-of-the-step-19-design.md` in
+`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/keep/`)
+found it not ready:
+the ZED hook is a `.sh` script,
+the option the owner declined;
+the failure control ran without the configuration it recommends,
+and the provider's failing status came from the nested dataset;
+three boots' logs were overwritten,
+so their quoted lines rest on the journal or on nothing;
+and `After=zfs-mount.service` carries a provider restart to the gate,
+which two accepted designs rely on.
 Running:
-its Sonnet gate review
-(`~/temp/agent/gate-review-zfs-step-19-checkout-boot-mount-provider-2026-11-24/`),
-asked also whether its units still hold under the one-program and start-name records.
+`pi-zfs-step-19-design-after-its-gate-review`,
+folding the review in and running the arms again in a guest
+(folder `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`).
 
 Next:
 merge step 12 when it ends;
-fold step 19's review in and put the design to the owner.
+merge step 19's revision as a proposal,
+have the reviewer read its diff,
+then put the design to the owner.
 
 ### The clone rung serves every source no slower than `main`
 
