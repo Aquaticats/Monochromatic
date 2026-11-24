@@ -411,8 +411,12 @@ the account companion the start-probe record put in step 10 is unbuilt,
 and the gate serves only the step 19 dataset;
 those are merged as `2d9fa02ea5` but for the gate,
 the add's printed sentence and the grant set,
-which `pi-zfs-step-10-open-choices-proposal` writes up for the owner,
-ranked by what each delivers;
+proposed as `doc/planning/cli-git-zfs-step-10-open-choices.md` (`dce1e893a3`);
+its Sonnet read (`read-of-the-step-10-open-choices.md` in `~/temp/agent/gate-review-zfs-step-10-open-choices-2026-11-24/keep/`)
+found a dirty checkout refused on every widened reach until step 11,
+the add printing a Rust `Debug` dump of the plan stop today,
+and 3B's example false;
+`pi-zfs-step-10-open-choices-revision` folds it;
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
@@ -424,11 +428,8 @@ with its guest arm,
 the whole add after a skip and `doctor`'s print still to come once a guest reaches the route),
 whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
 the first also writes up what widening the gate would need, for the owner.
-Running too,
-once the memory stall fell:
-`pi-zfs-step-10-reboot-and-power-loss-arms`,
-the round on T27 and T28
-(folder `~/temp/agent/zfs-step-10-reboot-and-power-loss-arms-2026-11-24/`).
+T27 and T28 merged as `9c80f28d21`:
+a reboot with an export and import, and a sysrq power cut, each read back green in a guest and red with its guard removed.
 
 Next:
 merge both when they end.
@@ -612,9 +613,11 @@ found V9's unit running a mode no grammar holds,
 V8's timeout evidence cited to logs that do not hold it,
 the proposed unit never booted as written,
 and the ZED hook not allowed by this host's `zed` AppArmor profile.
+The third revision merged as `ae0a9ea7ee`;
+its Sonnet read (`read-of-the-third-step-19-revision.md` in `~/temp/agent/gate-review-zfs-step-19-third-revision-2026-11-24/keep/`)
+found no high, and nine mediums, among them V9-B not existing on `main` either and the AppArmor section's need misstated.
 Running:
-`pi-zfs-step-19-third-revision`
-(folder `~/temp/agent/zfs-step-19-third-revision-2026-11-24/`).
+`pi-zfs-step-19-fourth-revision`.
 
 Next:
 the re-read,
@@ -790,7 +793,7 @@ applied with the two read rules a run showed it needs,
 the daily-update timer's `systemd-analyze --user verify` now exits 0.
 It also named a blind spot,
 the ssh-terminal and askpass controls passing when their askpass program is refused,
-which `pi-askpass-controls-see-a-refused-program` fixes.
+fixed as `2cd655453e`.
 The gate on `main` at `f3b710cbc9`
 (run `native-MgA4LN`, 2026-11-24T07:45:49Z to 08:09:44Z)
 gave `10809 tests run: 10807 passed (6 slow), 2 failed, 41 skipped`:
@@ -897,9 +900,12 @@ Its revision merged as a proposal,
 ranked B > C > J > D > C2 > E > A with a run transcript for every option,
 B run live through a stand-in of its contract in an unconfined container,
 and J shown silent under `-q`.
+Its Sonnet read (`read-of-the-revised-host-key-design.md` in `~/temp/agent/gate-review-typed-network-command-revision-2026-11-24/keep/`)
+found B's printed transcript not the run's,
+and B and E meeting the owner's self-start rule in `doc/planning/cli-git-no-self-invocation.md`,
+which is the owner's call.
 Running:
-a Sonnet read of that revision
-(`~/temp/agent/gate-review-typed-network-command-revision-2026-11-24/`).
+`pi-typed-network-command-next-step-third-revision`.
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
@@ -966,8 +972,8 @@ so the scene is forced rather than raced.
 Its round found issue 6448:
 a control that makes a non-UTF-8 folder name fails on this host,
 whose home dataset is `utf8only`;
-its round `pi-non-utf8-name-controls-on-a-utf8only-home` runs,
-with its prompt in `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`.
+fixed as `06d3e542b8`:
+the 88 such controls run in a user and mount namespace with a tmpfs root when their own root refuses the name.
 
 ### The desktop stays usable under agent runs
 

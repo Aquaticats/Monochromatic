@@ -998,10 +998,14 @@ FDL:
  which turns `-prune` into a no-op.
 
 RLW:
- `rm` commands as issued never contain environment variables (`$HOME`,
+ Deletions as issued (`rm`,
+ `rmdir`,
+ `unlink`,
+ `shred`,
+ `find -delete`) never contain variables (`$HOME`,
  `${DIR}`):
- write every path literally,
- because an unset or empty variable widens what gets deleted.
+ write every path literally;
+ an empty variable widens what gets deleted.
 
 VKI:
  Synthetic key input:
