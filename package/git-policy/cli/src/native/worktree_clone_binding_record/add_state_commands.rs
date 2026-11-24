@@ -14,6 +14,11 @@
 //!  (the design writer's K14, added after the eleventh read).
 //!  A binding at `cloned` or `mounted` whose clone is gone is the settling command's,
 //!  proved or not.
+//!  Beside a standing plan the command is the plan design's,
+//!  read from the plan's head word and the clone the pool can find:
+//!  a plan at `present` or `refused` whose clone does not answer names the
+//!  settling command,
+//!  never a removal that refuses it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -50,14 +55,60 @@ pub enum ClonePresence {
 }
 
 /// What:
+///  The word a standing destruction plan records for its own head destroy,
+///  which is the plan design's set of five.
+/// Why:
+///  The command a plan's presence allows is not one word for every plan:
+///  a head word of `present` or `refused` beside a clone the pool cannot find
+///  is the state the removal refuses and the settling command takes,
+///  while every other head word leaves the removal the command
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "Which resume path a removal takes").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PlanHeadWord = 'present' | 'requested' | 'gone' | 'refused' | 'unknown';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlanHeadWord {
+    /// The head destroy was never requested and the clone stands.
+    Present,
+    /// The head destroy was written and may have happened.
+    Requested,
+    /// The head destroy answered,
+    /// so the clone is gone.
+    Gone,
+    /// The pool refused the head destroy,
+    /// so the clone stands.
+    Refused,
+    /// The head destroy's outcome cannot be attributed.
+    Unknown,
+}
+
+impl PlanHeadWord {
+    /// The word the plan's record spells,
+    /// which a refusal prints and a control names.
+    pub fn word(self) -> &'static str {
+        return match self {
+            PlanHeadWord::Present => "present",
+            PlanHeadWord::Requested => "requested",
+            PlanHeadWord::Gone => "gone",
+            PlanHeadWord::Refused => "refused",
+            PlanHeadWord::Unknown => "unknown",
+        };
+    }
+}
+
+/// What:
 ///  The live facts a reader has before it names a command.
 /// Why:
-///  The answers come from the record's phase and the live reads,
+///  The answers come from the record's phase,
+///  the plan folder and the live reads,
 ///  and the command follows from them alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type StateFacts = { phase: Phase; clone?: ClonePresence; registrationStands: boolean; planStands: boolean; checkoutBegun: boolean; holdsCloneGuid: boolean };
+/// type StateFacts = { phase: Phase; clone?: ClonePresence; registrationStands: boolean; plan?: PlanHeadWord; checkoutBegun: boolean; holdsCloneGuid: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StateFacts {
@@ -68,8 +119,9 @@ pub struct StateFacts {
     pub clone: Option<ClonePresence>,
     /// Whether the registration the record names still stands.
     pub registration_stands: bool,
-    /// Whether a destruction plan stands for this clone.
-    pub plan_stands: bool,
+    /// The head word of a destruction plan that stands for this clone,
+    /// and nothing when no plan stands.
+    pub plan_head: Option<PlanHeadWord>,
     /// Whether the slot holds an entry besides `.git` with nothing mounted there.
     pub checkout_begun: bool,
     /// Whether the record holds a `cloneGuid=`.
@@ -100,6 +152,10 @@ pub enum NextCommand {
     /// No command is needed,
     /// because the add continues.
     None,
+    /// No command acts on the state:
+    /// the plan's head word is `gone` and the pool cannot prove the clone's absence,
+    /// so the finish pass removes the plan once the pool answers.
+    TheFinishPass,
 }
 
 /// The settling command's program and subcommand,
@@ -117,8 +173,8 @@ pub const SETTLING_COMMAND_WORDS: &str = "git monochromatic-git-policy-cli settl
 /// const command = commandFor(facts);
 /// ```
 pub fn command_for(facts: &StateFacts) -> NextCommand {
-    if facts.plan_stands {
-        return NextCommand::TheRemoval;
+    if let Some(head) = facts.plan_head {
+        return command_beside_a_standing_plan(facts, head);
     }
     if facts.phase == Phase::Settling {
         if !facts.holds_clone_guid {
@@ -152,6 +208,49 @@ pub fn command_for(facts: &StateFacts) -> NextCommand {
     return NextCommand::TheAddAgain;
 }
 
+/// What:
+///  The command a state with a standing plan allows,
+///  by the plan's head word and the clone the pool can find.
+/// Why:
+///  The plan design decides the command from two facts:
+///  the plan's head word,
+///  and whether the pinned parent carries the recorded clone.
+///  A clone that answers takes the head-present path,
+///  whatever the word says,
+///  and that path is the removal's.
+///  A proved absence takes the head-gone path when the head is `requested`,
+///  `unknown` or `gone`,
+///  and is the outside destroy the removal refuses,
+///  which names the settling command,
+///  when the head is `present` or `refused`.
+///  An absence the pool cannot prove names the settling command for every head
+///  word but `gone`,
+///  whose route is the finish pass.
+///  A reader that did not look for the clone,
+///  which is the add's smallest plan read,
+///  decides by the head word alone and names the removal for every word but
+///  `present` and `refused`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const command = commandBesideAStandingPlan(facts, head);
+/// ```
+fn command_beside_a_standing_plan(facts: &StateFacts, head: PlanHeadWord) -> NextCommand {
+    if matches!(facts.clone.as_ref(), Some(ClonePresence::Stands)) {
+        return NextCommand::TheRemoval;
+    }
+    if matches!(facts.clone.as_ref(), Some(ClonePresence::GoneUnprovable { .. })) {
+        return match head {
+            PlanHeadWord::Gone => NextCommand::TheFinishPass,
+            PlanHeadWord::Present | PlanHeadWord::Requested | PlanHeadWord::Refused | PlanHeadWord::Unknown => NextCommand::TheSettlingCommand,
+        };
+    }
+    return match head {
+        PlanHeadWord::Present | PlanHeadWord::Refused => NextCommand::TheSettlingCommand,
+        PlanHeadWord::Requested | PlanHeadWord::Gone | PlanHeadWord::Unknown => NextCommand::TheRemoval,
+    };
+}
+
 impl NextCommand {
     /// The sentence a refusal or a report prints,
     /// with the slot filled in and the settling command's flags left as placeholders.
@@ -163,6 +262,9 @@ impl NextCommand {
             ),
             NextCommand::GitWorktreeRemove => format!("run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"),
             NextCommand::TheRemoval => format!("run the removal this slot's destruction plan belongs to; it resumes from the plan and ends it"),
+            NextCommand::TheFinishPass => String::from(
+                "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",
+            ),
             NextCommand::None => String::from("nothing: the add continues at the step its phase names"),
         };
     }
