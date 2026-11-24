@@ -855,7 +855,8 @@ fn process_state(pid: u32) -> Option<String> {
 ///  A thread's own mount namespace is not the leader's,
 ///  so the leader's `/proc/<pid>/mountinfo` never shows the mount and only the
 ///  thread's own table does.
-///  The same is true of a task whose leader has ended: its table cannot be
+///  The same is true of a task whose leader has ended:
+///  its table cannot be
 ///  read at all.
 fn wait_for_a_thread_holding(pid: u32, needle: &str) -> Option<(String, String)> {
     let deadline: Instant = Instant::now() + Duration::from_secs(30);
@@ -903,7 +904,8 @@ fn reduced_capability_scan(clone: &str, sbin: &str) -> Option<HolderScan> {
 
 /// What:
 ///  The detached-mount arm:
-///  one clone is mounted, a task keeps a working directory on it,
+///  one clone is mounted,
+///  a task keeps a working directory on it,
 ///  the mount is detached from that task's namespace,
 ///  and the scan is asked.
 /// Why:
@@ -911,7 +913,8 @@ fn reduced_capability_scan(clone: &str, sbin: &str) -> Option<HolderScan> {
 ///  table,
 ///  so the scan names no holder for it while the dataset stays busy.
 ///  This is the limit the design chose when it matched the source rather than
-///  a working directory, and the arm shows it rather than claiming a scan that
+///  a working directory,
+///  and the arm shows it rather than claiming a scan that
 ///  cannot be written.
 ///
 /// In TS you'd write (pseudocode):

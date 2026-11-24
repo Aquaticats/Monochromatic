@@ -183,7 +183,8 @@ fn a_namespace_root_is_the_readers_the_shared_one_or_unknown() {
     assert_eq!(readers.namespace_root(Some(other)), NamespaceRoot::Readers);
 }
 
-/// A thread that is going answers `ENOENT`, `ESRCH` or `EINVAL`,
+/// A thread that is going answers `ENOENT`,
+/// `ESRCH` or `EINVAL`,
 /// and every other error is a refusal this reader reports.
 #[test]
 fn a_thread_that_ends_is_what_these_three_errors_mean() {

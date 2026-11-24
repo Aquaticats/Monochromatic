@@ -163,3 +163,77 @@ What these arms do not show:
 - a forced removal and what a holder sees in it;
 - the start probe's own guest arms,
   whose unit controls pass but which were not re-run in this guest.
+
+## The fix round of 2026-11-23, after the integration pass
+
+The integration pass found the scan answering clear while four namespaces held
+the clone,
+and the project answered its three questions on 2026-11-23
+(`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`).
+This round took the set-aside out of the scan,
+made it read every thread and every root,
+gave every scan its own nonce,
+and added an arm for each holder the pass found missed.
+One whole round of the driver passed every marker
+(`keep/holder-scan-arm-round-fix-4.log` in that round's folder),
+and its lines
+are:
+
+    SCAN baseline own=1 holders=0 incomplete=0 guid=13245473912317187654
+    SCAN HOLDER other-namespace=1 namespace=mnt:[4026532422] mount=/root/holder-scan-checkout/.claude/worktrees/one
+    SCAN H1 intent=mount holders=2 at-the-slot=2 own=1 clear=false
+    SCAN H1 intent=unmount holders=2 at-the-slot=2 own=1 clear=false
+    SCAN nonces differ=true first=69b876eb00372619977e957583429afd second=854ba58b8c8f03a05733c04c056f4820 named=fedcba9876543210fedcba9876543210
+    SCAN unreadable-link incomplete=235 holders=0 clear=false
+    SCAN thread-namespace found=true namespace=mnt:[4026532424] thread=/proc/221153/task/221154
+    SCAN leader-ended found=true namespace=mnt:[4026532423] leader-link=unreadable leader-state=Z
+    SCAN chrooted-lowest found=true namespace=mnt:[4026532424] lowest-pid=221166 lowest-omits-mount=true
+    SCAN confined-consumer=held holders=2 namespace=mnt:[4026532424]
+    SCAN churn scans=20 holder-kept=20 task-ended-named=0
+    MEASUREMENT holder-scan-ms=small=4 large=8 tasks-small=212 tasks-large=411
+    SCAN detached-mount invisible=true holders=0 destroy-refused=true refused-while-pinned=true
+    SCAN detached-mount after-release=destroyed
+    SCAN pinned-namespace invisible=true holders=0 incomplete=0 note=the-scan-cannot-see-a-namespace-no-task-holds
+    SCAN done
+
+- The two `H1` lines are the same clone under the two intents with a mount
+  namespace made after the attach:
+  the inherited copy at the slot is a holder under both,
+  and the number of holder namespaces is equal under the two,
+  which is the finding the pass raised.
+- `unreadable-link incomplete=235 holders=0` is the same scan through
+  `setpriv --bounding-set=-sys_ptrace`:
+  every link it may not read is named,
+  and the scan is not clear.
+  Its zero holders is the point:
+  without `CAP_SYS_PTRACE` the scan could not name the two namespaces that
+  held the clone,
+  and before this round it said nothing about them.
+- `leader-ended ... leader-link=unreadable leader-state=Z` is the pass's own
+  case as this guest's kernel produces it:
+  the leader's link answers nothing and the scan still names the namespace
+  through the thread that lives.
+- `chrooted-lowest` is the namespace whose lowest task chroots away from the
+  clone:
+  the lowest task's table omits the mount,
+  the child's holds it,
+  and the scan names the namespace by reading the task at its root.
+- `detached-mount ... destroy-refused=true` is the limit:
+  a mount detached with `umount --lazy` while a working directory pins it is in
+  no table,
+  so the scan names no holder,
+  `zfs destroy -f` answers "dataset is busy",
+  and the destroy succeeds once the task ends.
+  This is stated as a limit in `SPEC.md` rather than fixed.
+- The cost pair reads 4 milliseconds at 212 live tasks and 8 at 411,
+  which is inside the spread the rounds of 2026-11-22 showed,
+  and is context and not a slope.
+
+The host's own fixture measurement of the same round,
+which reads no process of the machine,
+gave 100 tasks in 8 namespaces at 639 microseconds a scan and 10,000 tasks at
+67,444 microseconds before this round's thread read was added.
+The thread read adds one `ns/mnt` and one `root` read per thread rather than per
+process,
+so the per-thread cost is that same read and no new measurement of it
+was taken.
