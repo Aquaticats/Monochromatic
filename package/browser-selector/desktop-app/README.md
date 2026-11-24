@@ -40,3 +40,16 @@ Choose replacement defaults in KDE System Settings, then remove the installed fi
 # From the repository root.
 mise run //package/browser-selector/desktop-app:uninstall
 ```
+
+## Moved from the old handover
+
+From lines 41510 to 41515 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Dependency bumps in `package/browser-selector/desktop-app`** on the owner's "Look into the alert", "Bump windows
+  too", "Bump rustix" and "Bump slint": `tar` 0.4.46 for Dependabot alert 85 (`d6809fccfa`), `windows-sys` back to
+  0.61.2 for five dependents and to 0.59.0 for `rustix` 0.38 (`7f3248ebcd`), `slint` and `slint-build` 1.19.0 with 45
+  packages (`7760586f8a`); `rustix` is already at its newest (1.1.6; 0.38.44 is held by `winit` 0.30.13 under
+  `slint` 1.19, and `winit` 0.31 is in beta). The package's `lint` task (clippy with `--deny warnings`, then
+  `desktop-file-validate`) passes on `7760586f8a`.

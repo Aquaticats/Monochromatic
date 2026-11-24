@@ -1069,3 +1069,1444 @@ whether adding only a descendant `destroy` grant on each clone would change it, 
 - No request naming a transferred snapshot or a foreign snapshot. On an unpromoted clone the transferred names
   are not in the clone's snapshot list, so a batch built from that list cannot name them; what the same account
   could do to a checkout snapshot under these grants was not measured.
+
+## Tier 0 on two kernels and Tier 1 on ZFS, 2026-11-23T18:44:55-05:00
+
+**Measured by an agent.**
+Unapproved and non-final.
+The heading is the commit time of `5cbdaa6714`,
+the commit that wrote this section;
+the corrections this section carries later are the commits named with them.
+It replaces the Tier 0 section at 2026-11-23T05:24:20-05:00.
+Every arm of that group was run again,
+the arms the design's review asked for were added,
+the whole group ran a second time on this machine's kernel,
+and a third pass ran the whole group again on both kernels from one program whose hash every one of its logs
+prints.
+It decides nothing the design decides and nothing the design leaves open.
+
+The arms are those of `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md` in
+the section it calls Tier 0,
+for mounts and namespaces only,
+and of its Tier 1,
+for the two ZFS arms;
+the design was read at commit `b62601213f` on the branch that carries it,
+which is not this branch.
+
+### What ran, and where
+
+Two kernels,
+one program.
+
+- **The guests**,
+  two of them,
+  one per pass that ran a guest:
+  `zfs-tier1-handle-and-68-reruns` for the second pass and
+  `zfs-probe-third-round-handle-and-quota` for the third,
+  each made through `mvm --backend libvirt create` from the cached
+  template `template-ubuntu.qcow2`,
+  nothing downloaded,
+  and each destroyed through `mvm` when its pass ended.
+  Both report kernel `6.8.0-147-generic` and `Ubuntu 24.04.5 LTS`,
+  with `mount`,
+  `unshare` and `findmnt` from util-linux `2.39.3`,
+  and the root filesystem is ext4 on `/dev/vda1` (`dev=253:1`).
+  Each holds a file-backed pool of its own for Tier 1:
+  a 2 GiB sparse file,
+  ZFS `2.2.2-0ubuntu9.5`,
+  module and userspace the same,
+  from the distribution's packages.
+  Tier 0's arms ran inside fresh private mount namespaces in each,
+  as before.
+- **The container**,
+  a rootless `podman` container from the repository's CachyOS base image
+  `docker.io/cachyos/cachyos-v4:latest`,
+  which was already in the local store.
+  It runs on this machine's own kernel,
+  `7.3.5-2-cachyos`,
+  with `CachyOS` rolling,
+  `mount`,
+  `unshare` and `findmnt` from util-linux `2.42.4`,
+  and Python `3.14`.
+  Its `/probe/work` is the round folder's scratch directory,
+  bind-mounted in,
+  and that directory sits on this machine's ZFS dataset `zpcachyos/ROOT/cos/home` (`dev=0:57`),
+  with the host's module `2.4.4-1` behind it;
+  the container's own `/` is a `fuse-overlayfs` mount,
+  which is rootless podman's overlay.
+  So the Tier 0 rows in the container are rows over ZFS on 7.3,
+  and the handle rows there are ZFS handles.
+- `mvm`'s registry,
+  read before choosing the container,
+  holds four images:
+  alpine 3.23,
+  fedora 43,
+  ubuntu noble and windows server 2025.
+  The newest kernel among them is fedora 43's `6.17.1-300.fc43.x86_64`,
+  which the first round tried,
+  and the local image store held `template-alpine.qcow2`,
+  `template-fedora.qcow2`,
+  `template-ubuntu.qcow2` and their two base images.
+  No image with a kernel of 6.19 or newer is cached or in the registry,
+  so no guest could run `listns` without a download this round did not make,
+  and the container was used for this machine's kernel instead.
+- The exact container invocation,
+  one per arm:
+
+```text
+podman run --rm --name tier0-<arm>-kernel73 --network none --cpus 4 --memory 4g --pids-limit 512 \
+  --cap-add sys_admin --cap-add dac_read_search --security-opt seccomp=unconfined \
+  --hostname tier0-kernel73 --env TIER0_BASE=/probe/work \
+  --volume <round>/scratch/tier0-container/work:/probe/work:Z \
+  --volume <round>/keep:/probe/keep:ro,Z \
+  docker.io/cachyos/cachyos-v4:latest python3 -u /probe/keep/guest-probe-arms.py tier0-kernel73 <arm> 2
+```
+
+No home directory,
+no other volume,
+no network.
+`sys_admin`:
+the arms call `unshare`,
+`mount`,
+`umount2`,
+`move_mount` and `setns`,
+which inside the container's own user namespace need it;
+without it `unshare(CLONE_NEWNS)` answered `EPERM`.
+`dac_read_search`:
+way 8's `open_by_handle_at` takes that capability in the caller's user namespace on 7.3.
+`seccomp=unconfined`:
+see the next subsection;
+the default policy would have hidden a syscall the kernel has.
+Every mount,
+bind,
+move and unmount happened inside the container's own user and mount namespaces,
+and nothing mounted on the host.
+
+Three program files,
+each named for the logs it produced,
+kept with every log in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`:
+
+- `probe-guest-round2.py`,
+sha256 `e390d490a7eb…15d1e0`:
+  it produced the second pass's guest logs (`arm-*-round2-zfs-tier1-handle-and-68-reruns.log`),
+  which are the rows quoted below.
+- `probe-container-round2.py`,
+sha256 `58f8264e1016…1c285`:
+  it produced the second pass's container logs (`arm-*-kernel73-tier0-kernel73.log`).
+  It was an intermediate copy of the same program without the two Tier 1 arms and without T0-10's guard
+  around `NS_GET_ID`;
+  the arms that ran in it are otherwise the same code.
+- `probe-round3.py`,
+sha256 `4291233419d8…81de4`:
+  it produced the third pass's logs on both kernels (`arm-*-round3-zfs-probe-third-round-handle-and-quota.log`,
+  `arm-*-kernel73-round3-tier0-kernel73.log`).
+  Its first printed line in every log names the file and its hash,
+  so each of those logs names its own producer:
+
+```text
+# arm-T0-1-round3-zfs-probe-third-round-handle-and-quota.log, and every other third-pass log
+# program probe-round3.py sha256 4291233419d80649a69ad678d6b0b2cec32c3655865988e8efba7df508a81de4
+```
+
+The first pass's program,
+which produced `arm-*-final-*.log`,
+is gone:
+an edit in the second pass overwrote it,
+and no copy of it was kept,
+so those logs' producer cannot be shown,
+only its logs.
+That is the one provenance gap this section cannot close;
+every other log names a file that is kept.
+`run-arm-guest.ts` and `run-all-arms-guest.ts` drive the guest through `mvm --backend libvirt exec`;
+`run-arm-container.ts` and `run-all-arms-container.ts` drive the container through `podman`.
+One arm per invocation,
+every arm's phases twice,
+every phase in a fresh private mount namespace H (`unshare(CLONE_NEWNS)`,
+then `mount(NULL, "/", NULL, MS_REC|MS_PRIVATE, NULL)`).
+
+The second pass's logs are `arm-<arm>-round2-zfs-tier1-handle-and-68-reruns.log` (the guest,
+6.8) and
+`arm-<arm>-kernel73-tier0-kernel73.log` (the container,
+7.3);
+the third pass's are `arm-<arm>-round3-zfs-probe-third-round-handle-and-quota.log` and
+`arm-<arm>-kernel73-round3-tier0-kernel73.log`.
+The drivers' own lines are in `guest-tier0-round2-driver.log`,
+`container-driver-kernel73.log`,
+`guest-round3-driver.log` and `container-driver-round3.log`,
+and `container-confinement-round3.log` records what the container's confinement is,
+read from the files that
+hold it (`uid_map`,
+`/proc/self/status`,
+the root's mount row and `/sys/module/zfs/version`),
+by the kept
+`confinement-round3.py`;
+the second pass's log of the same name was made by a script that is not kept and
+mis-parsed two values,
+so this section cites only the third pass's.
+
+Two kept checkers produce the agreement this section reports,
+and both were run on the third pass's logs:
+
+- `check-runs-agree.py` compares run 1 with run 2 of every arm,
+at two strengths.
+  Under its weak mask,
+  which hides only the run numbers,
+  pids,
+  durations,
+  handle bytes,
+  descriptor numbers
+  and socket inodes,
+  23 of 34 logs are identical;
+  the eleven that differ do so in mount ids the kernel
+  reused,
+  socket inodes of files made in each run,
+  and ZFS's own `used` figures.
+  Under its strong mask,
+  which also hides mount ids,
+  parent ids,
+  group numbers,
+  devices and inodes while
+  keeping every tag's shape,
+  33 of 34 are identical;
+  the one that differs is `Z1-2`,
+  in a `zpool list`
+  line's `used` figure,
+  which is a report of the pool's state and not an arm's row.
+- `check-kernels.py` compares each arm's guest log with its container log over every line,
+table rows
+  included,
+  as a set.
+  Ten of the sixteen Tier 0 arms are identical on both kernels:
+  T0-1,
+  T0-2,
+  T0-3,
+  T0-4,
+  T0-6,
+  T0-7,
+  T0-9,
+  T0-11,
+  T0-12 and T0-13.
+  The six that differ differ in one of three things and nothing else:
+  the attempt on the file system's own root (T0-5a,
+  T0-5a-literal,
+  T0-5b,
+  T0-5c open it and get `EINVAL`
+  from the unmount on 6.8,
+  and get `ESTALE` from the container's `fuse-overlayfs` root on 7.3),
+  the copy's device number (T0-8,
+  `0:51` against `0:102`),
+  and the presence of `listns` and `NS_GET_ID`
+  (T0-10).
+  T0-4's rows are the same lines in a different order on the two kernels,
+  a difference in the order `/proc/self/mountinfo` lists two sibling mounts and not in any tag or relation.
+  Z1-1 and Z1-2 ran only in the guest,
+  so they are not in that comparison.
+
+### How the container's confinement could change a row
+
+Each of these was checked,
+and the last two changed a result before they were dealt with.
+
+- **User namespace.**
+  `uid_map` inside reads `0 1000 1` and `1 100000 65536`,
+  so the container's root is this
+  account and its capabilities are the ones the user namespace grants.
+  Every mount-family call ran inside it;
+  none reached the host,
+  and none needed to.
+- **Capabilities.**
+  `CapEff` is `00000000802405ff`:
+  the podman default set plus `sys_admin` and
+  `dac_read_search`.
+  Without `sys_admin`,
+  `unshare(CLONE_NEWNS)` and `mount` answered `EPERM`.
+- **`open_by_handle_at` and its flags.**
+  With `O_PATH` alone it answers `EPERM` on 7.3;
+  with
+  `O_PATH|O_DIRECTORY` it opens the same handle.
+  `fs/fhandle.c` at `v7.3` says why:
+  `may_decode_fh` lets a caller without `CAP_DAC_READ_SEARCH` in the initial user namespace through only when
+  the flags carry `O_DIRECTORY`,
+  then asks for that capability in the caller's own user namespace,
+  which the container has.
+  Version 6.8's older model asks for the initial namespace's capability outright,
+  which root in the guest has.
+  The same call,
+  with `O_PATH|O_DIRECTORY`,
+  runs on both kernels;
+  the flags mattered only on 7.3.
+  That is a property of the container's confinement and not of the handler:
+  `may_decode_fh` returns success before it tests the flag for a caller with `CAP_DAC_READ_SEARCH` in the
+  initial user namespace,
+  which the handler is and the container is not.
+  Passing `O_DIRECTORY` on a directory handle is harmless,
+  so the design may keep it,
+  but the handler does not depend on it and no measurement here shows that it does.
+- **seccomp.**
+  Podman's default profile answers `ENOSYS` for every syscall it does not list.
+  In the first container run the arm read `listns` as absent for that reason;
+  with `--security-opt seccomp=unconfined` the same call answers `EFAULT`,
+  which is the kernel's own refusal for a null request.
+  A run with the default profile would have recorded a present syscall as missing.
+- **AppArmor.**
+  `/proc/self/attr/current` inside the container reads `unconfined`,
+  so the host's profiles do not
+  mediate the arms,
+  and the rows are the kernel's,
+  not a confinement's.
+- **Locked mounts.**
+  `mount(NULL, "/", NULL, MS_REC|MS_PRIVATE, NULL)` and every later bind and tmpfs mount
+  succeeded inside the container,
+  so no locked mount refused a step of the common start.
+- **Mount ids are reused.**
+  The kernel hands out freed mount ids again,
+  so a mount made later can carry a lower
+  id than its parent;
+  the first container pass read a tmpfs over a copy as `id=1110 parent=1235`.
+  The program now takes the topmost mount at a path as the one no other row at that path has as its parent,
+  a chain rule rather than the greatest id.
+  The guest's ids never reused within a phase,
+  so its rows are unchanged by that fix;
+  the container's are,
+  and the arms were re-run after it.
+
+### The common start and its checks
+
+H is one fresh private mount namespace per phase.
+The common start makes P in H:
+`mount --bind <dir> P`,
+`mount --make-private P`,
+`mount --make-shared P`,
+and it checks that P carries a `shared:` group no other row of H carries (56 checked phases per kernel).
+"P" is that mount,
+"the copy" a bind of `$B/copy` onto `$B/parent/slot`,
+"the slot" that path,
+and U,
+S and V the namespaces an arm makes.
+In the quoted rows `$B` stands for the per-run fixture base (`/var/lib/zfs-tier0-probe/<arm>/run-<n>-<phase>`
+in the guest,
+`/probe/work/<arm>/run-<n>-<phase>` in the container) and `$W` for the container's host-side path of that
+base;
+the mount ids,
+parent ids,
+group numbers and devices are the kernel's own for that run.
+
+Which arms assert the relation their rows assume,
+and which only print it:
+T0-1,
+T0-2,
+T0-3,
+T0-4,
+T0-6,
+T0-7,
+T0-11 and T0-13 assert it with a failing check or with a control that must deliver;
+T0-5a to T0-5c assert it through their control's delivery;
+T0-12 and T0-5a-literal print the relation and the control and do not assert either,
+and their actions ran with the control false,
+which their own paragraphs say.
+Only those two phases run an action after a control that did not fire.
+
+Every phase has its arm's bound as a wall-clock deadline and the parent kills the phase's process group when
+it passes.
+No phase reached its bound;
+the longest were T0-7's,
+at 10.11 s in the guest and 10.27 s in the container,
+against the 30 s the program gives that arm because the design's own `Bound: T_wait 10 s` is shorter than the
+phase (it waits `T_wait` and then does the rest).
+
+### Agreement
+
+Two runs of every arm on both kernels,
+and the third pass's whole group again on both kernels.
+The kept checkers' summary lines,
+run on the third pass's logs:
+
+```text
+$ python3 check-runs-agree.py arm-*-round3-*.log arm-T0-*-kernel73-round3-*.log
+weak mask: 23 of 34 logs identical between their two runs
+strong mask: 33 of 34 logs identical between their two runs
+  differ: arm-Z1-2-round3-zfs-probe-third-round-handle-and-quota.log
+
+$ python3 check-kernels.py
+identical on both kernels, every line including table rows, compared as a set: 10 of 16 arms
+  identical: T0-1, T0-11, T0-12, T0-13, T0-2, T0-3, T0-4, T0-6, T0-7, T0-9
+  differing: T0-10, T0-5a, T0-5a-literal, T0-5b, T0-5c, T0-8
+```
+
+The weak mask hides only run numbers,
+pids,
+durations,
+handle bytes,
+descriptor numbers and socket inodes,
+so eleven logs differ there in mount ids the kernel reused,
+in the inode of a socket file each run makes,
+and in
+ZFS's own `used` figures.
+The strong mask also hides mount ids,
+parent ids,
+group numbers,
+devices and inodes and keeps every tag's shape;
+the one log that still differs is `Z1-2`'s `zpool list` line,
+whose `used` figure is the pool's own report.
+So every arm's two runs agree on every row's shape and relation,
+and 33 of 34 agree even on the kernel's own
+numbers.
+Between the kernels,
+six arms differ and only in three things:
+the attempt on the file system's own root (T0-5a and its literal start,
+T0-5b,
+T0-5c open it and answer
+`EINVAL` on the unmount on 6.8,
+and get `ESTALE` from the container's `fuse-overlayfs` root on 7.3,
+a fuse mount being unable to resolve another file system's handle),
+the copy's device number (T0-8,
+`0:51` against `0:102`),
+and the presence of `listns` and `NS_GET_ID` (T0-10).
+T0-4's rows are the same lines in a different order on the two kernels,
+which is `/proc/self/mountinfo`'s order for two sibling mounts and not a tag or a relation.
+No mount row,
+no sharing or master relation,
+no delivery and no unmount result differs between the kernels.
+
+The third pass against the second,
+from the kept `check-rounds.py`:
+ten of the eighteen guest arms reproduce line for line,
+table rows included
+(T0-1,
+T0-2,
+T0-3,
+T0-4,
+T0-6,
+T0-7,
+T0-9,
+T0-11,
+T0-12 and Z1-1),
+and the eight that differ do so only in what this round changed on purpose or in a number each run makes:
+the handle route's printed label for the top row (T0-5a,
+T0-5a-literal,
+T0-5b and T0-5c),
+T0-10's new lines and its id-to-descriptor step,
+the shapes T0-13 gained,
+T0-8's tmpfs device number,
+and Z1-2's `zpool` used figures.
+
+### T0-1. A plain unmount reaches the parent's receivers
+
+Expected:
+S's copy vanishes,
+and the host bind and P stay in H.
+Control:
+`umount2` of a host bind at a second path under P removed its row and the check passed.
+
+```text
+# arm-T0-1-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase plain-unmount-in-U
+    id=428 parent=400 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[shared:326 master:324]
+    id=430 parent=428 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:327]
+    id=460 parent=432 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:326]
+    id=462 parent=460 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[master:327]
+# action: umount2(the copy) in U, plain
+# observed: U slot gone = True ; S slot gone = True
+# observed: H still holds the parent = True ; H still holds the host bind = True
+```
+
+```text
+# arm-T0-1-kernel73-tier0-kernel73.log, run 1, phase plain-unmount-in-U
+    id=1058 parent=1057 dev=0:57 root=$W/T0-1/run-1-plain-unmount-in-U/src mp=$B/parent fstype=zfs source=zpcachyos/ROOT/cos/home tags=[shared:748 master:746]
+    id=1089 parent=1058 dev=0:57 root=$W/T0-1/run-1-plain-unmount-in-U/copy mp=$B/parent/slot fstype=zfs source=zpcachyos/ROOT/cos/home tags=[shared:749]
+# observed: U slot gone = True ; S slot gone = True
+# observed: H still holds the parent = True ; H still holds the host bind = True
+```
+
+The expectation holds on both kernels,
+and every run agrees.
+Decisions needed to script it:
+the control unmounts the very host bind whose survival the expectation names,
+so it is its own phase on the same constructed start and the action phase mounts the bind again;
+the row at the slot is recognised as the copy by its `root=` ending in `/copy`.
+
+### T0-2. A private parent before the unmount stops it
+
+Expected:
+S's copy stays mounted.
+Control:
+T0-1's plain unmount on the same start removed the copy in U and in S.
+
+```text
+# arm-T0-2-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase action-private-parent
+    U parent row after the change: id=428 parent=400 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[]
+    id=460 parent=432 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+    id=462 parent=460 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[master:327]
+# observed: U slot gone = True ; S slot gone = False
+```
+
+```text
+# arm-T0-2-kernel73-tier0-kernel73.log, run 1, phase action-private-parent
+    U parent row after the change: id=1058 parent=1057 dev=0:57 root=$W/T0-2/run-1-action-private-parent/src mp=$B/parent fstype=zfs source=zpcachyos/ROOT/cos/home tags=[]
+# observed: U slot gone = True ; S slot gone = False
+```
+
+The expectation holds on both kernels,
+and every run agrees.
+Also observed on both:
+the private change re-points S's parent row from `master:<U's former group>` to `master:<H's group>`,
+so U's slaves are handed to the master U's parent had,
+and S's copy row loses its tag.
+Decisions needed to script it:
+the change is `mount(NULL, P, NULL, MS_PRIVATE, NULL)`,
+and the control is its own phase because it destroys the action's state.
+
+### T0-3. A slave parent before the unmount stops it
+
+The review's G2:
+variant (a) as first scripted made no change in U,
+so its action was T0-1's and the row the arm names was never produced.
+This round's variant (a) makes the arm's own change,
+`mount(NULL, P, NULL, MS_SLAVE, NULL)` in U,
+before the unmount.
+
+Expected:
+S's copy stays in both variants;
+variant (a)'s P row reads `master:<P's group in H>` with no `shared:`;
+variant (b)'s reads as private with no `master:`.
+
+```text
+# arm-T0-3-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase variant-a
+    variant (a) U parent row after the slave change: id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+    variant (a) S parent row after the slave change: id=458 parent=430 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+# observed: the slave change made U's parent share the former group's master = {"master_before": 324, "shared_before": [325], "master_after": 324, "shared_after": []}
+# observed: U slot gone = True ; S slot gone = False
+# observed: S slot row after the action = id=459 parent=458 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]
+```
+
+```text
+# arm-T0-3-kernel73-tier0-kernel73.log, run 1, phase variant-a
+    variant (a) U parent row after the slave change: id=1057 parent=1056 dev=0:57 root=$W/T0-3/run-1-variant-a/src mp=$B/parent fstype=zfs source=zpcachyos/ROOT/cos/home tags=[master:746]
+# observed: the slave change made U's parent share the former group's master = {"master_before": 746, "shared_before": [747], "master_after": 746, "shared_after": []}
+# observed: U slot gone = True ; S slot gone = False
+```
+
+Variant (a) now shows what it names:
+the slave change takes U's parent out of its peer group,
+its `master:` becomes the former group,
+and the unmount in U leaves S's copy mounted,
+which T0-1's plain unmount on the same start does not.
+Variant (b) is unchanged:
+the parent made private and then slave carries no tag,
+S's copy stays,
+and the plain unmount on that same start also leaves it (`U slot gone = True ; S slot gone = False` in its
+control phase),
+so variant (b)'s "stays" belongs to the state rather than to the change.
+Both kernels agree,
+and every run agrees.
+Decisions needed to script it:
+variant (b) keeps its own control phase because the control the arm names runs on a different start;
+the copy in variant (b) is mounted after the two changes,
+as its start reads.
+
+### T0-4. The peer case's rows
+
+Expected,
+derived in the design from `fs/pnode.c` and not run when it was written:
+P's row becomes `master:<the former group>` without `shared:`;
+P' keeps its `shared:` and its own `master:`;
+S's row still reads `master:<the former group>`;
+after the change a mount made under P' no longer reaches P or S,
+and one under P reaches neither.
+Control:
+a mount under P' reached P and S before the change.
+
+```text
+# arm-T0-4-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+    P row after the change:  id=397 parent=354 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+    P' row after the change: id=398 parent=354 dev=253:1 root=$B/src mp=$B/peer fstype=ext4 source=/dev/vda1 tags=[shared:324]
+    S row after the change:  id=428 parent=400 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+# control delivery under P': {"H/P": true, "H/P'": true, "S/P": true}
+# delivery under P' after the change: {"H/P": true, "H/P'": true, "S/P": true}
+# delivery under P after the change: {"H/P": true, "H/P'": false, "S/P": false}
+```
+
+The rows the arm derives are observed exactly,
+on both kernels,
+and the delivery under P matches.
+The delivery claim differs,
+as it did in the first round and as the review said:
+the design's expected sentence says a mount under P' no longer reaches P or S,
+and it reaches both,
+because P has become a slave of P' and S receives through P.
+The design's own text for way 7 says the service keeps receiving through the peer,
+so it is that sentence of the arm,
+not the way,
+that is wrong;
+the rows show the mechanism (`P ... tags=[master:324]` and P' carrying `shared:324`).
+Both kernels agree,
+and every run agrees.
+Decisions needed to script it:
+the copy is mounted in H under P,
+because the checks are about delivery into P,
+P' and S and the text names no namespace for it;
+S is made from H with `unshare --mount --propagation slave` before the copy is mounted.
+
+### T0-5. The receiver closure and the handle unmount
+
+The oracle is a closure over the tables:
+the seed is the acting parent's own `shared:` group when it is shared,
+or the group its slaves print as their `master:`;
+a namespace is a member when its parent row's `shared:` or `master:` is in the set;
+a member adds its own `shared:` group;
+and only members whose topmost mount at the slot is the copy are kept.
+
+#### T0-5a. The nested-in-nested receiver
+
+Expected:
+the closure finds V,
+and the set of namespaces whose copy vanished equals it.
+Control:
+a mount under P in U reached V and was withdrawn.
+
+```text
+# arm-T0-5a-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# name_to_handle_at($B/parent/slot): handle_bytes=8 handle_type=1 mount_id=397 handle=2d050400c4be0d75
+# relation: U parent row = id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[shared:325 master:324]
+# relation: V parent row = id=458 parent=430 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:325]
+# control delivery to V: true
+# oracle: the closure is ['U', 'V'], members with a mount at the slot are ['U', 'V'], the kept receivers are ['U', 'V']
+# handle result on the parent mount: {"opened": true, "resolved": "$B/parent/slot", "row_count": 1, "top": "id=428 parent=427 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:326]", "top_id": 428, "top_fstype": "ext4", "top_source": "/dev/vda1", "umount": {"ok": true}}
+# observed: namespaces whose slot mount vanished = ["U", "V"]
+# T0-5a: closure ['U', 'V'], kept ['U', 'V'], vanished ['U', 'V'], equal = True
+```
+
+```text
+# arm-T0-5a-kernel73-tier0-kernel73.log, run 1
+# name_to_handle_at($B/parent/slot): handle_bytes=12 handle_type=1 mount_id=1013 handle=0a00232ec9000000e9350200
+# observed: namespaces whose slot mount vanished = ["U", "V"]
+# T0-5a: closure ['U', 'V'], kept ['U', 'V'], vanished ['U', 'V'], equal = True
+```
+
+The expectation holds on both kernels and every run agrees,
+so way 8's unmount is shown on 7.3 as well as on 6.8,
+over ZFS in the container and over ext4 in the guest.
+Three things the design's text does not say are measured:
+the handle must be opened on the mount that carries the slot (on 6.8 the attempt on the filesystem root opens
+but names the covered directory's path there and no mount,
+and `umount2` answers `EINVAL`;
+on 7.3 the `fuse-overlayfs` root answers `ESTALE` for a ZFS handle);
+the open call must carry `O_DIRECTORY` on 7.3 for a caller that is not root in the initial user namespace,
+as the container is and the handler is not (see the confinement's flags bullet);
+`open_by_handle_at` refuses an `O_PATH` directory descriptor with `EBADF` on both kernels,
+a descriptor's path-only flag and not the open flags.
+The top row under the descriptor is chosen by the chain rule,
+as it is everywhere else in the program:
+the row at the resolved path that no other row there has as its parent.
+The second pass's handle route still took the greatest mount id there,
+which the kernel's reuse of ids makes wrong in principle;
+every handle result in every pass had zero or one row at the dentry,
+so nothing was decided by it,
+and the third pass's program takes the chain rule.
+Decisions needed to script it:
+U's parent is made shared in U,
+as T0-1's start does,
+because the closure cannot contain V otherwise;
+the arm's literal start is T0-5a-literal;
+both descriptor attempts are logged.
+
+#### T0-5a-literal. The start the text spells out
+
+```text
+# arm-T0-5a-literal-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# control delivery to V: false
+# the control did not deliver on this start, so this run shows nothing by seeing nothing
+# oracle: the closure is ['H', 'U', 'V'], members with a mount at the slot are ['U', 'V'], the kept receivers are ['U', 'V']
+# observed: namespaces whose slot mount vanished = ["U"]
+# T0-5a: closure ['H', 'U', 'V'], kept ['U', 'V'], vanished ['U'], equal = False
+```
+
+Both kernels and every run agree.
+The arm's expectation holds only on a start whose acting namespace carries a shared group of its own,
+and the design's text for T0-5a does not ask for one.
+
+#### T0-5b. A receiver with no mount at the slot
+
+Expected:
+V is not a kept receiver,
+is not refused,
+and is not in the vanished set.
+
+```text
+# arm-T0-5b-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# control delivery to V: true
+# oracle: the closure is ['U', 'V'], members with a mount at the slot are ['U'], the kept receivers are ['U']
+# T0-5b: closure ['U', 'V'], kept ['U'], vanished ['U'], V kept = False
+```
+
+The expectation holds on both kernels and every run agrees.
+The control the arm names,
+T0-5a's V keeping its copy and appearing in the vanished set,
+is T0-5a's phase in this group;
+this phase's own control shows a mount under U's parent reaching V and being withdrawn.
+Decisions needed to script it:
+V is made from U after the copy exists,
+and its copy is removed in V by a local `umount2` as the text says.
+
+#### T0-5c. A stacked mount at the slot
+
+Expected:
+the closure's predicate says way 8 is not chosen for V,
+because V's topmost mount at the slot is not the copy,
+and the stacked mount stays.
+
+```text
+# arm-T0-5c-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# observed: V topmost at the slot = id=460 parent=459 dev=0:50 root=/ mp=$B/parent/slot fstype=tmpfs source=tmpfs tags=[]
+# observed: U topmost at the slot = id=428 parent=427 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:326]
+# predicate: way 8 is not chosen for a namespace whose topmost mount at the slot is not the copy: {"U": true, "V": false, "H": false}
+# oracle: the closure is ['U', 'V'], members with a mount at the slot are ['U', 'V'], the kept receivers are ['U']
+# observed: namespaces whose slot mount vanished = ["U"]
+    id=458 parent=430 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:325]
+    id=460 parent=458 dev=0:50 root=/ mp=$B/parent/slot fstype=tmpfs source=tmpfs tags=[]
+```
+
+```text
+# arm-T0-5c-kernel73-tier0-kernel73.log, run 1
+# observed: V topmost at the slot = id=1126 parent=1121 dev=0:113 root=/ mp=$B/parent/slot fstype=tmpfs source=tmpfs tags=[]
+# predicate: way 8 is not chosen for a namespace whose topmost mount at the slot is not the copy: {"U": true, "V": false, "H": false}
+# oracle: the closure is ['U', 'V'], members with a mount at the slot are ['U', 'V'], the kept receivers are ['U']
+```
+
+The predicate holds on both kernels and the stacked tmpfs stayed mounted in V.
+The kernel's own behaviour goes further than the predicate:
+the handle unmount in U removed V's copy underneath the stack,
+on both kernels,
+leaving V's parent and the tmpfs and no copy row.
+The arm's log also carries the answer the design's bullet leaves open,
+and this round states both rather than one:
+the oracle's kept set drops V (`kept ['U']`) while the kernel still removed V's copy.
+Which of the two the preflight's policy follows is the design's to say;
+the measurement gives both.
+Both kernels agree and every run agrees.
+Decisions needed to script it:
+the predicate is computed per namespace with a mount at the slot,
+and the arm's one action is performed anyway,
+so the log records the predicate and what the kernel did.
+
+### T0-6. The shared-state difference
+
+The review's G1:
+the first round's way 3 phase mounted the second copy after the change,
+so way 3's U never held it and the unmount half showed nothing.
+This round mounts the second copy in H before the change and reads U's and S's tables after H's unmount,
+for both ways.
+Control:
+before the change,
+a mount and an unmount in H under P were seen by U and S.
+
+```text
+# arm-T0-6-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# control delivery to U and S: {"U": true, "S": true}
+# control withdrawal in U and S: {"U": true, "S": true}
+# before way 7: H's mount reaches U and S = {"U": true, "S": true}
+    U parent row after way 7: id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+# after way 7: H's unmount of the second copy reached U and S = {"U": true, "S": true}
+# after way 7: H's later mount of a copy at a new path reaches U and S = {"U": true, "S": true}
+# before way 3: H's mount reaches U and S = {"U": true, "S": true}
+    U parent row after way 3: id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[]
+# after way 3: H's unmount of the second copy reached U and S = {"U": false, "S": true}
+# after way 3: H's later mount of a copy at a new path reaches U and S = {"U": false, "S": true}
+# summary for way 3: before the change the mount reached U and S {"U": true, "S": true}; after it the unmount reached {"U": false, "S": true} and a later mount at a new path reached {"U": false, "S": true}
+```
+
+The container's rows are the same line for line after normalising,
+in both ways and both runs.
+So both halves are now shown:
+under way 7 the service keeps receiving H's mounts and H's unmounts under P;
+under way 3 it keeps neither,
+which is the kernel rule the design's text states and the first round could only assume.
+Also observed on both kernels:
+way 3's S still received both,
+because S's parent is a slave of H's group itself and not of U's parent.
+Decisions needed to script it:
+the second copy is a bind at `$B/parent/second-copy` mounted before the change;
+the later mount uses a third path,
+because a mount left in U from before the change would answer for a new mount at the same path;
+way 7 and way 3 are two phases from the same start.
+
+### T0-7. The move sits after the signals
+
+Expected:
+with the move after the signals the write lands in the mounted copy and the slot's folder is empty when the
+move is due;
+with the move before the signals it lands in the slot's underlying folder,
+which H sees.
+Control:
+the move before the signals.
+
+```text
+# arm-T0-7-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# the control reads the write 10 s after the signal (the write appeared after 0.05 s)
+# control observed after 0.05 s: the write is in the slot's underlying folder = True, in the copy = False
+# the move is due 10 s after the signal; the write appeared after 0.05 s
+# observed: the slot's folder is empty of the write when the move is due = true
+# move: {"parent_row": "id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]", "destination": "$B/parent/.git-worktree-clone-removal-probe", "destination_row": "id=428 parent=427 dev=253:1 root=$B/copy mp=$B/parent/.git-worktree-clone-removal-probe fstype=ext4 source=/dev/vda1 tags=[shared:326]", "slot_row_after": null}
+# observed: H sees the new directory on the parent mount as a directory = true, mode 0o700
+# observed: H sees a mount at that path = false (the move happened in U only)
+```
+
+The expectation holds on both kernels and every run agrees.
+Decisions needed to script it:
+the blocker traps `SIGTERM`,
+writes by absolute path at the slot and exits,
+and its write appears about 0.05 s after the signal,
+while the program still waits the whole `T_wait` before the move;
+the destination and the move follow way 7's steps 2 and 3;
+the phase's bound is 30 s,
+for the reason given under the common start.
+
+### T0-8. A socket in another network namespace
+
+Expected:
+the bound file's device and inode name the copy's filesystem,
+the owning task is found by the socket's inode,
+and the control's socket outside the copy returns a device that does not match.
+Control:
+the same request for a socket bound outside the copy.
+
+```text
+# arm-T0-8-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# the copy is tmpfs on tmpfs, dev 0:50
+# inside: socket ino 21597, UDIAG_VFS ino 3 dev 50 against the file's ino 3, dev 50 (as the kernel encodes it 50): match = True
+# outside: socket ino 21598, UDIAG_VFS ino 263733 dev 265289729 against the file's ino 263733, dev 64769 (as the kernel encodes it 265289729): match = True
+# the socket inode 21597 is held by tasks found in /proc/<pid>/fd: [4243]
+```
+
+The expectation holds on both kernels,
+and the only difference between them is the copy's device number.
+Decisions needed to script it:
+the copy's source is a tmpfs so its device differs from the root filesystem's;
+the owner is a child of H that unshares only the network namespace and binds one socket inside the copy and
+one outside;
+the request is an unfiltered `SOCK_DIAG_BY_FAMILY` dump matched locally by inode;
+`setns` runs in a forked child;
+the diag device is the raw `dev_t` in the kernel's own encoding,
+so a build comparing it with `st_dev` must re-encode it.
+
+### T0-9. Blind and gone reads
+
+```text
+# arm-T0-9-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# the reader is nobody; statx on /proc/<pid>/exe answers: {"control: live same-account task": {"ok": true}, "action: root-owned task": {"ok": false, "errno": "EACCES"}, "action: reaped pid": {"ok": false, "errno": "ENOENT"}}
+# control: the same reader's statx on a live same-account task's exe succeeded = true
+```
+
+Expected and observed on both kernels;
+every run agrees.
+Decisions needed to script it:
+the same-account task is made by fork,
+`setuid` to `nobody`,
+then `execv("/bin/sleep")`,
+because a `runuser` parent stays root;
+`statx` runs through libc with flags 0 and mask `0x7ff`.
+
+### T0-10. The taskless namespace
+
+On the guest's 6.8 the arm is unrun and nothing is passed:
+syscall 470 answers `ENOSYS` and the `NS_GET_ID` ioctl answers `ENOTTY`.
+On the container's 7.3 the kernel has both,
+the program tries 470 only,
+and the arm ran:
+
+```text
+# arm-T0-10-kernel73-round3-tier0-kernel73.log, run 1
+# program probe-round3.py sha256 4291233419d80649a69ad678d6b0b2cec32c3655865988e8efba7df508a81de4
+# struct ns_id_req is 32 bytes: size, spare, ns_id, ns_type, spare2, user_ns_id
+# /proc/self/ns/pid equals /proc/1/ns/pid, the container's own init, which any container satisfies = true
+# /proc/self/uid_map reads "0 1000 1 1 100000 65536"; the initial user namespace reads "0 0 4294967295", so the caller is in the initial user namespace = false
+# /proc/self/status CapEff = 00000000802405ff
+# NS_GET_ID on the pinned descriptor: 50559
+# NS_GET_ID on this process's own mount namespace: 50558
+# listns(470) for CLONE_NEWNS over 2 page(s): 1 id(s), failure null
+# the ids listns returned: [50558]
+# the pinned namespace's id is in the listed set = false
+# this process's own mount namespace id is in the listed set = true
+# a one-id page returned 50558; the continuation request carries ns_id=50558
+# the walk over every page returned 1 id(s), failure null, the same set as the one-id first page starts = true
+# the id 50558 (this process's own id, which listns listed) opened by open_by_handle_at(FD_NSFS_ROOT): mnt:[4026533637]
+# setns on the descriptor the listed id gave: entered, 33 rows, the mark present = false
+# the id 50559 (the pinned id, which listns did not list) to a descriptor by open_by_handle_at(FD_NSFS_ROOT): ESTALE
+# setns on the pinned descriptor entered it; the table has 34 rows
+# the mark in the pinned namespace: ["id=1086 parent=1018 dev=0:102 root=/ mp=/mnt/pinned-probe fstype=tmpfs source=tmpfs tags=[]"]
+```
+
+```text
+# arm-T0-10-round3-zfs-probe-third-round-handle-and-quota.log, run 1
+# /proc/self/uid_map reads "0 0 4294967295"; the initial user namespace reads "0 0 4294967295", so the caller is in the initial user namespace = true
+# listns(470) for CLONE_NEWNS over 1 page(s): 0 id(s), failure "ENOSYS"
+# NS_GET_ID on the pinned descriptor refused: [Errno 25] NS_GET_ID: ENOTTY
+# setns on the pinned descriptor entered it; the table has 29 rows
+# the mark in the pinned namespace: ["id=483 parent=403 dev=0:51 root=/ mp=/mnt/pinned-probe fstype=tmpfs source=tmpfs tags=[]"]
+```
+
+What the `uid_map` line answers,
+and what it does not:
+`/proc/self/ns/pid` equals `/proc/1/ns/pid` in any container,
+because `/proc/1` there is the container's own
+init,
+so that comparison distinguishes nothing and the log no longer claims it does;
+the map does,
+reading `0 0 4294967295` only in the initial user namespace.
+What 7.3 shows:
+the call exists,
+its request structure is the 32 bytes the design names,
+pagination works from the last id of a page,
+`NS_GET_ID` reads a descriptor's id,
+and a listed id becomes a namespace descriptor and enters it
+(the design's second half,
+which the second pass left unscripted):
+a handle of `{ns_id, 0, 0}` of type `FILEID_NSFS` opened with `open_by_handle_at(FD_NSFS_ROOT, …)` gave
+`mnt:[4026533759]` for the id the caller's own listing held,
+and `setns` on it entered that namespace.
+The same construction on the pinned id,
+which no listing gave this caller,
+answers `ESTALE`;
+`nsfs`'s `fh_to_dentry` refuses a namespace the caller may not see with `EPERM`,
+and `do_handle_to_path` reports every failure of the decode as `ESTALE`
+(`fs/fhandle.c` at `v7.3`),
+so the errno the call answers names the decode and not the refusal's cause.
+What it does not show is the arm's own statement,
+that the pinned taskless namespace is found:
+the listed set holds exactly one id,
+this process's own namespace,
+and not the pinned one.
+`kernel/nscommon.c` at `v7.3` says why,
+and this is a reading of source and not a measurement:
+`may_list_ns` lets a caller list only its own namespaces unless `may_see_all_namespaces()`,
+which needs the caller to be in the initial pid namespace and to hold `CAP_SYS_ADMIN` in the initial user
+namespace;
+a rootless container has neither.
+The handler the design describes runs as root in the host's init namespaces,
+so the arm's route is open to it and closed to this container;
+nothing here measures the handler.
+The arm as scripted prints the listed ids,
+the pinned id and their membership,
+and enters the namespace by the pinned descriptor,
+which needs no `listns`.
+Decisions needed to script it:
+the descriptor is handed over with `SCM_RIGHTS` from the child that unshares,
+because a descriptor opened after `fork` does not exist in the parent;
+syscalls 471 to 473 are gone from the program,
+since 471 is `rseq_slice_yield` and 472 is `fchroot` on 7.3 and a stray call would have meant something else.
+
+### T0-11. The chain: a unit started shared, then repaired
+
+The review's G11:
+the first round's single delivery probe ran after the repair and the change together,
+so the attribution rested on the row alone.
+This round probes between them,
+and adds a start where H's parent has a peer.
+Control:
+a mount in H under P reached U before the repair.
+
+```text
+# arm-T0-11-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase chain-and-way-7
+    U parent row after the repair: id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[shared:325]
+    U parent row after the change: id=427 parent=399 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[]
+# attribution: delivery before the repair, between the repair and the change, and after both = {"before_repair": true, "between": false, "after_both": false}
+```
+
+```text
+# arm-T0-11-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase peer-repair
+    H peer row after the repair: id=398 parent=354 dev=253:1 root=$B/src mp=$B/peer fstype=ext4 source=/dev/vda1 tags=[shared:324]
+    U parent row after the repair: id=428 parent=400 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[shared:325 master:324]
+# delivery to U between the repair and the change = false
+    U parent row after the change: id=428 parent=400 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:324]
+# attribution on the peer start = {"before_repair": true, "between": false, "after_both": false}
+```
+
+The expectation holds on both kernels and every run agrees,
+and the attribution is now measured:
+the repair alone stops H's mounts under P reaching U,
+before any slave change.
+With a peer in H,
+the repair does not clear U's master:
+U's parent keeps its own `shared:` group and reads `master:` as the peer's group,
+which is the design's "or keeps its next peer's master (it had peers)" branch;
+the way 7 change then reads `tags=[master:<the peer's group>]`.
+Both kernels agree;
+the container's rows are the same after normalising.
+
+### T0-12. A receiver that holds no copy, after way 7
+
+Expected:
+after the act,
+the namespace that holds no copy receives nothing of the service's later mounts under P.
+
+```text
+# arm-T0-12-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# observed: V holds a mount at the slot before the act = false
+# control delivery to V: false
+# observed: after the act V receives the later mount under P = false
+# observed: V holds a mount at the slot before the act = true
+# control delivery to V: true
+# observed: the copy is gone in U = true, gone in V = false
+# observed: after the act V receives the later mount under P = false
+# observed: V holds a mount at the slot before the act = false
+# control delivery to V: true
+# observed: the copy is gone in U = true, gone in V = true
+# observed: after the act V receives the later mount under P = false
+```
+
+The three starts are unchanged from the first round and agree with it.
+The start that measures the statement is the third,
+a receiver that holds no copy;
+the first two cannot both keep V without a copy and let the control deliver,
+and the second shows the copy arriving in V by propagation.
+Both kernels agree,
+and every run agrees.
+The review's correction to the name is taken:
+the case is a sandbox that holds no copy,
+not one that never held the clone.
+
+### T0-13. The host's own copy when the holder unmounts
+
+The review's G3:
+no arm unmounted a holder's copy while H itself held a mount at the slot,
+which is the production shape.
+This arm adds it,
+and the review's Q9 added the shapes:
+four of them,
+because the shape a service's mount has decides both what the unmount reaches and what the
+preflight's closure computes.
+
+The start is the common one,
+with H mounting the copy at the slot so that the holder receives it by propagation.
+The four shapes of the holder's parent mount:
+
+- `slave-group`:
+a slave with a group of its own (`mount --make-shared` in U after the slave change),
+  which is the shape systemd leaves a unit started while the checkout was shared.
+- `slave`:
+a pure slave,
+no group of its own.
+- `peer`:
+a peer of H's mount,
+both ways.
+- `unrelated`:
+the same directory bound at another path in the holder's own namespace,
+  with no propagation relation to H's mount at all,
+  the shape a unit started after the repair has.
+  It receives nothing from H,
+  so it takes a copy of its own,
+  and that copy is what it unmounts.
+
+Each shape runs twice:
+once unmounting by the recorded handle,
+once by the path.
+The controls are the copy's arrival in the holder (or,
+for `unrelated`,
+the holder's own copy being present) and
+a second mount in H under P reaching the holder.
+
+```text
+# arm-T0-13-round3-zfs-probe-third-round-handle-and-quota.log, run 1, one phase per shape
+# program probe-round3.py sha256 4291233419d80649a69ad678d6b0b2cec32c3655865988e8efba7df508a81de4
+# relation: U parent row = id=484 parent=404 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[shared:330 master:329]
+# positive control: the copy mounted in H reached U = true
+# oracle: the closure over H and U = ['U'], kept = ['U']
+# the host's own namespace is a member with a mount at the slot = false
+# observed: the slave-group shape: U's copy gone = true; H's copy at the slot still mounted = true; H's copy topmost row = id=485 parent=402 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:331]
+# relation: U parent row = id=484 parent=404 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[master:329]
+# positive control: the copy mounted in H reached U = true
+# oracle: the closure over H and U = ['H', 'U'], kept = ['H', 'U']
+# the host's own namespace is a member with a mount at the slot = true
+# observed: the slave shape: U's copy gone = true; H's copy at the slot still mounted = true; H's copy topmost row = id=485 parent=402 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:330]
+# relation: U parent row = id=484 parent=404 dev=253:1 root=$B/src mp=$B/parent fstype=ext4 source=/dev/vda1 tags=[shared:329]
+# positive control: the copy mounted in H reached U = true
+# oracle: the closure over H and U = ['H', 'U'], kept = ['H', 'U']
+# the host's own namespace is a member with a mount at the slot = true
+# observed: the peer shape: U's copy gone = true; H's copy at the slot still mounted = false; H's copy topmost row = none
+# relation: U parent row = id=485 parent=404 dev=253:1 root=$B/src mp=$B/own-parent fstype=ext4 source=/dev/vda1 tags=[]
+# the unrelated holder received nothing by propagation = true
+# oracle: the holder's parent is not H's mount, so the closure over H's group does not reach it
+# observed: the unrelated shape: U's copy gone = true; H's copy at the slot still mounted = true; H's copy topmost row = id=486 parent=402 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:330]
+```
+
+```text
+# arm-T0-13-kernel73-round3-tier0-kernel73.log, run 1
+# observed: the slave-group shape: U's copy gone = true; H's copy at the slot still mounted = true; H's copy topmost row = id=1089 parent=1016 dev=0:57 root=$W/T0-13/run-1-slave-group-marker/copy mp=$B/parent/slot fstype=zfs source=zpcachyos/ROOT/cos/home tags=[shared:748]
+# observed: the slave shape: U's copy gone = true; H's copy at the slot still mounted = true; H's copy topmost row = id=1089 parent=1016 dev=0:57 root=$W/T0-13/run-1-slave-marker/copy mp=$B/parent/slot fstype=zfs source=zpcachyos/ROOT/cos/home tags=[shared:747]
+# observed: the peer shape: U's copy gone = true; H's copy at the slot still mounted = false; H's copy topmost row = none
+# observed: the unrelated shape: U's copy gone = true; H's copy at the slot still mounted = true; H's copy topmost row = id=1090 parent=1016 dev=0:57 root=$W/T0-13/run-1-unrelated-marker/copy mp=$B/parent/slot fstype=zfs source=zpcachyos/ROOT/cos/home tags=[shared:747]
+```
+
+All four shapes answer the design's open question,
+on both kernels,
+and every run agrees:
+where the holder only receives from the host's mount,
+whether as a pure slave or as a slave with a group of its
+own or with no relation at all,
+the holder's unmount removes its own copy and the host's copy stays;
+where the holder shares with the host both ways,
+the same unmount removes the host's copy as well.
+That is the kernel rule the design states for way 4 ("the host's mount stays only where it is a master or no
+receiver of the parent"),
+now measured rather than expected,
+and it is the same for the handle and for the path.
+
+The oracle's line differs by shape,
+and that is the measurement the review asked for:
+in the `slave-group` shape the closure seeded from the holder's own group is `['U']` and the host's namespace is
+not in it,
+because the holder's group is its own and the host's group appears only as the holder's `master:`;
+in the pure `slave` and the `peer` shapes the closure is `['H', 'U']` and the host is a kept member.
+So a preflight that seeds from the acting namespace's own group would not name the host in systemd's own shape,
+even though the host's copy is safe there;
+and in the shapes where the host is named,
+the design's policy already falls from way 8 to way 7.
+Which of those two the preflight should seed from is the design's to say,
+and this arm measures both.
+
+Decisions needed to script it:
+the copy is mounted in H,
+not in U,
+and the handle is recorded in H before that mount covers the directory;
+the plain phases exist because the handle route is a different action and the propagation question is the same
+for both;
+and the `unrelated` shape binds the same source directory at `$B/own-parent` inside the holder,
+so its copy is its own mount and its unmount cannot reach H.
+
+### Tier 1: the handle on ZFS and a dataset at its quota
+
+Pool:
+a 2 GiB sparse file inside the throwaway guest,
+`zpool create tier1pool /var/lib/zfs-tier1/pool.img`,
+with datasets `tier1pool/work`,
+`tier1pool/quota` and `tier1pool/origin`;
+ZFS `2.2.2-0ubuntu9.5`,
+module and userspace the same;
+the preparation's own output is `guest-zfs-prepare.log`.
+The container's Tier 0 handle rows are the other ZFS data point,
+over the host's module `2.4.4-1` on 7.3.
+
+#### Z1-1. The recorded handle on a ZFS dataset
+
+State:
+`tier1pool/work/ancestor/slot`,
+a handle taken with `name_to_handle_at` before a bind covers it,
+then the cover,
+then a rename of the ancestor.
+Control:
+the same handle opened before the cover names the plain directory and no mount sits at its dentry.
+
+```text
+# arm-Z1-1-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase under-a-cover
+# name_to_handle_at(/tier1pool/work/ancestor/slot): handle_bytes=12 handle_type=1 mount_id=394 handle=0a000900000000005c010000
+# control before the cover: the descriptor names /tier1pool/work/ancestor/slot
+# control: no mount sits at its dentry = true
+# observed: the topmost mount at the slot by path = id=397 parent=394 dev=0:47 root=/cover-source mp=/tier1pool/work/ancestor/slot fstype=zfs source=tier1pool/work tags=[]
+# action: open the same handle on an O_RDONLY descriptor of the dataset mount
+# observed: the descriptor names the covered directory = true (/tier1pool/work/ancestor/slot)
+# observed: the topmost mount at its dentry is the cover = true
+# observed: the cover's marker reads through the descriptor = false
+# action: umount2("/proc/self/fd/<n>", 0)
+# observed: the umount was accepted
+# observed: after the umount the topmost mount at the slot = none
+```
+
+```text
+# arm-Z1-1-round2-zfs-tier1-handle-and-68-reruns.log, run 1, phase after-an-ancestor-rename
+# the rename of the ancestor: /tier1pool/work/ancestor to /tier1pool/work/ancestor-renamed
+# after the cover and the rename: the descriptor names /tier1pool/work/ancestor-renamed/slot
+# observed: the descriptor names the covered directory = true (/tier1pool/work/ancestor-renamed/slot)
+# observed: the topmost mount at its dentry is the cover = true
+# observed: the umount was accepted
+```
+
+The expectation holds on ZFS 2.2.2,
+in both states,
+and every run agrees:
+the recorded handle names the covered directory under a cover and after an ancestor's rename,
+the topmost mount at its dentry is the cover,
+and `umount2` by the descriptor removes that cover.
+One further row is worth the design's attention:
+the cover's marker is not readable through the descriptor,
+so the descriptor names a place in the underlying filesystem and traversal stays there while `umount2` takes
+the topmost mount at the dentry;
+the handle is not a way to read what covers it.
+Decisions needed to script it:
+the descriptor is taken on the dataset's mount (`/tier1pool/work`) and not on `/`,
+because a handle resolves only against the filesystem it was taken from;
+the directory is recreated per run so a previous run's rows cannot answer.
+
+#### Z1-2. A dataset at its quota
+
+State:
+a dataset at its quota,
+and a dataset holding a clone.
+Control:
+a directory made on the same pool's `work` dataset,
+which has room.
+
+```text
+# arm-Z1-2-round2-zfs-tier1-handle-and-68-reruns.log, run 1
+# control: the directory was made = true
+# the fill stopped at 4194304 bytes with errno 122 (EDQUOT): Disk quota exceeded
+# statvfs on the quota dataset: blocks 33, free 0, available 0, fragment size 131072
+# observed: the mkdir was refused errno 122 (EDQUOT): Disk quota exceeded
+# observed: the directory exists after the attempt = false
+# observed: the preflight reads of the dataset = {"quota": "4M", "free_bytes": 0, "dir_exists": false}
+# observed: the clone's mount row = id=397 parent=393 dev=0:50 root=/ mp=/tier1pool/clone fstype=zfs source=tier1pool/clone tags=[]
+# observed: a directory can be made in the clone = true
+```
+
+The expectation holds:
+a dataset at its quota refuses the directory with `EDQUOT`,
+and the reads the preflight would take name it (`available` 0 from `statvfs`,
+`quota=4M`,
+`used` at the quota).
+The clone-holding half is recorded rather than decided:
+a clone of a snapshot mounts as its own dataset and takes a directory.
+Decisions needed to script it:
+the fill is incompressible bytes,
+because a compressible filler does not fill a quota on a dataset with compression;
+the quota is 4 MiB so the fill is short;
+the leftover file and directory are removed at the start of every run.
+
+### What the group shows, arm by arm and kernel by kernel
+
+T0-1:
+a plain unmount of the copy inside a holder's namespace removes it in that namespace and in every namespace
+that receives from the same parent,
+a slave of a slave included,
+and the host's own rows stay.
+Shown on 6.8 and on 7.3,
+over ext4 and over ZFS.
+T0-2:
+a parent made private before the unmount stops that reach;
+shown on both kernels.
+T0-3:
+a parent made a slave while it has a master stops it too,
+and its row then reads `master:<the former group>` with no group of its own;
+shown on both kernels,
+and variant (b)'s "stays" belongs to a parent that already had no master and no group,
+which its own control shows.
+T0-4:
+the rows a slave change gives a parent with a peer are as the design derived;
+a mount under the peer still reaches the parent and its slaves,
+which the arm's expected sentence denies and the way's own text allows.
+Shown on both kernels.
+T0-5a to T0-5c:
+the receiver closure,
+the kept set and the vanished set agree;
+the handle unmount takes the copy and its receivers' copies with no sharing change,
+and removes a receiver's copy from under a stacked mount as well;
+a receiver with no copy is not refused.
+Shown on both kernels,
+with a ZFS handle on 7.3 and an ext4 handle on 6.8.
+T0-6:
+in a shared checkout,
+way 7 keeps the service receiving the host's later mounts and unmounts under P,
+and way 3 cuts it off from both;
+measured on both kernels,
+both halves.
+T0-7:
+the move after the signals keeps a dying job's write inside the clone and leaves the slot's folder empty;
+the host sees the short-lived directory and no mount at it.
+Shown on both kernels.
+T0-8:
+a bound unix socket in another network namespace is found with its file's inode and device,
+and the owner by `/proc/<pid>/fd`.
+Shown on both kernels.
+T0-9:
+the classifier's two answers are `EACCES` for blind and `ENOENT` for gone,
+and a reader that may read one succeeds.
+Shown on both kernels.
+T0-10:
+on 6.8 the call and the id ioctl are absent;
+on 7.3 the call exists,
+answers with the caller's own namespace only in a rootless container,
+paginates,
+converts a listed id into a descriptor that `setns` enters,
+answers `ESTALE` for an id it may not see,
+and the pinned namespace is entered by its descriptor.
+The arm's own statement,
+that a taskless namespace is found without a task,
+is shown only to a caller that holds `CAP_SYS_ADMIN` in the initial user namespace,
+which this container is not.
+T0-11:
+the repair alone stops the flow to a unit started while the checkout was shared,
+and way 7 then reads as way 3 does;
+a parent that kept a peer keeps that peer as its master.
+Shown on both kernels,
+with the delivery probe between the repair and the change.
+T0-12:
+a namespace that holds no copy stops receiving the service's later mounts under P after way 7.
+Shown on both
+kernels.
+T0-13:
+where the holder only receives from the host's mount
+(a slave with a group of its own,
+a pure slave,
+or a holder with no relation),
+its unmount of the copy leaves the host's copy mounted;
+where it shares with the host both ways,
+the host's copy goes too.
+The preflight's closure names the host in the pure slave and peer shapes and not in systemd's own.
+Shown on both kernels,
+by the handle and by the path,
+in four shapes.
+Z1-1:
+the recorded handle names the covered directory on ZFS under a cover and after an ancestor's rename,
+and `umount2` by the descriptor removes the cover.
+Shown on ZFS 2.2.2 in the guest and,
+through Tier 0's arms,
+on ZFS 2.4.4 in the container.
+Z1-2:
+a dataset at its quota refuses the directory with `EDQUOT` and the preflight's reads name it.
+Shown on ZFS 2.2.2.
+
+What is a reading of source only:
+the reasons behind three measured effects,
+namely that the preflight's visibility rule for `listns` is `may_see_all_namespaces()` in `kernel/nscommon.c`
+at `v7.3`,
+that `O_DIRECTORY` is required by `may_decode_fh` in `fs/fhandle.c` at `v7.3`,
+and that the propagation rules that produce the 7.3 rows live in `gather_candidates`,
+`trim_one` and `reparent` in `fs/pnode.c` at `v7.3`.
+The effects are measured on 7.3;
+the mechanisms are read,
+and no line of that kernel's source was compiled or traced here.
+
+### What the group does not show
+
+- A service the manager started,
+  `PrivateMounts=yes`,
+  or a unit's own mount flags:
+  every namespace here is made by
+  `unshare` and `mount` by hand.
+- Live blockers,
+  `EBUSY`,
+  kills,
+  or the wait between `SIGTERM` and `SIGKILL` beyond the one blocker T0-7 writes
+  through.
+- Way 7 end to end:
+  no arm unmounts at the destination or removes the short-lived directory.
+- A read-only parent,
+  a hardened unit,
+  or a socket held by a task the caller cannot read.
+- A holder in its own user namespace,
+  which is what bubblewrap,
+  a rootless container or systemd's `PrivateUsers=yes` make.
+  Every holder here was in the caller's user namespace,
+  so no copied mount was locked.
+  This is a reading of `v7.3` and not a run:
+  `copy_mnt_ns` calls `lock_mnt_tree` when the new namespace has a user namespace of its own
+  (`fs/namespace.c` 4440 to 4441);
+  `can_umount` answers `EINVAL` for a locked mount (2088);
+  `do_move_mount` refuses a locked source (3786);
+  and `propagate_umount`'s `handle_locked` unmounts a locked receiver's copy only when that receiver's parent
+  goes too (`fs/pnode.c` 669 to 688).
+  If that reading holds on the machine's kernel,
+  way 8 would be refused or would leave the copy in such a holder,
+  and way 7's move would be refused there too,
+  so a locked holder would need its own act or a refusal.
+  No arm built one.
+- The taskless route as the handler would run it,
+  from the initial namespaces with `CAP_SYS_ADMIN` there:
+  the container lists only its own namespace and converts only an id it may see (T0-10).
+- The handler's own confinement:
+  the host's AppArmor enforces since 2026-11-23,
+  and inside the container the label read `unconfined`,
+  so no profile mediated a row.
+  What a profile would do to the handler's `setns`,
+  `umount2`,
+  `move_mount`,
+  `open_by_handle_at` and its reads
+  of other tasks' `/proc/<pid>/exe` was not measured,
+  and no denial from the host's kernel log was read.
+- The design's T0-3 delivery control as the merged text now names it
+  ("a mount made in H under P reaches S before the change"):
+  the logs have none,
+  and they were run from `b62601213f`'s text.
+  The plain-unmount control on each variant's start is what they carry.
+- The marker's ancestor-rename half on ZFS `2.4.4` and on 7.3:
+  Z1-1 ran both halves on ZFS `2.2.2` in the 6.8 guest,
+  and T0-5a's handle ran under a cover over ZFS `2.4.4` in the 7.3 container without the rename.
+  No cover was a ZFS clone dataset;
+  every cover was a bind of another folder.
+- A unit's reception from a host peer after the repair:
+  T0-11's peer start probes a mount under P,
+  which the repair made private,
+  so the unit's continued reception from the peer rests on its row's `master:` and not on a probe.
+- ZFS `2.4.4` in a guest:
+  the guest's pool is `2.2.2`,
+  and the `2.4.4` rows are the container's,
+  over the host's
+  module.
+- Any timing claim:
+  every phase was bounded and none reached its bound.
+
+### Evidence behind each statement, as the review listed them
+
+- One unmount reaches every receiver,
+  with no sharing change:
+  T0-1 and T0-5a,
+  on 6.8 and on 7.3.
+- The handle must be opened on the checkout's mount,
+  with an `O_RDONLY` directory descriptor;
+  `O_DIRECTORY` is needed on 7.3 only by a caller that is not root in the initial user namespace,
+  which the container is and the handler is not:
+  T0-5a's two attempts,
+  `container-confinement-round3.log`,
+  and the flags bullet above.
+- A receiver without a copy is not refused:
+  T0-5b,
+  on both kernels.
+- A receiver's own mount on top of its copy:
+  T0-5c,
+  on both kernels;
+  the copy goes and the cover stays.
+- Stopping the sharing first does not reach the receivers:
+  T0-2,
+  T0-3 variant (a) and T0-12's second start.
+- A receiver that holds no copy loses the service's later mounts:
+  T0-12's third start.
+- A shared checkout,
+  way 7 against way 3,
+  the mount half and the unmount half:
+  T0-6,
+  both halves now measured.
+- A private checkout,
+  the two ways are one change:
+  T0-11.
+- The repair alone stops the flow,
+  and a peer keeps its master:
+  T0-11's probes and its peer start.
+- The short-lived folder and a dying job's late write:
+  T0-7.
+- The host's own copy stays where the holder only receives from it and goes where the holder shares with it:
+  T0-13,
+  in four shapes (a slave with its own group,
+  a pure slave,
+  a peer,
+  and a holder with no relation),
+  by the handle and by the path,
+  on both kernels.
+- The closure's seed:
+from the holder's own group the host is not a member in systemd's own shape,
+and from the
+  slaves' master it is:
+  T0-13's oracle lines.
+- A listed namespace id becomes a descriptor and is entered,
+and an id the caller may not see answers `ESTALE`:
+  T0-10 on 7.3.
+- The handle on ZFS,
+  under a cover and after an ancestor's rename:
+  Z1-1.
+- A dataset at its quota refuses the directory and the reads name it:
+  Z1-2.
+The statements this round fills no slot for are left visibly empty,
+as the review left them:
+
+- `<the unmount at the destination and the folder's removal: way 7 has never been run end to end>`.
+- `<a service the manager started with PrivateMounts=yes, and its live blockers>`.
+- `<the taskless route as a handler with the init namespaces' CAP_SYS_ADMIN would run it>`.
+- `<a holder in its own user namespace, whose copied mounts the kernel locks: a run, not the reading above>`.
+- `<the kill cases: a blocker that will not die, EBUSY after the structural stage, and what a kill leaves>`.
+- `<a read-only parent, and way 8 where way 7 is refused>`. 

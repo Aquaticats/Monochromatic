@@ -253,6 +253,48 @@ pub mod worktree_clone_mount_protocol;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount_protocol::*;
 
+/// The unmount half of the ZFS worktree clone route:
+///  one removal's staging folder under the account's `~/.cache`,
+///  the record beside it,
+///  the `user-cache` pin,
+///  the identity comparisons,
+///  the rollback and the checked reattach.
+/// It is Linux only,
+/// like the mount calls it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_unmount;
+
+/// The same re-export for `worktree_clone_unmount`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_unmount::*;
+
+/// The registration half of the ZFS add route:
+///  the add's claim and durable binding record,
+///  the two snapshot inventories,
+///  the managed Git lock's sentence,
+///  the finder and the recipe for what a kill inside Git's add left,
+///  the add's read of a removal's plan,
+///  and the command each resume state names.
+/// It is Linux only,
+/// like the `worktrees` scan and the descriptor-relative removals it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_binding_record;
+
+/// The same re-export for `worktree_clone_binding_record`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_binding_record::*;
+
+/// The ZFS datasets this process's own mount table shows mounted,
+///  and the design names the route finds the checkout,
+///  its container and the probe dataset by when the configuration leaves an
+///  entry out.
+/// Both executables read it and neither may read the other's folder,
+///  so it sits above both,
+///  and it is Linux only,
+///  like the table it reads.
+#[cfg(target_os = "linux")]
+pub mod zfs_mounted_dataset;
+
 /// The root-run clone-mount handler,
 /// `mount-git-worktree-clone-datasets`:
 ///  its mode grammar,

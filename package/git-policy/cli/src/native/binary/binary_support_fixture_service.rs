@@ -832,8 +832,15 @@ pub fn settle_fixture(root: &Path, keep: bool) {
 /// a panic unwinds through this too.
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // The service goes first: it writes into the fixture.
-        let _stopped = self.service.lock().map(|mut service| { return service.take(); });
+        // The service goes first, and it is stopped here rather than at the end of this function:
+        // it writes into the fixture, and a look of it that outlived the tree removal would report a repository that is
+        // gone, which is what the two service lines of issue 6345's journal were.
+        // A binding that begins with an underscore lives to the end of the function, which is after the tree goes.
+        let stopped: Option<FixtureService> = match self.service.lock() {
+            Ok(mut service) => service.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        };
+        drop(stopped);
         // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
         end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());

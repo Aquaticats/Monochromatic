@@ -279,6 +279,61 @@ each with its evidence (probed 2026-11-04 in `docker.io/cachyos/cachyos-v4:lates
   change.
   The report lines name `git 2.56.0` now and `git 2.55.0` on main.
 
+From lines 46775 to 46824 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- CachyOS test containers:
+  "Make as many pkgs as possible come from podman.",
+  then,
+  asked which was meant:
+  "Sorry,
+  typo.
+  Yes I meant from pacman.
+  And I believe pacman can give a specific Git version.
+  If not possible,
+  bring me the evidence and re-ask."
+  So Git,
+  Node and strace move to pacman inside the CachyOS image wherever pacman can supply what the tests need,
+  Git at the pinned version through pacman if pacman can install it;
+  if it cannot,
+  bring the evidence and ask again.
+  Work on `feat/git-policy-cli-test-images-from-pacman`.
+  The owner then added:
+  "I just realized something.
+  We don't need to pin git because my current system is already using git latest."
+  So the test image takes pacman's current `git`,
+  with no version pin.
+  Then:
+  "We don't need to pin Node too.
+  And what else?"
+  Asked through the question tool about the tools `toolchain.lock.json` locks (Node,
+  cargo-nextest,
+  Rust,
+  pnpm) against CM7's "in containers and CI use its row's archive and sha256",
+  the owner chose "Pacman for everything it has"
+  (the option named the CM7 exception);
+  so these test images take every tool pacman carries from pacman,
+  and pnpm from the lock row only if pacman lacks it.
+  Open:
+  propose to the owner the AGENTS.md wording of that exception (CM7),
+  not yet asked.
+  Asked about the end-to-end image's Git 2.55.0 (the oldest Git the wrapper accepts),
+  the owner answered:
+  "Raise minimum,
+  drop the test,
+  merely print a warning on older git and not refuse."
+  So the 2.55.0 build and its scenarios go,
+  the minimum rises to the tests' Git,
+  and an older Git gets a warning and the command runs.
+  Both sent to the agent on `feat/git-policy-cli-test-images-from-pacman`.
+  CM7's wording:
+  the owner chose "Leave CM7 unchanged" with the note "Record this carve-out for whatever the git wrapper needs.";
+  so `AGENTS.md` stays as it is,
+  and the package docs of `package/git-policy/cli` record the carve-out (its test images take tools from pacman).
+  The other container picks (resolve `latest` once per run,
+  run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
+
 ## Left open
 
 - `package/git-policy/cli.fuzz/bin/fuzz-images.ts` (base `62ba2f7ce22b...`,

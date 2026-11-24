@@ -72,3 +72,13 @@ a control for the ladder target's open,
 and the note's leftover words.
 The recheck's review is
 `~/temp/agent/integration-recheck-object-reader-the-commit-refusal-is-out-2026-11-22/keep/review-fourth-recheck.md`.
+
+## Moved from the old handover
+
+From lines 273 to 275 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The object reader branch's commit refusal comes out
+  ("B:
+  take it out (Recommended)").

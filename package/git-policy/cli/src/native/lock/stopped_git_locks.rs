@@ -185,13 +185,44 @@ impl LockLedger {
 /// Number(readFileSync(path, 'utf8').trim().replace(/^pid /, ''))
 /// ```
 pub(crate) fn pid_named_by(path: &Path) -> Option<i32> {
-    // Opened the way every other file this judgement reads is opened: without following a link, without blocking on a
-    //  named pipe, and never past a small bound. A pipe left at a lock's PID-file name held every command for ever when
-    //  this read was `std::fs::read_to_string` (a review of `675771e759`, finding 2), and the pass that reads it runs on
-    //  every command.
-    let bytes: Vec<u8> = crate::plain_file::read_plain_file(path, PID_FILE_LIMIT).ok()?;
-    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
+    return pid_named_in(pid_file_contents(path)?.as_slice());
+}
+
+/// The number the bytes of a pid file name,
+/// when their text is `pid <number>`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Number(Buffer.from(bytes).toString('utf8').trim().replace(/^pid /, ''))
+/// ```
+pub(crate) fn pid_named_in(contents: &[u8]) -> Option<i32> {
+    let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(contents);
     return text.trim().strip_prefix(PID_TEXT_PREFIX)?.trim().parse::<i32>().ok();
+}
+
+/// What:
+///  The bytes of the PID file at `path`,
+///  or nothing when the name holds no plain file this command reads.
+/// Why:
+///  The removal unlinks the PID file only when its contents are the ones it judged,
+///  and this is the one read that gives them.
+///  Opened the way every other file this judgement reads is opened:
+/// without following a link,
+/// without blocking on a
+///  named pipe,
+/// and never past a small bound.
+/// A pipe left at a lock's PID-file name held every command for ever when
+///  this read was `std::fs::read_to_string` (a review of `675771e759`,
+/// finding 2),
+/// and the pass that reads it runs on
+///  every command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readPlainFile(path, PID_FILE_LIMIT) // throws on anything but a plain file this command reads
+/// ```
+pub(crate) fn pid_file_contents(path: &Path) -> Option<Vec<u8>> {
+    return crate::plain_file::read_plain_file(path, PID_FILE_LIMIT).ok();
 }
 
 /// Lock-sweep behavior is controlled in the test module.

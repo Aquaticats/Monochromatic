@@ -76,6 +76,18 @@ blocks every unprofiled executable. Unprofiled development processes remain a re
 - `/etc/apparmor.d/local/checkupdates` allows the five-character `arch-update` runtime database
   directory and its `local` symlink. It does not broaden other runtime paths. Pacman remains in
   complain mode.
+- On 2026-11-23, after the cold boot, the Git wrapper's session added rules for the wrapper's own
+  tests, its container gate and its helpers, on the owner's "Add rules to unblock whatever you need to
+  do as you go this session." and "No, please do rules for everything instead of a dedicated profile
+  that agents would have to remember to use." The `git` profile now covers fixtures under the cargo
+  build folder and the gate's `/work`, their hooks' ordinary tools, the wrapper's own process reads
+  and its caller's environment, and Git LFS's user-manager `cpu.max`. Under `gh` the wrapper moves to
+  the `git` profile, and `gh` reads drafts under `~/temp/agent`. `ssh-keygen` reads the signing buffer
+  there too. A new `local/fuse-overlayfs` names Podman's layer storage, which stopped its complain-mode
+  flood of the audit log. Rules, causes and tradeoffs:
+  `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "The Git wrapper's own
+  tests, gate and helpers under enforcement". The kernel audit backlog stays at 64 and still drops
+  records in bursts.
 
 ## Current-boot evidence
 

@@ -15,6 +15,7 @@ import {
   extname,
   join,
 } from 'node:path';
+import { POOL_LIMITS_VARIABLE, } from './pool-limits.ts';
 
 /**
  How long the batch's own unit may last, in seconds. The longest wall a launcher gives a run is 43,500 seconds, a flex pool doubles
@@ -82,6 +83,13 @@ export type BatchUnitRequest = {
    The home folder the unit runs with.
    */
   readonly home: string;
+
+  /**
+   The pool limits `PI_RUNS_POOL_LIMITS` holds, when the caller set it, so a pool this command reopened for one batch is open for
+   the gate and the launcher the unit starts. A unit inherits nothing, so without this word a batch's gate reads the shipped table
+   and a pool the caller closed is open to it.
+   */
+  readonly poolLimits?: string;
 
   /**
    The node that runs the batch command.
@@ -176,6 +184,7 @@ export function batchUnitCommandOf(request: BatchUnitRequest,): {
       `--property=StandardError=append:${request.outputFile}`,
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
+      ...((request.poolLimits === undefined) ? [] : [`--setenv=${POOL_LIMITS_VARIABLE}=${request.poolLimits}`,]),
       `--working-directory=${request.checkoutFolder}`,
       request.node,
       request.batchEntry,

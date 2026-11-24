@@ -4,6 +4,8 @@
  The unit is what bounds the driver itself. `--wall-seconds` bounds the run, and the unit's own `RuntimeMaxSec` bounds the driver
  with it, so a file system call or a named pipe that cannot be cancelled is ended by systemd rather than left hanging.
 
+ A unit inherits nothing from the shell that started it: every variable the driver reads arrives as one `--setenv` word here.
+
  @module
  */
 
@@ -11,6 +13,7 @@ import {
   MILLISECONDS_PER_SECOND,
   TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
+import { POOL_LIMITS_VARIABLE, } from './pool-limits.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
 
 /**
@@ -66,6 +69,13 @@ export type UnitCommandRequest = {
    The home folder Pi's environment names.
    */
   readonly home: string;
+
+  /**
+   The pool limits `PI_RUNS_POOL_LIMITS` holds, when the caller set it, so a pool this command reopened for one run is open for
+   the driver inside the unit too. The driver reads the variable again when it makes its own pool decision, and a unit that did
+   not carry it would refuse the run this command just let through.
+   */
+  readonly poolLimits?: string;
 
   /**
    The node that runs the driver.
@@ -164,6 +174,7 @@ export function unitCommandOf(request: UnitCommandRequest,): {
       `--property=IOWeight=${String(UNIT_IO_WEIGHT,)}`,
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
+      ...((request.poolLimits === undefined) ? [] : [`--setenv=${POOL_LIMITS_VARIABLE}=${request.poolLimits}`,]),
       request.node,
       request.driverEntry,
       `--run-folder=${request.runFolder}`,

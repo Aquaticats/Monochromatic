@@ -1278,8 +1278,7 @@ a sparse checkout;
 a source that is a linked worktree,
 whose index lies outside
 its directory and so is not in the snapshot;
-and the clone rung,
-which is only for clean sources.
+and the clone rung only where its proof cannot settle the source.
 The restore reads the index inside the snapshot before the snapshot's `.git` is replaced by the new worktree's pointer,
 and
 installs that index as it is (stat data kept,
@@ -1470,24 +1469,31 @@ the global `--no-lazy-fetch` is Git 2.45.0's,
 and an older Git refuses it before reading anything (exit 129),
 which sent a plain source from the snapshot to Git's whole checkout;
 the variable alone leaves the route as it was on every Git that honours it.
-The variable is honoured from the May 2024 maintenance releases
+The variable is honoured by the May 2024 maintenance releases
 (`v2.39.4`,
 `v2.40.2`,
 `v2.41.1`,
 `v2.42.2`,
 `v2.43.4`,
-`v2.44.1`,
-`v2.45.1`,
-the commit `7b70e9efb`)
-and by Ubuntu 24.04's `2.43.0-1ubuntu7.4`:
-with it an unavailable size prints `BAD` in the size column,
+`v2.44.1`;
+the commit `7b70e9efb`),
+by `v2.45.0` and later
+(which set `fetch_if_missing = 0`,
+and from `v2.45.1` also read the variable in `promisor-remote.c`),
+and by Ubuntu 24.04's `2.43.0-1ubuntu7.1` and later,
+which backport the fix.
+What the read does on a missing blob differs by release:
+the maintenance releases and Ubuntu's package refuse the lazy fetch,
+and the read exits 128
+("lazy fetching disabled ... could not fetch ... from promisor remote"),
+so the rung declines to Git's checkout;
+`v2.45.0` and later never attempt the fetch,
+so an unavailable size prints `BAD` in the size column,
 the run exits 0 with its output,
-and the clone is unchanged.
-A Git older than those releases that does not carry the fix
-(Ubuntu's package at `2.43.0-1ubuntu7.4` does) ignores the variable and can fetch a missing blob,
-which is the recorded limit of this read there;
-a size it cannot parse only ever sends its path to Git's writing,
-so the fence's answer is unchanged,
+and only that path goes to Git's writing.
+A Git older than the fix that does not carry it ignores the variable and can fetch a missing blob,
+and its fetch can outlive the command:
+that is the recorded limit of this read there,
 and such a Git is older than the wrapper's tested minimum (`MINIMUM_GIT_VERSION`,
 2.56.0).
 The read also leaves the process-wide failed-step note alone
@@ -1525,9 +1531,24 @@ ends its Git child there (`SIGKILL` to the id the read's runner published),
 and a read abandoned before its thread published a child has that child ended the moment the runner publishes it;
 the thread then ends with the process.
 A refused or declined add therefore does not wait for the read,
-and the read cannot run its whole length beside Git's own checkout:
-what it can still pay is the time between its start and the abandon,
-measured in one btrfs guest on Git 2.56 as a few milliseconds.
+and the read cannot run its whole length beside Git's own checkout.
+What it can still pay differs by shape:
+a source that refuses at once pays about a millisecond of a child,
+started and ended at publication;
+a declined add runs the read in the background for its whole length beside `git check-attr`
+(66 to 68 ms in the integration recheck's declined rows),
+and the abandon hands the answered map to a thread of its own to free
+(the abandonment's take step measures 0.002 ms on the adding thread),
+so the map and its 24,634 entries are freed off the adding thread
+and stay resident for the few milliseconds that free takes rather than to the end of the add
+(3.1 MB for this crate's fixture,
+about 128 bytes a path);
+the parse itself stays on the read's thread,
+where `main` had it,
+so an add that uses the answer does not parse it on its waiting path
+(the integration pass's Medium 1 of 2026-11-23).
+No declined add's total is slower than `main`'s
+(the ratios are beside the timings below).
 A read still running when the process ends carries `PR_SET_PDEATHSIG`,
 so its child ends with the thread that started it,
 however the process ends.
@@ -1535,26 +1556,30 @@ Which of an add's other reads it already paid depends on where it ends:
 a source check that refuses costs Git's own checkout and the read it started and ended,
 an untracked `.gitattributes` costs the same,
 and the decline rule costs those and the `git check-attr` read and the count over it.
-Measured in one btrfs guest of 2026-11-22
+The integration pass of 2026-11-23's twelve-round shapes
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
-"The re-time on Git 2.56.1,
-2026-11-22"),
-eight rounds for the served shapes,
-forty for the add whose Git fails at once,
-twenty for the cone sparse and five or six for the others,
-position-balanced,
-on Git 2.56.1 built from source in the guest,
-with an identical-binary control:
-a served loose add 1282.8 ms against `main`'s 1692.9,
-and a packed one 752.1 against 831.5;
-a refused loose add 4540.6 against 4945.9,
-and a packed one 3393.3 against 2951.1 (six rounds do not resolve it);
-a declined loose add 9358.1 against 8634.6,
-and a packed one 8882.5 against 8651.8;
-a cone sparse refused add 190.6 against 203.2 loose and 159.2 against 169.3 packed;
-a refused add whose Git fails at once 32.2 against 31.8 loose and 57.2 against 46.7 packed.
-No shape is resolved slower by the reading rule.
-The ratios and the control's spread are in that section.
+"The parse on the adding thread,
+tested again"),
+position-balanced on Git 2.56.1 built from source in a btrfs guest,
+with an identical-binary control,
+give these median ratios of an add's whole time
+(this build to `main`,
+with the identical twin's ratio to this build beside it):
+a served loose add 0.962 (0.928 to 1.001),
+twin 0.997 (0.956 to 1.036);
+a served packed one 0.985 (0.955 to 0.995),
+twin 1.001 (0.966 to 1.031);
+a dirty loose one 1.007 (0.914 to 1.026),
+twin 0.994 (0.963 to 1.031);
+a dirty packed one 0.982 (0.940 to 1.042),
+twin 0.981 (0.935 to 1.027);
+a declined loose one 0.989 (0.910 to 1.083),
+twin 0.987 (0.972 to 1.074);
+and a declined packed one 1.017 (0.959 to 1.067),
+twin 1.022 (0.998 to 1.075).
+No add's total is resolved slower in any of the six,
+and on the declined shape the step on the adding thread is 2.1 to 2.9 ms shorter than `main`'s,
+not longer.
 The same comparison decides rung 1 before its stage name is claimed:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
@@ -2019,6 +2044,11 @@ then the cause in
 plain words,
 then what makes the next add quick,
 and it names no internal step.
+A rung that declines before it copies anything is the other case:
+nothing of the add had started,
+so its line starts with `monochromatic-git-policy-cli: Git's own checkout wrote this worktree, because `,
+and the cause names the input and the numbers the limit was decided on
+(the size limits and the conversion fence's own decline).
 The causes it tells are:
 uncommitted changes in a source that is not restored by a snapshot (a linked worktree;
 the number of paths `git --no-optional-locks status --porcelain=v1 --untracked-files=normal`
@@ -2773,10 +2803,14 @@ the reason is written in
 and the package README names the gap left by
 gates that ran the claim-only source.
 
-Rung 2 needs a clean source on btrfs,
+Rung 2 needs a source whose tracked paths it can prove,
+on btrfs,
 XFS,
 overlayfs or ZFS,
 with the source and the destination in one clone domain.
+A source whose every tracked file equals its index and whose index equals the tree of `HEAD` is cloned whole,
+and a source with uncommitted changes clones every tracked path the proof still settles while Git writes the rest;
+see "Rung 2 on a source with changes".
 A clone domain is one btrfs filesystem,
 whose every mount carries one source in the mount table;
 one device,
@@ -2878,15 +2912,15 @@ Where more than a quarter of the tracked paths,
 and more than a thousand,
 have a rule of their own that converts them,
 the rung declines before any copy and Git's checkout writes the worktree,
-with the line `the clone rung could not finish (...)` absent and the fence's own count in its place:
-a declined add is Git's own checkout plus one `git check-attr` and the count over it,
+with the line `the add ended after it had read the source (...)` absent and the fence's own count in its place:
+a declined add is the source check and Git's own checkout plus one `git check-attr` and the count over it,
 and,
 on rung 1,
 the size read that rung started before its source check.
 A rung that ends after the fence,
 for any other reason,
 says
-`the clone rung could not finish (<reason>), and Git's own checkout made the worktree.`
+`the add ended after it had read the source (<reason>), so Git's own checkout wrote the worktree.`
 An add is compared with the source's index before the add's record is claimed and before the first copy:
 one `git diff-tree --name-only` between the source's frozen commit and the commit `git worktree add` checks out,
 which is the local branch a commit-ish names when the add neither creates a branch nor detaches,
@@ -2928,6 +2962,124 @@ taken from their descriptors;
 a cloned link keeps the source's stat fields,
 which Git compares by target.
 The ignored-state copy then runs as for Git's checkout.
+
+Rung 2 on a source with changes.
+A path is cloned when its index entry is plain,
+at stage 0 with no extended flags and no assume-unchanged bit,
+names the tree's mode and object,
+is a file or a link,
+its file equals the entry by type,
+size,
+inode,
+owner and both times to the nanosecond,
+and its modification time is older than the index file,
+and the conversion fence this section describes carries it.
+Every other tree path is written through the one `git checkout-index` this section describes,
+whose paths are the union of the changes' paths and the fence's,
+and Git's own live listing of the paths the source staged is a second answer that refuses a path the split would
+have cloned.
+The index the new worktree takes is built from the tree of the source's `HEAD`,
+with the stat data of the files the clones made,
+a link's entry keeping the source's fields,
+and no stat data for the paths Git writes;
+the ladder's `git read-tree -m -u` brings a different new `HEAD` in against that index,
+and the file takes the worktree's name only after Git's write.
+After Git's write the worktree holds what Git's checkout holds:
+a path the clones carried is one whose file its entry proves and whose checkout writes its blob,
+and the paths a change or the fence reaches are Git's own bytes.
+
+Rung 2 declines the add,
+and Git's own checkout makes the worktree,
+for three provisional limit rules,
+each pinned with the measurement it rests on and all open to the project's veto
+(`doc/decision/cli-git-clone-rung-partial-clone-of-a-dirty-source.md`,
+its sections "The size limit on a clean source,
+answered 2026-11-22" and "Four further answers after the recheck,
+answered 2026-11-23").
+The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
+Git's own checkout:
+a dirty source of 10,001 files of 2,600 bytes,
+about 26 MB,
+took 1.30 times Git's own checkout on the fenced rung,
+one of 10,001 files of 26,000 bytes,
+about 260 MB,
+took 1.32 of it in eight balanced rounds,
+and this repository's tree of 763,289,228 bytes,
+which that round measured,
+ took 0.73 to 0.81 of it.
+The rung's fence reads cost about the same whatever the tree holds,
+and Git's own checkout grows with the bytes,
+so the rung loses wherever a checkout is shorter than those reads;
+the pin sits at the top of that bracket,
+so no size nobody measured is cloned.
+A clean source is judged by its mean tracked file size,
+because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
+files costs more to clone than to write:
+below the edge Git's own checkout writes a clean source,
+and at or above it the clone copies the tree as `main` does.
+**btrfs has no mean rule**:
+no btrfs mean was measured to lose,
+the pin of 49 bytes a file the earlier round set made clean trees under it 1.36 to 1.62 times `main` in the recheck's
+guest,
+and the project answered "Clone as main does on btrfs;
+keep the rule on ZFS and on filesystems nobody measured".
+**ZFS is at 2,600 bytes a file**:
+the recheck's pooled points read 2,599 at 1.23 of Git's own checkout (11 of 12 rounds above 1.0),
+3,599 at 1.03,
+4,399 at 0.71,
+5,199 at 1.23,
+5,999 at 0.80,
+6,999 at 0.80,
+7,999 at 1.21,
+8,799 at 1.02 and 9,599 at 0.85,
+so the data place the crossing only within a range,
+about 3,000 to 9,600 bytes a file,
+and the edge sits just above 2,599,
+the one mean with a clear pooled loss,
+as the project's answer "lower it to about 3,000 bytes a file ... decline only below,
+where the clone clearly loses" asked.
+**A filesystem nobody measured takes the ZFS edge**:
+XFS with reflink and overlayfs are not measured,
+and the ZFS edge is the only measured edge that still applies to a clean source,
+so they are declined below 2,600 bytes a file as ZFS is.
+The alternative,
+no rule at all on an unmeasured filesystem,
+is not decided:
+it is put to the project here,
+open to its veto,
+on the ground that the only measured loss is ZFS's,
+while a copy that shares files as cheaply as btrfs's never lost and would clone small files there for free.
+The index records a tracked file's size in 32 bits,
+so a file of 4 GiB or more counts modulo 2^32 and a tree dominated by such files can read as small.
+The changed-file cut sends a source with more changed tracked files than a quarter of its tracked paths to Git's own
+checkout,
+which is the share the conversion fence declines at,
+and a quarter of this repository's 24,620 tracked paths is 6,155:
+6,000 changed paths took 1.00 to 1.05 times Git's own checkout,
+which is parity,
+and 20,000 took 1.68 to 1.74 of it.
+The cut is a fraction rather than an absolute count,
+so it follows the tree:
+a source of more than about 80,000 tracked paths has a quarter above 20,000,
+the largest changed count a loss was measured at,
+and the cut then declines one path in four without a measurement of its own.
+The rung's own partial clone asks the same cut of the paths Git must write,
+before it copies anything,
+so a tracked file whose recorded times are stale but whose bytes are unchanged is a path the cut counts:
+20,000 of 24,650 such paths were 1.39 times `main` before that refusal and 1.09 of it after.
+An untracked file is no changed file:
+no worktree takes it.
+**No floor on the number of tracked paths is decided**:
+a clean tree of only a few files is cloned when it is above its filesystem's mean edge,
+and the clone's fixed cost then makes a tree of 20 to 500 files 10 to 30 ms slower cloned than written by Git,
+which is equal to `main` (the recheck measured 1.02 to 1.28 of Git's own checkout on such trees).
+A declined add costs what `main` paid for the same source:
+the source check and then Git's own checkout,
+measured at 1.07 to 1.24 times Git's own checkout on clean small trees (the source check and,
+on some,
+a Git call
+inside the ladder) and inside the round's spread on dirty trees (0.94 to 1.04).
+What a declined add loses is the clone's gain.
 
 Rung 3 is Git's checkout and the ignored-state copy.
 Where the destination's parent is on btrfs and the rung is 2 or 3,
@@ -4497,6 +4649,31 @@ Every temporary file is `<item>.<owner>.<unique>.tmp`,
 with the suffix appended to the item's own path bytes and never to a spelling of them,
 so a killed write of this record is a file of that shape and is swept when its writer is dead.
 
+From lines 49296 to 49316 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
+
+Asked what the wrapper does when a removal is run where it cannot read other processes' working folders
+(inside an unprivileged user namespace,
+found by integration pass 41),
+with three courses
+(keep refusing;
+stop counting the command's own chain of parents;
+stop counting every process it cannot read),
+the owner chose "Skip own parent chain".
+
+- The guard that refuses to remove a worktree a process works in leaves out the wrapper's own process and each of its parents,
+  and no other process.
+- What stays:
+  a process that is not one of those parents and whose working folder cannot be read still keeps its worktree.
+- The cost that was put to the owner with the option:
+  a parent whose working folder is the worktree loses that folder when the removal goes through.
+- Sent to the branch's author at 18:21:27
+  (`~/temp/agent/notes-to-send/note-for-the-author-of-the-removal-that-refuses-a-busy-worktree-the-owners-decision-on-the-commands-own-parents-2026-11-14T1822.md`),
+  who writes it into the guard's own doc.
+
 ### The records an add writes for itself
 
 An add's own bookkeeping is published whole and flushed by nobody.
@@ -5578,7 +5755,9 @@ crosses a mount only at the slot itself:
 the last hop keeps `RESOLVE_BENEATH`,
 `RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS` and omits `RESOLVE_NO_XDEV`,
 while every folder above the slot still refuses a crossing.
-The unmount route's own final hop is the plan's step 9;
+The unmount route's own final hop is built in `worktree_clone_unmount/slot_walk_calls.rs`
+and described under "Unmount,
+staging and reattach of a ZFS worktree clone";
 this section owns only the hop the post-attach check reads.
 
 A slot is opened twice:
@@ -6190,7 +6369,8 @@ The code is `package/git-policy/cli/src/native/worktree_clone_mount_protocol/`
 for both sides and `per_slot_root_claim.rs` in
 `worktree_clone_mount_handler/` for the root claim.
 The sweep that reads the intent and publishes a result is step 8's,
-the unmount is step 9's,
+the unmount is built by step 9 and described under "Unmount,
+staging and reattach of a ZFS worktree clone",
 the add route that writes the intent is step 10's,
 and the removal intent is step 14's.
 
@@ -6265,7 +6445,8 @@ the dataset GUID,
 the request's nonce,
 operation and boot,
 the outcome (`done`,
-`refused` or `failed`),
+`refused`,
+`failed` or `cancelled`),
 the mount identity a done mount observed (mount id,
 device,
 inode,
@@ -6403,34 +6584,128 @@ attached,
 unmounted or recorded.
 That is the design's fail-closed answer for an arm that could not run.
 
-The three names the mode takes from the configuration are this build's choice,
+The three names the mode acts on are this build's choice,
 because the design names the file and not its keys:
-they sit in one `cloneMounts` object beside the start probe's,
+they may sit in one `cloneMounts` object beside the start probe's,
 as `cloneMounts.parent` for the pinned clone parent dataset,
 `cloneMounts.checkout` for the checkout the walk starts from,
 and `cloneMounts.checkoutDataset` for the checkout dataset a clone's origin is
 a snapshot of.
-The project decided on 2026-11-22 that step 19's setup writes the two dataset
-names itself,
-and that a file holding neither is read through the design's own names:
-the checkout dataset is the dataset the configured checkout path is mounted
-from,
-which must carry the leaf name `monochromatic-git-checkout`,
-and the container is that dataset's sibling
-`monochromatic-git-worktree-clone-datasets`.
+Every one of them is optional.
+The project decided on 2026-11-22 that everything works by default with no
+configuration file,
+and that step 19's setup still writes the two dataset names into that file.
+The rule this build keeps is entry by entry:
+
+- `cloneMounts.checkout` names the checkout path as written;
+- `cloneMounts.checkoutDataset` names the checkout dataset as written;
+- `cloneMounts.parent` names the container as written;
+- `startProbe.checkout` names the probe's checkout as written;
+- an entry the file leaves out is found from this process's own mount table,
+  `/proc/self/mountinfo`;
+- the table's rows are the mounts of the namespace the handler runs in,
+  and a row is an instance of a dataset when its filesystem type is exactly
+  `zfs`,
+  its source's last `/`-separated component is the leaf name looked for,
+  and its root within the dataset is `/`;
+- a bind mount of a subtree shows a deeper root and is no instance,
+  while a bind mount of the dataset's own root and a second mount of the
+  dataset are instances;
+- the checkout dataset's `snapdir` is not part of the look-up,
+  and neither program sets it or reports it today,
+  because the project's third answer of 2026-11-22 hides snapshot directories
+  on the checkout
+  (the same section of the record,
+  quoted:
+  "Turn off snapshot-directory visibility on the checkout so accounts cannot
+  trigger those mounts.")
+  `visible` lists the directory,
+  and `visible` and `hidden` both let an account enter a snapshot's directory by
+  name,
+  which makes the kernel mount that snapshot as root and adds a row to the
+  machine's mount table;
+  `hidden` is the default and only leaves the directory out of listings;
+  `disabled` refuses the name and makes no mount.
+  `disabled` exists from OpenZFS 2.3.0 and not in 2.2.7 or earlier,
+  and the route's gate reads no release string,
+  so a module that refuses the setting can run the route.
+  Plan step 19's setup runs `zfs set snapdir=disabled` on the checkout dataset,
+  and a person reads the property in `git monochromatic-git-policy-cli doctor`
+  once plan step 18 adds it.
+  The sweep could report it without a new request:
+  its dataset-stats reply carries the value whenever it is set,
+  locally or inherited,
+  and omits it only at the default,
+  so a locally set `visible` reads 1,
+  an inherited `disabled` reads 2 and an unset dataset reads absent
+  (the guest arm that reads all three through the route's own reader prints
+  `SNAPDIR-REPLY`).
+  This build prints no such report,
+  and the probe cannot,
+  because it reads no property and never opens the ZFS device;
+- a dataset mounted directly inside the clone container this run uses is a
+  managed clone the route attaches at a slot and never the checkout,
+  because the design's delegation lets the account create a dataset of the
+  checkout's leaf name there,
+  and the checkout dataset is a sibling of the container and never a child of
+  it.
+  The project decided this on 2026-11-22 in its first answer
+  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+  "Four further answers on the look-up with no configuration file"),
+  quoted:
+  "Ignore a dataset mounted directly inside whichever clone container this run
+  uses:
+  the designed one,
+  or the one root's file names."
+  So the container is `cloneMounts.parent` when a file holds one and the
+  designed sibling otherwise,
+  and a row inside a container this run does not use still counts;
+- with neither the path nor the dataset named,
+  the one instance of `monochromatic-git-checkout` is both:
+  its source is the checkout dataset and its mount point is the checkout path;
+- with the path named and the dataset left out,
+  the mount the path is on must be a `zfs` mount of a dataset whose leaf name is
+  `monochromatic-git-checkout`;
+- with the dataset named and the path left out,
+  the path is the one mount point of that dataset at its own root;
+- with the container left out,
+  it is the sibling `monochromatic-git-worktree-clone-datasets` of the checkout
+  dataset in the same parent dataset.
+
+No instance,
+and more than one instance,
+are refusals that list every row the table held whose source carried the leaf
+name,
+and the sweep never picks one of several:
+two pools that hold that leaf name,
+one dataset mounted at two paths and a bind mount of the dataset's own root
+outside it all refuse,
+while a mount inside another mount namespace is not a row of this table and
+never counts.
+The container and the probe dataset are named rather than mounted,
+so no row is looked for for either.
 Nobody edits the file by hand.
 The start probe's object may name a checkout too;
+when a file names both,
 the two must be one folder,
 because a probe that passed for one says nothing about a walk that starts at
-another.
-A parent that is no dataset name,
-a checkout that is not absolute,
-a missing checkout key,
-a checkout on no dataset,
-a checkout dataset with another name,
-two different checkouts and a document that does not parse are each refused
-by name,
-and nothing is enumerated or attached.
+another,
+and with neither named they are the same found mount by construction.
+A parent or a dataset name that is no dataset name,
+a checkout path that is not absolute,
+a file that is there and cannot be read or parsed,
+a value of the wrong type,
+a path on a mount that is no ZFS dataset,
+a dataset of another leaf name at the path,
+no mounted instance,
+several instances,
+a named dataset with no mount or with several,
+a checkout dataset with no parent component and two different checkouts are each
+refused by name,
+and nothing is enumerated,
+attached or recorded.
+A file that is not there is not a refusal:
+it is read as a file that names nothing.
 
 The pool's name is the parent's first `/`-separated component.
 The pool is `ready` when one identity read of the pinned parent answers,
@@ -6470,11 +6745,13 @@ and a caller learns of it at its deadline.
 The one exception is an unavailable key,
 which files a `refused` receipt naming `key-unavailable`,
 because it is the one refusal a waiting command can act on.
-A local `unmount` intent is answered by the sweep's line naming
-`unmount-awaits-step-9`,
-since the unmount is step 9's,
-and it files no receipt under the same rule;
-the intent stays on the clone unchanged.
+A local `unmount` intent is answered by the unmount turn described under
+"Unmount,
+staging and reattach of a ZFS worktree clone":
+a `done` receipt when it worked,
+a `refused` receipt naming `misplaced-rolled-back` after a successful rollback,
+and a `cancelled` receipt when it stopped short,
+and the durable intent stays on the clone unchanged.
 
 A run reports one summary line and one line per clone it reached,
 beginning `attached`,
@@ -6521,6 +6798,208 @@ step 22 sizes it from the acceptance workload and replaces the value.
 The wait polls once every 50 milliseconds,
 which is a bounded interval and not a measured latency.
 
+### Unmount, staging and reattach of a ZFS worktree clone
+
+This section states what plan step 9 builds for the unmount half of the ZFS worktree route
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 9:
+Unmount from a fresh process,
+the staging folder and reattach";
+`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+"Answers of 2026-11-19" and "What a writer can settle without asking";
+`doc/decision/cli-git-zfs-staging-under-cache.md`,
+"Decision").
+The code is `package/git-policy/cli/src/native/worktree_clone_unmount/`,
+and the sweep reaches it through one dispatch arm in
+`worktree_clone_mount_handler/sweep_one_clone_answers.rs`.
+
+#### The staging names and the record
+
+One removal's staging folder is
+`monochromatic-git-policy-cli-staging-<guid>` under the account's `~/.cache`,
+where `<guid>` is the clone's canonical numeric dataset GUID.
+The folder's staged-folder record is the same component with `.json`,
+and the repository's staging claim is `<guid>.staged` under
+`<common>/monochromatic-git-policy-cli-worktree-copy/staging/`.
+No request and no receipt carries any of these names,
+and no nonce is a file name.
+
+The record is one JSON object holding the folder's component,
+the clone's dataset and GUID,
+the folder's identity (device,
+inode,
+birth time,
+owner and mode),
+its file handle and handle type,
+the nonce of the intent it last served,
+the handler's mount-namespace device and inode,
+and the boot those belong to.
+The handler writes it atomically through the `~/.cache` descriptor before the first bind,
+by a temporary name created exclusively and renamed over the final name,
+and it is read bounded and without following a link.
+A reader tests the boot id first and on its own,
+then the handle:
+`ESTALE` with no row naming the folder path in the reader's mount table voids the record,
+`ESTALE` with such a row refuses rather than voiding,
+and any other handle failure refuses.
+Only a record that passes both tests reaches the identity comparison,
+where a mismatch refuses.
+
+#### The unmount turn
+
+The handler reopens the recorded parent from the verified checkout with the no-crossing walk,
+opens only the final slot with `O_PATH | O_DIRECTORY`,
+`RESOLVE_BENEATH`,
+`RESOLVE_NO_SYMLINKS` and `RESOLVE_NO_MAGICLINKS`,
+omitting `RESOLVE_NO_XDEV` for that one hop,
+and compares the mount ID from `fdinfo`,
+device and inode from `fstat`,
+the slot's observed path,
+its source,
+filesystem type and root from the handler's `mountinfo`,
+its parent mount ID,
+the source's live dataset GUID,
+and a second canonical lookup's mount ID.
+Every mismatch refuses before any mount call.
+It then opens the staging folder without crossing a mount,
+checks the `user-cache` pin,
+writes or replaces the record,
+binds the folder and makes the bind private,
+moves the clone onto it,
+and proves the topmost mount at the folder is the clone with the bind as its parent row.
+The slot descriptor is dropped before the unmount,
+because a descriptor on the clone holds it busy.
+The clone is unmounted through the held descriptor with no force and no lazy detach,
+then the bind,
+with a topmost check before each call and a transition check after it.
+
+A mount the account stacks on the folder before the move receives the clone,
+so the clone's parent row is not the bind.
+The handler rolls the exact mount back once to its recorded slot:
+the slot is opened with `RESOLVE_NO_XDEV`,
+its identity and parent mount are checked against the record,
+one `move_mount` is issued,
+and the placement is proved by the clone's source and root at the slot's topmost row,
+that row's parent being the slot parent's mount,
+and a fresh walk finding the same mount at the canonical slot.
+A refused destination or a proof that cannot pass leaves the clone staged and reports the step,
+and nothing is retried.
+A mount the account stacks on the clone itself refuses without a rollback,
+because a move would carry that mount to the slot.
+
+A busy unmount (`EBUSY`) takes the same checked move back when the slot's proof passes,
+then unbinds the bind only where the recorded bind is topmost.
+Otherwise the clone and the bind stay and the receipt names the retained state.
+No other path remounts a clone:
+a failure,
+a restart or a sweep never moves a mount back implicitly.
+
+#### Receipts an unmount files
+
+The accepted decisions give two unmount receipts.
+A successful unmount files `done` under its nonce,
+with `none` in every mount field,
+because the wrapper's cleanup reads that receipt.
+`done` means the clone and its bind are gone from the handler's own mount
+namespace only;
+a holder in another namespace can keep the dataset busy,
+which the all-namespace holder scan reports and a `zfs destroy` still refuses.
+A successful rollback of a clone that landed on a stacked mount files a
+`refused` receipt naming the outcome in `failed-step` as
+`misplaced-rolled-back`,
+which is the one refusal receipt the staging record gives
+(`doc/decision/cli-git-zfs-staging-under-cache.md`,
+"When the move lands on a mount the account stacked on the folder":
+"the removal writes a refusal receipt naming the outcome").
+Every other unmount refusal files no receipt,
+under step 8's decision
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Receipts for refusals":
+"a refusal files no receipt,
+except an unavailable key").
+A busy unmount that reattaches,
+a retained staged mount,
+and a refusal before the turn builds its request therefore answer through the
+sweep's line and the handler's journal.
+The receipt format's outcomes are `done`,
+`refused` and `failed`;
+this build adds no fourth word and the outcome bound stays seven bytes.
+
+#### A later run finishes an interrupted unmount
+
+An `unmount` intent's sweep first reads the staged-folder record and finishes what an
+interrupted run left,
+before its own turn:
+a clone still staged on the folder is unmounted there,
+a bind left over the folder is unbound (and the turn then proceeds,
+because the clone
+stands at its slot),
+a folder with nothing mounted and a current record files the `done` receipt the waiting
+command never got,
+and a mount that is neither the clone nor the cache's own bind refuses and is reported.
+The wrapper creates and removes the folder;
+the handler never does.
+The record is written before the first bind of every turn,
+and on a later turn it is
+replaced under the same rule.
+
+The bind's own descriptor is taken from the mount table's row for the mount the bind call
+made:
+the cache mount's child,
+carrying the cache's source,
+with a mount id of its own.
+A mount stacked in the gap between the bind call and that open is refused,
+and the bind
+this call made is taken down again before the refusal returns,
+so a refused bind leaves no
+mount behind.
+
+#### The interface later steps call
+
+`worktree_clone_unmount::staged_unmount::unmount_the_staged_mount` takes a held folder descriptor,
+the cache descriptor,
+the folder's name and the clone's source,
+and unmounts the clone then the bind with the checks above.
+`worktree_clone_unmount::staged_unmount::recover_a_staged_unmount` is the call the
+`unmount` arm makes before its own turn,
+and it is what a later run uses to finish an
+interrupted one.
+`worktree_clone_unmount::staged_unmount::finish_a_staged_unmount` takes the cache,
+its path,
+the GUID,
+this boot and the pin,
+opens the folder from the record's handle and makes the same calls.
+Steps 14,
+16 and 17 call the first where they hold a descriptor and the second where a fresh process must finish.
+Both return the step and words a report prints,
+and neither deletes a folder.
+
+#### The wrapper's side
+
+The wrapper creates the folder with mode `0700` only after the `user-cache` pin check,
+and it makes no second folder while one stands for the same GUID.
+Its cleanup reads the repository's claim,
+proves the owner dead,
+compares the folder's identity with the claim,
+stops at any mount row naming the folder path,
+lists the folder and keeps it when it holds any entry,
+and then removes it with one `rmdir`,
+unlinks the record beside it and releases the claim.
+It never deletes recursively,
+never changes a mode,
+and never removes a folder its claim does not describe.
+A folder whose claim names no folder is released with a notice.
+A folder from another boot is settled by the wrapper's own mount-table read and `rmdir`'s `EBUSY`,
+without a handler receipt.
+
+#### The deadline
+
+This build ships no new numeric unmount limit.
+The wrapper's existing receipt wait bounds how long a caller waits,
+and the turn itself makes no unbounded wait.
+Sizing the unmount's own deadline is step 22's,
+with the acceptance workload's measurement;
+no number is taken from another machine's rule of thumb.
 ### The all-namespace holder scan of a ZFS worktree clone
 
 "Unmounted" means absent in every mount namespace that holds the clone's ZFS
@@ -6543,8 +7022,9 @@ the one mount table per namespace and the exact source match are
 which the start probe's namespace arm reads as well,
 so the two cannot disagree about what a mount of one dataset is.
 The unmount,
-the staging folder and the reattach are the same plan step's other half and are
-not described here.
+the staging folder and the reattach are the same plan step's other half,
+and "Unmount,
+staging and reattach of a ZFS worktree clone" describes them.
 
 #### What the scan reads
 
@@ -6632,8 +7112,7 @@ one before it.
 The `holder-scan` mode answers under `--nonce <32 hex digits>` when the caller
 names one and under a fresh nonce otherwise,
 and the wrapper's request before each destroy carries the nonce it will match
-(plan steps 16 and 17,
-below).
+(plan steps 16 and 17).
 
 A result whose own mounts,
 holders and incomplete reads are all empty is the only one reported as clear.
@@ -6683,7 +7162,8 @@ so one unknown namespace is never counted as two.
 The scan reads at most 1024 namespaces,
 lists at most 1024 findings,
 and lists at most eight mounts of the clone for one namespace;
-each bound that stops it is one of the causes above,
+each bound that stops it is one of the causes listed under "Every read the scan
+could not complete",
 so a result cut by a bound is never reported as clear.
 
 The 1024-namespace bound is one an account can reach at will:
@@ -7976,6 +8456,20 @@ That pause doubles with each attempt whose job outlasted its ceiling,
 because such a job still holds a place of the blocking bound until the journal answers,
 while an attempt the pool gave no thread for promised that nothing ran and is made again at the same pause.
 
+From lines 49427 to 49435 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
+
+Each of these was asked in the question tool and answered; the questions file kept them until their subjects
+had a record. The record is named beside each answer.
+
+- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
+  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
+  owner's explicit exception to "Commits should never fail." for such an index. Record:
+  `package/git-policy/cli/SPEC.md`.
+
 #### Git steps, tools and checks end only on no progress
 
 The owner decided (2026-11-03,
@@ -9206,8 +9700,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   and the work after a landing).
   The record is durable,
   a running service looks at it by itself every `LOOK_AGAIN_AFTER` (five seconds),
-  and every later command of the repository wakes the same service,
-  so an answer that does not come costs one look or one later wake and never the work.
+  and the next commit of the repository wakes the same service,
+  so an answer that does not come costs one look or one later commit and never the work.
   Twice the slowest of the 52 measured cold starts,
   where `START_WAIT` (ten seconds) is what a command whose next step needs the answer keeps.
 - `LANDING_LOCK_CEILING` 1 minute:
@@ -12079,19 +12573,23 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
 - the name still refers to the very file that was judged,
   and its device,
   inode and change time are the ones read before the removal;
-- the PID file beside it still names the number the record explained,
+- the PID file beside it still holds the contents the record explained,
   read again after the lock is unlinked:
-  a program that wrote its own number over the judged file through the same inode is kept,
-  and one that wrote the judged number back is not told apart from it
-  (`pid_named_by`,
-  one bounded read of a file that holds `pid <number>`).
+  a program that wrote anything else over the judged file through the same inode is kept,
+  and one that wrote the very same bytes back is not told apart from it
+  (`pid_file_contents`,
+  one bounded read of at most `PID_FILE_LIMIT` bytes,
+  with no link followed and no blocking).
+  It compares the file's contents byte for byte with the contents it judged,
+  and the one case left open is a program that writes the very same bytes back,
+  and the instant between the last read and the unlink.
   Git cannot have a file of its own there anyway:
   it creates `<name>~pid.lock` with `O_EXCL` and writes none when that is refused
   (`lockfile.c`,
   `create_lock_pid_file`,
   Git 2.56.1),
   so nothing a Git owns is on this path.
-  A program that writes its own number there is a real case and not a hypothetical one:
+  A program that writes over the judged file is a real case and not a hypothetical one:
   `gitbutlerapp/grit` writes Git sidecars with an open that creates and truncates
   (`grit-lib/src/lockfile.rs`,
   `write_lock_pid_file`,
@@ -12100,23 +12598,17 @@ A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_prov
   so it truncates the judged file through the same inode.
   The file is unlinked only if its device,
   its inode and its change time in whole milliseconds also equal the ones read before the lock went,
-  and a program that writes a different number there is told apart by the number alone,
-  on every file system and at every clock granularity.
-  The project chose to compare the bytes as well on 2026-11-22,
+  and its contents are compared byte for byte,
+  so a program that writes other bytes there is told apart on every file system and at every clock granularity.
+  The project chose this on 2026-11-22,
   over correcting these words and leaving the route open
-  (the question put to the owner,
+  (`doc/decision/cli-git-lock-cleanup-pid-file-contents-compared-before-unlink.md`,
   "B:
-  also compare bytes",
-  `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
-  cause L).
-  Two states stay open and are recorded there:
-  a program that writes the judged number back costs itself that file,
-  because the bytes say nothing and the metadata may say nothing either,
-  and no system call unlinks a name only when it still names a given file,
-  so the instant between the read and the unlink is not closed.
+  also compare bytes").
 
-No time decides anything,
-so a correction of the clock moves no verdict.
+No time decides anything except the equality of stored change times,
+which the removal compares with the ones it judged,
+so a correction of the clock moves no other verdict.
 A process number alone decides nothing:
 numbers are reused,
 and a record of a process that ended says nothing about the program that has its number now.
@@ -12690,6 +13182,17 @@ so a file older than the margin that is still the same
 file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
+
+From lines 46733 to 46738 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Reference-lock removal (the ninth design review's R9-S):
+  "Keep narrowed removal (Recommended)":
+  0.5.28's removal on a proof about the holder,
+  with the second identity check just before the move,
+  stays until the new commit protocol (whose X1 never removes a reference lock) replaces it;
+  the rare two-holders race is accepted for that time.
 
 #### Rejected rule: a reused number proven by a scan of the open descriptors
 
@@ -21047,15 +21550,77 @@ in this order:
   and a recorded identity that changed.
   It opens the configured checkout read-only and reads no entry there.
 - It reads the source from
-  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`:
-  one `startProbe` object holds `dataset`,
+  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`
+  when that file is there,
+  and otherwise from the names the design fixes.
+  One `startProbe` object holds `dataset`,
   which names the dataset whose `ready` snapshot the probe attaches,
   and `checkout`,
   which names the folder the walk opens.
+  An entry that is there is used as written,
+  and each entry the file or the object leaves out is found:
+  the checkout is the one mounted ZFS dataset of this namespace whose last name
+  component is `monochromatic-git-checkout`,
+  and the dataset is `nosnap/git-worktree-probe` in the pool that holds it,
+  which is the checkout dataset's first component,
+  with the snapshot `ready`.
+  The probe reads the sweep's `cloneMounts.parent` as well,
+  so that a clone the account makes inside the container this run uses is no
+  second instance of the checkout for it either;
+  that one key is the cost the first answer above states.
+  When the probe meets none or several it prints every mounted dataset it found
+  with its path,
+  as the sweep does,
+  which is the project's second answer of 2026-11-22 in the same section,
+  quoted:
+  "When the probe meets none or several,
+  it prints each mounted dataset it found with its path."
+  The mode recomputes the look-up in its own process,
+  which is in the host mount namespace,
+  and prints the refusal's own words.
+  Those words name the probe's own keys:
+  the remedy is `startProbe.checkout` or `startProbe.dataset`,
+  never the sweep's `cloneMounts` entries,
+  which the probe does not read
+  (the second pass's finding B2).
+  Every other refusal the probe's configuration can produce gets its sentence
+  the same way,
+  and the empty file's says an empty file is not the same as no file,
+  as the project's fourth answer asks.
+  The record keeps its closed word and its format.
+  A file that is absent,
+  or that holds no `startProbe` object,
+  is therefore no refusal:
+  before the project's answer of 2026-11-22 it left the record `blocked` with
+  `configuration-missing`,
+  and now it leaves a probe that runs.
+  A file that is there and unreadable or unparsable,
+  a file that is there and empty,
+  and a value of the wrong type,
+  are still refusals,
+  because such a file won a precedence it cannot fill.
+  The empty file is the project's fourth answer of 2026-11-22:
+  "An empty file is refused,
+  and the message says an empty file is not the same as no file."
+  The probe's record carries the word `configuration-empty` for it,
+  and the sweep's own message says the same and names removing the file as the
+  way out.
   The dataset is checked as a name:
   each component holds alphanumerics and `_ - . :`,
   the dataset and its `@ready` suffix together are at most 255 bytes,
   and the dataset carries no `@` or `#`.
+  A checkout that cannot be told,
+  or several mounted instances of the leaf name,
+  leave the checkout-root step not exercised with the reason word
+  `mount-table-unreadable`,
+  `no-mounted-checkout` or `several-mounted-checkouts`,
+  and a dataset that cannot be told for want of a pool leaves the source-name
+  step not exercised with `no-mounted-checkout`.
+  The mode's own line for a blocked record whose attach arm asked for a source
+  the pool does not hold names the two commands plan step 19's setup runs,
+  `zfs create` with the design's properties and `zfs snapshot <dataset>@ready`,
+  so a boot that meets an absent dataset reads which command creates it rather
+  than only which call answered `ENOENT`.
 - It opens a `zfs` context,
   writes the source and the `ro`,
   `nosuid` and `nodev` options,
@@ -21165,6 +21730,17 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
+A probe with no configuration file is about 25 milliseconds (1.14 times) slower
+than one whose file names every entry,
+once per boot.
+Three runs measured it,
+and a second pass decomposed it into three lookup arms,
+each 26 to 43 milliseconds over the file-named arm with heavily overlapping
+ranges,
+so the arms do not look additive and the cause is not established;
+the work happens inside the worker phase the deadline bounds,
+whose margin is the 231 milliseconds stated below,
+and this build states the cost rather than sizing the deadline by it.
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to

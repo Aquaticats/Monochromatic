@@ -467,6 +467,14 @@ mod worktree_copy_forms;
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
+/// An add whose own environment names an object store,
+/// alternate directories or a replacement base proves its source as it
+/// did before:
+/// the snapshot rung is decided by the filesystem,
+/// never by the reader.
+#[path = "binary_worktree_add_source_proof_tests.rs"]
+mod worktree_add_source_proof;
+
 /// A removal goes around a subvolume or a mount point it did not make:
 /// the worktree and its registration go,
 /// what was not the removal's stays as it stood,
@@ -1029,13 +1037,21 @@ mod zfs_adoption_guest;
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
+/// Plan step 9's staging mechanics in the throwaway guest.
+#[path = "binary_zfs_unmount_guest_tests.rs"]
+mod zfs_unmount_guest;
+
 /// Plan step 9's holder-scan arms in the throwaway guest:
 /// the built scan against the design's layout and the clone the built sweep attached,
 /// a second mount namespace holding it,
+/// a namespace made after the attach under both intents,
+/// a thread with a mount namespace of its own,
+/// a task whose leader has ended,
+/// a namespace whose lowest task is chrooted,
 /// a confined consumer,
 /// task churn,
+/// a detached mount pinned by a working directory,
 /// a pinned namespace with no live member,
-/// a divergent process root,
 /// and one scan's cost against the number of live tasks.
 #[path = "binary_zfs_holder_scan_guest_tests.rs"]
 mod zfs_holder_scan_guest;

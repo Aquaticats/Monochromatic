@@ -23,7 +23,7 @@ use crate::worktree_add_plan::AddPlan;
 use crate::worktree_copy::GitStep;
 use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::worktree_ladder_run::{Ladder, Rung, begin_ladder};
-use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_naming_a_commit, plan_naming_no_commit, plan_to_at, subvolume_repository, tracked};
+use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_naming_a_commit, plan_naming_no_commit, plan_to_at, subvolume_repository, tracked, tracked_above_the_mean_edge};
 use crate::worktree_slow_route::SlowRoute;
 use std::path::{Path, PathBuf};
 
@@ -42,6 +42,9 @@ use std::path::{Path, PathBuf};
 /// ```
 fn converting_fixture(root: &Path) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
+    // The anchor sits above the clone rung's mean-file edge on purpose: without it the clean source's mean is a few
+    // dozen bytes a file, the size limit declines it, and the skip these controls are about is never reached.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", 3);
     tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
     tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
     commit_all(repo.as_path(), "conversion");
@@ -239,6 +242,8 @@ fn btrfs_a_tag_that_leads_a_branch_name_is_skipped_before_the_snapshot() {
 fn a_branch_of_a_tags_name_is_the_tree_the_add_starts_at() {
     let root: PathBuf = fixture("target-tree-tag-and-branch");
     let repo: PathBuf = repository(root.as_path(), "repo");
+    // Above the clone rung's mean-file edge on purpose, so the clean source reaches the rung this control is about.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", 3);
     tracked(repo.as_path(), ".gitattributes", b"*.txt text eol=crlf\n");
     tracked(repo.as_path(), "a.txt", b"line one\nline two\n");
     commit_all(repo.as_path(), "conversion");
@@ -279,6 +284,8 @@ fn a_branch_of_a_tags_name_is_the_tree_the_add_starts_at() {
 fn a_target_tree_no_rule_of_the_fence_can_serve_costs_no_read() {
     let root: PathBuf = fixture("target-tree-no-rule");
     let repo: PathBuf = repository(root.as_path(), "repo");
+    // Above the clone rung's mean-file edge on purpose, so the clean source reaches the rung this control is about.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", 3);
     tracked(repo.as_path(), "a.txt", b"line one\n");
     tracked(repo.as_path(), "keep.dat", b"line one\n");
     commit_all(repo.as_path(), "first");
@@ -322,6 +329,8 @@ fn a_target_tree_no_rule_of_the_fence_can_serve_costs_no_read() {
 fn a_target_tree_that_changes_a_link_is_skipped_before_any_copy() {
     let root: PathBuf = fixture("target-tree-link");
     let repo: PathBuf = repository(root.as_path(), "repo");
+    // Above the clone rung's mean-file edge on purpose, so the clean source reaches the rung this control is about.
+    tracked_above_the_mean_edge(repo.as_path(), "bulk/anchor.bin", 3);
     tracked(repo.as_path(), "a.txt", b"line one\n");
     tracked(repo.as_path(), "b.txt", b"line two\n");
     std::os::unix::fs::symlink("a.txt", repo.join("link")).expect("the link");

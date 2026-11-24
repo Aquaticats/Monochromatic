@@ -269,14 +269,12 @@ XVW:
  never the official `deepseek` provider.
 
 KRV:
- Short reviews of a change (all but integration passes,
- releases and designs put to the owner) run through Pi on DeepSeek,
+ Short reviews of a change (all but releases and designs put to the owner) run through Pi on DeepSeek,
  in a worktree of their own;
  never the official `deepseek` provider.
 
 LHZ:
- Gate reviews (an integration pass before main,
- a release,
+ Gate reviews (a release,
  a design put to the owner) and long-horizon audits,
  in every harness:
  run Claude Sonnet,
@@ -443,6 +441,13 @@ OPT:
  because ..." giving the reason for every adjacent pair.
  Score capability for the target workload,
  never fidelity to incumbents.
+
+RBE:
+ Rank options by what each delivers for the target workload;
+ effort to build,
+ raw system calls
+ or a new code path are costs to state,
+ never reasons to rank an option lower.
 
 OPA:
  `AskUserQuestion`:
@@ -698,12 +703,6 @@ EDR:
  Parallel tool calls may run in any order,
  so a command reading a fresh edit can see the pre-edit file;
  send dependent commands only after the edit returns.
-
-1CB:
- At most three `&&`-chained steps per shell call;
- no `;` chains or loops.
-Longer multi-step work:
- write a scratch `.ts` (`node:child_process`) and run it.
 
 RGP:
  `rg` without a path may read stdin:

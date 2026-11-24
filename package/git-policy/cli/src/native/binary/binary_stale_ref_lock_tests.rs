@@ -21,7 +21,7 @@
 //! killHeldFetch(); const seen = await runWrapped(['fetch', '--prune']); expect(seen.stderr).toContain('removed the reference lock');
 //! ```
 
-use super::support::{Fixture, Observed, direct, fixture, git, remove, repository, run_wrapped};
+use super::support::{Fixture, Observed, direct_held, fixture, git, remove, repository, run_wrapped};
 use git_policy_cli::stale_ref_lock_judge::MARGIN;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -40,7 +40,13 @@ const HOLD_HOOK: &str = "#!/bin/sh\nif [ \"$1\" = prepared ] && [ -n \"$STALE_LO
 /// A Git a control started,
 /// ended when the control ends however it ends.
 struct Held {
-    /// The Git.
+    /// The Git itself,
+    /// and never the `timeout` bound of `direct`: a `timeout` killed here leaves the Git behind it
+    ///  holding its locks,
+    /// and the Git then aborts the transaction when its hook is killed and removes every lock it took,
+    /// so the lock this control means to leave is gone (measured in the gate image of 2026-11-23).
+    /// `direct_held` is the Git on its own,
+    /// for a control that holds the child.
     child: Child,
     /// Its input,
     /// kept open so a transaction waits.
@@ -131,7 +137,7 @@ fn hold_fetch(stage: &Stage) -> Held {
     let hook: PathBuf = stage.git_dir().join("hooks").join("reference-transaction");
     std::fs::write(hook.as_path(), HOLD_HOOK).expect("hook");
     std::fs::set_permissions(hook.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("hook mode");
-    let mut command: Command = direct(&stage.fixture);
+    let mut command: Command = direct_held(&stage.fixture);
     command.current_dir(stage.repo.as_path()).args(["fetch", "--prune", "--quiet", "origin"]).env("STALE_LOCK_READY", ready.as_os_str());
     let child: Child = command.spawn().expect("start git fetch");
     let mut held: Held = Held { child, _input: None, hook: None };
@@ -143,7 +149,7 @@ fn hold_fetch(stage: &Stage) -> Held {
 /// Start `git update-ref --stdin` on real Git with `commands` prepared,
 /// and keep it waiting with its locks held.
 fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
-    let mut command: Command = direct(&stage.fixture);
+    let mut command: Command = direct_held(&stage.fixture);
     command.current_dir(stage.repo.as_path()).args(["update-ref", "--stdin"]).stdin(Stdio::piped()).stdout(Stdio::piped());
     let mut child: Child = command.spawn().expect("start git update-ref");
     let mut input: ChildStdin = child.stdin.take().expect("input");

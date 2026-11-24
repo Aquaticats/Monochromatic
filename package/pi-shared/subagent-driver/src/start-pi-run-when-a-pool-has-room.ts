@@ -33,6 +33,8 @@ import {
 import {
   limitsIn,
   POOL_LIMITS_VARIABLE,
+  type ProviderPool,
+  PoolLimitsError,
   poolsWithTheseLimits,
 } from './pool-limits.ts';
 import { gateOutcomeOf, } from './pool-gate.ts';
@@ -92,10 +94,38 @@ const freeSpace: FreeSpace = (GIVEN_FREE_SPACE_BYTES === '')
 const options = parsePoolGateOptions(argv.slice(2,),);
 
 /**
- The pools this run counts against: the shipped table, with the limits a caller set in the environment overriding them, so a pool
- whose provider has a weekly or monthly quota is closed and reopened without a code change.
+ Reads the pools this run counts against: the shipped table, with the limits a caller set in the environment overriding them, so a
+ pool whose provider has a weekly or monthly quota is closed and reopened without a code change.
+
+ This gate counts every pool, so a setting it cannot read is a setting it cannot count against: it is named with its fault and the
+ gate ends without starting a run, rather than counting the shipped table as though the caller had said nothing.
+
+ @returns the pools at the limits the caller set
+
+ @throws PoolLimitsError when the setting names no pool of the table or holds anything but a whole number
+
+ @example
+ ```ts
+ const pools = poolsTheCallerSet();
+ ```
  */
-const pools = poolsWithTheseLimits({ limits: limitsIn({ listed: env[POOL_LIMITS_VARIABLE] ?? '', },), },);
+function poolsTheCallerSet(): readonly ProviderPool[] {
+  try {
+    return poolsWithTheseLimits({ limits: limitsIn({ listed: env[POOL_LIMITS_VARIABLE] ?? '', },), },);
+  }
+  catch (error) {
+    if (!(error instanceof PoolLimitsError)) {
+      throw error;
+    }
+    console.error(error.message,);
+    return process.exit(1,);
+  }
+}
+
+/**
+ The pools this run counts against, read from the setting the caller gave.
+ */
+const pools = poolsTheCallerSet();
 
 /**
  The runs going now, and every launcher that has not made its unit yet.

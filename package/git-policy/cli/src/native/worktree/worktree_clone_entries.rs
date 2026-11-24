@@ -115,12 +115,45 @@ pub(crate) fn clone_the_entries(work: EntriesToClone<'_, '_>) -> ClonedEntries {
 }
 
 /// What:
-///  Clone every entry of the source on this thread,
+///  Clone the given entries of the source on this thread,
 /// with the moments at which a control may move the tree.
 /// Why:
 ///   This is the whole run in one turn:
 /// the fallback a runtime that cannot start the slices takes,
-/// and the shape a repository below the clone's break-even uses.
+/// and the shape a repository below the clone's break-even uses;
+/// a source with changes
+///  hands the entries its proof settled instead of the whole index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stats } = cloneWithEntries({ source, entries, directories, created, seams }); // throws a reason
+/// ```
+pub(crate) fn clone_with_entries(source: &SnapshotSource, entries: &[StatEntry], directories: &mut Directories, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
+    let root: File = subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?;
+    let Some(destination) = directories.get(&Vec::new()) else {
+        return Err(String::from("the destination is not held"));
+    };
+    let positions: Vec<usize> = (0..entries.len()).collect();
+    let unshared: AtomicBool = AtomicBool::new(false);
+    let entries_entered: bool = begin_step("cloneEntries");
+    let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries, positions: positions.as_slice(), source, source_root: &root, destination, seams, failed: &unshared });
+    end_step(entries_entered);
+    let ClonedEntries { created: made, stats, failure }: ClonedEntries = cloned;
+    created.extend(made);
+    if let Some(reason) = failure {
+        return Err(reason);
+    }
+    (seams.before_index)();
+    return Ok(stats);
+}
+
+/// What:
+///  Clone every entry of the source on this thread,
+/// with the moments at which a control may move the tree.
+/// Why:
+///   This is the whole rung's shape:
+/// the source's own index names the entries,
+/// and the rung installs that index after the copies.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,20 +163,5 @@ pub(crate) fn clone_with(source: &SnapshotSource, directories: &mut Directories,
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
-    let root: File = subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?;
-    let Some(destination) = directories.get(&Vec::new()) else {
-        return Err(String::from("the destination is not held"));
-    };
-    let positions: Vec<usize> = (0..entries.len()).collect();
-    let unshared: AtomicBool = AtomicBool::new(false);
-    let entries_entered: bool = begin_step("cloneEntries");
-    let cloned: ClonedEntries = clone_the_entries(EntriesToClone { entries: entries.as_slice(), positions: positions.as_slice(), source, source_root: &root, destination, seams, failed: &unshared });
-    end_step(entries_entered);
-    let ClonedEntries { created: made, stats, failure }: ClonedEntries = cloned;
-    created.extend(made);
-    if let Some(reason) = failure {
-        return Err(reason);
-    }
-    (seams.before_index)();
-    return Ok(stats);
+    return clone_with_entries(source, entries.as_slice(), directories, created, seams);
 }

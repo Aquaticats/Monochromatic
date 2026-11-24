@@ -24,6 +24,8 @@ It does not install new rules or authorize unrelated workflow changes.
   or executable code embedded in configuration.
 - `1CB` limits chains in Bash tool calls.
   It is not a repository-wide boundary for persistent automation.
+  (`1CB` was retired on 2026-11-23,
+  on the owner's word that agents cannot follow it.)
 - `CM2` already permits declarative mise task sequencing.
   A new language rule must not accidentally prohibit that configuration.
 - [Cargo publication workflow](../../.github/workflows/cargo-publish.yml),
@@ -48,7 +50,8 @@ Add a general approved-language rule and an executable-command boundary with fre
 Remove the superseded language-specific prohibition from `SCR`,
 retaining its TypeScript/mise execution guidance and filename restriction.
 Clarify `1CB` as an ad hoc tool-call limit,
-not an exemption for persistent automation.
+not an exemption for persistent automation
+(moot since `1CB`'s retirement on 2026-11-23).
 
 Assign shortcodes only when applying the accepted wording,
 checking existing codes and the local forbidden-strings appendix.
