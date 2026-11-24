@@ -782,8 +782,14 @@ some for the owner to name work outside the wrapper (`blockedBy:wrapper-focus`),
 and a few for another issue,
 by its number.
 
-About thirty wrapper and driver branches that wait for a review are listed in the old file under "Open work";
-that section is not sorted yet.
+The old file's "Open work" section,
+from line 34,867,
+is sorted and applied,
+and the held branches it names are in the issues above.
+The run logs name more unmerged branches:
+the sorter of lines 14,100 to 21,103 found 44 named by no issue,
+grouped into eleven drafts in its `keep/`,
+which go to GitHub with the other drafts.
 
 What that check could not put on a public tracker,
 or that is no issue:
