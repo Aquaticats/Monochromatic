@@ -2155,7 +2155,7 @@ so no other test's creation reaches it.
 asserts that count against `SHADOW_CREATION_ATTEMPTS`
 (`shadow_create_tests.rs:615`),
 and the sibling control `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`
-asserts the same count for its two starts (`:552`).
+asserts the same count for its two starts (`:574`).
 The shim kept its file in that round,
 because only the shim can know which of its own starts to hang,
 and `reftable_with_hanging_init` no longer returned it.
@@ -2318,7 +2318,7 @@ so no other test on that thread inherits a shortened ceiling.
 holds both halves of that clearing:
 with the function's body emptied it fails at `Some(700ms)` against `None`,
 with only the stored plant left behind it fails at the first attempt made after the clear
-(`shadow_create_tests.rs:709`),
+(`shadow_create_tests.rs:710`),
 and the two shadow controls stay green either way,
 and nextest runs each test in a process of its own,
 so no gate run could have seen an inherited ceiling.

@@ -482,7 +482,7 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
 /// (`cut_the_first_init_attempt_at`).
 ///  The second is longer than the ceiling the first start is cut at
 /// (`THE_FIRST_START_IS_CUT_AT`,
-/// and the check below holds the two numbers together),
+/// and the `const _: () = assert!` beside the two constants holds them together),
 /// so a plant that kept the ceiling over the second start fails the control every run,
 /// and the control's first-attempt-only cut is held by the suite and not by a plant run by hand.
 ///  It costs the control this second and no other:
@@ -674,7 +674,7 @@ fn a_ref_name_that_is_not_text_does_not_stop_the_shadow() {
 /// A planted cut is stored for the thread and applied to its ceiling,
 /// so it is in force during the attempt it plants,
 /// given back at the attempt after it,
-/// and both forgotten when the control clears it.
+/// and forgotten along with its ceiling when the control clears it.
 /// Why:
 ///   A plant that outlived its creation would shorten another creation's start on the same thread,
 /// and a shortened ceiling ends a real `git init` at a ceiling production never gives it.
@@ -704,7 +704,8 @@ fn a_planted_cut_is_in_force_for_its_attempt_and_given_back_when_cleared() {
         None,
         "the thread's ceiling is given back, so no creation after this one inherits it"
     );
-    // The control asks again after clearing: the plant is forgotten, not only given back, so a first attempt made now is not cut either.
+    // The control asks again after clearing: the plant is forgotten, not only given back,
+    // so a first attempt made now is not cut either.
     note_init_attempt(&mut request, 1);
     assert_eq!(
         crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get),
