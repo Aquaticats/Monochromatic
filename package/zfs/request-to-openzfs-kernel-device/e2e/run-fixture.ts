@@ -1461,7 +1461,7 @@ function step10Arms(options: Options): void {
     'if grep --quiet "^SKIP binary_zfs_add_guest:" /root/step10-suite.log; then echo "an add arm returned without running"; exit 1; fi',
     'grep --quiet "^test zfs_add_guest::the_add_makes_a_verified_clone_and_a_second_add_refuses" /root/step10-suite.log',
     'grep --quiet "^test zfs_add_guest::a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes" /root/step10-suite.log',
-    'grep --quiet "^test zfs_add_guest::a_full_container_at_the_clone_leaves_the_claim_the_slot_and_the_registration" /root/step10-suite.log',
+    'grep --quiet "^test zfs_add_guest::a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration" /root/step10-suite.log',
   ].join('\n');
   guest({ options, script: suite, log: 'step10-suite.log', timeout: SUITE_TIMEOUT_MS });
 }
