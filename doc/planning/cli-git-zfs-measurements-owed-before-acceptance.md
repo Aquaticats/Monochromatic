@@ -2511,10 +2511,12 @@ as the review left them:
 - `<the kill cases: a blocker that will not die, EBUSY after the structural stage, and what a kill leaves>`.
 - `<a read-only parent, and way 8 where way 7 is refused>`. 
 
-## The three arms that need no step 17 code, 2026-11-24T00:00:00-05:00
+## The three arms that need no step 17 code, 2026-11-23T21:16:46-05:00
 
 **Measured by an agent.**
 Unapproved and non-final.
+The heading is the commit time of `c3084fbc96`,
+the commit that wrote this section.
 This section records the three Tier 0 arms the third read listed as unrun or open and that need no step 17
 code:
 T0-14 in the shape that read's P1 names,
