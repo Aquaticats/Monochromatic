@@ -1701,6 +1701,143 @@ and no other process of the machine made it.
 It changes no rule either way,
 which is why this batch proposes none for `dac_override`.
 
+## The askpass controls read a refusal, and prove the recorder starts
+
+Recorded 2026-11-24T03:35:00-05:00 by the round `askpass-controls-see-a-refused-program-2026-11-24`,
+on branch `fix/git-policy-cli-askpass-controls-see-a-refused-program`,
+whose one code commit is `2f9d76aaea`.
+Not approved and not final:
+no whole container gate ran in this round.
+
+The trap the section "The tests that would pass with their program refused" named is answered in the controls
+themselves,
+and not in a rule:
+the sixth batch's `@{bin}/false rix` grant is what kept the two terminal controls green while proving nothing
+about the wrapper's no-answer program,
+and the four negative askpass controls were blind the same way with no grant to blame.
+
+### What the terminal controls read now
+
+`a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase` and
+`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
+each fail when their transcript holds `ssh_askpass: exec(`
+(`REFUSED_ASKPASS_LINE` and `assert_the_no_answer_program_ran`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
+The line is in the transcript because `run_at` appends the command's standard error to it,
+so no new read of the run was needed.
+The file's third control needs no such assertion and says why in its own doc:
+its key asks nothing,
+so a program that could not start would leave the connection succeeding exactly as no program does,
+and that success is what both of its arms assert.
+
+### What the four negative askpass controls read now
+
+`an_unattended_push_without_a_controlling_terminal_never_opens_the_password_dialog` and
+`a_push_with_a_controlling_terminal_never_opens_the_password_dialog`
+(`src/native/binary/binary_lfs_server_tests.rs`)
+and `a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program` and
+`a_background_lfs_upload_never_starts_the_hosts_askpass_program`
+(`src/native/landing/service_push_retry_tests.rs`)
+keep their assertions that the recorder's log is empty,
+and each now runs the same recorder through the same program first and requires its log to hold the question.
+The LFS pair runs the fixture's own `bin/git-lfs` link, at the path the wrapper's search finds and a profile
+attaches to, against the same login-requiring server;
+the push control runs real Git at `/usr/bin/git` against its `LoginServer`,
+and the LFS-upload control runs the same `git-lfs` stand-in through the same plan with only the rule's empty
+`GIT_ASKPASS` replaced by the recorder.
+An empty log therefore means the rule held and not that the program never started.
+
+### What the runs showed
+
+Host, `cargo test --locked --offline --test native_binary -- never_opens_the_password_dialog`
+and `cargo test --locked --offline --lib -- never_starts_the_hosts_askpass_program`,
+2026-11-24 between 03:05 and 03:20:
+all four controls pass with their arms.
+With the recorder written mode `0644` so nothing can start it,
+the arms fail and say so,
+quoting the program's own line
+(`fatal: cannot exec '<path>': Permission denied` for Git and for `git-lfs`,
+and `/bin/git-lfs: line 4: <path>: Permission denied` for the stand-in);
+with the arms removed and the same mode in place, all four controls pass,
+which is the old blindness reproduced.
+The patches of each state are `red-demo-lfs-recorder-cannot-start.patch` and
+`red-demo-service-recorder-cannot-start.patch` in this round's `keep/`.
+
+Gate image, built from the committed sources by
+`keep/build-the-gate-image-for-a-narrowed-run.ts` under the tag `askpass-refusal-20261124`
+(the gate's own build functions, no suite and no Clippy container),
+then run in the gate's own container geometry
+(`--memory 2g --cpus 4 --pids-limit 1024`, the suite's tmpfs fixture root):
+`Summary [1.460s] 7 tests run: 7 passed, 10842 skipped`.
+The seven are the six controls above and `an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule`,
+which the filter matched and which passed.
+The log is `gate-image-green-run.txt` in this round's `keep/`.
+The same image ran every test of the three touched modules,
+which is the three `ssh_terminal` controls,
+the `lfs_server` controls and the `push_retry_tests` controls,
+with `Summary [28.473s] 74 tests run: 74 passed, 10775 skipped`
+(`gate-image-touched-modules-run.txt` in this round's `keep/`).
+
+### What the terminal controls cannot show on the host
+
+The three controls of `src/native/binary/binary_ssh_terminal_tests.rs` cannot run on this host at all,
+and this is the confinement rather than the controls:
+`/etc/apparmor.d/local/sshd` grants `owner /work/** rwlk` and nothing else,
+so a throwaway `sshd` reads its configuration only under the gate container's `/work`.
+Measured 2026-11-24T02:48:03-05:00:
+`sshd -f <round scratch>/sshd-probe/sshd_config -D -e` printed
+`<round scratch>/sshd-probe/sshd_config: Permission denied`,
+and `cargo test --test native_binary -- at_a_terminal` on the same host failed at
+`the throwaway sshd never accepted a connection on port 37481`,
+which is before every assertion of either control.
+So the red and green of the terminal assertion were shown in the gate image and not on the host.
+
+### Red and green of the terminal assertion, in the gate image
+
+Green: the six controls' run recorded under "What the runs showed" has both terminal controls passing
+with the assertion in place.
+
+Red: with the demonstration in `red-demo-ssh-false-cannot-start.patch`,
+where each wrapped arm's `PATH` holds a link to `/usr/bin/git` and a mode-0600 file named `false`,
+both controls fail at the assertion and quote the transcript it read.
+The host-key control's transcript holds:
+
+```text
+ssh_askpass: exec(false): Permission denied
+Host key verification failed.
+fatal: Could not read from remote repository.
+```
+
+and the passphrase control's holds:
+
+```text
+ssh_askpass: exec(false): Permission denied
+user@127.0.0.1: Permission denied (publickey).
+fatal: Could not read from remote repository.
+```
+
+Every other assertion of both arms still holds in that state,
+which is the trap itself:
+the status is 128,
+the key is refused,
+and no question is asked,
+and only the assertion this round added separates a program that answered nothing from one that never
+started.
+`Summary [1.334s] 5 tests run: 3 passed, 2 failed, 10844 skipped`
+(`gate-image-red-ssh-run.txt` in this round's `keep/`).
+
+With the same `PATH` and the two assertion calls removed
+(`old-blindness-ssh-same-state-without-the-assertion.patch`),
+the same run passes every one of the five:
+`Summary [1.436s] 5 tests run: 5 passed, 10844 skipped`
+(`gate-image-old-blindness-run.txt` in this round's `keep/`),
+which is the blindness the ninth batch predicted and this round closes.
+The `PATH` has to hold a `git` link because the wrapper resolves the real Git from `PATH`:
+a `PATH` naming no Git stopped the command before it reached `ssh`,
+with `Could not find a real Git executable after examining 1 PATH candidates`,
+which was the first attempt at this demonstration and is recorded here rather than kept,
+because the run's log was overwritten by the second run of the same file.
+
 ## Upstream filing artifact
 
 ### Upstream filing decision
