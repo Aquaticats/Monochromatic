@@ -116,6 +116,11 @@ export type WholePathOptions = {
    Exit status the stand-in `gh` gives to every call; zero for a working GitHub.
    */
   readonly ghExitCode: number;
+  /**
+   Whether the stand-in `pnpm` leaves the lock as it was on a plain install, which is the state a run that stops before
+   the tail leaves behind.
+   */
+  readonly pnpmSkipsLockfileWrite: boolean;
 };
 
 /**
@@ -197,17 +202,20 @@ export function parseGhCall(line: string,): RecordedGhCall {
 
  @param ghExitCode - exit status the stand-in `gh` gives to every call; zero for a working GitHub
 
+ @param pnpmSkipsLockfileWrite - whether the stand-in `pnpm` leaves the lock as it was on a plain install
+
  @returns what the run printed, which commits it made, what `gh` was asked, and what it kept for later
 
  @throws Error when `mise` or `node` is not on `PATH` or a step of the fixture fails
 
  @example
  ```ts
- const result = await runWholePath({ ghExitCode: 0, },);
+ const result = await runWholePath({ ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
  ```
  */
 export async function runWholePath({
   ghExitCode,
+  pnpmSkipsLockfileWrite,
 }: WholePathOptions,): Promise<WholePathResult> {
   /**
    The disposable folder that holds the whole run, removed when the function ends.
@@ -317,6 +325,7 @@ export async function runWholePath({
       ?? base,
     FIXTURE_GH_LOG: ghLog,
     FIXTURE_GH_EXIT: String(ghExitCode,),
+    FIXTURE_PNPM_SKIPS_LOCKFILE_WRITE: pnpmSkipsLockfileWrite ? '1' : '0',
     FIXTURE_GLOBAL_LOCK: globalLock,
   };
   // Only the program folders the fixture names are on `PATH`: the folder that holds `mise` also holds the repository's
