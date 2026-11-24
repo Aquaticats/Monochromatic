@@ -6562,6 +6562,25 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and the same filters select the btrfs controls,
   which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs,
   which the task does not set.
+- The controls that prove the upload against the real `git-lfs` run in the gate,
+  which is why the image installs the program
+  (`doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md`):
+  the test image sets `CLI_GIT_REQUIRE_REAL_GIT_LFS=1`,
+  and a control that would have printed `skipped: git-lfs is not on PATH` and passed
+  fails instead,
+  naming the variable and the image step,
+  so an image that loses the program is red rather than silently empty.
+  The same image sets `CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1`,
+  because the four end-to-end carry controls of `binary_push_programs_end_to_end_tests.rs`
+  need program folders that hold no `git-lfs`:
+  a real one answers the push before their stand-in,
+  so they print `END TO END CARRY CONTROL NOT RUN: <control> (<folder that holds one>)` and pass there,
+  and a host or an image without the program runs them for real.
+  Three controls prove the refusal for a program the list does not hold,
+  and each gives its push a `PATH` made of a folder of its own fixture that links only the programs the push needs,
+  so a machine with `git-lfs` in `/usr/bin` runs them green
+  (`src/native/binary/binary_support.rs`,
+  `path_of_a_folder_that_links_only`).
 - The controls that need a kernel namespace fail the same way rather than passing unrun,
   and the acknowledgement variable each refusal names is the only thing that lets one skip:
   `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
@@ -8997,11 +9016,13 @@ From lines 25903 to 25910 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- Measured on 2026-11-13, both from the branch's debug wrapper:
+- Measured on 2026-11-13,
+  both from the branch's debug wrapper:
   an average finished record is 1267 bytes,
   so 1024 records weigh 1.30 MB and 10,240 weigh 13.0 MB;
   the first answer after a start took a median 50 to 76 ms with 1024 records and 579 to 640 ms with 10,240
-  (seven runs each, two rounds),
+  (seven runs each,
+  two rounds),
   while later answers took 6 to 13 ms at both sizes,
   so a start's read grows with the records and the landing's lookup does not.
   The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.

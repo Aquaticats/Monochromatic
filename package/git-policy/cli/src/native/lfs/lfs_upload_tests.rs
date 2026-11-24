@@ -540,10 +540,18 @@ fn an_upload_that_cannot_capture_its_output_is_refused_with_the_ways_forward() {
     remove(root.as_path());
 }
 
-/// The coordinator's Git for a fixture whose `PATH` finds `bin` first,
-/// with the upload switched on.
-fn push_git_through(bin: &std::path::Path, root: &std::path::Path) -> PushGit {
-    let path: OsString = std::env::join_paths([bin, std::path::Path::new("/usr/bin"), std::path::Path::new("/bin")]).expect("a PATH");
+/// What:
+///  The coordinator's Git for a fixture whose `PATH` finds `bin` first,
+///  with the upload switched on,
+///  and the folders after `bin` given by the caller.
+/// Why:
+///   A control that proves the refusal for a `git-lfs` the list does not hold must not name `/usr/bin` or `/bin`:
+/// a developer's machine and the container gate image install the real program there,
+/// so the search found it and the control passed without checking the refusal (L5 of the alpha.45 release pass).
+/// Naming only the fixture's own folders keeps the control the same on every machine.
+fn push_git_through_a_list_of(bin: &std::path::Path, root: &std::path::Path, then: &[&std::path::Path]) -> PushGit {
+    let folders: Vec<&std::path::Path> = std::iter::once(bin).chain(then.iter().copied()).collect();
+    let path: OsString = std::env::join_paths(folders).expect("a PATH");
     let mut environment: Vec<(OsString, OsString)> = vec![
         (OsString::from("PATH"), path),
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
@@ -551,6 +559,12 @@ fn push_git_through(bin: &std::path::Path, root: &std::path::Path) -> PushGit {
     ];
     environment.extend(crate::test_support::scratch_environment());
     return PushGit { real_git: root.join("real-git"), cwd: root.to_path_buf(), environment, lfs: true };
+}
+
+/// The coordinator's Git for a fixture whose `PATH` finds `bin` first,
+/// with the upload switched on and the host's own program folders after it.
+fn push_git_through(bin: &std::path::Path, root: &std::path::Path) -> PushGit {
+    return push_git_through_a_list_of(bin, root, &[std::path::Path::new("/usr/bin"), std::path::Path::new("/bin")]);
 }
 
 /// A stand-in `git-lfs` that answers `status` after a moment,
@@ -1194,7 +1208,9 @@ fn the_bounded_face_names_a_found_program_that_cannot_start_and_refuses_a_missin
     std::fs::write(absent.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
     let empty: PathBuf = absent.join("bin");
     std::fs::create_dir_all(empty.as_path()).expect("bin directory");
-    let absent_context: PushGit = push_git_through(empty.as_path(), absent.as_path());
+    // The list names this folder alone: a real `git-lfs` in `/usr/bin`, which a developer's machine and the gate image
+    //  have, must not answer the search the refusal is about (L5 of the alpha.45 release pass).
+    let absent_context: PushGit = push_git_through_a_list_of(empty.as_path(), absent.as_path(), &[]);
     let refusal: PushAttempt = run_upload_bounded(&absent_context, &plan()).expect("the upload answered").expect("the upload failed");
     assert_eq!(refusal.exit_code, 1, "{}", refusal.output);
     assert!(refusal.output.contains("was not found in the folders this push searches"), "{}", refusal.output);

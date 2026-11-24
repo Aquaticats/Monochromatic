@@ -334,10 +334,7 @@ fn doctor_outside_a_repository_still_exits_two() {
 /// this compares the recognized bytes with a real file.
 #[test]
 fn the_recognized_shim_bytes_are_the_ones_the_real_git_lfs_writes() {
-    let Some(program) = std::env::var_os("PATH").and_then(|path| {
-        return std::env::split_paths(&path).map(|directory| { return directory.join("git-lfs"); }).find(|candidate| { return candidate.is_file(); });
-    }) else {
-        eprintln!("skipped: git-lfs is not on PATH, so its shim bytes were not compared");
+    let Some(program) = super::real_git_lfs_the_run_requires::required("the bytes the real `git-lfs` writes into a repository's hooks folder") else {
         return;
     };
     let fixture: Fixture = fixture("hooks-off-real-shim");
@@ -375,4 +372,25 @@ fn the_recognized_shim_bytes_are_the_ones_the_real_git_lfs_writes() {
         assert_eq!(written(name), Some(lfs_shim_text(name).into_bytes()), "{name}");
     }
     remove_settled(&fixture);
+}
+
+/// What:
+///  A run that states the real `git-lfs` must be there fails the shim comparison,
+///  rather than passing it without reading the program's own bytes.
+/// Why:
+///   The gate image installs `git-lfs` and sets `CLI_GIT_REQUIRE_REAL_GIT_LFS`,
+/// so an image that lost the program has to be red,
+/// and the decision the comparison makes is what turns the old line into a failure.
+///  The absence and the statement are passed in because a control cannot change this process's environment beside the
+/// other controls of this binary;
+/// the variable itself is proved where a child process can set it
+///  (`testing/real_git_lfs_the_run_requires_tests.rs`).
+#[test]
+#[should_panic(expected = "CLI_GIT_REQUIRE_REAL_GIT_LFS")]
+fn the_shim_comparison_fails_where_the_run_requires_the_program_and_path_finds_none() {
+    let _absent: Option<PathBuf> = super::real_git_lfs_the_run_requires::decided(
+        "the bytes the real `git-lfs` writes into a repository's hooks folder",
+        None,
+        true,
+    );
 }

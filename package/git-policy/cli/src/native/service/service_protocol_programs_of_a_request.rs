@@ -28,7 +28,7 @@ use serde_json::Value;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const programsOf = (entry) => ({ transport: entry.transport === true, variables: entry.variables.map(([name, value]) => { if (!CARRIED.includes(name)) throw ...; return [name, value]; }) });
+/// const programsOf = (entry) => ({ transport: entry.transport === true, notText: (entry.not_text ?? []).map(checkName), variables: entry.variables.map(([name, value]) => { if (!CARRIED.includes(name)) throw ...; return [name, value]; }) });
 /// ```
 pub(crate) fn programs_of(entry: &Value) -> Result<crate::service_push_programs_held_in_memory::PushPrograms, String> {
     let mut variables: Vec<(String, String)> = Vec::new();
@@ -45,6 +45,19 @@ pub(crate) fn programs_of(entry: &Value) -> Result<crate::service_push_programs_
         }
         variables.push((String::from(name), String::from(value)));
     }
+    // The names whose value could not travel, which a request that predates them leaves out entirely.
+    let mut not_text: Vec<String> = Vec::new();
+    if let Some(field) = entry.get("not_text") {
+        // A field that is there and is not a list is a line this release cannot read, not an older request.
+        let names: &Vec<Value> = field.as_array().ok_or("the names whose value could not travel are not a list")?;
+        for item in names {
+            let name: &str = item.as_str().ok_or("a name whose value could not travel is not text")?;
+            if !crate::service_push_programs_held_in_memory::CARRIED.contains(&name) {
+                return Err(format!("a variable this release never carries was named as one whose value could not travel: {name}"));
+            }
+            not_text.push(String::from(name));
+        }
+    }
     let transport: bool = entry.get("transport").and_then(Value::as_bool).unwrap_or(false);
-    return Ok(crate::service_push_programs_held_in_memory::PushPrograms { variables, transport });
+    return Ok(crate::service_push_programs_held_in_memory::PushPrograms { variables, not_text, transport });
 }

@@ -90,6 +90,18 @@ pub(crate) mod parallel_test_support;
 #[cfg(test)]
 pub(crate) mod ticker_beside_a_wait;
 
+/// The real `git-lfs` a control proves the upload against,
+/// and what a control does in a run that has none;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod real_git_lfs_the_run_requires;
+
+/// The controls of the decision above;
+/// never part of the release executable.
+#[cfg(test)]
+#[path = "real_git_lfs_the_run_requires_tests.rs"]
+pub(crate) mod real_git_lfs_the_run_requires_tests;
+
 /// Ending a child together with its whole process group,
 /// for controls that must leave no process behind;
 /// never part of the

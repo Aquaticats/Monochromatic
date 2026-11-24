@@ -28,6 +28,11 @@ mod hold_at_prepare;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
+/// The real `git-lfs` a control proves the upload against,
+/// and what a control does in a run that has none.
+#[path = "../testing/real_git_lfs_the_run_requires.rs"]
+mod real_git_lfs_the_run_requires;
+
 /// The native Git command a control starts,
 /// its bound,
 /// and the read that keeps its streams in files.
