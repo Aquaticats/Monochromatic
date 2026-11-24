@@ -535,9 +535,17 @@ the zedlet's name selects only ZED's no-argument start,
 nothing at the root path reaches Git (probed on 28 starts),
 the guards hold every variant the re-read planted,
 and a disk-cold start in a guest costs the wrapper 1.87 times the handler (+6.06 ms).
+Its read (`read-of-the-second-one-program-revision.md` in `~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/keep/`)
+found the one-name guard admitting other names;
+the third revision merged as `2ad0c2ab7d`,
+with the guard pinned to one comparison line,
+typed Clippy bans on `std::env::args` and `args_os`,
+and the two modes the owner's answers need:
+`record-checkout --checkout <path>` (step 10's option E)
+and `mount-path-descendant --dataset <name>` (step 19's later mounter).
 Running:
-a Sonnet read of that revision's diff
-(`~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/`).
+a Sonnet read of it that writes the eight choices for the owner
+(`~/temp/agent/gate-review-zfs-root-modes-third-revision-2026-11-24/`).
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
