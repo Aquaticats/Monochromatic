@@ -1227,7 +1227,8 @@ the session makes itself.
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
 The ninth whole gate's window is read record by record in
-"Ninth batch: the gate at 8519c599d0".
+"Ninth batch:
+  the gate at 8519c599d0".
 
 ### The three stale lock controls killed the `timeout` and not the Git
 
@@ -1289,7 +1290,8 @@ this section names what made each denial of the window and proposes the smallest
 or says why none belongs,
 and only the coordinating session loads the rules,
 because loading one needs the root this round never takes.
-Every measurement, script and log named here is under that round's `keep/`.
+Every measurement,
+script and log named here is under that round's `keep/`.
 
 ### What the window held
 
@@ -1300,7 +1302,8 @@ reported `10745 tests run: 10741 passed (7 slow), 4 failed, 41 skipped` in 988.7
 `~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`).
 Its four failures are the cause-H pair,
 the source guard step 10's two `std::thread::sleep` calls trip
-(`add_mount.rs:70`, `add_route_plan.rs:265`),
+(`add_mount.rs:70`,
+`add_route_plan.rs:265`),
 and the `statmount` control that answers `ENOSYS` in the container.
 No AppArmor refusal is among them.
 
@@ -1318,12 +1321,14 @@ and no other container of those minutes made it.
 The other containers of the window are the reason most of the list is not the gate's.
 The askpass design round
 (`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24`)
-saw throwaway containers at 01:20:00, 01:20:59 and 01:26:36,
+saw throwaway containers at 01:20:00,
+01:20:59 and 01:26:36,
 and then `cli-git-askpass-probe-2026-11-24` at 01:26:50,
 which it removed at 01:47:15.
 Its `keep/state-so-far.md` and `keep/probe-transcripts.txt` record,
 at their own times,
-the host key, the three agent starts and the askpass refusals named below.
+the host key,
+the three agent starts and the askpass refusals named below.
 It ran as the container's root
 (its client keys lie in `/root/.ssh` and its sshd served `root@127.0.0.1`),
 which is why a capability denial in it can bite,
@@ -1337,7 +1342,12 @@ so the log cannot say which file a capability was asked for,
 nor which container the caller was in.
 The kernel's AppArmor capability record adds `capname=` alone
 ([`security/apparmor/capability.c:47-53`](https://github.com/torvalds/linux/blob/e5f0a698b34ed76002dc5cff3804a61c80233a7a/security/apparmor/capability.c#L47-L53)),
-and the common fields are the type, operation, class, profile, pid, command and error
+and the common fields are the type,
+operation,
+class,
+profile,
+pid,
+command and error
 ([`security/apparmor/audit.c:97-141`](https://github.com/torvalds/linux/blob/e5f0a698b34ed76002dc5cff3804a61a/security/apparmor/audit.c#L97-L141)):
 
 ```c
@@ -1363,16 +1373,20 @@ never from the log alone.
 `01:20:01 ssh-keygen mknod /probe/hostkey c`.
 The design round's first container ran at 01:20:00 and died at 01:20:01,
 and its `keep/state-so-far.md` names the command and the time:
-`ssh-keygen -f /probe/hostkey` on a bind mount, at 01:19 to 01:20.
+`ssh-keygen -f /probe/hostkey` on a bind mount,
+at 01:19 to 01:20.
 No file of this repository names `/probe/hostkey`,
 and the gate's own signing controls write under the fixture root and `/tmp`
 (`local/ssh-keygen`),
 so no test of the gate made this record.
-No rule: it is a probe's path, not a workload's.
+No rule:
+it is a probe's path,
+not a workload's.
 
 ### The six `ssh-agent` records: three starts in one container
 
-`01:32:06`, `01:32:11` and `01:32:16` hold one `capable setgid` each,
+`01:32:06`,
+`01:32:11` and `01:32:16` hold one `capable setgid` each,
 plus `mknod /work/out/agent.sock`,
 `mknod /root/agent.sock` and `open / r`.
 The state file names two of the three starts and their exact sentences:
@@ -1384,13 +1398,17 @@ The third start made its socket under the container's own `/work/out`,
 which is the round's scratch folder mounted at `/work`.
 No test of the gate starts an `ssh-agent`:
 `package/git-policy/cli` names it only inside diagnostic sentences
-(`lfs_pre_push.rs:678-699`, `lfs_upload_tests.rs:829-858`),
+(`lfs_pre_push.rs:678-699`,
+`lfs_upload_tests.rs:829-858`),
 and `local/ssh-agent` is empty today.
-No rule: the gate runs no agent, and a rule for one would grant a program no test starts.
+No rule:
+the gate runs no agent,
+and a rule for one would grant a program no test starts.
 
 ### The five askpass programs: two paths of one probe
 
-`01:29:19`, `01:29:24` and `01:31:06` hold `git//ssh exec /work/stubs/askpass`,
+`01:29:19`,
+`01:29:24` and `01:31:06` hold `git//ssh exec /work/stubs/askpass`,
 and `01:31:11` holds `git//ssh exec /work/bin/askpass` twice.
 `keep/probe-transcripts.txt` of the design round prints both refusals word for word,
 under its arms named `askpass`:
@@ -1407,24 +1425,29 @@ which `ssh_askpass` finds on `PATH` with `execlp`
 The gate's own ssh child is `git//ssh`,
 and `local/git_ssh` grants it `@{bin}/false rix`,
 which is why no exec denial of `false` appears in this window at all.
-No rule: a rule for `/work/stubs/askpass` or `/work/bin/askpass` would grant a probe's program.
+No rule:
+a rule for `/work/stubs/askpass` or `/work/bin/askpass` would grant a probe's program.
 
 ### The four programs plain `ssh` ran
 
-`01:30:39 ssh exec /usr/bin/false`, then `/usr/bin/true`, `/usr/bin/cat` and `/usr/bin/echo`,
+`01:30:39 ssh exec /usr/bin/false`,
+then `/usr/bin/true`,
+`/usr/bin/cat` and `/usr/bin/echo`,
 one record each in one second.
 The design round's state file names exactly these four programs and the reason:
 a person's own `ssh` under `/etc/apparmor.d/ssh` may run none of them,
 measured the same way at 06:31Z,
 and the round swept them to see which askpass program a plain `ssh` could still start.
-One `podman exec` of that container also ended in the same second, 01:30:39
+One `podman exec` of that container also ended in the same second,
+01:30:39
 (`keep/podman-events-in-the-window.txt`).
 The gate cannot produce these under profile `ssh`:
 its plain `ssh` arms run with `env_clear()` and carry no `SSH_ASKPASS` at all
 (`package/git-policy/cli/src/native/binary/binary_support.rs:141-161`),
 and every `ssh` the wrapper's Git starts inherits the profile `git//ssh`,
 where `false` is already granted.
-No rule: the gate runs no plain `ssh` with an askpass program,
+No rule:
+the gate runs no plain `ssh` with an askpass program,
 and `local/ssh` stays as it is.
 
 ### The two `systemd-analyze` folders: a timer install, not a test
@@ -1476,8 +1499,10 @@ The gate's own tests make exactly that shape on purpose:
 (`a_staging_failure_that_is_not_a_pathspec_matching_nothing_stays_an_engine_failure`)
 sets a tracked file to mode 000 and asserts Git's own `Permission denied`,
 and the same access asks the capability once and only once.
-Measured in the gate's base image as the gate's user, under `strace`:
-`openat(AT_FDCWD, "dir/x.txt", O_RDONLY) = -1 EACCES (Permission denied)`, one record
+Measured in the gate's base image as the gate's user,
+under `strace`:
+`openat(AT_FDCWD, "dir/x.txt", O_RDONLY) = -1 EACCES (Permission denied)`,
+one record
 (`keep/repro-one-denial-per-refused-open.log`).
 A mode-000 file is one such access;
 a directory with no search bit and a file without `x` are others,
@@ -1494,12 +1519,14 @@ The two `umount` records at 01:46:51 are three seconds from the suite's end,
 which is when the gate's mount-namespace control unmounts its tmpfs
 (`landing/unreachable_git_dir_proven_gone_tests.rs:400-429`),
 and that control runs `umount` inside a user namespace of its own,
-where the capability is held, so a refusal there would be real.
+where the capability is held,
+so a refusal there would be real.
 Whether these two are that control's or another session's cannot be told:
 a capability record names no file,
 and the `umount` profile allows its own operation anywhere (`/etc/apparmor.d/umount:27`)
 and no `/work` file is refused in this window at all.
-Run as the gate runs it, the sequence completes anyway:
+Run as the gate runs it,
+the sequence completes anyway:
 `mount-exit=0` and `umount-exit=0` inside a user namespace of its own under uid 1000
 (`keep/repro-nested-userns-mount-and-umount.log`),
 and the control's `Drop` ignores the status in any case.
@@ -1507,8 +1534,10 @@ and the control's `Drop` ignores the status in any case.
 No rule for either family,
 and the reason is measured rather than argued:
 
-- The gate's containers run as `1000:1000`, and that user's effective capability set is
-  empty: `CapEff: 0000000000000000`
+- The gate's containers run as `1000:1000`,
+  and that user's effective capability set is
+  empty:
+  `CapEff: 0000000000000000`
   (`keep/repro-capabilities-of-the-gates-user.log`).
   AppArmor's capability check runs before the kernel's own,
   so refusing a capability the caller does not hold cannot change the caller's result:
@@ -1554,28 +1583,35 @@ which it writes on standard error
 	}
 ```
 
-`run_at` appends that file to the transcript (`:193`), so the trace is already in hand;
+`run_at` appends that file to the transcript (`:193`),
+so the trace is already in hand;
 no assertion reads it.
-With `local/git_ssh`'s `@{bin}/false rix` removed, both controls would stay green while
+With `local/git_ssh`'s `@{bin}/false rix` removed,
+both controls would stay green while
 proving nothing about the wrapper's no-answer program.
 The fix is one assertion per wrapped arm:
 the transcript must not contain `ssh_askpass: exec(`.
 
-The four negative askpass controls are blind in the same way, without a denial in this
+The four negative askpass controls are blind in the same way,
+without a denial in this
 window to blame:
 `binary_lfs_server_tests.rs:1179` and `:1217` assert that the recorder's log does not exist,
 and `service_push_retry_tests.rs:1263` and `:1293` assert that it holds no prompt.
 A refused recorder would satisfy both.
-Neither route reaches `ssh` (both push over `file://` or `http://`), so no refusal was logged
+Neither route reaches `ssh` (both push over `file://` or `http://`),
+so no refusal was logged
 for them here,
-and the trap is the assertion, not the run.
+and the trap is the assertion,
+not the run.
 The fix is one positive arm per recorder that runs it through the same fixture and the same
 profile path and asserts that it logs its question,
 so that an empty log means the rule held rather than that the program never started.
 
 ### Proposed rules
 
-One rule, for the timer install's tool; none for the gate.
+One rule,
+for the timer install's tool;
+none for the gate.
 
 ```text
 # /etc/apparmor.d/local/systemd-analyze (proposed, not applied)
@@ -1587,7 +1623,8 @@ owner @{tmp}/systemd-analyze-@{rand6}/ rw,
 ```
 
 Its tradeoff:
-`systemd-analyze` may create, list and remove a folder of six random characters in `/tmp`
+`systemd-analyze` may create,
+list and remove a folder of six random characters in `/tmp`
 that carries its own name prefix and nothing else,
 which is what the stock profile already grants the same tool under another prefix.
 It gains no read of another tool's folder and no write outside `/tmp`.
@@ -1611,19 +1648,24 @@ owner @{run}/user/@{uid}/systemd/{,**} r,
 ```
 
 Before any rule,
-`systemd-analyze --user verify` of the two repository units printed "Failed to setup working directory: Permission denied"
+`systemd-analyze --user verify` of the two repository units printed "Failed to setup working directory:
+Permission denied"
 and exited 1.
 With the folder rule alone,
 the working folder was made and the verify then failed reading the user unit search path:
-"Failed to open "/home/user/.config/systemd/user", ignoring: Permission denied",
+"Failed to open "/home/user/.config/systemd/user",
+ignoring:
+Permission denied",
 the same for `/run/user/1000/systemd/user.control` and `/run/user/1000/systemd/user`,
-then "Unit toolchain-daily-update.service not found." and exit 1;
+then "Unit toolchain-daily-update.service not found."
+and exit 1;
 the audit log held those three `open` denials.
 With the two read rules beside it,
 the verify of the installed units in `~/.config/systemd/user` (the folder the timer install writes and verifies in)
 exited 0.
 Two lines remain on every run,
-"/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator failed with exit status 1, ignoring."
+"/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator failed with exit status 1,
+ignoring."
 and the same for `60-flatpak`:
 the profile does not let it run the user environment generators,
 the verify ignores them,
@@ -1654,7 +1696,8 @@ The cheapest decider is a run of one named control,
 the mount one or `binary_commit_tests.rs:1587`,
 with the design round's container stopped and the coordinator reading the audit log as the
 record appears:
-the record then belongs to that control, and no other process of the machine made it.
+the record then belongs to that control,
+and no other process of the machine made it.
 It changes no rule either way,
 which is why this batch proposes none for `dac_override`.
 
