@@ -136,7 +136,9 @@ and two of them fail the typed ban independently
   every line number in this design is re-derived with `rg` on `28267d769d`,
   and each moved one is given its current value.
   `SPEC.md`'s sentence is at `:19248`,
-  not `:19101`.
+  not `:19101`,
+  and the read's own `:19235` was that read's main (`2d9fa02ea5`),
+  which the askpass change then moved.
   The second `[[bin]]` is `:46` to `:48` and its comment is `:39` to `:45`;
   `:35` to `:37` are the wrapper's own table,
   which a literal delete of `:34` to `:45` would remove.
