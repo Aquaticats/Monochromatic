@@ -34,6 +34,54 @@ pub(crate) fn tracked(repo: &Path, relative: &str, content: &[u8]) {
     age(path.as_path());
 }
 
+/// What:
+///  A tracked file of `bytes` zero bytes,
+/// written sparse so a fixture can be above the clone rung's size limit without holding the bytes.
+/// Why:
+///   The size limit sums what the index records for each tracked file,
+/// and a control that reaches a rung must be above it;
+/// a sparse file costs the fixture nothing on disk and Git still records its length,
+///  and the length is derived from the limit so no control carries a stale number
+///  (`AGENTS.md`,
+///  rule `MGN`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = createFile(repo + '/' + name); file.truncate(bytes);
+/// ```
+pub(crate) fn tracked_sparse(repo: &Path, name: &str, bytes: u64) {
+    let path: PathBuf = repo.join(name);
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("directories");
+    let file: std::fs::File = std::fs::File::create(path.as_path()).expect("the sparse file");
+    file.set_len(bytes).expect("the sparse file's length");
+}
+
+/// What:
+///  A sparse tracked anchor whose size lifts a clean fixture's mean tracked file above the clone rung's edge.
+/// Why:
+///   A clean source is cloned only when its tracked files average at least the rung's mean edge,
+/// and a control's fixture holds a few dozen bytes a file,
+/// so a fixture that must reach the clone rung sits above the edge on purpose
+/// (`worktree_clone_rung_limits::the_safest_mean_tracked_file`),
+/// the higher of the two measured edges.
+/// The anchor is a tenth above the edge per path,
+/// so a path a control adds later cannot pull the mean under it,
+/// and it derives its size from the constant rather than carrying a stale number
+/// (`AGENTS.md`,
+///  rule `MGN`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = createFile(repo + '/' + name); file.truncate(Math.ceil(edge * 1.1) * (paths + 1));
+/// ```
+pub(crate) fn tracked_above_the_mean_edge(repo: &Path, name: &str, paths: u64) {
+    let edge: u64 = crate::worktree_clone_rung_limits::the_safest_mean_tracked_file();
+    let per_path: u64 = edge + edge / 10;
+    tracked_sparse(repo, name, per_path.saturating_mul(paths + 1));
+    // Aged, so the clean check proves the anchor instead of calling it racy and making the whole source one with changes.
+    age(repo.join(name).as_path());
+}
+
 /// Commit everything and refresh the index so every entry is provably unchanged.
 pub(crate) fn commit_all(repo: &Path, message: &str) {
     git(repo, &["add", "--all"]);

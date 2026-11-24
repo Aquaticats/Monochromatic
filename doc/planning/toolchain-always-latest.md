@@ -677,6 +677,22 @@ the whole-path test hosts the update in the nested-wayland-session notification 
 and a
 probe refuses to start unless the hosted environment has a private bus address and no runtime directory.
 
+From lines 38896 to 38906 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+    Owner,
+    verbatim:
+    "You can send real desktop notifications.
+    But you can also make sure I don't see them.
+    We already have the nested wayland compositor.
+    And we might not need it in full."
+    So tests and runs may send real notifications into a private session bus the owner never sees,
+    reusing what `package/nested-wayland-session/cli` has (its stand-in notification service);
+    the agent proposes the smallest shared piece,
+    keeps a red-first guard against reaching the owner's bus,
+    and limits a real run to one summary notification.
+
 ### Tests
 
 - `src/daily-update-package-checks.unit.test.ts`:

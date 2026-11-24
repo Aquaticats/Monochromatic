@@ -25,6 +25,15 @@ the design's R-never (reclaim the lane's own stale `index.lock`),
 and the CM7 carve-out (CM7 unchanged;
 the package docs record that the test images take tools from pacman).
 
+From lines 49167 to 49171 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+After the restart,
+2026-11-04 at about 07:30-05:00:
+"I'm fully back now,
+ask me."
+
 ## Built on `fix/git-policy-cli-branch-write-and-tool-ceilings` (2026-11-04)
 
 Three lines for the items under the Answered by the owner on 2026-11-04 heading,

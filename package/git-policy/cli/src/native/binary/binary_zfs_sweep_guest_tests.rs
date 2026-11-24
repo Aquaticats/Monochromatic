@@ -63,62 +63,62 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 /// The variable the guest driver sets.
-const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_GUEST";
+pub(super) const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_GUEST";
 
 /// The pool the driver prepared.
-const POOL_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_POOL";
+pub(super) const POOL_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_POOL";
 
 /// The OpenZFS userspace the guest's commands need.
-const SBIN_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_SBIN";
+pub(super) const SBIN_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_SBIN";
 
 /// The checkout the sweep walks.
-const CHECKOUT_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_CHECKOUT";
+pub(super) const CHECKOUT_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_CHECKOUT";
 
 /// The passphrase the encrypted fixture's key is loaded with.
-const PASSPHRASE_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_PASSPHRASE";
+pub(super) const PASSPHRASE_VARIABLE: &str = "CLI_GIT_ZFS_SWEEP_PASSPHRASE";
 
 /// The checkout dataset's leaf name the design gives it.
-const CHECKOUT_LEAF: &str = "monochromatic-git-checkout";
+pub(super) const CHECKOUT_LEAF: &str = "monochromatic-git-checkout";
 
 /// The container's leaf name the design gives it.
-const CONTAINER_LEAF: &str = "monochromatic-git-worktree-clone-datasets";
+pub(super) const CONTAINER_LEAF: &str = "monochromatic-git-worktree-clone-datasets";
 
 /// The first slot,
 /// which the design's clone attaches at.
-const SLOT: &str = "one";
+pub(super) const SLOT: &str = "one";
 
 /// The second slot the key arm uses.
-const SLOT_TWO: &str = "two";
+pub(super) const SLOT_TWO: &str = "two";
 
 /// The prefix the add route gives its origin snapshots.
-const ORIGIN_PREFIX: &str = "git-worktree-clone-origin-";
+pub(super) const ORIGIN_PREFIX: &str = "git-worktree-clone-origin-";
 
 /// The nonce the first arm's request carries.
-const NONCE: &str = "00112233445566778899aabbccddeeff";
+pub(super) const NONCE: &str = "00112233445566778899aabbccddeeff";
 
 /// The passphrase when the driver names none,
 /// which the guest's throwaway pool accepts and no other machine ever sees.
-const DEFAULT_PASSPHRASE: &str = "zfs-step-8-sweep";
+pub(super) const DEFAULT_PASSPHRASE: &str = "zfs-step-8-sweep";
 
 /// The handler configuration the sweep reads inside the guest.
-const CONFIGURATION: &str = "/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc";
+pub(super) const CONFIGURATION: &str = "/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc";
 
 /// The start probe's record directory inside the guest.
-const PROBE_RECORD_DIRECTORY: &str = "/run/git-worktree-clone-mount-probe";
+pub(super) const PROBE_RECORD_DIRECTORY: &str = "/run/git-worktree-clone-mount-probe";
 
 /// The first attach's record,
 /// beside the probe's.
-const FIRST_ATTACH: &str = "/run/git-worktree-clone-mount-probe/first-attach";
+pub(super) const FIRST_ATTACH: &str = "/run/git-worktree-clone-mount-probe/first-attach";
 
 /// The desired-state property.
-const DESIRED_STATE: &str = "org.monochromatic:git-worktree-clone-mount-desired-state";
+pub(super) const DESIRED_STATE: &str = "org.monochromatic:git-worktree-clone-mount-desired-state";
 
 /// The store the sweep records into.
-const STORE: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities";
+pub(super) const STORE: &str = "/var/lib/monochromatic-git-policy-cli/git-worktree-clone-slot-identities";
 
 /// Whether this run is inside the guest,
 /// or a skip line on every other machine.
-fn guest() -> bool {
+pub(super) fn guest() -> bool {
     let Ok(name) = std::env::var(GUEST_VARIABLE) else {
         println!("SKIP worktree_clone_mount_handler::sweep_guest: {GUEST_VARIABLE} is unset, so this arm runs only in the throwaway mvm guest");
         return false;
@@ -130,13 +130,13 @@ fn guest() -> bool {
 
 /// One required fixture variable,
 /// or a panic naming it.
-fn required(variable: &str) -> String {
+pub(super) fn required(variable: &str) -> String {
     return std::env::var(variable).unwrap_or_else(|_error| panic!("{variable} is unset inside the guest, so this arm has no fixture to run against"));
 }
 
 /// Run one `zfs` or `zpool` command as root,
 /// returning its status and both streams.
-fn zfs(sbin: &str, program: &str, arguments: &[&str], stdin: Option<&str>) -> (bool, String, String) {
+pub(super) fn zfs(sbin: &str, program: &str, arguments: &[&str], stdin: Option<&str>) -> (bool, String, String) {
     let path: String = format!("{sbin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
     let mut child = Command::new(program)
         .args(arguments)
@@ -159,31 +159,31 @@ fn zfs(sbin: &str, program: &str, arguments: &[&str], stdin: Option<&str>) -> (b
 }
 
 /// Run one `zfs` command and require it succeeded.
-fn zfs_ok(sbin: &str, arguments: &[&str]) {
+pub(super) fn zfs_ok(sbin: &str, arguments: &[&str]) {
     let (ok, _out, error): (bool, String, String) = zfs(sbin, "zfs", arguments, None);
     assert!(ok, "zfs {arguments:?} was refused: {error}");
 }
 
 /// Run one `zfs` command whose failure this arm expects.
-fn zfs_ignored(sbin: &str, arguments: &[&str]) {
+pub(super) fn zfs_ignored(sbin: &str, arguments: &[&str]) {
     let (_ok, _out, _error): (bool, String, String) = zfs(sbin, "zfs", arguments, None);
 }
 
 /// Run one program and require it succeeded.
-fn command_ok(program: &str, arguments: &[&str]) {
+pub(super) fn command_ok(program: &str, arguments: &[&str]) {
     let status: std::process::ExitStatus = Command::new(program).args(arguments).status().unwrap_or_else(|error| panic!("{program} {arguments:?} could not start: {error}"));
     assert!(status.success(), "{program} {arguments:?} was refused");
 }
 
 /// Whether any mount claims the dataset as its source.
-fn mounted(dataset: &str) -> bool {
+pub(super) fn mounted(dataset: &str) -> bool {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the arm reads this process's mount table");
     return table.lines().any(|line| return line.contains(&format!(" - zfs {dataset} ")));
 }
 
 /// The mount's own row for one folder,
 /// or nothing when no mount stands there.
-fn mount_row(folder: &Path) -> Option<String> {
+pub(super) fn mount_row(folder: &Path) -> Option<String> {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the arm reads this process's mount table");
     let wanted: String = folder.display().to_string();
     return table.lines().find(|line| return line.split(' ').nth(4) == Some(wanted.as_str())).map(|line| return String::from(line));
@@ -191,25 +191,25 @@ fn mount_row(folder: &Path) -> Option<String> {
 
 /// Take one mount down by its path,
 /// which is this arm's own cleanup and never the route's unmount.
-fn unmount_at(folder: &Path) {
+pub(super) fn unmount_at(folder: &Path) {
     let status: std::process::ExitStatus = Command::new("umount").arg(folder).status().expect("the cleanup unmount starts");
     assert!(status.success(), "the control's own cleanup could not unmount {}", folder.display());
 }
 
 /// What one sweep run answered.
-struct Run {
+pub(super) struct Run {
     /// The status the handler exited with.
-    status: Option<i32>,
+    pub(super) status: Option<i32>,
     /// Its standard output and error,
     /// joined.
-    said: String,
+    pub(super) said: String,
     /// How long it took.
-    elapsed: Duration,
+    pub(super) elapsed: Duration,
 }
 
 /// Run the built handler's default invocation,
 /// which is the sweep.
-fn sweep() -> Run {
+pub(super) fn sweep() -> Run {
     let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
     let started: Instant = Instant::now();
     let output: Output = Command::new(binary).output().expect("the handler starts");
@@ -222,16 +222,16 @@ fn sweep() -> Run {
 
 /// The line the sweep printed about one dataset,
 /// or nothing when it printed none.
-fn line_about<'a>(said: &'a str, dataset: &str) -> Option<&'a str> {
+pub(super) fn line_about<'a>(said: &'a str, dataset: &str) -> Option<&'a str> {
     return said.lines().find(|line| {
-        return line.contains(dataset) && (line.starts_with("attached ") || line.starts_with("refused ") || line.starts_with("nothing ") || line.starts_with("failed ") || line.starts_with("held "));
+        return line.contains(dataset) && (line.starts_with("attached ") || line.starts_with("unmounted ") || line.starts_with("reattached ") || line.starts_with("refused ") || line.starts_with("nothing ") || line.starts_with("failed ") || line.starts_with("held "));
     });
 }
 
 /// Write the handler configuration the sweep reads.
 /// A name this arm does not give is left out,
 /// which is the file the design's fallback reads.
-fn write_configuration(checkout: &Path, parent: Option<&str>, checkout_dataset: Option<&str>) {
+pub(super) fn write_configuration(checkout: &Path, parent: Option<&str>, checkout_dataset: Option<&str>) {
     let directory: &Path = Path::new(CONFIGURATION).parent().expect("the configuration has a folder");
     std::fs::create_dir_all(directory).expect("the configuration folder is made");
     let mut members: Vec<String> = vec![format!(r#""checkout": "{}""#, checkout.display())];
@@ -261,7 +261,7 @@ fn write_configuration(checkout: &Path, parent: Option<&str>, checkout_dataset: 
 ///  the running machine,
 ///  so a hand-written record that named no kernel or module would be stale and
 ///  the arm would prove nothing about the sweep.
-fn write_passing_probe_record() {
+pub(super) fn write_passing_probe_record() {
     let live: ProbeFingerprint = ProbeFingerprint::read(&FingerprintPaths::live()).expect("the guest's fingerprint reads");
     std::fs::create_dir_all(PROBE_RECORD_DIRECTORY).expect("the probe record's folder is made");
     let text: String = format!(
@@ -288,7 +288,7 @@ fn write_passing_probe_record() {
 ///  the parent record is its input,
 ///  and a slot record left by an earlier arm would refuse the clone this arm
 ///  creates.
-fn prepare_the_store(checkout: &Path) {
+pub(super) fn prepare_the_store(checkout: &Path) {
     let _cleared: std::io::Result<()> = std::fs::remove_dir_all(STORE);
     std::fs::create_dir_all(STORE).expect("the store folder is made");
     std::fs::set_permissions(STORE, std::fs::Permissions::from_mode(0o755)).expect("the store folder is root's and readable");
@@ -304,7 +304,7 @@ fn prepare_the_store(checkout: &Path) {
 ///  The first observation reads the slot's `.git` and refuses a slot that holds
 ///  no registration of this checkout,
 ///  so an empty folder is not a fixture the sweep mounts.
-fn make_the_slot(checkout: &Path, slot: &str) {
+pub(super) fn make_the_slot(checkout: &Path, slot: &str) {
     let folder: PathBuf = checkout.join(".claude").join("worktrees").join(slot);
     std::fs::create_dir_all(folder.as_path()).expect("the slot folder is made");
     std::fs::set_permissions(folder.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the slot folder holds its mode");
@@ -322,7 +322,7 @@ fn make_the_slot(checkout: &Path, slot: &str) {
 ///  and the fallback finds the container beside the checkout dataset,
 ///  so the fixture is the design's layout rather than a folder on the guest's
 ///  root.
-fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, String) {
+pub(super) fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, String) {
     let base: String = format!("{pool}/step8");
     let checkout_dataset: String = format!("{base}/{CHECKOUT_LEAF}");
     let container: String = format!("{base}/{CONTAINER_LEAF}");
@@ -348,7 +348,7 @@ fn make_the_designs_layout(sbin: &str, pool: &str, checkout: &Path) -> (String, 
 ///  The origin must be a snapshot of the checkout dataset under the add route's
 ///  prefix,
 ///  so the fixture is that snapshot and this is the clone of it.
-fn clone_the_checkouts_snapshot(sbin: &str, checkout_dataset: &str, container: &str, slot: &str, snapshot_suffix: &str, intent: Option<&str>) -> String {
+pub(super) fn clone_the_checkouts_snapshot(sbin: &str, checkout_dataset: &str, container: &str, slot: &str, snapshot_suffix: &str, intent: Option<&str>) -> String {
     let snapshot: String = format!("{checkout_dataset}@{ORIGIN_PREFIX}{snapshot_suffix}");
     zfs_ok(sbin, &["snapshot", snapshot.as_str()]);
     let clone: String = format!("{container}/{slot}");
@@ -360,7 +360,7 @@ fn clone_the_checkouts_snapshot(sbin: &str, checkout_dataset: &str, container: &
 }
 
 /// The mount request one clone carries.
-fn mount_request(nonce: &str) -> String {
+pub(super) fn mount_request(nonce: &str) -> String {
     return format!("v1:{nonce}:mount");
 }
 

@@ -89,8 +89,44 @@ struct TreeFixture {
 }
 
 fn tree_fixture(name: &str) -> TreeFixture {
+    return tree_fixture_in(name, &["init"], false);
+}
+
+/// The stores the in-process object reader declines,
+/// as the arms of the controls below:
+/// the words an arm is named with,
+/// the `git init` arguments of its format,
+/// and whether it holds an unrelated replace ref.
+/// Why:
+///  A declined reader asks Git,
+///  so a control of what the landing asks has to stand where the refusal happens.
+const DECLINED_STORES: [(&str, &[&str], bool); 2] = [
+    ("reftable", &["init", "--ref-format=reftable"], false),
+    ("files beside a replace ref", &["init"], true),
+];
+
+/// `tree_fixture` in the store an arm names.
+fn declined_tree_fixture(name: &str, (label, format, replace): (&str, &[&str], bool)) -> TreeFixture {
+    return tree_fixture_in(&format!("{name}-{}", label.replace(' ', "-")), format, replace);
+}
+
+/// `tree_fixture` with the repository initialized by `init`,
+/// holding an unrelated replace ref when `replace` asks.
+fn tree_fixture_in(name: &str, init: &[&str], replace: bool) -> TreeFixture {
     let root: PathBuf = fixture(name);
-    git_output(root.as_path(), &["init", "--quiet"]);
+    let mut opened: Vec<&str> = init.to_vec();
+    opened.push("--quiet");
+    git_output(root.as_path(), opened.as_slice());
+    if replace {
+        // A replace ref on an object nothing in this fixture names: the reader declines the store, and what Git
+        // answers for the objects this fixture asks about is what it answered before.
+        std::fs::write(root.join("replaced.txt"), "replaced\n").expect("file");
+        std::fs::write(root.join("standing-in.txt"), "standing in\n").expect("file");
+        let named = |path: &str| -> String { return String::from_utf8_lossy(&git_output(root.as_path(), &["hash-object", "-w", path]).stdout).trim().to_string(); };
+        let replaced: String = named("replaced.txt");
+        let standing_in: String = named("standing-in.txt");
+        assert!(git_output(root.as_path(), &["replace", replaced.as_str(), standing_in.as_str()]).status.success(), "the unrelated replace ref");
+    }
     std::fs::create_dir(root.join("d")).expect("directory");
     std::fs::write(root.join("d").join("a.txt"), "content\n").expect("file");
     assert!(git_output(root.as_path(), &["add", "d/a.txt"]).status.success());
@@ -250,4 +286,91 @@ fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content() {
     assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&request]));
     assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &request));
     remove(fixed.root.as_path());
+}
+
+/// What:
+///  A blob a prune removed from below an amended tree is removed content where the reader declines the store,
+///  so the landing asks Git about the tree instead of importing over the loss.
+/// Why:
+///  An amendment embeds a whole tree and no list of blobs,
+///  so only the tree's own question sees a blob that did not change in the amendment.
+///  The reader declines a reftable store and a files store holding a replace ref,
+///  and taking that decline as an answer imported over the gone blob.
+#[test]
+fn a_blob_removed_from_under_an_embedded_tree_is_removed_content_where_the_reader_declines() {
+    for store in DECLINED_STORES {
+        let (label, _format, _replace) = store;
+        let fixed = declined_tree_fixture("pruned-tree-blob-declined", store);
+        let common: PathBuf = fixed.root.join(".git");
+        assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]), "{label}: the tree is complete");
+        remove_loose(fixed.root.as_path(), fixed.blob.as_str());
+        // Positive control: Git itself no longer finds the blob the tree names.
+        assert_eq!(git_output(fixed.root.as_path(), &["cat-file", "-e", fixed.blob.as_str()]).status.code(), Some(1), "{label}: the blob is gone");
+        assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&fixed.request]), "{label}: the amended tree names a gone blob");
+        assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &fixed.request), "{label}: the client's check names the tree too");
+        remove(fixed.root.as_path());
+    }
+}
+
+/// What:
+///  A commit Git built whose object a prune removed is removed content where the reader declines the store,
+///  in the landing's question and in the client's,
+///  and a present one is not.
+/// Why:
+///  A request for a commit Git built names that commit and nothing else,
+///  so its presence is the only question either side can ask about the content it captured.
+///  Taking the decline as "not gone" moved the branch to a commit no object holds.
+#[test]
+fn a_gone_commit_git_built_is_removed_content_where_the_reader_declines() {
+    for store in DECLINED_STORES {
+        let (label, _format, _replace) = store;
+        let fixed = declined_tree_fixture("pruned-built-commit-declined", store);
+        let common: PathBuf = fixed.root.join(".git");
+        let objects: PathBuf = common.join("objects");
+        let text = |arguments: &[&str]| -> String { return String::from_utf8_lossy(&git_output(fixed.root.as_path(), arguments).stdout).trim().to_string(); };
+        let built: String = text(&["commit-tree", fixed.request.tree.as_deref().expect("the tree"), "-m", "built"]);
+        let mut sent: CommitRequest = fixed.request.clone();
+        sent.changes = Vec::new();
+        sent.tree = None;
+        sent.amend = false;
+        sent.commit = Some(built.clone());
+        assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: the commit is present");
+        assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), objects.as_path(), "sha1", &sent), "{label}: the client's question finds it present");
+        remove_loose(fixed.root.as_path(), built.as_str());
+        // Positive control: Git itself no longer finds the commit Git built.
+        assert_eq!(git_output(fixed.root.as_path(), &["cat-file", "-e", built.as_str()]).status.code(), Some(1), "{label}: the commit is gone");
+        assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: the landing's question names the gone commit");
+        assert!(prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), objects.as_path(), "sha1", &sent), "{label}: the client's question names the gone commit");
+        remove(fixed.root.as_path());
+    }
+}
+
+/// What:
+///  A submodule entry below an embedded tree is not removed content where the reader declines either,
+///  and a blob beside it that is gone is.
+/// Why:
+///  A submodule names a commit of another repository,
+///  so its absence here says nothing about the content the request captured;
+///  the positive control shows the same question sees a loss in the same tree,
+///  which is what the landing would import over.
+#[test]
+fn a_submodule_entry_below_an_embedded_tree_is_not_removed_content_where_the_reader_declines() {
+    for store in DECLINED_STORES {
+        let (label, _format, _replace) = store;
+        let fixed = declined_tree_fixture("pruned-tree-gitlink-declined", store);
+        let common: PathBuf = fixed.root.join(".git");
+        let added = git_output(
+            fixed.root.as_path(),
+            &["update-index", "--add", "--cacheinfo", "160000,0123456789abcdef0123456789abcdef01234567,sub"],
+        );
+        assert!(added.status.success(), "{label}: the gitlink entry");
+        let written = git_output(fixed.root.as_path(), &["write-tree"]);
+        let mut sent: CommitRequest = fixed.request.clone();
+        sent.tree = Some(String::from_utf8_lossy(&written.stdout).trim().to_string());
+        assert!(!batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: another repository's commit is not a loss here");
+        assert!(!prepared_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), common.join("objects").as_path(), "sha1", &sent), "{label}: the client's check agrees");
+        remove_loose(fixed.root.as_path(), fixed.blob.as_str());
+        assert!(batch_content_missing(&git_context(), fixed.root.as_path(), common.as_path(), &[&sent]), "{label}: the blob beside the gitlink is gone");
+        remove(fixed.root.as_path());
+    }
 }

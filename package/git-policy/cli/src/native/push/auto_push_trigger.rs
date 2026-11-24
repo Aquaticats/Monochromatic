@@ -350,7 +350,7 @@ pub fn tip_to_push_or_why(watch: &TipWatch) -> Result<String, Declined> {
     if upstream == after {
         return Err(declined("upstream-equals-tip", format!("{after} is already the upstream tip")));
     }
-    let Some(database) = ObjectDatabase::open(watch.layout.common_dir.as_path(), None, watch.layout.object_format) else {
+    let Some(database) = ObjectDatabase::open_where_the_layout_proved_the_store(&watch.layout, None) else {
         return Err(declined("object-database-unopened", watch.layout.common_dir.display().to_string()));
     };
     let Some(grew) = reaches(&database, &watch.layout, after.as_str(), watch.before.as_str(), WALK_BUDGET) else {

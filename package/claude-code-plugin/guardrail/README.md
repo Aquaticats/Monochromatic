@@ -278,3 +278,21 @@ A > B > C.
 A beats B because it needs no new rule kind and keeps bundling out of the file renderer.
 B beats C because it checks in CI and by one local command
 instead of adding a bundle build to the commit path.
+
+From lines 39162 to 39174 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  Old against new bundle on 3000 commands sampled evenly from 386294 distinct Bash commands in 1725 local transcripts
+  (owner:
+  "I approve personal data and transcript corpus commands.";
+  scratch `~/temp/agent/gbm`,
+  `extract-streaming.ts`,
+  `diff-run.ts`,
+  `diff-run2.ts`):
+  guardrail 3000 commands,
+  one deny on each side for the same command (an `until ! pgrep` loop),
+  differing only in the refusal text (`2619ea3af7`),
+  no non-zero exit;
+  `bash-output-filter` 1620 of 1620 identical;
+  `terminal-title` 800 of 800 identical title bytes on a private pty.

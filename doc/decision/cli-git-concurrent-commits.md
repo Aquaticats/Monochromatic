@@ -221,6 +221,15 @@ Superseded 2026-11-10T05:40:16-05:00 by the owner's answer "Amend the record (Re
 neither wait in the preceding paragraph is unbounded any more.
 The bounds are named in the "Locks" list and quote the owner's "nothing should ever wait forever or indefinitely".
 
+From lines 35037 to 35041 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+The owner decision in force ("Reference-lock removal (the ninth design review's R9-S)",
+"Keep narrowed removal (Recommended)") is unchanged by this branch:
+nothing here removes a reference lock,
+and the one removal the judgement still performs is the orphan staging file of the packed references.
+
 ## Auto-push
 
 Pushes are single-flight per branch.
@@ -661,6 +670,46 @@ and it is surfaced with the paths that conflict.
 The container checker now accepts either the original failure note or the `cli-git: auto-push: not published:` line
 for that case.
 
+From lines 36411 to 36420 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Owner answers 2026-11-03 (question tool):
+stuck step "End Git,
+hold hooks (Recommended)" (a Git child with no progress for a measured interval is ended and its
+step redone;
+the person's hook is never ended,
+its commit is set aside as pending with a notice and the others keep landing on top);
+deferred staging "Update the index (Recommended)" (a deliberate restage to exactly the old entry inside a foreign
+lock's window is replaced,
+accepted as undetectable);
+unclear publication "Land it (Recommended)" (landed with a message naming it and how to drop it).
+
+From lines 41263 to 41273 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+1.  A merge touching a path the person has staged:
+    decided by the owner (question tool,
+    answered before 12:56:51-05:00):
+    "Merge anyway,
+    unstage x" (P-carry;
+    the staged content becomes an unstaged edit merged onto the result),
+    over refusing at once like Git.
+2.  A `git switch` finishing after the lane's last check during merge file writes:
+    decided by the owner:
+    "Allow the rare leftover" (W-detect;
+    the owner was told a `git commit -a` in that window could commit the merge's files to the wrong branch).
+
+From lines 41304 to 41307 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+3.  A `git switch` finishing between the merge's guard and its file writes:
+    detect after and restore from pinned files (W-detect),
+    over never writing merge files automatically,
+    because of "Auto merging should never fail."
+
 ## Rejected
 
 - A lock queue around today's unchanged transaction.
@@ -672,3 +721,22 @@ for that case.
 - `extensions.worktreeConfig` for the hook work tree:
   it mutates every repository's config and still needs the shim to hold back `post-commit`.
 - Opt-out config keys and environment variables.
+
+## Moved from the old handover
+
+From lines 36379 to 36382 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Its own trade-off,
+not an owner decision:
+a wedged owner has no automatic recovery and the person restarts the unit,
+which the coordinator flagged against "never stuck".
+
+From lines 36399 to 36401 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Its judgments:
+no construction recovers a silent wedge without a time bound and also never repeats a hook's effect,
+and manual restart cannot silently satisfy "never stuck";
