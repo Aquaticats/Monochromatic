@@ -1297,6 +1297,20 @@ await describe({
       },
     },),
     it({
+      name: 'keeps the owner\'s reason when a caller closes a pool the owner had already closed',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          model: NEURALWATT_KIMI_FLEX.model,
+          environment: { [POOL_LIMITS_VARIABLE]: `${NEURALWATT_KIMI_FLEX.name}=0`, },
+        },);
+        expect(answered.code,).toBe(CLOSED_POOL_EXIT_STATUS,);
+        // Both reasons reach the reader: the caller's zero is what takes no new run now, and the owner's words are why the pool
+        // was set aside before that.
+        expect(answered.stderr,).toContain(`${POOL_LIMITS_VARIABLE} set its limit to zero`,);
+        expect(answered.stderr,).toContain(NEURALWATT_KIMI_FLEX.closed?.reason ?? '',);
+      },
+    },),
+    it({
       name: 'takes a run that names an open pool, and reaches its unit',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
