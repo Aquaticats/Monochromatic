@@ -376,6 +376,16 @@ fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo>
 /// ```
 #[cfg(unix)]
 fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], facts: &CopyFacts) -> ForwardedRun {
+    // The ZFS clone route serves one `git worktree add` on the design's checkout
+    // dataset, and answers nothing for every other command or checkout
+    // (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 10).
+    #[cfg(target_os = "linux")]
+    if facts.creates
+        && facts.add_plan.is_some()
+        && let Some(finished) = crate::worktree_clone_add_route::run_a_zfs_add(real_git, arguments, overlay, facts)
+    {
+        return finished;
+    }
     #[cfg(target_os = "linux")]
     if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
         return finished;

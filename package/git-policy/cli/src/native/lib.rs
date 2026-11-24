@@ -280,6 +280,25 @@ pub use worktree_clone_unmount::*;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_binding_record;
 
+/// The execution half of the ZFS add route:
+///  the gate,
+///  the preflight,
+///  the claim,
+///  Git's locked add,
+///  the scan,
+///  the snapshot and clone,
+///  the mount,
+///  the frozen proof,
+///  the fill and the resume a later add makes.
+/// It is Linux only,
+/// like the descriptor walks and the pool calls it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_add_route;
+
+/// The same re-export for `worktree_clone_add_route`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_add_route::*;
+
 /// The same re-export for `worktree_clone_binding_record`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_binding_record::*;
