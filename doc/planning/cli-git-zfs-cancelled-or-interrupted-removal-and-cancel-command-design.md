@@ -4168,10 +4168,9 @@ In this repository:
   an add whose own unmount is refused as busy",
   the same merge.
 - The gate review of the two step 17 designs,
-  all three passes,
-  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review.md`,
-  `review-second-pass.md`,
-  `review-after-the-owners-answers.md` and `review-after-the-further-answers.md`,
+  all nine reads of this text,
+  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`,
+  `review.md` first and `review-third-read-after-the-probe-rounds.md` last,
   with the material kept beside them.
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
   the sections this file quotes and the whole of "Removal and recovery",
