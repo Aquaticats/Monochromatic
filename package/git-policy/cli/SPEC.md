@@ -21741,14 +21741,15 @@ so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
 A probe with no configuration file costs one read of this process's mount table
 and its parse over one whose file names every entry,
-about 90 microseconds,
+about 75 microseconds,
 once per boot.
 The look-up reads the table once and takes the checkout's dataset from the row
 that carried the path,
 so the second read the first build made is gone:
-the look-up's own work went from 162 to 90 microseconds,
-timed in the guest against a control of ten reads of the same file (787
-microseconds) and a null control of 20 nanoseconds.
+the two look-up calls were timed one by one in the guest,
+against a control of ten reads of the same file (787 microseconds) and a null
+control of 20 nanoseconds,
+and they took 161 microseconds together before the change and 75 after it.
 The whole command is not measurably slower,
 and the arms that would show it do not agree:
 three phases of forty interleaved rounds in one throwaway `mvm` guest,
@@ -21759,7 +21760,8 @@ builds,
 and 0.974 before and 0.976 after in an idle one,
 with the repeat arms 0.978,
 1.013,
-0.996 and 0.995 of their controls.
+0.996,
+0.995 and 0.995 of their controls.
 The spread of an unchanged arm was measured before any comparison,
 thirty rounds of the file-named arm against an identical repeat of itself,
 and gave a median per-round ratio of 1.028 over a range of 0.775 to 1.747,

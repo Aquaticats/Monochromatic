@@ -175,6 +175,9 @@ with the same patch method:
   75.4 us,
   the dataset look-up:
   86.1 us,
+  and the two together 161.5 us,
+  which is the no-file look-up's own work before
+  the change and 75.4 after it,
 - the first open of the table in the worker:
   93,285 us in the loaded guest and
   12,000 to 17,000 in the quiet one,
