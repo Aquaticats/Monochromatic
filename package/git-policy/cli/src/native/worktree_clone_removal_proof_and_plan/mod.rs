@@ -56,7 +56,9 @@
 //! - `plan_publication.rs`:
 //!   the folder's creation and the one write a removal makes.
 //! - `removal_identities.rs`:
-//!   the identities the add recorded and the ones a live read answers.
+//!   the identities the add recorded,
+//!   the origin-side inventory it recorded,
+//!   and the registration's own identity.
 //! - `removal_inventory.rs`:
 //!   the clone's live snapshots and bookmarks by kind,
 //!   name,
@@ -65,8 +67,9 @@
 //! - `removal_reads.rs`:
 //!   the pool reads the proof makes,
 //!   as a seam with one live implementation over the binding.
-//! - `associations.rs`:
-//!   the sentences the proof's refusals print.
+//! - `removal_stop.rs`:
+//!   every way the removal stops,
+//!   and the sentence each prints.
 //! - `lineage_proof.rs`:
 //!   the three checks,
 //!   the origin-side comparison and the refusal each makes.
@@ -98,6 +101,15 @@ pub mod plan_record;
 pub mod plan_parse;
 pub mod plan_reading;
 pub mod plan_publication;
+pub mod removal_inventory;
+pub mod removal_reads;
+pub mod removal_stop;
+pub mod removal_identities;
+pub mod lineage_proof;
+pub mod bookmark_rule;
+pub mod loss_names;
+pub mod unmount_request;
+pub mod removal_entry;
 
 pub use canonical_decimal::{decimal_digits, is_canonical_decimal, parse_canonical_u64};
 pub use plan_bounds::{
@@ -107,13 +119,28 @@ pub use plan_bounds::{
 pub use plan_name::{is_a_snapshot_of, is_canonical_plan_name, is_dataset_name, is_snapshot_name};
 pub use plan_parse::{PlanHeader, parse_plan, parse_plan_header};
 pub use plan_publication::PlanFolder;
-pub use plan_reading::{HEADER_LINE_COUNT, check_the_folder, check_the_record_owner, is_a_plan_entry, read_the_plan, read_the_plan_at, split_the_header};
+pub use plan_reading::{HEADER_LINE_COUNT, check_the_folder, check_the_record_owner, is_a_plan_entry, read_an_existing_plan, read_the_plan, read_the_plan_at, split_the_header};
 pub use plan_record::{DestructionPlan, PlanAttempt, PlanFacts, PlanSnapshot, owner_text, target_hexadecimal};
 pub use plan_refusal::{PlanRefusal, PlanRefusalCause};
 pub use plan_words::{ATTEMPT_KEY, ATTEMPT_NAME_KEY, HeadWord, NO_ERRNO, NO_MOUNT_ID, PLAN_HEADER, PLAN_KEYS_IN_ORDER, SNAPSHOT_KIND, SnapshotOutcome};
 pub use started_moment::{is_seconds_with_offset, now_with_offset};
+pub use removal_inventory::{LiveInventory, LiveObject};
+pub use removal_reads::{LiveRemovalReads, RemovalPoolReads, whole_inventory};
+pub use removal_stop::{BookmarkRefusalReason, RefusedBookmark, RemovalStop};
+pub use removal_identities::{RecordedBinding, prove_the_adds_registration, read_the_origin_inventory, read_the_recorded_binding};
+pub use lineage_proof::{ObjectIdentity, ProvenIdentities, ProvenRemoval, prove_the_lineage};
+pub use bookmark_rule::{Explanations, explanations_of, refuse_the_unexplained_bookmarks};
+pub use loss_names::NamesToBeLost;
+pub use unmount_request::{ExpectedUnmount, LiveRemovalUnmount, RemovalIntent, RemovalUnmount, UnmountAnswer, UnmountProof, verify_the_answer};
+pub use removal_entry::{EnteredRemoval, RemovalClock, RemovalEntry, TheLiveClock, enter_the_removal};
 
 /// The plan every control of this folder starts from. Never part of the release executable.
 #[cfg(test)]
 #[path = "plan_fixtures_tests.rs"]
 pub(crate) mod fixtures;
+
+/// The repository, binding, origin inventory and scripted pool the removal's controls drive.
+/// Never part of the release executable.
+#[cfg(test)]
+#[path = "removal_fixtures_tests.rs"]
+pub(crate) mod removal_fixtures;

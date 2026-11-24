@@ -227,6 +227,37 @@ fn header_region_bytes(bytes: &[u8]) -> Result<usize, PlanRefusal> {
 }
 
 /// What:
+///  The plan standing for one clone,
+///  or nothing when no plan file is there.
+/// Why:
+///  A repository with no plan folder and a clone with no plan are the healthy state,
+///  and a caller that had to branch on `NotFound` itself would turn a permission error into an
+///  absence sooner or later.
+///  A plan that is there and does not read is a refusal,
+///  never an absence:
+///  it may hold the only record of a snapshot an earlier run destroyed.
+///
+/// # Throws
+/// The plan whose bytes refuse,
+/// and never an absent file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = readAnExistingPlan(commonDir, cloneGuid); // undefined when none stands
+/// ```
+pub fn read_an_existing_plan(common_dir: &Path, clone_guid: DatasetGuid) -> Result<Option<DestructionPlan>, PlanRefusal> {
+    let folder: PathBuf = plans_folder(common_dir);
+    let name: String = clone_guid.file_name();
+    let path: PathBuf = folder.join(name.as_str());
+    match std::fs::symlink_metadata(path.as_path()) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(PlanRefusal::at(PlanRefusalCause::Unreadable, "file", error.to_string())),
+        Ok(_) => {}
+    }
+    return read_the_plan(common_dir, clone_guid).map(Some);
+}
+
+/// What:
 ///  One encoded record split where its header region ends,
 ///  so a writer can hand the two regions to the same parse its reader calls.
 /// Why:
