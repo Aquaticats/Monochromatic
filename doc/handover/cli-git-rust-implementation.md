@@ -750,7 +750,16 @@ Its new denials (`git` asking `dac_override`,
 `git//ssh` running `/work/stubs/askpass`,
 `ssh-agent` asking `setgid` and making sockets,
 `ssh` running `true`, `false`, `cat` and `echo`)
-map to no failure and have no rule yet.
+map to no failure.
+Their trace (the account's "Ninth batch: the gate at 8519c599d0", merged as `68c8dcaa21`)
+put most on the L4 design round's own probe containers,
+left the 28 capability records unattributed with no grant,
+and proposed one rule for `systemd-analyze`'s working folder;
+applied with the two read rules a run showed it needs,
+the daily-update timer's `systemd-analyze --user verify` now exits 0.
+It also named a blind spot,
+the ssh-terminal and askpass controls passing when their askpass program is refused,
+which `pi-askpass-controls-see-a-refused-program` fixes.
 Waiting for the memory stall to ease,
 with prompts ready in their folders under `~/temp/agent/`:
 `zfs-step-10-add-route-blocking-sleeps-2026-11-24`,
