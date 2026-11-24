@@ -25,8 +25,9 @@ use super::probe_record::ProbeRecord;
 use super::probe_record_files::{RecordFileRefusal, RecordPlace};
 use super::probe_errno_names::ErrnoWord;
 use super::probe_report::{ProbeReport, ProbeVerdict};
+use super::probe_configuration::ProbeCheckout;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// The line the mode says about a run it could not start.
 pub fn unstarted(what: &str, errno: i32) -> String {
@@ -163,12 +164,12 @@ pub fn refusal_sentence(word: &str, configuration: &Path, mounts: &dyn MountedDa
         Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
         Err(_) => return None,
     };
-    let checkout: PathBuf = match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
+    let checkout: ProbeCheckout = match super::probe_configuration::checkout_path(document.as_deref(), mounts) {
         Ok(checkout) => checkout,
         Err(refusal) if refusal.word() == word => return Some(refusal.message(configuration)),
         Err(_) => return None,
     };
-    return match super::probe_configuration::source_name(document.as_deref(), configuration, mounts, Some(checkout.as_path())) {
+    return match super::probe_configuration::source_name(document.as_deref(), configuration, mounts, Some(&checkout)) {
         Err(refusal) if refusal.word() == word => Some(refusal.message(configuration)),
         _ => None,
     };

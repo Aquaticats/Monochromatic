@@ -8667,12 +8667,21 @@ moved verbatim on 2026-11-23:
 
 ### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
 
-Each of these was asked in the question tool and answered; the questions file kept them until their subjects
-had a record. The record is named beside each answer.
+Each of these was asked in the question tool and answered;
+the questions file kept them until their subjects
+had a record.
+The record is named beside each answer.
 
-- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
-  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
-  owner's explicit exception to "Commits should never fail." for such an index. Record:
+- An index the commit repair cannot read or write stops with a named reason:
+  "Stop with a named reason
+  (Recommended)",
+  2026-11-10T05:40:16-05:00.
+  The code already did this,
+  so nothing changed,
+  and this is the
+  owner's explicit exception to "Commits should never fail."
+  for such an index.
+  Record:
   `package/git-policy/cli/SPEC.md`.
 
 #### Git steps, tools and checks end only on no progress
@@ -21935,17 +21944,57 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
-A probe with no configuration file is about 25 milliseconds (1.14 times) slower
-than one whose file names every entry,
+A probe with no configuration file costs one read of this process's mount table
+and its parse over one whose file names every entry,
+about 75 microseconds,
 once per boot.
-Three runs measured it,
-and a second pass decomposed it into three lookup arms,
-each 26 to 43 milliseconds over the file-named arm with heavily overlapping
-ranges,
-so the arms do not look additive and the cause is not established;
+The look-up reads the table once and takes the checkout's dataset from the row
+that carried the path,
+so the second read the first build made is gone:
+the two look-up calls were timed one by one in the guest,
+against a control of ten reads of the same file (787 microseconds) and a null
+control of 20 nanoseconds,
+and they took 161 microseconds together before the change and 75 after it.
+The whole command is not measurably slower,
+and the arms that would show it do not agree:
+three phases of forty interleaved rounds in one throwaway `mvm` guest,
+each phase with a repeat of its file-named arm as the control of the method,
+gave no file against file-named as 1.147 in a guest busy with this round's own
+builds,
+1.115 before and 1.123 after the second read was removed in a quiet one,
+and 0.974 before and 0.976 after in an idle one,
+with the repeat arms 0.978,
+1.013,
+0.996,
+0.995 and 0.995 of their controls.
+The spread of an unchanged arm was measured before any comparison,
+thirty rounds of the file-named arm against an identical repeat of itself,
+and gave a median per-round ratio of 1.028 over a range of 0.775 to 1.747,
+so one round resolves nothing and only the medians of many paired rounds carry
+a claim.
+What those arms do show is not the look-up's work but a stall this guest shows
+on a process's first touch of the mount table:
+the first open of `/proc/self/mountinfo` in the worker takes 12 to 17
+milliseconds in a quiet guest and 93 to 105 in a loaded one,
+with 3,824 page faults inside that open,
+while the read that follows it is 146 microseconds and a second open and read in
+the same process 44 and 81 with no faults.
+Split by the timestamps of the probe's own step lines,
+the no-file arm pays that stall in its look-up (12.9 milliseconds) and in its
+holder's start (10.8),
+and the file-named arm pays the same stall once,
+at its mount verify (12.2),
+so the two commands are as far apart as the stalls each meets,
+which is what makes the ratio swing across phases and fall below one.
+This round placed that stall and did not explain it,
+and it withdrew the earlier reading of about 25 milliseconds (1.14 times) as a
+look-up cost:
 the work happens inside the worker phase the deadline bounds,
 whose margin is the 231 milliseconds stated below,
-and this build states the cost rather than sizing the deadline by it.
+and this build states the cost rather than sizing the deadline by it
+(the rounds,
+the arms and the step split are in
+`package/git-policy/cli/doc/start-probe-no-file-cost-measurement-2026-11-23.md`).
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to
