@@ -3018,7 +3018,8 @@ its sections "The size limit on a clean source,
 answered 2026-11-22" and "Four further answers after the recheck,
 answered 2026-11-23").
 The whole-tree size limit sends a source **with changes** whose clones would copy fewer than 762,000,000 bytes to
-Git's own checkout.
+Git's own checkout,
+on ZFS and on a filesystem nobody measured.
 It sums the recorded sizes of the paths the conversion fence would carry and leaves out every path an attribute rule
 hands to Git,
 whose index records the file's own bytes while its blob may hold a pointer
@@ -3027,10 +3028,28 @@ so the figure describes what the rung copies
 (the project's answer "Sum only what it clones",
 `doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
 "What the whole-tree limit sums (D3)").
+**btrfs has no whole-tree rule**:
+the guest round the project's answer asked for measured the dirty shapes there and found the clone no slower than Git's
+own checkout on every one,
+0.41 on this repository's tree,
+0.55 on the 260 MB tree,
+0.73 on the 26 MB tree,
+0.54 on twenty files of 8,000,000 bytes with one untracked file,
+and 0.24 on the same tree clean,
+which is the condition that answer set for dropping the limit there
+(`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+"The dirty-tree limit on Btrfs (D2)",
+and `doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`,
+"Was the clone no slower than Git's own checkout on Btrfs?").
+So a btrfs source with changes is cloned whatever its size,
+including the sizes that round did not measure:
+a dirty tree below 26 MB and one between 260 MB and this repository's tree were not run on btrfs,
+and the twenty-file tree of 160 MB at 0.54 is the one shape inside that range
+(`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`,
+"What this round does not measure").
 The measurements below were taken on ZFS,
-and the whole-tree limit and the changed-file cut apply on every filesystem until a Btrfs round measures the dirty
-shapes (the same record's "The dirty-tree limit on Btrfs (D2)":
-"Yes, after one Btrfs round", which names no change until that round has run).
+so the whole-tree limit applies on ZFS and on a filesystem nobody measured,
+while the changed-file cut applies on every filesystem.
 A dirty source of 10,001 files of 2,600 bytes,
 about 26 MB,
 took 1.30 times Git's own checkout on the fenced rung,
@@ -3044,7 +3063,7 @@ The rung's fence reads cost about the same whatever the tree holds,
 and Git's own checkout grows with the bytes,
 so the rung loses wherever a checkout is shorter than those reads;
 the pin sits at the top of that bracket,
-so no size nobody measured is cloned.
+so no size below this tree is cloned on ZFS or on a filesystem nobody measured.
 A source with no tracked change is judged by its mean tracked file size,
 because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
 files costs more to clone than to write:
@@ -4714,9 +4733,11 @@ because the route takes the named lock itself.
 Every other add,
 including every add in a checkout on another filesystem or on a ZFS dataset of
 another name,
-takes the ladder and copy route described above, unchanged.
+takes the ladder and copy route described above,
+unchanged.
 The dataset name is the gate the route has until plan step 19's one-time
-migration makes it, so no person meets the route before that step.
+migration makes it,
+so no person meets the route before that step.
 
 The route writes the add's order,
 and every step reads the state a kill at the step before it leaves:
@@ -4758,7 +4779,8 @@ and every step reads the state a kill at the step before it leaves:
   and Git writes it into the registration's `locked` file,
   so the registration is locked from its first moment.
   The wrapper writes no lock of its own and no second reason.
-  The departure from the ladder's `--no-checkout` form, and the lock,
+  The departure from the ladder's `--no-checkout` form,
+  and the lock,
   are the add-time lock design's.
 - The scan of `<common>/worktrees` reads each entry's `locked`,
   its `gitdir` and the slot's pointer,
@@ -4891,9 +4913,13 @@ holds.
 What this release does not yet do:
 
 - It writes no path through Git for a conversion rule,
-  so a path whose `.gitattributes`, `core.autocrlf`, `ident`, encoding or filter
+  so a path whose `.gitattributes`,
+  `core.autocrlf`,
+  `ident`,
+  encoding or filter
   would give Git different bytes keeps the source's bytes in the new worktree
   until plan step 11's fence write lands (issue 6323).
+- It does not restore a dirty main checkout;
 - It does not restore a dirty main checkout;
   the route refuses such a source before the claim,
   with the wrapper's refusal exit code,
@@ -4903,7 +4929,8 @@ What this release does not yet do:
   it keeps what it made and the next add resumes it (plan step 11).
 - A record that says an add is settling,
   the lost-lock installer,
-  removal and the settling command are plan steps 11, 13 and 16.
+  removal and the settling command are plan steps 11,
+  13 and 16.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
@@ -4936,7 +4963,9 @@ because each reports a fact the pool already committed that no later command
 can rediscover,
 and a power cut that lost one would leave a clone or a snapshot nothing proves
 the wrapper made
-(`doc/planning/cli-git-zfs-add-binding-record-design.md`, "Publication, and what
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"Publication,
+and what
 a kill leaves").
 Everything here concerns the add's other bookkeeping.
 

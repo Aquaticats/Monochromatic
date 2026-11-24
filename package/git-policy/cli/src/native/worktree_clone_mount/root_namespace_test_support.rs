@@ -81,5 +81,14 @@ pub(crate) fn in_a_root_namespace(variable: &str, test: &str) -> bool {
     let said: String = String::from_utf8_lossy(done.stdout.as_slice()).to_string() + String::from_utf8_lossy(done.stderr.as_slice()).as_ref();
     assert!(done.status.success(), "the inner half failed:\n{said}");
     assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
+    // What: the inner half's own error lines, printed here when it passed.
+    // Why:
+    //  A control that could not do what it is for prints one line naming itself, as the btrfs and ZFS controls do,
+    //  and a line written inside the namespace would otherwise die in this child's captured output;
+    //  the gate asks nextest for a passing test's output (`--success-output=final`), so this line reaches its log.
+    let inner_errors: String = String::from_utf8_lossy(done.stderr.as_slice()).trim().to_string();
+    if !inner_errors.is_empty() {
+        eprintln!("{inner_errors}");
+    }
     return false;
 }

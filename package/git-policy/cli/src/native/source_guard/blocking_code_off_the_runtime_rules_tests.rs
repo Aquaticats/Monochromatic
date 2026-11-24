@@ -491,6 +491,20 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "blocking-sleep",
         why: "the pause between looks at the copy the commit service is making, on the add's own synchronous face; the ceiling ends the wait and no worker of the runtime is held by it",
     },
+    Allowed {
+        file: "worktree_clone_add_route/add_mount.rs",
+        rule: "blocking-sleep",
+        why: "the pause between mount-table reads for the handler's mount at the caller's slot, on the synchronous ZFS add route that \
+              `run_a_zfs_add` enters; it holds the calling command thread, not a worker of the runtime, `MOUNT_WAIT` bounds it and the mount or \
+              a read error ends it. The entry goes when the add path is a task, where an awaited `tokio::time::sleep` ends the pause",
+    },
+    Allowed {
+        file: "worktree_clone_add_route/add_route_plan.rs",
+        rule: "blocking-sleep",
+        why: "the control-only hold between two of the add's steps, on the synchronous ZFS add route that `run_a_zfs_add` enters; it holds the \
+              calling command thread, not a worker of the runtime, `CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_STEP` arms it, the control's release file ends \
+              it and `HOLD_BOUND` bounds it. The entry goes when the add path is a task, where an awaited `tokio::time::sleep` ends the pause",
+    },
     // One call on a known small file inside a task, which the plan allows once and the merge's own step batches.
     Allowed {
         file: "merge/merge_isolation_carry_place.rs",

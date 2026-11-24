@@ -37,14 +37,19 @@
 /// follows;
 /// every other architecture this package could be built for answers
 /// "unavailable" rather than guess a number.
+///
+/// Why a control reads it:
+///  the seccomp filter that proves the fallback has to name the call it
+///  refuses,
+///  and that number belongs here beside the call this build makes.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-const STATMOUNT_NUMBER: Option<libc::c_long> = Some(457);
+pub(crate) const STATMOUNT_NUMBER: Option<libc::c_long> = Some(457);
 
 /// The architectures this package does not declare a `statmount(2)` number
 /// for,
 /// which read the live table instead.
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-const STATMOUNT_NUMBER: Option<libc::c_long> = None;
+pub(crate) const STATMOUNT_NUMBER: Option<libc::c_long> = None;
 
 /// The bytes of `mnt_id_req` that every kernel from 6.8 reads,
 /// which is the uapi's `MNT_ID_REQ_SIZE_VER0`:
