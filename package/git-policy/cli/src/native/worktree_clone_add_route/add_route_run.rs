@@ -68,7 +68,10 @@ pub fn run_a_zfs_add(real_git: &std::path::Path, arguments: &[OsString], overlay
     };
     // The account companion runs in this add's own process, after the gate above and before the claim,
     // so a refusal leaves no managed object (`doc/decision/cli-git-zfs-start-probe.md`, Q-a and Q6).
-    if !crate::account_companion::the_managed_attach_may_go_ahead() {
+    // Its runtime folder is read here, once, and handed to the check as an input: a variable that names no folder,
+    // or a folder that is not a directory, refuses the managed attach in the same words a person already reads.
+    let runtime = crate::account_companion::the_accounts_runtime_folder()?;
+    if !crate::account_companion::the_managed_attach_may_go_ahead(&runtime) {
         return None;
     }
     let context: GitContext = GitContext { real_git: real_git.to_path_buf(), overlay: overlay.to_vec(), global_prefix: Vec::new(), common_dir: Some(common_dir.clone()) };

@@ -36,6 +36,7 @@
 
 use super::{Switch, run_under};
 use crate::account_companion::companion_deadline::COMPANION_DEADLINE;
+use crate::account_companion::companion_scratch::RuntimeFolder;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -49,6 +50,11 @@ const SAMPLES: usize = 3;
 /// Where the fixture repository and its worktrees live,
 /// which the run names.
 const ROOT_VARIABLE: &str = "CLI_GIT_ACCOUNT_COMPANION_MEASUREMENT_ROOT";
+
+/// The name of this measurement's own runtime folder under the root the run
+/// names,
+/// which keeps the sampling out of the session's runtime directory.
+const RUNTIME_FOLDER_NAME: &str = "runtime";
 
 /// One arm's samples in one round.
 #[derive(Clone, Debug, Default)]
@@ -96,9 +102,9 @@ fn time_an_add(binary: &Path, repository: &Path, slot: &Path) -> Duration {
 /// What:
 ///  One companion run,
 ///  timed as the preflight spends it.
-fn time_the_companion(switch: Switch) -> Duration {
+fn time_the_companion(switch: Switch, runtime: &RuntimeFolder) -> Duration {
     let began: Instant = Instant::now();
-    let verdict = run_under(switch, COMPANION_DEADLINE);
+    let verdict = run_under(runtime, switch, COMPANION_DEADLINE);
     let taken: Duration = began.elapsed();
     assert!(verdict.the_managed_attach_goes_ahead(), "the companion refused on this host, so no sample was taken: {:?}", verdict.lines());
     return taken;
@@ -113,6 +119,11 @@ fn time_the_companion(switch: Switch) -> Duration {
 fn companion_cost_measurement() {
     let root: PathBuf = measurement_root();
     let repository: PathBuf = root.join("repository");
+    // The companion's runtime folder is this measurement's own, under the root it was given, so the sampling never
+    // reads or writes the session's runtime directory.
+    let runtime_root: PathBuf = root.join(RUNTIME_FOLDER_NAME);
+    std::fs::create_dir_all(runtime_root.as_path()).expect("the measurement's runtime folder is creatable");
+    let runtime: RuntimeFolder = RuntimeFolder::at(runtime_root.as_path()).expect("the measurement's runtime folder is a directory");
     let binary: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/release/monochromatic-git-policy-cli");
     assert!(binary.is_file(), "the release wrapper is not built at {}; run `mise run //package/git-policy/cli:native:build:release` first", binary.display());
     make_fixture(repository.as_path());
@@ -126,10 +137,10 @@ fn companion_cost_measurement() {
         for sample in 0..SAMPLES {
             let slot: PathBuf = root.join(format!("slot-{round}-{sample}"));
             add_first.samples.push(time_an_add(binary.as_path(), repository.as_path(), slot.as_path()));
-            companion_first.samples.push(time_the_companion(Switch::None));
+            companion_first.samples.push(time_the_companion(Switch::None, &runtime));
             add_second.samples.push(time_an_add(binary.as_path(), repository.as_path(), slot.as_path()));
-            companion_second.samples.push(time_the_companion(Switch::None));
-            disabled.samples.push(time_the_companion(Switch::Disabled));
+            companion_second.samples.push(time_the_companion(Switch::None, &runtime));
+            disabled.samples.push(time_the_companion(Switch::Disabled, &runtime));
         }
         let add: Duration = add_first.median().max(add_second.median());
         let companion: Duration = companion_first.median().max(companion_second.median());
