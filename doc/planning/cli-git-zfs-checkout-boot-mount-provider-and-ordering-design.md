@@ -278,12 +278,18 @@ Why each line, and what the runs said about it:
   This is what makes the gate part of the boot at all; without it the unit runs only on a manual start.
   It also carries the implicit `After=basic.target` that the ordering paragraph above explains.
 
-The ZED hook, whose `ExecStart` is the same entry point:
+The ZED hook, which reaches the same entry point.
+Every zedlet this host installs is a `.sh` file under `/etc/zfs/zed.d`, so the hook is one too, and its whole body is
+the one line that matters:
 
-```ini
-# /etc/zfs/zed.d/history_event-reconcile_git_worktree_clone_mounts
-ExecStart=<root-mode-entry> <sweep>
+```sh
+#!/bin/sh
+# /etc/zfs/zed.d/history_event-reconcile_git_worktree_clone_mounts.sh
+exec <root-mode-entry> <sweep>
 ```
+
+The earlier text installed the handler's executable itself in that directory, which the one-program decision
+retires along with the program name.
 
 and the account-side rule the design already states, now with a unit to name:
 a service of the account that needs the checkout carries `Requires=` and `After=` on
