@@ -1838,6 +1838,20 @@ The sweep and `boot-reconcile` are described in `SPEC.md` under the section
 on the sweep and the boot it reconciles,
 and the guest arms that run them against a real pool are in
 the sweep arms section of `e2e/README.md`.
+Both work with no configuration file:
+the checkout is the one mounted ZFS dataset whose last name component is
+`monochromatic-git-checkout`,
+the clone container is its sibling `monochromatic-git-worktree-clone-datasets`,
+and the start probe's dataset is `nosnap/git-worktree-probe` in the pool that
+holds the checkout.
+A file that is present wins entry by entry,
+and plan step 19's setup still writes the two dataset names into it.
+A name that matches no mounted dataset,
+or several,
+is a refusal that lists what the mount table held rather than a guess,
+and a mounted dataset inside the clone container is a managed clone and never
+the checkout,
+so a name the account can create with its own delegation adds no instance.
 Only the wrapper is linked,
  and not as the installed file's own name:
 link it as `git` in a directory that comes before the real Git on `PATH`:
@@ -8958,3 +8972,16 @@ moved verbatim on 2026-11-23:
   or the run timed out,
   was stopped or failed without naming a test,
   and prints other failing tests as notices above the pass.
+
+From lines 25903 to 25910 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Measured on 2026-11-13, both from the branch's debug wrapper:
+  an average finished record is 1267 bytes,
+  so 1024 records weigh 1.30 MB and 10,240 weigh 13.0 MB;
+  the first answer after a start took a median 50 to 76 ms with 1024 records and 579 to 640 ms with 10,240
+  (seven runs each, two rounds),
+  while later answers took 6 to 13 ms at both sizes,
+  so a start's read grows with the records and the landing's lookup does not.
+  The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.

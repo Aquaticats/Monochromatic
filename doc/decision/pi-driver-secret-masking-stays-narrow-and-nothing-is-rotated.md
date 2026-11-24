@@ -103,3 +103,39 @@ From lines 46642 to 46642 of the old handover
 moved verbatim on 2026-11-23:
 
   "Keep waiting for masking".
+
+From lines 15205 to 15212 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **What does not change**:
+  the owner's answers of the morning stand
+  (one rotation once the masking is merged and shown to hold;
+  runs go on starting;
+  the affected session files stay untouched).
+  The rotation is now at least one more author round and one more review away,
+  and until then every Pi run can still send a value it prints to its provider.
+  That is said to the owner in this round's message.
+
+From lines 46083 to 46083 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  Asked at about 10:23 how to rotate, with the qualification of round twenty in the question itself (a run going at the rotation does not know the new values) and four courses (let the going runs end first, stop them, rotate with them going, not now), the owner answered **"Not now"**.
+
+From lines 49352 to 49363 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **When the owner rotates**:
+  "All after masking".
+  One rotation,
+  once the fix that masks credential values before a tool result reaches a model is merged and shown to hold.
+  This session tells the owner when that is so,
+  through the question tool,
+  with what the fix was shown to hold against.
+- **Whether runs keep starting meanwhile**:
+  "Keep starting (Recommended)".
+  The queue goes on filling at the cap.
+- **The six session files that hold the values in clear**:
+  "Leave until rotated (Recommended)".

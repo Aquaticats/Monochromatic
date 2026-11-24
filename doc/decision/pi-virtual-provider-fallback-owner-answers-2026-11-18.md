@@ -66,3 +66,10 @@ moved verbatim on 2026-11-23:
 In plain text, after the ZFS-clones research ended on OpenAI's filter:
 "Whenever a "possible risk" is triggered from OAI, switch to deepseek resuming the session.
 Make this a standing rule in AGENTS.md . Use "possible risk" instead of anything more specific."
+
+From lines 45039 to 45040 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+overage fixture for the recorded capture, labels the rest, and pins mutants `M12` and `M13`. Owner, 2026-11-19, on the
+gated move: "Keep it gated (Recommended)" (asked against removing it), so the brief stands as written.

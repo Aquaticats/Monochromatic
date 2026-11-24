@@ -246,3 +246,32 @@ fn in_a_mount_namespace(variable: &str, test: &str) -> bool {
     assert!(said.contains("1 passed"), "the inner half did not run:\n{said}");
     return false;
 }
+
+/// The rollback refuses a slot whose parent mount is not the recorded one.
+#[test]
+fn a_slot_on_another_parent_refuses_the_rollback() {
+    let fixture = fixture("reattach-slot-parent", 40);
+    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
+    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let identity: StagedFolderIdentity = fixture.identity;
+    let mut request = request(&fixture, &identity, &walk, checkout.as_path());
+    request.slot_parent_mount_id = 999;
+    let result: ReattachResult = roll_back_to_slot(&request);
+    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "slot-parent"), "{result:?}");
+    assert!(!fixture.calls.ran(StagingCall::Move));
+}
+
+/// The rollback's proof refuses a slot whose topmost mount is not the clone.
+#[test]
+fn a_proof_on_another_mount_refuses() {
+    let fixture = fixture("reattach-proof-mount", 40);
+    let walk = FakeWalk { slot: fixture.slot.clone(), covered: false, again: 41 };
+    let checkout: PathBuf = fixture.slot.ancestors().nth(3).expect("the checkout is above the slot").to_path_buf();
+    let identity: StagedFolderIdentity = fixture.identity;
+    let request = request(&fixture, &identity, &walk, checkout.as_path());
+    fixture.calls.mount_ids.borrow_mut().clear();
+    // The destination's own mount, then the proof's read of a mount that is not the clone.
+    fixture.calls.mount_ids.borrow_mut().extend([40, 99]);
+    let result: ReattachResult = roll_back_to_slot(&request);
+    assert!(matches!(result, ReattachResult::Refused { ref step, .. } if step == "post-move-check"), "{result:?}");
+}

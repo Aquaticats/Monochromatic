@@ -59,21 +59,26 @@ fn the_installed_places_are_the_designs() {
 }
 
 /// What:
-///  A run whose configuration is not there answers the configuration's refusal,
-///  naming the two keys to write,
+///  A run whose configuration is there and cannot be read answers the
+///  configuration's refusal,
+///  naming the keys to write,
 ///  and opens nothing.
 /// Why:
 ///  The configuration is the first thing a run reads,
-///  so a host with no installed file must learn what to write rather than that
-///  a device failed.
+///  so a host with a file nothing can read must learn what to write rather than
+///  that a device failed.
+///  The refusal is the unreadable file's rather than a finding's,
+///  because a finding would depend on which datasets this machine has mounted.
 #[test]
-fn a_missing_configuration_is_refused_before_anything_is_opened() {
-    let fixture: Fixture = Fixture::new("missing");
-    let places: SweepPlaces = SweepPlaces::at(fixture.path.join("nothing.jsonc"), fixture.path.join("store"), fixture.path.join("record"));
+fn an_unreadable_configuration_is_refused_before_anything_is_opened() {
+    let fixture: Fixture = Fixture::new("unreadable");
+    let directory: PathBuf = fixture.path.join("a-directory.jsonc");
+    std::fs::create_dir_all(directory.as_path()).expect("the fixture folder is made");
+    let places: SweepPlaces = SweepPlaces::at(directory, fixture.path.join("store"), fixture.path.join("record"));
     let Err(said): Result<String, String> = run_at(&places) else {
-        panic!("a run with no configuration answered a report");
+        panic!("a run with an unreadable configuration answered a report");
     };
-    assert!(said.contains("is not there"), "{said}");
+    assert!(said.contains("could not be read"), "{said}");
     assert!(said.contains(&format!("{CLONE_MOUNTS_KEY}.{PARENT_KEY}")), "{said}");
     assert!(said.contains(&format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_KEY}")), "{said}");
     assert!(!PathBuf::from(&places.store).exists(), "a refused run wrote no store");

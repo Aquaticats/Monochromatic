@@ -1353,8 +1353,8 @@ monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` show the mark and
 cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's
 destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken
 down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and
-then destroy the clone. Either way, run the removal again once the clone is gone: what that run does with what is
-left is not yet specified for a clone destroyed outside this command.
+then destroy the clone. Either way, run the removal again once the clone is gone: that run refuses and names the
+command that finishes what is left, or the reason when none can.
 ```
 
 The first check's,
@@ -1372,8 +1372,8 @@ monochromatic-git-checkout@git-worktree-clone-origin-7f3a9c2e` show the mark and
 cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's
 destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken
 down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and
-then destroy the clone. Either way, run the removal again once the clone is gone: what that run does with what is
-left is not yet specified for a clone destroyed outside this command.
+then destroy the clone. Either way, run the removal again once the clone is gone: that run refuses and names the
+command that finishes what is left, or the reason when none can.
 ```
 
 The second check's,
@@ -1598,31 +1598,27 @@ and only these things can then happen:
   "Print an explicit command that removes the record after you confirm"
   (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
   that heading),
-  whose name,
-  guard and proof are open.
-  The binding design proposes one name for it,
-  `git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot>`,
+  whose guard and proof are open.
+  The binding design gives one name for it,
+  `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot>
+  --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
   in its own veto entry V21 (read at `07858070bb`,
   `:3216` to `:3220` and `:4805` to `:4809`),
-  and that is a proposal,
-  not a decision,
-  so no refusal's text names it.
-  The plan design's text (unapproved) sends a plan whose head is not `gone` beside a gone clone to the settling
-  command,
-  on the ground that no removal can run when there is no clone
-  (read at `3cd520b6a0`,
-  `:2221` to `:2231`).
-  That disagrees with the accepted resume rule (proposal `:963` to `:967`)
-  and with that design's own worked example,
-  where a rerun settles a `head=requested` plan whose clone does not answer
-  (`:1692` to `:1696`).
-  This design keeps the accepted rule in its messages,
-  and asks that design to reconcile the two and say which path a removal takes,
-  in words it can quote:
-  "state which resume path a removal takes when the plan says the head is present and the clone does not answer,
-  and confirm it uses the proof at proposal `:963` to `:967`".
-  The messages say only that the removal can be run again once the clone is gone,
-  and that what that run does with what is left is not yet specified for a clone destroyed outside the wrapper.
+  and that name is adopted,
+  so a refusal's text may print it.
+  The plan design (unapproved;
+  read at `cf51d140af`,
+  "Which resume path a removal takes") reconciles the two.
+  A plan whose head word is `requested` or `unknown` beside a gone clone
+  takes the head-gone path with the accepted proof (proposal `:963` to `:967`);
+  a plan whose head word is `present` or `refused` is an outside destroy,
+  and the removal refuses and names the settling command;
+  a name carrying another GUID is refused with the reuse named and no command;
+  and a pool that cannot prove the absence is refused,
+  naming the settling command for every head word but `gone`.
+  The messages say that the removal can be run again once the clone is gone,
+  and that the run refuses and names the command that finishes what is left,
+  or the reason when none can.
 - The person keeps the history.
   Outside the wrapper they first clone the marked snapshot under another name,
   which pins it (F21),
@@ -1642,11 +1638,15 @@ and only these things can then happen:
   carrying its loss forward,
   so the worktree is taken down again before the first check refuses,
   and the look does not run on it;
-  unless that plan has an `unknown` outcome or its identities no longer match live,
-  where the plan record has the retry refuse and point to the cancel command
-  (read at `3cd520b6a0`,
-  `:2149` to `:2156`),
-  and whether a check runs first is not stated there;
+  unless its identities no longer match live,
+  where the plan record has the retry refuse before anything is deleted,
+  or an `unknown` tuple of it cannot be settled by the plan record's head-present arm,
+  where it refuses naming the tuple and the read that failed
+  (read at `cf51d140af`,
+  "The removal intent");
+  it names no wrapper command in either case,
+  and the settling of an `unknown` tuple comes before the first deferred check,
+  so no check refuses first;
   a cancel that destroyed nothing and completed leaves no plan,
   and that retry is a first run (the paragraph after this list).
 
@@ -1682,17 +1682,15 @@ the look does not run on it"
 `:2166` to `:2170`).
 That quoted "always" holds only where a plan is kept,
 and its adoption has one exception:
-the plan record's nonce rule adopts a plan beside a `mount` intent only "if the plan has no `unknown` outcome and its
-identities still match live",
-and otherwise "refuses,
-and the cancel command is the way forward"
-(read at `3cd520b6a0`,
-`:2149` to `:2156`).
-So a retry over a kept plan with an `unknown` outcome is refused by that rule,
-and whether a check runs first,
-and whether the worktree is taken down first,
-the plan record does not say where in the retry's order the rule fires;
-that is its to state.
+the plan record's nonce rule adopts a plan beside a `mount` intent
+"if its identities still match live,
+once any `unknown` tuple has been settled by the head-present arm",
+and refuses only where that arm cannot settle one,
+naming the tuple and the read that failed
+(read at `cf51d140af`,
+"The removal intent").
+So a retry over a kept plan with an `unknown` outcome settles it first and is then adopted,
+and no check runs before the settling.
 In every state where a plan stands a retry does not look,
 whether that plan records nothing destroyed,
 some destroyed,
@@ -2118,9 +2116,10 @@ and the measured arms of [VM item 12][vm-12] are its record.
     and a check refuses saying that nothing has been destroyed yet.
     Its fourth is the retry over a plan with an `unknown` outcome:
     the look is never called,
-    and the run refuses by the plan record's nonce rule,
-    with the cancel command named,
-    though whether a check runs first is not stated there;
+    and the run settles the tuple by the plan record's head-present arm and adopts the plan,
+    or refuses,
+    naming the tuple and the read,
+    where the arm cannot settle it;
     that one is a control against the plan record's text,
     not against this design's.
 
@@ -3145,9 +3144,9 @@ Whether the look also runs when a plan exists but records no destroyed tuple.
   Con:
   a mark present at such a retry is reported after the retry has unmounted the worktree again,
   not before it takes anything down,
-  and where the kept plan has an `unknown` outcome the plan record has the retry refuse instead
-  (read at `3cd520b6a0`,
-  `:2149` to `:2156`),
+  and where the plan record's head-present arm cannot settle a kept plan's `unknown` tuple
+  the plan record has the retry refuse instead (read at `cf51d140af`,
+  "The removal intent"),
   which the gate does not change.
 - Alternative:
   also look when the property does not read `unmount` and the plan records no destroyed tuple,
@@ -3339,18 +3338,16 @@ and the two may again be a set rather than a sequence.
   in the section at `:1882`),
   and its worked example of the head-gone path is a plan whose head is `requested` (`:1692` to `:1696`),
   while its head-present path refuses a record that disagrees with the live clone (`:1598` to `:1608`).
-  The state a person's own `zfs destroy` leaves,
-  a plan whose head is not `gone` beside a clone that is gone,
-  is its section "A clone gone whose absence cannot be proved",
-  which sends that plan to the settling command on the ground that no removal can run when there is no clone
-  (`:2221` to `:2231`).
-  That text is unapproved,
-  and it disagrees with the accepted resume rule (proposal `:963` to `:967`)
-  and with that design's own worked example of a rerun settling a `head=requested` plan whose clone does not
-  answer (`:1692` to `:1696`),
-  so this design keeps the accepted rule in its messages
-  and asks that design to reconcile the two and say which path a removal takes,
-  in the words of "How a person finishes a refused removal".
+  The plan design (unapproved;
+  read at `cf51d140af`,
+  "Which resume path a removal takes") reconciles the two.
+  A plan whose head word is `requested` or `unknown` beside a gone clone
+  takes the head-gone path with the accepted proof (proposal `:963` to `:967`);
+  a plan whose head word is `present` or `refused` is an outside destroy,
+  and the removal refuses and names the settling command;
+  a name carrying another GUID is refused with the reuse named and no command;
+  and a pool that cannot prove the absence is refused,
+  naming the settling command for every head word but `gone`.
   Where the accepted proof cannot be made the project answered with
   "Print an explicit command that removes the record after you confirm",
   and that command's name,
@@ -3416,14 +3413,14 @@ and the two may again be a set rather than a sequence.
   at this tip it names the checks only in the order list it cites from the origin-cleanup design,
   and says nothing about them beyond that.
   It designs the settling command the seven answers decided,
-  and it proposes its name only as its own veto entry V21:
-  `git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot>`
+  and it gives its name in its own veto entry V21:
+  `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot>
+  --confirm-clone-guid <the last four decimal digits of cloneGuid=>`
   ("The settling command",
   `:3216` to `:3220`,
   and V21 at `:4804` to `:4809`).
-  That name is a proposal,
-  not a decision,
-  so no refusal's text here prints it,
+  That name is adopted,
+  so a refusal's text here may print it,
   and this design cites it only where "How a person finishes" says the command exists.
   The one gap this design shares with the plan record is the path selection that entry narrows,
   and the gap's decided last resort is that command.
