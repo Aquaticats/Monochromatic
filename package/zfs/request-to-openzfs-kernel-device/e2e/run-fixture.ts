@@ -18,7 +18,8 @@
 //
 // Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all|pool|wrapper|arm|
 //          zfs-attach-pool|zfs-attach-arm|zfs-gate-arm|zfs-gate-version-arm|zfs-gate-change-arm|
-//          zfs-protocol-pool|zfs-protocol-arm|zfs-protocol-teardown|zfs-protocol-record>
+//          zfs-protocol-pool|zfs-protocol-arm|zfs-protocol-teardown|zfs-protocol-record|
+//          zfs-batch-pool|zfs-batch-arm|zfs-batch-teardown|zfs-batch-record>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
 // `create` refuses a name `mvm list` already reports, and `all` destroys only a
 // guest its own `create` returned, so no run removes another run's guest.
@@ -1579,6 +1580,201 @@ function step7Record(options: Options): void {
   }
 }
 
+//region The step 16 arm: the snapshot batch over a real clone
+
+/**
+ The step 16 arm's fixture root.
+ Its datasets are legacy mountpoints, so nothing in this arm is mounted and the arm needs no mount table.
+ */
+const STEP16_FIXTURE_ROOT = '/home/zfs-step-16-batch-fixture';
+/** The step 16 pool, a 1 GiB encrypted image like the measurements' fixture. */
+const STEP16_POOL = 'zfsstep16';
+/** The checkout dataset whose base snapshot every arm's clone is made from. */
+const STEP16_CHECKOUT = `${STEP16_POOL}/checkout`;
+/** The unmounted parent every arm's clone is made under. */
+const STEP16_CLONE_PARENT = `${STEP16_POOL}/clones`;
+/** The snapshot the arms clone; the arms take their own snapshots of the clone. */
+const STEP16_BASE_SNAPSHOT = `${STEP16_CHECKOUT}@batch-base`;
+/** Where the wrapper's packages are unpacked inside the guest. */
+const STEP16_WRAPPER_ROOT = '/opt/zfs-step-16-batch-repo';
+/** The wrapper crate itself, below that root. */
+const STEP16_WRAPPER_DIR = `${STEP16_WRAPPER_ROOT}/package/git-policy/cli`;
+/**
+ The wrapper crate's own packages and the ones its manifests name by path.
+ This arm keeps its own copy of the list, so its tree can move without another arm's.
+ */
+const STEP16_WRAPPER_PACKAGES: readonly string[] = [
+  'package/git-policy/cli',
+  'package/catalog-specifier/core-rust',
+  'package/forbidden-strings/cli',
+  'package/forbidden-strings/core',
+  'package/jsonc-edit/core-rust',
+  'package/linter/monochromatic-lint',
+  'package/zfs/request-to-openzfs-kernel-device',
+];
+
+/**
+ Make the step 16 pool:
+ a 1 GiB encrypted image,
+ an unmounted checkout dataset with the base snapshot the arms clone,
+ and the unmounted clone parent.
+ No mountpoint is ever mounted, so the arm leaves no mount behind and needs no unmount in its teardown.
+ */
+function step16Pool(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    `mkdir --parents ${STEP16_FIXTURE_ROOT}`,
+    `chmod 0755 ${STEP16_FIXTURE_ROOT}`,
+    `if zpool list -H -o name | grep --quiet "^${STEP16_POOL}$"; then zpool destroy -f ${STEP16_POOL}; fi`,
+    `rm --force ${STEP16_FIXTURE_ROOT}/pool.img ${STEP16_FIXTURE_ROOT}/raw-key`,
+    `truncate --size 1G ${STEP16_FIXTURE_ROOT}/pool.img`,
+    `head --bytes 32 /dev/urandom > ${STEP16_FIXTURE_ROOT}/raw-key`,
+    `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP16_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 ${STEP16_POOL} ${STEP16_FIXTURE_ROOT}/pool.img`,
+    `zfs create -o mountpoint=legacy -o canmount=off ${STEP16_CHECKOUT}`,
+    `zfs create -o mountpoint=legacy -o canmount=off ${STEP16_CLONE_PARENT}`,
+    `zfs snapshot ${STEP16_BASE_SNAPSHOT}`,
+    `zfs list -o name,mountpoint,mounted,canmount -r ${STEP16_POOL}`,
+  ].join('\n');
+  guest({ options, script, log: 'step16-pool.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** The environment the step 16 arms read inside the guest. */
+function step16Environment(options: Options): string {
+  return `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_GUEST=${options.name} ` +
+    `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_POOL=${STEP16_POOL} ` +
+    `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_SBIN=${OPENZFS_PREFIX}/sbin`;
+}
+
+/** Push the wrapper's packages, build the crate's tests inside the guest, and run the step 16 arms. */
+function step16Arms(options: Options): void {
+  const repository = join(import.meta.dirname, '../../../..');
+  const tarball = join(options.logDir, 'step16-wrapper.tar.gz');
+  host({
+    options,
+    command: 'tar',
+    args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--exclude=node_modules', '--directory', repository, ...STEP16_WRAPPER_PACKAGES],
+    log: 'step16-host-package.log',
+  });
+  host({
+    options,
+    command: 'mvm',
+    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step16-wrapper.tar.gz'],
+    log: 'step16-guest-push.log',
+  });
+  const build = [
+    'set -eu',
+    'if test -f /mnt/shared/step16-wrapper.tar.gz; then cp /mnt/shared/step16-wrapper.tar.gz /root/step16-wrapper.tar.gz; fi',
+    `mkdir --parents ${STEP16_WRAPPER_ROOT}`,
+    `tar --extract --gzip --file /root/step16-wrapper.tar.gz --directory ${STEP16_WRAPPER_ROOT}`,
+    `cd ${STEP16_WRAPPER_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    // Two compiling jobs: the guest has four cores, and a linking test binary of this crate needs more than a
+    //  gigabyte, so an out-of-memory kill here would look like a compile failure.
+    'cargo build --release --tests --locked --jobs 2 > /root/step16-wrapper-build.log 2>&1',
+    'tail --lines=3 /root/step16-wrapper-build.log',
+  ].join('\n');
+  guest({ options, script: build, log: 'step16-wrapper-build.log', timeout: CRATE_BUILD_TIMEOUT_MS });
+
+  const suite = [
+    'set -eu',
+    `cd ${STEP16_WRAPPER_DIR}`,
+    'export HOME=/root',
+    `export ${STEP4_OPENZFS}`,
+    `export ${step16Environment(options)}`,
+    'if cargo nextest run --release --test-threads 1 --no-fail-fast --status-level all --no-capture ' +
+      '--run-ignored all --lib --filterset "test(snapshot_batch_arm_)" ' +
+      '> /root/step16-suite.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=80 /root/step16-suite.log',
+    'test "$status" = 0',
+    'if grep --quiet "^SKIP worktree_clone_snapshot_batch::" /root/step16-suite.log; then echo "a step 16 arm returned without running"; exit 1; fi',
+    'grep --quiet "^MEASUREMENT snapshot-batch requests=" /root/step16-suite.log',
+  ].join('\n');
+  guest({ options, script: suite, log: 'step16-suite.log', timeout: SUITE_TIMEOUT_MS });
+}
+
+/** What the step 16 pool left behind, then the pool is destroyed. */
+function step16Teardown(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    `zpool destroy -f ${STEP16_POOL} 2>/dev/null || true`,
+    `rm --recursive --force ${STEP16_FIXTURE_ROOT}`,
+    '{ echo "pools after the step 16 arms:"',
+    'zpool list -H -o name || true',
+    'echo "datasets after the step 16 arms:"',
+    'zfs list -H -o name -r || true',
+    'echo "mounts left below the step 16 fixture root:"',
+    `grep --fixed-strings " ${STEP16_FIXTURE_ROOT}/" /proc/self/mountinfo || true`,
+    '} | tee /root/step16-teardown.log',
+  ].join('\n');
+  guest({ options, script, log: 'step16-teardown.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** Record the step 16 run's versions and pull its logs. */
+function step16Record(options: Options): void {
+  const versions = [
+    'set -eu',
+    `export ${STEP4_OPENZFS}`,
+    '{ uname --kernel-release',
+    'cat /sys/module/zfs/version',
+    'zfs version',
+    '/root/.cargo/bin/rustc --version',
+    '/root/.cargo/bin/cargo nextest --version',
+    '} | tee /root/step16-versions.log',
+  ].join('\n');
+  guest({ options, script: versions, log: 'step16-versions.log', timeout: RECORD_TIMEOUT_MS });
+  const share = [
+    'set -eu',
+    'test -d /mnt/shared',
+    'for name in step16-suite step16-teardown step16-versions step16-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+  ].join('\n');
+  guest({ options, script: share, log: 'step16-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
+  for (
+    const name of [
+      'step16-suite',
+      'step16-teardown',
+      'step16-versions',
+      'step16-wrapper-build',
+    ] as const
+  ) {
+    host({
+      options,
+      command: 'mvm',
+      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      log: `step16-host-pull-${name}.log`,
+    });
+  }
+}
+
+/**
+ Run the whole step 16 arm in the prepared guest and always leave the pool and the fixture root destroyed,
+ with the teardown evidence and the logs pulled out even when an arm failed.
+ */
+function step16(options: Options): void {
+  let failure: unknown = null;
+  try {
+    step16Pool(options);
+    step16Arms(options);
+  } catch (thrown) {
+    failure = thrown;
+  }
+  try {
+    step16Teardown(options);
+  } catch (thrown) {
+    console.error(`zfs step 16 arm: destroying the pool also failed: ${thrown}`);
+  }
+  try {
+    step16Record(options);
+  } catch (thrown) {
+    console.error(`zfs step 16 arm: recording also failed: ${thrown}`);
+  }
+  if (failure !== null)
+    throw failure;
+}
+
+//endregion The step 16 arm: the snapshot batch over a real clone
+
 const chosen = options();
 mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
 /**
@@ -1610,10 +1806,21 @@ const gateSteps: Record<string, (checked: Options) => void> = {
   'zfs-gate-version-arm': gateVersionArm,
   'zfs-gate-change-arm': gateChangeArm,
 };
-const step = steps[chosen.step] ?? step4Steps[chosen.step] ?? gateSteps[chosen.step] ?? step7Steps[chosen.step];
+/**
+ The step 16 arms, in one place of their own so a branch that adds other steps merges beside it.
+ `zfs-batch-pool` makes the pool, `zfs-batch-arm` pushes the wrapper and runs the arms against that guest,
+ and the record and teardown steps keep the logs and remove what the run made.
+ */
+const step16Steps: Record<string, (checked: Options) => void> = {
+  'zfs-batch-pool': step16Pool,
+  'zfs-batch-arm': step16,
+  'zfs-batch-teardown': step16Teardown,
+  'zfs-batch-record': step16Record,
+};
+const step = steps[chosen.step] ?? step4Steps[chosen.step] ?? gateSteps[chosen.step] ?? step7Steps[chosen.step] ?? step16Steps[chosen.step];
 if (step === undefined)
   throw new Error(
-    `unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps), ...Object.keys(gateSteps), ...Object.keys(step7Steps)].join(', ')}`,
+    `unknown step '${chosen.step}'; use ${[...Object.keys(steps), ...Object.keys(step4Steps), ...Object.keys(gateSteps), ...Object.keys(step7Steps), ...Object.keys(step16Steps)].join(', ')}`,
   );
 step(chosen);
 console.log(`zfs step 2 fixture: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
