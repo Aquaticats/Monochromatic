@@ -117,6 +117,14 @@ export function testContainerfile({
         // absence here; a run that believes it is on ZFS leaves it unset, and the control then fails instead of
         // passing without running.
         'CLI_GIT_ZFS_ABSENT_ACKNOWLEDGED=1',
+        // The base image installs the real `git-lfs`, and this says so: a control that proves the upload against the
+        // real program fails rather than skipping where `PATH` finds none, so an image built without it is red
+        // (`src/native/testing/real_git_lfs_the_run_requires.rs`).
+        'CLI_GIT_REQUIRE_REAL_GIT_LFS=1',
+        // Adding that program takes away the premise of the four end-to-end carry controls, which need program folders
+        // that hold no `git-lfs` because a real one answers the push before their stand-in; they acknowledge the
+        // occupation and print one line each, which `--success-output=final` brings into the log.
+        'CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1',
       ].join(' '),
     }),
     // Some crate archives carry files only their owner may read, so the tester must own the vendored copy.

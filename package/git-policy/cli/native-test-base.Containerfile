@@ -1,7 +1,7 @@
 # What:  base image of the native wrapper gate (`mise run //package/git-policy/cli:native:test:container`) and of the
 #        mutation campaigns that start from the gate image: CachyOS with the Rust toolchain, the build tools, and every
-#        tool the tests start (Git, Node, pnpm, strace, cargo-nextest), all installed from pacman, plus the pinned npm
-#        data tarballs that `file-enforcer check` resolves a `.browserslistrc` against.
+#        tool the tests start (Git, Git LFS, Node, pnpm, strace, cargo-nextest), all installed from pacman, plus the
+#        pinned npm data tarballs that `file-enforcer check` resolves a `.browserslistrc` against.
 # Why:   the gate image itself builds without network, so every download happens here, once per CachyOS image: the
 #        build script (bin/native-test-base.ts) pulls the `latest` tag, and this image is rebuilt only when that pull
 #        brings a different image, when this file changes, or when the browserslist data lock changes
@@ -9,9 +9,9 @@
 # Pins:  none. Owner decisions of 2026-11-04: "We don't need to pin git because my current system is already using git
 #        latest.", "We don't need to pin Node too.", and, asked where the tools toolchain.lock.json locks should come
 #        from in test images, "Pacman for everything it has" (an exception to AGENTS.md rule CM7 for these images).
-#        So Git is whatever pacman's current `git` is, and Node, pnpm, strace, cargo-nextest and Rust are pacman's
-#        current packages too; `mise run //package/git-policy/cli:test:git-image` prints the release of each the image
-#        got. The wrapper's MINIMUM_GIT_VERSION (src/native/invocation/git_version.rs) follows the Git release here.
+#        So Git is whatever pacman's current `git` is, and Node, pnpm, strace, Git LFS, cargo-nextest and Rust are
+#        pacman's current packages too; `mise run //package/git-policy/cli:test:git-image` prints the release of each the
+#        image got. The wrapper's MINIMUM_GIT_VERSION (src/native/invocation/git_version.rs) follows the Git release here.
 # Signatures: pacman checks package signatures (`SigLevel = Required DatabaseOptional` in the CachyOS image's
 #        /etc/pacman.conf); nothing below turns that off.
 # Build context: any directory; nothing is copied from it.
@@ -28,10 +28,13 @@ FROM ${CACHYOS_IMAGE}
 # test reads when no AsciiDoc source is installed (the Git package ships the page, not the source). The step that
 # reinstalls Git when that page is absent repairs the base image's slimmed copy of the package. The remaining packages
 # are the tools the tests start (`ps`, `ssh-keygen`, perl, python); the image already carries zlib-ng-compat, which
-# provides zlib.
+# provides zlib. `git-lfs` is the real program the upload controls prove against: without it each of them printed a line
+# and checked nothing, so the gate counted the tracking-ref and command-scope uploads as passes without an upload ever
+# running (doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md). The image's `CMD` sets
+# CLI_GIT_REQUIRE_REAL_GIT_LFS, so an image built without this package fails those controls instead of passing them.
 RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
     ["pacman", "--disable-sandbox", "--sync", "--refresh", "--sysupgrade", "--noconfirm", "--needed", \
-     "base-devel", "rust", "git", "cargo-nextest", "nodejs", "pnpm", "strace", "man-db", "perl", "python", "openssh", \
+     "base-devel", "rust", "git", "git-lfs", "cargo-nextest", "nodejs", "pnpm", "strace", "man-db", "perl", "python", "openssh", \
      "procps-ng"]
 
 # The x86-64 CachyOS image is a slimmed copy: most of its packages lost their manual pages, translations, info pages
@@ -197,4 +200,4 @@ if not root_cache.exists():
     root_cache.symlink_to(cache, target_is_directory=True)
 PY
 
-RUN ["sh", "-c", "git --version && node --version && pnpm --version && strace -V | head --lines=1 && cargo nextest --version | head --lines=1 && man --where githooks"]
+RUN ["sh", "-c", "git --version && git-lfs version && node --version && pnpm --version && strace -V | head --lines=1 && cargo nextest --version | head --lines=1 && man --where githooks"]
