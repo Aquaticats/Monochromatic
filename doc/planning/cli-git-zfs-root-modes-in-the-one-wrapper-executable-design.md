@@ -611,7 +611,7 @@ The cases that decide the question:
   all three decide the sweep.
 - five near-miss names (cases 15 to 19):
   all three decide the wrapper,
-  and a contains test would have taken three of them.
+  and a contains test would have taken two of them and a suffix test one.
 - a stray copy under another name with a bare word (case 20):
   all three decide the wrapper.
 - a stray copy under the zedlet's own name in another folder,
@@ -666,7 +666,12 @@ The whole argument vector goes to one module and one function,
 so `main` reads no element and compares no name:
 
 ```rust
-// package/git-policy/cli/src/native/main.rs, the first statements of main
+// package/git-policy/cli/src/native/main.rs, the import and the first statements of main
+#[cfg(target_os = "linux")]
+use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{self, RootModeStart};
+use std::ffi::OsString;
+
+fn main() {
 let arguments: Vec<OsString> = std::env::args_os().collect();
 // The handler is the crate's Linux-only module, like the mount table it reads, so the root
 // modes exist only in a Linux build and every other target keeps the wrapper's one mode.
@@ -688,6 +693,7 @@ let arguments: Vec<OsString> = std::env::args_os().collect();
 }
 // The service check, the panic hook, the environment and entry::run_process
 // are the code that stands today, with `handed` taken from `arguments`.
+}
 ```
 
 `src/native/worktree_clone_mount_handler/root_mode_names.rs` is the one place the name,
@@ -799,8 +805,9 @@ The words path needs a mode word,
 so `git monochromatic-git-policy-cli zfs-root` is a refusal that the usage follows,
 not a sweep.
 Measured today,
-the same line reaches the management arm and refuses with status 2
-(`keep/probe-install-layouts.log`, the layout A case with the words and a mode);
+the same line reaches the management arm, which answers its usage and status 2,
+and writes a lock-holder record into the repository it stands in
+(`keep/probe-install-layouts.log`, the layout A case with the words and no mode word);
 with this change it is the root-mode arm's own refusal,
 and its text names the modes and the installed path.
 
