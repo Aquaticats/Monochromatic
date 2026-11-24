@@ -1180,9 +1180,17 @@ check the slot's Git pointer and record its first-observation identity before
 attach,
 attach through step 4,
 record the first attach's outcome,
+answer the request with its receipt
+(an attach's answer before the claim is released,
+a standing mount's after it),
 release the claim and read the intent once more,
-publish the receipt and the readiness,
+publish the readiness,
 and refuse malformed intent before any filesystem operation on its behalf.
+A standing clone whose `done` receipt already holds the answer this request
+would file is answered without writing it again,
+and the source of the one mount at a slot is asked of the kernel by that
+mount's unique number,
+because a rename of a mounted `legacy` dataset moves it with no mount event.
 A clone's origin is a snapshot of the checkout dataset the configuration names,
 under the `git-worktree-clone-origin-` prefix the design's add route gives it,
 which is the snapshot that route clones
@@ -1439,6 +1447,21 @@ The handler's own refusals from "Repeat [VM item 2] with the handler and account
 
 Items 1 and 5 repeated with the handler attached through a real sweep.
 Runs in the throwaway guest.
+The sweep's cost against `main`,
+interleaved in one guest with an identical-binary control and a one-child
+control beside every many-child sweep,
+at 8,
+64 and 1,024 clones:
+a steady sweep over standing mounts is 0.34 of `main`'s time at 1,024 clones
+(0.19 to 0.42,
+control 0.65 to 1.65) and 0.36 in the run kept beside it,
+and indistinguishable from `main` at 8 and 64 clones;
+cold sweeps that attach every clone are 0.97 to 1.03 of `main` across three
+interleaved passes;
+and a sweep whose mount table changes before every answer stays inside the
+identical-binary spread.
+The figures and their raw lines are
+`perf/sweep-cost-2026-11-23-statmount-interleaved.json`.
 
 #### Open items
 

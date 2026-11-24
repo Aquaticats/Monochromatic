@@ -7,6 +7,7 @@
 //!  the handler's refusals,
 //!  the descriptor unmount a rollback makes,
 //!  the child bound the listing takes,
+//!  three changes made under a sweep over 1,024 mounted clones,
 //!  the four shapes that name no checkout,
 //!  with a second pool holding the design's leaf name,
 //!  and the `snapdir` the route's own dataset-stats request carries.
@@ -489,7 +490,7 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     let receipt: String = std::fs::read_to_string(receipt_path.as_str()).expect("the sweep filed a receipt under the clone's GUID");
     assert!(receipt.contains("outcome done"), "the receipt says the mount was observed: {receipt}");
     assert!(receipt.contains(nonce), "the receipt carries the request's nonce: {receipt}");
-    // M5: this boot's first attach records the verified mount and the flags read back.
+    // The first attach's record: this boot's verified mount and the flags read back.
     let first_attach: String = std::fs::read_to_string(FIRST_ATTACH).expect("this boot's first attach is recorded");
     assert!(first_attach.contains("kind operation-outcome"), "{first_attach}");
     assert!(first_attach.contains("outcome attached"), "the first attach records the mount: {first_attach}");
@@ -834,6 +835,124 @@ fn the_built_sweep_attaches_the_designs_clone_and_refuses_each_mismatch() {
     assert!(bounded.said.contains(&format!("more than the {} children", git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN)), "the stop names the bound: {}", bounded.said);
     println!("MEASUREMENT child-bound-listing-ms={} children={} bound={}", bounded.elapsed.as_millis(), children, git_policy_cli::worktree_clone_mount_handler::sweep_dataset_reader::MAXIMUM_CHILDREN);
     println!("SWEEP bound stopped=true children={children}");
+
+    // Two changes made while a sweep runs, at 1,024 mounted clones: a sweep is started, the last child's mount is changed
+    // 400 ms later, and the line about that clone must be a refusal rather than an attached answer read from a table that
+    // was copied before the change. The first change clears the mount's two enforced flags in place; the second replaces
+    // the mount with another filesystem, which may take the old mount's number, and the third swaps the dataset under the
+    // mount by renaming a mounted legacy dataset away and another clone into its name.
+    let stale_count: usize = 1_024;
+    let stale_base: String = format!("{pool}/step8-stale");
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", stale_base.as_str()]);
+    zfs_ok(sbin.as_str(), &["create", "-p", "-o", "mountpoint=none", stale_base.as_str()]);
+    let stale_checkout_dataset: String = format!("{stale_base}/{CHECKOUT_LEAF}");
+    let stale_checkout: PathBuf = PathBuf::from("/root/sweep-stale-checkout");
+    std::fs::create_dir_all(stale_checkout.as_path()).expect("the stale checkout path is made");
+    zfs_ok(sbin.as_str(), &["create", "-o", format!("mountpoint={}", stale_checkout.display()).as_str(), stale_checkout_dataset.as_str()]);
+    command_ok("mount", &["--make-private", stale_checkout.display().to_string().as_str()]);
+    let stale_container: String = format!("{stale_base}/{CONTAINER_LEAF}");
+    zfs_ok(sbin.as_str(), &["create", "-o", "mountpoint=legacy", "-o", "canmount=off", "-o", "setuid=off", "-o", "devices=off", stale_container.as_str()]);
+    std::fs::create_dir_all(stale_checkout.join(".claude").join("worktrees").as_path()).expect("the stale checkout chain is made");
+    write_passing_probe_record();
+    prepare_the_store(stale_checkout.as_path());
+    let stale_nonce: &str = "00112233445566778899aabbccddee99";
+    for index in 0..stale_count {
+        let slot: String = format!("c{index}");
+        make_the_slot(stale_checkout.as_path(), slot.as_str());
+        let stale_suffix: String = format!("{stale_nonce}{index:04}");
+        clone_the_checkouts_snapshot(sbin.as_str(), stale_checkout_dataset.as_str(), stale_container.as_str(), slot.as_str(), stale_suffix.as_str(), Some(mount_request(stale_nonce).as_str()));
+    }
+    write_configuration(stale_checkout.as_path(), Some(stale_container.as_str()), Some(stale_checkout_dataset.as_str()));
+    let stale_cold: Run = sweep();
+    assert_eq!(stale_cold.status, Some(0), "the stale arm's cold sweep exits successfully: {}", stale_cold.said);
+    assert!(stale_cold.said.contains(&format!(": {stale_count} attached,")), "the stale arm's cold sweep attached every clone: {}", stale_cold.said);
+    let stale_order: Run = sweep();
+    let stale_last: &str = stale_order.said.lines().filter(|line| return line.starts_with("attached ")).next_back().expect("the steady sweep listed an attached clone");
+    let stale_fields: Vec<&str> = stale_last.split(' ').collect();
+    let stale_clone: String = String::from(stale_fields[1]);
+    let stale_slot: String = String::from(stale_fields[2].trim_start_matches("slot="));
+    let stale_slot_folder: PathBuf = stale_checkout.join(".claude").join("worktrees").join(stale_slot.as_str());
+    let binary: &str = env!("CARGO_BIN_EXE_mount-git-worktree-clone-datasets");
+
+    // The flags removed in place: the mount keeps its number, so only a fresh read sees the cleared flags.
+    let running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+    std::thread::sleep(Duration::from_millis(400));
+    command_ok("mount", &["-o", "remount,bind,suid,dev", stale_slot_folder.display().to_string().as_str()]);
+    let flags_output: Output = running.wait_with_output().expect("the stale sweep ends");
+    let flags_said: String = format!("{}{}", String::from_utf8_lossy(flags_output.stdout.as_slice()), String::from_utf8_lossy(flags_output.stderr.as_slice()));
+    let flags_row: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default();
+    println!("SWEEP stale-diag order-ms={} row-after-change=[{flags_row}]", stale_order.elapsed.as_millis());
+    let flags_line: &str = line_about(flags_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the changed clone");
+    assert!(flags_line.starts_with("refused "), "the flags removed in place are refused: {flags_line}");
+    println!("SWEEP stale flags-changed=refused slot={stale_slot}");
+    command_ok("mount", &["-o", "remount,bind,nosuid,nodev", stale_slot_folder.display().to_string().as_str()]);
+
+    // The mount replaced: the replacement may take the old mount's number, so a table keyed by that number would answer
+    // with the mount that held it before. The kernel hands a freed number to the next mount most of the time but not
+    // always, and a replacement under another number is no mount any earlier read described, so an attempt that is not
+    // given the old number proves nothing and is tried again.
+    let mut reused: bool = false;
+    for attempt in 1..=5 {
+        // This clone's mount stands at the slot before each attempt, because the attempt before may have had to take it down.
+        let restored: Run = sweep();
+        let restored_line: &str = line_about(restored.said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the clone");
+        assert!(restored_line.starts_with("attached "), "attempt {attempt} starts from this clone's mount standing at the slot: {restored_line}");
+        let old_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
+        let replaced_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+        std::thread::sleep(Duration::from_millis(400));
+        unmount_at(stale_slot_folder.as_path());
+        command_ok("mount", &["-t", "tmpfs", "stale-bystander", stale_slot_folder.display().to_string().as_str()]);
+        let new_mount_id: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default().split(' ').next().unwrap_or_default().to_string();
+        let replaced_output: Output = replaced_running.wait_with_output().expect("the stale sweep ends");
+        let replaced_said: String = format!("{}{}", String::from_utf8_lossy(replaced_output.stdout.as_slice()), String::from_utf8_lossy(replaced_output.stderr.as_slice()));
+        let replaced_line: &str = line_about(replaced_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the replaced clone");
+        assert!(replaced_line.starts_with("refused "), "the mount replaced at attempt {attempt} is refused: {replaced_line}");
+        println!("SWEEP stale replaced=refused slot={stale_slot} reused={} attempt={attempt}", old_mount_id == new_mount_id);
+        // The replacement comes down whether or not it took the old number: the next attempt, and the swap arm after this
+        // one, both start from this clone's own mount standing at the slot.
+        unmount_at(stale_slot_folder.as_path());
+        if old_mount_id == new_mount_id {
+            reused = true;
+            break;
+        }
+    }
+    assert!(reused, "the kernel gave the replacement the old mount's number within five tries, which is the case this arm exists for");
+
+    // The dataset swapped under the mount: root renames a mounted legacy dataset away and another clone into its name, the
+    // sequence of OpenZFS's own Example 1, which raises no mount event at all. The slot then holds the mount of the dataset
+    // that was renamed away, and the source the kernel prints has moved. The replaced-mount attempt took the slot's mount
+    // down, so a sweep first puts this clone's mount back: the swap is only a case while a mount stands there.
+    let restored: Run = sweep();
+    let restored_line: &str = line_about(restored.said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the clone");
+    assert!(restored_line.starts_with("attached "), "the swap arm starts from this clone's mount standing at the slot: {restored_line}");
+    let swapped_running: std::process::Child = Command::new(binary).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the stale sweep starts");
+    std::thread::sleep(Duration::from_millis(400));
+    let moved_dataset: String = format!("{stale_container}/{stale_slot}-moved-away");
+    let in_its_place: String = format!("{stale_container}/{stale_slot}-in-its-place");
+    zfs_ok(sbin.as_str(), &["rename", stale_clone.as_str(), moved_dataset.as_str()]);
+    let swap_suffix: String = format!("{stale_nonce}swap");
+    let replacement: String =
+        clone_the_checkouts_snapshot(sbin.as_str(), stale_checkout_dataset.as_str(), stale_container.as_str(), format!("{stale_slot}-in-its-place").as_str(), swap_suffix.as_str(), Some(mount_request(stale_nonce).as_str()));
+    zfs_ok(sbin.as_str(), &["rename", replacement.as_str(), stale_clone.as_str()]);
+    let swapped_output: Output = swapped_running.wait_with_output().expect("the stale sweep ends");
+    let swapped_said: String = format!("{}{}", String::from_utf8_lossy(swapped_output.stdout.as_slice()), String::from_utf8_lossy(swapped_output.stderr.as_slice()));
+    let swapped_line: &str = line_about(swapped_said.as_str(), stale_clone.as_str()).unwrap_or("the sweep printed no line about the swapped clone");
+    assert!(swapped_line.starts_with("refused "), "the dataset swapped under the mount is refused: {swapped_line}");
+    let moved_row: String = mount_row(stale_slot_folder.as_path()).unwrap_or_default();
+    assert!(moved_row.contains(moved_dataset.as_str()), "the slot still mounts the dataset that was renamed away: {moved_row}");
+    println!("SWEEP stale swapped=refused slot={stale_slot} source={moved_dataset}");
+    // The clone's name now belongs to a dataset that is not mounted at the slot, so the clean-up renames the two datasets
+    // back into the names they came with; the mount at the slot goes with the dataset the slot still mounts.
+    unmount_at(stale_slot_folder.as_path());
+    let _renamed_back: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["rename", stale_clone.as_str(), in_its_place.as_str()], None);
+    let _mounted_away_back: (bool, String, String) = zfs(sbin.as_str(), "zfs", &["rename", moved_dataset.as_str(), stale_clone.as_str()], None);
+    // This layout's checkout is a second mounted instance of the checkout's leaf name, and the arms after this one, and
+    // this arm on a later run, need exactly one: the foreign-origin fixture is kept unmounted for the same reason, so the
+    // whole stale layout goes once the three changes it made have been read.
+    zfs_ignored(sbin.as_str(), &["destroy", "-r", "-f", stale_base.as_str()]);
+    assert!(!mounted(stale_checkout_dataset.as_str()), "the stale arm takes its own checkout down");
+
+
     // What the route's own dataset-stats request says about `snapdir`, which the documents once said it could not
     // report (the second pass's finding B1). Three states: a value set locally, a value inherited from the parent, and
     // the default nobody set.

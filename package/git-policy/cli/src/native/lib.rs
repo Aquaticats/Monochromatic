@@ -337,6 +337,21 @@ pub mod worktree_removal_deferred_origin_check;
 #[cfg(target_os = "linux")]
 pub use worktree_removal_deferred_origin_check::*;
 
+/// The managed Git lock's life after the add wrote it:
+///  the states `doctor` and the removal tell apart,
+///  the write that puts a lost lock back,
+///  and the release the registration-cleanup step makes after the clone is proven gone.
+/// The piece is built ahead of the plan's order and unwired:
+///  no command of the wrapper calls it until plan step 13 wires it in.
+/// It is Linux only,
+///  like the descriptor-relative release it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_managed_lock;
+
+/// The same re-export for `worktree_clone_managed_lock`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_managed_lock::*;
+
 /// The ZFS datasets this process's own mount table shows mounted,
 ///  and the design names the route finds the checkout,
 ///  its container and the probe dataset by when the configuration leaves an

@@ -97,6 +97,9 @@ const EXPECTED_SWEEP_MARKERS = [
   'SWEEP rollback unmount=EBUSY',
   'SWEEP rollback unmount=ok',
   'SWEEP bound stopped=true',
+  'SWEEP stale flags-changed=refused',
+  'SWEEP stale replaced=refused',
+  'SWEEP stale swapped=refused',
   'SWEEP no-configuration shape=no-file attached slot=one',
   'SWEEP no-configuration shape=empty-object attached slot=one',
   'SWEEP no-configuration shape=only-start-probe attached slot=one',
@@ -507,6 +510,9 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     `zfs destroy --recursive --force ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
     `zfs destroy --recursive --force ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
     `zfs destroy --recursive --force ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
+    // The stale arm's own checkout carries the design's leaf name too, and the no-configuration shapes that run before
+    // it need one instance of that name, so its layout goes before the arm and not only after it.
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-stale 2>/dev/null || true`,
     // The stoppage arm's container and the probe fixture this arm creates live in the same pool.
     `zfs destroy --recursive --force ${SWEEP_POOL}/account-clones 2>/dev/null || true`,
     `zfs destroy --recursive --force ${SWEEP_POOL}/nosnap 2>/dev/null || true`,
@@ -539,7 +545,7 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
     // not two: the probe's no-configuration arm reads the whole mount table.
     `for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ${SWEEP_CHECKOUT} || true); do umount "$target" 2>/dev/null || true; done`,
     `umount ${SWEEP_CHECKOUT} 2>/dev/null || true`,
-    `for layout in step8 step8-encrypted step8-foreign step8-bound account-clones nosnap; do zfs destroy -r -f ${SWEEP_POOL}/$layout 2>/dev/null || true; done`,
+    `for layout in step8 step8-stale step8-encrypted step8-foreign step8-bound account-clones nosnap; do zfs destroy -r -f ${SWEEP_POOL}/$layout 2>/dev/null || true; done`,
   ].join('\n');
   guest({ chosen, script, log: 'guest-sweep.log', timeout: ARM_TIMEOUT_MS * 2, });
   host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/sweep-arm.log', join(chosen.logDir, 'sweep-arm.log'),], log: 'host-pull-sweep.log', });

@@ -932,18 +932,29 @@ The arms:
   a clone of the container's own snapshot and a clone of another checkout
   dataset's snapshot are each refused with nothing attached,
   which is item 2's shape through the product's own code,
-  and a clone of the container's snapshot is the shape H1 of step 8's
-  integration pass let through wrongly;
+  and a clone of the container's snapshot carries an origin outside the
+  checkout dataset,
+  which the origin check refuses;
 - the descriptor unmount a rollback makes:
   a clone attached through a held descriptor after the walk's parent was
   renamed lands at the moved path,
   a holder inside it makes the descriptor unmount answer `EBUSY` with the mount
   still standing,
   and the same call succeeds after the holder leaves;
+- three changes made while a sweep runs over 1,024 mounted clones,
+  each 400 ms into its own sweep and each on the clone the run listed last:
+  its `nosuid` and `nodev` cleared in place,
+  its mount replaced by a `tmpfs` that must take the old mount's number,
+  and its dataset renamed away while another clone is renamed into its name
+  (the swap of the OpenZFS manual's own Example 1,
+  which raises no mount event);
+  each sweep must refuse that clone,
+  and the arm fails where the replacement did not take the old number,
+  because another number is no mount an earlier read described;
 - the child bound the listing takes:
   one sweep over one more child than the bound visits stops at the bound,
   says so,
-  and prints the milliseconds it took beside the number in
+  and prints the milliseconds it took beside the constant in
   `src/native/worktree_clone_mount_handler/sweep_dataset_reader.rs`;
 - the four shapes that name no checkout,
   each on its own sweep run:
