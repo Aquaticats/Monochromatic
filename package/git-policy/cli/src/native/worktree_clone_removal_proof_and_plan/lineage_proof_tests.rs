@@ -22,7 +22,7 @@
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
 use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{ProvenRemoval, prove_the_lineage};
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
-    CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET, ORIGIN_DATASET_GUID, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, OWN_GUID, POOL, POOL_GUID, RemovalFixture, ScriptedPool, an_object, guid, the_stats,
+    CLONE, CLONE_CREATETXG, CLONE_GUID, ORIGIN_CREATETXG, ORIGIN_DATASET, ORIGIN_DATASET_GUID, ORIGIN_SNAPSHOT, ORIGIN_SNAPSHOT_GUID, POOL, POOL_GUID, RemovalFixture, ScriptedPool, an_object, the_stats,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
@@ -65,19 +65,19 @@ fn the_healthy_tuple_is_proved_and_its_own_snapshots_are_the_plans_tuples() {
 fn a_pool_of_another_guid_or_a_clone_of_another_identity_refuses() {
     let fixture: RemovalFixture = RemovalFixture::healthy("identity");
     let pool: ScriptedPool = fixture.healthy_pool();
-    let other_pool: ScriptedPool = pool
+    let other_pool: ScriptedPool = pool.copy()
         .with(POOL, DatasetIdentity { stats: the_stats(POOL_GUID + 1, false, 1, 0, ""), properties: NvList::new() });
     match refusal_of(&fixture, &other_pool) {
         RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "poolGuid"),
         other => panic!("a pool of another GUID refuses on its GUID, not {other:?}"),
     }
-    let other_clone: ScriptedPool = pool
+    let other_clone: ScriptedPool = pool.copy()
         .with(CLONE, DatasetIdentity { stats: the_stats(CLONE_GUID + 1, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT), properties: NvList::new() });
     match refusal_of(&fixture, &other_clone) {
         RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "cloneGuid"),
         other => panic!("a clone of another GUID refuses on its GUID, not {other:?}"),
     }
-    let other_group: ScriptedPool = pool
+    let other_group: ScriptedPool = pool.copy()
         .with(CLONE, DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG + 1, 0, ORIGIN_SNAPSHOT), properties: NvList::new() });
     match refusal_of(&fixture, &other_group) {
         RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "cloneCreatetxg"),
@@ -90,7 +90,7 @@ fn a_clone_whose_live_origin_is_another_snapshot_or_none_refuses() {
     let fixture: RemovalFixture = RemovalFixture::healthy("origin");
     let pool: ScriptedPool = fixture.healthy_pool();
     for live in [String::from("tank/mono-checkout@other"), String::new()] {
-        let changed: ScriptedPool = pool
+        let changed: ScriptedPool = pool.copy()
             .with(CLONE, DatasetIdentity { stats: the_stats(CLONE_GUID, false, CLONE_CREATETXG, 0, live.as_str()), properties: NvList::new() });
         match refusal_of(&fixture, &changed) {
             RemovalStop::OriginIsNotTheRecordedOne { recorded, live: found, .. } => {
@@ -106,19 +106,19 @@ fn a_clone_whose_live_origin_is_another_snapshot_or_none_refuses() {
 fn the_origin_snapshot_and_the_origin_dataset_are_proved_by_their_own_identities() {
     let fixture: RemovalFixture = RemovalFixture::healthy("origin-identity");
     let pool: ScriptedPool = fixture.healthy_pool();
-    let other_snapshot: ScriptedPool = pool
+    let other_snapshot: ScriptedPool = pool.copy()
         .with(ORIGIN_SNAPSHOT, DatasetIdentity { stats: the_stats(ORIGIN_SNAPSHOT_GUID + 1, true, ORIGIN_CREATETXG, 1, ""), properties: origin_properties(Some(0), Some(0)) });
     match refusal_of(&fixture, &other_snapshot) {
         RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "originSnapshotGuid"),
         other => panic!("another origin snapshot refuses on its GUID, not {other:?}"),
     }
-    let other_group: ScriptedPool = pool
+    let other_group: ScriptedPool = pool.copy()
         .with(ORIGIN_SNAPSHOT, DatasetIdentity { stats: the_stats(ORIGIN_SNAPSHOT_GUID, true, ORIGIN_CREATETXG + 1, 1, ""), properties: origin_properties(Some(0), Some(0)) });
     match refusal_of(&fixture, &other_group) {
         RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "originSnapshotCreatetxg"),
         other => panic!("another origin group refuses on its group, not {other:?}"),
     }
-    let other_dataset: ScriptedPool = pool
+    let other_dataset: ScriptedPool = pool.copy()
         .with(ORIGIN_DATASET, DatasetIdentity { stats: the_stats(ORIGIN_DATASET_GUID + 1, false, 2, 1, ""), properties: NvList::new() });
     match refusal_of(&fixture, &other_dataset) {
         RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "originDatasetGuid"),

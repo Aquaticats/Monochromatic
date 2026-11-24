@@ -110,6 +110,26 @@ pub struct ScriptedPool {
 }
 
 impl ScriptedPool {
+    /// What:
+    ///  A second pool with the same answers,
+    ///  so one control breaks one field of one copy.
+    /// Why:
+    ///  A reply's property list is the kernel's decoded list and is not `Clone`,
+    ///  so the copy is written where that type is known rather than derived.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const other = pool.copy(); other.with(name, anotherReply);
+    /// ```
+    pub fn copy(&self) -> ScriptedPool {
+        let identities: Vec<(String, DatasetIdentity)> = self
+            .identities
+            .iter()
+            .map(|(name, identity)| return (name.clone(), DatasetIdentity { stats: identity.stats, properties: identity.properties.clone() }))
+            .collect();
+        return ScriptedPool { identities, snapshots: self.snapshots.clone(), bookmarks: self.bookmarks.clone(), listing_refusal: self.listing_refusal.clone() };
+    }
+
     /// Replace one name's identity reply.
     #[allow(dead_code)]
     pub fn with(mut self, name: &str, identity: DatasetIdentity) -> ScriptedPool {

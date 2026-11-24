@@ -279,3 +279,8 @@ fn identity_from(identity: &DatasetIdentity, name: &str) -> Result<ObjectIdentit
     })?;
     return Ok(ObjectIdentity { guid: parsed, createtxg: identity.stats.dds_creation_txg });
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "lineage_proof_tests.rs"]
+mod tests;
