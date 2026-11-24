@@ -137,8 +137,7 @@ fn a_grant_carried_by_an_ancestor_is_a_scope_finding_with_its_narrowing_pair() {
 }
 
 /// One ancestor grant can make two decided permissions effective,
-/// and then both narrow grants are printed and the wider grant is removed
-/// once, after them.
+/// so both narrow grants are printed and the wider grant is removed after them.
 #[test]
 fn one_wide_grant_serving_two_permissions_is_removed_once_after_both_grants() {
     let mut facts: DelegationFacts = healthy_delegation();

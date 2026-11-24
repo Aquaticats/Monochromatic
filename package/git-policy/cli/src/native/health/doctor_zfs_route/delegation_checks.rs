@@ -112,7 +112,8 @@ pub enum GrantPlace {
     CheckoutDescendants,
     /// The clone container itself.
     Container,
-    /// Every descendant of the clone container, which is every clone.
+    /// Every descendant of the clone container,
+    /// which is every clone.
     ContainerDescendants,
 }
 
@@ -487,7 +488,7 @@ fn narrowings<'a>(facts: &'a DelegationFacts) -> Vec<Narrowing<'a>> {
 }
 
 /// What:
-///  The commands in the order they were built, each printed once.
+///  The commands in the order they were built and each printed once.
 /// Why:
 ///  One ancestor grant can make two permissions effective,
 ///  and a second command to remove it would have nothing left to remove.
@@ -511,7 +512,7 @@ fn each_command_once(commands: &[String]) -> Vec<String> {
 ///  and the decided grant has to be there before the wider one goes,
 ///  or the account is without the permission between the two commands.
 ///  One wider grant can serve more than one permission,
-///  so its removal is printed once, after every grant that replaces it.
+///  so the removal follows every grant that replaces it and prints once.
 fn scope_detail(narrowings: &[Narrowing<'_>], facts: &DelegationFacts) -> String {
     let mut entries: Vec<String> = Vec::new();
     let mut allows: Vec<String> = Vec::new();
