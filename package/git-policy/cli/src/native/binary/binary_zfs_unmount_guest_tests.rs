@@ -276,7 +276,8 @@ fn record(guid: DatasetGuid, folder_path: &Path, _cache: &std::fs::File, boot: &
     return record_of(guid, folder_path, "tmpfs", boot);
 }
 
-/// The record one handle or kill-point arm writes, for a named dataset.
+/// The record one handle or kill-point arm writes,
+/// for a named dataset.
 fn record_of(guid: DatasetGuid, folder_path: &Path, dataset: &str, boot: &str) -> StagedFolderRecord {
     let held: std::fs::File = std::fs::File::open(folder_path).expect("the staging folder opens");
     let identity: StagedFolderIdentity = StagedFolderIdentity::of(&held).expect("the staging folder's identity is read");
