@@ -121,6 +121,15 @@ pub mod sweep_dataset_reader;
 /// claimed after the key check and written before the receipt.
 pub mod sweep_first_attach;
 
+/// One mount's source,
+/// asked of the kernel by the mount's unique number.
+pub mod sweep_standing_mount_source;
+
+/// Whether a clone's own mount stands at its slot,
+/// from one polled read of the kernel's mount table and that one mount's
+/// source.
+pub mod sweep_standing_mounts;
+
 /// One clone's whole turn of the sweep.
 pub mod sweep_one_clone;
 

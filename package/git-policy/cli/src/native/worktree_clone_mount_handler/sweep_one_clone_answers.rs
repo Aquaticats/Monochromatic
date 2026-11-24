@@ -224,6 +224,15 @@ pub(super) fn answer_the_standing_mount(context: &SweepContext<'_>, verified: &V
     let identity: ReceiptMountIdentity = the_receipt_identity_of(&mount);
     let receipt: CloneMountReceipt = receipt_of(context, verified, request, ReceiptOutcome::Done, Some(identity), None, None);
     debug(TAG, format!("the clone `{}` already holds its own mount {} at slot `{}`", verified.dataset_name, mount.mount_id, verified.slot).as_str());
+    if the_same_done_receipt_stands(context, verified, &receipt) {
+        debug(TAG, format!("the clone `{}` already filed this request's done receipt, so this sweep writes nothing", verified.dataset_name).as_str());
+        return CloneOutcome::Attached {
+            name: verified.dataset_name.clone(),
+            slot: verified.slot.clone(),
+            mount_id: mount.mount_id,
+            canonical_slot: mount.observed_path,
+        };
+    }
     return match context.receipts.publish(&receipt) {
         Ok(()) => CloneOutcome::Attached {
             name: verified.dataset_name.clone(),
@@ -238,6 +247,32 @@ pub(super) fn answer_the_standing_mount(context: &SweepContext<'_>, verified: &V
             said: format!("the clone's mount {} stands at its slot and the receipt could not be filed: {}", mount.mount_id, refusal.message()),
         },
     };
+}
+
+/// What:
+///  Whether the receipt this request would file is already the one on disk.
+/// Why:
+///  A steady sweep answers every clone whose mount stands,
+///  and the receipt's only changing field is the time;
+///  writing the same answer again costs one staged write,
+///  two syncs and a rename per standing child,
+///  so an unchanged `done` receipt is left exactly as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stands = theSameDoneReceiptStands(context, verified, receipt);
+/// ```
+fn the_same_done_receipt_stands(context: &SweepContext<'_>, verified: &VerifiedClone, receipt: &CloneMountReceipt) -> bool {
+    let Ok(Some(filed)) = context.receipts.read(verified.dataset) else {
+        return false;
+    };
+    return filed.operation == receipt.operation
+        && filed.nonce == receipt.nonce
+        && filed.outcome == receipt.outcome
+        && filed.mount == receipt.mount
+        && filed.failed_step == receipt.failed_step
+        && filed.errno == receipt.errno
+        && filed.boot == receipt.boot;
 }
 
 /// The mount a done receipt carries.
