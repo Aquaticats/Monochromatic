@@ -68,8 +68,8 @@ A guest loaded by this round's own builds at the time:
 A quiet guest,
 40 rounds,
 shuffled,
-with both binaries built by the same
-toolchain (this is the figure `SPEC.md` carries):
+with both binaries built by the same toolchain from the same tree,
+one with the change and one without:
 
 - `old:f1` 114.3 ms,
   `old:f2` 113.4 (1.013 of `f1`),
@@ -77,17 +77,36 @@ toolchain (this is the figure `SPEC.md` carries):
   `new:f2` 113.8 (0.993),
 - `old:n` 129.8 (1.115 of `old:f1`;
   paired delta +13.0 ms,
-  38 of 40 rounds
-  above zero),
-- `new:n` 129.2 (1.131 of `new:f1`;
+  38 of 40 rounds above zero),
+- `new:n` 129.2 (1.123 of `new:f1`;
   +15.0 ms,
   39 of 40),
 - `new:n` against `old:n`:
   1.000,
-  paired delta median 0.0 ms (spread -169.5 to
-  +53.7),
+  paired delta median 0.0 ms (spread -169.5 to +53.7),
   20 of 40 above zero.
 
+An idle guest,
+later in the same round,
+40 rounds,
+shuffled,
+on the tree merged from `main`,
+with the pre-change arm rebuilt from `main`'s own version of the four touched
+files:
+
+- `base:f1` 120.0 ms,
+  `base:f2` 120.5 (0.995 of `f1`),
+  `base:n` 113.4 (0.974),
+- `merged:f1` 117.8,
+  `merged:f2` 115.2 (0.995),
+  `merged:n` 116.8 (0.976),
+- `merged:n` against `base:n`:
+  0.995.
+
+So the ratio of the no-file arm to the file-named arm went 1.147,
+then 1.115 and 1.123,
+then 0.974 and 0.976 across the three phases of one guest,
+and the change itself moved it by nothing measurable in either pair.
 So the second read of the mount table that the change removed moved the whole
 command by no measurable time.
 
@@ -102,7 +121,9 @@ process can be compared on.
 Twelve rounds,
 four arms,
 one guest,
-the same rounds for every arm:
+the same rounds for every arm,
+on the two builds made before `main` was merged in,
+whose look-up code is the code under test:
 
 - `old-inst:n`:
   worker phase 33.2 ms,

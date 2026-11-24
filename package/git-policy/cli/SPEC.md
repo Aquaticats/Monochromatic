@@ -8462,12 +8462,21 @@ moved verbatim on 2026-11-23:
 
 ### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
 
-Each of these was asked in the question tool and answered; the questions file kept them until their subjects
-had a record. The record is named beside each answer.
+Each of these was asked in the question tool and answered;
+the questions file kept them until their subjects
+had a record.
+The record is named beside each answer.
 
-- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
-  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
-  owner's explicit exception to "Commits should never fail." for such an index. Record:
+- An index the commit repair cannot read or write stops with a named reason:
+  "Stop with a named reason
+  (Recommended)",
+  2026-11-10T05:40:16-05:00.
+  The code already did this,
+  so nothing changed,
+  and this is the
+  owner's explicit exception to "Commits should never fail."
+  for such an index.
+  Record:
   `package/git-policy/cli/SPEC.md`.
 
 #### Git steps, tools and checks end only on no progress
@@ -21730,46 +21739,49 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
-A probe with no configuration file is about 13 milliseconds (1.115 times) slower
-than one whose file names every entry,
+A probe with no configuration file costs one read of this process's mount table
+and its parse over one whose file names every entry,
+about 90 microseconds,
 once per boot.
-Forty rounds in one throwaway `mvm` guest measured it,
-the two arms interleaved in the same round with the order shuffled every round,
-and a repeat of the file-named arm as the control of the method:
-129.8 milliseconds for no file against 114.3,
-with the repeat 1.3 percent from the first arm.
-The spread of an unchanged arm was measured before any comparison,
-thirty rounds of the same file-named arm against an identical repeat of itself,
-and gave a median per-round ratio of 1.028 over a range of 0.775 to 1.747,
-so a single round resolves nothing and the medians carry the claim.
-The difference is not the look-up's work.
-The look-up reads this process's mount table once and parses it,
-about 78 microseconds,
-and the checkout's dataset is taken from the row that carried the path,
+The look-up reads the table once and takes the checkout's dataset from the row
+that carried the path,
 so the second read the first build made is gone:
 the look-up's own work went from 162 to 90 microseconds,
 timed in the guest against a control of ten reads of the same file (787
-microseconds) and a null control of 20 nanoseconds,
-while the whole command moved by no measurable time (129.2 milliseconds after,
-1.000 times the arm before,
-spread -169.5 to +53.7).
-What the 13 milliseconds are is a stall this guest shows on a process's first
-touch of the mount table:
+microseconds) and a null control of 20 nanoseconds.
+The whole command is not measurably slower,
+and the arms that would show it do not agree:
+three phases of forty interleaved rounds in one throwaway `mvm` guest,
+each phase with a repeat of its file-named arm as the control of the method,
+gave no file against file-named as 1.147 in a guest busy with this round's own
+builds,
+1.115 before and 1.123 after the second read was removed in a quiet one,
+and 0.974 before and 0.976 after in an idle one,
+with the repeat arms 0.978,
+1.013,
+0.996 and 0.995 of their controls.
+The spread of an unchanged arm was measured before any comparison,
+thirty rounds of the file-named arm against an identical repeat of itself,
+and gave a median per-round ratio of 1.028 over a range of 0.775 to 1.747,
+so one round resolves nothing and only the medians of many paired rounds carry
+a claim.
+What those arms do show is not the look-up's work but a stall this guest shows
+on a process's first touch of the mount table:
 the first open of `/proc/self/mountinfo` in the worker takes 12 to 17
 milliseconds in a quiet guest and 93 to 105 in a loaded one,
 with 3,824 page faults inside that open,
 while the read that follows it is 146 microseconds and a second open and read in
 the same process 44 and 81 with no faults.
 Split by the timestamps of the probe's own step lines,
-the no-file arm pays that stall in its look-up (12.9 milliseconds) and again in
-its holder's start (10.8),
-and the file-named arm pays it once,
-at the mount verify (12.2),
-which is what makes the two whole commands 13 milliseconds apart rather than
-three:
-the worker phases are 33.2 milliseconds with no file and 22.4 with one,
-and 32.7 with no file once the second read was removed.
-This round placed that stall and did not explain it;
+the no-file arm pays that stall in its look-up (12.9 milliseconds) and in its
+holder's start (10.8),
+and the file-named arm pays the same stall once,
+at its mount verify (12.2),
+so the two commands are as far apart as the stalls each meets,
+which is what makes the ratio swing across phases and fall below one.
+This round placed that stall and did not explain it,
+and it withdrew the earlier reading of about 25 milliseconds (1.14 times) as a
+look-up cost:
 the work happens inside the worker phase the deadline bounds,
 whose margin is the 231 milliseconds stated below,
 and this build states the cost rather than sizing the deadline by it
