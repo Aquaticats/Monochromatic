@@ -23,49 +23,12 @@ use super::origin_refusal_causes::cause;
 use super::origin_refusals::{JudgedObject, RefusalForm};
 use super::removal_history::RemovalHistory;
 
-/// What:
-///  The whole message one refusal prints.
-/// Why:
-///  A person reads one text,
-///  so the opening,
-///  the state and the ways forward are assembled once and every form goes through it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// message(refusal, history);
-/// ```
-pub(super) fn message(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
-    let opening: String = format!("refusing to remove the ZFS worktree clone {}: {}.", addressed(refusal), cause(refusal));
-    return format!("{opening} {} Ways forward: {}", state(refusal, history), ways_forward(refusal));
-}
-
 /// The clone the message is about,
 /// or the slot for a plan that names no clone.
 fn addressed(refusal: &OriginRefusal) -> String {
     return match refusal.clone_name() {
         Some(name) => format!("`{name}`"),
         None => format!("for the slot `{}`", refusal.slot()),
-    };
-}
-
-/// What the point that refused may claim,
-/// in the form its state takes.
-fn state(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
-    let slot: &str = refusal.slot();
-    return match refusal.form() {
-        RefusalForm::NothingTakenDown => format!(
-            "{} This check changed nothing and the removal stopped before it took anything down: {}.",
-            RemovalHistory::NothingDestroyed.sentence(),
-            refusal.what_it_leaves().sentence(slot)
-        ),
-        RefusalForm::PendingAfterTheUnmount => {
-            format!("{} This check changed nothing. {}.", history.sentence(), refusal.what_it_leaves().sentence(slot))
-        }
-        RefusalForm::NothingCompared => format!(
-            "{} This check changed nothing, and it sent no request. {} The removal stays pending; putting the worktree back needs a person to reconcile that first, and `cancel-worktree-removal {slot}` reports the same mismatch rather than attaching anything.",
-            history.sentence(),
-            compared_nothing(refusal)
-        ),
     };
 }
 
@@ -97,6 +60,49 @@ fn compared_nothing(refusal: &OriginRefusal) -> String {
     };
 }
 
+/// What the point that refused may claim,
+/// in the form its state takes.
+fn state(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
+    let slot: &str = refusal.slot();
+    return match refusal.form() {
+        RefusalForm::NothingTakenDown => format!(
+            "{} This check changed nothing and the removal stopped before it took anything down: {}.",
+            RemovalHistory::NothingDestroyed.sentence(),
+            refusal.what_it_leaves().sentence(slot)
+        ),
+        RefusalForm::PendingAfterTheUnmount => {
+            format!("{} This check changed nothing. {}.", history.sentence(), refusal.what_it_leaves().sentence(slot))
+        }
+        RefusalForm::NothingCompared => format!(
+            "{} This check changed nothing, and it sent no request. {} The removal stays pending; putting the worktree back needs a person to reconcile that first, and `cancel-worktree-removal {slot}` reports the same mismatch rather than attaching anything.",
+            history.sentence(),
+            compared_nothing(refusal)
+        ),
+    };
+}
+
+/// What a person does about a marked origin,
+/// which the wrapper cannot finish for them.
+fn marked_ways_forward(origin_snapshot: &str) -> String {
+    return format!(
+        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, run the removal again once the clone is gone: that run refuses and names the command that finishes what is left, or the reason when none can."
+    );
+}
+
+/// What a person does about a mark the wrapper could not read.
+fn unreadable_mark_ways_forward(origin_snapshot: &str) -> String {
+    return format!(
+        "`zfs get -H -o value defer_destroy {origin_snapshot}` shows the property the wrapper could not read, and a mark it cannot read is never taken as off, so nothing here goes on until the reply carries 0 or 1. A reply that never does names a pool or a module this wrapper cannot judge, which a person settles before the removal is run again."
+    );
+}
+
+/// What a person reads and reconciles when a live object is not the planned one.
+fn live_objects_ways_forward(name: &str, other: &str) -> String {
+    return format!(
+        "`zfs list -H -o name,guid,createtxg {name}` and `zfs get -H -o origin {other}` show what the live objects are now, and the only object this removal may destroy is the one its plan recorded, so a person reconciles those names before the removal is run again."
+    );
+}
+
 /// The reads and the acts a person has for this cause,
 /// with no destructive command among them.
 fn ways_forward(refusal: &OriginRefusal) -> String {
@@ -124,26 +130,20 @@ fn ways_forward(refusal: &OriginRefusal) -> String {
     };
 }
 
-/// What a person does about a marked origin,
-/// which the wrapper cannot finish for them.
-fn marked_ways_forward(origin_snapshot: &str) -> String {
-    return format!(
-        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, run the removal again once the clone is gone: that run refuses and names the command that finishes what is left, or the reason when none can."
-    );
-}
-
-/// What a person does about a mark the wrapper could not read.
-fn unreadable_mark_ways_forward(origin_snapshot: &str) -> String {
-    return format!(
-        "`zfs get -H -o value defer_destroy {origin_snapshot}` shows the property the wrapper could not read, and a mark it cannot read is never taken as off, so nothing here goes on until the reply carries 0 or 1. A reply that never does names a pool or a module this wrapper cannot judge, which a person settles before the removal is run again."
-    );
-}
-
-/// What a person reads and reconciles when a live object is not the planned one.
-fn live_objects_ways_forward(name: &str, other: &str) -> String {
-    return format!(
-        "`zfs list -H -o name,guid,createtxg {name}` and `zfs get -H -o origin {other}` show what the live objects are now, and the only object this removal may destroy is the one its plan recorded, so a person reconciles those names before the removal is run again."
-    );
+/// What:
+///  The whole message one refusal prints.
+/// Why:
+///  A person reads one text,
+///  so the opening,
+///  the state and the ways forward are assembled once and every form goes through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// message(refusal, history);
+/// ```
+pub(super) fn message(refusal: &OriginRefusal, history: &RemovalHistory) -> String {
+    let opening: String = format!("refusing to remove the ZFS worktree clone {}: {}.", addressed(refusal), cause(refusal));
+    return format!("{opening} {} Ways forward: {}", state(refusal, history), ways_forward(refusal));
 }
 
 /// Controls stay out of the release executable.

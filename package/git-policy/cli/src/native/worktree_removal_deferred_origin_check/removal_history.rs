@@ -47,6 +47,19 @@ pub enum RemovalHistory {
     },
 }
 
+/// Each name in backticks,
+/// separated by commas and joined by `and` before the last one.
+fn quote_and_join(names: &[String]) -> String {
+    let quoted: Vec<String> = names.iter().map(|name| return format!("`{name}`")).collect();
+    let Some((last, rest)) = quoted.split_last() else {
+        return String::new();
+    };
+    if rest.is_empty() {
+        return last.clone();
+    }
+    return format!("{} and {last}", rest.join(", "));
+}
+
 impl RemovalHistory {
     /// What:
     ///  The history a set of recorded destroyed snapshots gives.
@@ -97,18 +110,6 @@ impl RemovalHistory {
 
 //endregion
 
-/// Each name in backticks,
-/// separated by commas and joined by `and` before the last one.
-fn quote_and_join(names: &[String]) -> String {
-    let quoted: Vec<String> = names.iter().map(|name| return format!("`{name}`")).collect();
-    let Some((last, rest)) = quoted.split_last() else {
-        return String::new();
-    };
-    if rest.is_empty() {
-        return last.clone();
-    }
-    return format!("{} and {last}", rest.join(", "));
-}
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

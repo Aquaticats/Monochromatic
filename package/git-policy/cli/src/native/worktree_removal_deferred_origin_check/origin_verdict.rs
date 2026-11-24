@@ -58,6 +58,56 @@ pub enum Verdict {
 
 //endregion
 
+//region Reading one of the three objects
+
+/// What:
+///  What a read that answered nothing useful said:
+///  the object is not there,
+///  or the read failed for another reason.
+/// Why:
+///  "Not there" is the object's own gone cause and every other failure says what the kernel
+///  answered,
+///  and the answer stays small so the three reads keep one shape without a large error type.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ReadAnswer = { kind: 'gone' } | { kind: 'failed'; said; errno };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum ReadAnswer {
+    /// The kernel answered that no such dataset exists.
+    Gone,
+    /// The read failed for another reason.
+    Failed(ReadFailure),
+}
+
+/// One of the three reads,
+/// or what a read that gave nothing useful answered.
+fn read(reader: &dyn DatasetReader, name: &str) -> Result<DatasetIdentity, ReadAnswer> {
+    let answer: Result<DatasetIdentity, ReadFailure> = reader.identity(name);
+    let failure: ReadFailure = match answer {
+        Ok(identity) => return Ok(identity),
+        Err(broken) => broken,
+    };
+    if failure.errno == Some(libc::ENOENT) {
+        return Err(ReadAnswer::Gone);
+    }
+    return Err(ReadAnswer::Failed(failure));
+}
+
+/// The refusal one failed read gives,
+/// naming the object and the plan's own tuple.
+fn refused_read(planned: &PlannedOrigin, object: JudgedObject, name: &str, answer: ReadAnswer) -> OriginRefusal {
+    return match answer {
+        ReadAnswer::Gone => match object {
+            JudgedObject::Clone => OriginRefusal::CloneGone { planned: planned.clone() },
+            JudgedObject::OriginDataset => OriginRefusal::OriginDatasetGone { planned: planned.clone() },
+            JudgedObject::OriginSnapshot => OriginRefusal::OriginSnapshotGone { planned: planned.clone() },
+        },
+        ReadAnswer::Failed(failure) => OriginRefusal::ReadFailed { planned: planned.clone(), object, name: String::from(name), said: failure.message() },
+    };
+}
+
 //region The check
 
 /// What:
@@ -186,56 +236,6 @@ pub fn judge_the_look(clone_name: &str, slot: &str, origin_snapshot: &str, mark:
 }
 
 //endregion
-
-//region Reading one of the three objects
-
-/// What:
-///  What a read that answered nothing useful said:
-///  the object is not there,
-///  or the read failed for another reason.
-/// Why:
-///  "Not there" is the object's own gone cause and every other failure says what the kernel
-///  answered,
-///  and the answer stays small so the three reads keep one shape without a large error type.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ReadAnswer = { kind: 'gone' } | { kind: 'failed'; said; errno };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum ReadAnswer {
-    /// The kernel answered that no such dataset exists.
-    Gone,
-    /// The read failed for another reason.
-    Failed(ReadFailure),
-}
-
-/// One of the three reads,
-/// or what a read that gave nothing useful answered.
-fn read(reader: &dyn DatasetReader, name: &str) -> Result<DatasetIdentity, ReadAnswer> {
-    let answer: Result<DatasetIdentity, ReadFailure> = reader.identity(name);
-    let failure: ReadFailure = match answer {
-        Ok(identity) => return Ok(identity),
-        Err(broken) => broken,
-    };
-    if failure.errno == Some(libc::ENOENT) {
-        return Err(ReadAnswer::Gone);
-    }
-    return Err(ReadAnswer::Failed(failure));
-}
-
-/// The refusal one failed read gives,
-/// naming the object and the plan's own tuple.
-fn refused_read(planned: &PlannedOrigin, object: JudgedObject, name: &str, answer: ReadAnswer) -> OriginRefusal {
-    return match answer {
-        ReadAnswer::Gone => match object {
-            JudgedObject::Clone => OriginRefusal::CloneGone { planned: planned.clone() },
-            JudgedObject::OriginDataset => OriginRefusal::OriginDatasetGone { planned: planned.clone() },
-            JudgedObject::OriginSnapshot => OriginRefusal::OriginSnapshotGone { planned: planned.clone() },
-        },
-        ReadAnswer::Failed(failure) => OriginRefusal::ReadFailed { planned: planned.clone(), object, name: String::from(name), said: failure.message() },
-    };
-}
 
 //endregion
 

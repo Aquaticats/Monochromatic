@@ -20,6 +20,71 @@
 use super::origin_mark::{DEFER_DESTROY_PROPERTY, MARK_ON, UserHolds};
 use super::origin_refusal::OriginRefusal;
 
+/// A count with the noun that agrees with it.
+fn noun(count: u64, one: &str, many: &str) -> String {
+    if count == 1 {
+        return format!("{count} {one}");
+    }
+    return format!("{count} {many}");
+}
+
+/// One or more user holds,
+/// worded for the sentence that follows.
+fn holds_phrase(count: u64) -> String {
+    if count == 1 {
+        return String::from("one user hold pins it");
+    }
+    return format!("{count} user holds pin it");
+}
+
+/// The two counts the refusal prints,
+/// in the words the reply supports.
+fn mark_numbers(clones: u64, holds: &UserHolds) -> String {
+    let cloned: String = noun(clones, "clone", "clones");
+    return match holds {
+        UserHolds::Counted(count) => format!("the kernel reports {cloned} of it and {}", noun(*count, "user hold", "user holds")),
+        UserHolds::Unreadable { said } => format!("the kernel reports {cloned} of it, and its hold count could not be read ({said})"),
+    };
+}
+
+/// What the next destroy of this clone does to the marked snapshot,
+/// in the kernel's own condition.
+fn what_the_destroy_does(clones: u64, holds: &UserHolds) -> String {
+    return match (clones, holds) {
+        (1, UserHolds::Counted(0)) => String::from("so destroying this clone destroys that snapshot in the same transaction"),
+        (1, UserHolds::Counted(count)) => format!("so that snapshot stands after this removal, because {}", holds_phrase(*count)),
+        (0, _) => String::from("so that snapshot stands after this removal, because no clone of it is here to destroy"),
+        (_, UserHolds::Counted(0)) => String::from("so that snapshot stands after this removal, because another clone of it is in place"),
+        (_, UserHolds::Counted(count)) => format!("so that snapshot stands after this removal, because another clone of it is in place and {}", holds_phrase(*count)),
+        (_, UserHolds::Unreadable { .. }) => String::from("so whether destroying this clone would destroy that snapshot cannot be told from this reply"),
+    };
+}
+
+/// The cause of an object at a name that is not a filesystem,
+/// or that is the snapshot the kernel named.
+fn not_a_filesystem(role: &str, name: &str, found: u32, snapshot: bool) -> String {
+    if snapshot {
+        return format!("{role} `{name}` is a snapshot, not a filesystem");
+    }
+    return format!("{role} `{name}` is not a filesystem (the kernel reports object-set type {found})");
+}
+
+/// The cause of a GUID that is not the recorded one,
+/// naming both values.
+fn guid_differs(role: &str, name: &str, planned: &str, live: u64) -> String {
+    return format!("{role} `{name}` is not the one this removal recorded: it recorded GUID `{planned}`, and the kernel reports `{live}`");
+}
+
+/// The marked origin's cause,
+/// with the two counts and what they mean for the destroy that would follow.
+fn marked_cause(origin_snapshot: &str, clones: u64, holds: &UserHolds) -> String {
+    return format!(
+        "its origin snapshot `{origin_snapshot}` is marked for deferred destroy (`{DEFER_DESTROY_PROPERTY}` reads {MARK_ON}), and {}, {}",
+        mark_numbers(clones, holds),
+        what_the_destroy_does(clones, holds)
+    );
+}
+
 /// What:
 ///  The cause as the sentence that follows the clone's name.
 /// Why:
@@ -80,71 +145,6 @@ pub(super) fn cause(refusal: &OriginRefusal) -> String {
         ),
         OriginRefusal::ReadFailed { object, name, said, .. } => format!("{} `{name}` could not be read: {said}", object.words()),
     };
-}
-
-/// The marked origin's cause,
-/// with the two counts and what they mean for the destroy that would follow.
-fn marked_cause(origin_snapshot: &str, clones: u64, holds: &UserHolds) -> String {
-    return format!(
-        "its origin snapshot `{origin_snapshot}` is marked for deferred destroy (`{DEFER_DESTROY_PROPERTY}` reads {MARK_ON}), and {}, {}",
-        mark_numbers(clones, holds),
-        what_the_destroy_does(clones, holds)
-    );
-}
-
-/// The two counts the refusal prints,
-/// in the words the reply supports.
-fn mark_numbers(clones: u64, holds: &UserHolds) -> String {
-    let cloned: String = noun(clones, "clone", "clones");
-    return match holds {
-        UserHolds::Counted(count) => format!("the kernel reports {cloned} of it and {}", noun(*count, "user hold", "user holds")),
-        UserHolds::Unreadable { said } => format!("the kernel reports {cloned} of it, and its hold count could not be read ({said})"),
-    };
-}
-
-/// What the next destroy of this clone does to the marked snapshot,
-/// in the kernel's own condition.
-fn what_the_destroy_does(clones: u64, holds: &UserHolds) -> String {
-    return match (clones, holds) {
-        (1, UserHolds::Counted(0)) => String::from("so destroying this clone destroys that snapshot in the same transaction"),
-        (1, UserHolds::Counted(count)) => format!("so that snapshot stands after this removal, because {}", holds_phrase(*count)),
-        (0, _) => String::from("so that snapshot stands after this removal, because no clone of it is here to destroy"),
-        (_, UserHolds::Counted(0)) => String::from("so that snapshot stands after this removal, because another clone of it is in place"),
-        (_, UserHolds::Counted(count)) => format!("so that snapshot stands after this removal, because another clone of it is in place and {}", holds_phrase(*count)),
-        (_, UserHolds::Unreadable { .. }) => String::from("so whether destroying this clone would destroy that snapshot cannot be told from this reply"),
-    };
-}
-
-/// One or more user holds,
-/// worded for the sentence that follows.
-fn holds_phrase(count: u64) -> String {
-    if count == 1 {
-        return String::from("one user hold pins it");
-    }
-    return format!("{count} user holds pin it");
-}
-
-/// A count with the noun that agrees with it.
-fn noun(count: u64, one: &str, many: &str) -> String {
-    if count == 1 {
-        return format!("{count} {one}");
-    }
-    return format!("{count} {many}");
-}
-
-/// The cause of an object at a name that is not a filesystem,
-/// or that is the snapshot the kernel named.
-fn not_a_filesystem(role: &str, name: &str, found: u32, snapshot: bool) -> String {
-    if snapshot {
-        return format!("{role} `{name}` is a snapshot, not a filesystem");
-    }
-    return format!("{role} `{name}` is not a filesystem (the kernel reports object-set type {found})");
-}
-
-/// The cause of a GUID that is not the recorded one,
-/// naming both values.
-fn guid_differs(role: &str, name: &str, planned: &str, live: u64) -> String {
-    return format!("{role} `{name}` is not the one this removal recorded: it recorded GUID `{planned}`, and the kernel reports `{live}`");
 }
 
 /// Controls stay out of the release executable.

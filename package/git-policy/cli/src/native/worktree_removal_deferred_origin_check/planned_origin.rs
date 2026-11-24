@@ -98,6 +98,15 @@ pub struct PlannedOriginFields {
     pub origin_snapshot_createtxg: Option<u64>,
 }
 
+/// One field the check needs,
+/// or the field the plan lacks.
+fn carried<T>(field: PlanField, slot: &str, plan_home: &Path, value: Option<T>) -> Result<T, MissingField> {
+    let Some(found) = value else {
+        return Err(MissingField { slot: String::from(slot), field, plan_home: plan_home.to_path_buf() });
+    };
+    return Ok(found);
+}
+
 impl PlannedOrigin {
     /// What:
     ///  The planned identities a plan's fields give,
@@ -157,14 +166,6 @@ impl From<MissingField> for OriginRefusal {
     }
 }
 
-/// One field the check needs,
-/// or the field the plan lacks.
-fn carried<T>(field: PlanField, slot: &str, plan_home: &Path, value: Option<T>) -> Result<T, MissingField> {
-    let Some(found) = value else {
-        return Err(MissingField { slot: String::from(slot), field, plan_home: plan_home.to_path_buf() });
-    };
-    return Ok(found);
-}
 
 //endregion
 
