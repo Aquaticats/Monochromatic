@@ -49,6 +49,9 @@ pub(super) struct Place {
     /// The slot's underlay identity,
     /// read while nothing was mounted there.
     pub(super) slot_identity: FolderIdentity,
+    /// The underlay pointer Git wrote into the empty slot,
+    /// read before the clone was mounted over it.
+    pub(super) pointer: Vec<u8>,
     /// The slot's Git registration.
     pub(super) registration: PathBuf,
 }
@@ -72,7 +75,7 @@ fn record_at(phase: Phase, place: &Place, sbin: &str) -> BindingRecord {
     let common_identity: FolderIdentity = FolderIdentity::of_folder(place.common.as_path()).expect("the common directory's identity reads");
     let registration_identity: FolderIdentity = FolderIdentity::of_folder(place.registration.as_path()).expect("the registration's identity reads");
     let snapshot: String = format!("{}@{ORIGIN_PREFIX}{NONCE}", place.checkout_dataset);
-    let pointer: Vec<u8> = std::fs::read(place.slot.join(".git")).expect("the slot's pointer reads");
+    let pointer: Vec<u8> = place.pointer.clone();
     let with_clone: bool = matches!(phase, Phase::Cloned | Phase::Mounted | Phase::Filled | Phase::Settling);
     let clone_guid: Option<DatasetGuid> = with_clone.then(|| return guid_of(sbin, place.clone_dataset.as_str()));
     let clone_createtxg: Option<u64> = with_clone.then(|| return value_of(sbin, place.clone_dataset.as_str(), "createtxg").parse().expect("the clone's createtxg reads"));

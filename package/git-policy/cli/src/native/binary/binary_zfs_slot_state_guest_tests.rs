@@ -107,12 +107,13 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
         command_ok("git", &["-C", shown(checkout.as_path()), "worktree", "add", "--quiet", "--no-checkout", shown(place.as_path()), "HEAD"]);
     }
     let slot_identity: FolderIdentity = FolderIdentity::of_folder(slot.as_path()).expect("the underlay's identity reads before the mount");
+    // The pointer the add keeps for prune is the underlay's own, and the clone's copy replaces it under the mount.
+    let pointer: Vec<u8> = std::fs::read(slot.join(".git")).expect("the underlay pointer reads before the mount");
+    let second_pointer: Vec<u8> = std::fs::read(second.join(".git")).expect("the second slot's underlay pointer reads");
     write_passing_probe_record();
     prepare_the_store(checkout.as_path());
     write_configuration(checkout.as_path(), None, None);
     let clone: String = clone_the_checkouts_snapshot(sbin.as_str(), checkout_dataset.as_str(), container.as_str(), SLOT, NONCE, Some(mount_request(NONCE).as_str()));
-    let attached = sweep();
-    assert_eq!(attached.status, Some(0), "the sweep attached the clone: {}", attached.said);
     let common: PathBuf = checkout.join(".git");
     let place: Place = Place {
         common: common.clone(),
@@ -121,8 +122,16 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
         clone_dataset: clone.clone(),
         slot: slot.clone(),
         slot_identity,
+        pointer,
         registration: common.join("worktrees").join(SLOT),
     };
+    let attached = sweep();
+    assert_eq!(attached.status, Some(0), "the sweep attached the clone: {}", attached.said);
+    // The add's own exchange, measured as item 1's order: the clone's copy of the checkout's administration is moved
+    // aside under the mount and the registration's pointer installed in its place, so the slot Git validates is the
+    // clone's root rather than the copied repository.
+    std::fs::rename(slot.join(".git"), slot.join("git-administered-copy")).expect("the copied administration moves aside");
+    std::fs::write(slot.join(".git"), format!("gitdir: {}\n", place.registration.display())).expect("the registration pointer is installed under the mount");
     let two: Place = Place {
         common: common.clone(),
         pool: pool.clone(),
@@ -130,6 +139,7 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
         clone_dataset: format!("{container}/{SLOT_TWO}"),
         slot: second.clone(),
         slot_identity: FolderIdentity::of_folder(second.as_path()).expect("the second slot's identity reads"),
+        pointer: second_pointer,
         registration: common.join("worktrees").join(SLOT_TWO),
     };
 
