@@ -28,10 +28,11 @@ use super::super::probe_status_line::StepLine;
 ///  The sentence the mode prints for a refusal the worker reported,
 ///  and the words it is asked about.
 /// Why:
-///  The project's second answer of 2026-11-22 prints the rows for none and
+///  The project's second answer of 2026-11-22 prints the rows for none and for
 ///  several,
 ///  and the fourth gives the empty file its sentence;
-///  both bind the probe, whose record carries only a closed word.
+///  both bind the probe,
+///  whose record carries only a closed word.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
