@@ -445,7 +445,8 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
     // The capture is written before the snapshot, so the pool fills at the one
     // moment no other state can tell the test about: the add holds itself after
     // the capture until the control's release file stands.
-    let release: PathBuf = fixture.root.join(".hold-release");
+    // Outside the pool: the release is written while the pool is full.
+    let release: PathBuf = PathBuf::from("/root/zfs-hold-release");
     let waiting: PathBuf = release.with_extension("waiting");
     let _stale: std::io::Result<()> = std::fs::remove_file(release.as_path());
     let _stale_waiting: std::io::Result<()> = std::fs::remove_file(waiting.as_path());
@@ -463,6 +464,8 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
     let _filled: Output = Command::new("/usr/bin/dd").args(["if=/dev/zero", "of=/root/zfs-filler/fill", "bs=1M"]).output().expect("dd fills the pool");
     std::fs::write(release.as_path(), b"release\n").expect("the control releases the add");
     let output: Output = child.wait_with_output().expect("the add ends");
+    // The pool is freed before any assertion, so a failed arm never leaves the
+    // next one with no space.
     let _gone: Output = fixture.zfs(&["destroy", "-r", "-f", filler.as_str()]);
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     assert!(!output.status.success(), "the add with a full pool is refused: {said}");
