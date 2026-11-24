@@ -12,9 +12,11 @@
 
 import {
   BUN_TEST_BAN_REASON,
+  findLiteralRmPathsInCommand,
   hasNotUnderstoodShellSyntax,
   invokesBunTest,
   invokesMutatingGitThroughRealGitPath,
+  literalRmPathRefusal,
   NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   REAL_GIT_MUTATION_BAN_REASON,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
@@ -42,6 +44,10 @@ type BashGuardCheck = {
    Executable names that identify the real Git binary; tests inject them so fixtures need no host installation.
    */
   readonly realGitBasenames?: readonly string[];
+  /**
+   Working directory the command runs in, which a script file operand resolves against.
+   */
+  readonly cwd: string;
 };
 
 //endregion Types
@@ -71,6 +77,7 @@ async function evaluateBashGuard({
   input,
   blockBunTest = true,
   realGitBasenames,
+  cwd,
 }: BashGuardCheck,): Promise<GuardrailDecision> {
   if (!isRecord(input,))
     return GUARDRAIL_NOT_BLOCKED;
@@ -104,12 +111,27 @@ async function evaluateBashGuard({
     command,
     ...(realGitBasenames === undefined ? {} : { realGitBasenames, }),
   },);
-  if (!mutatesThroughRealGitPath)
+  if (mutatesThroughRealGitPath) {
+    return {
+      block: true,
+      reason: REAL_GIT_MUTATION_BAN_REASON,
+    };
+  }
+
+  /**
+   Command lines this call would run that delete a path they compute,
+   including the script files it runs and the here-document bodies it writes.
+   */
+  const literalRmPathFindings = await findLiteralRmPathsInCommand({
+    command,
+    cwd,
+  },);
+  if (literalRmPathFindings.length === 0)
     return GUARDRAIL_NOT_BLOCKED;
 
   return {
     block: true,
-    reason: REAL_GIT_MUTATION_BAN_REASON,
+    reason: literalRmPathRefusal({ findings: literalRmPathFindings, },),
   };
 }
 
