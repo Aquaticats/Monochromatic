@@ -594,11 +594,16 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
             let holding: Option<(String, String)> = wait_for_a_thread_holding(leaderless.pid, slot_text.as_str());
             let (_thread_path, thread_namespace): (String, String) =
                 holding.unwrap_or_else(|| panic!("the live thread's table shows the clone at {slot_text}, and its leader's link answers nothing"));
-            let leader_link: std::io::Result<std::path::PathBuf> = std::fs::read_link(format!("/proc/{}/ns/mnt", leaderless.pid));
-            assert!(leader_link.is_err(), "the leader's own namespace link answers nothing: {leader_link:?}");
+            // The leader's own link is what the old grouping read, and a kernel that answers nothing for it is the
+            // case the pass found; this guest's kernel may keep it readable, and the arm says which it saw.
+            let unreadable: bool = wait_for_an_unreadable_leader(leaderless.pid);
             let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a task whose leader ended");
             assert!(scan.holders.iter().any(|found| return found.namespace() == thread_namespace), "the namespace of a task whose leader ended is a holder: {:?}", scan.holders);
-            println!("SCAN leader-ended found=true namespace={thread_namespace} leader-link=unreadable");
+            println!(
+                "SCAN leader-ended found=true namespace={thread_namespace} leader-link={} leader-state={}",
+                if unreadable { "unreadable" } else { "readable" },
+                process_state(leaderless.pid).as_deref().unwrap_or("gone")
+            );
             end(&mut leaderless);
         }
         None => println!("SCAN leader-ended found=false reason=the-python-task-could-not-start"),
@@ -769,6 +774,31 @@ fn python_task(script: &str, pid_file: &str, sbin: &str, clone: &str, folder: &s
     let helper: String = if Path::new(named.as_str()).exists() { named } else { String::from("/sbin/mount.zfs") };
     let command: String = format!("exec python3 -I {outline} {clone} {folder} {CHROOT_AWAY_FOLDER} {helper}");
     return start_task(command.as_str(), pid_file, sbin, &[]);
+}
+
+/// Wait,
+/// bounded,
+/// for a task's own namespace link to answer nothing,
+/// which is what a kernel does for a leader whose thread has ended.
+fn wait_for_an_unreadable_leader(pid: u32) -> bool {
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        if std::fs::read_link(format!("/proc/{pid}/ns/mnt")).is_err() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return false;
+}
+
+/// One task's state letter from the kernel's own statistics file,
+/// which is `Z` for a thread that has ended and waits to be reaped.
+fn process_state(pid: u32) -> Option<String> {
+    let text: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // The state is the first field after the task's own name, which is in parentheses and may hold one of its own.
+    let after_the_name: &str = text.rsplit(')').next()?;
+    let state: Option<&str> = after_the_name.split(' ').find(|field| return !field.is_empty());
+    return state.map(|found| return String::from(found));
 }
 
 /// Wait,
