@@ -44,6 +44,11 @@ export {
 } from './literal-rm-paths.ts';
 export { findLiteralRmPathsInCommand, } from './literal-rm-paths-in-command.ts';
 export {
+  literalRmPathFindingsAnEditWouldAdd,
+  literalRmPathFindingsAWriteWouldAdd,
+} from './literal-rm-paths-a-file-call-adds.ts';
+export { textBeforeAFileChange, } from './text-before-a-file-change.ts';
+export {
   findingIdentity,
   findingsNotPresentBefore,
   literalRmPathFindingsAddedToScriptFile,
