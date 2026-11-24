@@ -1,9 +1,14 @@
 # The forced arm of a removal: the repaired checkout, the holder's copy, and the record the journal keeps
 
-Non-final,
-unapproved design proposal by an agent,
-written in the round whose commits are listed under "Revisions".
-It is not approved by the project owner and nothing in it is final.
+Design by an agent,
+written in the rounds whose commits are listed under "Revisions",
+and accepted by the project owner on 2026-11-23
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`),
+with its veto-open defaults as that record names them.
+The acceptance is of the design and not of its build:
+the arms it still owes,
+the wait's value and step 17's code are open,
+and the report of each round says which of its own edits no one has yet reviewed.
 It designs the two open items of the accepted ZFS worktree design that are one mechanism:
 "Who ends a holder,
 how a holder is identified,
@@ -5059,6 +5064,26 @@ the questions section is the decided record.
   the confirmation's order and the limitations bullet brought up to date,
   the marker route's condition stated with the arm that would loosen it,
   and `holder-locked` with its own report text.
+- `b3044bdc9e`,
+  2026-11-23T21:26:06-05:00:
+  the merge of `main` with the owner's acceptance and V10's answer.
+- `5c92a940eb`,
+  2026-11-23T21:31:11-05:00:
+  V10 answered with "Stop that unit" and its scope quoted,
+  option (2) carried through the sixth kind,
+  the preflight,
+  the structural stage's order,
+  "What is still refused",
+  the confirmation's promise and Option A,
+  the refusal word,
+  its report text,
+  the report's lines,
+  test 22,
+  the constants and M12;
+  the new section `The locked holder, and the unit the wrapper may stop` with its four reads and the stop;
+  F62's machine read and F60's version caveat;
+  T0-14 rewritten to the fourth round's six shapes;
+  and the front matter's status after the owner's acceptance.
 
 ## What this revision left as it was
 
