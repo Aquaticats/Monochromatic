@@ -2510,3 +2510,312 @@ as the review left them:
 - `<a holder in its own user namespace, whose copied mounts the kernel locks: a run, not the reading above>`.
 - `<the kill cases: a blocker that will not die, EBUSY after the structural stage, and what a kill leaves>`.
 - `<a read-only parent, and way 8 where way 7 is refused>`. 
+
+## The three arms that need no step 17 code, 2026-11-24T00:00:00-05:00
+
+**Measured by an agent.**
+Unapproved and non-final.
+This section records the three Tier 0 arms the third read listed as unrun or open and that need no step 17
+code:
+T0-14 in the shape that read's P1 names,
+T0-10 as the handler would run it,
+and T0-3's delivery control.
+It decides nothing the design or the record decides.
+
+### The guest, its kernel and the program
+
+One guest,
+`zfs-probe-fourth-round-user-units-and-listns-20261124`,
+made through `mvm --backend libvirt create` from the cached template `template-ubuntu.qcow2`,
+nothing downloaded to make it,
+and destroyed through `mvm` when the round ended.
+It is `Ubuntu 24.04.5 LTS`.
+It was created with the template's `6.8.0-147-generic`,
+and its own Ubuntu archive then offered `linux-image-generic-hwe-24.04` at `7.0.0-43`,
+which was installed inside the guest and booted,
+so every log in this section is a log on **`7.0.0-43-generic`**,
+a kernel of 6.19 or newer whose syscall table has `listns`.
+The guest's own pool was made under the older kernel (`tier1pool`,
+a 2 GiB sparse file,
+ZFS `2.2.2-0ubuntu9.5`) and imported on the new one with the distribution's `zfs-kmod-2.4.1-1ubuntu5.1`,
+so the fixture kept its file-backed pool across the change;
+none of these three arms needs it.
+
+The program is `probe-round4.py`,
+sha256 `02e0a82c6e33d3077d9a627493cdecd90a51ac48a470e7af1c5c5fdfa4108879`,
+kept with the logs in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`,
+and every log in this section prints that name and hash as its sixth line,
+after the driver's push lines.
+Each arm ran twice,
+and every log ends `0 failing phase(s)`:
+
+- `arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log`
+- `arm-T0-10-root-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log`
+- `arm-T0-3-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log`
+
+### T0-14. A holder that is a systemd unit, and what a user namespace does to its copy
+
+The third read's P1 reads that a sandboxed unit of a person's own user manager is in the class the design
+refuses,
+because systemd gives such a unit a user namespace of its own,
+and that the design's lock read cannot be made from `mountinfo`.
+This arm measures the class instead of reading it:
+six shapes,
+each run twice,
+each measuring the same five things over a copy the holder holds.
+
+This arm's H is not a fresh private namespace.
+A unit started by systemd is forked from the guest's init,
+so a mount made in a private namespace of the probe never reaches it;
+the arm therefore mounts in the guest's own root namespace,
+before each unit starts,
+and unmounts everything before it returns (each phase prints the count of its own rows left behind,
+which is zero).
+That deviation from the common start is the arm's,
+not the program's,
+and it is what makes the holder's namespace *copy* the copy rather than receive it by propagation.
+
+Each shape prints,
+in this order:
+the unit's own `uid_map` and `CapEff`;
+whether its user namespace differs from the initial one;
+`NS_GET_USERNS` on its mount namespace descriptor and whether that owner is the initial user namespace;
+the copy's row in the holder's own table;
+what the holder's namespace answers to a move and to an unmount,
+entered as root of the initial user namespace in a child per action;
+and,
+as the control,
+the same copy unmounted in this arm's H.
+
+The system unit with the same option,
+which the brief names as the control that must differ:
+
+```text
+# arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase system-private-mounts
+# the unit: system manager, properties ['PrivateMounts=yes']
+# /proc/2874/uid_map = 0          0 4294967295
+# /proc/2874/status CapEff = 000001ffffffffff
+# the initial user namespace's inode = 4026531837; the holder's = 4026531837; they differ = false
+# NS_GET_USERNS on the holder's mount namespace = ["user:[4026531837]", 4026531837], failure null
+# its mount namespace is owned by the initial user namespace = true
+# the holder holds the copy = true: id=464 parent=463 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:382 master:1]
+# the move probe = {"action": "move", "the copy in that namespace": "id=464 parent=463 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:382 master:1]", "make-slave of the parent": "accepted", "move_mount of the copy": "accepted", "the destination row": "id=464 parent=463 dev=253:1 root=$B/copy mp=$B/parent/.move-probe fstype=ext4 source=/dev/vda1 tags=[shared:382 master:1]", "the move back": "EINVAL", "the copy at the slot after the action": "none"}
+# the umount probe = {"action": "umount", "the copy in that namespace": "none", "the copy the umount probe met at": "$B/parent/.move-probe", "umount2 of the copy": "accepted", "the copy at the slot after the action": "none"}
+# control: the same copy unmounted in the guest root namespace was accepted
+```
+
+A user-manager unit with `PrivateMounts=yes`,
+which is the shape the design's own example has:
+
+```text
+# arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase user-private-mounts
+# the unit: user manager, properties ['PrivateMounts=yes']
+# /proc/2898/uid_map = 1000       1000          1
+# the initial user namespace's inode = 4026531837; the holder's = 4026532395; they differ = true
+# NS_GET_USERNS on the holder's mount namespace = ["user:[4026531837]", 4026531837], failure null
+# its mount namespace is owned by the initial user namespace = true
+# the holder holds the copy = true: id=113 parent=105 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:1]
+# the move probe = {"action": "move", "the copy in that namespace": "id=113 parent=105 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:1]", "make-slave of the parent": "accepted", "move_mount of the copy": "accepted", "the destination row": "id=113 parent=105 dev=253:1 root=$B/copy mp=$B/parent/.move-probe fstype=ext4 source=/dev/vda1 tags=[shared:1]", "the move back": "EINVAL", "the copy at the slot after the action": "none"}
+# the umount probe = {"action": "umount", "the copy in that namespace": "none", "the copy the umount probe met at": "$B/parent/.move-probe", "umount2 of the copy": "accepted", "the copy at the slot after the action": "none"}
+# control: the same copy unmounted in the guest root namespace was accepted
+```
+
+The three other user-manager shapes behave the same,
+in both runs:
+`PrivateMounts=yes` with `PrivateUsers=yes`,
+`ProtectHome=read-only`,
+and `PrivateTmp=yes` each give the process its own user namespace (`uid_map` reads `1000 1000 1`,
+the holder's user namespace inode differs from the initial one) and leave the *mount* namespace owned by the
+initial one (`NS_GET_USERNS` reads `user:[4026531837]`),
+so the move and the unmount are both accepted.
+
+The kernel's locked class is reached by a holder whose mount and user namespaces are made in one clone,
+which is what bubblewrap and a rootless container do:
+
+```text
+# arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase handmade-user-namespace
+# the holder: unshare --user --map-root-user --mount, then sleep
+# the holder's main process: 3056; waited 0.05 s for its own user namespace
+# /proc/3056/uid_map = 0          0          1
+# the initial user namespace's inode = 4026531837; the holder's = 4026532392; they differ = true
+# NS_GET_USERNS on the holder's mount namespace = ["user:[4026532392]", 4026532392], failure null
+# its mount namespace is owned by the initial user namespace = false
+# the holder holds the copy = true: id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]
+# the move probe = {"action": "move", "the copy in that namespace": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]", "make-slave of the parent": "accepted", "move_mount of the copy": "EINVAL", "the copy at the slot after the action": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]"}
+# the umount probe = {"action": "umount", "the copy in that namespace": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]", "the copy the umount probe met at": "$B/parent/slot", "umount2 of the copy": "EINVAL", "the copy at the slot after the action": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]"}
+# control: the same copy unmounted in the guest root namespace was accepted
+```
+
+What the six shapes show,
+in both runs:
+
+- The class the design refuses is not "a unit with `PrivateMounts=yes`":
+  it is **a mount namespace owned by a user namespace other than the initial one**,
+  and only the hand-made holder has one.
+  `NS_GET_USERNS` on a namespace descriptor reads exactly that,
+  and the reading does not need `mountinfo`.
+- systemd 255,
+  which this guest has,
+  creates the unit's *mount* namespace before the user namespace,
+  so the mount namespace stays owned by the initial user namespace even though the unit's processes run in one
+  of their own;
+  the kernel then locks nothing,
+  and both the move and the unmount are accepted from the handler's side.
+  The third read's reading is of systemd `v262`,
+  and this guest does not have it;
+  the host does,
+  and no unit was run on the host.
+- When the two namespaces are made at once,
+  as bubblewrap and rootless containers do,
+  the copy is locked:
+  the move answers `EINVAL`,
+  the unmount answers `EINVAL`,
+  and the copy stays at the slot,
+  while the same copy unmounted in H is accepted,
+  so the probe can see a difference.
+  That is the reviewer's P1 confirmed by a run,
+  and the read that distinguishes the two shapes is `NS_GET_USERNS`,
+  not a `MNT_LOCKED` tag.
+- In the systemd shapes the copy is a *peer* of the copy in H (`tags=[shared:1]` on both),
+  so an unmount inside the holder would reach H's copy too;
+  in the hand-made shape the copy is private (`tags=[]`) and H's copy is untouched.
+
+Decisions needed to script it:
+the arm mounts in the guest's own root namespace rather than a fresh one,
+for the reason above;
+the unit is started with `--machine=ubuntu@.host --user` from root,
+because a process merely set to that uid has no session and the manager refuses it with "Interactive
+authentication required";
+the copy is mounted before the unit starts,
+so that the unit's namespace copies it;
+the move probe makes the parent a slave first,
+as way 7's step 1 does,
+because a shared parent refuses a move by itself;
+the hand-made holder is waited for until its user namespace differs from the initial one,
+because a read taken at once reports the mapping the process inherited.
+
+### T0-10 with the handler's privileges
+
+The third read's P2 says the namespace no task holds is unmeasured on a kernel that has `listns`.
+This arm runs as root in the guest's initial user and pid namespaces,
+which is where the design's handler runs,
+and keeps a namespace alive only by a **bind of its `nsfs` file**:
+the child that made it unshares,
+mounts a tmpfs mark and exits,
+so no task holds it and no descriptor but the bind does.
+
+```text
+# arm-T0-10-root-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1
+# /proc/self/uid_map = 0 0 4294967295; the initial user namespace reads "0 0 4294967295" = true
+# /proc/self/status CapEff = 000001ffffffffff
+# /proc/self/ns/pid equals /proc/1/ns/pid = true
+# the child 2847 has exited; its mount namespace is kept alive by the bind at $B/kept-namespace only
+    id=439 parent=107 dev=0:5 root=mnt:[4026532397] mp=$B/kept-namespace fstype=nsfs source=nsfs tags=[]
+# no task holds that namespace: /proc lists no process whose ns/mnt is it = true
+# NS_GET_ID on the kept bind: 166
+# listns(470) for CLONE_NEWNS over 2 page(s): 11 id(s), failure "end of list (ENOENT)"
+# the ids listns returned: [8, 10, 18, 23, 25, 27, 31, 33, 36, 165, 166]
+# the kept namespace's id is in the listed set = true
+# the kept id 166 opened by open_by_handle_at(FD_NSFS_ROOT): mnt:[4026532397]
+# entered the kept namespace by its listed id: {"rows": 29, "mark": ["id=438 parent=410 dev=0:53 root=/ mp=/mnt/kept-probe fstype=tmpfs source=tmpfs tags=[]"]
+```
+
+Both runs are the same and both are complete:
+`listns` lists eleven mount namespaces over two pages,
+the kept namespace's id is among them,
+`open_by_handle_at` on the nsfs root turns that id into a descriptor naming `mnt:[4026532397]`,
+and `setns` on it enters the namespace,
+whose table holds the tmpfs mark the child left.
+`ENOENT` on the walk is `listns`'s way of saying the page cursor is past the last id,
+which the program now prints as the end of the list rather than as a failure.
+So for a caller in the initial namespaces the taskless route works:
+a namespace no task holds is found by id and entered,
+without any descriptor kept by the scan.
+The container's answer in the third round was the other half of this:
+a caller without the initial user namespace's `CAP_SYS_ADMIN` is not given such an id,
+and the kernel answers `ESTALE` when it tries to enter one.
+
+Decisions needed to script it:
+the bind target is a file,
+because a bind of an `nsfs` file onto a directory is refused `ENOTDIR`;
+the arm reads the kept namespace's id with `NS_GET_ID` on the bind it made;
+and the walk from a listed id to an entered namespace is a handle of `{ns_id, 0, 0}` of type `FILEID_NSFS`
+opened with `open_by_handle_at(FD_NSFS_ROOT, …)`,
+which is the design's own route.
+
+### T0-3's delivery control
+
+The section's previous passes recorded this control as owed:
+the design's T0-3 names "a mount made in H under P reaches S before the change,
+recorded first",
+and no log had it.
+It is now its own phase,
+on variant (a)'s start,
+before the plain-unmount control and the action:
+
+```text
+# arm-T0-3-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase variant-a-delivery-control
+# the control: a mount made in H under P reaches S before the change
+# control delivery to U and S = {"U": true, "S": true}
+# control withdrawal in U and S = {"U": true, "S": true}
+# the action the control precedes: umount2 the copy in U, plain
+# observed: S slot gone = true
+```
+
+Both runs agree:
+the mount made in H under P reaches U and S,
+its withdrawal reaches both,
+and the plain unmount that follows removes S's copy,
+so the control and the action it precedes are shown on the same start.
+The arm's other four phases are unchanged and their rows are in the same log.
+
+### What these three arms show and do not show
+
+Shown,
+on `7.0.0-43-generic`:
+
+- A holder whose mount namespace is owned by a user namespace of its own has its copy locked:
+  the move and the unmount both answer `EINVAL`,
+  and the copy stays.
+  T0-14's hand-made shape,
+  both runs,
+  with the control that the same copy unmounted in H is accepted.
+- A systemd user-manager unit with `PrivateMounts=yes`,
+  `PrivateUsers=yes`,
+  `ProtectHome=read-only` or `PrivateTmp=yes` has its processes in a user namespace but its mount namespace
+  owned by the initial one,
+  so nothing is locked and both actions are accepted.
+  T0-14's five systemd shapes,
+  both runs,
+  with the system unit as the control.
+- `NS_GET_USERNS` on a holder's mount namespace distinguishes the two shapes,
+  which is a read a preflight can make before ending anything.
+- For root in the initial namespaces,
+  `listns` lists a mount namespace that only a bind of its `nsfs` file keeps alive,
+  and `open_by_handle_at` on the nsfs root enters it by its id.
+  T0-10-root,
+  both runs.
+- T0-3's delivery control fires,
+  on the start the arm names.
+  Both runs.
+
+Not shown:
+
+- A systemd that creates the unit's mount and user namespaces at once,
+  which the third read reads in `v262` and this guest,
+  systemd 255,
+  does not have.
+  The host has `v262` and no unit was run there,
+  so which of the two shapes a `v262` user unit takes is unmeasured.
+- A bubblewrap or rootless-container holder:
+  the hand-made `unshare` holder is the same kernel class and not those tools.
+- `ProtectSystem=`,
+  `ReadOnlyPaths=` and the other options the third read lists,
+  and any option on a unit of a user manager other than the four measured.
+- Whether the design's preflight should refuse such a holder,
+  and with which word:
+  that is the design's,
+  and the third read's P1 and P6 are its to settle.
+- The taskless route for a caller that also holds a snapshot batch that must not be lost:
+  the arm measures the scan's reach,
+  not the removal's behaviour when the scan misses.
