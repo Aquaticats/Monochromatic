@@ -63,6 +63,24 @@ fn each_cause_answers_with_its_own_step_and_form() {
 }
 
 #[test]
+fn every_cause_has_a_name_of_its_own_and_none_repeats() {
+    let mut names: Vec<&'static str> = Vec::new();
+    for (label, cause) in every_cause() {
+        let name: &'static str = cause.cause_name();
+        assert!(!name.is_empty(), "the cause {label} has a name");
+        assert!(
+            name.bytes().all(|byte| return byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'),
+            "the cause {label} is named in lowercase words and hyphens: {name}"
+        );
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    let distinct: usize = names.len();
+    assert_eq!(distinct, 17, "one name per cause and no cause shares one, found {names:?}");
+}
+
+#[test]
 fn a_check_names_the_clone_and_the_slot_and_the_look_names_both_too() {
     for (label, cause) in every_cause() {
         if label == "plan-incomplete" {

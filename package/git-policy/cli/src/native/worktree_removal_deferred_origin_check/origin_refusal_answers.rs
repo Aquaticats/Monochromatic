@@ -25,6 +25,41 @@ use super::removal_history::RemovalHistory;
 
 impl OriginRefusal {
     /// What:
+    ///  The cause's own name,
+    ///  one stable kebab-case word per cause.
+    /// Why:
+    ///  A receipt,
+    ///  a control and `doctor` must be able to say why a removal stopped without printing a
+    ///  sentence,
+    ///  and the step word names the read rather than the reason.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// refusal.causeName(); // 'clone-gone'
+    /// ```
+    pub fn cause_name(&self) -> &'static str {
+        return match self {
+            OriginRefusal::PlanIncomplete { .. } => "plan-incomplete",
+            OriginRefusal::OriginMarkedBeforeTheUnmount { .. } => "origin-marked-before-the-unmount",
+            OriginRefusal::OriginMarkedForDeferredDestroy { .. } => "origin-marked-for-deferred-destroy",
+            OriginRefusal::MarkUnreadable { .. } => "mark-unreadable",
+            OriginRefusal::CloneGone { .. } => "clone-gone",
+            OriginRefusal::CloneIsNotAFilesystem { .. } => "clone-is-not-a-filesystem",
+            OriginRefusal::CloneIsNotThePlannedOne { .. } => "clone-is-not-the-planned-one",
+            OriginRefusal::CloneHasNoOrigin { .. } => "clone-has-no-origin",
+            OriginRefusal::CloneOriginDiffers { .. } => "clone-origin-differs",
+            OriginRefusal::OriginDatasetGone { .. } => "origin-dataset-gone",
+            OriginRefusal::OriginDatasetIsNotAFilesystem { .. } => "origin-dataset-is-not-a-filesystem",
+            OriginRefusal::OriginDatasetIsNotThePlannedOne { .. } => "origin-dataset-is-not-the-planned-one",
+            OriginRefusal::OriginSnapshotGone { .. } => "origin-snapshot-gone",
+            OriginRefusal::OriginIsNotASnapshot { .. } => "origin-is-not-a-snapshot",
+            OriginRefusal::OriginSnapshotIsNotThePlannedOne { .. } => "origin-snapshot-is-not-the-planned-one",
+            OriginRefusal::OriginSnapshotCreatetxgDiffers { .. } => "origin-snapshot-createtxg-differs",
+            OriginRefusal::ReadFailed { .. } => "read-failed",
+        };
+    }
+
+    /// What:
     ///  The word a receipt,
     ///  `doctor` and a control name this refusal's failed step with.
     /// Why:

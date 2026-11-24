@@ -259,7 +259,7 @@ fn the_deferred_origin_guest_arms() {
     assert_eq!(check_planned_origin(&reader, &promoted), Verdict::Proceed, "the second clone goes on before the promotion");
     fixture.run("zfs", &["promote", promoted.clone_name.as_str()]);
     let promoted_cause: OriginRefusal = cause_of(check_planned_origin(&reader, &promoted));
-    println!("DEFERRED promoted=refused cause={} step={}", promoted_cause.step(), promoted_cause.step());
+    println!("DEFERRED promoted=refused cause={} step={}", promoted_cause.cause_name(), promoted_cause.step());
     assert_ne!(promoted_cause.step(), "origin-mark", "a moved origin refuses on an identity, not on the mark");
     assert_eq!(promoted_cause.form(), super::super::origin_refusals::RefusalForm::NothingCompared, "no request follows a moved origin");
 
