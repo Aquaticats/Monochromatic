@@ -114,7 +114,13 @@ and a source with changes only when the clones would carry at least
 A clean add of this repository therefore takes the same-dataset reflink rung,
 which asks the kernel to clone each tracked file with `FICLONE` inside the one
 dataset,
-and a dirty add of it falls to Git's own checkout.
+while the index's recorded file times still match the files;
+when they do not,
+the rung ends and Git's own checkout writes the worktree,
+and the wrapper prints the whole reason and the remedy
+(`probe-add-two-verbose.txt`
+under this round's `keep/`).
+A dirty add of this repository falls to Git's own checkout.
 
 So "the route does not reach this repository" does not mean the person writes
 files by hand today:
@@ -220,7 +226,8 @@ for a source the clone rung served,
 and no record folder appears,
 so the route wrote no claim,
 no binding and no plan folder.
-For a clean tree of this size the add is the clone rung's,
+For a clean tree of this size whose recorded file times match the add is the
+clone rung's,
 and for a dirty one it is Git's own checkout.
 If they also run the boot unit,
 `boot-reconcile` fails with the sentence quoted at "What decides reach today",
