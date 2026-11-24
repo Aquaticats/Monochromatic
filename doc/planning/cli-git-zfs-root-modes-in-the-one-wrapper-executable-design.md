@@ -214,8 +214,8 @@ and two of them fail the typed ban independently
   `b01af8c3bd` (2026-11-23T20:54:55-05:00) is not an ancestor of `c2701d58a5`
   (2026-11-23T21:45:28-05:00),
   and it reached `main` at `bee6531780` (2026-11-24T00:51:32-05:00)
-  (the three commits' `git log` lines,
-  [source]).
+  (source)
+  from the three commits' `git log` lines.
 - Choice 4's option A block says which of its two lines is a prediction.
 - Choices 1,
   4,
@@ -1450,6 +1450,7 @@ which is how this round knows the harness reads the guards and not the file name
 
 `binary_external_hook_tests.rs:174` keeps proving that every Git hook event's name still behaves as `git`,
 which is now a claim about every name but one.
+
 ## Choice 2: the group word units, adoption and a person spell
 
 The answer fixes the shape of the words,
@@ -1643,9 +1644,8 @@ while A's word covers the modes and the probes by naming where they run.
 D's noun is also the one the record mode's new reader does not use:
 the checkout record is not a mount,
 so the word A covers it and D does not.
-[design]:
-the picks are a naming taste,
-and this reason is the delivery that separates them.
+The picks are a naming taste,
+and this reason is the delivery that separates them (design).
 
 D over B:
 both are about mounts,
@@ -1779,7 +1779,7 @@ so a re-record after a rename refuses and names the field,
 and a person learns that the checkout is not the one the record serves.
 
 The record is written by this mode and by nothing else.
-Its path is one constant beside `handler_install_paths.rs`'s others,
+Its path is one more constant in `handler_install_paths.rs`,
 proposed as `/var/lib/monochromatic-git-policy-cli/git-worktree-clone-checkout.json`,
 which is the root-owned store folder the slot identities already live in
 (source package/git-policy/cli/src/native/worktree_clone_mount/slot_identity_store.rs:44).
@@ -1838,7 +1838,7 @@ What it refuses:
   when the kernel shows the dataset mounted at a path other than the one its property names.
 
 It runs behind the gate and as root,
-like the other two modes that write.
+like every mode that writes.
 
 ### The question the step 19 design leaves to this one
 
@@ -1931,8 +1931,7 @@ which is what the add,
 the sweep and `mount-path-descendant` read,
 and B names the route,
 which the group word `zfs-root` already said.
-[design]:
-what A delivers is a mode whose word a person can match to the record file's name.
+What A delivers is a mode whose word a person can match to the record file's name (design).
 
 B over C:
 both are two words about the route or the record,
@@ -1942,8 +1941,7 @@ which the grammar's other words never are (`boot-reconcile`,
 `start-probe`,
 `holder-scan`,
 `adopt-worktree-parent`).
-[design]:
-the difference C costs is the habit a reader already has.
+The difference C costs is the habit a reader already has (design).
 
 The choice is separable:
 the word is one member of `MODE_WORDS`,
@@ -2528,6 +2526,7 @@ and the guard text moves with the choice.
 D keeps every pinned line and adds a call after `plan_invocation`'s checks,
 so the guard text does not move for it;
 what D needs instead is a reason the lock pass and the started-as-Git check run for a root start.
+
 ## Choice 5: what `--version` and the refusals say
 
 The modes' grammar,
@@ -2643,10 +2642,9 @@ the release smoke's `grep`,
 and the stand-in handler's line.
 The design already requires the refusal to print the words and the installed path,
 so a person who needs a command to type has it without the version line's help.
-[design]:
-the cost is a build cost and not what C delivers,
+The cost is a build cost and not what C delivers,
 so it is not why C ranks here;
-what C fails to deliver is a shorter message in the errors a person meets most.
+what C fails to deliver is a shorter message in the errors a person meets most (design).
 
 C over B:
 both name something a person runs,
@@ -3394,10 +3392,10 @@ after the entry and its tests:
   `ExecReload` and probe lines name the modes' own name today,
   so each line changes to that file's path plus the words);
 - `doc/planning/cli-git-no-self-invocation.md`,
-  "The rule as built":
+  "The rule":
   the `argv[0]` bullet gains the one exception,
   citing the start-name record;
-- `doc/planning/cli-git-resident-service.md`,
+- `doc/planning/cli-git-resident-service.md:3324`,
   the sentence that rejects a name-based dispatch:
   it stays true for the service and gains "except the ZED hook's installed name";
 - `doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`,
@@ -3555,7 +3553,7 @@ and why the design cannot leave it implicit:
   with the same spread control,
   and the guest destroyed through `mvm`
   (replay keep/guest-*.txt);
-- the two programs' sizes at this round's base,
+- the two programs' sizes in this round's build,
   and `readelf --version-info`'s glibc floor for each.
 
 ### Not shown
@@ -3594,7 +3592,7 @@ and why the design cannot leave it implicit:
 - the release smoke arm itself:
   it is written here and not run,
   because this round changes no workflow;
-- the two refusals' and the two modes' exact texts:
+- the root-mode refusal's and the two new modes' exact texts:
   `refuse_root_mode_misuse`,
   `record_checkout_mode` and `mount_path_descendant_mode` do not exist yet,
   so their wording is this design's,
@@ -3604,10 +3602,10 @@ and why the design cannot leave it implicit:
 
 Each is separable,
 and each is ranked in its own section.
-Items 1 to 7 are the choices the second revision put;
-item 8 is the word of the mode the step 10 answer adds;
-item 1 is the rule this design recommends,
-which is where the answer's two clauses meet.
+Item 1 is where the answer's two clauses meet,
+and the design recommends it;
+items 2 to 7 are the second revision's other choices;
+item 8 is the word of the mode the step 10 answer adds.
 
 1.  What selects a root mode:
     the words on any file,
@@ -3698,7 +3696,8 @@ Round folder `/home/user/temp/agent/zfs-root-modes-third-revision-2026-11-24/kee
   from `guard_replay_revision2.rs`:
   the second revision's own predicates,
   replayed to check the harness;
-- `clippy-bans.log`:
+- `clippy-bans.log`,
+  with `clippy.toml` and `clippy-probe-main.rs`:
   the two typed bans in a probe crate carrying the crate's `clippy.toml`;
 - `today-lines.log`,
   `today-installed-name.log` and
@@ -3739,8 +3738,17 @@ Round folder `/home/user/temp/agent/zfs-root-modes-third-revision-2026-11-24/kee
   `proposed_root_mode_names.rs`:
   the three texts the guards are proved against;
 - `variants/`:
-  the read's six bypasses and four module variants,
-  and this round's four forbidden-spelling witnesses.
+  the read's six bypasses (hv1 to hv6) and four module variants (mv1 to mv4),
+  and this round's four forbidden-spelling witnesses (w1 to w4);
+- `dispatch_probe.rs`,
+  `exec_empty_argv.c` and `argv_view.c`:
+  the sources every dispatch case rebuilds from;
+- `zed_replay.c`,
+  `replay_fixture.rs`,
+  `run_mine.sh`,
+  `coldstart_drop.c` and
+  `analyse_cold_start.ts`:
+  the harnesses the logs above came from.
 
 The round's `scratch/` folder held the compiled guards,
 the fixtures and the throwaway repository,
