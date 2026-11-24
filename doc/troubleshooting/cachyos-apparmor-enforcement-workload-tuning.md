@@ -1318,12 +1318,12 @@ and no other container of those minutes made it.
 The other containers of the window are the reason most of the list is not the gate's.
 The askpass design round
 (`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24`)
-started throwaway containers at 01:20:00, 01:20:59 and 01:26:36,
+saw throwaway containers at 01:20:00, 01:20:59 and 01:26:36,
 and then `cli-git-askpass-probe-2026-11-24` at 01:26:50,
 which it removed at 01:47:15.
 Its `keep/state-so-far.md` and `keep/probe-transcripts.txt` record,
 at their own times,
-the host key, the three agent starts and all five askpass programs named below.
+the host key, the three agent starts and the askpass refusals named below.
 It ran as the container's root
 (its client keys lie in `/root/.ssh` and its sshd served `root@127.0.0.1`),
 which is why a capability denial in it can bite,
