@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-23T16:09:36-05:00
+## Status at 2026-11-24T03:00:00-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -108,6 +108,12 @@ Unprofiled development processes remain a residual risk.
   metadata without granting unrelated file contents.
   Save and rename behavior at the selected
   database path remains unexercised.
+- On 2026-11-24, the same local KeePassXC rule gained `k` on its existing state-file paths after
+  Qt 6.12.0's `QLockFile` blocked the GUI during Helium native messaging.
+  The exact `KeePassXCrc.lock` fallback received the same narrow permission.
+  Thirty-four empty, unheld stale lock artifacts were removed after descriptor checks.
+  The GUI returned to `ppoll`, both native socket queues drained, and no `.rmlock` chain returned.
+  See `doc/troubleshooting/keepassxc-state-lock-native-messaging-stall.md`.
 - `/etc/apparmor.d/local/setpci` grants only `capability sys_admin`,
   which the kernel requires for
   full PCI config-space reads.
@@ -377,13 +383,14 @@ checked all 809 expected profile artifacts and live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
+The latest such report is `verified-selected-keepassxc-flock-fix-2026-11-24T03-00-00-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-23T16-11-00-0500`.
-All 19
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-24T03-01-29-0500`.
+All 20
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.

@@ -1852,10 +1852,6 @@ as plan step 10 lists it.
 The build fixed four things here (`bee6531780`,
 2026-11-24T00:51:32-05:00),
 and each is what the code does:
-it reads no effective ZFS grant,
-so a write the pool refuses reports the kernel's own error with the pool already recorded at A2,
-while the list above still says the shared preflight proves the grants,
-which plan step 10's own list does not ask for;
 it refuses a repository whose Git does not ignore `.claude/cli-git-trash`,
 because the copied administration must be left where the disposal can prove it;
 it refuses a source that is not clean,
@@ -1865,6 +1861,18 @@ and it refuses a person's own `--lock`,
 `--reason`,
 `--checkout` or `--no-checkout`,
 because the route takes the named lock itself (the lock design's "The invocation").
+A fifth fact landed after that round (`4ef0e469f2`,
+2026-11-24T02:42:53-05:00):
+the preflight reads the account's effective delegation over the checkout dataset and its sibling clone container
+through `ZFS_IOC_GET_FSACL`,
+judges it with `doctor`'s own `check_delegation`,
+and refuses with the finding's `zfs allow` or `zfs unallow` command before any write,
+so a grant the design does not scope,
+or one it scopes and the account lacks,
+stops the add where nothing is recorded.
+The kernel needs no privilege for that read:
+OpenZFS `zfs-2.4.4` registers the operation with `zfs_secpolicy_read`
+(`module/zfs/zfs_ioctl.c:390` to `:398` and `:7825` to `:7826`).
 Owner:
 the route's preflight.
 Lock moment:

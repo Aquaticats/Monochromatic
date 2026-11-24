@@ -305,6 +305,32 @@ Removing `pi-mcp-adapter` from the scratch extension set removes `@earendil-work
  MCP adapter functionality is gone unless a
 replacement extension supplies it.
 
+Applied on this machine at 2026-11-24T03:31:00-05:00,
+because Pi 1.6.0 has MCP and code mode of its own and the adapter was superseded.
+The adapter was not in `~/.pi/agent/settings.json`,
+so Pi no longer loaded it;
+only `~/.pi/agent/npm/package.json` still depended on it.
+The removal that kept the rest of the folder unchanged was
+`npm uninstall --legacy-peer-deps --ignore-scripts --no-audit --no-fund pi-mcp-adapter`
+run in `~/.pi/agent/npm`,
+starting from the `package.json` and `package-lock.json` Pi had written.
+It removed 59 lock entries and added none,
+and no remaining entry changed version.
+
+The same command without `--legacy-peer-deps` is wrong for this folder.
+Pi's own installer passes that flag (`dist/core/package-manager.js` in Pi 1.6.0),
+and without it npm resolved the optional peers of `@aliou/pi-processes`
+and installed 107 new top-level packages,
+among them a second copy of `@earendil-works/pi-coding-agent` 1.6.0.
+
+Afterwards `npm ls --legacy-peer-deps --all` still names `@earendil-works/pi-ai`,
+`pi-tui`,
+`pi-agent-core` and `pi-coding-agent` as missing for several extensions.
+Pi's extension loader supplies those four modules from its own install
+(`dist/core/extensions/loader.js:66` to `:73` in Pi 1.6.0),
+so those lines describe the npm folder alone,
+not what an extension receives at run time.
+
 ### Patch or fork `pi-mcp-adapter` metadata
 
 If Pi's extension loader supplies `@earendil-works/pi-ai` and `@earendil-works/pi-tui` as host APIs,

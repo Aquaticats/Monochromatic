@@ -17,7 +17,8 @@
 //! expect(standing.standingMountOf(request, CLONE)).toBeUndefined(); // the kernel named another source
 //! ```
 
-use crate::worktree_clone_mount_handler::sweep_standing_mount_source::{MountSourceAnswer, MountSourceByNumber};
+use crate::worktree_clone_mount_handler::sweep_standing_mount_source::{KernelMountSource, MountSourceAnswer, MountSourceByNumber, STATMOUNT_NUMBER};
+use crate::worktree_clone_mount_handler::standing_mount_source_call_refusal::{refuse_the_calls, the_call_must_answer};
 use super::{LiveMountTableSource, LiveStandingMounts, MountTableSource, StandingMounts, is_this_clones_own_mount, the_facts_are_a_datasets_own_mount};
 use crate::fs_mount_options::MountFacts;
 use crate::worktree_clone_mount::LookAgainAtSlotRequest;
@@ -31,6 +32,10 @@ const INSIDE: &str = "CLI_GIT_STANDING_MOUNTS_ROOT";
 
 /// The clone the controls ask about.
 const CLONE: &str = "zpcachyos/nosnap/clones/one";
+
+/// The source the controls mount the tmpfs at a slot with,
+/// which the kernel reports for that mount while the mount-source call answers.
+const THE_SOURCE_THE_SLOT_IS_MOUNTED_WITH: &str = "zfs-step-8-standing-mounts-clone";
 
 /// One table source a control owns:
 /// the tables it answers in order,
@@ -120,6 +125,13 @@ fn mount_number_of(path: &Path) -> u64 {
     return crate::fs_beneath_mount_facts::mount_id_of(&opened).expect("the folder's mount number reads");
 }
 
+/// The unique mount number of the mount the tmpfs at `path` is on,
+/// which the mount-source call takes.
+fn unique_number_of(path: &Path) -> u64 {
+    let opened: std::fs::File = std::fs::File::open(path).expect("the folder opens");
+    return crate::fs_beneath_mount_facts::unique_mount_number_of(&opened).expect("the folder's unique mount number reads");
+}
+
 /// One tmpfs mount a control makes,
 /// taken down however the control ends.
 struct MountedSlot {
@@ -164,7 +176,7 @@ impl ShapedSlot {
         let checkout: PathBuf = crate::test_support::fixture(name).join("checkout");
         let slot: PathBuf = checkout.join(".claude").join("worktrees").join("one");
         std::fs::create_dir_all(slot.as_path()).expect("the slot folder is made");
-        mount_tmpfs("zfs-step-8-standing-mounts-clone", slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
+        mount_tmpfs(THE_SOURCE_THE_SLOT_IS_MOUNTED_WITH, slot.as_path(), libc::MS_NOSUID | libc::MS_NODEV);
         return Self { checkout, _guard: MountedSlot { path: slot.clone() }, slot };
     }
 
@@ -253,6 +265,57 @@ fn a_kernel_that_cannot_name_a_source_is_answered_from_the_live_table() {
     let standing: LiveStandingMounts = LiveStandingMounts::from_sources(Box::new(table), Box::new(sources));
     let found = standing.standing_mount_of(&shaped.request(), CLONE).expect("the live table names this clone's own mount, as it did before the copy");
     assert_eq!(found.source, CLONE, "the answer carries the live table's source");
+}
+
+/// What:
+///  A call a seccomp filter refuses is answered from the live table,
+///  and that fallback's answer is the one the table's whole predicate gives.
+/// Why:
+///  The fallback is the half a kernel before 6.13 and a container whose profile
+///  refuses the call both take,
+///  and only a filter can make the call answer nothing on a kernel that has it:
+///  this control reads the call's answer first,
+///  refuses it with a filter on this thread,
+///  and then proves the release reader answers from the table,
+///  so the same process shows both halves and the denial is known to be the
+///  filter's.
+#[test]
+fn a_call_the_filter_refuses_is_answered_from_the_live_table() {
+    let control: &str = "worktree_clone_mount_handler::sweep_standing_mounts::tests::a_call_the_filter_refuses_is_answered_from_the_live_table";
+    if !crate::worktree_clone_mount::root_namespace_test_support::in_a_root_namespace(
+        INSIDE,
+        control,
+    ) {
+        return;
+    }
+    let shaped: ShapedSlot = ShapedSlot::build("standing-source-refused");
+    let unique: u64 = unique_number_of(shaped.slot.as_path());
+    // The call answers before the filter, which is the positive control the denial below is read against.
+    match KernelMountSource.source_of(Some(unique)) {
+        MountSourceAnswer::Source(source) => assert_eq!(source, THE_SOURCE_THE_SLOT_IS_MOUNTED_WITH, "the kernel named the source the slot is mounted with"),
+        MountSourceAnswer::NoAnswer(why) => {
+            // A container whose own profile refuses the call reaches this arm, and the scripted controls cover the
+            // fallback there; the run's statement decides whether that is acceptable.
+            if the_call_must_answer(control, why.as_str()) {
+                panic!("this run states that its containers allow statmount(2) through their seccomp profile, and the call answered nothing before any filter was installed: {why}");
+            }
+            return;
+        }
+    }
+    // What: the call number this build sends, which the filter has to refuse by name.
+    let statmount_number: libc::c_long = STATMOUNT_NUMBER.expect("this architecture declares the call");
+    refuse_the_calls(&[statmount_number]);
+    // The call now answers ENOSYS, which is what a refused call looks like to the release reader.
+    let refused: MountSourceAnswer = KernelMountSource.source_of(Some(unique));
+    assert!(matches!(refused, MountSourceAnswer::NoAnswer(_)), "the filter refuses the call, so it names no source: {refused:?}");
+    let table: ScriptedTable = ScriptedTable::new(vec![Ok(vec![shaped.shaped(CLONE)])]);
+    let standing: LiveStandingMounts = LiveStandingMounts::from_sources(Box::new(table), Box::new(KernelMountSource));
+    let found = standing.standing_mount_of(&shaped.request(), CLONE).expect("the live table names this clone's own mount, as it did before the copy");
+    assert_eq!(found.source, CLONE, "the answer carries the live table's source");
+    assert!(
+        standing.standing_mount_of(&shaped.request(), "zpcachyos/nosnap/clones/two").is_none(),
+        "the live table's source is another clone's, so this is not the clone asked about"
+    );
 }
 
 /// What:

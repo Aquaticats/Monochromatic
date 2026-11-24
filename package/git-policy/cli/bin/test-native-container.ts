@@ -39,6 +39,7 @@ import {
   gateFixtureRootMountOptions,
 } from './native-gate-fixture-root.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
+import { syscallProfileForTheGateContainers, } from './native-gate-syscall-profile.ts';
 import {
   imageRootDirectory,
   writeDependencyStubs,
@@ -178,6 +179,16 @@ const evidence = await mkdtemp(join(
  The containers of this gate run, whose run id is the random name of the run's evidence directory.
  */
 const run = gateRunContainersOf({ evidenceDirectory: evidence, },);
+// Podman's default seccomp profile allows `mount`, `mount_setattr` and `move_mount` but not `statmount`, and answers an
+// unlisted call with ENOSYS, which the sweep reads as a kernel too old to name a mount's source. The gate tests the
+// product where the product runs, so its containers get the host's own profile with the two mount-number calls added,
+// and they state that allowance, which is what makes a control that cannot read the call fail instead of skip
+// (doc/troubleshooting/podman-default-seccomp-blocks-statmount-in-a-container.md).
+/**
+ The seccomp profile, and the statement about it, that this run's containers carry.
+ */
+const syscallProfile = await syscallProfileForTheGateContainers({ evidenceDirectory: evidence, },);
+for (const line of syscallProfile.lines) console.log(line,);
 // The run's id is printed before the build, so the name and label every container of this run carries are in the log
 // from its first minute, not only once a container starts.
 console.log(gateRunLineOf({ runId: run.runId, },),);
@@ -284,6 +295,7 @@ const limits = [
   '--rm',
   '--init',
   '--network=none',
+  ...syscallProfile.arguments,
   ...runLimitArguments({
     limits: containerLimits,
     withPidsLimit: true,

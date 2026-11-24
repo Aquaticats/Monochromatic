@@ -26,7 +26,7 @@ use crate::parallel_budget::HostResources;
 use crate::service_work_run_round::run_planned_round;
 use super::*;
 use crate::push_failure_notice::{notice_directory, push_failures};
-use crate::test_support::{WaitingFor, fixture, git, git_context, git_text, remove, repository, wait_until, wait_until_for};
+use crate::test_support::{REAL_GIT, WaitingFor, fixture, git, git_context, git_text, remove, repository, wait_until, wait_until_for};
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
 use crate::push_retry::PLAN_DIRECTORY;
@@ -1229,6 +1229,47 @@ fn prompts_recorded(log: &Path) -> String {
 }
 
 /// What:
+///  Send real Git at the login this server demands,
+///  with the recorder named as the program to ask,
+///  and require the recorder's log to hold the question.
+/// Why:
+///   The control beside this arm asserts that the log stays empty,
+///  and an empty log is proof only while the program that writes it can start under the confinement the run is under:
+///  a program the confinement refuses leaves the log exactly as empty as the rule does
+///  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+///  "The tests that would pass with their program refused").
+///  Git here is the binary the service's own push runs,
+///  at the path a profile attaches to,
+///  in the stage's repository and against the stage's remote,
+///  and the recorder is the file the control names,
+///  so the program that would write the log in the push starts here or nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// execFileSync('/usr/bin/git', ['push', url, 'main'], { cwd: repo, env: { GIT_ASKPASS: recorder } });
+/// expect(promptsRecorded(log)).not.toBe('');
+/// ```
+fn git_logs_the_recorders_question(stage: &Stage, url: &str, names: &[(&str, &str)], log: &Path) {
+    let mut command: std::process::Command = std::process::Command::new(REAL_GIT);
+    command.current_dir(stage.repo.as_path()).env_clear().env("PATH", "/usr/bin:/bin");
+    for (name, value) in crate::test_support::isolated_overlay() {
+        command.env(name, value);
+    }
+    for (name, value) in names {
+        command.env(name, value);
+    }
+    let ran: std::process::Output = command.args(["push", url, "main"]).output().expect("the arm's Git starts");
+    let asked: String = prompts_recorded(log);
+    assert!(
+        !asked.is_empty(),
+        "the recorder answered the login this server demands, so its empty log in the control means the rule held \
+         rather than that the program never started; Git ended {:?} and wrote: {}",
+        ran.status.code(),
+        String::from_utf8_lossy(ran.stderr.as_slice())
+    );
+}
+
+/// What:
 ///  The push environment that makes the recorder the program Git and git-lfs would run when neither was
 ///  told not to ask:
 ///  both names they try before `GIT_TERMINAL_PROMPT`,
@@ -1259,14 +1300,18 @@ fn askpass_names(program: &Path) -> [(&str, &str); 2] {
 ///  `GIT_ASKPASS` to the empty string.
 /// The failure is the login failure the person is told about,
 /// reached without a wait.
+/// The arm before it shows the same recorder answering this server, so the empty log below means the rule held.
 #[test]
 fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program() {
     let stage: Stage = stage("push-never-prompts");
     let server: LoginServer = LoginServer::start();
-    point_remote_at(&stage, format!("http://{}/r.git", server.address).as_str());
+    let url: String = format!("http://{}/r.git", server.address);
+    point_remote_at(&stage, url.as_str());
     let log: PathBuf = stage.root.join("askpass.log");
     let program: PathBuf = recorder(stage.root.as_path(), log.as_path());
     let names: [(&str, &str); 2] = askpass_names(program.as_path());
+    git_logs_the_recorders_question(&stage, url.as_str(), &names, log.as_path());
+    std::fs::remove_file(log.as_path()).expect("the arm's log goes before the control reads it");
     let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()).with_push_environment(&names));
     let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
     let wake: Option<Duration> = round_of(stage.repo.join(".git").as_path(), &handlers, &mut retries);
@@ -1289,6 +1334,8 @@ fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program()
 /// The real `git-lfs` is not in the gate's image;
 /// the troubleshooting note
 ///  holds the run of the real one.
+/// The arm before the control runs the same stand-in through the same plan with the recorder named,
+/// so the empty log below means the service's environment kept the question away.
 #[test]
 fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
     let stage: Stage = stage("lfs-never-prompts");
@@ -1329,6 +1376,21 @@ fn a_background_lfs_upload_never_starts_the_hosts_askpass_program() {
     let mut git: crate::auto_push_single_flight::PushGit = handlers.push_git(&item);
     git.environment.retain(|(name, _)| { return name != "PATH"; });
     git.environment.push((std::ffi::OsString::from("PATH"), std::ffi::OsString::from(path.as_str())));
+    // The arm: the same runner, the same environment and the same plan, with the empty `GIT_ASKPASS` the rule sets replaced
+    //  by the recorder, so an empty log below can only mean the rule kept the question away and not that the stand-in never
+    //  asked.
+    let mut named: crate::auto_push_single_flight::PushGit = git.clone();
+    named.environment.retain(|(name, _value)| { return name != "GIT_ASKPASS"; });
+    named.environment.push((std::ffi::OsString::from("GIT_ASKPASS"), program.clone().into_os_string()));
+    let asked = crate::lfs_upload::run_upload_bounded(&named, &plan).expect("the arm's upload ran").expect("the stand-in failed the arm's upload");
+    assert_eq!(asked.exit_code, 2, "{}", asked.output);
+    assert!(
+        !prompts_recorded(log.as_path()).is_empty(),
+        "the stand-in asked the recorder and the recorder answered, so its empty log in the control means the rule held \
+         rather than that the program never started: {}",
+        asked.output
+    );
+    std::fs::remove_file(log.as_path()).expect("the arm's log goes before the control reads it");
     let outcome = crate::lfs_upload::run_upload_bounded(&git, &plan);
     let failed = outcome.expect("the upload ran").expect("the stand-in failed the upload");
     assert_eq!(failed.exit_code, 2, "{}", failed.output);

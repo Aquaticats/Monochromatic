@@ -4739,6 +4739,83 @@ The dataset name is the gate the route has until plan step 19's one-time
 migration makes it,
 so no person meets the route before that step.
 
+#### The account companion before each managed add
+
+The route runs one account-side check before its first write,
+after the gate above and before the slot's claim,
+inside the wrapper's own process and never as a second program
+(`doc/decision/cli-git-zfs-start-probe.md`,
+Q6 and Q-a;
+`doc/planning/cli-git-zfs-start-probe-design.md`,
+"The account companion").
+It forks one child on buffers built before the fork,
+gives it a user namespace of its own,
+maps the account's effective user and group to 0 inside it,
+gives it a private mount namespace,
+mounts a scratch tmpfs under
+`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/account-companion/`,
+walks that tmpfs with the product's no-crossing walk,
+attaches a second tmpfs onto the slot's descriptor,
+reads the mount facts back from `/proc/self/mountinfo`,
+runs the four refusal controls,
+and has a second child move the mount and unmount it.
+It reads no ZFS state,
+opens no key,
+touches no `/dev/zfs`,
+and mounts nothing outside its own namespaces,
+so a pass says nothing about the root attach.
+
+What its answers mean for a person:
+
+- A pass prints nothing and the add goes ahead as the managed add.
+- A skip prints one line naming the call and the errno,
+  and then the three settings it read:
+  `user.max_user_namespaces`,
+  `kernel.unprivileged_userns_clone` and
+  `kernel.apparmor_restrict_unprivileged_userns`,
+  with `absent` for a setting the running kernel does not have.
+  The add then goes ahead as the managed add.
+  The skip covers exactly these host refusals:
+  `unshare(CLONE_NEWUSER)` answering `ENOSPC`,
+  `EPERM` or `EACCES`,
+  or `EINVAL` where `/proc/self/ns/user` does not exist;
+  the first mapping write answering `EPERM`,
+  which is what Ubuntu 24.04's default AppArmor profile gives;
+  `unshare(CLONE_NEWNS)` answering `EPERM`;
+  the private propagation answering `EPERM`,
+  or `EACCES` where that propagation was made with `mount`;
+  and the scratch tmpfs's `mount` answering `EPERM` or `EACCES`.
+  A skip is not a pass:
+  nothing was proved about the account's namespaces,
+  and the person sees that in the line.
+- Every other answer refuses that add's managed attach and prints one line:
+  `managed add refused: the account companion's <step> failed: <what failed>;
+  this slot takes the reflink or ordinary Git route.`
+  The same slot then takes the ladder's reflink or Git route,
+  which is the route every other add takes,
+  and no existing binding or intent is touched.
+  A failed `fork` beyond the wrapper's start budget,
+  a status pipe the parent cannot read,
+  and a child that died of a signal are refused the same way and named in the
+  line.
+
+The wait is bounded by `100 ms`,
+sized from this round's measurement
+(`doc/planning/cli-git-zfs-account-companion-cost.md`):
+the slowest measured run was 2.759 ms and a companion run costs 1.12 to 1.14 of
+a real add on this host.
+A run that misses the bound is killed with its process group,
+refused as unproven,
+and reported on the deadline's own line.
+A child a signal cannot end keeps its run directory until the next add proves it
+dead and removes it;
+a run directory of another PID namespace is left alone rather than guessed at.
+
+`doctor`'s print of the companion's own outcome,
+and the `CLI_GIT_TEST_ONLY_ACCOUNT_COMPANION` switch's guest arms,
+are plan step 18's and step 10's own rounds respectively;
+this release runs the companion in the add's preflight only.
+
 The route writes the add's order,
 and every step reads the state a kill at the step before it leaves:
 
@@ -4748,6 +4825,7 @@ and every step reads the state a kill at the step before it leaves:
   its sibling clone container,
   the pool,
   the boot's start-time compatibility gate,
+  the account's effective ZFS delegation against the shape the design scopes,
   and a current handler readiness report for this boot,
   pool and checkout,
   and it refuses a repository whose Git does not ignore
@@ -4811,8 +4889,11 @@ and every step reads the state a kill at the step before it leaves:
   published,
   and the phase becomes `snapshotted`.
 - The origin snapshot is cloned as
-  `<container>/<slot>` with `mountpoint=legacy` and `canmount=off`,
-  so the design's own mount is the only one it gets.
+  `<container>/<slot>` with `mountpoint=legacy` and no `canmount` property:
+  a clone inherits the origin's mountpoint,
+  a legacy dataset is never mounted by itself whatever `canmount` says,
+  and the kernel refused `canmount=off` at creation in the build's guest.
+  The design's own mount is therefore the only one the clone gets.
   Its GUID and group are read back,
   and its initial inventory is published even when it holds no entry.
   A dataset that already answers at the clone's name is adopted only when its
@@ -4887,6 +4968,25 @@ names the operation,
 the object and the pool,
 and the next add resumes once space is free.
 
+
+The preflight reads the account's effective delegation over the checkout dataset
+and its sibling clone container,
+the way `doctor`'s own check reads it,
+and refuses before the claim when a permission the design scopes is missing,
+is effective only through a wider ancestor grant,
+reaches the account through a named set,
+is granted to everyone,
+or is one of the lineage-changing grants the route must not have.
+The refusal prints that check's finding,
+which names each failing permission with the `zfs allow` or `zfs unallow`
+command that settles it,
+and the add writes nothing.
+The kernel's `ZFS_IOC_GET_FSACL` needs no privilege for this read:
+OpenZFS `zfs-2.4.4` registers it with `zfs_secpolicy_read`,
+which returns zero in the global zone
+(`module/zfs/zfs_ioctl.c:390` to `:398` and `:7825` to `:7826`),
+so the account reads its own delegation through the device the route already
+holds.
 What this release does not yet do:
 
 - It writes no path through Git for a conversion rule,
@@ -4897,18 +4997,17 @@ What this release does not yet do:
   would give Git different bytes keeps the source's bytes in the new worktree
   until plan step 11's fence write lands (issue 6323).
 - It does not restore a dirty main checkout;
-  such a source is not this route's until plan step 11,
-  and it takes the
-  ladder's rung 3 as the owner decided on 2026-11-19.
+- It does not restore a dirty main checkout;
+  the route refuses such a source before the claim,
+  with the wrapper's refusal exit code,
+  so the ladder never runs for it.
+  The restore is plan step 11's.
 - A failed add does not finish itself with Git's own checkout;
   it keeps what it made and the next add resumes it (plan step 11).
 - A record that says an add is settling,
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.
-- The route checks no effective ZFS grant of its own;
-  the first refused snapshot or clone reports the kernel's error with the pool
-  already named in the record.
 
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
@@ -8644,6 +8743,19 @@ or sign with a key without a passphrase.
 A control at a real pseudo-terminal shows the host-key refusal
 (`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
 in `src/native/binary/binary_ssh_terminal_tests.rs`).
+A control that reads the terminal and the status cannot tell a program the confinement refused
+from the one that answers nothing,
+because an empty answer and a program that never started are the same refusal to the connection:
+the only trace of the difference is OpenSSH's own line on standard error,
+`ssh_askpass: exec(<program>): Permission denied`,
+which the transcript holds because `run_at` appends the command's standard error to it.
+Both terminal controls therefore fail on that line as well
+(`assert_the_no_answer_program_ran` in `src/native/binary/binary_ssh_terminal_tests.rs`),
+and the four controls that assert a password program was never started
+run the same recorder through the same program and against the same server first,
+proving it logs its question where the rule does not stand in its way
+(`the_recording_program_logs_its_question` in `src/native/binary/binary_lfs_server_tests.rs`,
+`git_logs_the_recorders_question` in `src/native/landing/service_push_retry_tests.rs`).
 Both variables also cover OpenSSH's own password and keyboard-interactive questions and a PKCS#11 token's PIN,
 which read the same function (`sshconnect2.c:1057`,
 `sshconnect2.c:1275`,

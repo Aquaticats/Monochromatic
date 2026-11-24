@@ -409,10 +409,19 @@ the preflight reads no grants,
 the refusal beside a standing plan names the removal even where the plan design says it refuses,
 the account companion the start-probe record put in step 10 is unbuilt,
 and the gate serves only the step 19 dataset;
+those are merged as `2d9fa02ea5` but for the gate,
+the add's printed sentence and the grant set,
+which `pi-zfs-step-10-open-choices-proposal` writes up for the owner,
+ranked by what each delivers;
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
-`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`,
+`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`
+(the companion merged as `8ce60ff4f5`:
+it runs after the route gate and before the claim with a 100 ms deadline,
+about 0.12 to 0.14 of an add's time,
+with its guest arm,
+the whole add after a skip and `doctor`'s print still to come once a guest reaches the route),
 whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
 the first also writes up what widening the gate would need, for the owner.
 Running too,
@@ -503,10 +512,16 @@ which is not the answer's letter,
 and the proposed guard admits a call site,
 not one name;
 it drafted a rule that keeps both the answer and a fail-closed install.
+The second revision merged as a proposal,
+`37143a1daf`:
+words select every mode on any file,
+the zedlet's name selects only ZED's no-argument start,
+nothing at the root path reaches Git (probed on 28 starts),
+the guards hold every variant the re-read planted,
+and a disk-cold start in a guest costs the wrapper 1.87 times the handler (+6.06 ms).
 Running:
-`pi-zfs-root-modes-second-revision`,
-with its prompt in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
-(branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
+a Sonnet read of that revision's diff
+(`~/temp/agent/gate-review-zfs-root-modes-second-revision-2026-11-24/`).
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
@@ -591,9 +606,15 @@ every boot kept its own log,
 and a start bound (V8) and a unit per nested dataset (V9) are new;
 its arms ran on systemd 258 in a Fedora guest set permissive,
 so no result is about an enforcing boot.
+Its Sonnet re-read
+(`re-read-of-the-revised-step-19-design.md` in `~/temp/agent/gate-review-zfs-step-19-revision-2026-11-24/keep/`)
+found V9's unit running a mode no grammar holds,
+V8's timeout evidence cited to logs that do not hold it,
+the proposed unit never booted as written,
+and the ZED hook not allowed by this host's `zed` AppArmor profile.
 Running:
-a Sonnet re-read of that revision
-(`~/temp/agent/gate-review-zfs-step-19-revision-2026-11-24/`).
+`pi-zfs-step-19-third-revision`
+(folder `~/temp/agent/zfs-step-19-third-revision-2026-11-24/`).
 
 Next:
 the re-read,
@@ -742,20 +763,48 @@ the cause-H pair;
 the source guard `the_release_code_keeps_blocking_work_off_the_runtime`,
 on two `std::thread::sleep` calls step 10 brought (`add_mount.rs:70`, `add_route_plan.rs:265`);
 and the `statmount` control,
-whose call answers `ENOSYS` inside the rootless container though the host kernel has it.
+whose call answers `ENOSYS` inside the rootless container though the host kernel has it:
+podman's default seccomp profile lists neither `statmount` nor `listmount`
+(`doc/troubleshooting/podman-default-seccomp-blocks-statmount-in-a-container.md`);
+fixed as `ada7a937b0`,
+the gate deriving its profile from the host's with those two calls added
+and the controls proving the fallback under a real seccomp refusal.
 The end-to-end push program controls passed in about 5 ms each,
 so they declined there too:
 the gate image now holds a real `git-lfs`.
+Fixed as `09f58f1470`:
+every list the controls hand a push names the fixture's own folders,
+so a real `git-lfs` in `/usr/bin` no longer turns the red control's refusal into a push that succeeds,
+the decline is gone,
+and the restart control acts on the service the commands reach.
 Its new denials (`git` asking `dac_override`,
 `git//ssh` running `/work/stubs/askpass`,
 `ssh-agent` asking `setgid` and making sockets,
 `ssh` running `true`, `false`, `cat` and `echo`)
-map to no failure and have no rule yet.
+map to no failure.
+Their trace (the account's "Ninth batch: the gate at 8519c599d0", merged as `68c8dcaa21`)
+put most on the L4 design round's own probe containers,
+left the 28 capability records unattributed with no grant,
+and proposed one rule for `systemd-analyze`'s working folder;
+applied with the two read rules a run showed it needs,
+the daily-update timer's `systemd-analyze --user verify` now exits 0.
+It also named a blind spot,
+the ssh-terminal and askpass controls passing when their askpass program is refused,
+which `pi-askpass-controls-see-a-refused-program` fixes.
+The gate on `main` at `f3b710cbc9`
+(run `native-MgA4LN`, 2026-11-24T07:45:49Z to 08:09:44Z)
+gave `10809 tests run: 10807 passed (6 slow), 2 failed, 41 skipped`:
+the cause-H pair alone,
+so the blocking-sleep guard,
+the `statmount` control and Clippy all hold on `main`.
+Its window's denials were `git` asking `dac_override` (88) and `umount` the same (3),
+with no test failing;
+the ninth batch declines that grant,
+and a run of one named control with the audit log read beside it is what would attribute them.
 Waiting for the memory stall to ease,
 with prompts ready in their folders under `~/temp/agent/`:
-`zfs-step-10-add-route-blocking-sleeps-2026-11-24`,
-`statmount-control-in-the-gate-container-2026-11-24`
-and `end-to-end-push-program-controls-run-in-the-gate-2026-11-24`.
+all three merged since
+(`a80675a4af`, `ada7a937b0` and `09f58f1470`).
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -843,18 +892,21 @@ and B needing AppArmor rules in two stacked profiles per build,
 and added an option J:
 the sentence itself as `SSH_ASKPASS`'s value,
 which OpenSSH prints in its exec failure line.
+Its revision merged as a proposal,
+`082c3ff8eb`,
+ranked B > C > J > D > C2 > E > A with a run transcript for every option,
+B run live through a stand-in of its contract in an unconfined container,
+and J shown silent under `-q`.
 Running:
-`pi-typed-network-command-next-step-after-its-review`,
-with its prompt in its folder of that name under `~/temp/agent/` (ending `-2026-11-24`).
+a Sonnet read of that revision
+(`~/temp/agent/gate-review-typed-network-command-revision-2026-11-24/`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
 issue 6447,
 fixed as `0127911061` and closed:
 the control stopped a second fixture service no command reached.
-The same fixture pattern sits in `binary_push_programs_end_to_end_tests.rs`,
-whose controls decline wherever a real `git-lfs` is in `/usr/bin`;
-whether they still run anywhere after the gate image gained `git-lfs` is read from the next gate.
+The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed as `09f58f1470`.
 
 The next alpha waits for the one-program build round:
 the record says "alpha.45 shipped with the second program,"

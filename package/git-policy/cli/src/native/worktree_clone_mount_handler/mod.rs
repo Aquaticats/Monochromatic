@@ -130,6 +130,13 @@ pub mod sweep_standing_mount_source;
 /// source.
 pub mod sweep_standing_mounts;
 
+/// The seccomp filter a control installs so the mount-source call answers
+/// nothing,
+/// and the statement a run makes about its containers' profile,
+/// never in the release build.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod standing_mount_source_call_refusal;
+
 /// One clone's whole turn of the sweep.
 pub mod sweep_one_clone;
 

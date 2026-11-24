@@ -317,6 +317,17 @@ pub mod worktree_clone_add_route;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_add_route::*;
 
+/// The account companion the ZFS add route's preflight runs before its first write:
+///  a small user-namespace check that repeats the probe's syscall sequence over
+///  a tmpfs of its own,
+///  the skip a host that refuses it a user namespace prints,
+///  and the deadline its parent enforces.
+/// It sits inside the wrapper's one executable and touches no ZFS.
+/// It is Linux only,
+/// like the descriptor calls it makes.
+#[cfg(target_os = "linux")]
+pub mod account_companion;
+
 /// The same re-export for `worktree_clone_binding_record`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_binding_record::*;
@@ -326,7 +337,9 @@ pub use worktree_clone_binding_record::*;
 ///  again before the head destroy,
 ///  the look the lineage proof makes before anything is taken down,
 ///  and the words a refusal prints.
-/// Plan step 15's piece, built ahead of the plan's order: no command reaches it until that
+/// Plan step 15's piece,
+/// built ahead of the plan's order:
+/// no command reaches it until that
 ///  step wires it in.
 /// It is Linux only,
 ///  like the two reads it makes through the binding.

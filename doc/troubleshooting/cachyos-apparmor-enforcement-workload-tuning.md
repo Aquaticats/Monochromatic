@@ -1226,6 +1226,9 @@ the session makes itself.
   measured on 2026-11-23 (section "The three stale lock controls killed the `timeout` and not the Git").
 - Not yet shown:
   a whole container gate on `main` with no AppArmor denial.
+The ninth whole gate's window is read record by record in
+"Ninth batch:
+  the gate at 8519c599d0".
 
 ### The three stale lock controls killed the `timeout` and not the Git
 
@@ -1276,6 +1279,564 @@ on the host and in the gate image.
 The unconfined Git's silent ending is not explained:
 it is recorded here as measured,
 not as understood.
+
+## Ninth batch: the gate at 8519c599d0
+
+Recorded 2026-11-24T02:50:00-05:00 by the round `apparmor-ninth-batch-for-the-gate-at-8519c599d0-2026-11-24`,
+on branch `docs/troubleshooting-apparmor-ninth-batch-for-the-gate-at-8519c599d0`.
+Not applied,
+not approved and not final:
+this section names what made each denial of the window and proposes the smallest rule for it,
+or says why none belongs,
+and only the coordinating session loads the rules,
+because loading one needs the root this round never takes.
+Every measurement,
+script and log named here is under that round's `keep/`.
+
+### What the window held
+
+The whole container gate on `main` at `8519c599d0`,
+run `native-bNr3O6`,
+reported `10745 tests run: 10741 passed (7 slow), 4 failed, 41 skipped` in 988.793 s
+(`gate-gate-on-main-after-the-merges-of-2026-11-24-night-8519c599d0.txt` in
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`).
+Its four failures are the cause-H pair,
+the source guard step 10's two `std::thread::sleep` calls trip
+(`add_mount.rs:70`,
+`add_route_plan.rs:265`),
+and the `statmount` control that answers `ENOSYS` in the container.
+No AppArmor refusal is among them.
+
+`podman events` still holds the run's containers,
+which is what dates every record below
+(`keep/podman-events-in-the-window.txt`).
+The suite and the Clippy container were both created and started at 01:30:19,
+the Clippy container died and was removed at 01:34:25,
+and the suite's death is the one event the log does not hold.
+The suite's own 988.793 s therefore ends it at 01:46:48,
+and the run's first log line places the image build at 01:18:44 to 01:30:19.
+A denial is the gate's only when it falls between 01:30:19 and 01:46:48
+and no other container of those minutes made it.
+
+The other containers of the window are the reason most of the list is not the gate's.
+The askpass design round
+(`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24`)
+saw throwaway containers at 01:20:00,
+01:20:59 and 01:26:36,
+and then `cli-git-askpass-probe-2026-11-24` at 01:26:50,
+which it removed at 01:47:15.
+Its `keep/state-so-far.md` and `keep/probe-transcripts.txt` record,
+at their own times,
+the host key,
+the three agent starts and the askpass refusals named below.
+It ran as the container's root
+(its client keys lie in `/root/.ssh` and its sshd served `root@127.0.0.1`),
+which is why a capability denial in it can bite,
+where the gate's own `"user": "1000:1000"`
+(`manifest.json` of run `native-bNr3O6`) has no capability at all.
+
+### A capability record names no file
+
+A `capable` record holds no path and no owner,
+so the log cannot say which file a capability was asked for,
+nor which container the caller was in.
+The kernel's AppArmor capability record adds `capname=` alone
+([`security/apparmor/capability.c:47-53`](https://github.com/torvalds/linux/blob/e5f0a698b34ed76002dc5cff3804a61c80233a7a/security/apparmor/capability.c#L47-L53)),
+and the common fields are the type,
+operation,
+class,
+profile,
+pid,
+command and error
+([`security/apparmor/audit.c:97-141`](https://github.com/torvalds/linux/blob/e5f0a698b34ed76002dc5cff3804a61a/security/apparmor/audit.c#L97-L141)):
+
+```c
+// security/apparmor/capability.c:47-53, the whole callback a capability record adds
+static void audit_cb(struct audit_buffer *ab, void *va)
+{
+	struct common_audit_data *sa = va;
+
+	audit_log_format(ab, " capname=");
+	audit_log_untrustedstring(ab, capability_names[sa->u.cap]);
+}
+```
+
+`list-denials-in-a-window.ts` prints an empty name for them,
+and nothing was lost when the window was kept:
+there is no `fsuid` in such a record to set a container's process beside a host one.
+The two capability families at the end of this section are therefore attributed from the other
+evidence named with them,
+never from the log alone.
+
+### The `ssh-keygen` record: a host key on a bind mount
+
+`01:20:01 ssh-keygen mknod /probe/hostkey c`.
+The design round's first container ran at 01:20:00 and died at 01:20:01,
+and its `keep/state-so-far.md` names the command and the time:
+`ssh-keygen -f /probe/hostkey` on a bind mount,
+at 01:19 to 01:20.
+No file of this repository names `/probe/hostkey`,
+and the gate's own signing controls write under the fixture root and `/tmp`
+(`local/ssh-keygen`),
+so no test of the gate made this record.
+No rule:
+it is a probe's path,
+not a workload's.
+
+### The six `ssh-agent` records: three starts in one container
+
+`01:32:06`,
+`01:32:11` and `01:32:16` hold one `capable setgid` each,
+plus `mknod /work/out/agent.sock`,
+`mknod /root/agent.sock` and `open / r`.
+The state file names two of the three starts and their exact sentences:
+`ssh-agent -a /root/agent.sock` failed with
+`unix_listener: cannot bind to path /root/agent.sock: Permission denied`,
+and `ssh-agent -s` failed with `mkdir_path: open("/"): Permission denied`,
+which is the `open` record of the list.
+The third start made its socket under the container's own `/work/out`,
+which is the round's scratch folder mounted at `/work`.
+No test of the gate starts an `ssh-agent`:
+`package/git-policy/cli` names it only inside diagnostic sentences
+(`lfs_pre_push.rs:678-699`,
+`lfs_upload_tests.rs:829-858`),
+and `local/ssh-agent` is empty today.
+No rule:
+the gate runs no agent,
+and a rule for one would grant a program no test starts.
+
+### The five askpass programs: two paths of one probe
+
+`01:29:19`,
+`01:29:24` and `01:31:06` hold `git//ssh exec /work/stubs/askpass`,
+and `01:31:11` holds `git//ssh exec /work/bin/askpass` twice.
+`keep/probe-transcripts.txt` of the design round prints both refusals word for word,
+under its arms named `askpass`:
+`ssh_askpass: exec(/work/stubs/askpass): Permission denied` and
+`ssh_askpass: exec(/work/bin/askpass): Permission denied`,
+and its state file records the second at 06:31Z with the command that made it.
+Neither path exists in this repository:
+`git ls-tree --name-only 8519c599d0` has no `stubs` directory,
+and the wrapper never names an askpass path of its own,
+because the program it gives OpenSSH is the bare name `false`
+(`package/git-policy/cli/src/native/invocation/child_environment.rs:497`)
+which `ssh_askpass` finds on `PATH` with `execlp`
+([`readpass.c:77`](https://github.com/openssh/openssh-portable/blob/V_10_6_P2/readpass.c#L55-L80)).
+The gate's own ssh child is `git//ssh`,
+and `local/git_ssh` grants it `@{bin}/false rix`,
+which is why no exec denial of `false` appears in this window at all.
+No rule:
+a rule for `/work/stubs/askpass` or `/work/bin/askpass` would grant a probe's program.
+
+### The four programs plain `ssh` ran
+
+`01:30:39 ssh exec /usr/bin/false`,
+then `/usr/bin/true`,
+`/usr/bin/cat` and `/usr/bin/echo`,
+one record each in one second.
+The design round's state file names exactly these four programs and the reason:
+a person's own `ssh` under `/etc/apparmor.d/ssh` may run none of them,
+measured the same way at 06:31Z,
+and the round swept them to see which askpass program a plain `ssh` could still start.
+One `podman exec` of that container also ended in the same second,
+01:30:39
+(`keep/podman-events-in-the-window.txt`).
+The gate cannot produce these under profile `ssh`:
+its plain `ssh` arms run with `env_clear()` and carry no `SSH_ASKPASS` at all
+(`package/git-policy/cli/src/native/binary/binary_support.rs:141-161`),
+and every `ssh` the wrapper's Git starts inherits the profile `git//ssh`,
+where `false` is already granted.
+No rule:
+the gate runs no plain `ssh` with an askpass program,
+and `local/ssh` stays as it is.
+
+### The two `systemd-analyze` folders: a timer install, not a test
+
+`01:22:44` holds two `mkdir` records,
+`/tmp/systemd-analyze-XR4rRL/` and `/tmp/systemd-analyze-aGss0w/`,
+both before the gate's containers existed.
+The only place this repository spawns the tool is the daily-update timer install,
+`systemd-analyze --user verify <service> <timer>`
+(`package/monorepo-task/core-exec/src/daily-update-timer-install-logic.ts:292-309`),
+and nothing under `package/git-policy` starts it,
+so no test of the gate made these.
+The denial is not harmless:
+run by hand on 2026-11-24,
+the same command prints `Failed to setup working directory: Permission denied` and exits 1
+(`keep/systemd-analyze-verify-under-enforcement.log`).
+systemd 262 makes that folder as `mkdtemp_malloc("/tmp/systemd-analyze-XXXXXX", &tempdir)`
+([`src/analyze/analyze-verify.c:62-69`](https://github.com/systemd/systemd/blob/8cc40e0c5e9234bf45084751ac53b1fbfe70b492/src/analyze/analyze-verify.c#L62-L69)),
+and the stock profile covers only a different name:
+`owner @{tmp}/systemd-temporary-*/ rw,`
+(`/etc/apparmor.d/systemd-analyze:92`).
+The two lines the rule answers are:
+
+```c
+// src/analyze/analyze-verify.c:62-69
+int verb_verify(int argc, char *argv[], uintptr_t _data, void *userdata) {
+        _cleanup_strv_free_ char **filenames = NULL;
+        _cleanup_(rm_rf_physical_and_freep) char *tempdir = NULL;
+        int r;
+
+        r = mkdtemp_malloc("/tmp/systemd-analyze-XXXXXX", &tempdir);
+        if (r < 0)
+                return log_error_errno(r, "Failed to setup working directory: %m");
+```
+
+The rule for it is proposed below.
+
+### The 26 `git` and the 2 `umount` `dac_override` records
+
+Two capability families are left,
+and neither can be tied to a file by the log.
+
+The `git` family holds 26 records in seven groups between 01:36:46 and 01:39:20,
+two of them from `git-receive-pack`.
+No file record accompanies any of them,
+so the profile allowed every path and only the file mode refused it.
+The gate's own tests make exactly that shape on purpose:
+`binary_commit_tests.rs:1587`
+(`a_staging_failure_that_is_not_a_pathspec_matching_nothing_stays_an_engine_failure`)
+sets a tracked file to mode 000 and asserts Git's own `Permission denied`,
+and the same access asks the capability once and only once.
+Measured in the gate's base image as the gate's user,
+under `strace`:
+`openat(AT_FDCWD, "dir/x.txt", O_RDONLY) = -1 EACCES (Permission denied)`,
+one record
+(`keep/repro-one-denial-per-refused-open.log`).
+A mode-000 file is one such access;
+a directory with no search bit and a file without `x` are others,
+because the kernel consults the same capability at every refused `inode_permission`
+(`generic_permission` in `fs/namei.c` reaches `capable_wrt_inode_uidgid` once the mode bits
+refuse),
+and `package/git-policy/cli/src` holds a dozen such fixtures.
+The design round's root container is the other possible maker,
+since its Git holds the capability and a refusal there would be real,
+but its transcripts report no refused filesystem path at all,
+while these five askpass refusals are the only filesystem errors they hold.
+
+The two `umount` records at 01:46:51 are three seconds from the suite's end,
+which is when the gate's mount-namespace control unmounts its tmpfs
+(`landing/unreachable_git_dir_proven_gone_tests.rs:400-429`),
+and that control runs `umount` inside a user namespace of its own,
+where the capability is held,
+so a refusal there would be real.
+Whether these two are that control's or another session's cannot be told:
+a capability record names no file,
+and the `umount` profile allows its own operation anywhere (`/etc/apparmor.d/umount:27`)
+and no `/work` file is refused in this window at all.
+Run as the gate runs it,
+the sequence completes anyway:
+`mount-exit=0` and `umount-exit=0` inside a user namespace of its own under uid 1000
+(`keep/repro-nested-userns-mount-and-umount.log`),
+and the control's `Drop` ignores the status in any case.
+
+No rule for either family,
+and the reason is measured rather than argued:
+
+- The gate's containers run as `1000:1000`,
+  and that user's effective capability set is
+  empty:
+  `CapEff: 0000000000000000`
+  (`keep/repro-capabilities-of-the-gates-user.log`).
+  AppArmor's capability check runs before the kernel's own,
+  so refusing a capability the caller does not hold cannot change the caller's result:
+  every `capable` denial inside the gate is a log line and nothing else.
+- A grant is not free outside the gate.
+  `local/git` confines this host's Git as well as the gate's,
+  and the `umount` profile is the host's own,
+  so a `capability dac_override` line in either would let a root process of that program on
+  this machine pass every file permission check,
+  for a workload no test needs.
+  That is why the first batch held the line and why it stays held.
+
+### The tests that would pass with their program refused
+
+No test of the gate passed **because of** a denial in this window:
+the only records the gate can have made are capability lines that change nothing for
+uid 1000.
+Two controls are blind to a refusal all the same,
+and the sixth batch's six `exec /usr/bin/false` denials under `git//ssh` are proof that the
+blind spot was real before the grant.
+
+`a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase`
+(`binary_ssh_terminal_tests.rs:376`) and
+`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked` (`:555`)
+read only the pseudo-terminal and the status.
+A refused askpass program produces the same status and the same OpenSSH sentence,
+because an empty answer and no answer are the same refusal,
+and the only trace of the difference is OpenSSH's own line,
+`ssh_askpass: exec(<program>): Permission denied`,
+which it writes on standard error
+([`readpass.c:74-80`](https://github.com/openssh/openssh-portable/blob/V_10_6_P2/readpass.c#L74-L80)):
+
+```c
+// readpass.c:74-80, the child that runs the askpass program
+	if (pid == 0) {
+		close(p[0]);
+		if (dup2(p[1], STDOUT_FILENO) == -1)
+			fatal_f("dup2: %s", strerror(errno));
+		if (env_hint != NULL)
+			setenv("SSH_ASKPASS_PROMPT", env_hint, 1);
+		execlp(askpass, askpass, msg, (char *)NULL);
+		fatal_f("exec(%s): %s", askpass, strerror(errno));
+	}
+```
+
+`run_at` appends that file to the transcript (`:193`),
+so the trace is already in hand;
+no assertion reads it.
+With `local/git_ssh`'s `@{bin}/false rix` removed,
+both controls would stay green while
+proving nothing about the wrapper's no-answer program.
+The fix is one assertion per wrapped arm:
+the transcript must not contain `ssh_askpass: exec(`.
+
+The four negative askpass controls are blind in the same way,
+without a denial in this
+window to blame:
+`binary_lfs_server_tests.rs:1179` and `:1217` assert that the recorder's log does not exist,
+and `service_push_retry_tests.rs:1263` and `:1293` assert that it holds no prompt.
+A refused recorder would satisfy both.
+Neither route reaches `ssh` (both push over `file://` or `http://`),
+so no refusal was logged
+for them here,
+and the trap is the assertion,
+not the run.
+The fix is one positive arm per recorder that runs it through the same fixture and the same
+profile path and asserts that it logs its question,
+so that an empty log means the rule held rather than that the program never started.
+
+### Proposed rules
+
+One rule,
+for the timer install's tool;
+none for the gate.
+
+```text
+# /etc/apparmor.d/local/systemd-analyze (proposed, not applied)
+# systemd-analyze verify makes its working folder with mkdtemp("/tmp/systemd-analyze-XXXXXX") and the stock profile
+# covers only @{tmp}/systemd-temporary-*. Measured 2026-11-24: the daily-update timer install's own
+# `systemd-analyze --user verify` printed "Failed to setup working directory: Permission denied" and exited 1, and the
+# window of 01:22:44 holds the two mkdir refusals of that shape.
+owner @{tmp}/systemd-analyze-@{rand6}/ rw,
+```
+
+Its tradeoff:
+`systemd-analyze` may create,
+list and remove a folder of six random characters in `/tmp`
+that carries its own name prefix and nothing else,
+which is what the stock profile already grants the same tool under another prefix.
+It gains no read of another tool's folder and no write outside `/tmp`.
+A verify given a `src:dest` argument also copies a unit into that folder
+([`analyze-verify.c:45-51`](https://github.com/systemd/systemd/blob/8cc40e0c5e9234bf45084751ac53b1fbfe70b492/src/analyze/analyze-verify.c#L45-L51)),
+which the rule above does not cover;
+the second line `owner @{tmp}/systemd-analyze-@{rand6}/** rw,` belongs beside it only if a
+run needs that form,
+and no run of this repository does today.
+
+### Applied, and what the runs showed
+
+Applied by the coordinator on 2026-11-24 at about 02:35-05:00,
+with the two read rules a run showed the folder rule alone does not reach:
+
+```text
+# /etc/apparmor.d/local/systemd-analyze
+owner @{tmp}/systemd-analyze-@{rand6}/ rw,
+owner @{HOME}/.config/systemd/user/{,**} r,
+owner @{run}/user/@{uid}/systemd/{,**} r,
+```
+
+Before any rule,
+`systemd-analyze --user verify` of the two repository units printed "Failed to setup working directory:
+Permission denied"
+and exited 1.
+With the folder rule alone,
+the working folder was made and the verify then failed reading the user unit search path:
+"Failed to open "/home/user/.config/systemd/user",
+ignoring:
+Permission denied",
+the same for `/run/user/1000/systemd/user.control` and `/run/user/1000/systemd/user`,
+then "Unit toolchain-daily-update.service not found."
+and exit 1;
+the audit log held those three `open` denials.
+With the two read rules beside it,
+the verify of the installed units in `~/.config/systemd/user` (the folder the timer install writes and verifies in)
+exited 0.
+Two lines remain on every run,
+"/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator failed with exit status 1,
+ignoring."
+and the same for `60-flatpak`:
+the profile does not let it run the user environment generators,
+the verify ignores them,
+and no rule is added for them.
+The logs are `coordinator-verify-*.log` in
+`~/temp/agent/apparmor-ninth-batch-for-the-gate-at-8519c599d0-2026-11-24/keep/`.
+Tradeoff of the read rules:
+`systemd-analyze` may read the account's user unit files and the user manager's runtime unit folders,
+which is what a `--user` verify is for;
+it gains no write there.
+
+### What would show the proposal right
+
+After the line is appended and
+`apparmor_parser --replace /etc/apparmor.d/systemd-analyze` reloads the profile,
+the same two unit files verify with no output and exit 0,
+the daily-update timer install's verify step passes,
+and a window of the audit log holds no `systemd-analyze` `mkdir` denial.
+None of that is shown yet:
+this round reads no audit log and edits no profile.
+
+### What the log cannot decide
+
+The two capability families stay partly unattributed,
+and no further reading of the window can settle them,
+because the record carries neither a path nor an owner.
+The cheapest decider is a run of one named control,
+the mount one or `binary_commit_tests.rs:1587`,
+with the design round's container stopped and the coordinator reading the audit log as the
+record appears:
+the record then belongs to that control,
+and no other process of the machine made it.
+It changes no rule either way,
+which is why this batch proposes none for `dac_override`.
+
+## The askpass controls read a refusal, and prove the recorder starts
+
+Recorded 2026-11-24T03:23:00-05:00 by the round `askpass-controls-see-a-refused-program-2026-11-24`,
+on branch `fix/git-policy-cli-askpass-controls-see-a-refused-program`,
+whose one code commit is `2f9d76aaea`.
+Not approved and not final:
+no whole container gate ran in this round.
+
+The trap the section "The tests that would pass with their program refused" named is answered in the controls
+themselves,
+and not in a rule:
+the sixth batch's `@{bin}/false rix` grant is what kept the two terminal controls green while proving nothing
+about the wrapper's no-answer program,
+and the four negative askpass controls were blind the same way with no grant to blame.
+
+### What the terminal controls read now
+
+`a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase` and
+`an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`
+each fail when their transcript holds `ssh_askpass: exec(`
+(`REFUSED_ASKPASS_LINE` and `assert_the_no_answer_program_ran`
+in `src/native/binary/binary_ssh_terminal_tests.rs`).
+The line is in the transcript because `run_at` appends the command's standard error to it,
+so no new read of the run was needed.
+The file's third control needs no such assertion and says why in its own doc:
+its key asks nothing,
+so a program that could not start would leave the connection succeeding exactly as no program does,
+and that success is what both of its arms assert.
+
+### What the four negative askpass controls read now
+
+`an_unattended_push_without_a_controlling_terminal_never_opens_the_password_dialog` and
+`a_push_with_a_controlling_terminal_never_opens_the_password_dialog`
+(`src/native/binary/binary_lfs_server_tests.rs`)
+and `a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program` and
+`a_background_lfs_upload_never_starts_the_hosts_askpass_program`
+(`src/native/landing/service_push_retry_tests.rs`)
+keep their assertions that the recorder's log is empty,
+and each now runs the same recorder through the same program first and requires its log to hold the question.
+The LFS pair runs the fixture's own `bin/git-lfs` link, at the path the wrapper's search finds and a profile
+attaches to, against the same login-requiring server;
+the push control runs real Git at `/usr/bin/git` against its `LoginServer`,
+and the LFS-upload control runs the same `git-lfs` stand-in through the same plan with only the rule's empty
+`GIT_ASKPASS` replaced by the recorder.
+An empty log therefore means the rule held and not that the program never started.
+
+### What the runs showed
+
+Host, `cargo test --locked --offline --test native_binary -- never_opens_the_password_dialog`
+and `cargo test --locked --offline --lib -- never_starts_the_hosts_askpass_program`,
+2026-11-24 between 02:52 and 02:56:
+all four controls pass with their arms.
+With the recorder written mode `0644` so nothing can start it,
+the arms fail and say so,
+quoting the program's own line
+(`fatal: cannot exec '<path>': Permission denied` for Git and for `git-lfs`,
+and `/bin/git-lfs: line 4: <path>: Permission denied` for the stand-in);
+with the arms removed and the same mode in place, all four controls pass,
+which is the old blindness reproduced.
+The patches of each state are `red-demo-lfs-recorder-cannot-start.patch` and
+`red-demo-service-recorder-cannot-start.patch` in this round's `keep/`.
+
+Gate image, built from the committed sources by
+`keep/build-the-gate-image-for-a-narrowed-run.ts` under the tag `askpass-refusal-20261124`
+(the gate's own build functions, no suite and no Clippy container),
+then run in the gate's own container geometry
+(`--memory 2g --cpus 4 --pids-limit 1024`, the suite's tmpfs fixture root):
+`Summary [1.460s] 7 tests run: 7 passed, 10842 skipped`.
+The seven are the six controls above and `an_upload_that_needed_a_login_at_a_terminal_is_told_the_same_rule`,
+which the filter matched and which passed.
+The log is `gate-image-green-run.txt` in this round's `keep/`.
+The same image ran every test of the three touched modules,
+which is the three `ssh_terminal` controls,
+the `lfs_server` controls and the `push_retry_tests` controls,
+with `Summary [28.473s] 74 tests run: 74 passed, 10775 skipped`
+(`gate-image-touched-modules-run.txt` in this round's `keep/`).
+
+### What the terminal controls cannot show on the host
+
+The three controls of `src/native/binary/binary_ssh_terminal_tests.rs` cannot run on this host at all,
+and this is the confinement rather than the controls:
+`/etc/apparmor.d/local/sshd` grants `owner /work/** rwlk` and nothing else,
+so a throwaway `sshd` reads its configuration only under the gate container's `/work`.
+Measured 2026-11-24T02:48:03-05:00:
+`sshd -f <round scratch>/sshd-probe/sshd_config -D -e` printed
+`<round scratch>/sshd-probe/sshd_config: Permission denied`,
+and `cargo test --test native_binary -- at_a_terminal` on the same host failed at
+`the throwaway sshd never accepted a connection on port 37481`,
+which is before every assertion of either control.
+So the red and green of the terminal assertion were shown in the gate image and not on the host.
+
+### Red and green of the terminal assertion, in the gate image
+
+Green: the six controls' run recorded under "What the runs showed" has both terminal controls passing
+with the assertion in place.
+
+Red: with the demonstration in `red-demo-ssh-false-cannot-start.patch`,
+where each wrapped arm's `PATH` holds a link to `/usr/bin/git` and a mode-0600 file named `false`,
+both controls fail at the assertion and quote the transcript it read.
+The host-key control's transcript holds:
+
+```text
+ssh_askpass: exec(false): Permission denied
+Host key verification failed.
+fatal: Could not read from remote repository.
+```
+
+and the passphrase control's holds:
+
+```text
+ssh_askpass: exec(false): Permission denied
+user@127.0.0.1: Permission denied (publickey).
+fatal: Could not read from remote repository.
+```
+
+Every other assertion of both arms still holds in that state,
+which is the trap itself:
+the status is 128,
+the key is refused,
+and no question is asked,
+and only the assertion this round added separates a program that answered nothing from one that never
+started.
+`Summary [1.334s] 5 tests run: 3 passed, 2 failed, 10844 skipped`
+(`gate-image-red-ssh-run.txt` in this round's `keep/`).
+
+With the same `PATH` and the two assertion calls removed
+(`old-blindness-ssh-same-state-without-the-assertion.patch`),
+the same run passes every one of the five:
+`Summary [1.436s] 5 tests run: 5 passed, 10844 skipped`
+(`gate-image-old-blindness-run.txt` in this round's `keep/`),
+which is the blindness the ninth batch predicted and this round closes.
+The `PATH` has to hold a `git` link because the wrapper resolves the real Git from `PATH`:
+a `PATH` naming no Git stopped the command before it reached `ssh`,
+with `Could not find a real Git executable after examining 1 PATH candidates`,
+which was the first attempt at this demonstration and is recorded here rather than kept,
+because the run's log was overwritten by the second run of the same file.
 
 ## Upstream filing artifact
 

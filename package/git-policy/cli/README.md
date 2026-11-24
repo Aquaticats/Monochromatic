@@ -834,6 +834,32 @@ Read-only commands,
   states every step,
   what each kill leaves,
   and what this release does not do yet.
+  Before that route writes anything it runs one check as your own account,
+  not as root:
+  the wrapper forks a small child that gives itself a user namespace and a private mount namespace,
+  mounts a temporary filesystem under your session's runtime directory,
+  and exercises the same walk and attach calls the route will use,
+  then throws it all away.
+  It never touches ZFS,
+  your key,
+  or `/dev/zfs`,
+  so it cannot speak for the root-run attach.
+  On a machine that refuses it a user namespace,
+  the capabilities inside one,
+  or a mount the setup makes
+  (Ubuntu 24.04's default AppArmor profile is one such machine),
+  it prints one line naming the call and the error,
+  and the names and values of the three kernel settings that decide it,
+  and your add goes ahead as usual:
+  a skipped check is not a failed one.
+  Any other failure prints
+  `managed add refused: the account companion's ... failed: ...; this slot takes the reflink or ordinary Git route.`
+  and that add takes the same reflink or Git route every other add takes,
+  with nothing removed and nothing bound.
+  The check is bounded by 100 milliseconds,
+  which is the slowest run this build measured plus a margin covering this host's cold and loaded samples
+  (`doc/planning/cli-git-zfs-account-companion-cost.md`),
+  and a check that misses the bound is killed and refused as unproven.
   1. A btrfs snapshot of the worktree the command is run from (the main checkout included) when it is a clean subvolume
      on the destination's filesystem.
      Real Git runs with `--no-checkout`,
@@ -1890,9 +1916,12 @@ no argument at all is the clone-mount sweep the installed ZED event starts,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and, when it is run, names the unit that runs it,
+which is not built yet and,
+when it is run,
+names the unit that runs it,
 and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
-of its own, which reads and changes nothing.
+of its own,
+which reads and changes nothing.
 `adopt-worktree-parent` is the administrator's decision to record a replacement
 `.claude/worktrees` folder.
 The sweep and `boot-reconcile` are described in `SPEC.md` under the section
@@ -6611,13 +6640,16 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   fails instead,
   naming the variable and the image step,
   so an image that loses the program is red rather than silently empty.
-  The same image sets `CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1`,
-  because the four end-to-end carry controls of `binary_push_programs_end_to_end_tests.rs`
-  need program folders that hold no `git-lfs`:
-  a real one answers the push before their stand-in,
-  so they print `END TO END CARRY CONTROL NOT RUN: <control> (<folder that holds one>)` and pass there,
-  and a host or an image without the program runs them for real.
-  Three controls prove the refusal for a program the list does not hold,
+  The four end-to-end carry controls of `binary_push_programs_end_to_end_tests.rs`
+  run in that image too,
+  which is why every list they hand a push names folders of their own fixture:
+  the stand-in's folder or the red arm's,
+  and a folder of links to the programs a push needs.
+  A list that named `/usr/bin` or `/bin` would find the image's real `git-lfs`
+  before the stand-in,
+  or take the place of the refusal a control proves,
+  so no control of that file declines to run anywhere.
+  Three other controls prove the refusal for a program the list does not hold,
   and each gives its push a `PATH` made of a folder of its own fixture that links only the programs the push needs,
   so a machine with `git-lfs` in `/usr/bin` runs them green
   (`src/native/binary/binary_support.rs`,

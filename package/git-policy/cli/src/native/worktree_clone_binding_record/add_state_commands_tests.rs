@@ -2,23 +2,37 @@
 //!  a clone the pool cannot prove gone names the settling command, as one it can,
 //!  a clone that stands names the removal,
 //!  a settling record with no clone GUID names the add again,
-//!  a standing plan names the removal the plan belongs to,
+//!  each head word of a standing plan names the command the plan design gives
+//!  it,
 //!  and the printed settling line carries placeholders rather than the digits.
 
-use crate::worktree_clone_binding_record::add_state_commands::{ClonePresence, NextCommand, SETTLING_COMMAND_WORDS, StateFacts, command_for};
+use crate::worktree_clone_binding_record::add_state_commands::{ClonePresence, NextCommand, PlanHeadWord, SETTLING_COMMAND_WORDS, StateFacts, command_for};
 use crate::worktree_clone_binding_record::binding_words::Phase;
 
 /// The facts of one state,
 /// with the arms a test does not name left absent.
 fn facts(phase: Phase) -> StateFacts {
-    return StateFacts {
-        phase,
-        clone: None,
-        registration_stands: true,
-        plan_stands: false,
-        checkout_begun: false,
-        holds_clone_guid: false,
-    };
+    return StateFacts { phase, clone: None, registration_stands: true, plan_head: None, checkout_begun: false, holds_clone_guid: false };
+}
+
+/// The facts of one state beside a standing plan,
+/// with the head word the test names and a clone the pool proved gone.
+fn facts_beside_a_plan(phase: Phase, head: PlanHeadWord, clone: Option<ClonePresence>) -> StateFacts {
+    let mut found: StateFacts = facts(phase);
+    found.plan_head = Some(head);
+    found.clone = clone;
+    found.holds_clone_guid = true;
+    return found;
+}
+
+/// The clone presence a pool answers with,
+/// named so a control reads as the fact it supplies.
+const PROVED_GONE: Option<ClonePresence> = Some(ClonePresence::GoneProved);
+
+/// An absence the pool cannot prove,
+/// which is its own arm of the plan design's rule.
+fn unprovable() -> Option<ClonePresence> {
+    return Some(ClonePresence::GoneUnprovable { evidence: String::from("the pool refused the listing") });
 }
 
 /// A clone at `cloned` that is gone and cannot be proved gone names the settling command,
@@ -77,11 +91,71 @@ fn a_settling_record_names_the_removal_or_the_add_again() {
 /// so the add never removes what a removal's plan holds.
 #[test]
 fn a_standing_plan_names_the_removal() {
-    let mut with_plan: StateFacts = facts(Phase::Settling);
-    with_plan.plan_stands = true;
-    with_plan.clone = Some(ClonePresence::GoneProved);
-    with_plan.holds_clone_guid = true;
+    let with_plan: StateFacts = facts_beside_a_plan(Phase::Settling, PlanHeadWord::Requested, PROVED_GONE);
     assert_eq!(command_for(&with_plan), NextCommand::TheRemoval);
+}
+
+/// Each head word of a standing plan names the command the plan design's
+/// "Which resume path a removal takes" gives it beside a clone the pool proved
+/// gone:
+/// the removal for `requested`,
+/// `unknown` and `gone`,
+/// and the settling command for the outside destroy,
+/// `present` and `refused`.
+#[test]
+fn each_head_word_names_the_command_the_plan_design_gives_it() {
+    let wanted: [(PlanHeadWord, NextCommand); 5] = [
+        (PlanHeadWord::Present, NextCommand::TheSettlingCommand),
+        (PlanHeadWord::Requested, NextCommand::TheRemoval),
+        (PlanHeadWord::Gone, NextCommand::TheRemoval),
+        (PlanHeadWord::Refused, NextCommand::TheSettlingCommand),
+        (PlanHeadWord::Unknown, NextCommand::TheRemoval),
+    ];
+    for (head, command) in wanted {
+        for phase in [Phase::Cloned, Phase::Mounted, Phase::Filled, Phase::Settling] {
+            assert_eq!(command_for(&facts_beside_a_plan(phase, head, PROVED_GONE)), command, "head `{}` at phase `{}`", head.word(), phase.word());
+        }
+    }
+}
+
+/// A clone that answers under the pinned parent takes the removal's
+/// head-present path whatever the plan's head word says,
+/// because the design decides that before it reads the word.
+#[test]
+fn a_clone_that_stands_names_the_removal_for_every_head_word() {
+    for head in [PlanHeadWord::Present, PlanHeadWord::Requested, PlanHeadWord::Gone, PlanHeadWord::Refused, PlanHeadWord::Unknown] {
+        assert_eq!(command_for(&facts_beside_a_plan(Phase::Settling, head, Some(ClonePresence::Stands))), NextCommand::TheRemoval, "head `{}`", head.word());
+    }
+}
+
+/// An absence the pool cannot prove names the settling command for every head
+/// word but `gone`,
+/// whose route is the finish pass and which no command accepts.
+#[test]
+fn an_unprovable_absence_names_the_settling_command_unless_the_head_is_gone() {
+    for head in [PlanHeadWord::Present, PlanHeadWord::Requested, PlanHeadWord::Refused, PlanHeadWord::Unknown] {
+        assert_eq!(command_for(&facts_beside_a_plan(Phase::Settling, head, unprovable())), NextCommand::TheSettlingCommand, "head `{}`", head.word());
+    }
+    assert_eq!(command_for(&facts_beside_a_plan(Phase::Settling, PlanHeadWord::Gone, unprovable())), NextCommand::TheFinishPass);
+}
+
+/// A reader that did not look for the clone,
+/// which is the add's smallest plan read,
+/// names the command by the head word alone:
+/// the settling command for `present` and `refused`,
+/// and the removal for the other three.
+#[test]
+fn a_reader_that_did_not_look_for_the_clone_names_the_command_by_the_head_word() {
+    let wanted: [(PlanHeadWord, NextCommand); 5] = [
+        (PlanHeadWord::Present, NextCommand::TheSettlingCommand),
+        (PlanHeadWord::Requested, NextCommand::TheRemoval),
+        (PlanHeadWord::Gone, NextCommand::TheRemoval),
+        (PlanHeadWord::Refused, NextCommand::TheSettlingCommand),
+        (PlanHeadWord::Unknown, NextCommand::TheRemoval),
+    ];
+    for (head, command) in wanted {
+        assert_eq!(command_for(&facts_beside_a_plan(Phase::Claimed, head, None)), command, "head `{}`", head.word());
+    }
 }
 
 /// The printed settling line names the command and leaves both flags as placeholders,
