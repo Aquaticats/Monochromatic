@@ -82,6 +82,11 @@ and each stays in force until the owner changes it.
   one whole gate runs on `main` after each batch of merges;
   a design branch merges when its round ends and stays a proposal until accepted
   (`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`).
+- An alpha release of any package may be bumped and dispatched unasked;
+  any other release is asked each time
+  (the same record,
+  "Release dispatches,
+  answered 2026-11-23").
 - This session answers for the wrapper,
   the Pi driver,
   mpm and the way Cargo is run here.
