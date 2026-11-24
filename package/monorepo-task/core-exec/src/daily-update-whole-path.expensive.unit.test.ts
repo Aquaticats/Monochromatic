@@ -93,7 +93,7 @@ await describe({
     it({
       name: 'opens one issue for the crate the update broke, none for the crate that was already red, and keeps both commits',
       fn: async () => {
-        const result = await runWholePath({ ghExitCode: 0, },);
+        const result = await runWholePath({ ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
         expect(result.exitCode,).toBe(0,);
         expect(result.commitSubjects.slice(0, 2,),).toEqual([
           'chore(*): daily update of the pnpm and Cargo dependency locks',
@@ -127,7 +127,7 @@ await describe({
     it({
       name: 'keeps the issue for the next run when gh fails, and still exits as the update did',
       fn: async () => {
-        const result = await runWholePath({ ghExitCode: 1, },);
+        const result = await runWholePath({ ghExitCode: 1, pnpmSkipsLockfileWrite: false, },);
         expect(result.exitCode,).toBe(0,);
         expect(result.commitSubjects.length,).toBe(3,);
         expect(callsOf({ calls: result.ghCalls, verb: 'issue create', },).length,).toBe(0,);
@@ -135,6 +135,25 @@ await describe({
         expect(result.journal,).toContain('error connecting to api.github.com',);
         expect(result.notifications.length,).toBe(1,);
         expect(result.notifications[0]?.body,).toContain('error connecting to api.github.com',);
+      },
+    },),
+    it({
+      name: 'lands no dependency lock when the install left the pnpm lock out of step with the catalog, and names it',
+      fn: async () => {
+        const result = await runWholePath({ ghExitCode: 0, pnpmSkipsLockfileWrite: true, },);
+        expect(result.exitCode,).toBe(1,);
+        // The toolchain group still lands; only the dependency group's files go back.
+        expect(result.commitSubjects,).toEqual([
+          'chore(toolchain): daily update of the repository toolchain lock',
+          'fixture: first commit',
+        ],);
+        expect(result.journal,).toContain('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH',);
+        expect(result.journal,).toContain('mise exec -- pnpm install --frozen-lockfile',);
+        expect(result.journal,).toContain('nothing from this group was landed',);
+        expect(result.journal,).toContain('pnpm-workspace.yaml has ">=1.94", pnpm-lock.yaml has ">=1.93"',);
+        // The desktop body is the journal's opening, so only the start is on the bus.
+        expect(result.notifications.length,).toBe(1,);
+        expect(result.notifications[0]?.body,).toContain('dependency locks',);
       },
     },),
   ],

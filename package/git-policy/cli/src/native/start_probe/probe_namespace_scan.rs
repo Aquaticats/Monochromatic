@@ -2,7 +2,6 @@
 //!  Arm 7's scan:
 //!  every mount namespace of this PID namespace that lists the probe's exact
 //!  ZFS source,
-//!  grouped by the task's own mount-namespace identity,
 //!  and the two comparisons the design makes with it.
 //! Why:
 //!  The exclusive create proved no superblock existed when the probe attached,
@@ -13,6 +12,13 @@
 //!  "The arms").
 //!  A process-visible scan is not proof of absence,
 //!  which the record and the design keep saying.
+//!  The grouping and the source match are the ones the root handler's holder
+//!  scan reads too
+//!  (`crate::mount_namespace_scan`),
+//!  so the two scans cannot disagree about which mounts a dataset;
+//!  what stays this folder's own is the arm's policy:
+//!  a table this process may not read refuses the arm,
+//!  and a namespace no live task holds is not compared.
 //!  The scan reads a `/proc` root the caller names,
 //!  so a control reads a fixture tree and never this machine's tasks.
 //!
@@ -22,12 +28,13 @@
 //! expectExactly(['mnt:[4026531840]', 'mnt:[4026532001]'], mentioned);
 //! ```
 
-use crate::fs_mount_options::{MountFacts, parse_mount_table};
+use crate::fs_mount_options::MountFacts;
+use crate::mount_namespace_scan::{ListingRequest, MOUNT_TABLE_FILE, MountNamespaceTasks, TaskTableAttempt, is_of_source, read_one_namespace, threads_by_mount_namespace};
 use std::path::{Path, PathBuf};
 
 /// The bound one representative mount table is read within,
 /// the wrapper's own bound for a table another namespace holds.
-pub const MOUNT_TABLE_LIMIT: u64 = crate::plain_file::MOUNT_TABLE_LIMIT;
+pub use crate::mount_namespace_scan::MOUNT_TABLE_LIMIT;
 
 /// What:
 ///  Why the scan could not say which namespaces mention the source.
@@ -100,7 +107,7 @@ pub struct NamespaceTable {
 impl NamespaceTable {
     /// Whether this namespace lists the exact ZFS source.
     pub fn mentions(&self, source: &str) -> bool {
-        return self.mounts.iter().any(|facts| return facts.filesystem_type == "zfs" && facts.source == source);
+        return self.mounts.iter().any(|facts| return is_of_source(facts, source));
     }
 }
 
@@ -176,12 +183,10 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 /// What:
 ///  One representative table per live mount namespace.
 /// Why:
-///   Every task of one namespace is kept,
-///  not just the last one a map happened to hold,
-///  because the representative may end between the listing and the read:
-///  a task that exits answers `ENOENT`,
+///   A thread that ends between the listing and the read answers `ENOENT`,
 ///  `ESRCH` or `EINVAL` for its table,
-///  and the scan then tries the namespace's next task.
+///  and the scan then tries the namespace's next thread,
+///  which answers the same mounts.
 /// A namespace whose every task ended is skipped whole,
 ///  because a namespace no live task holds is invisible,
 ///  which the design states as the scan's own limit.
@@ -190,46 +195,29 @@ pub fn scan_namespaces(proc_root: &Path, source: &str) -> Result<Vec<String>, Sc
 ///
 /// # Errors
 /// The listing could not be read,
-///  or a live task's table answered an error other than its own ending.
+///  or a live thread's table answered an error other than its own ending.
+///  A link the probe may not read refuses its arm for the same reason:
+///  the
+///  namespace that thread is in is unknown,
+///  and an arm that compared a set it could not read would compare nothing.
 pub fn namespaces_outside(proc_root: &Path) -> Result<Vec<NamespaceTable>, ScanRefusal> {
-    let mut entries: std::collections::BTreeMap<String, Vec<PathBuf>> = std::collections::BTreeMap::new();
-    let listing = match std::fs::read_dir(proc_root) {
-        Ok(iter) => iter,
-        Err(error) => {
-            return Err(ScanRefusal::Proc { path: proc_root.to_path_buf(), reason: error.to_string() });
-        }
-    };
-    for entry in listing.filter_map(|entry| return entry.ok()) {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if !name.chars().all(|character| return character.is_ascii_digit()) {
-            continue;
-        }
-        let Ok(link) = std::fs::read_link(entry.path().join("ns/mnt")) else {
-            continue;
-        };
-        entries.entry(link.to_string_lossy().into_owned()).or_default().push(entry.path());
+    let listing = threads_by_mount_namespace(&ListingRequest { proc_root, readers_root: None })
+        .map_err(|refusal| return ScanRefusal::Proc { path: refusal.path, reason: refusal.reason })?;
+    if let Some(link) = listing.unreadable.first() {
+        return Err(ScanRefusal::Table { path: link.thread.clone(), reason: link.reason.clone() });
     }
-    let mut tables: Vec<NamespaceTable> = Vec::new();
-    for (namespace, mut tasks) in entries {
-        tasks.sort_by_key(|task| return task.file_name().and_then(|name| return name.to_str()).and_then(|name| return name.parse::<u32>().ok()).unwrap_or(u32::MAX));
-        let mut table: Option<Vec<u8>> = None;
-        for task in tasks {
-            let table_path: PathBuf = task.join("mountinfo");
-            match crate::plain_file::read_plain_file(table_path.as_path(), MOUNT_TABLE_LIMIT) {
-                Ok(bytes) => {
-                    table = Some(bytes);
-                    break;
-                }
-                Err(error) => {
-                    let ended: bool = matches!(error.raw_os_error(), Some(libc::ENOENT) | Some(libc::ESRCH) | Some(libc::EINVAL));
-                    if !ended {
-                        return Err(ScanRefusal::Table { path: table_path, reason: error.to_string() });
-                    }
-                }
+    let groups: Vec<MountNamespaceTasks> = listing.namespaces;
+    let mut tables: Vec<NamespaceTable> = Vec::with_capacity(groups.len());
+    for group in groups {
+        let read = read_one_namespace(&group, None);
+        for attempt in &read.attempts {
+            if let TaskTableAttempt::Unreadable { thread, reason } = attempt {
+                return Err(ScanRefusal::Table { path: thread.join(MOUNT_TABLE_FILE), reason: reason.clone() });
             }
         }
-        if let Some(text) = table {
-            tables.push(NamespaceTable { namespace, mounts: parse_mount_table(text.as_slice()) });
+        if let Some((_thread, mounts)) = read.table() {
+            let copied: Vec<MountFacts> = mounts.to_vec();
+            tables.push(NamespaceTable { namespace: read.namespace, mounts: copied });
         }
     }
     return Ok(tables);

@@ -56,5 +56,9 @@ Close manually with `gh issue close <N> --comment "..."` only when no fix commit
 
 ## Paused packages
 
-A paused package gets no work: "Pause means no work (Recommended)", answered 2026-11-10T08:04:14-05:00. The issue
-sweep skips anything whose code now lives under `package-paused`, and those issues wait for an unpause.
+A paused package gets no work:
+"Pause means no work (Recommended)",
+answered 2026-11-10T08:04:14-05:00.
+The issue
+sweep skips anything whose code now lives under `package-paused`,
+and those issues wait for an unpause.

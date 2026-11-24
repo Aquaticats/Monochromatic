@@ -331,6 +331,8 @@ a failed group never stops the next one.
     after both updates so the floors see the new locks),
     `sync:files` (renders the Rust catalog into the manifests),
     `pnpm install` (the pnpm lock satisfies the new catalog),
+    `pnpm install --frozen-lockfile` (the check the release workflows run,
+    so a lock left out of step with the catalog fails this step and lands nothing),
     `cargo-shadow install` (each `Cargo.lock` satisfies the new manifests),
     `check:files` (nothing generated is stale).
     The two updates are soft steps:

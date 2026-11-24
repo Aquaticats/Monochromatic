@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -49,7 +50,8 @@ as the project's own:
   The coordinating session had adopted the opposite
   (a file a recorded digest pins is not edited)
   and put it to the owner at about 17:38 with three options;
-  the owner chose "Edit all, re-record digests".
+  the owner chose "Edit all,
+  re-record digests".
   The brief was changed to that before the run had a run folder;
   whether the run was sent the changed text is checked against its feed when it starts.
 
