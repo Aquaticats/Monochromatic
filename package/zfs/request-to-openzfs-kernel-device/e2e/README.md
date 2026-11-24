@@ -43,6 +43,11 @@ mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-pool
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-arm --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-teardown --name my-guest
 mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-protocol-record --name my-guest
+# the step 16 snapshot-batch arm, on the same guest:
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-batch-pool --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-batch-arm --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-batch-teardown --name my-guest
+mise run //package/zfs/request-to-openzfs-kernel-device:e2e -- zfs-batch-record --name my-guest
 ```
 
 The four `zfs-protocol-*` steps are the step 7 arm of
@@ -606,6 +611,97 @@ handler binary,
 and they send no request:
 the product half belongs to the step that makes the handler's first request.
 
+## The step 16 arm: the snapshot batch over a real clone
+
+`zfs-batch-*` runs step 16's guest arms of the snapshot batch
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 16,
+"VM measurements",
+items 14,
+17 and 18 repeated through the binding).
+The piece under test is
+`package/git-policy/cli/src/native/worktree_clone_snapshot_batch`,
+which
+step 16's wiring will call and no command calls yet.
+
+- `zfs-batch-pool` makes `zfsstep16`:
+  a 1 GiB encrypted image like the measurements' fixture,
+  an unmounted
+  `checkout` dataset with the base snapshot `checkout@batch-base`,
+  and an unmounted
+  `clones` parent.
+  Both datasets are `mountpoint=legacy -o canmount=off`,
+  so the arm mounts
+  nothing and its teardown has no mount to take down.
+- `zfs-batch-arm` pushes the wrapper's packages,
+  builds the crate's tests inside the
+  guest,
+  and runs
+  `worktree_clone_snapshot_batch::snapshot_batch_arm_tests`
+  one test at a time.
+  It fails on a `SKIP worktree_clone_snapshot_batch::` line and requires the
+  `MEASUREMENT snapshot-batch requests=` line the split arm prints.
+- `zfs-batch-teardown` destroys the pool and records what is left,
+  and
+  `zfs-batch-record` writes the versions and pulls the logs.
+
+The arms read these variables,
+which only this step sets:
+
+- `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_GUEST`:
+  the guest's hostname.
+  The arm
+  destroys snapshots,
+  so it refuses to run anywhere else and prints `SKIP` when
+  the variable is unset.
+- `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_POOL`:
+  `zfsstep16`.
+- `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_SBIN`:
+  the guest's OpenZFS `sbin`,
+  which
+  the arm runs `zfs` from.
+
+The three arms and what each proves:
+
+- one request:
+  five snapshots of an arm's own clone,
+  sent as the one chunk a budget
+  that fits them makes;
+  the request returns success,
+  every name is `destroyed`,
+  and the
+  clone itself stands.
+- a hold:
+  four snapshots,
+  one of them held with `zfs hold`;
+  the request returns `EBUSY`,
+  the per-name list names the held snapshot alone,
+  every other submitted name is
+  `intact`,
+  and every snapshot is still there.
+  A refused request destroys
+  none of its set
+  (`module/zfs/dsl_destroy.c:596` to `:600`,
+  OpenZFS `zfs-2.4.4`),
+  so the arm
+  cannot show the rest being destroyed;
+  a removal reports the hold and stops.
+- a split:
+  six snapshots and a budget that exactly fits two names;
+  the plan makes
+  three requests,
+  each returns success with no per-name failure,
+  and the six
+  names are gone.
+  The arm prints
+  `MEASUREMENT snapshot-batch requests=<count> names=<count> budget-bytes=<bytes> encoded-bytes=<bytes>`.
+
+The logs are `step16-pool.log`,
+`step16-wrapper-build.log`,
+`step16-suite.log`,
+`step16-teardown.log` and
+`step16-versions.log`.
+
 ## Teardown evidence
 
 `record` writes `teardown.log`:
@@ -628,5 +724,9 @@ From lines 43098 to 43099 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  `main` too). The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls, which
-  defeats the guard (briefs now forbid it). GOING: the faster size reader's design and measurement
+  `main` too).
+  The author had set `CLI_GIT_ZFS_FIXTURE_GUEST=$(hostname)` on the host to run guarded controls,
+  which
+  defeats the guard (briefs now forbid it).
+  GOING:
+  the faster size reader's design and measurement
