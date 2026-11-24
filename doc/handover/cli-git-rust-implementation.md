@@ -307,7 +307,9 @@ The design is decided in `doc/decision/cli-git-zfs-worktree-design.md`
 and built step by step from `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
 
 State:
-plan steps 1 to 10 are built and on `main`,
+plan steps 1 to 10 are built and on `main`;
+step 11 is being built (`pi-zfs-step-11-dirty-main-restore`),
+with issue 6452 (a dirty checkout takes rung 3 until then) fixed in its own round;
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
 Pieces of steps 12,
@@ -416,6 +418,9 @@ its Sonnet read (`read-of-the-step-10-open-choices.md` in `~/temp/agent/gate-rev
 found a dirty checkout refused on every widened reach until step 11,
 the add printing a Rust `Debug` dump of the plan stop today,
 and 3B's example false;
+the owner answered E, 2C and 3C and the migration's runner and timing
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`),
+and `pi-zfs-step-10-answers-into-proposal-and-plan` writes them in;
 the revision merged as `dc0635971e` (choice 1 `E > C > G > A` with H asked on its own and W an add-on; choice 2 `2C > 2F > 2E > 2A`; choice 3 `3C > 3B > 3A > 3D`);
 a Sonnet read of it writes the owner's questions (`~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`);
 its two defects on `main` are issues 6450 (the add printed a `Debug` dump; fixed as `ca615ddbe1`, controls red then green)
@@ -625,9 +630,13 @@ it ranks a dedicated `px` profile for the ZED hook above rules in `local/zed`,
 which must be put to the owner beside the owner's earlier answer for rules over a dedicated profile.
 The owner answered every choice:
 `doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`.
-The fifth revision merged;
-`pi-zfs-step-19-owner-answers` writes the answers into the design
-and makes the nested dataset's `zfs mount` unit tolerate an already-mounted dataset.
+The chosen design merged as `1ef4afefa8`,
+every unit text booted in a guest:
+under `Wants=` a provider restart leaves the nested unit's invocation unchanged,
+and the nested unit skips itself when its dataset is already mounted (`ConditionPathIsMountPoint=!`).
+Step 19 waits on steps 12, 14 to 16 and 18 and on the root modes;
+the agent runs its migration with sudo when no process has the checkout open
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`).
 
 Next:
 the re-read,
