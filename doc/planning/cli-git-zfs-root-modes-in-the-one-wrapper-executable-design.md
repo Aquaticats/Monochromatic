@@ -611,6 +611,8 @@ A name check on `args_os`'s first element,
 before the service check and before the panic hook,
 then `worktree_clone_mount_handler::run(&arguments[1..])`,
 then the existing `end_after_the_log`.
+The name comes from the argument vector and never from `current_exe`,
+which answers the link's target (the ZED replay printed that).
 Provisionally this is a small module of its own
 (`src/native/worktree_clone_mount_handler/root_mode_names.rs`),
 holding the two names and one predicate,
@@ -885,6 +887,7 @@ They land in their own steps, and nothing waits on them for the release to hold 
 - the modes' grammar, exit statuses, gate, probe and records;
 - the two installed paths' spellings, so every unit and zedlet line already written stays correct;
 - the ZED hook's placement, class prefix and synchronous or asynchronous choice;
+- the event descriptor ZED puts on 3: the entry touches no descriptor, and no mode reads it today;
 - the archive's layout rule: one declared `[[bin]]`, one `bin=` line, one file.
 
 ## What the probes showed, and what they did not
