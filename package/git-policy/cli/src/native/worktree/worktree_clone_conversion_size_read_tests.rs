@@ -904,21 +904,36 @@ fn the_record_folder_exists(common: &Path) -> bool {
 }
 
 /// What:
-///  A process that starts the read and leaves while its child still runs.
+///  A process that starts the read and ends the way an add does,
+/// with its child still running.
 /// Why:
 ///   A forked process is one process exit without starting this binary again,
 ///  which the wrapper's no-self-invocation rule forbids.
 ///  The parent starts no thread before the fork,
 /// so the child has one thread when it forks.
+///  The child ends by dropping the read it holds,
+///  which is the add's own exit path:
+/// the read's `Drop` ends the Git child,
+///  and the process reaps it before it exits.
+///  The kernel's parent-death signal cannot be relied on here:
+/// the fake's `exec sleep 30` enters an AppArmor-enforced profile,
+/// and such an exec clears the signal
+/// (`doc/troubleshooting/pdeathsig-is-cleared-by-a-confined-exec.md`).
+///  This control forks the test process,
+/// which the crate's controls do only where each control gets a process of its own
+/// (nextest's shape):
+/// a fork of a process whose runtime threads are running loses the runtime's wake-up in the child,
+/// so a run that puts this control in a module-wide process finds the test after it waiting on a read for ever
+/// (measured on this host 2026-11-24: the module runs in 11.6 s without this control and stops after it with it).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pid = fork(); if (pid === 0) { startRead(); waitMarker(); _exit(0); }
+/// const pid = fork(); if (pid === 0) { const read = startRead(); waitMarker(); drop(read); waitpid(-1); _exit(0); }
 /// ```
 fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Path) -> std::process::ExitStatus {
     // SAFETY: the parent has one thread here (nextest runs one test per process, and no thread is started
-    // before this call), so the child's inherited state is consistent; it starts a read and exits with `_exit`,
-    // which runs no destructor and leaves the read's thread to the process exit.
+    // before this call), so the child's inherited state is consistent; it starts a read, drops it the way the add's
+    // end does, reaps the child that end signalled, and exits with `_exit`.
     let pid: libc::pid_t = unsafe { libc::fork() };
     assert!(pid >= 0, "the fork starts a process");
     if pid == 0 {
@@ -930,6 +945,20 @@ fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Pat
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
             if a_process_id_in(marker).is_some() {
+                drop(started);
+                // The child the drop signalled is reaped here, so the absence is the kernel's and not a wait's, and the
+                // wait is bounded: a read that never published a child leaves nothing to reap.
+                let reap_deadline = std::time::Instant::now() + Duration::from_secs(5);
+                let mut reaped: libc::c_int = 0;
+                while std::time::Instant::now() < reap_deadline {
+                    // SAFETY: the read's Git child is this process's only child, `-1` names any child, and `WNOHANG`
+                    // returns at once; `reaped` is one `c_int` the call writes.
+                    let answered: libc::pid_t = unsafe { libc::waitpid(-1, &mut reaped, libc::WNOHANG) };
+                    if answered != 0 {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
                 unsafe { libc::_exit(0) };
             }
             std::thread::sleep(Duration::from_millis(5));
@@ -937,8 +966,19 @@ fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Pat
         unsafe { libc::_exit(2) };
     }
     let mut status: libc::c_int = 0;
-    // SAFETY: `pid` is the child this call just forked, and `status` is one `c_int` it writes.
-    let waited: libc::pid_t = unsafe { libc::waitpid(pid, &mut status, 0) };
+    // The wait is bounded, so a child that ends the way the add does but never returns `_exit`s into a failure this
+    // control reports instead of holding the run.
+    let wait_deadline = std::time::Instant::now() + Duration::from_secs(20);
+    let waited: libc::pid_t = loop {
+        // SAFETY: `pid` is the child this call just forked, and `status` is one `c_int` it writes; `WNOHANG` returns at
+        // once.
+        let answered: libc::pid_t = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+        if answered != 0 {
+            break answered;
+        }
+        assert!(std::time::Instant::now() < wait_deadline, "the add's own process ended after its read started");
+        std::thread::sleep(Duration::from_millis(5));
+    };
     assert_eq!(waited, pid, "the child is the one just forked");
     return std::os::unix::process::ExitStatusExt::from_raw(status);
 }
@@ -946,6 +986,8 @@ fn fork_a_process_that_ends_with_the_read(fake: &Path, repo: &Path, marker: &Pat
 /// A process that ends while its early read still runs leaves no child behind,
 /// does not wait for one,
 /// and its exit is not delayed by one.
+/// (Red without the read's `Drop`: the exec of the fake's `sleep 30` clears the parent-death signal, so nothing else
+/// ends the child on a host where AppArmor enforces a profile for it.)
 #[test]
 fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {
     let root: PathBuf = fixture("process-exit");

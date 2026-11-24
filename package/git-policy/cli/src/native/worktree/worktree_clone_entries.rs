@@ -19,7 +19,9 @@
 use crate::add_timing::{begin_step, end_step};
 use crate::fs_beneath::open_root;
 use crate::subvolume_index::StatFields;
-use crate::worktree_clean::{StatEntry, stored_stats};
+use crate::worktree_clean::StatEntry;
+#[cfg(test)]
+use crate::worktree_clean::stored_stats;
 use crate::worktree_clone_entry::{EntryResults, OneEntry, Seams, SpentByTheEntries, clone_one_entry};
 use crate::worktree_clone_paths::{Created, Directories};
 use crate::worktree_path_failure_message::subject_failure;
@@ -151,14 +153,19 @@ pub(crate) fn clone_with_entries(source: &SnapshotSource, entries: &[StatEntry],
 ///  Clone every entry of the source on this thread,
 /// with the moments at which a control may move the tree.
 /// Why:
-///   This is the whole rung's shape:
+///   This is a control's shape:
 /// the source's own index names the entries,
 /// and the rung installs that index after the copies.
+/// The rung itself never reads the index again:
+/// the one-turn arm clones the entry set `clone_in_slices` was handed
+/// (`worktree_clone_slices`),
+///  so a source with changes clones the paths its proof settled and no staged addition.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const { stats } = cloneWith({ source, directories, created, seams }); // throws a reason
 /// ```
+#[cfg(test)]
 pub(crate) fn clone_with(source: &SnapshotSource, directories: &mut Directories, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<HashMap<Vec<u8>, StatFields>, String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));

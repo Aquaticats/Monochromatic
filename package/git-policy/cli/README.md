@@ -975,10 +975,20 @@ Read-only commands,
      every tracked path its proof settles is a clone,
      and only the paths a change or a conversion rule reaches are Git's.
      Three provisional limit rules send an add to Git's own checkout instead:
-     a source with changes whose tracked files sum to fewer than 762,000,000 bytes,
+     a source with changes whose clones would copy fewer than 762,000,000 bytes,
      a source with more changed tracked files than a quarter of its tracked paths,
-     and a clean source whose mean tracked file is under its filesystem's measured edge,
+     and a source with no tracked change whose mean tracked file is under its filesystem's measured edge,
      which is 2,600 bytes on ZFS and the same value on a filesystem nobody measured.
+     The whole-tree sum counts the bytes the fence would carry and leaves out every path an attribute rule hands to Git,
+     so a `filter=lfs` path's own bytes are not in it.
+     A source whose only difference is an untracked file,
+     or whose recorded times are stale with no change in `git status`,
+     takes the mean rule and not the whole-tree one.
+     The whole-tree limit and the changed-file cut were measured on ZFS and apply on every filesystem until a Btrfs
+     round measures the dirty shapes;
+     until then nothing changes on btrfs.
+     These are the four answers of
+     `doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`.
      btrfs has no mean rule:
      a clean btrfs source clones as `main` does,
      whatever its files average.
@@ -1032,6 +1042,21 @@ Read-only commands,
      read in `convert.c`'s order;
      every other path is written by Git,
      through one `git checkout-index --force -u`.
+     A path the fence carries is taken as its blob's bytes when its file is stat-clean and the size its index records
+     is the blob's size,
+     which one `git ls-tree -r -l` reads.
+     One case is beyond that proof:
+     a file an earlier conversion left the same length
+     (a clean filter that masked a token at its own length,
+     a case-folding rule removed after the add)
+     is carried while Git's own checkout writes the stored blob,
+     and Git's own `git status` reports that source clean as well,
+     because neither the stat data nor a size comparison reads the bytes.
+     Hashing each carried file against its blob would see it and costs a read of every byte the rung copies,
+     which is most of what the copies save;
+     the limit is the project's answer "Document the limit"
+     (`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+     "A file an earlier conversion left the same length (D4)").
      The attributes are read and the decline decided before the copies,
      the rest of the fence (`git ls-tree` and the decision) runs while the clones copy,
      and the index is written under a name of its own until that write is done,

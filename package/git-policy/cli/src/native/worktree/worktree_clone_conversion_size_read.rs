@@ -477,9 +477,10 @@ impl SizeReadBesideTheCheck {
     /// A read that has answered is stated as the record's work;
     /// one that has not is stated as started and not joined,
     /// and the add ends without it.
-    /// The read's thread and its child end with this process
-    /// (`GitRequest::ends_with_the_starting_thread`),
-    ///  so nothing of the add's outlives it.
+    /// The read's thread ends with this process,
+    /// and its child ends either through the kernel's parent-death signal
+    /// or, where that signal is cleared (an exec into an AppArmor-enforced profile),
+    /// through the `Drop` below.
     /// Nothing here changes the add's answer:
     ///  a read that failed is only a debug line.
     ///
@@ -497,7 +498,7 @@ impl SizeReadBesideTheCheck {
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 crate::add_timing::note(WORK, "started and not joined");
-                debug(TAG, "the size read started beside the check has not answered, so the add states it as started and not joined; its thread and child end with this process");
+                debug(TAG, "the size read started beside the check has not answered, so the add states it as started and not joined; this value's end settles its child");
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 crate::add_timing::note(WORK, "started and not joined");
@@ -557,16 +558,33 @@ impl SizeReadBesideTheCheck {
         free_the_answered_map_beside_the_add(answered);
         end_step(take_entered);
         let child_entered: bool = begin_step("abandonEndTheChild");
+        if self.child.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+            debug(TAG, "the size read started beside the check is not used before its child exists, so the runner ends that child the moment it publishes it");
+        }
+        self.end_the_child();
+        end_step(child_entered);
+    }
+
+    /// What:
+    ///  End the Git child this read published,
+    /// or record that the runner must end it at the moment it publishes one.
+    /// Why:
+    ///   `abandon` and the `Drop` below both end the child,
+    /// and the cell's swap is what makes the ending happen once:
+    /// a second call finds `ABANDONED_CHILD` and signals nothing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// endTheChild() { const published = this.child.swap(ABANDONED_CHILD); if (published > 0) kill(published, 'SIGKILL'); }
+    /// ```
+    fn end_the_child(&self) {
         let published: i32 = self.child.swap(crate::transaction_git_request_and_reply_types::ABANDONED_CHILD, std::sync::atomic::Ordering::SeqCst);
         if published > 0 {
             // SAFETY: `published` is this add's own Git child, published by its runner while it ran;
             // a signal to a process that ended in between reaches nothing.
             let _ = unsafe { libc::kill(published, libc::SIGKILL) };
             debug(TAG, format!("the size read started beside the check is not used, so its child {published} is ended and the add does not wait for it").as_str());
-        } else if published == 0 {
-            debug(TAG, "the size read started beside the check is not used before its child exists, so the runner ends that child the moment it publishes it");
         }
-        end_step(child_entered);
     }
 
     /// What:
@@ -622,6 +640,33 @@ impl SizeReadBesideTheCheck {
     #[cfg(test)]
     pub(crate) fn child_cell_for_a_control(&self) -> std::sync::Arc<std::sync::atomic::AtomicI32> {
         return self.child.clone();
+    }
+}
+
+/// What:
+///  The end of an add's read that nobody joined ends its Git child too.
+/// Why:
+///   The child is spawned with `PR_SET_PDEATHSIG`,
+/// and the kernel clears that signal when a process's exec changes its security context
+/// (`fs/exec.c`, `begin_new_exec`: `if (bprm->secureexec) me->pdeath_signal = 0;`),
+/// which AppArmor does for every exec that attaches a profile
+/// (`security/apparmor/domain.c` sets `bprm->secureexec` for a transition):
+/// on this machine `/usr/bin/sleep` and `/usr/bin/git` are under enforced profiles,
+/// so an add that ended without settling its read left the read's `git ls-tree` running to its own end
+/// (the release pass over alpha.45's finding L1).
+/// A read the add joined or abandoned already swapped the cell,
+/// so this drop signals nothing;
+///  a read the add ends by returning, by an error or by a panic ends its child here.
+/// An add the kernel kills outright runs no destructor,
+/// and that limit is recorded in `doc/troubleshooting/pdeathsig-is-cleared-by-a-confined-exec.md`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// onDrop() { this.endTheChild(); }
+/// ```
+impl Drop for SizeReadBesideTheCheck {
+    fn drop(&mut self) {
+        self.end_the_child();
     }
 }
 
