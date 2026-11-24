@@ -1002,8 +1002,21 @@ So C2 either cries wolf or says nothing:
 - with the post-failure check: a missing repository whose host key is known still gets the passphrase sentence,
   because the check knows the key and nothing more (`c2-notfound-known-host`).
 
-The only case where C2 can be both accurate and useful is the undefined one:
-it cannot distinguish the two refusals without reading text, and reading text is C.
+Three more arms of the same stand-in, run after the first five (`keep/run9.log`):
+
+- a passphrase key followed by a key that works ends 0 and prints nothing,
+  which is the one case where C2 is better than B: the question did not decide anything, and nothing is said;
+- `BatchMode=yes` and `StrictHostKeyChecking=yes` end 128 and get the same paragraph as a new host key,
+  with its first branch right and its second branch irrelevant;
+- a **changed** host key ends 128 and gets the paragraph about a key this machine "does not know",
+  which is false: it knows a different one,
+  and the sentence that says so is the one thing the person needs there.
+
+So C2's accuracy depends on the refusal, and it cannot tell them apart without reading text,
+which is C.
+
+The only case where C2 can be both accurate and useful is the undefined one.
+It cannot distinguish the two refusals without reading text, and reading text is C.
 
 What it starts: Git as a child; on a failure, `ssh -G` and `ssh-keygen -F` as well.
 What it reads: the exit status and, on 128, the resolved OpenSSH configuration and the known-hosts files.
@@ -1562,7 +1575,7 @@ Counts and outcomes, not timings, and they carry no spread.
 - `doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`.
 - OpenSSH `V_10_6_P2`: `readpass.c`, `sshconnect.c`, `sshconnect2.c`, `ssh.c`, `log.c`, `log.h`.
 - Git 2.56.1: `prompt.c`, `connect.c`, `sideband.c`, `transport.c`, `editor.c`, `strbuf.c`.
-- `keep/run4.log`, `keep/run5.log`, `keep/run6.log`, `keep/run7.log`, `keep/run8.log`,
+- `keep/run4.log`, `keep/run5.log`, `keep/run6.log`, `keep/run7.log`, `keep/run8.log`, `keep/run9.log`,
   `keep/probe-scripts/` and `keep/probe-bin/` in this round's folder.
 - Every OpenSSH and Git line cited here was read from the full file fetched from the tag this round,
   not from an earlier copy that a fetch cut short.
