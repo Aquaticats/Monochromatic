@@ -200,10 +200,7 @@ fn start_the_child(buffers: &CompanionBuffers, writing: &OwnedFd, switch: Switch
 ///  sweep.
 fn wait_for_the_child(run: &RunDirectory, child: libc::pid_t, reading: &OwnedFd, settings: &Settings, deadline: Duration) -> CompanionVerdict {
     let bound: Duration = deadline;
-    let ready: bool = match pid_descriptor(child).and_then(|descriptor| return ready_within(&descriptor, bound)) {
-        Ok(ready) => ready,
-        Err(_error) => false,
-    };
+    let ready: bool = pid_descriptor(child).and_then(|descriptor| return ready_within(&descriptor, bound)).unwrap_or_default();
     if !ready {
         let _killed = kill_group(child);
         let ended: Exit = reap_now(child).unwrap_or(Exit::StillRunning);

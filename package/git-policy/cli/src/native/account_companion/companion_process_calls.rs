@@ -105,7 +105,7 @@ pub fn fork() -> Result<Option<libc::pid_t>, std::io::Error> {
 /// The call refused.
 pub fn set_process_group(pid: libc::pid_t) -> Result<(), std::io::Error> {
     // SAFETY: `setpgid` reads two process identifiers and touches no memory of ours.
-    if unsafe { libc::setpgid(pid, pid) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    return if unsafe { libc::setpgid(pid, pid) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
 }
 
 /// What:
@@ -211,7 +211,7 @@ fn exit_from(status: libc::c_int) -> Exit {
 /// The call refused.
 pub fn kill_group(pid: libc::pid_t) -> Result<(), std::io::Error> {
     // SAFETY: `kill` reads two numbers and touches no memory of ours, and the group is this child's own.
-    if unsafe { libc::kill(-pid, libc::SIGKILL) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    return if unsafe { libc::kill(-pid, libc::SIGKILL) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
 }
 
 /// What:

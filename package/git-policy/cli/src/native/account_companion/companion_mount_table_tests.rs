@@ -34,7 +34,7 @@ fn a_mount_is_found_by_its_id_at_its_own_mount_point_only() {
 fn an_id_that_is_a_prefix_of_another_is_not_found() {
     assert!(names_mount_id(TABLE, 1200));
     assert!(!names_mount_id(TABLE, 120));
-    assert!(!names_mount_id(TABLE, 1201_0));
+    assert!(!names_mount_id(TABLE, 12_010));
 }
 
 /// What:

@@ -61,7 +61,7 @@ pub fn exit_now(status: i32) -> ! {
 /// The call refused.
 pub fn set_process_group(pid: libc::pid_t) -> Result<(), Failure> {
     // SAFETY: `setpgid` reads two process identifiers and touches no memory of ours.
-    if unsafe { libc::setpgid(pid, pid) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) }
+    return if unsafe { libc::setpgid(pid, pid) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) };
 }
 
 /// What:
@@ -75,7 +75,7 @@ pub fn set_process_group(pid: libc::pid_t) -> Result<(), Failure> {
 /// The call refused.
 pub fn parent_death_signal() -> Result<(), Failure> {
     // SAFETY: `prctl` reads its four words and writes nothing of ours.
-    if unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) }
+    return if unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) };
 }
 
 /// The process that started this one.
@@ -111,7 +111,7 @@ pub fn move_descriptor(from: RawFd, to: RawFd) -> Result<(), Failure> {
 /// The call refused.
 pub fn close_range(first: u32, last: u32) -> Result<(), Failure> {
     // SAFETY: `close_range` closes descriptors this process holds and touches no memory of ours.
-    if unsafe { libc::syscall(libc::SYS_close_range, first, last, 0 as libc::c_uint) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) }
+    return if unsafe { libc::syscall(libc::SYS_close_range, first, last, 0 as libc::c_uint) } == 0 { Ok(()) } else { Err(failed(CompanionCall::Fork)) };
 }
 
 /// What:
@@ -162,7 +162,7 @@ pub fn close(descriptor: RawFd) {
 /// The call refused.
 pub fn unshare_user_namespace() -> Result<(), Failure> {
     // SAFETY: `unshare` reads the one flag word and touches no memory of ours.
-    if unsafe { libc::unshare(libc::CLONE_NEWUSER) } == 0 { Ok(()) } else { Err(failed(CompanionCall::UnshareUserNamespace)) }
+    return if unsafe { libc::unshare(libc::CLONE_NEWUSER) } == 0 { Ok(()) } else { Err(failed(CompanionCall::UnshareUserNamespace)) };
 }
 
 /// What:
@@ -174,7 +174,7 @@ pub fn unshare_user_namespace() -> Result<(), Failure> {
 /// The call refused.
 pub fn unshare_mount_namespace() -> Result<(), Failure> {
     // SAFETY: `unshare` reads the one flag word and touches no memory of ours.
-    if unsafe { libc::unshare(libc::CLONE_NEWNS) } == 0 { Ok(()) } else { Err(failed(CompanionCall::UnshareMountNamespace)) }
+    return if unsafe { libc::unshare(libc::CLONE_NEWNS) } == 0 { Ok(()) } else { Err(failed(CompanionCall::UnshareMountNamespace)) };
 }
 
 /// What:
