@@ -128,6 +128,7 @@ fn the_size_limit_declines_one_byte_below_the_pinned_bytes_where_the_filesystem_
             assert!(reason.contains(limit.to_string().as_str()), "and the limit it is below: {reason}");
         }
         None => {
+            eprintln!("SIZE-LIMIT CONTROL NOT RUN: the_size_limit_declines_one_byte_below_the_pinned_bytes_where_the_filesystem_has_the_rule (the fixture's filesystem, {kind:?}, has no whole-tree rule)");
             assert!(reason_the_tree_is_too_small(&below_source, carried_of(&below_source)).is_none(), "a filesystem with no whole-tree rule clones a source of any size");
         }
     }

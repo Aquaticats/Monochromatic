@@ -407,6 +407,7 @@ fn a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes() {
     if crate::worktree_clone_rung_limits::the_fewest_tracked_bytes_that_keep_the_clone_rung(kind).is_none() {
         // A filesystem with no whole-tree rule clones this source, and
         // `a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tree_rule` is that control.
+        eprintln!("SIZE-LIMIT CONTROL NOT RUN: a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes (the fixture's filesystem, {kind:?}, has no whole-tree rule)");
         remove(root.as_path());
         return;
     }
@@ -473,6 +474,7 @@ fn a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tre
     if crate::worktree_clone_rung_limits::the_fewest_tracked_bytes_that_keep_the_clone_rung(kind).is_some() {
         // A filesystem with the whole-tree rule declines this source, and
         // `a_source_below_the_size_limit_gets_gits_own_checkout_and_its_bytes` is that control.
+        eprintln!("SIZE-LIMIT CONTROL NOT RUN: a_source_below_the_size_limit_is_cloned_where_the_filesystem_has_no_whole_tree_rule (the fixture's filesystem, {kind:?}, has the whole-tree rule)");
         remove(root.as_path());
         return;
     }
