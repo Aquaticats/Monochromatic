@@ -4865,6 +4865,26 @@ the questions section is the decided record.
   F53's `O_DIRECTORY` note,
   both records cited,
   and L18's tiers.
+- `e6f1ced663`,
+  2026-11-23T20:56:25-05:00:
+  the merge of `main` with the third probe pass's records.
+- `486c4cd8b7`,
+  2026-11-23T21:02:09-05:00:
+  the third read's P1,
+  P4,
+  P5,
+  and P6:
+  the promise limited to the system manager's units and the handler's own user namespace,
+  the sandboxed user unit in the refused class with F60,
+  the owner read through `NS_GET_USERNS` with F61 in place of the unreadable lock flag,
+  the refusal before any signal,
+  V10's three choices for a sandboxed user unit,
+  T0-13's four shapes and their oracle lines,
+  the third pass's commits cited,
+  T0-1,
+  the confirmation's order and the limitations bullet brought up to date,
+  the marker route's condition stated with the arm that would loosen it,
+  and `holder-locked` with its own report text.
 
 ## What this revision left as it was
 
