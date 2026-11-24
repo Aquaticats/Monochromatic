@@ -454,6 +454,82 @@ fn unallow_command(grant: &Grant, facts: &DelegationFacts) -> String {
     return format!("zfs unallow {scope} {holder} {} {}", grant.permission, grant.carried_by);
 }
 
+/// What:
+///  One decided permission the pool reports more widely than the design
+///  scopes it,
+///  with the grant that makes it effective.
+/// Why:
+///  Narrowing one permission is two commands about one pair of datasets,
+///  and one wider grant can serve several permissions,
+///  so both halves are read from one pairing rather than from two lists.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Narrowing = { required: RequiredGrant; wide: Grant };
+/// ```
+struct Narrowing<'a> {
+    /// The permission and the place the design grants it.
+    required: &'a RequiredGrant,
+    /// The ancestor's wider grant that reaches the place today.
+    wide: &'a Grant,
+}
+
+/// Every decided permission that is effective only through an ancestor's
+/// descendant grant.
+fn narrowings<'a>(facts: &'a DelegationFacts) -> Vec<Narrowing<'a>> {
+    let mut found: Vec<Narrowing<'a>> = Vec::new();
+    for required in &REQUIRED_GRANTS {
+        if let Satisfaction::Broad(wide) = satisfaction(required, facts) {
+            found.push(Narrowing { required, wide });
+        }
+    }
+    return found;
+}
+
+/// What:
+///  The commands in the order they were built, each printed once.
+/// Why:
+///  One ancestor grant can make two permissions effective,
+///  and a second command to remove it would have nothing left to remove.
+fn each_command_once(commands: &[String]) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for command in commands {
+        if !kept.contains(command) {
+            kept.push(command.clone());
+        }
+    }
+    return kept;
+}
+
+/// What:
+///  The `scope` finding's line:
+///  each permission the pool grants more widely than the design scopes it,
+///  then every `zfs allow` that puts one where the design puts it,
+///  then every `zfs unallow` that removes a wider grant.
+/// Why:
+///  A person reads the line to narrow the account's delegation,
+///  and the decided grant has to be there before the wider one goes,
+///  or the account is without the permission between the two commands.
+///  One wider grant can serve more than one permission,
+///  so its removal is printed once, after every grant that replaces it.
+fn scope_detail(narrowings: &[Narrowing<'_>], facts: &DelegationFacts) -> String {
+    let mut entries: Vec<String> = Vec::new();
+    let mut allows: Vec<String> = Vec::new();
+    let mut unallows: Vec<String> = Vec::new();
+    for narrowing in narrowings {
+        entries.push(format!("`{}` reaches `{}` only through `{}`'s descendant grant", narrowing.required.permission, place_dataset(narrowing.required.place, facts), narrowing.wide.carried_by));
+        allows.push(allow_command(narrowing.required, facts));
+        unallows.push(unallow_command(narrowing.wide, facts));
+    }
+    return format!(
+        "{} decided permission(s) are effective but granted more widely than the design scopes them: {}. Grant each where the design puts it before the wider grant goes, so the account is never without one: {}. Then remove the wider grant(s): {}.",
+        narrowings.len(),
+        entries.join("; "),
+        each_command_once(&allows).join("; "),
+        each_command_once(&unallows).join("; ")
+    );
+}
+
 /// The grants of a route permission that reach the account through the
 /// required places,
 /// used to recognize a permission the check must look at.
@@ -473,6 +549,8 @@ fn is_route_permission(permission: &str) -> bool {
 ///  The removal's threat boundary is exactly this set,
 ///  so the report names each grant that breaks it with the command that
 ///  removes it,
+///  a permission granted wider than the design scopes it gets both the grant
+///  in the decided place and the wider grant's removal,
 ///  and a named set the account belongs to leaves the answer unknown because
 ///  this read cannot expand it.
 ///
@@ -516,15 +594,9 @@ pub fn check_delegation(facts: &DelegationFacts) -> CheckOutcome {
     if !missing.is_empty() {
         return finding("grant", format!("{} decided permission(s) are not granted to the account: {}", missing.len(), missing.join("; ")));
     }
-    let broad: Vec<String> = REQUIRED_GRANTS
-        .iter()
-        .filter_map(|required| return match satisfaction(required, facts) {
-            Satisfaction::Broad(grant) => Some(format!("`{}` reaches `{}` only through `{}`'s descendant grant", required.permission, place_dataset(required.place, facts), grant.carried_by)),
-            Satisfaction::Exact | Satisfaction::Missing => None,
-        })
-        .collect();
-    if !broad.is_empty() {
-        return finding("scope", format!("{} decided permission(s) are effective but granted more widely than the design scopes them: {}; the narrowed command is printed for each", broad.len(), broad.join("; ")));
+    let narrowings: Vec<Narrowing<'_>> = narrowings(facts);
+    if !narrowings.is_empty() {
+        return finding("scope", scope_detail(&narrowings, facts));
     }
     return pass(format!("{} decided permission(s) are granted where the design puts them and no lineage-changing grant reaches the account", REQUIRED_GRANTS.len()));
 }
