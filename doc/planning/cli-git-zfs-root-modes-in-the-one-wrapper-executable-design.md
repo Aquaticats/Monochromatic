@@ -153,7 +153,7 @@ and two of them fail the typed ban independently
   choice 1's A-over-B reason:
   `doctor`'s installed-file check does not read `--version` today
   (`handler_checks.rs:229` reads owner and mode only,
-  and `rg version src/native/health/` finds none),
+  and `rg -- '--version|version_line' src/native/health/` finds none),
   so the reason is replaced.
   What supports A is that the release smoke and a person can check the installed bytes with one command
   that carries no words,
