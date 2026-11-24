@@ -120,7 +120,9 @@ Asked whether the standing authorization to bump and publish covers a release di
 now that a crate release is a workflow dispatch (`doc/decision/releases-run-in-ci.md`)
 and no longer a local bump and push,
 the owner answered on 2026-11-23:
-"Yes cover release dispatches. But only alphas. Of everything."
+"Yes cover release dispatches.
+But only alphas.
+Of everything."
 
 So an agent may bump a version and dispatch its release unasked when the release is an alpha,
 for every package and tool the repository releases,
