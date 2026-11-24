@@ -313,6 +313,10 @@ with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`
 `main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
 which `pi-fix-companion-reaper-thread-source-guard` fixes,
 and every writer round now runs the `source_guard` module before it reports;
+the gate on `main` at `adcb708071` (run `native-mEmcZt`) gave `10855 tests run: 10843 passed (6 slow), 12 failed, 42 skipped`:
+the cause-H pair, that guard,
+and nine companion tests that read the host's `XDG_RUNTIME_DIR`,
+which the gate's container does not set (`pi-fix-companion-tests-inject-their-runtime-dir` fixes them);
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
 Pieces of steps 12,
