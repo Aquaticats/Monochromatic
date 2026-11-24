@@ -511,11 +511,8 @@ prompt ready in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
 `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
-This host's cached `template-fedora.qcow2` is still the old one,
-because step 19's revision round has a Fedora guest backed by it;
-once that guest is destroyed,
-delete the cached template so the next Fedora guest bakes the fixed one
-(`package/mvm/cli/README.md`, the re-bake step).
+mvm was rebuilt from `main` at 2026-11-24T02:19:46-05:00 and the cached `template-fedora.qcow2` deleted,
+so the next Fedora guest bakes the fixed template.
 Open:
 a template cache that never reuses a path,
 so a re-bake cannot corrupt a running guest's backing file.
@@ -586,14 +583,20 @@ three boots' logs were overwritten,
 so their quoted lines rest on the journal or on nothing;
 and `After=zfs-mount.service` carries a provider restart to the gate,
 which two accepted designs rely on.
-Running:
-`pi-zfs-step-19-design-after-its-gate-review`,
-folding the review in and running the arms again in a guest
-(folder `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`).
+Its revision merged as a proposal,
+`eeb76c96bf`:
+the hook is the root-owned wrapper file under a ZED-legal name with no argument,
+the failure arm ran with `canmount=noauto`,
+every boot kept its own log,
+`RequiresMountsFor=` is the first V3 option,
+and a start bound (V8) and a unit per nested dataset (V9) are new;
+its arms ran on systemd 258 in a Fedora guest set permissive,
+so no result is about an enforcing boot.
+Waiting for the memory stall to ease:
+a Sonnet re-read of that revision.
 
 Next:
-merge step 19's revision as a proposal,
-have the reviewer read its diff,
+the re-read,
 then put the design to the owner.
 
 ### The clone rung serves every source no slower than `main`
@@ -831,9 +834,18 @@ Its L4 waits in `doc/handover/questions-for-the-owner.md`,
 and its options merged as a proposal,
 `41bdf36a2a`
 (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-ranked B > D > C > E > A, B being the wrapper as the askpass program),
-with its Sonnet gate review running
-(`~/temp/agent/gate-review-typed-network-command-next-step-2026-11-24/`).
+ranked B > D > C > E > A, B being the wrapper as the askpass program).
+Its gate review
+(`review-of-the-host-key-next-step-design.md` in `~/temp/agent/gate-review-typed-network-command-next-step-2026-11-24/keep/`)
+found B's transcripts composed, never run,
+its passphrase sentence wrong when ssh goes on to a key that works,
+and B needing AppArmor rules in two stacked profiles per build,
+and added an option J:
+the sentence itself as `SSH_ASKPASS`'s value,
+which OpenSSH prints in its exec failure line.
+Waiting for the memory stall to ease:
+`pi-typed-network-command-next-step-after-its-review`,
+prompt ready in its folder of that name under `~/temp/agent/` (ending `-2026-11-24`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
