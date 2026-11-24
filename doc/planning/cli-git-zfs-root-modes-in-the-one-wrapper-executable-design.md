@@ -958,4 +958,4 @@ Round folder `/home/user/temp/agent/zfs-root-modes-in-the-one-wrapper-executable
 - `keep/zed-source/`: the OpenZFS `zfs-2.4.4` files this design's ZED facts were read from.
 
 The round's `scratch/` folder, where the fixtures, their links and the throwaway repository lived, was removed when
-the round ended; the two sources above rebuild it.
+the round ended; `keep/dispatch-fixture/` rebuilds it.
