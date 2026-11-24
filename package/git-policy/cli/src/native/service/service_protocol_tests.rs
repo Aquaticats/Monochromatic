@@ -122,9 +122,9 @@ fn a_request_carries_the_names_whose_value_could_not_travel_and_refuses_anything
     let line: String = encode_client(&ClientMessage::Commit(Box::new(with.clone())));
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(with))), "the names travel whole");
     for (why, not_text) in [
-        ("a name outside the five", serde_json::json!(["SSH_AUTH_SOCK"])),
-        ("a name that is not text", serde_json::json!([7])),
-        ("a name that is not text", serde_json::json!("PATH")),
+        ("a name outside the five", serde_json::Value::Array(vec![serde_json::Value::from("SSH_AUTH_SOCK")])),
+        ("a name that is not text", serde_json::Value::Array(vec![serde_json::Value::from(7)])),
+        ("a name that is not text", serde_json::Value::from("PATH")),
     ] {
         let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
         let programs: &mut serde_json::Map<String, serde_json::Value> =
