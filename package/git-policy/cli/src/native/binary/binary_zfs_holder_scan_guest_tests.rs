@@ -718,9 +718,10 @@ const CHROOT_MOUNT_FOLDER: &str = "/srv/holder-scan-chrooted-clone";
 /// which is a holder no read of `/proc/<pid>/ns/mnt` alone can see.
 const THREAD_NAMESPACE_SCRIPT: &str = r#"
 import os, subprocess, sys, threading, time
-clone, folder, mount_zfs = sys.argv[1], sys.argv[2], sys.argv[3]
+clone, folder, mount_zfs = sys.argv[1], sys.argv[2], sys.argv[4]
 def worker():
     os.unshare(os.CLONE_NEWNS)
+    os.makedirs(folder, exist_ok=True)
     subprocess.run([mount_zfs, clone, folder], check=True)
     time.sleep(600)
 threading.Thread(target=worker, daemon=True).start()
@@ -745,6 +746,7 @@ clone, folder, away, mount_zfs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv
 os.unshare(os.CLONE_NEWNS)
 pid = os.fork()
 if pid == 0:
+    os.makedirs(folder, exist_ok=True)
     subprocess.run([mount_zfs, clone, folder], check=True)
     time.sleep(600)
 else:
