@@ -77,8 +77,8 @@ fn assert_the_askpass_sentence_came_first(transcript: &str, refusal: &str) {
 /// Why:
 ///   A command that meets no question must print no such line,
 ///  so an arm whose key asks nothing proves its silence only while no question was asked at all.
-fn assert_no_question_was_asked(transcript: &str) {
-    assert!(!transcript.contains("ssh_askpass: exec("), "no question reached the askpass value: {transcript:?}");
+fn assert_no_line_where_the_askpass_value_could_not_start(transcript: &str) {
+    assert!(!transcript.contains("ssh_askpass: exec("), "no line says the askpass value could not start: {transcript:?}");
 }
 
 /// A pseudo-terminal the control keeps open:
@@ -498,7 +498,7 @@ fn a_typed_command_over_ssh_at_a_terminal_asks_no_passphrase() {
 ///  Neither arm needs more than its own assertions:
 ///  the key asks nothing,
 ///  so no question reaches the askpass value and no line about one can appear,
-///  which [`assert_no_question_was_asked`] holds,
+///  which [`assert_no_line_where_the_askpass_value_could_not_start`] holds,
 ///  and both arms the connection that succeeded.
 ///
 /// In TS you'd write (pseudocode):
@@ -556,7 +556,7 @@ fn a_key_without_a_passphrase_connects_through_the_wrapper_with_no_agent() {
         at_terminal.transcript
     );
     assert!(!at_terminal.transcript.contains("Permission denied"), "the key was accepted: {:?}", at_terminal.transcript);
-    assert_no_question_was_asked(at_terminal.transcript.as_str());
+    assert_no_line_where_the_askpass_value_could_not_start(at_terminal.transcript.as_str());
     assert!(!at_terminal.transcript.to_lowercase().contains("passphrase"), "no passphrase was asked for: {:?}", at_terminal.transcript);
 
     // Arm two: no terminal at all, where a command that asked would find nothing to read.
@@ -774,7 +774,7 @@ fn a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refus
     //  That the fixture can ask the question at all is held by
     //  `an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`, whose control runs plain `ssh` at a terminal.
     let (control_code, control_stderr) = run_git(&fixture, real_git.as_path(), &["clone", url.as_str(), control_clone_text.as_str()], command_line.as_str());
-    assert_no_question_was_asked(control_stderr.as_str());
+    assert_no_line_where_the_askpass_value_could_not_start(control_stderr.as_str());
     assert_eq!(control_code, Some(128), "the real Git was refused the unknown key: {control_stderr:?}");
     assert!(
         control_stderr.contains("Host key verification failed"),
