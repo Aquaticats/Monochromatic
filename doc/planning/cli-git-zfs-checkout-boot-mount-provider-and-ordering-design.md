@@ -638,20 +638,18 @@ The round's folder,
 - `keep/guest-versions-and-units.log`, the guest's systemd, kernel, ZFS releases and `zfs-mount.service` text.
 - `keep/guest-logs/`, every guest step's log: the build, the fixture, each arm's unit text, each boot's evidence
   read-back, the ancestor arm and the learned unit's two jobs.
-- `scratch/step19-guest.ts`, the driver that ran the guest steps through `mvm --backend libvirt exec` inside capped
-  `systemd-run --user` scopes.
+- `keep/step19-guest-driver.ts`, the driver that ran the guest steps through `mvm --backend libvirt exec` inside
+  capped `systemd-run --user` scopes.
 
 The guest was destroyed through `mvm` at the end of the round; `mvm list` no longer reports it.
 
 ## Revisions
 
-None. This is the document's first revision.
+The writing round corrected this document in four edits before any review, and each correction is in the text above:
+the requirement bullet says what a `Requires=` buys and does not buy;
+the ordering bullets cite one boot's journal lines;
+the ZED hook is a zedlet rather than the installed executable;
+and the limits name a failed import as an arm nobody ran.
 
-## Links
-
-- [proposal]: cli-git-zfs-worktree-design-proposal.md
-- [plan]: cli-git-zfs-worktree-implementation-plan.md
-- [propagation design]: cli-git-zfs-private-propagation-after-replacement-mount-design.md
-- [one-program decision]: ../decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md
-- [lost-event decision]: ../decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md
-- [measurements]: cli-git-zfs-measurements-owed-before-acceptance.md
+No cross-vendor review has been received, so none is folded in, and the document stays unapproved.
+Every path it cites is repo-relative or under the round folder, so it carries no link table.
