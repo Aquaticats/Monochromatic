@@ -137,10 +137,11 @@ The per-dataset unit and both account consumers carry their own
 So C's "no login hold at all, and separable" was true of the gate's own line and false of the boot,
 and the per-dataset unit is itself an unbounded oneshot ordered before sessions: a hung descendant
 mount holds every login under every option.
-Folded in: option C now drops the ordering line from all four units and lets each consumer require
-what it needs, which is the treatment option E had; the per-dataset and consumer units' bounds are
-stated in "The units for the datasets under the checkout path"; and V8 is split into two questions,
-whether the before-login ordering stays and where the bound values come from.
+Folded in: the fourth revision's option C is now V8a's option B, which drops the ordering line from
+all four units and lets each consumer require what it needs, the treatment the fourth revision's
+option E had; the per-dataset and consumer units' bounds are stated in "The units for the datasets
+under the checkout path"; and V8 is split into two questions, V8a for the ordering and V8b for the
+bound values.
 
 **M4, unsourced numbers shipped in "what ships".** Held: the fourth revision's "what ships while it is
 open" printed `TimeoutStartSec=20` and `TimeoutStopSec=5`, which are the guest's own test values, while
@@ -188,7 +189,7 @@ names are weighed as alternatives with their costs, "least privilege" is narrowe
 covers, B is stated as rules plus a profile rather than a profile instead of rules, the slips the read
 lists are corrected, and the owner's recorded answer is read for what it actually decided.
 
-**M8, V2's option C contradicts this document's own drop-in section.** Held: the provider drop-in is
+**M8, the fourth revision's V2 option C contradicts this document's own drop-in section.** Held: the provider drop-in is
 installed under every answer to V2 and its `ExecStartPost=` re-runs the gate, so "nothing re-runs the
 gate after a provider restart" is false for C, and "C delivers neither" is wrong about the re-run.
 Folded in: C's cost says the drop-in re-runs the gate and that B and C differ by the pull-in alone, and
@@ -3223,8 +3224,9 @@ This revision:
   programs survive SIGTERM, and measures the three-stage case in a boot;
 - moves the stop-failure mode out of the unit text into a drop-in whose file name sorts after the
   distribution's, after measuring that the directory is not what decides;
-- splits V8 into the ordering question and the values question, gives option C the treatment option E
-  had, and states the per-dataset and consumer units' unbounded defaults;
+- splits V8 into the ordering question and the values question, gives the drop-the-ordering answer the
+  treatment the fourth revision's option E had, and states the per-dataset and consumer units'
+  unbounded defaults;
 - writes V9's option C with the ordering lines the other two carry, boots it, and measures what a
   provider restart does to it;
 - states what V4 and V9 together do to this host's one dataset under the checkout path;
