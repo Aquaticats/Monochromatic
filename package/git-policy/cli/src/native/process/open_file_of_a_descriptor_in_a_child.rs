@@ -19,8 +19,9 @@
 //!  So the file is read by a child,
 //! and the answer is waited for only until the ceiling:
 //!  a child that has not answered by then is ended,
-//!  and one the kernel does not let go is handed to a reaper that collects it whenever it does,
-//!  the same bargain `stuck_children_reaped_when_the_kernel_lets_go.rs` makes for a command's child.
+//!  and one the kernel does not let go is handed to the crate's own reaper,
+//!  which collects it whenever it does (`stuck_children_reaped_when_the_kernel_lets_go.rs`,
+//! `reap_soon_pid`).
 //!  The reader's ceiling is `Unread::File` to its caller,
 //!  which a removal treats as a holder that may be alive,
 //! never as one that is not.
@@ -31,6 +32,7 @@
 //! ```
 
 use super::open_file_of_a_descriptor::OpenedFile;
+use crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon_pid;
 /// `CString` and `CStr` are the names a system call takes.
 use std::ffi::{CStr, CString, OsStr};
 /// `Path` is a borrowed filesystem path.
@@ -50,15 +52,9 @@ use std::time::Duration;
 /// and a server that has stopped is abandoned rather than waited on.
 pub const CHILD_READ_CEILING: Duration = Duration::from_millis(300);
 
-/// The name of the thread that collects a child whose answer was abandoned.
-pub const REAPER_THREAD_NAME: &str = "cli-git-descriptor-reaper";
-
 /// What a child asks of the descriptor's path:
 /// the attributes a read of the file behind the link gives.
 pub type Ask = fn(&CStr) -> std::io::Result<OpenedFile>;
-
-/// The children whose answer was abandoned and which no reaper has collected yet.
-static WAITING_FOR_A_REAPER: std::sync::Mutex<Vec<libc::pid_t>> = std::sync::Mutex::new(Vec::new());
 
 /// What:
 ///  The device and inode of the file the descriptor `fd` of the process whose table directory is `process`
@@ -148,7 +144,7 @@ pub fn read_in_a_child_with(process: &Path, fd: &OsStr, ceiling: Duration, ask: 
         None => {
             // The child is ended if it can be, and collected whenever the kernel lets go of it.
             kill(child);
-            reap_soon(child);
+            reap_soon_pid(child);
             return Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 format!(
@@ -329,90 +325,14 @@ fn kill(pid: libc::pid_t) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (waitpidPid(pid, WNOHANG) === 0) reapSoon(pid);
+/// if (waitpidPid(pid, WNOHANG) === 0) reapSoonPid(pid);
 /// ```
 fn collected(pid: libc::pid_t) {
     let mut status: libc::c_int = 0;
     // SAFETY: the number is this process's own child, and `status` is a live variable of the right type.
     let answered: libc::pid_t = unsafe { libc::waitpid(pid, &raw mut status, libc::WNOHANG) };
     if answered == 0 {
-        reap_soon(pid);
-    }
-}
-
-/// What:
-///  A child whose answer was abandoned handed to a thread that collects it whenever the kernel lets go,
-/// or kept for the next reaper when no thread can start.
-/// Why:
-///   The caller must not wait for a child that is asleep in the kernel,
-///  and a process nobody waits for stays a zombie while this process lives.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// reapSoon(pid);
-/// ```
-fn reap_soon(pid: libc::pid_t) {
-    let started = std::thread::Builder::new().name(String::from(REAPER_THREAD_NAME)).spawn(move || {
-        collect(pid);
-        drain_the_registry();
-    });
-    if started.is_err() {
-        keep(pid);
-    }
-    return;
-}
-
-/// What:
-///  One child collected,
-/// waiting however long the kernel takes.
-/// Why:
-///   It is the reaper's whole work,
-///  and it runs on a thread that has nothing else to do.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// waitpid(pid, 0);
-/// ```
-fn collect(pid: libc::pid_t) {
-    let mut status: libc::c_int = 0;
-    // SAFETY: the number is this process's own child, and `status` is a live variable of the right type.
-    let _collected = unsafe { libc::waitpid(pid, &raw mut status, 0) };
-}
-
-/// What:
-///  A child kept for a reaper that the next one drains.
-/// Why:
-///   A lost child is a zombie for as long as this process lives.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// waitingForAReaper.push(pid);
-/// ```
-fn keep(pid: libc::pid_t) {
-    let Ok(mut waiting) = WAITING_FOR_A_REAPER.lock() else {
-        return;
-    };
-    waiting.push(pid);
-}
-
-/// What:
-///  Every child a refused start left behind,
-/// collected by the reaper that is running now.
-/// Why:
-///   The list covers one push and one take,
-///  which is the smallest unit a lock may cover.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const pid of waitingForAReaper.splice(0)) waitpid(pid, 0);
-/// ```
-fn drain_the_registry() {
-    let kept: Vec<libc::pid_t> = match WAITING_FOR_A_REAPER.lock() {
-        Ok(mut waiting) => std::mem::take(&mut *waiting),
-        Err(_poisoned) => return,
-    };
-    for pid in kept {
-        collect(pid);
+        reap_soon_pid(pid);
     }
 }
 
