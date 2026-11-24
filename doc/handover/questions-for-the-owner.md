@@ -736,33 +736,6 @@ KDT:
  never the commit that writes the label.
 ```
 
-## Open: does the standing authorization to bump and publish the wrapper cover a release dispatch? (recorded 2026-11-23T20:01-05:00)
-
-Waits while the ZFS route is the priority.
-An old-handover sorter drafted it as an issue,
-and the agent filing the drafts judged it a question for you instead
-(`~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/filing-of-the-sorters-issue-drafts/keep/ledger.jsonl`).
-Your wording of 2026-10-13 and 2026-11-04 is in
-`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`,
-which says the 2026-10-13 grant "was given for that session;
-releases since have gone through `crate-release` under it".
-Since 2026-11-01 a crate release is a workflow dispatch (`doc/decision/releases-run-in-ci.md`),
-not a local bump and push,
-and a published version can be yanked but not taken back.
-
-- Agents bump and dispatch unasked:
-  releases follow the work at once;
-  the cost is that a release goes out with no person looking first.
-- Agents dispatch only what you name:
-  you choose each release;
-  the cost is one question per release.
-- Ask each time,
-  as with any outward action without a standing grant.
-
-No ranking is given:
-which of these you want is a matter of how much you want to see before a version is public,
-which no measurement here can settle.
-
 ## Open: link the already installed tools into the main checkout? (recorded 2026-11-19, about 23:20 -05:00)
 
 The plan's step 1 records that nothing is installed on this host until the mpm-shadow change you put first
