@@ -22,7 +22,21 @@ use super::unmount_turn::{call_refused, refused, UnmountOutcome, UnmountRequest}
 use std::os::unix::fs::MetadataExt;
 
 #[allow(clippy::result_large_err, reason = "the outcome carries the mount row and the step a person acts on")]
-pub(super) fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
+/// What:
+///  The shape a staging folder must have before the record is written and the bind is made:
+///  owned by the account whose cache holds it,
+///  at mode 0700,
+///  and empty.
+/// Why:
+///  The design's pre-bind check is about the folder and its own record,
+///  and a folder that holds content or carries another owner's name is not the
+///  empty mount-point carrier the route binds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// checkTheFoldersShape(request, staging, name);
+/// ```
+pub(super) fn check_the_folders_shape(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
     let folder_facts: std::fs::Metadata = match staging.metadata() {
         Ok(facts) => facts,
         Err(error) => return Err(refused("staging-folder", format!("the staging folder {name} could not be read: {error}"))),
@@ -44,6 +58,10 @@ pub(super) fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::F
     if entry_count != 0 {
         return Err(refused("staging-folder", format!("the staging folder {name} holds {entry_count} entries, and a staging folder is empty before its bind")));
     }
+    return Ok(());
+}
+
+pub(super) fn record_the_bind(request: &UnmountRequest<'_>, staging: &std::fs::File, name: &str) -> Result<(), UnmountOutcome> {
     let reading: RecordReading = read_staged_record(request.cache, request.expected.guid, request.boot, request.cache_path.join(name).as_path(), request.calls);
     let identity: StagedFolderIdentity = match StagedFolderIdentity::of(staging) {
         Ok(identity) => identity,

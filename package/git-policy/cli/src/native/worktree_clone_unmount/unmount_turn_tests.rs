@@ -238,3 +238,23 @@ fn a_changed_canonical_lookup_refuses() {
     assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "canonical-lookup"), "{outcome:?}");
     assert!(!calls.ran(StagingCall::Bind));
 }
+
+/// A staging folder whose mode is not 0700 refuses before the record and the bind.
+#[test]
+fn a_staging_folder_of_another_mode_refuses() {
+    let fixture = fixture("unmount-turn-folder-mode");
+    let staging: std::path::PathBuf = fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid()));
+    std::fs::set_permissions(staging.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o777)).expect("the fixture folder takes 0777");
+    let outcome: UnmountOutcome = run(&fixture, |_expected, _calls| {});
+    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "staging-folder"), "{outcome:?}");
+}
+
+/// A staging folder that holds an entry refuses before the record and the bind.
+#[test]
+fn a_staging_folder_that_holds_an_entry_refuses() {
+    let fixture = fixture("unmount-turn-folder-entries");
+    let staging: std::path::PathBuf = fixture.cache_path.join(crate::staging_folder_name::staging_folder_name(guid()));
+    std::fs::write(staging.join("sentinel"), b"keep").expect("the fixture sentinel is written");
+    let outcome: UnmountOutcome = run(&fixture, |_expected, _calls| {});
+    assert!(matches!(outcome, UnmountOutcome::Refused { ref step, .. } if step == "staging-folder"), "{outcome:?}");
+}

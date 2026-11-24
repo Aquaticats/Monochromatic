@@ -564,6 +564,29 @@ fn a_slot_another_sweep_holds_is_left_to_it() {
 }
 
 /// What:
+///  An unmount request waits for the slot's claim like an attaching turn does.
+/// Why:
+///  One handler per clone is what keeps two turns from acting on one mount;
+///  the claim is taken before the unmount's own reads.
+#[test]
+fn an_unmount_waits_for_the_slots_claim() {
+    if !in_a_root_namespace(INSIDE, "worktree_clone_mount_handler::sweep_one_clone::tests::an_unmount_waits_for_the_slots_claim") {
+        return;
+    }
+    let fixture: Fixture = Fixture::build("unmount-held");
+    let value: String = format!("v1:{MOUNT_NONCE}:unmount");
+    let reader: ScriptedReader = reader_with(Some(value.as_str()), CLONE);
+    let attach: ScriptedAttach = ScriptedAttach { answer: AttachStepOutcome::Attached { mount: mounted() }, asked: Cell::new(0) };
+    let receipts: ReceiptsFolder = fixture.opened_receipts();
+    let claims: SlotClaimDirectory = fixture.opened_claims();
+    let held_by_another: crate::worktree_clone_mount_handler::per_slot_root_claim::HeldSlotClaim = claims.claim("one").expect("the other sweep holds the slot");
+    let outcome: CloneOutcome = sweep_one_clone(&context(&fixture, &reader, &attach, &receipts, &claims), CLONE);
+    assert!(matches!(outcome, CloneOutcome::Held { ref slot, .. } if slot == "one"), "{outcome:?}");
+    assert_eq!(attach.asked.get(), 0, "a held slot attaches nothing");
+    held_by_another.release();
+}
+
+/// What:
 ///  An unmount request is answered by the step that builds the unmount,
 ///  no receipt is filed for it,
 ///  and the durable intent is left as it is.

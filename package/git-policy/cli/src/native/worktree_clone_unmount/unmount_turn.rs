@@ -232,6 +232,9 @@ pub fn unmount_the_clone(request: &UnmountRequest<'_>) -> UnmountOutcome {
         Ok(staging) => staging,
         Err(error) => return refused("staging-folder", format!("the staging folder {name} could not be opened without crossing a mount: {error}. Nothing was bound or moved, and the wrapper creates that folder before a removal asks the handler to bind it")),
     };
+    if let Err(outcome) = super::unmount_record::check_the_folders_shape(request, &staging, name.as_str()) {
+        return outcome;
+    }
     if let Err(pin) = check_live_pin(request.cache, request.pin) {
         return refused("user-cache-pin", pin.message());
     }
