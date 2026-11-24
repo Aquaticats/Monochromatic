@@ -416,7 +416,10 @@ its Sonnet read (`read-of-the-step-10-open-choices.md` in `~/temp/agent/gate-rev
 found a dirty checkout refused on every widened reach until step 11,
 the add printing a Rust `Debug` dump of the plan stop today,
 and 3B's example false;
-`pi-zfs-step-10-open-choices-revision` folds it;
+the revision merged as `dc0635971e` (choice 1 `E > C > G > A` with H asked on its own and W an add-on; choice 2 `2C > 2F > 2E > 2A`; choice 3 `3C > 3B > 3A > 3D`);
+a Sonnet read of it writes the owner's questions (`~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`);
+its two defects on `main` are issues 6450 (the add prints a `Debug` dump) and 6451 (the scope finding prints no command),
+each with a fix round running;
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
@@ -620,9 +623,11 @@ The fourth revision merged as `ba7ade182a`,
 with the unit booted as written, a flag-on hazard arm that fails closed, and this host's unit without key lines;
 it ranks a dedicated `px` profile for the ZED hook above rules in `local/zed`,
 which must be put to the owner beside the owner's earlier answer for rules over a dedicated profile.
-Running:
-a Sonnet read of that revision's diff (`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/`),
-then the choices go to the owner.
+The owner answered every choice:
+`doc/decision/cli-git-zfs-step-19-boot-mount-provider-and-ordering-choices.md`.
+The fifth revision merged;
+`pi-zfs-step-19-owner-answers` writes the answers into the design
+and makes the nested dataset's `zfs mount` unit tolerate an already-mounted dataset.
 
 Next:
 the re-read,
@@ -909,8 +914,9 @@ Its Sonnet read (`read-of-the-revised-host-key-design.md` in `~/temp/agent/gate-
 found B's printed transcript not the run's,
 and B and E meeting the owner's self-start rule in `doc/planning/cli-git-no-self-invocation.md`,
 which is the owner's call.
-Running:
-`pi-typed-network-command-next-step-third-revision`.
+The third revision merged as `077c006094`,
+ranked both ways: rule read strictly `J > C > C2 > D > A`, exception granted `B > J > C > E > C2 > D > A`.
+A Sonnet read of it writes the owner's question (`~/temp/agent/gate-review-typed-network-command-third-revision-2026-11-24/`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
