@@ -204,7 +204,8 @@ Nothing changes in the wrapper.
 The route serves a checkout only after root moves it onto its own dataset.
 
 What the person sees for the example,
-measured in a throwaway repository on this host
+measured in a throwaway repository on this host whose checkout sits on this
+machine's own dataset rather than on `tank/home/u/work/Monochromatic`
 (the heading "What was probed,
 and what was not" names the run):
 no line about the route,
