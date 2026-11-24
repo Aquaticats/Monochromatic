@@ -22,11 +22,13 @@
 //!  and this step's subject is the order from the claim to the fill. The add's
 //!  own wait and verification read the mount the table shows, whichever
 //!  program made it.
-//!  T27 and T28 each span a reboot or a power cut, so each is split into a
-//!  `before` and an `after` half named by `CLI_GIT_ZFS_ADD_PHASE`: the `before`
-//!  half writes what the `after` half reads, and the driver's own steps put the
-//!  cut between them (`zfs-add-boot-*`, `zfs-add-power-*`). A run of the suite
-//!  without that variable prints one `UNRUN` line per split arm and returns.
+//!  T27 and T28 each span a reboot or a power cut,
+//!  so each is split into a `before` half and an `after` half,
+//!  which `CLI_GIT_ZFS_ADD_PHASE` names.
+//!  The `before` half writes what the `after` half reads,
+//!  and the driver's own steps put the cut between them,
+//!  at `zfs-add-boot-*` and at `zfs-add-power-*`.
+//!  A run of the suite without that variable prints one `UNRUN` line per split arm and returns.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -81,22 +83,27 @@ const BEFORE: &str = "before";
 /// The half that reads that record back on the other side of the boot or the cut.
 const AFTER: &str = "after";
 
-/// The slot the boot arm fills, and the one whose identity the red control replaces.
+/// The slot the boot arm fills.
+/// The red control replaces the folder of `BOOT_PLANT_SLOT` instead.
 const BOOT_SLOT: &str = "boot";
 
-/// The slot whose folder the red control replaces, so the record cannot match it.
+/// The slot whose folder the red control replaces,
+/// so that the record cannot match it.
 const BOOT_PLANT_SLOT: &str = "boot-plant";
 
 /// The slot the power-loss arm fills.
 const POWER_SLOT: &str = "power";
 
-/// The variable that makes the power-loss arm's before half cut the guest's power when its work is done.
+/// The variable that makes the power-loss arm's before half cut the guest's power,
+/// once its own work is done.
 const CUT_VARIABLE: &str = "CLI_GIT_ZFS_ADD_CUT_POWER";
 
-/// The OpenZFS release the guest's own module must answer, as the driver's recipe pins it (`OPENZFS_RELEASE`).
+/// The OpenZFS release the guest's own module must answer,
+/// as the driver's recipe pins it (`OPENZFS_RELEASE`).
 const OPENZFS_RELEASE: &str = "2.4.4-1";
 
-/// What the before halves keep on the guest's own root disk, which a reboot and a cut both keep.
+/// What the before halves keep on the guest's own root disk,
+/// which a reboot and a cut both keep.
 const KEPT_FOLDER: &str = "/root/zfs-add-kept";
 
 /// The pause between two looks at the pool while the add runs.
@@ -140,7 +147,9 @@ impl Fixture {
 
     /// What:
     ///  Write what the guest must hold again after it rebooted or lost power:
-    ///  the repository, its worktrees folder, the handler's readiness and the wrapper's link.
+    ///  the repository,
+    ///  its worktrees folder,
+    ///  the handler's readiness and the wrapper's link.
     /// Why:
     ///  The readiness report lives in `/run`,
     ///  which a boot empties,
@@ -283,7 +292,8 @@ impl Fixture {
         assert!(output.status.success(), "zpool {arguments:?} was refused: {}", String::from_utf8_lossy(output.stderr.as_slice()));
     }
 
-    /// One `zfs get -H -o value <property>` answer, trimmed.
+    /// One `zfs get -H -o value <property>` answer,
+    /// trimmed.
     fn zfs_value(&self, property: &str, dataset: &str) -> String {
         let output: Output = self.zfs(&["get", "-H", "-o", "value", property, dataset]);
         assert!(
@@ -294,7 +304,8 @@ impl Fixture {
         return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
     }
 
-    /// The live GUID of one dataset, as the record writes it.
+    /// The live GUID of one dataset,
+    /// as the record writes it.
     fn dataset_guid(&self, dataset: &str) -> String {
         return self.zfs_value("guid", dataset);
     }
@@ -437,7 +448,9 @@ impl Fixture {
     }
 
     /// What:
-    ///  Clear one slot's own mount, clone, registration and records,
+    ///  Clear one slot's own mount,
+    ///  its clone,
+    ///  its registration and its records,
     ///  so a split arm run twice starts from nothing.
     /// Why:
     ///  A split arm's `before` half is run again for the red control,
@@ -476,7 +489,10 @@ impl Fixture {
 
     /// What:
     ///  Bring the pool back the way the driver's pool step left it:
-    ///  the module, the import, the datasets' keys, the checkout's mount and a private parent.
+    ///  the module,
+    ///  the import,
+    ///  the datasets' keys,
+    ///  the checkout's mount and a private parent.
     /// Why:
     ///  The pool is made with `cachefile=none`,
     ///  so nothing imports it at boot,
@@ -580,12 +596,13 @@ impl Fixture {
     }
 
     /// What:
-    ///  Keep one file on the guest's own root disk, flushed,
+    ///  Keep one file on the guest's own root disk,
+    ///  flushed,
     ///  for the half on the other side of a reboot or a cut.
     /// Why:
     ///  The kept copy is what the after half compares the pool's record with,
-    ///  so it must survive the same loss, and a write that is not flushed there
-    ///  would be lost by the very cut this arm makes.
+    ///  so it must survive the same loss,
+    ///  and a write that is not flushed there would be lost by the very cut this arm makes.
     fn keep(&self, name: &str, bytes: &[u8]) {
         let folder: PathBuf = PathBuf::from(KEPT_FOLDER);
         std::fs::create_dir_all(folder.as_path()).expect("the kept folder");
@@ -767,7 +784,8 @@ fn a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration() 
 
 //region The two arms a boot and a power cut split in half
 
-/// This boot's identifier, which a reboot and a power cut both change.
+/// This boot's identifier,
+/// which a reboot and a power cut both change.
 fn this_boot() -> String {
     return std::fs::read_to_string("/proc/sys/kernel/random/boot_id").expect("this boot's identifier").trim().to_string();
 }
@@ -789,8 +807,9 @@ fn requested_half(arm: &str) -> Option<String> {
 }
 
 /// What:
-///  Read one slot's record back and compare it, its phase and the identities it keeps with what was kept and
-///  with the live system.
+///  Read one slot's record back,
+///  and compare its bytes and its phase and the identities it keeps with what was kept,
+///  and with the live system.
 /// Why:
 ///  The whole point of an identity is that it still names the same object after a boot or an export,
 ///  so a comparison against a value read in the same breath would prove nothing;
@@ -833,12 +852,14 @@ fn read_the_record_back(fixture: &Fixture, slot: &str, when: &str) -> BindingRec
 
 /// What:
 ///  The half before the reboot:
-///  two whole adds, each record's identities checked against the live folder and dataset,
+///  two whole adds,
+///  each record's identities checked against the live folder and the live dataset,
 ///  and the record and this boot's identifier kept on the guest's own disk.
 /// Why:
 ///  T27 must read a record whose `slotIdentity=` and `checkoutDatasetGuid=` are real,
 ///  because two wrong values compare equal just as well as two right ones.
-///  The second slot is the red control's, planted over after the reboot.
+///  The second slot is the red control's,
+///  planted over after the reboot.
 fn boot_before(fixture: &Fixture) {
     for name in [BOOT_SLOT, BOOT_PLANT_SLOT] {
         fixture.clear_one_slot(name);
@@ -891,7 +912,8 @@ fn boot_after(fixture: &Fixture) {
 
 /// What:
 ///  The red control's half:
-///  the slot folder was replaced, so the record's `slotIdentity=` must no longer match it,
+///  the slot folder was replaced,
+///  so the record's `slotIdentity=` must no longer match it,
 ///  and this must fail naming both.
 /// Why:
 ///  An arm whose comparison cannot fail proves nothing;
@@ -911,10 +933,13 @@ fn boot_plant(fixture: &Fixture) {
 
 /// What:
 ///  The half before the guest loses power:
-///  one whole add, and its record and this boot's identifier kept,
-///  then the guest's own power cut, with no orderly shutdown behind it.
+///  one whole add,
+///  its record kept and this boot's identifier kept,
+///  then the guest's own power cut,
+///  with no orderly shutdown behind it.
 /// Why:
-///  The record's last write is the routed, flushed one the arm reads back,
+///  The record's last write is the routed one the arm reads back,
+///  and it is the flushed one,
 ///  and a read or a second write after it would change what the cut is asked about.
 ///  The cut is made here rather than by a command after this run ends,
 ///  because ZFS commits a transaction group within `zfs_txg_timeout` seconds of its first change (F12)
@@ -958,8 +983,10 @@ fn power_before(fixture: &Fixture) {
 ///  so the deepest loss reachable here is the one the guest can make of itself,
 ///  and it is reachable only from inside through `mvm exec` anyway.
 ///  `b` is "immediately reboot the system without syncing or unmounting your disks"
-///  (`Documentation/admin-guide/sysrq.rst`), so the guest's page cache, its ZFS in memory and every
-///  unwritten byte of the pool's image are gone with it.
+///  (`Documentation/admin-guide/sysrq.rst`).
+///  So the guest's page cache is gone with it,
+///  and its ZFS in memory,
+///  and every unwritten byte of the pool's image.
 fn cut_the_power() {
     let written: std::io::Result<()> = std::fs::write("/proc/sysrq-trigger", b"b");
     panic!("the kernel did not take the power cut ({written:?}), so this half cannot answer T28");
@@ -985,8 +1012,9 @@ fn power_after(fixture: &Fixture) {
 ///  and again after the dataset was exported and imported.
 /// Why:
 ///  The record keeps a folder's inode and birth time and the dataset's GUID,
-///  and whether those still answer the same values after a boot is what step 8's boot arm and this design's M7
-///  both owe; this arm runs it once for both.
+///  and whether those still answer the same values after a boot is what step 8's boot arm owes,
+///  and what this design's M7 owes,
+///  and this arm runs it once for both.
 #[test]
 fn the_boot_arm_reads_a_record_written_before_the_guest_rebooted() {
     if !guest() {
