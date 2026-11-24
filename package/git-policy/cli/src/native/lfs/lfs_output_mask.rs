@@ -1,7 +1,7 @@
 //! What:
 //!  Hide every secret-shaped part of the URLs in the text the wrapper relays from `git-lfs` and from Git:
 //! the userinfo,
-//! a path segment that is not a plain label,
+//! a path segment that is not a short plain label,
 //! and every value of the query and of the fragment.
 //! Why:
 //!  An `lfs.url` can carry its token in three places,
@@ -32,28 +32,29 @@
 //! angle bracket,
 //! backtick,
 //! white space or control character.
-//!  A path segment is kept only while it is a plain label:
-//! the letters `a` to `z` and the separators `-`,
+//!  A path segment is kept while it is short and a plain label:
+//!  at most [`LONGEST_PLAIN_WORD`] characters,
+//! and every one of them a letter,
+//! a digit or one of the separators `-`,
 //! `.`,
-//! `_` and `~` alone,
+//! `_` and `~`,
+//! whatever the letters' case,
 //! which is what `lfs`,
 //! `objects`,
 //! `batch`,
-//! `info` and `repo.git` are,
-//! and none of its unbroken runs of lowercase letters is as long as
-//!  [`LONGEST_PLAIN_WORD`],
-//! because a token written in lowercase letters alone reads as a label otherwise.
+//! `info`,
+//! `Org` and `repo.git` are,
+//! because a longer segment is what a token looks like.
 //! A query key and a fragment key are kept while they are a plain label.
-//! A token carries a capital,
-//! a digit,
-//! a percent encoding or another punctuation mark,
+//! A percent encoding or another punctuation mark is a token's other shape,
 //! and a value is a secret wherever it sits,
 //! so it is always hidden.
 //!  What this cannot do:
-//! a token made of fewer than [`LONGEST_PLAIN_WORD`] lowercase letters alone still reads as a label,
-//! which the owner accepted when choosing this rule on 2026-11-19;
+//! a token of no more than [`LONGEST_PLAIN_WORD`] characters still reads as a label
+//! when it carries no percent encoding and no other punctuation mark,
+//! which the owner accepted when choosing this rule on 2026-11-24;
 //! and a query key of that shape is not hidden either,
-//! because the rule is about path words.
+//! because the rule is about path segments.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -64,18 +65,25 @@
 pub const CREDENTIALS_MASK: &str = "<credentials>";
 
 /// What:
-///  The longest run of lowercase letters a path segment may hold and still be printed as it stands:
-///  a longer unbroken word is a token and is replaced by [`CREDENTIALS_MASK`].
+///  The most characters a path segment may hold and still be printed as it stands:
+///  a longer segment is what a token looks like and is replaced by [`CREDENTIALS_MASK`].
 /// Why:
-///  A token written in lowercase letters alone reads as a plain label under the rule above,
+///  A token in a path reads as a plain label under the rule above,
 ///  and hiding every path segment after the host refused the names a person needs (`objects`,
 /// `info`,
 ///  a repository's own name).
-///  The owner's answer of 2026-11-19T16:58:00-05:00 ("Hide long words only",
-///  `doc/handover/cli-git-rust-implementation.md`,
-///  the entry beginning "owner answered H1 and M4") chose the length as the rule:
-///  twenty or more unbroken lowercase letters read as a token,
-///  and the cost the owner accepted is that a shorter lowercase token still prints.
+///  The owner's answer of 2026-11-24
+///  (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
+///  "Short path segments stay shown in a relayed git-lfs line")
+///  made the length of a segment the rule:
+///  a segment of this many characters or fewer prints whatever its case or digits,
+///  and a longer one is hidden.
+///  It amended the answer of 2026-11-19T16:58:00-05:00 ("Hide long words only"),
+///  which measured the longest unbroken run of lowercase letters inside a segment;
+///  the name still says word,
+///  and what is measured now is the whole segment,
+///  so a folder name of short words is hidden once the segment passes this length.
+///  The cost the owner accepted is that a short token in a path prints.
 pub const LONGEST_PLAIN_WORD: usize = 20;
 
 /// Whether the mask this module writes starts at `offset` of `text`.
@@ -275,8 +283,7 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
 }
 
 /// What:
-///  Whether a path segment,
-/// a query key or a fragment key is a plain label,
+///  Whether a query key or a fragment key is a plain label,
 /// which carries no token.
 /// Why:
 ///   The rule is one sentence a person can check against a URL they wrote:
@@ -288,7 +295,7 @@ fn url_end_of(text: &[u8], from: usize) -> usize {
 /// a slash written encoded,
 /// is what a token looks like.
 /// An empty label is plain:
-/// `//` and a trailing `/` carry nothing.
+/// it carries nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -299,34 +306,40 @@ fn is_plain_label(label: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a label holds an unbroken run of lowercase letters as long as [`LONGEST_PLAIN_WORD`],
-///  which is what a token written in lowercase letters alone looks like.
+///  Whether a path segment is short and plain enough to print:
+///  no more than [`LONGEST_PLAIN_WORD`] characters of letters,
+///  digits and the separators `-`,
+///  `.`,
+///  `_` and `~`.
 /// Why:
-///   The rule a person can check against a URL they wrote is one number:
-///  a word of that many letters is a token,
-///  a shorter one is a name (`objects`,
+///   The rule a person can check against a URL they wrote is one length and one byte set:
+///  a segment of that many characters or fewer of letters,
+///  digits and the separators of a filename is a name (`objects`,
 /// `info`,
-/// a repository called `notes`);
-///  every byte that is not a lowercase letter breaks a word,
-///  so `repository-name.git` holds no long word.
+/// `Org`,
+/// `repo.git`,
+///  a repository called `notes`),
+///  and anything else is what a token looks like.
+///  A percent sign and every other punctuation mark are outside the set,
+///  so an encoded segment is hidden however short it is,
+///  and the length measures the segment and not a word inside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /[a-z]{20}/.test(label)
+/// segment.length <= LONGEST_PLAIN_WORD && /^[A-Za-z0-9._~-]*$/.test(segment)
 /// ```
-fn has_a_long_word(label: &[u8]) -> bool {
-    let mut run: usize = 0;
-    for byte in label {
-        if byte.is_ascii_lowercase() {
-            run += 1;
-            if run >= LONGEST_PLAIN_WORD {
-                return true;
-            }
-        } else {
-            run = 0;
-        }
-    }
-    return false;
+fn is_short_plain_segment(label: &[u8]) -> bool {
+    return label.len() <= LONGEST_PLAIN_WORD && label.iter().all(is_path_segment_byte);
+}
+
+/// Whether a byte is one a path segment label is made of:
+/// a letter of either case,
+/// a digit,
+/// or one of the separators `-`,
+/// `.`,
+/// `_` and `~`.
+fn is_path_segment_byte(byte: &u8) -> bool {
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~');
 }
 
 /// Append one label as it stands when it is plain,
@@ -339,17 +352,17 @@ fn push_label(label: &[u8], masked: &mut Vec<u8>) {
     }
 }
 
-/// Append one path segment as it stands while it is a plain label of short words,
+/// Append one path segment as it stands while it is a short plain label,
 /// and the mask when it is not.
 fn push_path_label(label: &[u8], masked: &mut Vec<u8>) {
-    if is_plain_label(label) && !has_a_long_word(label) {
+    if is_short_plain_segment(label) {
         masked.extend_from_slice(label);
     } else {
         masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
     }
 }
 
-/// Append the path of a URL with every segment that is not a plain label of short words masked.
+/// Append the path of a URL with every segment that is not a short plain label masked.
 fn push_masked_path(path: &[u8], masked: &mut Vec<u8>) {
     let mut from: usize = 0;
     loop {
@@ -470,7 +483,7 @@ fn push_masked_url(rest: &[u8], masked: &mut Vec<u8>) {
 /// What:
 ///  The text with the secrets of every URL in it replaced by [`CREDENTIALS_MASK`]:
 /// the userinfo,
-/// every path segment that is not a plain label,
+/// every path segment that is not a short plain label,
 /// and every query and fragment value.
 /// Why:
 ///   One pass over the bytes:
