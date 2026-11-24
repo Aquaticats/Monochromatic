@@ -219,6 +219,11 @@ The refusal names the pool,
 the reason its `closed` field gives,
 and the open pools a run that names no model of its own may take instead,
 in the table's order.
+A worktree launch that names no provider is not refused for the pool its default provider and model name:
+it takes the first open pool in the table's order,
+counted the way the pool gate counts,
+and is refused only when no pool such a run may take has room
+(see the `start-pi-run-in-a-worktree` section below).
 A provider and model that belong to no pool are not refused:
 a stand-in and an audit's account are outside every pool.
 Every pool's limit can be set for one command without a code change,
@@ -322,6 +327,8 @@ and the run it did not start.
 Two environment variables exist so the gate's own tests read nothing of the machine they run on:
 `PI_RUNS_PROCESS_FOLDER` points the process table at a folder the test made,
 and `PI_RUNS_FREE_SPACE_BYTES` gives the build volume's room in bytes instead of reading the disk.
+The worktree launcher reads `PI_RUNS_PROCESS_FOLDER` for the same reason,
+for the count it makes of a launch that names no provider.
 A caller starting real runs sets neither.
 Either one can only make the gate count a run that is not there,
 or start a run it would refuse.
@@ -378,17 +385,49 @@ the refusal names the pool,
 the reason its `closed` field gives,
 and the open pools a run that names no model of its own may take instead,
 in the table's order.
-A command line naming no provider takes `neuralwatt`,
-and one naming no model takes `deepseek-v4.1-flash`;
-that pair is the pool the owner replaced,
-so such a line is refused as well.
 A line that names only one of the two keeps the one it named,
 and the refusal says which one it kept and which this launcher took,
 so nothing tells a reader the command line named nothing when it named a model.
-The refusal says to start a run whose provider or model this launcher chooses through `start-pi-run-when-a-pool-has-room`,
-which counts the runs going and gives the run a pool with room,
-because this launcher counts nothing and so cannot choose a pool itself.
 A provider and model that belong to no pool are not refused.
+
+A command line that names no provider takes the first open pool in the owner's order,
+which is the project's decision of 2026-11-23
+(`doc/decision/pi-driver-closed-pools-and-the-worktree-launchers-default.md`):
+`opencode-go`,
+and Neuralwatt's flex pool when `opencode-go` is closed or full.
+The pools of that order are the ones that take a run naming no model of its own,
+so a pool that only a run naming its own model takes is never taken this way,
+and a closed pool is never taken.
+A command line naming no provider and no model reads as Neuralwatt's standard DeepSeek model,
+the pair the owner replaced,
+and that pair is where the order starts rather than a refusal.
+
+The pools are counted the way `start-pi-run-when-a-pool-has-room` counts them,
+with the same functions and the same setting:
+the launchers that have not made their unit yet and the units systemd lists,
+each placed by the pool its own command line names,
+which is why a run this launcher placed holds the slot it took for its whole life.
+The run's own name is left out of that count,
+because the launcher is already a launcher of that name and the slot it is choosing is the one it would hold,
+and a resumed run keeps the pool its own model names while that pool takes new runs.
+The launcher prints the pool it took beside every pool's count,
+as `pool: <name>, the first open pool a run that names no provider may take: <count>/<limit>, ...`,
+so a reader sees what was full.
+A run no pool has room for is refused before anything is made,
+with the status `3`,
+naming every pool such a run may take,
+why each takes no run now,
+and what gives a pool room again.
+A pool that answers more slowly gives the run more wall clock,
+as the pool gate gives a run it moves there:
+taking the flex pool doubles `--wall` for the unit's `RuntimeMaxSec`,
+the driver's wall clock and the launcher's own wait.
+A limits setting or a unit listing this launcher cannot read refuses the run that could have taken such a pool,
+naming the setting or the fault and starting nothing,
+because a run started on a guessed count could take a pool that is full.
+A resumed run is started with the same command line it had,
+so it takes the first open pool with room at that moment,
+as its first start did.
 
 The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`.
 A branch this launcher creates starts at `--base`,
