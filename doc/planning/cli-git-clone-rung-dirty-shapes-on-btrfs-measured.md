@@ -350,7 +350,8 @@ and the clone is 170 ms.
 - Git's own checkout 184 ms.
 
 The identical pair's median is 1.00 (0.61 to 1.14).
-The clean clone is 4.1 times quicker than Git's own checkout on Btrfs,
+The clean clone is 0.24 of Git's own checkout on Btrfs,
+about four times quicker,
 and this is the arm the owner's D1 answer would route the untracked-only source to.
 
 ## Was the clone no slower than Git's own checkout on Btrfs?
@@ -434,16 +435,18 @@ and the declines themselves pay the source check on top.
   with its wrapper-passthrough Git arm,
   and they are context for the Btrfs ratios, not a control of them.
 
-The round's own noise floor is the identical pair's spread,
-which was 0.86 to 1.26 on the 26 MB tree,
+The round's own noise floor has two parts.
+The identical pair's per-round spread says how far one round's ratio can move between two identical builds:
+0.86 to 1.26 on the 26 MB tree,
 0.58 to 1.49 on the 260 MB tree,
 0.73 to 23.24 on this repository's tree (the 98 s stall),
 0.59 to 1.76 on the 20-file tree with one untracked file,
 and 0.61 to 1.14 on the clean twin.
-The pair's medians were 0.94 to 1.01 on the shapes without the stall,
-so a difference smaller than a few tenths of a ratio is not this round's to claim.
-The clone's four clear wins (0.24, 0.41, 0.54 and 0.55) are larger than that,
-and the 26 MB tree's 0.73 is not.
+The pair's own medians say how little that movement shifts a median:
+0.94 to 1.01 on every shape without the stall.
+So the clone's medians (0.24 on the clean twin, 0.41, 0.54, 0.55 and 0.73) are below parity by more than
+the medians' own agreement,
+while a single round can still read above 1.0, as two of the 26 MB tree's sixteen do.
 
 ## What this leaves owed
 
