@@ -77,3 +77,22 @@ now shows,
 so that test changes to a segment longer than the limit.
 Userinfo,
 query values and fragments keep their own rules.
+
+### How the build read it, with the project's veto open
+
+The round that built it,
+`pi-lfs-url-mask-shows-short-segments`
+(branch `fix/git-policy-cli-lfs-url-mask-shows-short-segments`,
+commits `4ff9135986` and `352f3bec03`),
+kept the segment's byte set as a second condition:
+a segment prints as written when it holds at most `LONGEST_PLAIN_WORD` bytes of letters,
+digits and `-._~`,
+whatever the letters' case,
+so a short segment carrying `%`,
+`:` or other punctuation still prints as `<credentials>`,
+and percent-encoded secrets keep their results.
+The limit now measures the whole segment,
+not a word inside it,
+so a 20-letter lower-case word prints and joined short words longer than the limit hide.
+If "any segment" was meant literally,
+dropping the byte-set test in `is_path_segment_byte` is the one change.

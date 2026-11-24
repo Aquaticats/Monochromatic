@@ -36,7 +36,7 @@ fn a_user_alone_and_a_token_alone_are_masked() {
 /// the authority keeps the host it had,
 /// and what follows is the path,
 /// the query or the fragment,
-/// where a segment that is not a plain label is hidden.
+/// where a segment that is not a short plain label is hidden.
 #[test]
 fn an_at_sign_outside_the_authority_is_not_userinfo() {
     for (text, wanted) in [
@@ -214,8 +214,10 @@ const CANARY_USER: &str = "CANARYUSER4411";
 const CANARY_PASS: &str = "CANARYPASS9137";
 
 /// The token the fixture wrote as a path segment,
-/// made up.
-const CANARY_PATH: &str = "CANARYPATH5521";
+/// made up,
+/// and longer than [`LONGEST_PLAIN_WORD`],
+/// because a shorter segment prints as written under the rule of 2026-11-24.
+const CANARY_PATH: &str = "CANARYPATH5521CANARYPATH5521";
 
 /// The token the fixture wrote as a query value,
 /// made up.
@@ -229,6 +231,8 @@ const CANARY_QUERY: &str = "CANARYQUERY7720";
 /// host and port a person acts on stay.
 #[test]
 fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
+    // The rule hides this segment by its length alone, so a canary that grew past the limit would not be hidden.
+    assert!(CANARY_PATH.len() > LONGEST_PLAIN_WORD, "{CANARY_PATH}");
     // Written from the parts, as the appending of `/objects/batch` to a URL that already holds a query is git-lfs's own.
     let line: String = format!(
         "batch response: Post \"http://{CANARY_USER}:{CANARY_PASS}@127.0.0.1:1/{CANARY_PATH}/lfs?token={CANARY_QUERY}/objects/batch\": \
@@ -244,53 +248,68 @@ fn a_token_in_the_path_of_an_lfs_url_is_hidden() {
 }
 
 /// What:
-///  A path word of [`LONGEST_PLAIN_WORD`] or more unbroken lowercase letters is hidden,
-///  and the short labels a real LFS URL's path is made of stay as they are.
+///  A URL's path prints as written while every segment of it is short,
+///  whatever case and digits the segment holds.
 /// Why:
-///   The owner's answer of 2026-11-19T16:58:00-05:00 ("Hide long words only",
-/// recorded in
-///  `doc/handover/questions-for-the-owner.md`) settled the audit's H1:
-///  a token made of lowercase letters alone read as a plain label and was printed and journaled,
-///  and hiding every path segment after the host was refused;
-///  so the length is the only rule,
-///  `objects`,
-/// `info`,
-/// `lfs`,
-/// `batch` and a repository's own short name stay readable,
-///  and the cost the owner accepted is that a shorter lowercase token still prints.
-///  The words are built from the constant,
-/// so a change to it moves the control with it.
+///   The relayed line of a `git-lfs` error must name the repository it failed on:
+///  the mask kept lowercase letters alone,
+///  so `Org` and `Repo.git` were replaced and the line named no repository.
+///  The owner's answer of 2026-11-24
+///  (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
+///  "Short path segments stay shown in a relayed git-lfs line")
+///  makes the length of a segment the rule.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(masked(`https://h.invalid/${'a'.repeat(20)}/lfs`)).toBe(`https://h.invalid/${MASK}/lfs`)
+/// expect(masked('https://github.com/Org/Repo.git/info/lfs')).toBe('https://github.com/Org/Repo.git/info/lfs')
 /// ```
 #[test]
-fn a_long_unbroken_word_in_a_path_is_hidden_and_short_labels_stay() {
-    let at_the_edge: String = "a".repeat(LONGEST_PLAIN_WORD - 1);
+fn a_repository_name_with_a_capital_or_a_digit_stays_named() {
+    for plain in ["https://github.com/Org/Repo.git/info/lfs", "https://github.com/owner-2026/notes.2026/info/lfs"] {
+        assert_eq!(masked(plain), plain, "{plain}");
+    }
+}
+
+/// What:
+///  A path segment of [`LONGEST_PLAIN_WORD`] characters or fewer prints as written,
+///  a segment one character longer is hidden,
+///  and the short labels a real LFS URL's path is made of stay as they are.
+/// Why:
+///   The owner's answer of 2026-11-24
+///  (`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
+///  "Short path segments stay shown in a relayed git-lfs line") made the length of a segment the rule,
+///  where the answer of 2026-11-19T16:58:00-05:00 hid a segment that held an unbroken run of 20 lowercase letters.
+///  Both lengths are built from the constant,
+/// so a change to it moves the control with it.
+///  The limit measures the whole segment,
+///  so a folder name of short words is hidden once the segment passes it,
+///  and the cost the owner accepted is that a short token in a path prints.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(masked(`https://h.invalid/${'a'.repeat(LONGEST_PLAIN_WORD)}/lfs`)).toBe(`https://h.invalid/${'a'.repeat(LONGEST_PLAIN_WORD)}/lfs`)
+/// expect(masked(`https://h.invalid/${'a'.repeat(LONGEST_PLAIN_WORD + 1)}/lfs`)).toBe(`https://h.invalid/${MASK}/lfs`)
+/// ```
+#[test]
+fn a_path_segment_over_the_limit_is_hidden_and_short_labels_stay() {
     let at_the_limit: String = "a".repeat(LONGEST_PLAIN_WORD);
-    let longer: String = "a".repeat(LONGEST_PLAIN_WORD + 4);
-    assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{at_the_edge}/lfs")),
-        format!("https://lfs.example.invalid/{at_the_edge}/lfs"),
-        "a word one letter under the limit is a label"
-    );
+    let over_the_limit: String = "a".repeat(LONGEST_PLAIN_WORD + 1);
     assert_eq!(
         masked(&format!("https://lfs.example.invalid/{at_the_limit}/lfs")),
-        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
-        "a word at the limit is hidden"
+        format!("https://lfs.example.invalid/{at_the_limit}/lfs"),
+        "a segment at the limit prints as written"
     );
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{longer}/objects/batch")),
+        masked(&format!("https://lfs.example.invalid/{over_the_limit}/objects/batch")),
         format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/objects/batch"),
-        "a longer word is hidden and the short labels after it stay"
+        "a segment one character over the limit is hidden and the short labels after it stay"
     );
-    // A word is broken by every byte that is not a lowercase letter, so a real folder name of short words stays.
-    let broken: String = format!("{short}.{short}", short = "a".repeat(LONGEST_PLAIN_WORD - 1));
+    // The limit is the segment's, so two short words joined by a dot are one segment over it.
+    let joined: String = format!("{short}.{short}", short = "a".repeat(LONGEST_PLAIN_WORD));
     assert_eq!(
-        masked(&format!("https://lfs.example.invalid/{broken}/lfs")),
-        format!("https://lfs.example.invalid/{broken}/lfs"),
-        "hyphens and dots break a word"
+        masked(&format!("https://lfs.example.invalid/{joined}/lfs")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
+        "the length is the segment's and not a word's inside it"
     );
     for plain in [
         "https://lfs.example.invalid/objects/batch",
@@ -298,6 +317,51 @@ fn a_long_unbroken_word_in_a_path_is_hidden_and_short_labels_stay() {
         "http://127.0.0.1:36437/silent.git",
     ] {
         assert_eq!(masked(plain), plain, "a path of short labels stays readable");
+    }
+}
+
+/// What:
+///  The segment rule at its edges:
+///  digits alone print while the segment is short,
+///  an encoded slash inside a segment hides that segment and starts no new one,
+///  and a trailing slash,
+///  an empty segment and a quote or a punctuation mark after the path carry no secret.
+/// Why:
+///   Each of these is a boundary where a segment could be read as a token or a token as a separator:
+///  `%2F` is one segment and not two,
+///  and a quote ends the URL rather than its last segment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(masked('https://h.invalid/a%2Fb/objects')).toBe(`https://h.invalid/${MASK}/objects`)
+/// ```
+#[test]
+fn the_segment_rule_at_its_edges() {
+    let digits: String = "7".repeat(LONGEST_PLAIN_WORD);
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{digits}/lfs")),
+        format!("https://lfs.example.invalid/{digits}/lfs"),
+        "a segment of digits alone is a name while it is short"
+    );
+    let more_digits: String = "7".repeat(LONGEST_PLAIN_WORD + 1);
+    assert_eq!(
+        masked(&format!("https://lfs.example.invalid/{more_digits}/lfs")),
+        format!("https://lfs.example.invalid/{CREDENTIALS_MASK}/lfs"),
+        "a segment of digits one character over the limit is a token"
+    );
+    // `%2F` is an encoded slash inside one segment, so the segment is hidden whole and starts no new one.
+    assert_eq!(
+        masked("https://lfs.example.invalid/a%2Fb/objects"),
+        format!("https://lfs.example.invalid/{}/objects", CREDENTIALS_MASK),
+        "an encoded slash stays inside its segment"
+    );
+    for plain in ["https://lfs.example.invalid/objects/batch/", "https://lfs.example.invalid//objects/batch", "https://host.invalid/"] {
+        assert_eq!(masked(plain), plain, "a trailing slash and an empty segment carry nothing: {plain}");
+    }
+    // A quote, a bracket, a comma or a full stop ends the URL after its path, and the path still prints whole.
+    for (before, after) in [("\"", "\""), ("(", ")"), ("", ","), ("", ".")] {
+        let text: String = format!("{before}https://github.com/Org/Repo.git/info/lfs{after} rest");
+        assert_eq!(masked(&text), text, "{text}");
     }
 }
 
@@ -339,8 +403,9 @@ fn a_url_with_no_secret_is_left_alone() {
 fn an_encoded_secret_in_a_path_or_a_query_is_hidden() {
     assert_eq!(masked("https://host.invalid/a%2Fb/lfs"), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
     assert_eq!(masked("https://host.invalid/lfs?token=%43ANARY%2B7720"), format!("https://host.invalid/lfs?token={m}", m = CREDENTIALS_MASK));
-    // A segment carries digits, which no plain label does.
-    assert_eq!(masked("https://host.invalid/CANARYPATH5521/lfs"), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
+    // A segment over the limit is a token whatever it carries, and the canary is made long enough for it.
+    assert!(CANARY_PATH.len() > LONGEST_PLAIN_WORD, "{CANARY_PATH}");
+    assert_eq!(masked(&format!("https://host.invalid/{CANARY_PATH}/lfs")), format!("https://host.invalid/{m}/lfs", m = CREDENTIALS_MASK));
 }
 
 /// A fragment is a place a token is carried too,
