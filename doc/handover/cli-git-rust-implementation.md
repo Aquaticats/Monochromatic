@@ -316,7 +316,8 @@ and every writer round now runs the `source_guard` module before it reports;
 the gate on `main` at `adcb708071` (run `native-mEmcZt`) gave `10855 tests run: 10843 passed (6 slow), 12 failed, 42 skipped`:
 the cause-H pair, that guard,
 and nine companion tests that read the host's `XDG_RUNTIME_DIR`,
-which the gate's container does not set (`pi-fix-companion-tests-inject-their-runtime-dir` fixes them);
+which the gate's container does not set;
+fixed: the companion takes its runtime folder from its caller and its controls pass their own (35 of 35 in the gate image);
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
 Pieces of steps 12,
