@@ -31,7 +31,7 @@ use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 use crate::policy_test_support::{ScriptedFacts, outside_worktree, scripted_facts};
 use crate::policy_trigger::Trigger;
 use crate::test_support::{executable, fixture, git, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;

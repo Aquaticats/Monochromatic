@@ -9,7 +9,7 @@ use crate::worktree_copy_notices::UNKNOWN_DESTINATION_NOTICE;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
 use crate::test_support::dead_copy_owner;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::process::Output;
 
 /// A function-like value with the right shape is a Git runner in these controls:

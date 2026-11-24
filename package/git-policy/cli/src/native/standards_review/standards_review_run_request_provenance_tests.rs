@@ -21,7 +21,7 @@ use crate::standards_review_source::{read_landed_commit, read_message, read_name
 use crate::standards_review_text::commit_subject;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_git::GitContext;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// A fixed clock,

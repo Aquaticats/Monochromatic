@@ -14,7 +14,7 @@ use crate::worktree_copy_selection::CopySelection;
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use crate::worktree_copy_stage::stage_ignored_snapshot;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// `settle_interrupted_add` with the two lookups as values,

@@ -14,7 +14,7 @@ use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveReques
 use crate::worktree_remove_hand_over as test_support;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::work_item::WorkKind;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// What:
 ///  A subvolume inside a fresh disposable root,

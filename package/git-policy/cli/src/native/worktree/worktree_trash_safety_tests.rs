@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::fs_btrfs_ioctl::snapshot_create_at;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStrExt;
 
 /// A snapshot of the main checkout at a stage name beside the repository,

@@ -5,7 +5,7 @@
 use super::*;
 use crate::path_bytes::os_from_path_bytes;
 use crate::test_support::{fixture, git, git_text, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// Names of every length from one character up,

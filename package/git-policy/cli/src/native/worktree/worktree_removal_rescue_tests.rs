@@ -13,7 +13,7 @@ use crate::work_item::WorkItem;
 use crate::service_work::work_directory;
 use crate::test_support::{fixture, remove};
 use crate::work_item::enqueue;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";

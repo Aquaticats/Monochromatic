@@ -3,7 +3,7 @@
 use super::*;
 use crate::service_timing::capture::Captured;
 use crate::service_instance::instance_of;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::fs::FileTypeExt;
 

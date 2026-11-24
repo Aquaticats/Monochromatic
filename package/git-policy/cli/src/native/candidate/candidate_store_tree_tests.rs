@@ -28,7 +28,7 @@ use crate::candidate_record::CandidateRecord;
 use crate::candidate_tree::TreeRecord;
 /// Shared fixture directories and real Git.
 use crate::test_support::{fixture, git, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 /// Unix permission bits,
 /// for the executable file.
 use std::os::unix::fs::PermissionsExt;

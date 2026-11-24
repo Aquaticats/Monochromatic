@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A canonical transaction name an earlier release gave its commit directories.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";

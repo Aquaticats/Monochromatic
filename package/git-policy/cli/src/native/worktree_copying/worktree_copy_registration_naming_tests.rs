@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A repository with one linked worktree at `root/topic`,
 /// and its canonical common directory.

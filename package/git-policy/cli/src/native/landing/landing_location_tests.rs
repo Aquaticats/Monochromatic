@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::test_support::{REAL_GIT, fixture, git_context, isolated_overlay, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// Each answer is one pathname with its own terminating line feed.
 #[test]

@@ -7,7 +7,7 @@ use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_journal::RefFormat;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::fs::FileTimes;
 use std::ffi::OsString;
 use std::path::PathBuf;

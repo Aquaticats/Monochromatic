@@ -12,7 +12,7 @@ use crate::shadow_git::shadow_request;
 use crate::shadow_init_attempts::{clear_the_planted_cut, cut_the_first_init_attempt_at, init_attempts, note_init_attempt, reset_init_attempts};
 use crate::transaction_git::{GitRequest, GitOutput, run_git_checked};
 use crate::transaction_journal::RefFormat;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 
 /// Captures the invocation of a repository's working directory,

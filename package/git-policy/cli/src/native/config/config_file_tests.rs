@@ -17,7 +17,7 @@ use super::{
 };
 use crate::config_schema::CliGitConfig;
 use crate::policy_registry::{PolicyId, Severity};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::{Path, PathBuf};
 
 /// Create one empty fixture directory owned by this test process and test name.

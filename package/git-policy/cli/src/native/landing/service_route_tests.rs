@@ -8,7 +8,7 @@ use super::*;
 use crate::service_address_of_a_worktree::socket_address_of;
 use crate::service_instance::{instance_of, socket_for};
 use crate::test_support::{fixture, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 const GIT: &str = "/usr/bin/git";
 

@@ -28,7 +28,7 @@ use crate::candidate_object::CandidateMode;
 use crate::repository_facts::git_facts;
 use crate::test_support::REAL_GIT;
 use crate::wrapper_controls::no_controls;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::rc::Rc;

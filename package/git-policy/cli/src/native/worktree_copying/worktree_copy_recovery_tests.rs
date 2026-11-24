@@ -14,7 +14,7 @@ use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
 use crate::worktree_copy_unfilled_record::{UnfilledCopy, decode_unfilled, unfilled_records_exist};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// A repository with an ignored `cache` file and a linked worktree at `topic` that the copy would fill.

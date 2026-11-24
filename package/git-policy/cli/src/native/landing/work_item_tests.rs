@@ -11,7 +11,7 @@ use crate::work_item_state_directories_and_claim_names::{NAME_SEPARATOR, take_li
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A function-like value with the right shape is an expiry test in these controls:
 /// the shipped caller writes a small struct.

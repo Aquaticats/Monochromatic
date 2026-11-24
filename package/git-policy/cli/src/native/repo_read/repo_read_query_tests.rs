@@ -14,7 +14,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
 

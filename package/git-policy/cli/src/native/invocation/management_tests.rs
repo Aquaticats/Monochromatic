@@ -25,7 +25,7 @@ use crate::policy_registry::PolicyId;
 use crate::real_git::{Platform, ResolutionInputs};
 use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
 use crate::wrapper_controls::{Controls, no_controls};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 

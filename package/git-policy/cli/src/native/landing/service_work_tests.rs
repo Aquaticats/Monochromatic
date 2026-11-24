@@ -15,7 +15,7 @@ use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
 use crate::merge_second_pass::tests::await_it;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Mutex;

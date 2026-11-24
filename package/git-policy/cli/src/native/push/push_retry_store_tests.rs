@@ -8,7 +8,7 @@
 use super::*;
 use crate::test_support::{fixture, remove as remove_fixture};
 use crate::work_item::WorkKind;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// The oid of the first commit of the controls.
 const FIRST_OID: &str = "0123456789abcdef0123456789abcdef01234567";

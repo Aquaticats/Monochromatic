@@ -2,12 +2,15 @@
 //!  Whether the running control's fixture root is on a file system that takes any byte string as a name,
 //!  and the re-execution that puts it on a tmpfs where the root it would use refuses such a name.
 //! Why:
-//!  A control that makes a file or folder whose name is not valid UTF-8 cannot run on a file system that
-//!  refuses the name:
-//!  this host's home dataset does under `utf8only=on`,
-//!  answering `EILSEQ` (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause A"),
+//!  A control that makes a file or folder whose name is not valid UTF-8 cannot run where the name is
+//!  refused,
+//!  as this host's home dataset refuses it under `utf8only=on`,
+//!  answering `EILSEQ`
+//!  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+//!  "Cause A"),
 //!  and a control that quietly skipped there would pass a run in which it never ran.
-//!  A tmpfs takes any name and holds real files, folders and repositories,
+//!  A tmpfs takes any name and holds real files,
+//!  folders and repositories,
 //!  so the first question asked is whether the run's own fixture root already takes the name,
 //!  which is the gate's answer because its root is a tmpfs the container makes
 //!  (`bin/native-gate-fixture-root.ts`);
@@ -53,10 +56,11 @@ const INSIDE_VARIABLE: &str = "CLI_GIT_FIXTURE_ROOT_ANY_NAME";
 ///  the inner one has already run and passed,
 ///  or this host lets no unprivileged user namespace and the run said so.
 /// Why:
-///   `false` is only returned once the inner half passed or after the run acknowledged that this host has no
-///  user namespaces,
+///   `false` is returned only once the inner half passed,
+///  or after the run acknowledged that this host has no user namespaces,
 ///  because a control that silently passed without running would claim coverage it does not have;
-///  `in_a_root_namespace` fails the control when the host refuses a namespace that the run did not acknowledge,
+///  `in_a_root_namespace` fails the control when the host refuses a namespace that the run did not
+///  acknowledge,
 ///  and prints one line naming the control that did not run.
 ///
 /// In TS you'd write (pseudocode):
@@ -109,8 +113,10 @@ fn a_name_that_is_not_utf8_can_be_made(root: &Path) -> bool {
 /// Why:
 ///   It is called only inside the namespace the control was re-executed in,
 ///  where this process is root and may mount;
-///  the mount's options are the ones the gate's fixture root is made with
-///  (`rw`, the size the file system gives it, and the mode the kernel gives a tmpfs root),
+///  the mount's options are the ones the gate's fixture root is made with:
+///  `rw`,
+///  the size the file system gives it,
+///  and the mode the kernel gives a tmpfs root,
 ///  so a fixture here behaves as the fixture the gate makes does,
 ///  and a program a control starts from a fixture is runnable there as it is in the gate.
 ///

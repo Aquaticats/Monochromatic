@@ -10,7 +10,7 @@ use super::*;
 use std::io::Write as _;
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::test_support::{git, git_text, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::path::Path;
 
 /// The path of the owed record of batch `seq` in the world's worktree.

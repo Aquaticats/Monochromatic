@@ -6638,12 +6638,14 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   because this host allows both
   (`src/native/testing/root_namespace_test_support.rs`,
   `src/native/subvolume/fs_beneath_walk_chain_tests.rs`).
-- A control that makes a file or folder whose name is not valid UTF-8 asks its own fixture root whether
-  the name can be made there, and where it cannot it runs inside the same kind of namespace with a
-  tmpfs mounted at that root
+- A control that makes a file or folder whose name is not valid UTF-8 asks its own fixture root
+  whether the name can be made there,
+  and where it cannot it runs inside the same kind of namespace,
+  with a tmpfs mounted at that root
   (`src/native/testing/fixture_root_taking_any_name.rs`,
-  entered by `in_a_fixture_root_taking_any_name` in `src/native/testing/test_support.rs` for the unit
-  controls and in `src/native/binary/binary_support_fixture_directories.rs` for the binary ones).
+  entered by `in_a_fixture_root_taking_any_name` in
+  `src/native/testing/fixture_root_taking_any_name_of_unit_tests.rs` for the unit controls,
+  and in `src/native/binary/binary_support_fixture_directories.rs` for the binary ones).
   This host's home dataset refuses such a name under `utf8only=on`,
   and the gate's fixture root is already a tmpfs,
   so the gate answer is "it can" and no namespace is started there;

@@ -19,7 +19,7 @@ use crate::event_hints::finding_hint;
 use crate::event_path::EventPath;
 use crate::policy_engine::PolicyFinding;
 use crate::test_support::{fixture, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use monochromatic_catalog_specifier::FindingKind;
 /// Raw bytes of a name.
 use std::ffi::OsString;

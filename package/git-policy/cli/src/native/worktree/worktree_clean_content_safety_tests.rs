@@ -15,7 +15,7 @@ use crate::subvolume_test_support::{backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
 use crate::worktree_clean::{check_clean_tracked, check_clean_tracked_by_content, stored_stats};
 use crate::worktree_convert::inspect;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStrExt;
 
 /// How long a step that must not block may take in a control.

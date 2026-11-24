@@ -14,7 +14,7 @@ use crate::subvolume_error::Interrupt;
 use crate::subvolume_sync::{SyncOptions, sync_tree};
 use crate::subvolume_test_support::{PlainPlatform, make_checkout};
 use crate::test_support::{fixture, git, git_text, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A checkout with two linked worktrees inside it and one outside,
 /// and the three administrative directories.

@@ -24,7 +24,7 @@ use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::Candidate;
 use crate::test_support::{REAL_GIT, fixture, git, git_output, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};

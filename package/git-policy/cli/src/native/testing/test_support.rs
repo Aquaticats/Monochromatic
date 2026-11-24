@@ -125,24 +125,6 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
-///  Whether this run may go on to make a fixture whose name is not valid UTF-8,
-///  starting the same test inside a namespace of its own where this run's fixture root refuses such a name.
-/// Why:
-///  A control that writes such a name proves nothing where the file system refuses it,
-///  and it must not pass by returning early either,
-///  so the decision and the tmpfs both live in one place
-///  (`super::fixture_root_taking_any_name`, whose doc says how the re-execution works);
-///  this wrapper only supplies the root the unit tests use.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (!inAFixtureRootTakingAnyName('worktree::worktree_audit::tests::a_pointer_to_a_directory_that_is_not_text_names_it')) return;
-/// ```
-pub(crate) fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
-    return super::fixture_root_taking_any_name::in_a_root_taking_any_name(fixture_root().as_path(), test);
-}
-
-/// What:
 ///  Every directory that is a system temporary directory:
 ///  `/tmp`,
 ///  `/var/tmp`,

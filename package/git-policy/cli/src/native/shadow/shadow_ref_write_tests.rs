@@ -10,7 +10,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 #[cfg(unix)]
 use crate::recording_git::{recorded_starts, recording_context};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// A bare shadow repository in the fixture,
 /// with the given ref backend.

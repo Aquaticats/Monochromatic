@@ -16,7 +16,7 @@ use super::{branch_commit, deletion_facts, merged_into_head};
 use crate::discard_audit_facts::AuditFact;
 use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
 use crate::transaction_git::GitContext;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 

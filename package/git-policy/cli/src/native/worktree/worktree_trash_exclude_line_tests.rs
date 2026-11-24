@@ -6,7 +6,7 @@ use crate::file_size_limit_child_test_support::{LIMITED_DIRECTORY_VARIABLE, run_
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_ignore_rule::trash_location_is_ignored;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};

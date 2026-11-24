@@ -12,7 +12,7 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
 use crate::path_bytes::path_bytes_of;
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// Bind the add and read the target,
 /// as the ladder does.

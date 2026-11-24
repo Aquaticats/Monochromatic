@@ -18,7 +18,7 @@ use crate::command_test_support::git_status;
 use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
 use crate::path_bytes::path_bytes_of;
 use crate::transaction_git::GitContext;
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 

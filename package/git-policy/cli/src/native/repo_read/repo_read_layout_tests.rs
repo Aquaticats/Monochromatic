@@ -8,7 +8,7 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
 use crate::repo_read_odb::ObjectDatabase;
 use crate::test_support::{fixture, git, git_output, git_text, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment `git_output` gives Git:

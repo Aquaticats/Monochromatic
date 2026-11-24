@@ -12,7 +12,7 @@ use crate::service_journal::{DONE_EXTENSION, Recovery, batch_path, parse_intent}
 use crate::service_protocol::{ALLOWED_MODES, Change};
 use crate::service_index_lock::Announce;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::RecvTimeoutError;

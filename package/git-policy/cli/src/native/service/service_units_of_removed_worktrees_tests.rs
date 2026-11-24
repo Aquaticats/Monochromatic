@@ -10,7 +10,7 @@ use crate::service_provision_loaded_unit_texts::{record, record_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
 use crate::test_support::{git, remove, repository};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 
 /// The units of a worktree that was removed are stopped by name through the manager,
 /// the socket first so nothing starts the service again,

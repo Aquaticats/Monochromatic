@@ -139,9 +139,11 @@ pub fn fixture(name: &str) -> Fixture {
 ///   A control that writes such a name proves nothing where the file system refuses it,
 ///  and it must not pass by returning early either,
 ///  so the decision and the tmpfs both live in one place
-///  (`fixture_root_taking_any_name`, whose doc says how the re-execution works);
+///  (`fixture_root_taking_any_name`,
+///  whose doc says how the re-execution works);
 ///  this wrapper only supplies the root the binary controls use,
-///  which is `CARGO_TARGET_TMPDIR` or the directory `CLI_GIT_TEST_ROOT` names.
+///  which is `CARGO_TARGET_TMPDIR`,
+///  or the directory `CLI_GIT_TEST_ROOT` names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

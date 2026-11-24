@@ -11,7 +11,7 @@ use crate::path_bytes_in_records::hex_of_bytes;
 use crate::worktree_copy_journal_removal::*;
 use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, remove};
-use crate::testing::test_support::in_a_fixture_root_taking_any_name;
+use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// A valid staged journal whose paths live under one fixture root.
