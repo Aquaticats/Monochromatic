@@ -1370,8 +1370,7 @@ Can it answer yes: no.
 
 Pros: covers both cases,
 keeps the terminal,
-the progress,
-the signals and the exit statuses,
+the progress and ssh's exit status,
 and leaves the person's command untouched beyond its own start and the `-G` probe Git runs for a name it does not
 recognise.
 
@@ -1392,6 +1391,10 @@ Cons, recounted:
   and the only one left is B's, because the start name is forbidden.
 - it is blind under `-q` and `LogLevel=QUIET`, because it reads lines OpenSSH then does not print
   (run, the second round, `e-quiet`).
+- **a signal sent to the wrapper alone does not reach ssh**, for the same reason as under C:
+  the relay is a child of the wrapper and ssh is the relay's child, and the relay forwards no signal
+  (source: the stand-in's `relay.c` installs no handler).
+  The second round measured this for C and C2 and not for E, so E's line is read and not run.
 - **the security-key notice is lost**:
   ssh's standard error is the relay's pipe, so `notify_start` sends the touch notice to the askpass program,
   which is `false`, instead of writing it (source, `readpass.c:252`, `:279`).
