@@ -309,7 +309,10 @@ and built step by step from `doc/planning/cli-git-zfs-worktree-implementation-pl
 State:
 plan steps 1 to 10 are built and on `main`;
 step 11 is being built (`pi-zfs-step-11-dirty-main-restore`),
-with issue 6452 (a dirty checkout takes rung 3 until then) fixed in its own round;
+with issue 6452 (a dirty checkout takes rung 3 until then) fixed as `c493a97158`;
+`main` fails `source_guard's the_release_code_keeps_blocking_work_off_the_runtime` since the account companion merged (`8ce60ff4f5`, its reaper thread at `companion_process_calls.rs:224`),
+which `pi-fix-companion-reaper-thread-source-guard` fixes,
+and every writer round now runs the `source_guard` module before it reports;
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
 Pieces of steps 12,
@@ -424,7 +427,7 @@ and `pi-zfs-step-10-answers-into-proposal-and-plan` writes them in;
 the revision merged as `dc0635971e` (choice 1 `E > C > G > A` with H asked on its own and W an add-on; choice 2 `2C > 2F > 2E > 2A`; choice 3 `3C > 3B > 3A > 3D`);
 a Sonnet read of it writes the owner's questions (`~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/`);
 its two defects on `main` are issues 6450 (the add printed a `Debug` dump; fixed as `ca615ddbe1`, controls red then green)
-and 6451 (the scope finding prints no command; its fix round runs);
+and 6451 (the scope finding printed no command; fixed, each wide grant now prints the narrowing `zfs allow` before the `zfs unallow`);
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):

@@ -1,6 +1,7 @@
 //! What:
 //!  The route's preflight:
-//!  everything A0 proves before the claim writes anything.
+//!  everything A0 proves before the claim writes anything,
+//!  and the one source it declines the whole route for.
 //! Why:
 //!  A0 is one step with no write,
 //!  so its checks live together and the runner calls them once and hands what
@@ -12,10 +13,17 @@
 //!  and the delegation is read here because a granted permission no later step
 //!  can repair
 //!  (`super::add_grants`).
+//!  A source refused only for its uncommitted changes is not this route's yet:
+//!  the owner's interim of 2026-11-19 is that such an add takes rung 3 while plan
+//!  step 11's verified dirty restore is unlanded
+//!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//!  lines 1858 to 1862),
+//!  so the preflight answers nothing and the add reaches the ladder as it does
+//!  for a checkout the route does not serve.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const preflight = preflightTheAdd(route, plan, context, arguments); // throws the sentence a person reads
+//! const preflight = preflightTheAdd(route, plan, context, arguments); // null: the ordinary add
 //! ```
 
 use super::add_git_words::person_lock_word;
@@ -30,7 +38,7 @@ use crate::worktree_clone_mount_protocol::clone_mount_readiness::{ReadinessExpec
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_admission::{AdmissionRefusal, admit_attach};
 use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::ReadinessFile;
 use crate::worktree_identity::WorktreeIdentity;
-use crate::worktree_snapshot_source::{Refusal as SourceRefusal, SnapshotSource, snapshot_blocker, source_refusal};
+use crate::worktree_snapshot_source::{SnapshotSource, refused_only_for_uncommitted_changes, snapshot_blocker, source_refusal};
 use std::ffi::OsString;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
@@ -60,12 +68,13 @@ pub(super) struct Preflight {
 /// the clean source,
 /// the datasets,
 /// the account's delegation,
-/// the handler's readiness and the destination.
+/// the handler's readiness and the destination,
+/// or answer nothing when the source's only fault is its uncommitted changes.
 ///
 /// # Errors
 /// The sentence each refusal prints,
 /// which names the check and the way forward.
-pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Preflight, StepRefusal> {
+pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &GitContext, arguments: &[OsString]) -> Result<Option<Preflight>, StepRefusal> {
     if let Some(word) = person_lock_word(arguments) {
         return Err(StepRefusal::refused(format!(
             "the add names `{}`, and the ZFS clone route takes the managed lock itself. Ways forward: run the add again without `--lock`, `--reason` or `--checkout`",
@@ -73,7 +82,23 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
         )));
     }
     let identity: WorktreeIdentity = WorktreeIdentity::MainWorktree { common_dir: route.common_dir.clone(), git_dir: route.git_dir.clone(), worktree_root: route.source_root.clone() };
-    let source: SnapshotSource = source_refusal(context, &identity).map_err(|refusal: SourceRefusal| return StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason)))?;
+    let source: SnapshotSource = match source_refusal(context, &identity) {
+        Ok(found) => found,
+        // What:
+        //  A checkout whose only fault is its uncommitted changes makes the route
+        //  decline instead of failing the add.
+        // Why:
+        //  The owner decided the interim on 2026-11-19:
+        //  while plan step 11's verified dirty restore is unlanded,
+        //  an add from a dirty main checkout takes rung 3,
+        //  as today
+        //  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+        //  lines 1858 to 1862).
+        //  Failing it here took an answer the owner had not given, and the ladder
+        //  never ran for it (issue 6452).
+        Err(refusal) if refused_only_for_uncommitted_changes(&refusal) => return Ok(None),
+        Err(refusal) => return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {}", refusal.reason))),
+    };
     if let Some(reason) = snapshot_blocker(&source) {
         return Err(StepRefusal::refused(format!("the main checkout cannot be the source of a clone: {reason}")));
     }
@@ -97,7 +122,7 @@ pub(super) fn preflight_the_add(route: &RouteFacts, plan: &AddPlan, context: &Gi
     super::add_grants::refuse_without_the_decided_grants(&device, route)?;
     admit_the_handler(route)?;
     let _ = plan;
-    return Ok(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid });
+    return Ok(Some(Preflight { source, device, checkout_guid: checkout.guid, pool_guid: pool.guid }));
 }
 
 /// Verify the folder the slot goes in,

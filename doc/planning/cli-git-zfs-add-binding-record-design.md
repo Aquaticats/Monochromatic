@@ -1854,9 +1854,14 @@ The build fixed four things here (`bee6531780`,
 and each is what the code does:
 it refuses a repository whose Git does not ignore `.claude/cli-git-trash`,
 because the copied administration must be left where the disposal can prove it;
-it refuses a source that is not clean,
-so a dirty main checkout stops the add before the claim instead of falling to the ladder's rung 3,
-which the build round's note claimed and the code does not;
+it declines the whole route for a source refused only for its uncommitted changes,
+so a dirty main checkout takes the ladder's rung 3 as the owner's interim of 2026-11-19 says
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+lines 1858 to 1862),
+while every other source refusal still stops the add before the claim
+(this sentence recorded the code's refusal as if it were the owner's answer when it entered at `072c92d463`,
+2026-11-24T01:39:36-05:00,
+and issue 6452 corrects it to the owner's answer);
 and it refuses a person's own `--lock`,
 `--reason`,
 `--checkout` or `--no-checkout`,
