@@ -109,7 +109,7 @@ impl Fixture {
 
     /// The checkout's dataset name.
     fn checkout(&self) -> String {
-        return format!("{}/{CHECKOUT_LEAF}", self.pool);
+        return format!("{}/ROOT/home/{CHECKOUT_LEAF}", self.pool);
     }
 
     /// The clone container's dataset name.
