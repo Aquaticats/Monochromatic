@@ -620,16 +620,16 @@ and `pi-zfs-step-18-doctor-checks-for-steps-2-to-9-built-ahead`,
 each on the branch of the same name under `feat/git-policy-cli-`.
 Step 19's two open design parts,
 the unit that mounts the checkout and the boot ordering's proof,
-have a prompt and a worktree
+run as `pi-zfs-step-19-checkout-boot-mount-provider-and-ordering`
 (`zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23`),
-held until the memory stall the wave raised eases
+started at 2026-11-24T01:50Z once the memory stall the wave raised had eased
 (the freeze document,
 "The comparison that would verify the change").
 
 Next:
-merge each when it ends;
-start step 19's round when the stall eases;
-take the wave's end read for the freeze document.
+merge each when it ends,
+step 19's as a proposal;
+the freeze document still owes a read across six guests and a whole gate.
 
 ### The clone rung serves every source no slower than `main`
 
