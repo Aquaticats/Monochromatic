@@ -20,7 +20,9 @@
 //          zfs-attach-pool|zfs-attach-arm|zfs-gate-arm|zfs-gate-version-arm|zfs-gate-change-arm|
 //          zfs-protocol-pool|zfs-protocol-arm|zfs-protocol-teardown|zfs-protocol-record|
 //          zfs-batch-pool|zfs-batch-arm|zfs-batch-teardown|zfs-batch-record|
-//          zfs-add-pool|zfs-add-arm|zfs-add-teardown|zfs-add-record|zfs-add>
+//          zfs-add-pool|zfs-add-arm|zfs-add-boot-before|zfs-add-boot-reboot|zfs-add-boot-plant|
+//          zfs-add-boot-after|zfs-add-power-before|zfs-add-power-cut|zfs-add-power-after|
+//          zfs-add-teardown|zfs-add-record|zfs-add>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
 // `create` refuses a name `mvm list` already reports, and `all` destroys only a
 // guest its own `create` returned, so no run removes another run's guest.
@@ -1211,13 +1213,13 @@ function gateRed(options: Options, expectation: string, label: string, field: st
 }
 
 /** Reboot the guest and wait until it answers again. */
-function rebootGuest(options: Options): void {
+function rebootGuest(options: Options, log = 'gate-reboot.log'): void {
   const command = `test "$(hostname)" = ${options.name} && (systemctl reboot || true)`;
   const started = spawnSync('mvm', ['--backend', 'libvirt', 'exec', options.name, '--', command], {
     encoding: 'utf8',
     timeout: HOST_COMMAND_TIMEOUT_MS,
   });
-  writeFileSync(join(options.logDir, 'gate-reboot.log'), `${started.stdout}${started.stderr}`, { mode: 0o600 });
+  writeFileSync(join(options.logDir, log), `${started.stdout}${started.stderr}`, { mode: 0o600 });
   const deadline: number = Date.now() + 300_000;
   for (;;) {
     const probe = spawnSync(
@@ -1387,6 +1389,25 @@ function step10Environment(options: Options): string {
 }
 
 /**
+ The variable naming which half of a split arm a run is.
+ T27 (the record read after a reboot and after an export and import) and T28 (a flushed write read back after the guest
+ loses power) each span the reboot or the cut, so each is two halves in two driver steps with the cut between them.
+ */
+const STEP10_PHASE_VARIABLE = 'CLI_GIT_ZFS_ADD_PHASE';
+/** The half that writes the record the next half reads. */
+const STEP10_BEFORE = 'before';
+/** The half that reads that record back on the other side of the boot or the cut. */
+const STEP10_AFTER = 'after';
+/** T27's test name, which its three runs (before, after, and the red control) each run alone. */
+const STEP10_BOOT_TEST = 'the_boot_arm_reads_a_record_written_before_the_guest_rebooted';
+/** T28's test name, which its two runs each run alone. */
+const STEP10_POWER_TEST = 'a_flushed_write_is_read_back_after_the_guest_loses_power';
+/** The slot the red control replaces the folder of, whose record was written before the reboot. */
+const STEP10_BOOT_PLANT_SLOT = 'boot-plant';
+/** The plant's own words, which the red run must carry, so a run that failed for another reason never passes it. */
+const STEP10_PLANT_REFUSAL = 'no longer names the slot folder';
+
+/**
  Make the step 10 pool and the design's layout:
  a 1 GiB encrypted image,
  the checkout dataset whose leaf name the route reads,
@@ -1465,6 +1486,154 @@ function step10Arms(options: Options): void {
     'grep --quiet "^test zfs_add_guest::a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration" /root/step10-suite.log',
   ].join('\n');
   guest({ options, script: suite, log: 'step10-suite.log', timeout: SUITE_TIMEOUT_MS });
+}
+
+/**
+ Run one half of a split arm in the guest the arms step built the wrapper in:
+ one test by name, the half in its environment, and the arm's own measurement lines required in the log.
+ Why one test by name: the other half of the same arm runs on the other side of a reboot or a cut, so the suite's
+ single invocation cannot hold either arm.
+ */
+function step10SplitArm(options: Options, phase: string, test: string, log: string): void {
+  const script = [
+    'set -eu',
+    `cd ${STEP10_WRAPPER_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export ${STEP10_OPENZFS}`,
+    `export ${step10Environment(options)}`,
+    `export ${STEP10_PHASE_VARIABLE}=${phase}`,
+    `cargo nextest run --release --test native_binary --test-threads 1 --no-capture --run-ignored all --filterset "test(zfs_add_guest::${test})" > /root/${log}.log 2>&1`,
+    `tail --lines=40 /root/${log}.log`,
+    `grep --quiet "^test zfs_add_guest::${test}" /root/${log}.log`,
+    'grep --quiet "^MEASUREMENT " /root/${log}.log',
+  ].join('\n');
+  guest({ options, script, log: `${log}.log`, timeout: SUITE_TIMEOUT_MS });
+}
+
+/**
+ Run one half of a split arm that must refuse:
+ the exit status must be non-zero and the log must carry the arm's own words for what it compared,
+ because a run that failed for another reason would otherwise pass this control.
+ */
+function step10SplitArmRed(options: Options, test: string, log: string, refusal: string): void {
+  const script = [
+    'set -eu',
+    `cd ${STEP10_WRAPPER_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export ${STEP10_OPENZFS}`,
+    `export ${step10Environment(options)}`,
+    `export ${STEP10_PHASE_VARIABLE}=${STEP10_AFTER}`,
+    `export CLI_GIT_ZFS_ADD_PLANT=1`,
+    `if cargo nextest run --release --test native_binary --test-threads 1 --no-capture --run-ignored all --filterset "test(zfs_add_guest::${test})" > /root/${log}.log 2>&1; then status=0; else status=$?; fi`,
+    `tail --lines=40 /root/${log}.log`,
+    'test "$status" != 0',
+    `grep --quiet ${shellQuote(refusal)} /root/${log}.log`,
+  ].join('\n');
+  guest({ options, script, log: `${log}.log`, timeout: SUITE_TIMEOUT_MS });
+}
+
+/**
+ T27's first half:
+ two whole adds whose record identities are checked against the live folder and dataset,
+ and the records kept on the guest's own disk.
+ */
+function step10BootBefore(options: Options): void {
+  step10SplitArm(options, STEP10_BEFORE, STEP10_BOOT_TEST, 'step10-boot-before');
+}
+
+/** The orderly reboot between T27's halves, which leaves the pool unimported and the guest's page cache empty. */
+function step10BootReboot(options: Options): void {
+  rebootGuest(options, 'step10-reboot.log');
+}
+
+/**
+ T27's red control:
+ the slot's folder is replaced with an empty one of the same name,
+ so the record's `slotIdentity=` names an object that no longer exists at that path,
+ and the next half must refuse naming both identities.
+ The replacement is a move and a make in the checkout dataset, so the new folder answers another inode and another birth
+ time while the record still holds the old one.
+ */
+function step10BootPlant(options: Options): void {
+  const slot = `${STEP10_CHECKOUT_PATH}/.claude/worktrees/${STEP10_BOOT_PLANT_SLOT}`;
+  const moved = `${slot}-planted-away`;
+  const script = [
+    'set -eu',
+    // The reboot ended every mount, so the folder below the slot answers.
+    `test ! -e ${slot}/.git`,
+    `mv ${slot} ${moved}`,
+    `mkdir --mode=0755 ${slot}`,
+    `test ! -e ${slot}/.git`,
+  ].join('\n');
+  guest({ options, script, log: 'step10-boot-plant.log', timeout: RECORD_TIMEOUT_MS });
+  step10SplitArmRed(options, STEP10_BOOT_TEST, 'step10-boot-plant-red', STEP10_PLANT_REFUSAL);
+}
+
+/** T27's second half: the record read after the reboot, then after an export and import of its dataset. */
+function step10BootAfter(options: Options): void {
+  step10SplitArm(options, STEP10_AFTER, STEP10_BOOT_TEST, 'step10-boot-after');
+}
+
+/** T28's first half: one whole add, whose record is the last write the route flushed. */
+function step10PowerBefore(options: Options): void {
+  step10SplitArm(options, STEP10_BEFORE, STEP10_POWER_TEST, 'step10-power-before');
+}
+
+/**
+ T28's cut:
+ the guest loses power with no orderly shutdown.
+
+ Why the cut is made from inside the guest:
+ `mvm` offers no verb that powers a guest off and keeps its disk,
+ `mvm destroy` being `virsh destroy` followed by `undefine --remove-all-storage` and a deleted VM folder
+ (`package/mvm/cli/src/destroy.ts`, `package/mvm/cli/src/virsh.ts`).
+ So the strongest cut that leaves something to read is the kernel's own immediate reboot, written through `mvm exec`:
+ "b - Will immediately reboot the system without syncing or unmounting your disks"
+ (`Documentation/admin-guide/sysrq.rst`).
+ It drops the guest's page cache exactly as a power loss does and no orderly shutdown runs before it.
+
+ What it cannot prove:
+ the domain's disk is `<driver name="qemu" type="qcow2"/>` with no `cache` attribute
+ (`package/mvm/cli/src/domain-xml.ts`), so QEMU keeps to its own default, writeback into the host's page cache;
+ a write QEMU has accepted therefore survives this cut,
+ and the arm's report says so instead of claiming that a write which was not flushed is lost.
+ */
+function step10PowerCut(options: Options): void {
+  const bootId = 'cat /proc/sys/kernel/random/boot_id';
+  const before = spawnSync('mvm', ['--backend', 'libvirt', 'exec', options.name, '--', `test "$(hostname)" = ${options.name} && ${bootId}`], {
+    encoding: 'utf8',
+    timeout: HOST_COMMAND_TIMEOUT_MS,
+  });
+  if (before.status !== 0)
+    throw new Error(`guest '${options.name}' did not answer before its power cut`);
+  const cut = spawnSync(
+    'mvm',
+    ['--backend', 'libvirt', 'exec', options.name, '--', `test "$(hostname)" = ${options.name} && echo b > /proc/sysrq-trigger`],
+    { encoding: 'utf8', timeout: HOST_COMMAND_TIMEOUT_MS },
+  );
+  writeFileSync(join(options.logDir, 'step10-power-cut.log'), `before ${before.stdout}${before.stderr}cut ${cut.stdout}${cut.stderr}`, { mode: 0o600 });
+  // The reboot drops the connection the command ran over, so that command's status says nothing; the guest answering
+  // again, under another boot identifier, is what proves the cut happened.
+  const deadline: number = Date.now() + 300_000;
+  for (;;) {
+    const probe = spawnSync('mvm', ['--backend', 'libvirt', 'exec', options.name, '--', `test "$(hostname)" = ${options.name} && ${bootId}`], {
+      encoding: 'utf8',
+      timeout: 60_000,
+    });
+    if (probe.status === 0 && probe.stdout.trim().length > 0 && probe.stdout.trim() !== before.stdout.trim())
+      return;
+    if (Date.now() > deadline)
+      throw new Error(
+        `guest '${options.name}' did not come back under another boot identifier within 300 s of its power cut ` +
+          `(before '${before.stdout.trim()}', now '${probe.stdout.trim()}')`,
+      );
+    spawnSync('sleep', ['10'], { timeout: 30_000 });
+  }
+}
+
+/** T28's second half: the record the route flushed read back after the guest lost power. */
+function step10PowerAfter(options: Options): void {
+  step10SplitArm(options, STEP10_AFTER, STEP10_POWER_TEST, 'step10-power-after');
 }
 
 /** Take down every mount the arms left, destroy the pool, and record what remains. */
