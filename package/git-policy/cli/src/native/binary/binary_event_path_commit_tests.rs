@@ -18,6 +18,7 @@ use super::commit::{
     remove_settled,
 };
 use super::support::{Fixture, Observed, bounded_for, fixture, git, observe, porcelain, repository, stderr_of, without_wait_notices, wrapper_first_path};
+use super::support::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -153,6 +154,9 @@ fn head_blob(fixture: &Fixture, repo: &Path) -> Vec<u8> {
 ///  with the file alone or beside a tracked name that is not UTF-8.
 #[test]
 fn a_commit_of_a_name_that_is_not_utf8_lands_with_its_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::a_commit_of_a_name_that_is_not_utf8_lands_with_its_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-commit-clean");
     let repo: PathBuf = configured(&fixture, None);
     std::fs::write(repo.join(bad_name()), b"fine\n").expect("file");
@@ -179,6 +183,9 @@ fn a_commit_of_a_name_that_is_not_utf8_lands_with_its_exact_bytes() {
 /// An untracked name that is not UTF-8 beside a committed file does not stop the commit.
 #[test]
 fn an_untracked_name_that_is_not_utf8_does_not_stop_a_commit() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::an_untracked_name_that_is_not_utf8_does_not_stop_a_commit") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-commit-untracked");
     let repo: PathBuf = configured(&fixture, None);
     std::fs::write(repo.join(bad_name()), b"left alone\n").expect("untracked file");
@@ -194,6 +201,9 @@ fn an_untracked_name_that_is_not_utf8_does_not_stop_a_commit() {
 ///  and the summary lists the exact bytes.
 #[test]
 fn a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-commit-fix");
     let repo: PathBuf = configured(&fixture, None);
     std::fs::write(repo.join(bad_name()), b"no newline").expect("file");
@@ -220,6 +230,9 @@ fn a_commit_correction_of_a_name_that_is_not_utf8_reports_the_exact_bytes() {
 /// and nothing lands.
 #[test]
 fn a_blocking_commit_finding_names_the_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::a_blocking_commit_finding_names_the_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-commit-blocked");
     let repo: PathBuf = configured(&fixture, Some("{ \"policies\": { \"final-newline\": \"error\" } }\n"));
     std::fs::write(repo.join(bad_name()), b"fine\n").expect("base file");
@@ -252,6 +265,9 @@ fn a_blocking_commit_finding_names_the_exact_bytes() {
 /// `git add` at `error` severity stops with the exact bytes and stages nothing.
 #[test]
 fn an_add_blocked_at_error_severity_names_the_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::an_add_blocked_at_error_severity_names_the_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-add-blocked");
     let repo: PathBuf = configured(&fixture, Some("{ \"policies\": { \"final-newline\": \"error\" } }\n"));
     std::fs::write(repo.join(bad_name()), b"no newline").expect("file");
@@ -349,6 +365,9 @@ fn forbidden_configuration(repo: &Path, needle: &str) {
 ///  because the exact bytes would undo the masking of a matched segment.
 #[test]
 fn the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-forbidden");
     let repo: PathBuf = configured(&fixture, None);
     let needle: String = ["PLANTED", "PATH", "NEEDLE"].join("_");
@@ -375,6 +394,9 @@ fn the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes(
 ///  and the summary lists the exact bytes.
 #[test]
 fn a_commit_of_all_tracked_changes_lands_a_name_that_is_not_utf8() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::a_commit_of_all_tracked_changes_lands_a_name_that_is_not_utf8") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-commit-all");
     let repo: PathBuf = configured(&fixture, None);
     std::fs::write(repo.join(bad_name()), b"one\n").expect("base file");
@@ -418,6 +440,9 @@ fn tracked(fixture: &Fixture, name: &OsStr, edited: &[u8]) -> PathBuf {
 /// A name staged with plain Git commits in index mode with its exact bytes.
 #[test]
 fn a_staged_name_that_is_not_utf8_commits_in_index_mode() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::a_staged_name_that_is_not_utf8_commits_in_index_mode") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-index-mode");
     let repo: PathBuf = configured(&fixture, None);
     std::fs::write(repo.join(bad_name()), b"fine\n").expect("file");
@@ -437,6 +462,9 @@ fn a_staged_name_that_is_not_utf8_commits_in_index_mode() {
 ///  and its summary lists the exact bytes.
 #[test]
 fn a_no_change_normalization_of_a_name_that_is_not_utf8_reports_the_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::a_no_change_normalization_of_a_name_that_is_not_utf8_reports_the_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-no-change");
     let repo: PathBuf = tracked(&fixture, bad_name().as_os_str(), b"one");
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
@@ -463,6 +491,9 @@ fn a_no_change_normalization_of_a_name_that_is_not_utf8_reports_the_exact_bytes(
 /// An amend replaces the head commit with the exact bytes of a name that is not UTF-8.
 #[test]
 fn an_amend_of_a_name_that_is_not_utf8_lands_it() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::an_amend_of_a_name_that_is_not_utf8_lands_it") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-amend");
     let repo: PathBuf = tracked(&fixture, bad_name().as_os_str(), b"one\ntwo\n");
     let landed: Observed = run_os(
@@ -497,6 +528,9 @@ const UNUSABLE_ENDPOINT: &[u8] = b"[lfs]\n\turl = not a url\n";
 /// and nothing is staged or landed.
 #[test]
 fn an_unchecked_markdown_name_that_is_not_utf8_is_reported_with_its_exact_bytes() {
+    if !in_a_fixture_root_taking_any_name("event_path_commit::an_unchecked_markdown_name_that_is_not_utf8_is_reported_with_its_exact_bytes") {
+        return;
+    }
     let fixture: Fixture = fixture("event-path-markdown");
     let repo: PathBuf = configured(&fixture, Some("{ \"policies\": { \"final-newline\": \"off\", \"markdown/autofix\": \"warn\" } }\n"));
     let name: OsString = OsString::from_vec(b"caf\xe9.md".to_vec());

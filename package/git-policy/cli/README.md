@@ -6636,8 +6636,22 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and a run that states no variable fails naming the one to set.
   The gate image sets neither,
   because this host allows both
-  (`src/native/worktree_clone_mount/root_namespace_test_support.rs`,
+  (`src/native/testing/root_namespace_test_support.rs`,
   `src/native/subvolume/fs_beneath_walk_chain_tests.rs`).
+- A control that makes a file or folder whose name is not valid UTF-8 asks its own fixture root whether
+  the name can be made there, and where it cannot it runs inside the same kind of namespace with a
+  tmpfs mounted at that root
+  (`src/native/testing/fixture_root_taking_any_name.rs`,
+  entered by `in_a_fixture_root_taking_any_name` in `src/native/testing/test_support.rs` for the unit
+  controls and in `src/native/binary/binary_support_fixture_directories.rs` for the binary ones).
+  This host's home dataset refuses such a name under `utf8only=on`,
+  and the gate's fixture root is already a tmpfs,
+  so the gate answer is "it can" and no namespace is started there;
+  on the host the control mounts its own tmpfs rather than failing,
+  and a control that cannot start one prints the line above and fails unless the run acknowledged
+  `CLI_GIT_TEST_NO_USER_NAMESPACES=1`
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+  "Cause A is answered by the controls themselves").
 - A wrapper release waits for that run,
   unless the version is an alpha:
   `native:release` dispatches nothing until `native:release:host-controls`
