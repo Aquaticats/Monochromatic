@@ -983,7 +983,7 @@ and on a machine with file-based keys and no key unit, nothing loads the key and
 #### Option B: a route-owned unit that mounts the checkout explicitly
 
 The unit in "The route-owned alternative", with the checkout dataset at `canmount=noauto` so the provider skips it,
-and `ExecStart=/usr/sbin/zfs mount <checkout dataset>`.
+and `ExecStart=/usr/bin/zfs mount <checkout dataset>`.
 
 What it delivers: a unit whose status is the checkout's, and,
 where the design does not also require the key unit, a message that names the dataset and the reason
