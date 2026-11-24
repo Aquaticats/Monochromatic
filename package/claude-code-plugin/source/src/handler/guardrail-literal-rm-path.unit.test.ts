@@ -160,7 +160,7 @@ await describe({
               toolName: 'Bash',
               toolInput: { command: 'bash <<\'EOF\'\nrm -rf "$d"\nEOF', },
             },),);
-            expect(denialReason(output,),).toContain('(word `"$d"`)',);
+            expect(denialReason(output,),).toContain('(word `"$d"`;',);
           },
         },),
         it({
@@ -170,7 +170,67 @@ await describe({
               toolName: 'Bash',
               toolInput: { command: 'sudo rm -rf "$litter"', },
             },),);
-            expect(denialReason(output,),).toContain('(word `"$litter"`)',);
+            expect(denialReason(output,),).toContain('(word `"$litter"`;',);
+          },
+        },),
+        it({
+          name: 'refuses a deletion whose rmdir computes its path',
+          fn: async function testRmdirCommand() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Bash',
+              toolInput: { command: 'rmdir -p "$d"', },
+            },),);
+            expect(denialReason(output,),).toContain('(word `"$d"`;',);
+          },
+        },),
+        it({
+          name: 'refuses a find that deletes the paths it found',
+          fn: async function testFindDeleteCommand() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Bash',
+              toolInput: { command: 'find /home/user/temp/agent/x -delete', },
+            },),);
+            expect(denialReason(output,),).toContain('(word `-delete`;',);
+          },
+        },),
+        it({
+          name: 'refuses a target that collapses to the filesystem root',
+          fn: async function testRootTargetCommand() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Bash',
+              toolInput: { command: 'rm -rf /', },
+            },),);
+            expect(denialReason(output,),).toContain('the filesystem root',);
+          },
+        },),
+        it({
+          name: 'refuses a target that is a top-level folder',
+          fn: async function testTopLevelTargetCommand() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Bash',
+              toolInput: { command: 'unlink /home', },
+            },),);
+            expect(denialReason(output,),).toContain('a top-level folder',);
+          },
+        },),
+        it({
+          name: 'refuses a target holding a segment an empty value collapsed to',
+          fn: async function testCollapsedSegmentCommand() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Bash',
+              toolInput: { command: 'shred -u /home/user/undefined/x', },
+            },),);
+            expect(denialReason(output,),).toContain('a segment named undefined or null',);
+          },
+        },),
+        it({
+          name: 'allows a literal-path rmdir',
+          fn: async function testLiteralRmdirCommand() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Bash',
+              toolInput: { command: 'rmdir -p /home/user/temp/agent/x/y', },
+            },),);
+            expect(denialReason(output,),).toBe('',);
           },
         },),
         it({
@@ -221,7 +281,7 @@ await describe({
                 content: '#!/bin/sh\nrm -rf "$d"\n',
               },
             },),);
-            expect(denialReason(output,),).toContain('(word `"$d"`)',);
+            expect(denialReason(output,),).toContain('(word `"$d"`;',);
           },
         },),
         it({
@@ -234,7 +294,33 @@ await describe({
                 content: '#!/usr/bin/env bash\nrm -f "$d/$n"\n',
               },
             },),);
-            expect(denialReason(output,),).toContain('(word `"$d/$n"`)',);
+            expect(denialReason(output,),).toContain('(word `"$d/$n"`;',);
+          },
+        },),
+        it({
+          name: 'refuses a new script whose shred computes its target',
+          fn: async function testWriteShredScript() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Write',
+              toolInput: {
+                file_path: join(fixtureRoot, 'shredded.sh',),
+                content: '#!/bin/sh\nshred -u "$f"\n',
+              },
+            },),);
+            expect(denialReason(output,),).toContain('(word `"$f"`;',);
+          },
+        },),
+        it({
+          name: 'refuses a new script whose target collapsed to a top-level folder',
+          fn: async function testWriteCollapsedScript() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Write',
+              toolInput: {
+                file_path: join(fixtureRoot, 'collapsed.sh',),
+                content: '#!/bin/sh\nrm -rf /usr\n',
+              },
+            },),);
+            expect(denialReason(output,),).toContain('a top-level folder',);
           },
         },),
         it({
@@ -312,11 +398,25 @@ await describe({
                 new_string: '"$new"',
               },
             },),);
-            expect(denialReason(output,),).toContain('(word `"$new"`)',);
+            expect(denialReason(output,),).toContain('(word `"$new"`;',);
           },
         },),
         it({
-          name: 'allows an edit that repairs the old violation',
+          name: 'refuses an edit that turns a literal target into the filesystem root',
+          fn: async function testEditCollapsedTarget() {
+            const output = await guardrailHandler(makeEvent({
+              toolName: 'Edit',
+              toolInput: {
+                file_path: REPAIRABLE_SCRIPT,
+                old_string: '"$old"',
+                new_string: '/',
+              },
+            },),);
+            expect(denialReason(output,),).toContain('the filesystem root',);
+          },
+        },),
+        it({
+          name: 'allows an edit that repairs the old violation to a literal path',
           fn: async function testEditRepairs() {
             const output = await guardrailHandler(makeEvent({
               toolName: 'Edit',
@@ -375,7 +475,7 @@ await describe({
                 ],
               },
             },),);
-            expect(denialReason(output,),).toContain('(word `"$split"`)',);
+            expect(denialReason(output,),).toContain('(word `"$split"`;',);
           },
         },),
         it({

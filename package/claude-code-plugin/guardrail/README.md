@@ -65,23 +65,35 @@ The handler implements denial responses for five cases:
    and pushes after a commit;
    each of those forms starts the real binary and skips all of them.
 
-5. **Literal `rm` path blocking**:
-    when a Bash call would run an `rm` whose path is written through a variable,
+5. **Literal deletion path blocking**:
+    when a Bash call would run a deletion whose target is written through a variable,
    a substitution,
    or an arithmetic expression,
+   or whose target collapsed to a broader path,
    it is denied
-   with a message naming the command and the offending word,
-   and that says to write each path literally in a single `rm` command.
+   with a message naming the command,
+   the offending word,
+   and the check that fired,
+   and that says to write each path literally in a single deletion command.
    A `Write`,
    `Edit`,
    or `MultiEdit` call is denied when the file it would leave on disk holds such
    a deletion the file does not hold now.
 
-## Literal `rm` paths
+## Literal deletion paths
 
 The rule this enforces is the repository's:
-`rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`),
+deletion commands as issued never contain environment variables (`$HOME`, `${DIR}`),
 because an unset or empty variable widens what gets deleted.
+What the rule covers is the owner's decision in
+[`doc/decision/literal-rm-guard-in-claude-code-and-pi.md`][the-record]:
+`rm`,
+`rmdir`,
+`unlink`,
+`shred` and
+`find -delete`,
+plus every target that collapsed to a broader path than it looks like,
+with globs and `~` left allowed.
 The check lives in
 `@monochromatic-dev/agent-harness-shared-shell-command-analyzer`
 as `findLiteralRmPaths`, `findLiteralRmPathsInCommand`,
@@ -92,13 +104,22 @@ and the shared package's README lists every form it reads and every form it does
 ### The surfaces this hook refuses
 
 - **Bash**:
-   a command that runs such an `rm`,
+   a command that runs such a deletion with `rm`,
+   `rmdir`,
+   `unlink` or
+   `shred`,
    including one behind a program wrapper (`sudo`, `env`, `timeout`, `systemd-run`,
    `flock`, `nice`, `command`, `xargs`),
    one written in a here-document body,
    one inside a `bash -c` string or an `eval` or `ssh` command line,
    one inside a function body,
    one that `find -exec` runs,
+   one `find -delete` asks for whatever its starting points spell,
+   one whose target is `/`,
+   the home folder itself,
+   a top-level folder,
+   a path holding `//`,
+   or a path with a segment `undefined` or `null`,
    and one inside a script file the command hands a shell
    (`bash deploy.sh`, `source env.sh`, or `./cleanup` with a shell shebang),
    read from disk relative to the call's working directory.
@@ -107,6 +128,7 @@ and the shared package's README lists every form it reads and every form it does
    judged by the text it leaves.
    A script is recognized by `.sh`, `.bash`, `.zsh`, `.ksh`, `.dash`, or `.bats`,
    or by a first line that asks for a shell.
+   The same family and the same collapsed targets are refused there.
 - **Edit** and **MultiEdit**:
    an edit of a shell script,
    judged by the text the call would leave on disk rather than by its new text,
@@ -124,14 +146,28 @@ and the shared package's README lists every form it reads and every form it does
 
 ### What stays undetected on this surface
 
+A deletion whose program word is computed (`"$RM" -rf x`) is not read,
+because no known program stands in the command text.
+
 A command a code-mode script assembles in JavaScript is not read:
 `cmd = 'rm -rf ' + d` inside a REPL script reaches this hook only as the nested
 `Bash` call whose `command` is the assembled text,
 and that call is refused when the assembled text still holds the unreadable path
 and allowed when it does not.
-Deleting programs other than `rm` (`rmdir`, `unlink`, `shred`, `find -delete`) and
-deletions an interpreter performs (`python3 -c`, `node -e`) are not read at all.
+Deletions an interpreter performs (`python3 -c`, `node -e`) are not read at all.
 The shared analyzer README lists the rest.
+
+### Globs and the home-folder tilde stay allowed
+
+The owner answered two questions in the same record:
+globs stay allowed
+("Allow globs"),
+and `~` in a deletion path stays allowed
+("Allow ~"),
+although an empty `HOME` turns `~/x` into `/x`.
+So `rm -rf build/*` and `rm -rf ~/temp/scratch` are not refused here.
+
+[the-record]: ../../../doc/decision/literal-rm-guard-in-claude-code-and-pi.md
 
 ## Mutating real-Git paths
 

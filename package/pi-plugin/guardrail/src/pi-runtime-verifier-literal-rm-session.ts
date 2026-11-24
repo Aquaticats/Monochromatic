@@ -69,6 +69,11 @@ const VIOLATING_SCRIPT_NAME = 'violating.sh';
 const LITERAL_SCRIPT_NAME = 'literal.sh';
 
 /**
+ Script the session writes, whose deletion collapses to the filesystem root.
+ */
+const COLLAPSED_SCRIPT_NAME = 'collapsed.sh';
+
+/**
  Notes file a code-mode script reads a command out of.
  */
 const COMMAND_FILE_NAME = 'command.txt';
@@ -198,6 +203,14 @@ function scriptedCalls(): readonly ScriptedToolCall[] {
       toolName: BASH_TOOL_NAME,
       arguments: { command: `rm --recursive ${join(DELETION_TARGET,)}`, },
     },
+    {
+      toolName: BASH_TOOL_NAME,
+      arguments: { command: 'rmdir -p "$d"', },
+    },
+    {
+      toolName: BASH_TOOL_NAME,
+      arguments: { command: 'rm -rf /home', },
+    },
     //endregion The Bash surface
 
     //region The write surface
@@ -213,6 +226,13 @@ function scriptedCalls(): readonly ScriptedToolCall[] {
       arguments: {
         path: LITERAL_SCRIPT_NAME,
         content: `#!/bin/sh\nrm --recursive ${join(DELETION_TARGET,)}\n`,
+      },
+    },
+    {
+      toolName: WRITE_TOOL_NAME,
+      arguments: {
+        path: COLLAPSED_SCRIPT_NAME,
+        content: '#!/bin/sh\nrm -rf /\n',
       },
     },
     {
@@ -404,6 +424,7 @@ async function openLiteralRmSession({
 //endregion Session construction
 
 export {
+  COLLAPSED_SCRIPT_NAME,
   COMMAND_FILE_NAME,
   CODEMODE_TOOL_NAME,
   DELETION_TARGET,

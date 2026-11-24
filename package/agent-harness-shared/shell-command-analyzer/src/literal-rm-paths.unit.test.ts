@@ -13,11 +13,17 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  FIND_DELETE_ACTION,
   findLiteralRmPaths,
   findLiteralRmPathsInScriptFile,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer';
 
 //region Fixtures
+
+/**
+ Home folder the fixtures are judged against, so no case depends on this account.
+ */
+const FIXTURE_HOME = '/home/user';
 
 /**
  The two lines of the script a subagent wrote to route around this rule.
@@ -111,7 +117,7 @@ const PATH_SUPPLIED_RM_COMMANDS: readonly string[] = [
 ];
 
 /**
- Commands whose `rm` writes every path out, which must stay allowed.
+ Commands whose deletion writes every path out, which must stay allowed.
  */
 const LITERAL_PATH_COMMANDS: readonly string[] = [
   'rm --recursive /home/user/temp/agent/build-literal-rm-guard/scratch',
@@ -126,6 +132,11 @@ const LITERAL_PATH_COMMANDS: readonly string[] = [
   String.raw`rm -rf file\ name.txt`,
   'rm',
   'rm --version',
+  'rmdir /home/user/temp/agent/x',
+  'rmdir -p /home/user/temp/agent/x/y',
+  'unlink /home/user/temp/agent/x/f',
+  'shred -u /home/user/temp/agent/x/f',
+  'find /home/user/temp/agent/x -name \'*.log\' -print',
 ];
 
 /**
@@ -143,14 +154,59 @@ const SUBCOMMAND_RM_COMMANDS: readonly string[] = [
 ];
 
 /**
- Deleting programs this guard does not read yet, kept allowed until the owner decides.
+ Commands of the rest of the deletion family that name a computed target.
  */
-const NOT_READ_DELETING_COMMANDS: readonly string[] = [
-  'rmdir "$d"',
-  'unlink "$d"',
-  'shred -u "$d"',
+const DELETION_FAMILY_COMMANDS: readonly { readonly source: string; readonly word: string; }[] = [
+  { source: 'rmdir "$d"', word: '"$d"', },
+  { source: 'rmdir -p "$d"', word: '"$d"', },
+  { source: 'unlink "$f"', word: '"$f"', },
+  { source: 'shred -u "$f"', word: '"$f"', },
+  { source: 'shred -n 3 -s 10 "$f"', word: '"$f"', },
+  { source: 'sudo rmdir "$d"', word: '"$d"', },
+  { source: 'env unlink "$f"', word: '"$f"', },
+  { source: 'timeout 5 shred -u "$f"', word: '"$f"', },
+  { source: '/usr/bin/rmdir "$d"', word: '"$d"', },
+  { source: 'bash -c \'rmdir "$d"\'', word: '"$d"', },
+  { source: 'eval \'unlink "$f"\'', word: '"$f"', },
+  { source: 'f(){ shred -u "$f"; }; f', word: '"$f"', },
+  { source: 'printf \'%s\' "$d" | xargs rmdir', word: 'rmdir', },
+  { source: String.raw`find . -exec unlink {} \;`, word: 'unlink', },
+];
+
+/**
+ Commands whose `find` deletes the paths it found, whatever the starting points spell.
+ */
+const FIND_DELETE_COMMANDS: readonly string[] = [
+  'find /home/user/temp/agent/x -delete',
   'find . -name build -delete',
-  'printf \'%s\' "$d" | xargs rmdir',
+  'find /home/user/temp/agent/x -name \'*.log\' -delete',
+  'find . -delete -print',
+  'env find . -delete',
+  'bash -c \'find . -delete\'',
+];
+
+/**
+ Deletions whose target collapsed to a broader path than it looks like.
+ */
+const COLLAPSED_TARGET_COMMANDS: readonly { readonly source: string; readonly word: string; }[] = [
+  { source: 'rm -rf /', word: '/', },
+  { source: 'rm -rf "/"', word: '"/"', },
+  { source: 'rm -rf /home/user', word: '/home/user', },
+  { source: 'rm -rf /home/user/', word: '/home/user/', },
+  { source: 'rm -rf /home', word: '/home', },
+  { source: 'rm -rf /usr', word: '/usr', },
+  { source: 'rm -rf //home/user/x', word: '//home/user/x', },
+  { source: 'rm -rf /home/user//x', word: '/home/user//x', },
+  { source: 'rm -rf /home/user/undefined/x', word: '/home/user/undefined/x', },
+  { source: 'rm -rf /home/user/null', word: '/home/user/null', },
+  { source: 'rmdir /', word: '/', },
+  { source: 'rmdir -p /home/user', word: '/home/user', },
+  { source: 'unlink /home', word: '/home', },
+  { source: 'shred -u /home/user/undefined', word: '/home/user/undefined', },
+  { source: 'rm -rf -- /home', word: '/home', },
+  { source: 'sudo rm -rf /home', word: '/home', },
+  { source: 'bash -c \'rm -rf /\'', word: '/', },
+  { source: 'rm -rf / "unterminated', word: '/', },
 ];
 
 /**
@@ -180,7 +236,10 @@ const PROSE_COMMANDS: readonly string[] = [
  ```
  */
 function offendingWords(source: string,): readonly string[] {
-  return findLiteralRmPaths({ source, },)
+  return findLiteralRmPaths({
+    source,
+    homeFolder: FIXTURE_HOME,
+  },)
     .map(function wordOf(finding,): string {
       return finding.word;
     },);
@@ -322,12 +381,51 @@ await describe({
               return it({
                 name: `refuses \`${source}\``,
                 fn: async function testSuppliedPathCommand() {
-                  expect(offendingWords(source,),).toEqual(['rm',],);
+                  expect(offendingWords(source,),).toContain('rm',);
                 },
               },);
             },),
         },),
         //endregion Paths supplied from outside
+
+        //region The deletion family
+        describe({
+          name: 'a deletion program beside rm',
+          children: DELETION_FAMILY_COMMANDS
+            .map(function deletionFamilyCommand(fixture,) {
+              return it({
+                name: `refuses \`${fixture.source}\``,
+                fn: async function testDeletionFamilyCommand() {
+                  expect(offendingWords(fixture.source,),).toContain(fixture.word,);
+                },
+              },);
+            },),
+        },),
+        describe({
+          name: 'a find that deletes what it found',
+          children: FIND_DELETE_COMMANDS
+            .map(function findDeleteCommand(source,) {
+              return it({
+                name: `refuses \`${source}\``,
+                fn: async function testFindDeleteCommand() {
+                  expect(offendingWords(source,),).toContain(FIND_DELETE_ACTION,);
+                },
+              },);
+            },),
+        },),
+        describe({
+          name: 'a target that collapsed to a broader path',
+          children: COLLAPSED_TARGET_COMMANDS
+            .map(function collapsedTargetCommand(fixture,) {
+              return it({
+                name: `refuses \`${fixture.source}\` naming \`${fixture.word}\``,
+                fn: async function testCollapsedTargetCommand() {
+                  expect(offendingWords(fixture.source,),).toContain(fixture.word,);
+                },
+              },);
+            },),
+        },),
+        //endregion The deletion family
 
         //region Here-document bodies
         describe({
@@ -422,14 +520,6 @@ await describe({
               return it({
                 name: `allows \`${source}\``,
                 fn: async function testSubcommandCommand() {
-                  expect(offendingWords(source,),).toEqual([],);
-                },
-              },);
-            },),
-            ...NOT_READ_DELETING_COMMANDS.map(function notReadCommand(source,) {
-              return it({
-                name: `allows \`${source}\`, which this guard does not read yet`,
-                fn: async function testNotReadCommand() {
                   expect(offendingWords(source,),).toEqual([],);
                 },
               },);
