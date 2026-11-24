@@ -96,9 +96,21 @@ and
 every query and fragment value (`package/git-policy/cli/src/native/lfs/lfs_output_mask.rs`;
 the rule is stated in `package/git-policy/cli/SPEC.md`,
 "An LFS upload").
-What it still cannot hide is a token made of lowercase letters alone,
-which reads as a path label;
-whether the whole path of an LFS URL should be hidden instead is an open question for the owner.
+Since 2026-11-24 a path segment of 20 characters or fewer of letters,
+digits and the separators `-`,
+`.`,
+`_` and `~` prints as written,
+whatever its case,
+and a longer segment,
+or one carrying a percent encoding or another punctuation mark,
+is hidden
+(`doc/decision/memory-settings-persist-and-lfs-url-mask-shows-short-segments.md`,
+"Short path segments stay shown in a relayed git-lfs line").
+What it still cannot hide is a token of that length and shape in a path,
+which reads as a label and prints;
+the owner accepted that cost when choosing the rule on 2026-11-24,
+and it is wider than the cost of the earlier answer of 2026-11-19,
+which hid a segment as soon as an unbroken run of 20 lowercase letters sat in it.
 `git-lfs`'s own `.git/lfs/logs/*.log` files are outside the wrapper and still hold the URL it used.
 
 ## Inventory of every copy (paths and counts; nothing edited or deleted)
