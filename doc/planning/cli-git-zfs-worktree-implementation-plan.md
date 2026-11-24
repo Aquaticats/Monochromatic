@@ -1821,6 +1821,30 @@ its skip arms and its own deadline,
 by the project's answer of 2026-11-21;
 and the resume states and `ENOSPC` behavior.
 
+Three of the owner's answers of 2026-11-24 add work to this step
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`):
+
+- choice 1's answer E,
+  the add's gate reads the root-owned record a root command writes,
+  serves only the checkout that record names,
+  and refuses a dataset swapped in under the same name,
+  which makes the record's path and dataset the pair the gate judges,
+  so the own-root comparison the section
+  "The checkout path must be its dataset's own mount point" of
+  `doc/planning/cli-git-zfs-step-10-open-choices.md` describes belongs here;
+- choice 2's answer 2C,
+  the preflight reads a standing removal plan's head word and whether a child
+  of the container still carries the clone,
+  and prints the one command that pair allows;
+- choice 3's answer 3C,
+  the grant judgement splits,
+  refusing on the six permissions the add uses and warning,
+  with the `zfs allow` command,
+  on the other three.
+
+The root command that writes the record is step 19's,
+and the split's move is step 11's.
+
 #### Design sections
 
 "Add and Git registration";
@@ -2009,6 +2033,14 @@ It is the verified dirty restore the design decided
 ("Dirty source on rung 1" under "Project decisions",
 "Verified restore (Recommended)"),
 and the owner's answer "Ship step 10 first (Recommended)" puts it after step 10.
+
+Choice 3's grant split moves here,
+by the owner's answer of 2026-11-24
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`):
+this step's failure path then destroys the clone and the origin snapshot,
+so the add itself uses both `destroy` grants,
+the six permissions step 10 refuses on become eight,
+and the group table step 10 keeps is rewritten here.
 
 #### Design sections
 
@@ -2654,21 +2686,41 @@ the checkout dataset and the clone container,
 so no person edits that file by hand
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "The datasets the sweep acts on").
+The root recording command choice 1's answer E asks for
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`):
+run once per repository as root,
+it proves the checkout's path,
+dataset and GUID,
+the container and the pool,
+and writes them to the record the add's gate reads,
+refusing rather than writing a name the pool does not answer for.
 Step 8's handler reads them and,
 for each entry the file leaves out,
 finds what that entry would have named;
 the setup's file is the preferred reading,
 not the condition of the route ([the plan's step 8](#where-the-checkout-and-the-datasets-are-found)).
-None of this runs on this host.
-Applying the migration,
-the immutable flag,
+The migration of steps 12,
+18 and 19,
+and the `canmount=noauto` change on `zpcachyos/nosnap/vm-builder-output`,
+is the agent's act on the owner's authorisation,
+by the owner's answer of 2026-11-24
+(`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`).
+The agent runs it itself,
+with sudo,
+at a time it chooses when no process has the checkout open,
+because every Claude Code and Pi session works inside the checkout the
+migration moves.
+It runs after steps 14 to 16,
+so every worktree the route makes on this machine can be removed with the
+wrapper from the first day.
+The immutable flag,
 the units,
 the zedlet,
 `zfs allow`,
-`zfs set`,
+`zfs set` beyond that one change,
 `sanoid.conf`,
-property changes on existing datasets,
-or any reboot here is the owner's act on the owner's authorisation,
+property changes on other existing datasets,
+or any reboot here stays the owner's act,
 printed by `doctor` and never run by this step.
 The reboot this step's arms perform is the guest's.
 
@@ -2745,7 +2797,14 @@ Steps 5,
 7,
 8,
 9,
-12 and 18.
+12,
+14,
+15,
+16 and 18.
+Steps 14 to 16 are the owner's order of 2026-11-24,
+not a dependency the migration's own code has:
+the migration makes the route reach a person,
+and a worktree the route makes can be removed only once removal exists.
 
 ### Step 20: Sanoid coverage, the exclusions and the guard's report
 
