@@ -78,6 +78,22 @@ const EXPECTED_SWEEP_MEASUREMENTS = [
   'MEASUREMENT child-bound-listing-ms=',
 ] as const;
 
+/** The lines a run must find in the guest's unmount-arm log, one per staging arm plan step 9 runs. */
+const EXPECTED_UNMOUNT_MARKERS = [
+  'UNMOUNT attached clone=',
+  'UNMOUNT plain=unmounted receipt=done destroy=ok',
+  'UNMOUNT busy=reattached holder=ended',
+  'UNMOUNT reattach-then-unmounted=true',
+  'UNMOUNT two-at-once=both-unmounted',
+  'UNMOUNT handle-reopened=true',
+  'UNMOUNT kill=staged finished=unmounted',
+  'UNMOUNT kill=between-unmounts finished=unmounted',
+  'UNMOUNT kill=bind-over-slot finished=unmounted',
+  'UNMOUNT kill=none finished=unmounted',
+  'UNMOUNT kill-points=done',
+  'UNMOUNT done',
+] as const;
+
 /** The checkout the sweep arms walk inside the guest, under the guest's own root. */
 const SWEEP_CHECKOUT = '/root/sweep-checkout';
 
@@ -275,6 +291,7 @@ async function run(chosen: Options): Promise<void> {
     throw new Error('the pulled arm log holds a SKIPPED line, so the adoption arm did not run');
   publicationFsync({ chosen, });
   sweepArms({ chosen, });
+  unmountArms({ chosen, });
 }
 
 /**
@@ -356,6 +373,12 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
   const script = [
     'set -eu',
     `export PATH=${OPENZFS_PATH}`,
+    `for slot in ${SWEEP_CHECKOUT}/.claude/worktrees/*; do umount --force "$slot" 2>/dev/null || true; done`,
+    `umount --force ${SWEEP_CHECKOUT} 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-bound 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-encrypted 2>/dev/null || true`,
+    `zfs destroy --recursive --force ${SWEEP_POOL}/step8-foreign 2>/dev/null || true`,
     `rm --recursive --force ${SWEEP_CHECKOUT}`,
     `mkdir --parents ${SWEEP_CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
@@ -383,6 +406,44 @@ function sweepArms({ chosen, }: { readonly chosen: Options; }): void {
   for (const marker of EXPECTED_SWEEP_MARKERS) {
     if (!pulled.includes(marker))
       throw new Error(`the pulled sweep-arm log lacks ${marker}; the guest ran the arm without performing it`);
+  }
+}
+
+
+/**
+ Drive plan step 9's staging mechanics in the same guest: the record before the bind, the private bind, a mount moved onto it, the later sweep from the record's handle, a record from another boot, and the cleanup's allowed and rejected fixtures.
+
+ The arm makes a tmpfs stand in for a clone, because the design's ZFS layout arms and M1 to M9 remain owed; it runs the built module's calls, the record and the sweep, and it prints one marker per arm.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function unmountArms({ chosen, }: { readonly chosen: Options; }): void {
+  const script = [
+    'set -eu',
+    `cd ${CRATE_DIR}/package/git-policy/cli`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export CLI_GIT_ZFS_UNMOUNT_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
+    'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
+    `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      `--filterset "test(zfs_unmount_guest)" > /root/unmount-arm.log 2>&1; then status=0; else status=$?; fi`,
+    'tail --lines=60 /root/unmount-arm.log',
+    'test "$status" = 0',
+    `if grep --quiet '^SKIPPED' /root/unmount-arm.log; then echo 'the unmount arm returned without running'; exit 1; fi`,
+    ...EXPECTED_UNMOUNT_MARKERS.map(function markerLine(marker) {
+      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/unmount-arm.log`;
+    }),
+    'cp /root/unmount-arm.log /mnt/shared/unmount-arm.log',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-unmount.log', timeout: ARM_TIMEOUT_MS * 2, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/unmount-arm.log', join(chosen.logDir, 'unmount-arm.log'),], log: 'host-pull-unmount.log', });
+  const pulled = readFileSync(join(chosen.logDir, 'unmount-arm.log'), 'utf8');
+  for (const marker of EXPECTED_UNMOUNT_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the pulled unmount-arm log lacks ${marker}; the guest ran the arm without performing it`);
   }
 }
 

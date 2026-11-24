@@ -97,6 +97,25 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+From lines 37014 to 37027 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Its nine questions for the owner,
+not yet asked:
+under `trustLockfile = true` with base `HEAD` a committed merge's lockfile is already base,
+so cases 1 and 2 do not fire locally (compare with upstream,
+check every entry locally,
+or keep);
+release age versus trust under `trustLockfile`;
+CI still warns and runs `--locked` on a refusal;
+the window between cargo writing the live lockfile and the checks;
+the restore read-then-rename gap;
+strict cutoff with exemptions;
+`--breaking` sync failure;
+a killed `--breaking` run's manifests;
+whether the trust line must name the publisher account.
+
 ## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
 
 Each is built and in main;
@@ -872,3 +891,11 @@ Ranking: C > A > B > D. C over A because the dirty path is the common one here, 
 its saving on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
 D because D leaves the design for a guessed threshold. The round's report, with every measurement:
 `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.
+
+## Moved from the old handover
+
+From lines 46556 to 46556 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.

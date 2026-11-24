@@ -26,11 +26,20 @@
 use super::sweep_attach_step::{AttachStepOutcome, VERIFY_STEP};
 use super::sweep_clone_check::{CloneRefusal, VerifiedClone, slot_of};
 use super::sweep_dataset_facts::CloneObjectFacts;
-use super::sweep_one_clone::{CloneOutcome, RECEIPT_STEP, SweepContext, UNMOUNT_AWAITS_STEP_NINE};
+use super::sweep_one_clone::{CloneOutcome, RECEIPT_STEP, SweepContext};
 use crate::diagnostic_log::{debug, warn};
 use crate::start_probe::first_attach_record::{FirstAttachClaim, FirstAttachOutcome, NONE as FIRST_ATTACH_NONE};
-use crate::worktree_clone_mount::{LookAgainAtSlotRequest, MountIdentity, mount_facts_of};
+use crate::worktree_clone_mount::{LookAgainAtSlotRequest, MountIdentity, SlotIdentityStore, look_again_at_the_slot, mount_facts_of};
 use crate::worktree_clone_mount_protocol::{CloneMountReceipt, IntentReading, MountIntent, ReceiptMountIdentity, ReceiptOutcome, read_intent};
+use crate::worktree_clone_unmount::slot_walk_calls::LiveSlotWalk;
+use crate::worktree_clone_unmount::staged_folder_identity::StagedFolderIdentity;
+use crate::worktree_clone_unmount::staging_calls::LiveStagingCalls;
+use crate::worktree_clone_unmount::unmount_checks::ExpectedMount;
+use crate::worktree_clone_unmount::staged_unmount::recover_a_staged_unmount;
+use crate::worktree_clone_unmount::unmount_turn::{unmount_the_clone, UnmountOutcome, UnmountRequest};
+use crate::worktree_clone_unmount::user_cache_pin::{open_cache, passwd_home_of, read_pin, UserCachePin, USER_CACHE_PIN_PATH};
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 
 /// Module tag for diagnostics.
 const TAG: &str = "sweepOneCloneAnswers";
@@ -114,14 +123,88 @@ fn the_key_refusals_receipt(context: &SweepContext<'_>, facts: &CloneObjectFacts
 /// ```ts
 /// const outcome = answerUnmount(verified, request);
 /// ```
-pub(super) fn answer_unmount(verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
-    let said: String = format!(
-        "the clone `{}` asks for its mount to be unmounted under nonce {}, and the unmount is plan step 9's, so nothing was taken down and the durable intent stays on the clone",
-        verified.dataset_name,
-        request.nonce.as_str()
+pub(super) fn answer_unmount(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
+    let claim = match context.claims.claim(verified.slot.as_str()) {
+        Ok(claim) => claim,
+        Err(refusal) => return CloneOutcome::Held { name: verified.dataset_name.clone(), slot: verified.slot.clone(), said: refusal.message() },
+    };
+    let outcome: CloneOutcome = answer_unmount_under_the_claim(context, verified, request);
+    claim.release();
+    return outcome;
+}
+
+/// The unmount turn once this clone's slot is claimed,
+/// so two handlers cannot act on one clone.
+fn answer_unmount_under_the_claim(context: &SweepContext<'_>, verified: &VerifiedClone, request: &MountIntent) -> CloneOutcome {
+    let recorded = match SlotIdentityStore::open_under_root_control(context.store).and_then(|store| return store.slot(verified.slot.as_str())) {
+        Ok(recorded) => recorded,
+        Err(refusal) => return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, "slot-identity", refusal.message()),
+    };
+    let owner_uid = match std::fs::metadata(context.checkout) {
+        Ok(facts) => facts.uid(),
+        Err(error) => return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, "account-home", format!("the checkout's owner could not be read: {error}")),
+    };
+    let home = match passwd_home_of(owner_uid) {
+        Ok(home) => home,
+        Err(refusal) => return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, "account-home", refusal.message()),
+    };
+    let cache = match open_cache(home.as_path()) {
+        Ok(cache) => cache,
+        Err(refusal) => return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, "user-cache", refusal.message()),
+    };
+    let pin: UserCachePin = match read_pin(Path::new(USER_CACHE_PIN_PATH)) {
+        Ok(pin) => pin,
+        Err(refusal) => return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, "user-cache-pin", refusal.message()),
+    };
+    let canonical_slot = context.checkout.join(".claude/worktrees").join(verified.slot.as_str());
+    let calls = LiveStagingCalls;
+    let cache_path = home.join(".cache");
+    let recovery = recover_a_staged_unmount(
+        &crate::worktree_clone_unmount::staged_unmount::StagedSweep { cache: &cache, cache_path: cache_path.as_path(), guid: verified.dataset, boot: context.boot, pin: &pin, calls: &calls },
+        canonical_slot.as_path(),
+        0,
     );
-    warn(TAG, said.as_str());
-    return CloneOutcome::Refused { name: verified.dataset_name.clone(), slot: Some(verified.slot.clone()), step: String::from(UNMOUNT_AWAITS_STEP_NINE), said };
+    match recovery {
+        crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::Finished { mount_id } => {
+            return super::sweep_unmount_answers::answer_the_unmount(context, verified, request, UnmountOutcome::Unmounted { mount_id, slot: canonical_slot.clone(), bind_gone: true });
+        }
+        crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::BindRemoved | crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::NotStaged => {}
+        crate::worktree_clone_unmount::staged_unmount::RecoveryOutcome::Refused { step, said } => {
+            return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, step.as_str(), said);
+        }
+    }
+    let fresh = match look_again_at_the_slot(&LookAgainAtSlotRequest { checkout: context.checkout, slot: verified.slot.as_str() }) {
+        Ok(fresh) => fresh,
+        Err(refusal) => return super::sweep_unmount_answers::refuse_an_unmount(context, verified, request, "look-again", refusal.message()),
+    };
+    let expected = ExpectedMount {
+        mount_id: fresh.mount_id,
+        parent_mount_id: fresh.parent_mount_id,
+        device: fresh.slot_identity.device,
+        inode: fresh.slot_identity.inode,
+        canonical_slot: canonical_slot.clone(),
+        source: verified.dataset_name.clone(),
+        guid: verified.dataset,
+    };
+    let slot_identity: StagedFolderIdentity = StagedFolderIdentity::from_clone_folder(&recorded);
+    let guids = super::sweep_unmount_answers::HandlerDatasetGuids { reader: context.reader };
+    let walk = LiveSlotWalk;
+    let turn = UnmountRequest {
+        checkout: context.checkout,
+        slot: verified.slot.as_str(),
+        nonce: request.nonce.as_str(),
+        expected: &expected,
+        slot_identity: &slot_identity,
+        pin: &pin,
+        cache: &cache,
+        cache_path: cache_path.as_path(),
+        boot: context.boot,
+        calls: &calls,
+        walk: &walk,
+        guids: &guids,
+    };
+    let outcome: UnmountOutcome = unmount_the_clone(&turn);
+    return super::sweep_unmount_answers::answer_the_unmount(context, verified, request, outcome);
 }
 
 /// What:
@@ -376,7 +459,7 @@ fn file_a_failure(context: &SweepContext<'_>, verified: &VerifiedClone, said: St
 /// ```ts
 /// const receipt = receiptOf(context, verified, request, 'done', mount, undefined, undefined);
 /// ```
-fn receipt_of(
+pub(super) fn receipt_of(
     context: &SweepContext<'_>,
     verified: &VerifiedClone,
     request: &MountIntent,

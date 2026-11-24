@@ -594,6 +594,38 @@ fn a_handed_over_worktree_is_recorded_before_it_is_told() {
 }
 
 /// What:
+///  The warning a removal prints when the service that reads its record was not told names
+///  the two commands that finish the removal,
+///  each with the path the record names.
+/// Why:
+///  A person who misses the warning has only its words to learn from:
+///  only `git commit` wakes the service that runs the record,
+///  and `git worktree remove` of the same path removes the worktree now,
+///  so a line that names neither,
+///  or names one command with the path of another directory,
+///  leaves them waiting or sends them to the wrong worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// notWokenWarning(target, 'the service could not be reached') // one line naming `git commit`, `git worktree remove <target>`
+/// ```
+#[test]
+fn the_warning_of_a_removal_the_service_was_not_told_names_both_commands_and_its_path() {
+    let root: PathBuf = fixture("worktree-removal-not-woken-warning");
+    let target: PathBuf = root.join(".claude").join("worktrees").join("x");
+    let line: String = not_woken_warning(target.as_path(), "the service could not be reached");
+    assert!(
+        line.starts_with(format!("the removal of {} is recorded and not woken (the service could not be reached). ", target.display()).as_str()),
+        "the line says what happened to the removal, with the path it names: {line}"
+    );
+    assert!(line.contains("Your next `git commit` here finishes it"), "the line names the commit that finishes the removal: {line}");
+    assert!(
+        line.contains(format!("`git worktree remove {}` removes it now", target.display()).as_str()),
+        "the line names the worktree the record names, so the command runs over that directory and no other: {line}"
+    );
+}
+
+/// What:
 ///  The service's own call removes the worktree a record names,
 ///  with the registration,
 ///  its shadow pool and its files,

@@ -709,6 +709,20 @@ of the port is checked against the source,
 not against a running Git;
 the fixtures cannot turn it on.
 
+From lines 36171 to 36179 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Owner:
+"Can't we skip the git reset?"
+Answer:
+the index entries must be updated (or the next commit reverts the committed paths),
+but no Git needs to run for it.
+Agent on `perf/git-policy-cli-follow-up-index-in-process` writes the committed entries in process,
+as `builtin/commit.c` does for a partial commit,
+and answers the merge's `diff-index` check in process,
+with differential tests against real Git and a measured before and after.
+
 ## Left to the owner
 
 - Git's monitor and the three-to-one gap:

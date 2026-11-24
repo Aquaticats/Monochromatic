@@ -607,6 +607,14 @@ what it does not show is that they prevent a repeat.
 
 No such comparison has been made.
 This is the one that would settle it.
+A start read of a lighter load was taken at 2026-11-23T19:26:55-05:00,
+with both settings in force:
+four guests,
+one whole container gate,
+and Rust builds inside several Pi rounds
+(`counters-at-the-start-of-the-load-of-2026-11-23-evening.txt` in
+`~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`).
+Its end read is owed when the gate ends.
 
 Take the same reads at the start and at the end of a load comparable to 2026-11-22's:
 6 guests,
@@ -647,9 +655,13 @@ These would not count as success:
 ## Workarounds applied at runtime and measured once without verification
 
 Nothing in this document is a verified workaround.
-The two settings were applied at runtime on 2026-11-22 and are still in force
-(`sysctl vm.watermark_scale_factor` reads 125 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` reads 1000,
-both read on 2026-11-23 on the same boot).
+The two settings were applied at runtime on 2026-11-22.
+The machine's restarts on the morning of 2026-11-23 returned them to their boot values:
+at 2026-11-23T19:2x-05:00 `sysctl vm.watermark_scale_factor` read 10 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` read 100.
+The coordinating session applied both again with the commands under each heading,
+since the owner's answer keeps both in force until a load like 2026-11-22's has been seen,
+and read them back at 2026-11-23T19:26:27-05:00:
+125 and 1000.
 They have been measured once,
 under a lighter load,
 and the comparison that would show their effect does not exist.
@@ -707,9 +719,24 @@ Revert with `echo 100 | sudo --non-interactive tee /sys/kernel/mm/lru_gen/min_tt
 
 This is a runtime value under `/sys` rather than a sysctl key,
 and a reboot starts it again from the kernel's boot value.
-With no writer in `/usr/lib` or `/etc`,
-the boot value is the documented default of 0,
-so reverting to 100 is not reverting to the boot value.
+That boot value is 100 on this kernel,
+not the documented default of 0:
+it read 100 after the restarts of 2026-11-23.
+What sets it is not found.
+The kernel command line names no `lru_gen` parameter.
+`/proc/config.gz` carries no default for it:
+its only matching lines are `CONFIG_LRU_GEN=y`,
+`CONFIG_LRU_GEN_ENABLED=y`
+and `CONFIG_LRU_GEN_WALKS_MMU=y`.
+A search for `min_ttl_ms` found no file in
+`/etc`,
+`/usr/lib/systemd`,
+`/usr/lib/udev`,
+`/usr/share`
+or `/usr/bin`,
+though it skipped files it could not read.
+A patch in the distribution's kernel is the place not yet read.
+So reverting to 100 is reverting to the boot value.
 At 100 the machine's valve was a tenth of a second;
 at 1000 the kernel documentation's sentence applies:
 "The OOM killer is triggered if this working set cannot be kept in memory",
@@ -892,6 +919,23 @@ Each of these is a question with the measurement that answers it.
     Measure:
     run one gate alone with the guests stopped,
     reading `memory.swap.current` per cgroup and zram's DATA before and after.
+    Partly answered on 2026-11-23:
+    a gate's fixture file system is one `tmpfs` per suite container,
+    mounted `rw,size=768m,mode=1777`
+    (`package/git-policy/cli/bin/native-gate-fixture-root.ts`,
+    whose own comment says its pages count against the container's memory),
+    so one gate's fixtures hold at most 768 MiB,
+    resident or swapped.
+    One reading of a whole gate on `main` (run `native-RxZa1T`,
+    at test 9,320 of 9,957,
+    other sessions' guests and rounds running)
+    found the suite container's cgroup at 277 MiB,
+    77 MiB of it swapped and 76 MiB of it `shmem`
+    (`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/gate-container-memory-native-RxZa1T-reading-1.jsonl`,
+    read by `read-a-gate-runs-container-memory.ts` beside it).
+    That is one reading late in a run,
+    not the gate's peak,
+    and how many gates ran at the freeze is not recorded here.
 5.  Where did `min_ttl_ms = 100` come from?
     Measure:
     search every source that can set it (`/usr/lib` and `/etc` `tmpfiles.d`,
@@ -1176,3 +1220,25 @@ and this document recommends against it.
 [pr-138]: https://github.com/CachyOS/CachyOS-Settings/pull/138
 [pull-30]: https://github.com/CachyOS/CachyOS-Settings/pull/30
 [thp-conf]: https://github.com/CachyOS/CachyOS-Settings/blob/7de0e214f4fa0daa697f8133c29f5f67acdf95fd/usr/lib/tmpfiles.d/thp.conf#L3
+
+## Moved from the old handover
+
+From lines 43501 to 43503 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  facts read at 2026-11-22T15:50-05:00, for whoever reads a guest timing: swap is zram (61.7 G, 36 G used) at
+  `vm.swappiness` 150; three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G); the ZFS cache was at
+  2.1 G of 60.7 G; memory pressure about 4 percent; 30 processors at a load of 17 to 25. Three notes went to running rounds
+
+From lines 43553 to 43559 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  newer in its guest, since every guest figure of this branch so far is from 2.43.0. MORE RUNS AT ONCE: the owner asked "Can
+  we parallelize more?" after the 6344 round's start. Measured between then and 2026-11-22T17:16:54-05:00: eight Pi runs and
+  one Sonnet check going against a standard pool that takes 20; 29 GiB of memory available; three guests of 8 GiB each
+  (mvm's default) holding 2.5 GiB resident and 30 GiB of swap in a unit capped at 33 GiB; swap 44 of 63 GiB used (zram held
+  35.1 GB in 12.7 GB); load 19 to 27 on 30 processors. What held work back was the order of work and not the machine: none
+  of the designs the plan marks as blocking steps 10 to 19 was written. Step 10's "Depends on" (steps 2, 3, 6 and 8) is
+  met, but its "Open items" block it on the add-time Git lock, and its binding record has no home (plan lines 1479 and 2864

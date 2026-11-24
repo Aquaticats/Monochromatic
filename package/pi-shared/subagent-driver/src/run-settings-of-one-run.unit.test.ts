@@ -24,8 +24,11 @@ import {
   IDLE_SECONDS_OF_A_RUN,
   GitCommandFailedError,
   NEURALWATT_STANDARD,
+  NEURALWATT_KIMI_FLEX,
   NO_FINISHED_RUN,
   NO_WORKTREE_BRANCH,
+  OPENCODE_GO,
+  POOL_LIMITS_VARIABLE,
   RUNS_OF_ONE_KIND_TO_TRUST,
   SessionFileUnreadableError,
   TURN_CAP_MARGIN,
@@ -394,6 +397,60 @@ await describe({
               turnCap: 1,
               session: '/sessions/a.jsonl',
             },).words,).toContain('--session=/sessions/a.jsonl',);
+          },
+        },),
+        it({
+          name: 'carries the pool limits a caller set into the unit, and carries none when the caller set none',
+          fn: async () => {
+            /**
+             What starting one run answers when the caller reopened a pool for it, which the driver inside the unit reads again.
+             */
+            const reopened = unitCommandOf({
+              runName: 'a',
+              cpuPercent: 1,
+              memory: '1G',
+              taskCount: 1,
+              wallSeconds: 1,
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              poolLimits: `${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`,
+              node: '/bin/node',
+              driverEntry: '/pkg/src/drive-pi-subagent.ts',
+              runFolder: '/runs/a-2',
+              workingFolder: '/repo',
+              promptFile: '/runs/a-prompt.md',
+              provider: NEURALWATT_KIMI_FLEX.provider,
+              model: NEURALWATT_KIMI_FLEX.model,
+              idleSeconds: 1,
+              turnCap: 1,
+            },);
+            // The variable arrives as an environment word of the unit, before the program it starts: a unit inherits nothing from
+            // the shell that asked for it, so this word is the whole of what the driver can read there.
+            expect(reopened.words,).toContain(`--setenv=${POOL_LIMITS_VARIABLE}=${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`,);
+            expect(reopened.words.indexOf(`--setenv=${POOL_LIMITS_VARIABLE}=${NEURALWATT_KIMI_FLEX.name}=${String(NEURALWATT_KIMI_FLEX.limit,)}`,),)
+              .toBeLessThan(reopened.words.indexOf('/bin/node',),);
+            // A caller that set no limits gets no such word, so a unit never carries an empty setting of its own making.
+            expect(reopened.words.filter(function isTheLimitsWord(word,) {
+              return word.startsWith(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
+            },).length,).toBe(1,);
+            expect(unitCommandOf({
+              runName: 'a',
+              cpuPercent: 1,
+              memory: '1G',
+              taskCount: 1,
+              wallSeconds: 1,
+              pathOfMiseEnvironment: '/bin',
+              home: '/home/a',
+              node: '/bin/node',
+              driverEntry: '/pkg/src/drive-pi-subagent.ts',
+              runFolder: '/runs/a-2',
+              workingFolder: '/repo',
+              promptFile: '/runs/a-prompt.md',
+              provider: OPENCODE_GO.provider,
+              model: OPENCODE_GO.model,
+              idleSeconds: 1,
+              turnCap: 1,
+            },).words,).not.toContain(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
           },
         },),
         it({
@@ -849,6 +906,7 @@ await describe({
               wallSeconds: 7_200,
               provider: NEURALWATT_STANDARD.provider,
               model: NEURALWATT_STANDARD.model,
+              namedByTheCommandLine: { provider: false, model: false, },
               idleSeconds: 0,
               runsFolder: join(process.env.HOME ?? '', 'temp', 'agent', 'pi-runs',),
               checkoutFolder: '/repo',
@@ -891,10 +949,33 @@ await describe({
               session: '/s.jsonl',
               provider: 'opencode-go',
               model: 'deepseek-v4.1-flash',
+              namedByTheCommandLine: { provider: true, model: true, },
               turnCap: 40,
               idleSeconds: 5,
               runsFolder: '/runs',
               checkoutFolder: '/elsewhere',
+            },);
+          },
+        },),
+        it({
+          name: 'reads a command line that names only a model as naming that model, and keeps it beside the default provider',
+          fn: async () => {
+            expect(parseWorktreeLauncherOptions({
+              commandLine: [
+                '--name=a',
+                '--branch=none',
+                '--prompt=p.md',
+                '--cpu=8',
+                '--memory=1G',
+                '--tasks=10',
+                '--wall=60',
+                `--model=${NEURALWATT_KIMI_FLEX.model}`,
+              ],
+              checkoutFolder: '/repo',
+            },),).toMatchObject({
+              provider: NEURALWATT_STANDARD.provider,
+              model: NEURALWATT_KIMI_FLEX.model,
+              namedByTheCommandLine: { provider: false, model: true, },
             },);
           },
         },),

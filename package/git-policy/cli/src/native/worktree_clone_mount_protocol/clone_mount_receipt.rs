@@ -75,7 +75,7 @@ pub const MAXIMUM_BOOT_BYTES: usize = 36;
 pub const MAXIMUM_OPERATION_BYTES: usize = if MOUNT_WORD.len() > UNMOUNT_WORD.len() { MOUNT_WORD.len() } else { UNMOUNT_WORD.len() };
 
 /// The bound one outcome word may use.
-pub const MAXIMUM_OUTCOME_BYTES: usize = 7;
+pub const MAXIMUM_OUTCOME_BYTES: usize = 9;
 
 /// The bound one time may use:
 /// the date,
@@ -157,6 +157,9 @@ pub enum ReceiptOutcome {
     Refused,
     /// A step failed.
     Failed,
+    /// The unmount stopped short and the clone was put back at its slot,
+    /// or the turn refused before it moved anything.
+    Cancelled,
 }
 
 impl ReceiptOutcome {
@@ -166,6 +169,7 @@ impl ReceiptOutcome {
             ReceiptOutcome::Done => "done",
             ReceiptOutcome::Refused => "refused",
             ReceiptOutcome::Failed => "failed",
+            ReceiptOutcome::Cancelled => "cancelled",
         };
     }
 
@@ -175,6 +179,7 @@ impl ReceiptOutcome {
             "done" => Some(ReceiptOutcome::Done),
             "refused" => Some(ReceiptOutcome::Refused),
             "failed" => Some(ReceiptOutcome::Failed),
+            "cancelled" => Some(ReceiptOutcome::Cancelled),
             _ => None,
         };
     }
