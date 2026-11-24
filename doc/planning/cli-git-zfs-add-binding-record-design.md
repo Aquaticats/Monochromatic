@@ -2171,8 +2171,9 @@ A kill leaves the clone's GUID present or absent,
 and the resume proves which before acting.
 Skipped when the entry phase is `registered`,
 or `snapshotted` with no clone at the proposed name,
-and run for a `snapshotted` clone the read recovers that starts the fallback's entry list in "The add's own
-fallback" (U27 of the eighth add-side read).
+and run for a `snapshotted` clone that the fallback's read recovers at the proposed name,
+as the fallback's entry list in "The add's own fallback" states (U27 of the eighth and K12 of the eleventh
+reads).
 
 A23.
 The origin snapshot destroyed from the identities A8 recorded,
@@ -2514,23 +2515,29 @@ with the clone standing or gone:
   and the settling command when the head word is not `gone`,
   in the heading's own words.
 
-For a binding at `filled` whose clone is gone and for which no plan stands,
+For a binding at `filled` whose clone is gone,
+whether its absence is proved or cannot be proved,
+and for which no plan stands,
 which a person's own destroy leaves before any removal ran:
 the settling command,
 which is the one command that can act,
 because a removal resumes from a plan and the finish pass is driven by plans (K1 of the ninth).
 
-For a binding at `cloned` or `mounted` whose clone is gone and whose absence is proved,
+For a binding at `cloned` or `mounted` whose clone is gone,
+whether its absence is proved or cannot be proved,
 and for which no plan stands:
 the settling command.
+The unprovable absence is the project's own case for a printed command,
+and without this clause no row named it there while the add refused it and named the section's command,
+so nothing was named (K14 of the eleventh removal-side read).
 The add refuses a phase whose object no longer answers,
 and `settling` is the one phase it continues ("A resumed add"),
 so a `cloned` or `mounted` binding with no clone is the command's (K8 of the tenth removal-side read and U39 of
 the tenth add-side read).
-Whether a gone clone enters the add's fallback is stated once,
-in the fallback's own entry list:
+Whether a gone clone enters the add's fallback is stated here:
 a clone found gone on a resume is not a failure of the add's own step,
-so the fallback is entered by a failing step and not by a resume.
+so the fallback is entered by a failing step and not by a resume,
+and the fallback's entry list admits only "any failure of its own step" (K12 of the eleventh removal-side read).
 
 For a binding at `registered` or `snapshotted`:
 a gone clone has no meaning there,
@@ -3290,8 +3297,11 @@ when the record is:
   a binding at `phase=settling` is the add's,
   its claim was taken at A1 and never released,
   and,
-  while no plan stands for its clone,
+  while no plan for its clone stands,
   the add continues at A20 ("The add's own fallback").
+  A plan standing refuses the add whichever phase its binding is at,
+  `settling` included,
+  which is the plan row's rule for a binding of any phase (K12 of the eleventh).
   A plan standing makes the add refuse and name what the plan design's "Which resume path a removal takes" gives,
   which is this design's addition to that heading (K9 of the tenth removal-side read).
   The add names the record and the one command "Which command is true for a state" gives the state it found.
@@ -3369,8 +3379,9 @@ and reports:
   with a plan standing beside a standing clone it names the removal alone,
   because the add refuses over a plan (N1 of the eleventh add-side read);
 - for a binding at `cloned` or `mounted` whose clone is gone,
-  whose absence is proved and for which no plan stands:
-  the settling command;
+  whether its absence is proved or cannot be proved,
+  and for which no plan stands:
+  the settling command (K14 of the eleventh removal-side read);
 - for a binding at `phase=settling` with no `cloneGuid=`:
   "run the add again at `<slot>`";
 - for a binding at `filled` whose clone is gone and no `settling` phase:
@@ -4565,6 +4576,11 @@ A second success arm plants the same state with the lock already gone,
 and asserts the lock is written again before it is released;
 a third plants a `settling` binding whose absence cannot be proved,
 and asserts the command accepts it and removes its records;
+a further arm plants a binding at `cloned` or `mounted` whose clone is gone,
+whose absence cannot be proved,
+and for which no plan stands,
+and asserts the command accepts it and removes its records,
+which is the state K14 of the eleventh removal-side read names;
 a fourth plants a disagreeing origin record,
 which refuses;
 a fifth plants a `settling` binding after A25 whose slot holds a checkout begun,
@@ -4625,6 +4641,7 @@ one that holds no `cloneGuid=` prints "run the add again at `<slot>`",
 one whose clone stands prints `git worktree remove <slot>`,
 a binding at `filled` whose clone is gone with no plan prints the settling command,
 a binding at `cloned` or `mounted` whose clone is gone with no plan prints the settling command,
+and the same with the pool refusing the listing prints it too,
 a registration whose slot holds no clone mount and whose `.git` names it prints the worktree line and not a missing
 binding,
 and a `filled` binding whose clone is gone with a plan standing prints the plan design's command for the head word
@@ -4793,17 +4810,23 @@ and "The route's record convention" is where this design answers it.
   never the underlay's inode.
   The guest arm that would measure it is the lock design's M2,
   owed there.
-- The destruction plan's "Readers that do not exist" says "The add (plan step 10) reads no plan,
-  and an add writes none".
-  This design's add reads the plan folder,
-  to refuse while a plan stands for its clone and for nothing else,
+- The destruction plan's "Readers that do not exist" now records,
+  in its own words,
+  that the add "reads the plan folder to refuse and for nothing else",
+  writes no plan,
+  stops where a plan names the clone of the binding the add meets,
+  names the plan and the command "Which resume path a removal takes" gives,
+  and acts on nothing.
+  This design's add does that,
   and it writes none.
-  That is a disagreement and not a conflict a record settles:
+  That is one rule in two documents and not a conflict a record settles:
   the read is V24,
-  and the plan design's round is given the paragraph at K9 of the tenth removal-side read,
-  in its "Readers that do not exist",
-  whose heading that design's round is to change now that the section records a reader rather than a reader that
-  does not exist (N7 of the eleventh add-side read).
+  and the paragraph at K9 of the tenth removal-side read is in that section,
+  written at `c54601afd8`.
+  Its heading there no longer fits,
+  since the section records a reader rather than a reader that does not exist,
+  and that design's round is to change it (N7 of the eleventh add-side read and K12 of the eleventh removal-side
+  read).
   The five readers of the folder are named in "Which command is true for a state".
 - The destruction plan keys its record by the clone's GUID and keeps no pointer inside a registration
   (its "What finds a plan",
@@ -5822,7 +5845,8 @@ Whether an add refuses while a destruction plan stands for its clone.
   Cons:
   an add that could have finished stops for a plan,
   and the add becomes a reader of another design's folder,
-  which that design's "Readers that do not exist" now records rather than denies.
+  which that design's section records rather than denies,
+  as its heading there no longer fits (K12 of the eleventh).
 - B,
   it continues and closes its binding,
   as an earlier revision did.
