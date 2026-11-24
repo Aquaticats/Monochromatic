@@ -24,7 +24,8 @@
 //! ```
 
 use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
-use crate::worktree_clone_slot_state::slot_state_next_actions::{evidence, next_safe_action};
+use crate::worktree_clone_slot_state::slot_state_evidence::evidence;
+use crate::worktree_clone_slot_state::slot_state_next_actions::next_safe_action;
 use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, SlotReadings};
 
 /// What:

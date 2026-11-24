@@ -6,7 +6,8 @@
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{SlotRouteState, classify_slot};
 use crate::worktree_clone_slot_state::slot_state_mounts::{MountRows, SlotMount};
-use crate::worktree_clone_slot_state::slot_state_next_actions::{evidence, next_safe_action, registration_sentence};
+use crate::worktree_clone_slot_state::slot_state_evidence::evidence;
+use crate::worktree_clone_slot_state::slot_state_next_actions::{next_safe_action, registration_sentence};
 use crate::worktree_clone_slot_state::slot_state_readings::{BindingReading, IntentFacts, PlanReading, SlotReadings};
 use crate::worktree_clone_slot_state::slot_state_test_records::{CLONE_DATASET, record_at};
 use std::path::PathBuf;
