@@ -38,6 +38,9 @@
 //!   the checkout's own mount,
 //!   its dataset and its propagation,
 //!   read from the kernel's table.
+//! - `sweep_configuration_refusal.rs`:
+//!   why the sweep has no names to act on,
+//!   and the words a person reads for each cause.
 //! - `attaching_sweep_mode.rs`:
 //!   the default invocation's sweep,
 //!   which step 8 builds.
@@ -46,6 +49,9 @@
 //!   which step 6 begins.
 //! - `shutdown_unmount_mode.rs`:
 //!   the shutdown unit's verified unmount,
+//!   which step 9 builds.
+//! - `holder_scan_mode.rs`:
+//!   the all-namespace holder scan of one clone,
 //!   which step 9 builds.
 //! - `adopt_worktree_parent_mode.rs`:
 //!   the administrator's adoption,
@@ -83,8 +89,12 @@ pub mod attaching_sweep_mode;
 /// its dataset and its propagation.
 pub mod sweep_checkout_mount;
 
-/// The names the sweep takes from the handler's configuration.
+/// The names the sweep takes from the configuration and the mount table.
 pub mod sweep_configuration;
+
+/// Why the sweep has no names to act on,
+/// and the words for each cause.
+pub mod sweep_configuration_refusal;
 
 /// What one dataset the sweep reached says about itself.
 pub mod sweep_dataset_facts;
@@ -129,6 +139,10 @@ pub mod boot_reconcile_mode;
 /// The shutdown unit's verified unmount.
 pub mod shutdown_unmount_mode;
 
+/// The all-namespace holder scan of one clone,
+/// and the line that counts what it found.
+pub mod holder_scan_mode;
+
 /// The administrator's adoption of a replacement parent folder.
 pub mod adopt_worktree_parent_mode;
 
@@ -142,7 +156,7 @@ pub mod handler_mode_dispatch;
 pub use handler_install_paths::{CONFIGURATION_PATH, PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
 /// The mode grammar,
 /// its refusal and the request an adoption takes.
-pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode};
+pub use handler_mode_arguments::{AdoptRequest, ArgumentRefusal, HandlerMode, HolderScanInvocation};
 /// The refusal of a mode whose step has not landed.
 pub use mode_awaiting_its_step::AwaitingItsStep;
 /// The administrator's adoption and why it recorded nothing.

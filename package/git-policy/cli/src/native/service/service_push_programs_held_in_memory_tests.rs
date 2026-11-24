@@ -59,13 +59,16 @@ fn the_last_value_of_a_name_is_the_one_that_travels() {
 
 /// What:
 ///  A value that is not text does not travel,
+///  its name is carried so the push can tell it from a name the command cleared,
 ///  and a transport whose value is not text still marks the push.
 /// Why:
 ///   A protocol line cannot hold bytes that are not text without inventing them,
 /// and a transport this release cannot spell is still one the person chose:
 /// a push that fell back to another would speak a way they did not ask for.
+///  The name has to travel because the service's own value of it is the only list there is for a `PATH`,
+/// and a push that removed it searched no folder at all (L1 of the alpha.45 release pass).
 #[test]
-fn a_value_that_is_not_text_does_not_travel_but_its_transport_does() {
+fn a_value_that_is_not_text_does_not_travel_but_its_name_and_its_transport_do() {
     use std::os::unix::ffi::OsStringExt;
     let shell: Vec<(OsString, OsString)> = vec![
         (OsString::from("PATH"), OsString::from("/a/bin:/usr/bin")),
@@ -73,7 +76,23 @@ fn a_value_that_is_not_text_does_not_travel_but_its_transport_does() {
     ];
     let programs: PushPrograms = of(shell.as_slice());
     assert_eq!(programs.variables, vec![(String::from("PATH"), String::from("/a/bin:/usr/bin"))], "only the readable value travels");
+    assert_eq!(programs.not_text, vec![String::from("GIT_SSH_COMMAND")], "the name of the value that could not travel travels in its place");
     assert!(programs.transport, "the transport the person set is still marked as one they chose");
+}
+
+/// What:
+///  A command that left a name unset carries neither a value nor a name for it.
+/// Why:
+///   The two states are what the push's environment is built from:
+/// a name whose value could not travel keeps the service's own value,
+/// and a name the command left unset must have none,
+/// because the manager's value is not the command's.
+#[test]
+fn a_name_the_command_left_unset_carries_nothing() {
+    let shell: Vec<(OsString, OsString)> = environment(&[("PATH", "/a/bin:/usr/bin")]);
+    let programs: PushPrograms = of(shell.as_slice());
+    assert_eq!(programs.variables, vec![(String::from("PATH"), String::from("/a/bin:/usr/bin"))], "the readable value travels");
+    assert!(programs.not_text.is_empty(), "no name is carried as one whose value could not travel: {:?}", programs.not_text);
 }
 
 /// What:

@@ -22,6 +22,7 @@ use std::process::{Child, Command, Output, Stdio};
 /// named here so every `support::name` path stays the same.
 pub use crate::support_btrfs_controls::*;
 pub use crate::support_first_physical_extent::*;
+pub use crate::support_reflink_controls::*;
 pub use crate::support_zfs_controls::*;
 pub use crate::support_fixture_directories::*;
 pub use crate::support_fixture_service::*;
@@ -165,6 +166,34 @@ pub fn wrapper_first_path(fixture: &Fixture) -> OsString {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
     path.push(":/usr/bin:/bin");
     return path;
+}
+
+/// What:
+///  A `PATH` that names one new fixture folder and nothing else,
+///  holding a link for each program the caller names.
+/// Why:
+///   A control that proves what the wrapper says when a program is absent must not name a folder the host or the gate
+/// image installs it in:
+/// `/usr/bin` holds a real `git-lfs` on a developer's machine and in the gate image,
+/// so the search found it there and the control failed wherever the program was installed (L5 of the alpha.45 release
+/// pass).
+/// Naming a folder of the fixture's own keeps the control the same on every machine,
+/// and the programs the push itself needs are linked into it:
+/// a link of the real Git,
+/// never of the wrapper,
+/// because the wrapper passes over every candidate that leads back to itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = onlyThesePrograms(fixture, 'push-needs', [['git', '/usr/bin/git'], ['sh', '/bin/sh']]);
+/// ```
+pub fn path_of_a_folder_that_links_only(fixture: &Fixture, folder: &str, programs: &[(&str, &Path)]) -> OsString {
+    let directory: PathBuf = fixture.root.join(folder);
+    std::fs::create_dir_all(directory.as_path()).expect("the folder of linked programs");
+    for (name, program) in programs {
+        std::os::unix::fs::symlink(program, directory.join(name)).expect("a linked program");
+    }
+    return directory.into_os_string();
 }
 
 /// A command for `program` (a wrapper path) under the given PATH,

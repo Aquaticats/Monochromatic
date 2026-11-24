@@ -27,7 +27,9 @@
 use super::probe_arms::ProbeStep;
 use super::probe_attach_arm::AttachFailure;
 use super::probe_child_prelude::{CHILD_CONTROL_DESCRIPTOR, CHILD_STATUS_DESCRIPTOR, close_from, exit_now, join_own_process_group, move_descriptor};
-use super::probe_configuration::{checkout_from_configuration, read_configuration, source_from_configuration};
+use super::probe_configuration::{ProbeCheckout, checkout_path, read_configuration, source_name};
+use super::probe_configuration_refusal::CheckoutRefusal;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use super::probe_mount_calls::{make_mounts_private, mount_scratch_tmpfs, unshare_mount_namespace};
 use super::probe_namespace_scan::{compare_namespaces, scan_namespaces};
 use super::probe_open_beneath::open_path_handle;
@@ -152,17 +154,21 @@ pub fn run(start: &WorkerStart<'_>) -> ! {
     }
     say(start.status, StepLine::passed(ProbeStep::WalkRefusalControls));
     hold_after(ProbeStep::WalkRefusalControls);
-    let configuration = read_configuration(start.configuration);
-    let checkout = configuration.as_ref().ok().and_then(|text| return checkout_from_configuration(text.as_str(), start.configuration).ok());
-    match checkout.and_then(|path| return open_checkout(path.as_path()).ok()) {
-        Some(_identity) => say(start.status, StepLine::passed(ProbeStep::CheckoutRoot)),
-        None => say(start.status, StepLine::not_exercised(ProbeStep::CheckoutRoot, "no-checkout-path", None)),
-    }
-    let text: String = match configuration {
-        Ok(text) => text,
+    // The file is read once, and the same bytes answer both the checkout's finding and the source's.
+    let document: Option<String> = match read_configuration(start.configuration) {
+        Ok(document) => document,
         Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word(), None)),
     };
-    let source: String = match source_from_configuration(text.as_str(), start.configuration) {
+    let mounts: LiveMountedDatasets = LiveMountedDatasets;
+    // A checkout this run cannot tell leaves its own arm not exercised and runs the source arm anyway,
+    // so a file that names the probe dataset still lets the attach arm report.
+    let told: Result<ProbeCheckout, CheckoutRefusal> = checkout_path(document.as_deref(), &mounts);
+    let checkout: Option<&ProbeCheckout> = told.as_ref().ok();
+    match checkout.and_then(|found| return open_checkout(found.path.as_path()).ok()) {
+        Some(_identity) => say(start.status, StepLine::passed(ProbeStep::CheckoutRoot)),
+        None => say(start.status, StepLine::not_exercised(ProbeStep::CheckoutRoot, told.as_ref().err().map_or("no-checkout-path", |refusal| return refusal.word()), None)),
+    }
+    let source: String = match source_name(document.as_deref(), start.configuration, &mounts, checkout) {
         Ok(source) => source.snapshot_name(),
         Err(refusal) => ending(StepLine::not_exercised(ProbeStep::ReadSourceName, refusal.word(), None)),
     };

@@ -375,7 +375,8 @@ the libraries
 `monochromatic-file-enforcer`,
 `forbidden-regex` and
 `monochromatic-zfs-request-to-openzfs-kernel-device`
-(an alpha so far, so it reaches no registry),
+(an alpha so far,
+so it reaches no registry),
 and the tools
 `forbidden-strings`,
 `monochromatic-search-shadow`,
@@ -931,10 +932,16 @@ and `release:wait:commit` waits for the publish run of a commit.
 ## Owner answers of 2026-11-10
 
 - Asked whether the publish job's build guard on unit tests that read built output (issue 1658) should land
-  now, the owner answered at 2026-11-10T09:48:06-05:00: "Hold until Pants (Recommended)". So branch
+  now,
+  the owner answered at 2026-11-10T09:48:06-05:00:
+  "Hold until Pants (Recommended)".
+  So branch
   `fix/pnpr-open-issues` stays unmerged and issue 1658 stays open.
-- Asked how the publish job should tell that a package has a build (issue 1267), the owner answered at
-  2026-11-10T08:13:03-05:00: "Parse mise.toml properly". So the job reads `mise.toml` with the repository's
+- Asked how the publish job should tell that a package has a build (issue 1267),
+  the owner answered at
+  2026-11-10T08:13:03-05:00:
+  "Parse mise.toml properly".
+  So the job reads `mise.toml` with the repository's
   TOML parser rather than matching text.
 
 

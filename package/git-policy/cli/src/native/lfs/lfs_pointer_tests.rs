@@ -105,12 +105,9 @@ fn spellings_the_port_cannot_judge_are_declined() {
 }
 
 /// The real `git-lfs` on the test process's PATH,
-/// if any.
+/// or nothing with the line that says the real decoder was not consulted.
 fn real_git_lfs() -> Option<std::path::PathBuf> {
-    let path: std::ffi::OsString = std::env::var_os("PATH")?;
-    return std::env::split_paths(&path)
-        .map(|directory| { return directory.join("git-lfs"); })
-        .find(|candidate| { return candidate.is_file(); });
+    return crate::testing::real_git_lfs_the_run_requires::required("the real `git-lfs` pointer decoder");
 }
 
 /// Whether `git-lfs pointer --check` takes the text for a pointer (`DecodePointerFromFile`,
@@ -143,11 +140,11 @@ fn oracle_accepts(program: &std::path::Path, directory: &std::path::Path, text: 
 ///  ones it declines (extension lines).
 /// Skipped,
 /// with a note,
-/// on hosts without `git-lfs`.
+/// on hosts without `git-lfs`,
+/// and failed where the run states the program must be there.
 #[test]
 fn the_port_agrees_with_the_real_decoder() {
     let Some(program) = real_git_lfs() else {
-        eprintln!("skipped: git-lfs is not on PATH, so the real decoder was not consulted");
         return;
     };
     let root = crate::test_support::fixture("lfs-pointer-oracle");
@@ -197,4 +194,25 @@ fn the_port_agrees_with_the_real_decoder() {
         }
     }
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A run that states the real `git-lfs` must be there fails the decoder comparison,
+///  rather than passing it without consulting the program.
+/// Why:
+///   The gate image installs `git-lfs` and sets `CLI_GIT_REQUIRE_REAL_GIT_LFS`,
+/// so an image that lost the program has to be red,
+/// and the decision `real_git_lfs` makes is what turns the old line into a failure.
+///  The absence and the statement are passed in because a control cannot change this process's environment beside the
+/// other controls of this binary;
+/// the variable itself is proved where a child process can set it
+///  (`testing/real_git_lfs_the_run_requires_tests.rs`).
+#[test]
+#[should_panic(expected = "CLI_GIT_REQUIRE_REAL_GIT_LFS")]
+fn the_decoder_comparison_fails_where_the_run_requires_the_program_and_path_finds_none() {
+    let _absent: Option<std::path::PathBuf> = crate::testing::real_git_lfs_the_run_requires::decided(
+        "the real `git-lfs` pointer decoder",
+        None,
+        true,
+    );
 }

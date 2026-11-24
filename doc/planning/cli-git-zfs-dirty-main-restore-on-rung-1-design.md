@@ -1984,10 +1984,9 @@ against the registration it kept and the underlay pointer the mount had covered 
 - it prints one sentence naming the route that made the worktree and why the first was abandoned,
 with the reason's own words from the marker,
 before the records go;
-the binding's A27 releases the claim last and prints "the add's own sentence",
-whose words are this design's;
-this design prints it before the records go,
-and "Dependencies on the sibling designs" asks that design's A27 to say the sentence is printed before the records go and prints nothing of its own (S1);
+the binding's A27 releases the claim last and prints nothing;
+it says the sentence is this design's and is printed before the records go,
+which this design does;
 and a resumed settle that has neither prints the kind alone;
 - it removes its own three records in order,
 the phase marker,
@@ -2264,10 +2263,26 @@ which is a refused lock release or a failed checkout:
 "A slot whose recorded clone is gone and cannot be proved gone",
 `:77` to `:88`),
 the line names the settling command the binding design offers,
-`git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot>`,
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot>
+--confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
 which removes the record once the person confirms,
 and which is the binding design's own line,
 cited at its V21 (K2).
+
+A fallback that entered at `registered` made no clone,
+so with no plan standing that state's line reads "the add made no clone" where it says the clone is gone,
+and its command is the same add again at the slot,
+whose resume continues at A20 and needs no clone's identity.
+That state's line names no settling command:
+the fallback leaves the binding at `phase=settling` and holding no `cloneGuid=`,
+and the add's record refuses the settling command for such a binding,
+names the add's re-run instead,
+and sends a state with a plan standing to the plan design's "Which resume path a removal takes"
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+"The settling command",
+"What it refuses,
+changing nothing",
+and "Which command is true for a state").
 
 `doctor` reports the pending state:
 `monochromatic-git-policy-cli: the worktree at <slot> is pending: its add abandoned the clone route and <the last request's answer in the receipt's words>; nothing in this route changes it by itself; do not run Git in this folder until it is removed;` followed by `git worktree remove <slot>` when the clone stands,
@@ -3576,7 +3591,7 @@ Git's own checkout (A25);
 the binding closed with the inventories first and the binding last (A26);
 and the claim released last (A27).
 Its "A resumed add" lets an add continue a `settling` binding,
-and its "A record whose clone is gone means" is what the pending text's settling command refers to.
+and its "What a record whose clone is gone means" is what the pending text's settling command refers to.
 Its A21 carries the busy arm in the same words,
 including the clause "do not run Git in this folder until it is removed".
 Two requirements this design stated are met there and quoted for the record:
@@ -3586,17 +3601,21 @@ the removal's acceptance is now its own sentence,
 read the live clone's identity from the binding and the pool,
 and proves lineage from it as from any clone;
 the phase stays where the add or the fallback left it for the whole removal,
-and a removal that finds a clone already gone and a `settling` binding refuses and names the add's own re-run instead",
+and a removal that finds a clone already gone and a `settling` binding,
+and for which no plan stands to resume,
+refuses,
+and names the one command the section "Which command is true for a state" gives that state,
+which is the add's own re-run or the settling command,
+and never both",
 and a marker whose binding does not say `settling` is a marker this design treats as absent,
 as the binding's A20 asks.
-One requirement remains,
-and this design can only state it in that design's terms:
-"A27:
-the claim released last;
-the sentence is the restoring design's and is printed before the records go,
-so A27 prints nothing of its own."
-Until that design says it,
-this design prints the sentence before the records go and reads that design's A27 as the claim's release alone (S1).
+That requirement is met:
+the binding design's A27 reads "The claim released last,
+and nothing printed.
+The add's sentence is the restoring design's,
+and that design prints it before the records go,
+after A25 and before A26",
+and this design prints the sentence before the records go.
 Its content-proof sentence,
 "A resumed add whose proof is gone refuses",
 differs from this route's decided fallback,

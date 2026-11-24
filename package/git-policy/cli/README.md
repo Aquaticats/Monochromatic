@@ -808,6 +808,26 @@ Read-only commands,
    words,
   and what makes the next add quick (each step leaves a line in the diagnostic log,
   `MONOCHROMATIC_VERBOSE=true`):
+  On a checkout that is the mount of the ZFS dataset named
+  `monochromatic-git-checkout`,
+  an add at `.claude/worktrees/<name>` takes a different route before any rung:
+  the slot is registered in Git first and locked with one sentence computed from
+  the add's random nonce,
+  the checkout is snapshotted and cloned with `mountpoint=legacy`,
+  the clone is mounted at the slot,
+  its copied index and tracked files are compared with a frozen capture taken
+  before the snapshot,
+  the copied Git administration is exchanged with the saved pointer in one
+  `renameat2(RENAME_EXCHANGE)`,
+  and the result is checked before the record says the worktree is usable.
+  A kill at any step leaves the claim,
+  the slot and the registration,
+  and the next add at the slot resumes from the phase the record names.
+  `SPEC.md`,
+  "The add that registers a ZFS clone before it fills the slot",
+  states every step,
+  what each kill leaves,
+  and what this release does not do yet.
   1. A btrfs snapshot of the worktree the command is run from (the main checkout included) when it is a clean subvolume
      on the destination's filesystem.
      Real Git runs with `--no-checkout`,
@@ -955,10 +975,20 @@ Read-only commands,
      every tracked path its proof settles is a clone,
      and only the paths a change or a conversion rule reaches are Git's.
      Three provisional limit rules send an add to Git's own checkout instead:
-     a source with changes whose tracked files sum to fewer than 762,000,000 bytes,
+     a source with changes whose clones would copy fewer than 762,000,000 bytes,
      a source with more changed tracked files than a quarter of its tracked paths,
-     and a clean source whose mean tracked file is under its filesystem's measured edge,
+     and a source with no tracked change whose mean tracked file is under its filesystem's measured edge,
      which is 2,600 bytes on ZFS and the same value on a filesystem nobody measured.
+     The whole-tree sum counts the bytes the fence would carry and leaves out every path an attribute rule hands to Git,
+     so a `filter=lfs` path's own bytes are not in it.
+     A source whose only difference is an untracked file,
+     or whose recorded times are stale with no change in `git status`,
+     takes the mean rule and not the whole-tree one.
+     The whole-tree limit and the changed-file cut were measured on ZFS and apply on every filesystem until a Btrfs
+     round measures the dirty shapes;
+     until then nothing changes on btrfs.
+     These are the four answers of
+     `doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`.
      btrfs has no mean rule:
      a clean btrfs source clones as `main` does,
      whatever its files average.
@@ -1012,6 +1042,21 @@ Read-only commands,
      read in `convert.c`'s order;
      every other path is written by Git,
      through one `git checkout-index --force -u`.
+     A path the fence carries is taken as its blob's bytes when its file is stat-clean and the size its index records
+     is the blob's size,
+     which one `git ls-tree -r -l` reads.
+     One case is beyond that proof:
+     a file an earlier conversion left the same length
+     (a clean filter that masked a token at its own length,
+     a case-folding rule removed after the add)
+     is carried while Git's own checkout writes the stored blob,
+     and Git's own `git status` reports that source clean as well,
+     because neither the stat data nor a size comparison reads the bytes.
+     Hashing each carried file against its blob would see it and costs a read of every byte the rung copies,
+     which is most of what the copies save;
+     the limit is the project's answer "Document the limit"
+     (`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+     "A file an earlier conversion left the same length (D4)").
      The attributes are read and the decline decided before the copies,
      the rest of the fence (`git ls-tree` and the decision) runs while the clones copy,
      and the index is written under a name of its own until that write is done,
@@ -1838,6 +1883,20 @@ The sweep and `boot-reconcile` are described in `SPEC.md` under the section
 on the sweep and the boot it reconciles,
 and the guest arms that run them against a real pool are in
 the sweep arms section of `e2e/README.md`.
+Both work with no configuration file:
+the checkout is the one mounted ZFS dataset whose last name component is
+`monochromatic-git-checkout`,
+the clone container is its sibling `monochromatic-git-worktree-clone-datasets`,
+and the start probe's dataset is `nosnap/git-worktree-probe` in the pool that
+holds the checkout.
+A file that is present wins entry by entry,
+and plan step 19's setup still writes the two dataset names into it.
+A name that matches no mounted dataset,
+or several,
+is a refusal that lists what the mount table held rather than a guess,
+and a mounted dataset inside the clone container is a managed clone and never
+the checkout,
+so a name the account can create with its own delegation adds no instance.
 Only the wrapper is linked,
  and not as the installed file's own name:
 link it as `git` in a directory that comes before the real Git on `PATH`:
@@ -6528,6 +6587,25 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   and the same filters select the btrfs controls,
   which need `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` on a host with no btrfs,
   which the task does not set.
+- The controls that prove the upload against the real `git-lfs` run in the gate,
+  which is why the image installs the program
+  (`doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md`):
+  the test image sets `CLI_GIT_REQUIRE_REAL_GIT_LFS=1`,
+  and a control that would have printed `skipped: git-lfs is not on PATH` and passed
+  fails instead,
+  naming the variable and the image step,
+  so an image that loses the program is red rather than silently empty.
+  The same image sets `CLI_GIT_END_TO_END_LFS_OCCUPIED_ACKNOWLEDGED=1`,
+  because the four end-to-end carry controls of `binary_push_programs_end_to_end_tests.rs`
+  need program folders that hold no `git-lfs`:
+  a real one answers the push before their stand-in,
+  so they print `END TO END CARRY CONTROL NOT RUN: <control> (<folder that holds one>)` and pass there,
+  and a host or an image without the program runs them for real.
+  Three controls prove the refusal for a program the list does not hold,
+  and each gives its push a `PATH` made of a folder of its own fixture that links only the programs the push needs,
+  so a machine with `git-lfs` in `/usr/bin` runs them green
+  (`src/native/binary/binary_support.rs`,
+  `path_of_a_folder_that_links_only`).
 - The controls that need a kernel namespace fail the same way rather than passing unrun,
   and the acknowledgement variable each refusal names is the only thing that lets one skip:
   `CLI_GIT_TEST_NO_USER_NAMESPACES=1` for the controls that judge root-owned files inside an unprivileged user namespace,
@@ -8958,3 +9036,18 @@ moved verbatim on 2026-11-23:
   or the run timed out,
   was stopped or failed without naming a test,
   and prints other failing tests as notices above the pass.
+
+From lines 25903 to 25910 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Measured on 2026-11-13,
+  both from the branch's debug wrapper:
+  an average finished record is 1267 bytes,
+  so 1024 records weigh 1.30 MB and 10,240 weigh 13.0 MB;
+  the first answer after a start took a median 50 to 76 ms with 1024 records and 579 to 640 ms with 10,240
+  (seven runs each,
+  two rounds),
+  while later answers took 6 to 13 ms at both sizes,
+  so a start's read grows with the records and the landing's lookup does not.
+  The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.

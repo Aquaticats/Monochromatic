@@ -614,7 +614,92 @@ one whole container gate,
 and Rust builds inside several Pi rounds
 (`counters-at-the-start-of-the-load-of-2026-11-23-evening.txt` in
 `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`).
-Its end read is owed when the gate ends.
+Its end read was taken at 2026-11-23T19:42:03-05:00,
+just after the gate ended,
+with both settings still in force
+(`counters-at-the-end-of-the-load-of-2026-11-23-evening.txt` beside the start read;
+the rates by `compare-two-reads-as-rates.ts` in the folder above,
+kept as `rates-between-the-two-reads-of-2026-11-23-evening.txt`).
+Over the 908 seconds:
+
+- kswapd did 72.4% of the scans
+  (`pgscan_kswapd` 37,438 per second against `pgscan_direct` 14,249);
+- `allocstall_normal` rose by 45 and `allocstall_movable` by 77;
+- `kswapd_low_wmark_hit_quickly` rose by 7,109 and `kswapd_high_wmark_hit_quickly` by 1;
+- `pgsteal_kswapd` ran at 24,440 per second against `pgsteal_direct` 9,472;
+- memory `full` stalled 3.02% of the interval and `some` 3.17%;
+- `pswpin` and `pswpout` ran at 19,862 and 27,012 per second;
+- `oom_kill` did not move,
+  and none of the kernel log's 8 lines in the window is a "blocked for more than" line;
+  no positive control was possible,
+  since the journal keeps only the current boot (`journalctl --list-boots` lists one,
+  from 2026-11-23T16:38:50-05:00),
+  so 2026-11-22's lines,
+  which held such lines,
+  are gone.
+
+This is not the comparison that would verify the change.
+The load was lighter than 2026-11-22's
+(four guests,
+not six),
+no arm without the settings ran beside it,
+and the baseline's figures are totals since that boot,
+not rates over a comparable load.
+It shows the settings held under this load without a stall.
+It does not show they caused it.
+
+A heavier load began at 2026-11-23T20:33:24-05:00,
+when the owner allowed up to 64 rounds at once
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`)
+and five more build rounds started beside seven,
+with six Claude agents building in their own worktrees.
+Both settings were in force
+(`min_ttl_ms` 1000,
+`watermark_scale_factor` 125).
+Its start read is `counters-before-the-build-ahead-wave.txt`,
+and a read 137 seconds later is `counters-after-twelve-rounds-and-six-claude-agents.txt`,
+both in the folder above.
+Over those 137 seconds,
+with three guests up and no whole gate:
+
+- kswapd did 98.1% of the scans
+  (`pgscan_kswapd` 32,420 per second);
+- `allocstall_normal` rose by 13 and `allocstall_movable` by 1,048;
+- `kswapd_low_wmark_hit_quickly` rose by 446 and `kswapd_high_wmark_hit_quickly` by 0;
+- `pgsteal_kswapd` ran at 29,226 per second against `pgsteal_direct` 497;
+- memory `full` stalled 3.31% of the interval and `some` 3.38%;
+- `pswpin` and `pswpout` ran at 4,792 and 24,662 per second;
+- `oom_kill` did not move,
+  and the kernel log since 20:30 holds no "blocked for more than" line.
+
+The interval is short and the load had not reached six guests or a whole gate,
+so it is not the comparison either.
+
+A read when the memory stall had eased
+(`full` avg60 0.4,
+at 2026-11-23T20:50:18-05:00)
+is `counters-when-the-wave-stall-eased.txt` beside the others.
+Over the 1,014 seconds from the start read,
+with twelve to thirteen rounds,
+two or three guests and no whole gate:
+
+- kswapd did 97.9% of the scans
+  (`pgscan_kswapd` 37,570 per second);
+- `allocstall_normal` rose by 25 and `allocstall_movable` by 2,098;
+- `kswapd_low_wmark_hit_quickly` rose by 7,236 and `kswapd_high_wmark_hit_quickly` by 0;
+- `pgsteal_kswapd` ran at 25,437 per second against `pgsteal_direct` 123;
+- memory `full` stalled 2.56% of the interval and `some` 2.60%;
+- `pswpin` and `pswpout` ran at 10,667 and 17,689 per second;
+- `oom_kill` did not move,
+  and the kernel log since 20:30 holds no "blocked for more than" line.
+
+Against the 908-second read of the lighter load,
+kswapd's share of the scans rose from 72.4% to 97.9%
+and direct reclaim's steal fell from 9,472 to 123 pages a second,
+the direction the settings are for.
+It is still not the comparison:
+no arm ran without the settings,
+and six guests and a whole gate did not run in it.
 
 Take the same reads at the start and at the end of a load comparable to 2026-11-22's:
 6 guests,
@@ -656,7 +741,9 @@ These would not count as success:
 
 Nothing in this document is a verified workaround.
 The two settings were applied at runtime on 2026-11-22.
-The machine's restarts on the morning of 2026-11-23 returned them to their boot values:
+The machine's restarts on 2026-11-23 returned them to their boot values
+(the last boot began at 2026-11-23T16:38:50-05:00,
+by `journalctl --list-boots`):
 at 2026-11-23T19:2x-05:00 `sysctl vm.watermark_scale_factor` read 10 and `cat /sys/kernel/mm/lru_gen/min_ttl_ms` read 100.
 The coordinating session applied both again with the commands under each heading,
 since the owner's answer keeps both in force until a load like 2026-11-22's has been seen,
@@ -936,6 +1023,24 @@ Each of these is a question with the measurement that answers it.
     That is one reading late in a run,
     not the gate's peak,
     and how many gates ran at the freeze is not recorded here.
+    Read across a whole run on 2026-11-23
+    (run `native-klGxVR` on `main` at `25d719bc6f`,
+    from 2026-11-24T00:20:14Z to 00:41:19Z,
+    every 30 seconds,
+    30 reads,
+    with four guests and the Pi rounds' builds running beside it):
+    the gate's two containers peaked at 2,184 MiB resident together,
+    1,855 MiB of it anonymous,
+    169 MiB file and none `shmem`,
+    with 956 MiB more in swap at that read;
+    the most swapped at once was 1,724 MiB,
+    at 2,165 MiB resident
+    (`gate-container-memory-native-klGxVR-across-the-run.jsonl` in the same `keep/`,
+    written by `sample-a-gate-runs-container-memory-until-it-ends.ts` beside it).
+    So one gate asks for about 3.9 GiB at its peak,
+    resident and swapped,
+    and its fixtures' `tmpfs` was not a visible part of it at the peak.
+    The guests stopped is the half of the measurement still owed.
 5.  Where did `min_ttl_ms = 100` come from?
     Measure:
     search every source that can set it (`/usr/lib` and `/etc` `tmpfiles.d`,
@@ -944,6 +1049,13 @@ Each of these is a question with the measurement that answers it.
     units;
     a search of those on 2026-11-22 found no writer),
     then the shell history of the session that wrote it.
+    Partly answered on 2026-11-23:
+    it read 100 again after the restarts of 2026-11-23,
+    so it is this kernel's boot value,
+    and nothing a session wrote;
+    a wider search found no writer
+    (under the heading that names `/sys/kernel/mm/lru_gen/min_ttl_ms`).
+    The distribution's kernel patch set is the place not yet read.
 6.  Where did `vm.watermark_boost_factor = 0` come from,
     when the kernel [documents a default of 15,000][vm-boost]?
     Measure:
@@ -1227,18 +1339,57 @@ From lines 43501 to 43503 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  facts read at 2026-11-22T15:50-05:00, for whoever reads a guest timing: swap is zram (61.7 G, 36 G used) at
-  `vm.swappiness` 150; three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G); the ZFS cache was at
-  2.1 G of 60.7 G; memory pressure about 4 percent; 30 processors at a load of 17 to 25. Three notes went to running rounds
+  facts read at 2026-11-22T15:50-05:00,
+  for whoever reads a guest timing:
+  swap is zram (61.7 G,
+  36 G used) at
+  `vm.swappiness` 150;
+  three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G);
+  the ZFS cache was at
+  2.1 G of 60.7 G;
+  memory pressure about 4 percent;
+  30 processors at a load of 17 to 25.
+  Three notes went to running rounds
 
 From lines 43553 to 43559 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  newer in its guest, since every guest figure of this branch so far is from 2.43.0. MORE RUNS AT ONCE: the owner asked "Can
-  we parallelize more?" after the 6344 round's start. Measured between then and 2026-11-22T17:16:54-05:00: eight Pi runs and
-  one Sonnet check going against a standard pool that takes 20; 29 GiB of memory available; three guests of 8 GiB each
-  (mvm's default) holding 2.5 GiB resident and 30 GiB of swap in a unit capped at 33 GiB; swap 44 of 63 GiB used (zram held
-  35.1 GB in 12.7 GB); load 19 to 27 on 30 processors. What held work back was the order of work and not the machine: none
-  of the designs the plan marks as blocking steps 10 to 19 was written. Step 10's "Depends on" (steps 2, 3, 6 and 8) is
-  met, but its "Open items" block it on the add-time Git lock, and its binding record has no home (plan lines 1479 and 2864
+  newer in its guest,
+  since every guest figure of this branch so far is from 2.43.0.
+  MORE RUNS AT ONCE:
+  the owner asked "Can
+  we parallelize more?"
+  after the 6344 round's start.
+  Measured between then and 2026-11-22T17:16:54-05:00:
+  eight Pi runs and
+  one Sonnet check going against a standard pool that takes 20;
+  29 GiB of memory available;
+  three guests of 8 GiB each
+  (mvm's default) holding 2.5 GiB resident and 30 GiB of swap in a unit capped at 33 GiB;
+  swap 44 of 63 GiB used (zram held
+  35.1 GB in 12.7 GB);
+  load 19 to 27 on 30 processors.
+  What held work back was the order of work and not the machine:
+  none
+  of the designs the plan marks as blocking steps 10 to 19 was written.
+  Step 10's "Depends on" (steps 2,
+  3,
+  6 and 8) is
+  met,
+  but its "Open items" block it on the add-time Git lock,
+  and its binding record has no home (plan lines 1479 and 2864
+
+From lines 1364 to 1372 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The freeze's troubleshooting document:
+  its revision after the short review is merged.
+  A reading taken at 2026-11-23T04:20:03-05:00 while these rounds ran is in the freeze's scratch folder,
+  `keep/counters-during-the-rounds-of-the-early-morning-of-2026-11-23.txt`:
+  over the night kswapd did 73.1% of the scanning and tasks were stalled on memory 1.97% of the time,
+  with free memory at 6,572 MiB at the read.
+  It is an average over a night nobody watched,
+  not the comparison under a load like the freeze's,
+  which is still owed (task 463).

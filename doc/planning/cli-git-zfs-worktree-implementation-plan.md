@@ -1251,6 +1251,175 @@ owner and is open to the owner's veto;
 if it is dropped,
 the mode moves with the readiness publish to the step the owner names.
 
+#### Where the checkout and the datasets are found
+
+(Added 2026-11-22T14:35:20-05:00 by an agent,
+from the project's answers of 2026-11-22 in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"With no configuration file",
+and `doc/decision/cli-git-zfs-start-probe.md`,
+"Answer of 2026-11-22:
+the probe needs no configuration file".)
+This subsection is the design of everything must work by default with no configuration file;
+the code that reads a file and the code that finds what it leaves out is this step's,
+and step 19's setup writes the file it prefers.
+
+The table the handler reads is its own mount namespace's,
+`/proc/self/mountinfo`:
+the reading task's `nsproxy->mnt_ns` (`fs/proc_namespace.c:241` to `:256`,
+`mountinfo_open` at `:300` to `:302`,
+Linux v7.3),
+so a mount made inside another mount namespace is not in it and never counts.
+A row holds three fields this design reads:
+its mount root (`show_mountinfo` prints `mnt->mnt_root`,
+`fs/proc_namespace.c:144`),
+its mount point (`:151`),
+and its source,
+which for a ZFS mount is the dataset's name because `zpl_show_devname` prints `dmu_objset_name` (`module/os/linux/zfs/zpl_super.c:271` to `:278`,
+`:301` to `:304`,
+wired at `:1058`,
+OpenZFS `zfs-2.4.4`).
+
+A row inside the clone container is never the checkout.
+The design puts the checkout dataset and the container beside each other,
+and its delegation gives the account `create` on the container alone,
+so an account can make a dataset there whose last name component is
+`monochromatic-git-checkout`.
+A guest run of 2026-11-22 did exactly that under the design's grants
+(`git-policy-cli-delegation`:
+`zfs clone <checkout>@account-origin <container>/monochromatic-git-checkout`
+as `ubuntu` was allowed,
+the same `create -o mountpoint=...` was refused,
+`zfs mount` of it was refused,
+and root's `zfs mount -a` mounted nothing of the account's),
+so a row whose dataset is mounted directly inside the clone container this run
+uses is a managed clone the route attaches at a slot,
+and the discovery ignores it rather than counting it as a second instance.
+The project decided exactly that on 2026-11-22 in the first answer of the
+section "Four further answers on the look-up with no configuration file"
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`):
+"A:
+the container this run uses (Recommended)":
+"Ignore a dataset mounted directly inside whichever clone container this run
+uses:
+the designed one,
+or the one root's file names."
+So the container the rule knows is `cloneMounts.parent` when the file names it,
+and the designed sibling `monochromatic-git-worktree-clone-datasets` otherwise;
+the start probe reads that same key,
+which is the one key of the file it did not read before.
+A row inside a container of another name,
+which this run does not use,
+still counts,
+and two such rows are "several".
+The design's dataset is a sibling of the container and never a child of it,
+so ignoring that shape loses no checkout,
+and a deployment whose checkout dataset really sits inside a container-named
+dataset is named by `cloneMounts.checkoutDataset`,
+which a file holds as written.
+
+A row is a mounted instance of a dataset name this design looks for when all three hold:
+its filesystem type is exactly `zfs`;
+its source's last `/`-separated component is the leaf name looked for;
+and its mount root is `/`,
+which is what a mount of the dataset's own root shows.
+A bind mount of a subtree shows a deeper root and is not an instance of the dataset;
+a bind mount of the dataset's own root is,
+and so is a second mount of the same dataset,
+because both are rows of the table.
+
+With no `cloneMounts.checkout` and no `cloneMounts.checkoutDataset`,
+the one mounted instance of `monochromatic-git-checkout` is the checkout:
+its source is the checkout dataset and its mount point is the checkout path.
+No instance is a refusal that names the leaf looked for and every row the table held whose source carried that leaf;
+more than one instance is a refusal that lists every one of them,
+and the handler never picks one of several.
+"More than one" therefore covers two pools that hold a dataset of that leaf,
+one dataset mounted at two paths,
+and a bind mount of the dataset's own root elsewhere.
+With the checkout dataset known,
+the container is the sibling `monochromatic-git-worktree-clone-datasets` in the same parent dataset,
+and step 19's setup creates it;
+a checkout dataset with no parent component is a refusal naming `cloneMounts.parent`.
+
+The start probe finds its dataset the same way:
+`nosnap/git-worktree-probe` in the pool that holds the checkout,
+which is the checkout dataset's first component,
+with the snapshot `ready`.
+It is not mounted,
+so no row is looked for and none can be several;
+the probe attaches the snapshot by name and an absent dataset or snapshot stays the `ENOENT` refusal it is today.
+
+Precedence is entry by entry,
+and a file that is present wins over what is found:
+`cloneMounts.checkout` names the checkout path,
+`cloneMounts.checkoutDataset` the checkout dataset,
+`cloneMounts.parent` the container,
+`startProbe.dataset` the probe dataset,
+and `startProbe.checkout` the probe's checkout.
+An entry that is there is used as written;
+what the file leaves out is found by the rules above,
+in an order that needs no second table read:
+the checkout path on its own takes its dataset from the mount that holds it,
+and that dataset must carry the design's leaf name;
+the checkout dataset on its own takes its path from the one mount of it;
+and `startProbe.checkout` on its own leaves the sweep's checkout to the sweep.
+The two checkouts are compared after both are known,
+so the sweep's refusal to act on a checkout the probe did not judge stays for a file that names them differently,
+and cannot arise when neither is named.
+A file that is present but unreadable or not one JSONC document is still a refusal:
+it won a precedence it cannot fill.
+
+Who can make a name match,
+and why none of it steers the handler.
+The table is the handler's own namespace,
+and a mount appears in it only if a caller passed `may_mount`,
+which asks for `CAP_SYS_ADMIN` in the user namespace that owns that mount namespace (`fs/namespace.c:2063` to `:2066`;
+`mount` asks it at `:4270` to `:4271`,
+`fsopen` at `fs/fsopen.c:120` and `:127` to `:128`,
+and `move_mount` at `fs/namespace.c:4754`,
+Linux v7.3).
+For the host's mount namespace that namespace is the initial user namespace,
+so an account makes no row in it by calling `mount`,
+`fsopen` or `move_mount`,
+and cannot mount its own dataset there.
+It does reach rows in two other ways,
+and neither steers the handler:
+listing a snapshot's directory makes the kernel mount that snapshot as root,
+and its source then carries `@<snapshot>`,
+so the last name component is never the checkout's leaf;
+and the route mounts the account's own clone when the account asks for it,
+which the container rule above ignores.
+ZFS does carry `FS_USERNS_MOUNT` (`module/os/linux/zfs/zpl_super.c:1092`,
+`:1096` to `:1099`),
+so an account may attach a dataset inside a user and mount namespace pair of its own,
+where it holds that capability;
+that mount is in its own namespace,
+which the handler's table never shows,
+and holding a superblock that way can only make the probe's exclusive create answer `EBUSY`,
+which withholds the route rather than steering it.
+Naming a dataset that way needs the `create` delegation on the exact parent or `CAP_SYS_ADMIN` (`module/zfs/zfs_ioctl.c:7577` to `:7581` for `create` and `:7582` to `:7586` for `clone`,
+both registered with `zfs_secpolicy_create_clone` at `:1128` to `:1149`,
+which asks `create` and `mount` on the parent;
+`zfs_secpolicy_write_perms_ds` at `:461` to `:472` takes the capability from `secpolicy_zfs`,
+`module/os/linux/zfs/policy.c:251` to `:263`,
+which is `priv_policy`'s `ns_capable` at `:58` and `:70` to `:74`).
+The design's grants put `create` only on the clone parent and `mount,userprop` on its descendants (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Scoped delegation"),
+so the account can create a dataset under the clone parent and never a sibling of the checkout;
+a pool name needs `CAP_SYS_ADMIN` too (`zfs_secpolicy_config`,
+`module/zfs/zfs_ioctl.c:1155` to `:1164`,
+over `secpolicy_sys_config`,
+`module/os/linux/zfs/policy.c:95` to `:102`).
+A clone the account creates under the container and names `monochromatic-git-checkout`,
+once root attaches it because the route does,
+adds a row the discovery ignores by the rule above,
+so it makes neither a second instance nor the only one.
+A row inside a container of another name that this run does not use still counts,
+which follows from the answer:
+the record's two stated costs are one more key read by the probe and a little
+more code,
+and it lists "any clone anywhere" and "no exception" as not chosen.
+
 #### Design sections
 
 "ZED reconciliation and mount safety";
@@ -1304,8 +1473,8 @@ the sweep's three configuration names
 (`cloneMounts.parent`,
 `cloneMounts.checkout` and `cloneMounts.checkoutDataset`,
 beside the start probe's own object,
-with the design's names as the fallback only when the file holds neither
-dataset name),
+with the design's names filling in entry by entry whatever the file leaves out,
+as [Where the checkout and the datasets are found](#where-the-checkout-and-the-datasets-are-found) states it),
 the receipt rule that a refusal files no receipt but an unavailable key's,
 the holder reading the intent again after it releases the claim,
 and the `first-attach` writer and its call,
@@ -1363,6 +1532,126 @@ and return holders and incomplete reads in a fresh,
 Step 16 consumes it before each snapshot-destroy request and before the head destroy,
 and step 18 reports its holders.
 
+(Amended 2026-11-22 by an agent,
+in a round of its own;
+this note is unapproved and non-final.)
+That round built this step's all-namespace holder scan and nothing else of
+step 9:
+
+- the scan,
+  its bounds and its result are
+  `package/git-policy/cli/src/native/clone_holder_scan/`;
+- the thread grouping,
+  the one mount table per distinct namespace and the exact ZFS source match are
+  `package/git-policy/cli/src/native/mount_namespace_scan/`,
+  which the start probe's arm 7 now reads too,
+  as the start probe's design proposed
+  (`doc/planning/cli-git-zfs-start-probe-design.md`,
+  "The arms",
+  arm 7);
+- the handler's `holder-scan --dataset <name> [--nonce <32 hex digits>]` mode is
+  `package/git-policy/cli/src/native/worktree_clone_mount_handler/holder_scan_mode.rs`,
+  declared and documented as the other modes are;
+- `SPEC.md` states what the scan promises and what it cannot,
+  under "The all-namespace holder scan of a ZFS worktree clone";
+- the guest arms are
+  `package/git-policy/cli/src/native/binary/binary_zfs_holder_scan_guest_tests.rs`
+  and one entry of
+  `package/git-policy/cli/e2e/mount-git-worktree-clone-datasets-guest.ts`,
+  and what they measured sits in
+  `package/git-policy/cli/doc/holder-scan-across-mount-namespaces-2026-11-22.md`.
+
+The other half of this step was another round's on
+`feat/git-policy-cli-zfs-step-9-unmount-staging-and-reattach`,
+and it is merged into `main` (`534000d680`) with this half (`cf5c7ddb8d`):
+the unmount from a fresh process,
+the staging folder and the reattach,
+which add their own files under
+`package/git-policy/cli/src/native/worktree_clone_mount_handler/` and own the
+`shutdown-unmount` mode this build still refuses.
+Neither round's files stood in the other's way:
+this round added `holder_scan_mode.rs` and the handler folder's two `uses/`
+links,
+and changed the mode grammar by adding one word and two options,
+and the merge kept both guest modules and both arms in the guest driver.
+
+What the steps that read this result will find:
+
+- step 16 calls `scan_holders` with the request it holds,
+  or the `holder-scan` mode where a process boundary is what it needs,
+  before each snapshot-destroy request and before the head destroy,
+  and reads `holders`,
+  `incomplete` and `is_clear` after `accept` has matched the GUID and the
+  nonce it asked under;
+  a result for another dataset or another scan is refused before anything it
+  holds is read,
+  and an incomplete read is reported rather than read as a clear namespace;
+- step 17 carries the result's text to the wrapper,
+  which reads it back with `parse_holder_scan` key by key,
+  which the project decided on 2026-11-23
+  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`):
+  "before each destroy,
+  the wrapper asks root for a fresh scan and prints" the holders it names,
+  so that step builds the carrier and the wrapper's refusal and this round
+  built neither;
+- this round built no receipt and no recording;
+- step 18 reads `holders` and each holder's mounts,
+  which name the kernel's namespace identity,
+  the task the table came from and each mount's id,
+  root and mount point,
+  and `doctor` names them from those fields.
+
+The residual the destroy-anyway decision accepts is recorded in `SPEC.md`,
+and the guest arm that pins a namespace with a handle and no task shows the
+scan reporting no holder for it,
+which is the limit rather than a bug.
+
+(Amended 2026-11-23 by an agent,
+in the fix round that answers the integration pass's findings;
+this note is unapproved and non-final.)
+
+The round of 2026-11-22 built the scan with two rules the project then
+corrected,
+and this round changed all three of the parts the pass found wrong:
+
+- the scan sets nothing aside.
+  the standing-unmount rule,
+  `HolderScan`'s excluded list and the result's excluded section are gone,
+  and a mount of the clone at a worktree's path is a holder in every namespace,
+  under every intent.
+  The project chose "no set-aside" on 2026-11-23
+  (`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`),
+  and the staging design's "the removal refuses because that mount is
+  present" now holds;
+- the scan reads every thread and every root.
+  It groups by `/proc/<pid>/task/<tid>/ns/mnt`,
+  reads each thread's `root`,
+  reads each namespace through a thread at that namespace's own root,
+  and reports a namespace whose threads disagree about their root,
+  none of them at the reader's,
+  as an incomplete read.
+  A thread whose namespace link it may not read is an incomplete read naming
+  the thread and the errno,
+  never a silent skip;
+- every scan answers under a nonce of its own,
+  which the caller may name with `--nonce` and which is never the clone's
+  request nonce,
+  because the wrapper asks for a fresh scan before each destroy.
+
+The paragraph above still says the scan "excludes new managed attaches with the
+standing `unmount` intent".
+This note replaces that sentence,
+as the decision record reads it:
+the exclusion is the attaching sweep's refusal under the intent,
+and the scan names every holder it can read.
+
+The wrapper's carrying of root's finding and its refusal that names the holders
+are plan steps 16 and 17's and unbuilt;
+this step's mode only prints the answer where the other modes print theirs.
+The guest arms this round adds are the same files as before,
+with an arm for each of the four holders the pass found missed and one for the
+scan under a standing `unmount` intent.
+
 #### Design sections
 
 "Descriptor mount and unmount" (the unmount half);
@@ -1414,10 +1703,16 @@ and on the build that ships it,
 which also owes the interface that unmounts a staged mount from the held descriptor.
 Steps 14,
 16 and 17 wait on that build as well.
+The holder scan half of this step is built by the round of 2026-11-22 and its
+notes above say what remains open in it:
+the scan answers one dataset's holders across mount namespaces,
+and the unmount,
+the staging folder and the reattach this step also owns are built and merged
+with it (`534000d680` and `cf5c7ddb8d`).
 Open item 3's receiving path,
 how root's finding reaches the unprivileged wrapper,
 lands in step 17;
-step 16 and step 18 read the result this step records.
+step 16 and step 18 read the result this step answers.
 
 #### Depends on
 
@@ -1478,9 +1773,11 @@ a holder's `EBUSY` and the checked reattach back to the slot,
 the same clone's unmount after the holder ended,
 and two removals at once.
 The arm's output is in the round's keep folder.
+The all-namespace holder scan this step also owns is built and merged into
+`main` with it (`cf5c7ddb8d`),
+and its own note above says what it answers and what it leaves to steps 16 to
+18.
 Still owed by this step:
-the all-namespace holder scan is another round's,
-built on `feat/git-policy-cli-zfs-step-9-holder-scan-across-mount-namespaces`;
 the stacked-mount rollback in the guest,
 a reboot with a staged record,
 the repeat of VM items 3,
@@ -2179,6 +2476,21 @@ section "Who removes a killed writer's staging file"):
 until this step the administrator's adoption is their only remover,
 and a leftover affects no reader,
 because no reader reads a staging name.
+It reports the `snapdir` of the checkout dataset and of the clone container,
+each where it is not `disabled`,
+with the command that sets it and the sentence that the container's value is
+what the clones inherit,
+which is the reporting half of the project's answer of 2026-11-23,
+recorded in `doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+in the section that answers what hiding snapshot directories comes to.
+It says of a module older than OpenZFS 2.3.0 that the value cannot be set
+there at all.
+The route can read the setting:
+its own dataset-stats request carries `snapdir` whenever it is set,
+locally or inherited,
+and omits it only at the default,
+which is a value that is not `disabled` either,
+so an absent value is reported as the default `hidden`.
 It prints the concrete root-once and setup commands without running them,
 and reports the deferred-origin check as not yet designed until step 15 lands.
 
@@ -2261,13 +2573,92 @@ The gate that orders every path descendant after a verified checkout mount.
 The private propagation the unit sets on the verified checkout,
 and what re-applies it after a replacement mount.
 The provider hook that triggers reconciliation after post-key-load checkout readiness.
+The `snapdir` the setup sets on the checkout dataset and on the clone container,
+which is the project's third answer of 2026-11-22
+(`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+"Four further answers on the look-up with no configuration file")
+as it was answered on 2026-11-23 in that section's "What hiding comes to,
+answered 2026-11-23",
+quoted:
+"Step 19's setup sets `snapdir=disabled` on the checkout and on the clone
+container (clones inherit it);
+step 18's `doctor` reports either one where it isn't disabled (the route can
+read the setting);
+setup says so plainly where the ZFS module is older than 2.3.0 and refuses the
+value."
+So the setup runs `zfs set snapdir=disabled` on the checkout dataset,
+and again on the clone container so every clone inherits it,
+before the account's next mount of either,
+because `disabled` is the only value that refuses the `.zfs` directory by name;
+and where the loaded module refuses the value,
+which is every release before OpenZFS 2.3.0,
+the setup prints one line saying this module cannot hide the snapshot
+directories and that the mount table's bound is all that stands in their place,
+rather than reporting a set it did not make.
+A value set on a live mount is only partly in force:
+an account that has already listed `.zfs/snapshot` on that mount keeps entering
+names until the dataset is mounted again,
+so the safe statement is the next mount,
+and the setup's own run comes before the account's sessions.
+The facts,
+from OpenZFS `zfs-2.4.4` and the guest arms of this route's drivers:
+`visible` lists the directory,
+and `visible` and `hidden` both let an account enter a snapshot's directory by
+name,
+which makes the kernel mount that snapshot as root and adds a row;
+`hidden` is the default and only leaves the directory out of listings;
+`disabled` refuses the name with `ENOENT` and no row appears
+(`module/os/linux/zfs/zfs_ctldir.c`,
+`zfsctl_root_lookup`,
+which answers `ENOENT` for every name when
+`z_show_ctldir == ZFS_SNAPDIR_DISABLED`,
+and `include/sys/zfs_ioctl.h` at `zfs-2.4.4`,
+`ZFS_SNAPDIR_DISABLED 2`,
+with the values at `module/zcommon/zfs_prop.c:240` to `:242`).
+The driver's `snapdir` step shows the three values and the account's refusals,
+and the sweep guest arm reads a locally set value,
+an inherited one and the default through the route's own reader
+(`SNAPDIR-REPLY`).
+`disabled` exists from OpenZFS 2.3.0 and not in 2.2.7 or earlier,
+whose headers and manuals hold only `hidden` and `visible`;
+the route's gate reads no release string
+(`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+"No step reads the module's release string as a rule"),
+so a matching older module is possible and the setup's
+`zfs set snapdir=disabled` would be refused on it,
+which is a setup refusal a person reads rather than a silent state.
+A clone inherits the container's value,
+so setting the checkout alone leaves each clone's own `.zfs/snapshot` at the
+default `hidden`,
+which still lets the account enter a snapshot of that clone by name.
+No part of the route reads a snapshot through that directory:
+the start probe never opens `.zfs` at all
+(`doc/planning/cli-git-zfs-start-probe-design.md`,
+"The source:
+the probe dataset"),
+and no file in this package names `.zfs/snapshot`.
+What the route does when the property is not `disabled`:
+nothing yet.
+Neither program reports it:
+the probe reads no property and never opens the ZFS device,
+and this build prints no line from the sweep,
+although the sweep's dataset-stats reply carries the value whenever it is set,
+locally or inherited,
+and omits only the default,
+so a one-line report on the request the sweep already makes is possible and is
+the owner's to choose.
+A person reads the property in `git monochromatic-git-policy-cli doctor`
+once plan step 18 adds it.
 The two dataset names the setup writes into the root-owned configuration:
 the checkout dataset and the clone container,
 so no person edits that file by hand
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "The datasets the sweep acts on").
-Step 8's handler reads them and falls back to the design's own names only when
-the file holds neither.
+Step 8's handler reads them and,
+for each entry the file leaves out,
+finds what that entry would have named;
+the setup's file is the preferred reading,
+not the condition of the route ([the plan's step 8](#where-the-checkout-and-the-datasets-are-found)).
 None of this runs on this host.
 Applying the migration,
 the immutable flag,

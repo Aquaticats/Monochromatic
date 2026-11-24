@@ -36,6 +36,7 @@
 
 use super::per_slot_root_claim::SlotClaimDirectory;
 use super::sweep_checkout_mount::LiveCheckoutMounts;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use super::sweep_configuration::{SweepConfiguration, read_configuration};
 use super::sweep_first_attach::LiveFirstAttach;
 use super::sweep_one_clone::LiveStandingMounts;
@@ -126,7 +127,8 @@ pub fn run() -> Result<String, String> {
 /// Everything `run` refuses.
 pub fn run_at(places: &ReconcilePlaces, readiness: &ReadinessFile) -> Result<String, String> {
     let mounts: LiveCheckoutMounts = LiveCheckoutMounts;
-    let configuration: SweepConfiguration = read_configuration(places.configuration.as_path(), &mounts).map_err(|refusal| return refusal.message())?;
+    let table: LiveMountedDatasets = LiveMountedDatasets;
+    let configuration: SweepConfiguration = read_configuration(places.configuration.as_path(), &table).map_err(|refusal| return refusal.message())?;
     let prepared: PreparedBoot = prepare(&configuration, places.probe_record.as_path(), &mounts).map_err(|refusal| return refusal.message())?;
     let reader: ZfsDatasetReader = ZfsDatasetReader::open().map_err(|error| return format!("the handler could not open the ZFS device, so this boot's clones are not reconciled: {error}"))?;
     let facts: BootFacts = complete(prepared, &reader, configuration.parent_dataset.as_str()).map_err(|refusal| return refusal.message())?;

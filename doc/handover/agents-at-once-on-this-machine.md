@@ -13,24 +13,33 @@ which doubles from there until a level fails.
 Until that search has found the drive's ceiling,
 no run waits for a disk cap:
 each provider pool's measured limit bounds its own runs.**
-The owner on 2026-11-19, after a session wrote that ZFS runs still count against "the cap" here:
-"The real limit is the agent cap? Didn't I say the 20 is not really a cap on this new disk?
+The owner on 2026-11-19,
+after a session wrote that ZFS runs still count against "the cap" here:
+"The real limit is the agent cap?
+Didn't I say the 20 is not really a cap on this new disk?
 We talked about this at least 3 times."
-The search itself waits for the wrapper's ZFS route, by the owner's word of 2026-11-18.
+The search itself waits for the wrapper's ZFS route,
+by the owner's word of 2026-11-18.
 Every number below this paragraph was measured on the old drives (the SATA 860 EVO and the old NVMe),
-whose stalls set it, and none of them holds on the new drive.
+whose stalls set it,
+and none of them holds on the new drive.
 The home folder now sits on the ZFS pool `zpcachyos` on the Intel 3.5 TB NVMe.
 The owner on 2026-11-17:
-"The cap shouldn't be 20. The 20 cap was set because my old disk was slow, and we're on the new disk now."
-and, when a session read that as no cap at all,
-"I didn't tell you to outright remove the cap. You're meant to bisect for it."
+"The cap shouldn't be 20.
+The 20 cap was set because my old disk was slow,
+and we're on the new disk now."
+and,
+when a session read that as no cap at all,
+"I didn't tell you to outright remove the cap.
+You're meant to bisect for it."
 The owner then wrote "Start from 20 instead.",
 so the search starts at twenty and doubles until a level fails,
 then halves the gap between the last level that held and the one that failed,
 with the same failing criteria and the same hour per level.
 Should twenty itself fail,
 the levels halve downward until one holds and the gap is then halved the same way
-(this session's reading of the method for that case, open to the owner's veto).
+(this session's reading of the method for that case,
+open to the owner's veto).
 Its readings go under `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/`,
 and each level gets its own heading under "Readings on the new drive".
 Each provider's own measured refusal limits its pool
@@ -63,7 +72,8 @@ kept as it was written.
 At most 17 agents ran at once from 2026-11-15T01:00:44-05:00
 (18 from 00:50:55;
 level eighteen failed at 00:57:33 on 109,241 ms and then 59,474 ms,
-under "Level 18 fails on stalls of 109 and 59 seconds, 2026-11-15T00:44:53-05:00 to 01:00:46-05:00").
+under "Level 18 fails on stalls of 109 and 59 seconds,
+2026-11-15T00:44:53-05:00 to 01:00:46-05:00").
 The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T010044`
 and the probe `disk-ceiling-probe-level-17-20261115T010046`.
 Should seventeen fail,
@@ -96,13 +106,18 @@ the last level that held,
 and the cap goes no lower than sixteen without the owner.
 Not final and not approved;
 the readings are under
-"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00" and
-"Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00".
+"Level 24 fails forty minutes into the nightly snapshot cleanup,
+2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00" and
+"Level 20 fails twelve minutes after it began,
+the cleanup still running,
+2026-11-15T00:32:17-05:00 to 00:50:55-05:00".
 What stood before:
 at most 24 agents ran at once from 2026-11-14T08:54:33-05:00,
 by the owner's answer of that morning
 ("Resume at 24":
-halve the gap between 16, which held, and 32 again,
+halve the gap between 16,
+which held,
+and 32 again,
 with the probe ending the level on two slow readings in a row as before;
 `doc/handover/cli-git-rust-implementation.md`,
 "Answers on the owner's return").
@@ -127,7 +142,9 @@ from 18 to 17 at 02:03:15
 and from 17 to 16 at 02:48:16,
 each time when the level before failed its criterion,
 by the rule under "What counts as the ceiling":
-halve the gap between the last level that held, sixteen, and the one that failed).
+halve the gap between the last level that held,
+sixteen,
+and the one that failed).
 Twenty-four stopped no start:
 the provider pools take about twenty-five at most,
 and twenty to twenty-two agents were going at both failures.
@@ -147,10 +164,15 @@ Whether sixteen is right,
 or the number goes back up once the stalls are explained,
 is a question kept for the owner in `doc/handover/cli-git-rust-implementation.md`.
 The readings and what is not established about their cause are under
-"Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00",
-"Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00",
-"Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
-"Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00".
+"Levels 32 and 24 fail on the home drive,
+2026-11-14T00:59:04-05:00 to 01:18:45-05:00",
+"Level 20 fails on the home drive,
+2026-11-14T01:37:37-05:00 to 01:41:00-05:00",
+"Level 18 fails after the daily update ended;
+a snapshot cleanup has run since midnight,
+2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
+"Level 17 fails and the search ends at sixteen,
+2026-11-14T02:03:18-05:00 to 02:47:00-05:00".
 The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
 not in `main`,
 carries the number in a file of its own that still reads sixteen;
@@ -170,7 +192,8 @@ a starting point that is raised,
 and never a reason to stop work that is going.
 When the session doing the search stopped a run of its own because another session's start had taken the machine to five,
 the owner wrote:
-"\"Forced you stop yours\"? Didn't I say bisect up until there's a problem?"
+"\"Forced you stop yours\"?
+Didn't I say bisect up until there's a problem?"
 So:
 
 - no run that is going is stopped to get back to the number;
@@ -259,7 +282,8 @@ step 1 and step 3 are the gate's and this section says so.
 ## What counts as the ceiling
 
 The owner's answer of 2026-11-13:
-"Measured symptoms, but \"a commit through the wrapper takes longer than your rule\" is obviously a bad \"symptom\"
+"Measured symptoms,
+but \"a commit through the wrapper takes longer than your rule\" is obviously a bad \"symptom\"
 since that might just say the wrapper is bad."
 
 A level fails on the first of:
@@ -284,7 +308,8 @@ the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-1
 
 The probe writes and syncs 4 KiB once a minute in two datasets of the pool `zpcachyos`:
 the snapshotted home dataset `zpcachyos/ROOT/cos/home`
-(in the search's own folder, where every run's scratch lives too;
+(in the search's own folder,
+where every run's scratch lives too;
 `~/.cache` is the snapshot-free `zpcachyos/nosnap/user-cache`)
 and the snapshot-free `zpcachyos/nosnap/cargo-build` (`~/.cargo/build/disk-ceiling-probe-file`),
 one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/keep/probe-readings.jsonl`.
@@ -292,64 +317,144 @@ one line a minute in `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026
 ### Level 20, started 2026-11-17T18:54:13-05:00
 
 - The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261117` started at 18:54:13 for eight hours;
-  its first reading, with no agent unit going, took 0 ms on both datasets (both `sync=standard`).
-- Two canary runs (GPT 6.2 Sol on `openai`, DeepSeek V4.1 Flash on Synthetic) each ended `idle` after three turns
-  and about two and a half minutes: the wrapper answered as `git`, a worktree was made on ZFS, `cargo` and `node` ran.
-- The work at this level: six DeepSeek reviews of the reviewer bench (batch started 18:59:17),
-  the queue's first review (started by hand at 18:59:38), and the filling unit
+  its first reading,
+  with no agent unit going,
+  took 0 ms on both datasets (both `sync=standard`).
+- Two canary runs (GPT 6.2 Sol on `openai`,
+  DeepSeek V4.1 Flash on Synthetic) each ended `idle` after three turns
+  and about two and a half minutes:
+  the wrapper answered as `git`,
+  a worktree was made on ZFS,
+  `cargo` and `node` ran.
+- The work at this level:
+  six DeepSeek reviews of the reviewer bench (batch started 18:59:17),
+  the queue's first review (started by hand at 18:59:38),
+  and the filling unit
   `fill-free-places-at-level-20-on-the-new-drive-20261117` from 19:00:13 for eight hours,
   which starts queue entries into free places under twenty every 150 s
-  (reviews on Synthetic DeepSeek, writers on GPT 6.2 Sol, by the starter's change of 2026-11-17).
-- Six `codex` processes and one `claude` process of other sessions were going when the level began; the probe counts `pi-*` units only.
-- Cut short, not finished: the owner asked for a shutdown at night ("shutdown the entire system after you finish A THOROUGH RESEARCH. I'm going to bed."),
-  so the filling unit was stopped about 19:26, every going run was ended through its stop file at 19:28:09,
+  (reviews on Synthetic DeepSeek,
+  writers on GPT 6.2 Sol,
+  by the starter's change of 2026-11-17).
+- Six `codex` processes and one `claude` process of other sessions were going when the level began;
+  the probe counts `pi-*` units only.
+- Cut short,
+  not finished:
+  the owner asked for a shutdown at night ("shutdown the entire system after you finish A THOROUGH RESEARCH.
+  I'm going to bed."),
+  so the filling unit was stopped about 19:26,
+  every going run was ended through its stop file at 19:28:09,
   and the probe was stopped at 19:28:50-05:00.
-  Its 35 readings (23:54:13Z to 00:28:17Z) saw at most 13 `pi-*` units going, never twenty;
-  the slowest write-and-sync took 72 ms on the home dataset and 2,564 ms on `cargo-build`, none over 5 s.
+  Its 35 readings (23:54:13Z to 00:28:17Z) saw at most 13 `pi-*` units going,
+  never twenty;
+  the slowest write-and-sync took 72 ms on the home dataset and 2,564 ms on `cargo-build`,
+  none over 5 s.
   The runs' first-answer times and the disk error log were not read before the stop.
-  Level 20 was neither held an hour nor filled, so it neither passed nor failed: the search starts at twenty again.
+  Level 20 was neither held an hour nor filled,
+  so it neither passed nor failed:
+  the search starts at twenty again.
   Synthetic answered `429 "Too many concurrent requests"` with about ten DeepSeek runs going,
   which is what kept the level from filling.
 
 ### Level 20 again, started 2026-11-18T21:18:17-05:00
 
-- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261118T211817` started for eight hours, same script and
+- The probe unit `disk-ceiling-probe-new-zfs-drive-level-20-20261118T211817` started for eight hours,
+  same script and
   readings file.
 - The filling unit `fill-free-places-at-level-19-on-the-new-drive-20261118T211817` started at the same moment for eight
-  hours at level 19, because one agent at the level is a Claude Code subagent (the ZFS proposal's Sonnet gate review)
-  that its `pi-*` count does not see; three GPT writers were already going (the env-local-json fixture, the virtual
-  provider of issue 6314, both started by hand; the fold-in writer had ended).
-- Reviews now start on the Qwen plan (`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`, the owner's order of
-  2026-11-18); a review a 429 ends moves to the next provider by hand until the virtual provider replaces that.
+  hours at level 19,
+  because one agent at the level is a Claude Code subagent (the ZFS proposal's Sonnet gate review)
+  that its `pi-*` count does not see;
+  three GPT writers were already going (the env-local-json fixture,
+  the virtual
+  provider of issue 6314,
+  both started by hand;
+  the fold-in writer had ended).
+- Reviews now start on the Qwen plan (`qwen-token-plan-individual` `deepseek-v4.1-flash-1017`,
+  the owner's order of
+  2026-11-18);
+  a review a 429 ends moves to the next provider by hand until the virtual provider replaces that.
 - The nine runs stopped for the shutdown were put back at the head of the queue to go on from their sessions.
-- No verdict again. The probe exited at its first reading: every user unit inherits `NODE_OPTIONS=--permission-audit`
-  since 2026-11-18T19:35:41-05:00, and Node 26.13.1 then refuses `fsyncSync` ("fsync API is disabled when Permission
-  Model is enabled"). The owner turned the model on and, same evening: "we should figure out how to work with it, not
-  disable it." Then: "Shouldn't the probe be in rust with hyperfine anyway?" So the next probe is a small Rust program
-  that writes 4 KiB and syncs it in each dataset, timed by hyperfine (2.0.0, installed at `/usr/bin/hyperfine` by the
-  system, not in the repository's tool list), with a control arm in the same round; Node's permission model does not
-  apply to it, and clearing `NODE_OPTIONS` is ruled out. It was built and checked the same evening (next bullet). The level
-  never filled (6 to 18 runs). At 21:47:42 the owner's "We shouldn't use worktrees heavily before we implement the zfs
-  parts for the git wrapper." stopped the filling, so the search waits for the wrapper's ZFS route.
-- The Rust probe, built and checked on 2026-11-18 at about 22:00 to 22:50-05:00, not yet run as a hold. Files under
+- No verdict again.
+  The probe exited at its first reading:
+  every user unit inherits `NODE_OPTIONS=--permission-audit`
+  since 2026-11-18T19:35:41-05:00,
+  and Node 26.13.1 then refuses `fsyncSync` ("fsync API is disabled when Permission
+  Model is enabled").
+  The owner turned the model on and,
+  same evening:
+  "we should figure out how to work with it,
+  not
+  disable it."
+  Then:
+  "Shouldn't the probe be in rust with hyperfine anyway?"
+  So the next probe is a small Rust program
+  that writes 4 KiB and syncs it in each dataset,
+  timed by hyperfine (2.0.0,
+  installed at `/usr/bin/hyperfine` by the
+  system,
+  not in the repository's tool list),
+  with a control arm in the same round;
+  Node's permission model does not
+  apply to it,
+  and clearing `NODE_OPTIONS` is ruled out.
+  It was built and checked the same evening (next bullet).
+  The level
+  never filled (6 to 18 runs).
+  At 21:47:42 the owner's "We shouldn't use worktrees heavily before we implement the zfs
+  parts for the git wrapper."
+  stopped the filling,
+  so the search waits for the wrapper's ZFS route.
+- The Rust probe,
+  built and checked on 2026-11-18 at about 22:00 to 22:50-05:00,
+  not yet run as a hold.
+  Files under
   `~/temp/agent/disk-ceiling-search-on-the-new-zfs-drive-2026-11-17/`:
-  - `write-four-kibibytes-and-sync-it-source/main.rs` (one file, no dependencies, built with `rustc --edition 2024
-    -C opt-level=3`) writes 4 KiB to a new file, syncs it with `sync_all` when told `sync`, closes and removes it;
+  - `write-four-kibibytes-and-sync-it-source/main.rs` (one file,
+    no dependencies,
+    built with `rustc --edition 2024
+    -C opt-level=3`) writes 4 KiB to a new file,
+    syncs it with `sync_all` when told `sync`,
+    closes and removes it;
     `no-sync` is the control arm.
   - `probe-write-and-sync-on-two-datasets-every-minute-timed-by-hyperfine.ts` (usage `<level> <hold-seconds>
-    <bound-milliseconds> <period-seconds> <readings-file>`) has hyperfine time, each round, one run of each arm on
-    each dataset (`--runs 1 -N`; hyperfine 2.0.0 has no interleave option, so one call per round places the control
-    run beside the measured one), records the readings with I/O pressure, load and agent count, keeps hyperfine's
-    JSON per round, and judges one sync sample per dataset per round, so the fail rule (over the bound in two rounds
-    in a row) fires as often as the Node probe's did. Readings include the program's start, so they go to their own
-    file, not `keep/probe-readings.jsonl`.
-  - Controls, in `keep/rust-probe-controls-2026-11-18/`: the sync arm is real (ZFS's `zil_commit_count` rose by 50
-    over fifty sync runs and by 0 over fifty no-sync runs; datasets `sync=standard`, `logbias=latency`); by time
-    alone it is not separable when the drive is quiet (twenty runs each, medians: home sync 0.82 ms against no-sync
-    0.75 ms, cargo-build 0.76 against 0.72, ranges overlapping); one loaded round took 12.4 ms for cargo-build's sync
-    against 0.95 for its control. The fail rule fires: with a bound of 0 ms the loop ended with status 3 after
+    <bound-milliseconds> <period-seconds> <readings-file>`) has hyperfine time,
+    each round,
+    one run of each arm on
+    each dataset (`--runs 1 -N`;
+    hyperfine 2.0.0 has no interleave option,
+    so one call per round places the control
+    run beside the measured one),
+    records the readings with I/O pressure,
+    load and agent count,
+    keeps hyperfine's
+    JSON per round,
+    and judges one sync sample per dataset per round,
+    so the fail rule (over the bound in two rounds
+    in a row) fires as often as the Node probe's did.
+    Readings include the program's start,
+    so they go to their own
+    file,
+    not `keep/probe-readings.jsonl`.
+  - Controls,
+    in `keep/rust-probe-controls-2026-11-18/`:
+    the sync arm is real (ZFS's `zil_commit_count` rose by 50
+    over fifty sync runs and by 0 over fifty no-sync runs;
+    datasets `sync=standard`,
+    `logbias=latency`);
+    by time
+    alone it is not separable when the drive is quiet (twenty runs each,
+    medians:
+    home sync 0.82 ms against no-sync
+    0.75 ms,
+    cargo-build 0.76 against 0.72,
+    ranges overlapping);
+    one loaded round took 12.4 ms for cargo-build's sync
+    against 0.95 for its control.
+    The fail rule fires:
+    with a bound of 0 ms the loop ended with status 3 after
     exactly two rounds.
-  - Start it for a hold as its own unit, for example `systemd-run --user --unit=disk-ceiling-probe-...-level-<n>-<time>
+  - Start it for a hold as its own unit,
+    for example `systemd-run --user --unit=disk-ceiling-probe-...-level-<n>-<time>
     --collect --property=MemoryMax=512M --property=CPUQuota=100% --property=TasksMax=64 --property=IOWeight=1 node
     <loop> <n> 28800 5000 60 <search folder>/keep/probe-readings-timed-by-hyperfine.jsonl`.
 
@@ -361,7 +466,8 @@ one line a minute:
 
 ### Level 4, started 2026-11-13T10:43:42-05:00
 
-- Before any run of the search: `/proc/pressure/io` `full avg60=12.45`,
+- Before any run of the search:
+  `/proc/pressure/io` `full avg60=12.45`,
   with one sizing walk on the home drive and one run of another session going.
 - Started with one run of another session and three of the session doing the search.
   At 10:45:25 the probe counted five units:
@@ -369,13 +475,16 @@ one line a minute:
   which nothing had told it not to.
   The session doing the search stopped its newest run at 10:49:59 to bring the machine back to four,
   which was wrong (the owner's words under "The cap now"):
-  five with no symptom was a reading to keep, not a breach.
+  five with no symptom was a reading to keep,
+  not a breach.
   The stopped run had worked 5 minutes 25 seconds and was started again at 10:50:28,
   when a run of the other session had ended.
 - Of the runs going,
   only `integration-pass-18-for-alpha-16` compiles Rust;
   the level is not judged before the places hold runs that each built.
-- First readings (10:45:25 and 10:46:25, five units): write-and-sync 2 to 3 ms,
+- First readings (10:45:25 and 10:46:25,
+  five units):
+  write-and-sync 2 to 3 ms,
   `full avg60` 15.24 and 10.43.
   Both probe files of that first probe were on the build volume
   (`~/temp` is a link to `/var/mnt/encrypted/temp`),
@@ -386,15 +495,19 @@ one line a minute:
   write-and-sync 1 ms on the home drive and 2 ms on the build volume,
   `full avg60` 4.42).
   The hour of the level counts from there.
-- **Held.** Sixty readings from 10:56:44 to 11:55:48,
+- **Held.**
+  Sixty readings from 10:56:44 to 11:55:48,
   fifty-seven of them with four units going and three with three.
-  Write-and-sync on the home drive: median 1 ms,
+  Write-and-sync on the home drive:
+  median 1 ms,
   slowest 32 ms.
-  On the build volume: median 2 ms,
+  On the build volume:
+  median 2 ms,
   slowest 2,157 ms (11:44:46) and 850 ms (11:10:44),
   every other reading under 50 ms;
   the bound is 5,000 ms twice in a row.
-  `full avg60`: median 4.2,
+  `full avg60`:
+  median 4.2,
   highest 15.6.
 - No run got no answer to its first prompt and none ended on a disk error:
   three runs ended `idle` with their reports in that hour
@@ -409,11 +522,14 @@ one line a minute:
 
 ### Level 8, started 2026-11-13T11:57:30-05:00
 
-- Going when it started: two resumes of wrapper work,
+- Going when it started:
+  two resumes of wrapper work,
   the review of the start gate's change,
   and one run of another session.
-- Added: three more resumes of wrapper work and the review of the launcher's scratch-folder change.
-- Probe: unit `disk-ceiling-probe-level-8-20261113`,
+- Added:
+  three more resumes of wrapper work and the review of the launcher's scratch-folder change.
+- Probe:
+  unit `disk-ceiling-probe-level-8-20261113`,
   the same file,
   one hour.
 - Seen at this level and no symptom by the criterion:
@@ -423,7 +539,8 @@ one line a minute:
   A lock held by another agent's build is a wait on a neighbour,
   not on a drive;
   it is written here because it grows with the count.
-- **Held.** The reading after the 5,901 ms one,
+- **Held.**
+  The reading after the 5,901 ms one,
   at 12:58:07 with eight units going,
   took 1 ms on the home drive:
   one reading over the bound and not two in a row,
@@ -436,9 +553,11 @@ one line a minute:
   forty-six with eight units going,
   ten with seven,
   three with six and one with four.
-  Build volume: median 7 ms,
+  Build volume:
+  median 7 ms,
   slowest 358 ms.
-  Home drive: median 1 ms,
+  Home drive:
+  median 1 ms,
   and every reading under 100 ms but the last,
   **5,901 ms at 12:56:31** with seven units going.
   The bound is 5,000 ms twice in a row;
@@ -447,9 +566,11 @@ one line a minute:
   What was writing to the home drive in that minute is not established;
   two starts fell in the forty seconds before it
   (a resume at 12:55:20 that started nothing and a review at 12:56:03).
-  `full avg60`: median 4.13,
+  `full avg60`:
+  median 4.13,
   highest 9.1.
-  One-minute load: median 11.2,
+  One-minute load:
+  median 11.2,
   highest 38.1.
 - No run got no answer to its first prompt and none ended on a disk error in that hour.
   Nine runs ended with their reports
@@ -463,7 +584,8 @@ one line a minute:
 
 ### Level 16, started 2026-11-13T12:58:50-05:00
 
-- Going when it started: eight runs of the session doing the search
+- Going when it started:
+  eight runs of the session doing the search
   (resumes of wrapper work,
   two launcher authors answering reviews,
   reviews).
@@ -478,7 +600,8 @@ one line a minute:
   `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`
   and `snapshot-of-a-person-is-never-proved-to-be-the-wrappers-own`.
   Sixteen units were going at 13:01:43.
-- Probe: unit `disk-ceiling-probe-level-16-20261113`,
+- Probe:
+  unit `disk-ceiling-probe-level-16-20261113`,
   the same file,
   one hour from its first reading at 12:58:48,
   which was taken with eight units going.
@@ -490,18 +613,22 @@ one line a minute:
   was started between 13:02 and 13:05 by the session doing the search and ended at 13:15:18;
   a slow build-volume reading in that time is read against it.
   It read 62.7 GiB as the scratch folders' own data
-  (largest: `kimi-trials` 15.3 GiB,
+  (largest:
+  `kimi-trials` 15.3 GiB,
   `pkgrepair-repair-off-the-path` 13.1 GiB,
   `module-test-logs` 9.8 GiB,
   `cli-git-btrfs-fixtures` 5.6 GiB),
   with some fixture files it could not read left out.
-- A reading above the level: seventeen agents at 13:19:20.
+- A reading above the level:
+  seventeen agents at 13:19:20.
   The starter of the session doing the search read fifteen three times in a row,
   because a run just started has no unit for some seconds,
   and started three reviews into one free place (13:17:49 to 13:18:35).
   Nothing was stopped;
   the starter now counts the free places once before its first start.
-- A second sizing walk, of every worktree, was started at 13:16:06 at disk weight 1,
+- A second sizing walk,
+  of every worktree,
+  was started at 13:16:06 at disk weight 1,
   and one of the shared cargo build folder shortly after.
 - Readings to 13:33:18,
   thirty-five at this level:
@@ -552,14 +679,20 @@ one line a minute:
   the user service manager (PID 5289) wrote no log line from about 14:48:10 to 14:49:00,
   where it wrote two to three every ten seconds before and eighteen in the ten seconds after;
   in that time two callers got no listing from it within twenty seconds
-  (the probe's own count at 14:48:24, logged as -1,
-  and a watcher of the session doing the search, which ended at 14:49:07).
+  (the probe's own count at 14:48:24,
+  logged as -1,
+  and a watcher of the session doing the search,
+  which ended at 14:49:07).
   At 14:49:30 the same listing took 8 ms.
-  **What it waited on is not established, and nothing measured points at a drive**:
-  - the probe's two writes at 14:48:24, the start of that time, took 65 ms on the home drive and 9 ms on the build volume;
+  **What it waited on is not established,
+  and nothing measured points at a drive**:
+  - the probe's two writes at 14:48:24,
+    the start of that time,
+    took 65 ms on the home drive and 9 ms on the build volume;
   - the one-minute load went from 13.0 to 60.7 in that minute on 28 processors,
     and the kernel's I/O figure `full avg10` read 23.75;
-  - memory at 14:49:30: 968 MiB free,
+  - memory at 14:49:30:
+    968 MiB free,
     11.3 GiB in compressed swap,
     and the memory figure `full avg10` at 2.00;
   - the manager's whole wait for a processor since it started at 08:57:19 is 45.5 s
@@ -575,14 +708,19 @@ one line a minute:
   in the seconds after the silence ended,
   while seven other reviews on the same provider went on.
   A recorder now samples the manager while an answer is slow:
-  its state, its time on and waiting for a processor, its page faults, the journal's state and the kernel's pressure figures
+  its state,
+    its time on and waiting for a processor,
+    its page faults,
+    the journal's state and the kernel's pressure figures
   (unit `record-what-the-user-service-manager-waits-on-20261113`,
   log `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`).
   A manager that stops answering for a time is what `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` is about.
 - Readings of the probe started at 14:37,
   14:37:21 to 15:13:14,
   thirty-six of them with eight to sixteen units going
-  (sixteen once, at 14:57:08, and twelve to fourteen for most of it):
+  (sixteen once,
+  at 14:57:08,
+  and twelve to fourteen for most of it):
   home drive over the bound once,
   **5,756 ms at 15:00:08**,
   with 65 ms the next slowest;
@@ -602,18 +740,21 @@ one line a minute:
   the section dated 2026-11-13T15:24:13-05:00).
   So how many agents go now follows how many author runs the queue holds,
   and a reading at sixteen or above needs that many runs that are not reviews.
-- Free room at 15:24:13: `/var/home` 513 GiB,
+- Free room at 15:24:13:
+  `/var/home` 513 GiB,
   the build volume 1,529 GiB:
   26 GiB less than at 14:37:39,
   in forty-seven minutes.
-- Free room at 14:37:39: `/var/home` 514 GiB,
+- Free room at 14:37:39:
+  `/var/home` 514 GiB,
   the build volume 1,555 GiB:
   61 GiB less than at 13:15:18,
   in eighty-two minutes.
   What takes it is not measured;
   `/var/mnt/encrypted/cargo-build` holds 259 entries (14:38:24),
   and each review and each resumed run builds the wrapper in a tree of its own.
-- Free room at 13:15:18: `/var/home` 517 GiB,
+- Free room at 13:15:18:
+  `/var/home` 517 GiB,
   the build volume 1,616 GiB
   (519 GiB and 1,640 GiB at 10:27:50,
   so the build volume took 24 GiB in two hours and forty-seven minutes;
@@ -635,11 +776,13 @@ one line a minute:
   fifteen at eleven,
   sixteen at twenty-four
   and seventeen at nineteen.
-  - Home drive: median 1 ms;
+  - Home drive:
+    median 1 ms;
     one reading over one second and over the bound,
     **7,819 ms at 16:57:24**,
     the reading after it under the bound.
-  - Build volume: median 7 ms;
+  - Build volume:
+    median 7 ms;
     over one second twice
     (4,464 ms at 16:13:15 and 2,020 ms at 16:38:21),
     none over the bound.
@@ -659,7 +802,8 @@ one line a minute:
   - So the criterion is not met:
     sixteen held its hour.
   - No sizing walk ran during the hour.
-  - Free room at 17:11:42: `/var/home` 507 GiB,
+  - Free room at 17:11:42:
+    `/var/home` 507 GiB,
     the build volume 1,488 GiB
     (41 GiB less than at 15:24:13,
     in one hour and forty-seven minutes).
@@ -671,7 +815,8 @@ one line a minute:
   at most two starts every 150 s,
   and no more than five runs on the reviewer's model at once,
   which bounds how fast the count climbs and how far it gets with a queue that is mostly reviews.
-- Going at 17:14:28: seventeen Pi runs,
+- Going at 17:14:28:
+  seventeen Pi runs,
   one of them another session's.
 - A sizing walk of the shared cargo build folder
   (`btrfs filesystem du --summarize`,
@@ -700,7 +845,8 @@ one line a minute:
   and is read by the counts it holds:
   a count that stays near twenty is a reading at twenty,
   not thirty-two held.
-- **The pools bound the count at about twenty-five, and the owner keeps it so.**
+- **The pools bound the count at about twenty-five,
+  and the owner keeps it so.**
   A run that names no model goes to one open pool,
   `neuralwatt-flex`,
   which takes twenty,
@@ -721,8 +867,10 @@ one line a minute:
   twenty-three at four,
   twenty-four at nineteen
   and twenty-five at fourteen.
-  - Home drive: slowest 42 ms.
-  - Build volume: over one second eight times
+  - Home drive:
+    slowest 42 ms.
+  - Build volume:
+    over one second eight times
     (1,503 ms at 17:26:32,
     2,179 at 17:32:34,
     **5,764 at 17:37:13**,
@@ -738,7 +886,8 @@ one line a minute:
     readings taken during a sizing walk cannot be put down to the agents alone,
     so these do not judge the level.
   - The walk had run fifty-three minutes at 18:06 with nothing printed.
-- Free room at 18:06:54: `/var/home` 506 GiB,
+- Free room at 18:06:54:
+  `/var/home` 506 GiB,
   the build volume 1.5 TiB by `df`'s rounding
   (1,467 GiB by the launcher's count at 17:51).
 - The walk was stopped by hand at 18:24:20,
@@ -818,7 +967,8 @@ measured by the coordinating session.
 No probe of the drives ran in this hour:
 the last reading before it is of 2026-11-13T19:49:23-05:00.
 
-- **Agents**: 22 agent units going at 00:59,
+- **Agents**:
+  22 agent units going at 00:59,
   the count of the judged hour.
 - **First answers**
   (`time-to-first-answer-of-each-pi-run-started-since.ts`,
@@ -848,7 +998,8 @@ the last reading before it is of 2026-11-13T19:49:23-05:00.
 - **By the criterion the level still holds**
   (no longer so:
   the probe started at 01:00 failed the level at 01:10:30,
-  see "Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00"):
+  see "Levels 32 and 24 fail on the home drive,
+  2026-11-14T00:59:04-05:00 to 01:18:45-05:00"):
   no first answer over 120 s,
   no run ended on a disk error.
   The second half of the criterion had no reading,
@@ -864,7 +1015,8 @@ the last reading before it is of 2026-11-13T19:49:23-05:00.
   and `toolchain-daily-update.service`,
   whose timer fired at 00:16:25,
   two seconds before the first slow answer of the service manager in this hour was asked
-  (found at 01:18, after this section was written).
+  (found at 01:18,
+  after this section was written).
 
 #### Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00
 
@@ -942,7 +1094,8 @@ The cause is not established and none is claimed.
   `snapper-cleanup` 00:00:07,
   `logrotate` 00:22:41,
   `btrfs-qgroup-rescan-home` 00:37:12
-  (answered "already consistent, nothing to do";
+  (answered "already consistent,
+  nothing to do";
   the kernel logged a quota scan of the home filesystem completed at 00:14:49 and at 00:53:37),
   `kopia-snapshot-all` 00:40:36
   (in `auto-restart` at 01:19),
@@ -1079,7 +1232,8 @@ No cause is claimed.
   The level that held its hour on 2026-11-13 from 18:51 to 19:49 had twenty to twenty-two.
   Fewer agents and more stalls:
   the criterion keeps failing and the count does not explain it.
-- **A lead, read from the system's journal and not tested**:
+- **A lead,
+  read from the system's journal and not tested**:
   `snapper-cleanup.service` started at 00:00:07 and was still running at 01:55:53.
   At 00:14:49 it logged the deletion of a batch of snapshots of the root configuration in one second
   (numbers 11 to 22 among them;
@@ -1119,7 +1273,8 @@ No cause is claimed.
   `systemctl` gave no answer in twenty seconds).
   The home drive's write-and-sync took a median of 43 ms,
   and over the bound of 5,000 ms seven times
-  (ms, agents going beside each):
+  (ms,
+  agents going beside each):
   02:03:18 33,165 (16);
   02:07:01 13,765 (17);
   02:10:21 20,942 (17);
@@ -1130,7 +1285,9 @@ No cause is claimed.
   The build volume in the same readings:
   a median of 10 ms,
   and over one second three times
-  (02:11:42 1,408; 02:12:43 3,172; 02:24:41 2,271).
+  (02:11:42 1,408;
+  02:12:43 3,172;
+  02:24:41 2,271).
 - **Level seventeen fails at 02:47:00**:
   6,462 ms and 7,204 ms,
   two readings in a row.
@@ -1181,7 +1338,8 @@ two things changed in the same hours.
   the longest 106 ms.
 - **`snapper-cleanup.service` ended at 05:15:35**,
   five hours and fifteen minutes after its start at 00:00:07
-  (`systemctl show`, `InactiveEnterTimestamp`).
+  (`systemctl show`,
+  `InactiveEnterTimestamp`).
   The last slow reading is six minutes and fifty seconds before that.
 - **What also changed**:
   no Pi run was started from 04:00:14 on
@@ -1218,7 +1376,8 @@ measured by the coordinating session.
   at 09:03:44.
   Never two slow readings in a row,
   so the level stands.
-- **A reading above the level: twenty-eight agents from 09:43 to 09:45**
+- **A reading above the level:
+  twenty-eight agents from 09:43 to 09:45**
   (the probe's last four readings to 09:45:58,
   and `systemctl` at 09:44:26 and 09:45:50),
   four over twenty-four,
@@ -1235,6 +1394,45 @@ measured by the coordinating session.
   So the cleanup is not the only thing that stalls this drive.
   In the minutes before it this session installed a wrapper release and made several commits in the main checkout;
   nothing was measured that ties the reading to either.
+
+From lines 16457 to 16489 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+##### The drive probe held level 24 for its eight hours, with 28 slow readings and not the four this file said; it is started again (2026-11-14T16:55:07-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+and a correction of its own earlier count.
+
+- **The probe of both drives at level 24**,
+  started 08:54:35,
+  ended at its bound with status 0:
+  "level 24 held 28800 s on the probe;
+  slowest write-and-sync 10405 ms".
+  It never read two slow in a row.
+  Of its 532 readings,
+  28 took a second or more.
+  The slowest was on the build drive at 12:06:02 with 20 agent units going (10,405 ms);
+  others on the build drive of 9,633 ms at 15:24:00,
+  8,350 ms at 16:07:14,
+  7,557 ms at 15:07:50 and 5,921 ms at 16:42:30;
+  on the home drive 7,754 ms at 08:55:36 with eight units going and 5,536 ms at 12:48:16.
+  The agent units going at those readings were 19 to 24,
+  the providers' pools and not the cap holding the count.
+- **Correction.**
+  The sections of 14:37:32 and 14:41:29 in this file,
+  and what was told to the owner at 14:27 and 14:41,
+  said that four of 266 readings from 10:00 to 14:27 took a second or more.
+  That count was read through `tail`,
+  which cut the list;
+  the same span holds more,
+  the 10,405 ms reading among them.
+  The count of this section is taken with no cap on its output.
+- **Started again** at 16:54:54 at level 24 for another 28,800 s
+  (`disk-ceiling-probe-level-24-20261114T165454`).
+  The level stays at 24 by the owner's answer of 08:54;
+  the search for the ceiling is done again when the new drive is in.
 
 #### Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00
 
@@ -1255,7 +1453,8 @@ of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
   (`systemctl show`,
   read at 00:31)
   and had last ended at 05:15:35 the morning before.
-- **The seven and a half hours before it held, with single long stalls**:
+- **The seven and a half hours before it held,
+  with single long stalls**:
   450 readings at this level from 16:54:54,
   47 of them a second or more on either drive,
   eight of those after the cleanup began.
@@ -1308,7 +1507,8 @@ taken by the coordinating session from the same file.
   each followed by a reading of one millisecond.
   The build drive took 6 to 13 ms throughout.
   `snapper-cleanup.service` was still running at 00:44:34.
-- **The stalls came with low I/O pressure, not high**:
+- **The stalls came with low I/O pressure,
+  not high**:
   the kernel's `some` pressure over ten seconds read 0.27 to 0.45 percent at the three last readings
   and 2 to 3 percent at the two earlier slow ones,
   against 5 to 12 percent at the fast readings between.

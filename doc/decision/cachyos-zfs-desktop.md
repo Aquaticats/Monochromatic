@@ -321,14 +321,27 @@ From lines 45749 to 45750 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- **Old scratch:** "A: Text only (Recommended)": the queue, its scripts, the briefs, each run's summary, the review reports,
-  every `keep/` folder and the patches, from the SATA originals in the same layout; the build trees stay behind.
+- **Old scratch:**
+  "A:
+  Text only (Recommended)":
+  the queue,
+  its scripts,
+  the briefs,
+  each run's summary,
+  the review reports,
+  every `keep/` folder and the patches,
+  from the SATA originals in the same layout;
+  the build trees stay behind.
 
 From lines 45753 to 45753 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- **Snapshots:** "A: ~/.cargo/build only (Recommended)": `~/.cargo/build` gets a snapshot-free dataset; `~/temp/agent` stays snapshotted.
+- **Snapshots:**
+  "A:
+  ~/.cargo/build only (Recommended)":
+  `~/.cargo/build` gets a snapshot-free dataset;
+  `~/temp/agent` stays snapshotted.
 
 From lines 45782 to 45794 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -337,22 +350,55 @@ moved verbatim on 2026-11-23:
 
 ### The new SSD holds CachyOS on ZFS, both old drives are wiped after the migration, work resumes after a probe, and the wrapper supports ZFS (2026-11-16, said before 19:41:40-05:00)
 
-Three things the owner said after the machine was made ready for the reboot; the first two through the question tool.
+Three things the owner said after the machine was made ready for the reboot;
+the first two through the question tool.
 
-- **Where the new SSD goes:** "It's added as a 3rd drive, and I'm going to install CachyOS on it with ZFS.
-  And after I boot into CachyOS and you helped with the migration, I'm going to wipe both current drives to make them ZFS."
-  So the next boot is another operating system on another filesystem, with both old drives still whole beside it,
+- **Where the new SSD goes:**
+  "It's added as a 3rd drive,
+  and I'm going to install CachyOS on it with ZFS.
+  And after I boot into CachyOS and you helped with the migration,
+  I'm going to wipe both current drives to make them ZFS."
+  So the next boot is another operating system on another filesystem,
+  with both old drives still whole beside it,
   and **nothing that lives only on the old drives is safe once the migration is called done**:
-  the repository's worktrees and stash, the whole agent scratch, and the home folder's agent state.
+  the repository's worktrees and stash,
+  the whole agent scratch,
+  and the home folder's agent state.
   This replaces what `doc/decision/cachyos-zfs-desktop.md` and `doc/runbook/migrate-bazzite-to-cachyos-zfsbootmenu.md` plan
-  (the system onto the NVMe, the 4 TB drive kept outside the pool);
-  neither is amended yet, and both are another effort's records.
+  (the system onto the NVMe,
+  the 4 TB drive kept outside the pool);
+  neither is amended yet,
+  and both are another effort's records.
 
 From lines 45795 to 45798 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- **How the work starts again:** "A: Probe, then resume (Recommended)":
-  a session checks the paths, finds the agent cap again with the drive probe,
+- **How the work starts again:**
+  "A:
+  Probe,
+  then resume (Recommended)":
+  a session checks the paths,
+  finds the agent cap again with the drive probe,
   then starts reviews and Pi runs from the queue without waiting for the owner.
-  It was asked before the owner named the new system, so on CachyOS it holds once the tools and the repository are in place there.
+  It was asked before the owner named the new system,
+  so on CachyOS it holds once the tools and the repository are in place there.
+
+From lines 45742 to 45744 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Answers through the question tool and words typed in the session,
+after the owner wrote "I'm back.
+On the new system."
+
+- **Old worktrees:**
+  "A,
+  and this implies we really should be doing proper fast route first."
+
+From lines 45799 to 45799 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The wrapper on ZFS:**
+  "Oh and the wrapper has to support ZFS properly as well."

@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -185,3 +186,69 @@ moved verbatim on 2026-11-23:
 "Leave out wrapper refs (Recommended)" for `git push --mirror` (everything except `refs/cli-git/*`,
 with a line saying so);
 "Amend the pending commit (Recommended)" for an amend while commits are pending.
+
+From lines 36232 to 36234 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Owner,
+2026-11-03:
+"Why did you cap the commit service to the magic number of 1GB of memory w/o evidence?"
+
+From lines 36700 to 36702 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+with no PID file,
+may be removed by the service (today never:
+the owner picked "kept" for locks without a PID file);
+
+From lines 46719 to 46724 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Mutation runs:
+  "Pause all (Recommended)",
+  after his own question,
+  "We're not close to doing mutation runs though,
+  right?
+  Don't we still have a lot of things to fix before doing them?":
+
+From lines 46772 to 46774 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Commit-speed picks (no `fast-import` pack flush unless `core.fsync` names loose objects;
+  `sync_ms` renamed `index_update_ms`):
+  "Keep both (Recommended)".
+
+From lines 46955 to 46957 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  Owner answer (question tool,
+  2026-11-04) on the open pick:
+  "Own format only (Recommended)"
+
+From lines 48994 to 48994 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+and the widening "I'm widening the pnpm spawning exemption during worktree copy ops to all pkg managers."
+
+From lines 49143 to 49145 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+QWD,
+2026-11-04:
+"Tighten QWD (Recommended)" (`3abcbf585e`).
+
+From lines 49160 to 49163 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Issue 6261,
+written in the issue at 2026-11-04T21:30:23Z
+(<https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105>):
+"The current layout is still completely unacceptable and far from enough to consider this issue complete."

@@ -1452,9 +1452,6 @@ The maintainer reviewed the partition and the drafted designs and decided all of
 - `MD5`:
   no pipe tables in repo docs;
   use headings and lists.
-- `1CB`:
-  at most three `&&`-chained steps per shell call;
-  use scratch scripts for multi-step work.
 - Git commands must run from the repo root (`git -C /var/home/user/Monochromatic …`);
   the repo's
   `cli-git` policy rejects git invocations from subdirectories.

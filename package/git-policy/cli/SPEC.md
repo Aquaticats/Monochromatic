@@ -2888,6 +2888,19 @@ every other path is carried when the size its index records equals the size of i
 which one `git ls-tree -r -l` reads,
 because a rule can only shrink a file on the way into the index and a file with no rule today can still hold a form
 an earlier rule wrote.
+A stat-clean file whose recorded size is its blob's size is therefore taken as holding the blob's bytes,
+and one case is beyond that proof:
+a file an earlier conversion left the same length (a clean filter that masked a token at its own length,
+a case-folding rule removed after the add) is carried while Git's own checkout writes the stored blob,
+and Git's own `git status` reports that source clean as well,
+because neither the file's stat data nor a size comparison reads the bytes to tell the two apart.
+Hashing each carried file against its blob would see it,
+and it costs a read of every byte the rung copies,
+which is most of what the copies save;
+the rung does not pay it,
+and the limit is the project's answer "Document the limit"
+(`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+"A file an earlier conversion left the same length (D4)").
 The attributes are read (`git check-attr --all --stdin`) and the decline is decided before the copies;
 the rest of the fence (`git ls-tree` and the per-path decision) runs on the add's own thread while the clones copy,
 and both answers are joined before anything is installed.
@@ -2996,9 +3009,21 @@ each pinned with the measurement it rests on and all open to the project's veto
 its sections "The size limit on a clean source,
 answered 2026-11-22" and "Four further answers after the recheck,
 answered 2026-11-23").
-The whole-tree size limit sends a source **with changes** whose tracked files sum to fewer than 762,000,000 bytes to
-Git's own checkout:
-a dirty source of 10,001 files of 2,600 bytes,
+The whole-tree size limit sends a source **with changes** whose clones would copy fewer than 762,000,000 bytes to
+Git's own checkout.
+It sums the recorded sizes of the paths the conversion fence would carry and leaves out every path an attribute rule
+hands to Git,
+whose index records the file's own bytes while its blob may hold a pointer
+(a `filter=lfs` path of this repository's own checkout records bytes the clones never copy),
+so the figure describes what the rung copies
+(the project's answer "Sum only what it clones",
+`doc/decision/cli-git-clone-rung-four-answers-after-the-alpha-45-release-pass.md`,
+"What the whole-tree limit sums (D3)").
+The measurements below were taken on ZFS,
+and the whole-tree limit and the changed-file cut apply on every filesystem until a Btrfs round measures the dirty
+shapes (the same record's "The dirty-tree limit on Btrfs (D2)":
+"Yes, after one Btrfs round", which names no change until that round has run).
+A dirty source of 10,001 files of 2,600 bytes,
 about 26 MB,
 took 1.30 times Git's own checkout on the fenced rung,
 one of 10,001 files of 26,000 bytes,
@@ -3012,9 +3037,13 @@ and Git's own checkout grows with the bytes,
 so the rung loses wherever a checkout is shorter than those reads;
 the pin sits at the top of that bracket,
 so no size nobody measured is cloned.
-A clean source is judged by its mean tracked file size,
+A source with no tracked change is judged by its mean tracked file size,
 because a clean tree of few large files clones far quicker than Git's write of it while a clean tree of many small
 files costs more to clone than to write:
+a source whose only difference is an untracked file,
+or whose recorded times are stale with no change in `git status`,
+counts as one here (the same record's "A source whose only change is untracked (D1)":
+"Judge it as clean");
 below the edge Git's own checkout writes a clean source,
 and at or above it the clone copies the tree as `main` does.
 **btrfs has no mean rule**:
@@ -4653,6 +4682,199 @@ From lines 49296 to 49316 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
+### The add that registers a ZFS clone before it fills the slot
+
+Designs and decisions:
+`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+`doc/planning/cli-git-zfs-add-time-git-lock-design.md`
+and
+`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`.
+This is plan step 10's route;
+the fallback that finishes a failed add with Git's own checkout,
+and the writes that a conversion rule or a dirty source needs,
+are plan step 11's and are stated as missing below.
+
+The route serves one `git worktree add`:
+the command runs in the main checkout,
+the checkout's path is the mount of the ZFS dataset whose leaf name is
+`monochromatic-git-checkout`,
+the destination is a direct child of `<checkout>/.claude/worktrees`,
+and the command names no `--lock`,
+`--reason`,
+`--checkout` or `--no-checkout`,
+because the route takes the named lock itself.
+Every other add,
+including every add in a checkout on another filesystem or on a ZFS dataset of
+another name,
+takes the ladder and copy route described above, unchanged.
+The dataset name is the gate the route has until plan step 19's one-time
+migration makes it, so no person meets the route before that step.
+
+The route writes the add's order,
+and every step reads the state a kill at the step before it leaves:
+
+- The preflight writes nothing.
+  It proves the clean source,
+  the checkout dataset,
+  its sibling clone container,
+  the pool,
+  the boot's start-time compatibility gate,
+  and a current handler readiness report for this boot,
+  pool and checkout,
+  and it refuses a repository whose Git does not ignore
+  `.claude/cli-git-trash`,
+  because the copied Git administration must be left somewhere the disposal
+  can prove.
+- The slot's claim is the wrapper's own claim file,
+  `<slot>.claim.<n>`,
+  in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
+  A live owner refuses the add with its process id.
+- The record's first version is written before any mutation beyond the claim.
+  It holds the claim's generation,
+  the add's random nonce,
+  the request the person gave,
+  the phase `claimed`,
+  the checkout dataset and its GUID,
+  the repository's path and identity,
+  the slot's path,
+  the pool and its GUID,
+  the origin snapshot's proposed name,
+  and the clone's proposed dataset name.
+- The slot is made or verified as an empty folder of this account,
+  and its inode and birth time are recorded,
+  while no mount covers it.
+- Git runs once:
+  `git worktree add --no-checkout --lock --reason <sentence> <slot> <commit-ish>`.
+  The sentence is a pure function of the recorded nonce,
+  and Git writes it into the registration's `locked` file,
+  so the registration is locked from its first moment.
+  The wrapper writes no lock of its own and no second reason.
+  The departure from the ladder's `--no-checkout` form, and the lock,
+  are the add-time lock design's.
+- The scan of `<common>/worktrees` reads each entry's `locked`,
+  its `gitdir` and the slot's pointer,
+  adopts the complete registration,
+  clears an incomplete one through the fixed recipe with the lock last,
+  and re-runs Git when nothing stands.
+  A person's lock on this slot,
+  a complete registration with no lock this add wrote,
+  and a slot pointer with no registration refuse and name what stands.
+  The adopted registration's path,
+  its identity and the pointer's bytes are recorded,
+  and the phase becomes `registered`.
+- If no frozen capture stands,
+  it is taken and published now,
+  before the snapshot:
+  the index's length,
+  modification time and SHA-256,
+  every tracked path's kind,
+  size,
+  modification and change time,
+  execute bit and link target,
+  and the commit the new worktree checks out beside the source's own.
+  The capture is flushed;
+  a snapshot that stands without it is refused.
+- The checkout is snapshotted as
+  `<checkout>@git-worktree-clone-origin-<nonce>`,
+  its GUID and creation transaction group are read back,
+  the origin inventory of snapsets and bookmarks at or below that group is
+  published,
+  and the phase becomes `snapshotted`.
+- The origin snapshot is cloned as
+  `<container>/<slot>` with `mountpoint=legacy` and `canmount=off`,
+  so the design's own mount is the only one it gets.
+  Its GUID and group are read back,
+  and its initial inventory is published even when it holds no entry.
+  A dataset that already answers at the clone's name is adopted only when its
+  origin is the recorded snapshot;
+  any other dataset there refuses.
+  The phase becomes `cloned`.
+- The add asks the handler for the mount through the clone's local
+  desired-state user property,
+  and waits,
+  bounded by the protocol's provisional mount-request deadline,
+  for this command's own mount table to show the clone's dataset mounted at the
+  slot.
+  A receipt is the handler's account;
+  the mount the caller sees is the fact.
+  The phase becomes `mounted`.
+- The frozen proof compares the clone's copied index with the capture and every
+  tracked path's own facts with the captured ones,
+  before any byte of the clone is written.
+  A difference refuses and names the path and the field.
+  The proof's phase marker is published once.
+- The leave-outs remove the copies of other worktrees' stubs and the copies of
+  other adds' trash,
+  and set the inherited trash aside for the disposal.
+- The fill writes the captured index under `index.pending` in the new
+  worktree's administrative directory,
+  with the entries' recorded stat fields kept and the untracked-cache and
+  fsmonitor extensions dropped,
+  and publishes it under the worktree's own name with one rename.
+- The saved pointer bytes are written into the new worktree's trash as
+  `d<n>`,
+  the copied administration's identity is recorded in the trash's own
+  manifest in one atomic rewrite,
+  and one `renameat2(RENAME_EXCHANGE)` swaps the pointer with the copied
+  `.git`.
+  The slot therefore holds a `.git` at every instant:
+  the copied directory before the call and the pointer after it.
+- The result is checked:
+  the slot's `.git` is the pointer this add saved,
+  it names this add's registration,
+  the registration's `commondir` is this repository,
+  and the registration holds the published index.
+  The phase becomes `filled`.
+- The new worktree's package state is repaired,
+  and the trash is handed to the service,
+  which empties it after the command returns.
+
+The record is
+`<common>/monochromatic-git-policy-cli/worktree-clones/v1/<slot>.binding`,
+one `key=value` line per field,
+flushed on every write,
+with the two inventories beside it and the capture under its own name.
+A record this release cannot read,
+a record of another add at this slot,
+and a record whose phase is ahead of the live facts all refuse and change
+nothing.
+
+A kill at any step leaves the claim,
+the slot and whatever Git registered,
+and the record's phase names the last step that wrote.
+The next add at the same slot takes the next claim generation,
+proves it is the same request,
+and continues from that phase:
+it re-makes the slot only before a registration is named,
+recovers the clone's identity from the pool when the clone stands and the
+record does not name it,
+rebuilds a missing inventory while the clone holds no snapshot of its own,
+reads a live mount instead of waiting for it,
+and re-does only the writes whose state it can prove did not land.
+A snapshot or clone the pool refuses for want of space leaves the claim,
+the slot and the locked registration,
+names the operation,
+the object and the pool,
+and the next add resumes once space is free.
+
+What this release does not yet do:
+
+- It writes no path through Git for a conversion rule,
+  so a path whose `.gitattributes`, `core.autocrlf`, `ident`, encoding or filter
+  would give Git different bytes keeps the source's bytes in the new worktree
+  until plan step 11's fence write lands (issue 6323).
+- It does not restore a dirty main checkout;
+  such a source is not this route's until plan step 11, and it takes the
+  ladder's rung 3 as the owner decided on 2026-11-19.
+- A failed add does not finish itself with Git's own checkout;
+  it keeps what it made and the next add resumes it (plan step 11).
+- A record that says an add is settling,
+  the lost-lock installer,
+  removal and the settling command are plan steps 11, 13 and 16.
+- The route checks no effective ZFS grant of its own;
+  the first refused snapshot or clone reports the kernel's error with the pool
+  already named in the record.
+
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
 Asked what the wrapper does when a removal is run where it cannot read other processes' working folders
@@ -4675,6 +4897,18 @@ the owner chose "Skip own parent chain".
   who writes it into the guard's own doc.
 
 ### The records an add writes for itself
+
+The records of the ZFS clone route above are a different case:
+the claim,
+the binding,
+the two inventories and the frozen capture are flushed on every write,
+because each reports a fact the pool already committed that no later command
+can rediscover,
+and a power cut that lost one would leave a clone or a snapshot nothing proves
+the wrapper made
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`, "Publication, and what
+a kill leaves").
+Everything here concerns the add's other bookkeeping.
 
 An add's own bookkeeping is published whole and flushed by nobody.
 That is the stage claim (`<id>.stage`),
@@ -6627,34 +6861,128 @@ attached,
 unmounted or recorded.
 That is the design's fail-closed answer for an arm that could not run.
 
-The three names the mode takes from the configuration are this build's choice,
+The three names the mode acts on are this build's choice,
 because the design names the file and not its keys:
-they sit in one `cloneMounts` object beside the start probe's,
+they may sit in one `cloneMounts` object beside the start probe's,
 as `cloneMounts.parent` for the pinned clone parent dataset,
 `cloneMounts.checkout` for the checkout the walk starts from,
 and `cloneMounts.checkoutDataset` for the checkout dataset a clone's origin is
 a snapshot of.
-The project decided on 2026-11-22 that step 19's setup writes the two dataset
-names itself,
-and that a file holding neither is read through the design's own names:
-the checkout dataset is the dataset the configured checkout path is mounted
-from,
-which must carry the leaf name `monochromatic-git-checkout`,
-and the container is that dataset's sibling
-`monochromatic-git-worktree-clone-datasets`.
+Every one of them is optional.
+The project decided on 2026-11-22 that everything works by default with no
+configuration file,
+and that step 19's setup still writes the two dataset names into that file.
+The rule this build keeps is entry by entry:
+
+- `cloneMounts.checkout` names the checkout path as written;
+- `cloneMounts.checkoutDataset` names the checkout dataset as written;
+- `cloneMounts.parent` names the container as written;
+- `startProbe.checkout` names the probe's checkout as written;
+- an entry the file leaves out is found from this process's own mount table,
+  `/proc/self/mountinfo`;
+- the table's rows are the mounts of the namespace the handler runs in,
+  and a row is an instance of a dataset when its filesystem type is exactly
+  `zfs`,
+  its source's last `/`-separated component is the leaf name looked for,
+  and its root within the dataset is `/`;
+- a bind mount of a subtree shows a deeper root and is no instance,
+  while a bind mount of the dataset's own root and a second mount of the
+  dataset are instances;
+- the checkout dataset's `snapdir` is not part of the look-up,
+  and neither program sets it or reports it today,
+  because the project's third answer of 2026-11-22 hides snapshot directories
+  on the checkout
+  (the same section of the record,
+  quoted:
+  "Turn off snapshot-directory visibility on the checkout so accounts cannot
+  trigger those mounts.")
+  `visible` lists the directory,
+  and `visible` and `hidden` both let an account enter a snapshot's directory by
+  name,
+  which makes the kernel mount that snapshot as root and adds a row to the
+  machine's mount table;
+  `hidden` is the default and only leaves the directory out of listings;
+  `disabled` refuses the name and makes no mount.
+  `disabled` exists from OpenZFS 2.3.0 and not in 2.2.7 or earlier,
+  and the route's gate reads no release string,
+  so a module that refuses the setting can run the route.
+  Plan step 19's setup runs `zfs set snapdir=disabled` on the checkout dataset,
+  and a person reads the property in `git monochromatic-git-policy-cli doctor`
+  once plan step 18 adds it.
+  The sweep could report it without a new request:
+  its dataset-stats reply carries the value whenever it is set,
+  locally or inherited,
+  and omits it only at the default,
+  so a locally set `visible` reads 1,
+  an inherited `disabled` reads 2 and an unset dataset reads absent
+  (the guest arm that reads all three through the route's own reader prints
+  `SNAPDIR-REPLY`).
+  This build prints no such report,
+  and the probe cannot,
+  because it reads no property and never opens the ZFS device;
+- a dataset mounted directly inside the clone container this run uses is a
+  managed clone the route attaches at a slot and never the checkout,
+  because the design's delegation lets the account create a dataset of the
+  checkout's leaf name there,
+  and the checkout dataset is a sibling of the container and never a child of
+  it.
+  The project decided this on 2026-11-22 in its first answer
+  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
+  "Four further answers on the look-up with no configuration file"),
+  quoted:
+  "Ignore a dataset mounted directly inside whichever clone container this run
+  uses:
+  the designed one,
+  or the one root's file names."
+  So the container is `cloneMounts.parent` when a file holds one and the
+  designed sibling otherwise,
+  and a row inside a container this run does not use still counts;
+- with neither the path nor the dataset named,
+  the one instance of `monochromatic-git-checkout` is both:
+  its source is the checkout dataset and its mount point is the checkout path;
+- with the path named and the dataset left out,
+  the mount the path is on must be a `zfs` mount of a dataset whose leaf name is
+  `monochromatic-git-checkout`;
+- with the dataset named and the path left out,
+  the path is the one mount point of that dataset at its own root;
+- with the container left out,
+  it is the sibling `monochromatic-git-worktree-clone-datasets` of the checkout
+  dataset in the same parent dataset.
+
+No instance,
+and more than one instance,
+are refusals that list every row the table held whose source carried the leaf
+name,
+and the sweep never picks one of several:
+two pools that hold that leaf name,
+one dataset mounted at two paths and a bind mount of the dataset's own root
+outside it all refuse,
+while a mount inside another mount namespace is not a row of this table and
+never counts.
+The container and the probe dataset are named rather than mounted,
+so no row is looked for for either.
 Nobody edits the file by hand.
 The start probe's object may name a checkout too;
+when a file names both,
 the two must be one folder,
 because a probe that passed for one says nothing about a walk that starts at
-another.
-A parent that is no dataset name,
-a checkout that is not absolute,
-a missing checkout key,
-a checkout on no dataset,
-a checkout dataset with another name,
-two different checkouts and a document that does not parse are each refused
-by name,
-and nothing is enumerated or attached.
+another,
+and with neither named they are the same found mount by construction.
+A parent or a dataset name that is no dataset name,
+a checkout path that is not absolute,
+a file that is there and cannot be read or parsed,
+a value of the wrong type,
+a path on a mount that is no ZFS dataset,
+a dataset of another leaf name at the path,
+no mounted instance,
+several instances,
+a named dataset with no mount or with several,
+a checkout dataset with no parent component and two different checkouts are each
+refused by name,
+and nothing is enumerated,
+attached or recorded.
+A file that is not there is not a refusal:
+it is read as a file that names nothing.
 
 The pool's name is the parent's first `/`-separated component.
 The pool is `ready` when one identity read of the pinned parent answers,
@@ -6949,6 +7277,255 @@ and the turn itself makes no unbounded wait.
 Sizing the unmount's own deadline is step 22's,
 with the acceptance workload's measurement;
 no number is taken from another machine's rule of thumb.
+### The all-namespace holder scan of a ZFS worktree clone
+
+"Unmounted" means absent in every mount namespace that holds the clone's ZFS
+source,
+including binds and staging,
+so the root handler answers that question by reading every live task's mount
+namespace rather than only the one it runs in.
+This section states the scan the ZFS worktree plan's step 9 builds
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 9:
+Unmount from a fresh process,
+the staging folder and reattach"):
+step 16 consumes its result before each snapshot-destroy request and before the
+head destroy,
+and step 18 reports its holders.
+The code is `package/git-policy/cli/src/native/clone_holder_scan/`;
+the task grouping,
+the one mount table per namespace and the exact source match are
+`package/git-policy/cli/src/native/mount_namespace_scan/`,
+which the start probe's namespace arm reads as well,
+so the two cannot disagree about what a mount of one dataset is.
+The unmount,
+the staging folder and the reattach are the same plan step's other half,
+and "Unmount,
+staging and reattach of a ZFS worktree clone" describes them.
+
+#### What the scan reads
+
+The scan lists the `/proc` root it is given and keeps the entries whose name is
+a task number.
+For each task it reads every thread's `/proc/<pid>/task/<tid>/ns/mnt` and groups
+the threads by that kernel text,
+so two threads of one namespace are one namespace and one table is read for
+both,
+and a thread that unshared a mount namespace of its own is a group of its own.
+A process whose leader has ended is read through the thread that lives,
+because the leader's ending is not the process's.
+It reads one `<thread>/mountinfo` per distinct namespace,
+under the wrapper's own bound for a table another namespace holds,
+and a mount matches when its filesystem type is `zfs` and its source is exactly
+the dataset's name.
+Equality is the whole name:
+a dataset whose name begins with this one is another dataset,
+and a bind of the clone anywhere carries the clone's own superblock,
+so it names the same type and source and is a holder too.
+The reader's own namespace comes from `/proc/self/ns/mnt`,
+and its mounts are reported as its own rather than as foreign holders,
+because a local unmount is what that namespace answers for.
+No path,
+slot spelling or working directory takes part in the match.
+
+A table is rendered from the root of the thread it is read through,
+so each thread's `/proc/<pid>/task/<tid>/root` is read and each namespace is
+read through a thread at that namespace's own root:
+the reader's root when a thread of it is at that root,
+because a mount namespace inherits the root it was made from,
+and otherwise the one root every thread of it shares,
+which is what a container's namespace looks like.
+A namespace whose threads disagree about their root while none is at the
+reader's is reported as a read the scan could not complete,
+because the table read through one of them may omit every mount above it.
+
+The scan sets nothing aside.
+A mount of the clone's own root at a worktree's path is a holder like any
+other,
+whichever namespace it is in and whatever intent the clone carries:
+the removal refuses because that mount is present,
+which is what the staging design asks of it,
+and the exclusion of a new managed attach is the attaching sweep's own refusal
+under a standing `unmount` intent,
+built by plan step 8,
+and not a rule of the scan.
+The project decided both readings on 2026-11-23
+(`doc/decision/cli-git-zfs-holder-scan-names-every-holder-it-can-read.md`).
+
+#### The result and its reader
+
+One scan answers one value:
+the dataset's canonical numeric GUID,
+the scan's own nonce,
+the exact source,
+the reader's own namespace and its mounts,
+one entry per namespace that holds the clone,
+every read that could not be completed,
+the number of namespaces read,
+and the time.
+It is written as one fixed line grammar in
+`src/native/clone_holder_scan/holder_scan_text.rs`,
+whose size bound is derived from the scan's own detail bound and the bound of
+every field the writer fills,
+so a result the writer wrote is one the reader accepts.
+Every control byte in a path is escaped as an octal escape the reader decodes,
+so a mount point an account names cannot carry a terminal escape sequence or a
+line break into the text a later step prints.
+`parse_holder_scan` reads it back key by key:
+a truncated,
+reordered,
+padded or foreign file is refused with the line named,
+and every count is checked against the lines it introduces.
+`HolderScan::accept` then compares the GUID and the nonce with the scan the
+caller asked for,
+so a result for another clone,
+or one written for an earlier scan of this clone,
+is refused by name before anything it holds is read.
+The GUID and the nonce are written in the file and never in its name.
+
+The nonce is the scan's own and never the clone's request nonce,
+so every destroy request's scan is a fresh answer that is told apart from the
+one before it.
+The `holder-scan` mode answers under `--nonce <32 hex digits>` when the caller
+names one and under a fresh nonce otherwise,
+and the wrapper's request before each destroy carries the nonce it will match
+(plan steps 16 and 17).
+
+A result whose own mounts,
+holders and incomplete reads are all empty is the only one reported as clear.
+An incomplete read makes the result not clear without refusing a removal by
+itself,
+which is the destroy-anyway decision's residual and not a second rule here.
+
+#### Every read the scan could not complete
+
+Each cause is its own value,
+so a report points at a directory,
+a namespace or a thread rather than at a count:
+
+- the listing:
+  the `/proc` root could not be read,
+  so nothing was scanned and that is the whole finding;
+- a thread whose namespace link the scan may not read:
+  the kernel shows `ns/mnt` only to a caller that may ptrace the thread,
+  so a handler without `CAP_SYS_PTRACE` cannot see another account's threads or
+  a task with more capabilities than itself.
+  Each such thread is named with the errno,
+  so a reduced capability set cannot turn into a clear answer;
+- a task that ended:
+  the thread left between the listing and its table read,
+  and the namespace is reported by whichever other thread answered it,
+  which is ordinary churn and is named so a report can say the read raced;
+- a table this process may not open:
+  the namespace's mounts are unknown and it is never reported as empty;
+- a namespace with no live thread:
+  every thread of it ended before its table was read,
+  so the namespace may hold the clone and the scan cannot say it does not;
+- a namespace whose threads disagree about their root,
+  none of them at the reader's:
+  no table of it can be shown to be the namespace's,
+  so it is never reported as clear;
+- one namespace holding more mounts of the clone than a report lists:
+  the report names the first eight and says the namespace holds more,
+  because a line naming every bind a machine ever made would decide the
+  result's size;
+- the scan's two bounds:
+  it stopped reading namespaces,
+  or stopped listing and reading,
+  so the namespaces after that point are in none of its lists.
+
+A namespace that answered no table names one cause and not two,
+so one unknown namespace is never counted as two.
+The scan reads at most 1024 namespaces,
+lists at most 1024 findings,
+and lists at most eight mounts of the clone for one namespace;
+each bound that stops it is one of the causes listed under "Every read the scan
+could not complete",
+so a result cut by a bound is never reported as clear.
+
+The 1024-namespace bound is one an account can reach at will:
+an integration pass made 1,100 processes each with a namespace of its own
+against a guest and the scan stopped at 1024 with one
+`namespaces-past-the-bound`,
+having named a holder made before the flood and none made after it.
+The scan is honest about it and not clear,
+and a later holder behind that bound is the destroy-anyway decision's own
+residual,
+not a fact the scan can state.
+
+#### What the scan cannot show
+
+A clear result is never proof that nothing holds the clone.
+The scan sees what a live thread's namespace file names:
+
+- a namespace held open by a handle and no thread is in no file the scan reads,
+  so it is invisible,
+  and a run that pins one that way is how the guest arms show it;
+- a mount detached from its namespace while a working directory still pins it
+  is in no namespace's table at all:
+  the clone stays busy and the scan names no holder for it,
+  which is a limit the design chose when it matched the source rather than a
+  working directory;
+- a thread that mounts the clone after the scan is not in it,
+  and nothing in the scan is race-free:
+  the threads it listed and the tables it read are read at different moments;
+- the reader's own namespace is reported as its own mounts and names no
+  process:
+  a working directory,
+  an open file or a mapping that holds the clone there is
+  a holder `umount` refuses on and this scan cannot name;
+- a holder's mount point is rendered from the root of the thread its table was
+  read through,
+  so a container's holder reads `/data` and not a path of the handler's root.
+
+The project's destroy-anyway decision accepts that residual rather than
+hiding it.
+A clean scan that misses a later copy leaves the snapshots gone with the head
+still busy,
+which is the resume state the removal workflow names,
+and a removal that auto-cancels there leaves a living worktree without its own
+snapshots.
+A deployment can narrow the window and cannot close it:
+closing per-worktree admission and draining managed consumers and namespace
+handles before the scan,
+and keeping admission closed through the head destroy,
+excludes the consumers it manages.
+It does not exclude untracked copies,
+pinned handles,
+or a namespace made in that interval,
+and no channel program excludes Linux namespace changes because it excludes ZFS
+administrative changes only.
+An unrestricted caller that attaches the clone after a scan is unmeasured,
+and a clean scan alone does not qualify such a deployment.
+
+#### The mode, and who reads the result
+
+`mount-git-worktree-clone-datasets holder-scan --dataset <name> [--nonce <32 hex digits>]`
+runs one scan for one dataset:
+
+- it reads the dataset's identity through the binding,
+  behind the same start-time gate every mode that makes a request runs behind;
+- it reads no durable intent and derives no path,
+  because it sets nothing aside;
+- it answers under the nonce the caller names,
+  or under a fresh one,
+  and never under the clone's request nonce;
+- it prints the result's own lines and one line that counts what it found,
+  where every other mode's answer goes;
+- and it mounts,
+  unmounts,
+  destroys and records nothing.
+
+A dataset the pool cannot answer,
+a GUID of zero,
+a nonce that is not 32 lowercase hexadecimal digits,
+and a fresh nonce the random source cannot give are refusals with nothing
+scanned.
+The mode is the reading and not the carrying.
+How root's finding reaches the account's wrapper is step 17's and unbuilt;
+what this section promises them is a scan that names every holder it can read,
+a nonce per scan to match an answer with its request,
+and the GUID the answer is about.
 
 ### Post-commit
 
@@ -8162,12 +8739,21 @@ moved verbatim on 2026-11-23:
 
 ### The last answers the open-questions file held (2026-11-08 to 2026-11-10)
 
-Each of these was asked in the question tool and answered; the questions file kept them until their subjects
-had a record. The record is named beside each answer.
+Each of these was asked in the question tool and answered;
+the questions file kept them until their subjects
+had a record.
+The record is named beside each answer.
 
-- An index the commit repair cannot read or write stops with a named reason: "Stop with a named reason
-  (Recommended)", 2026-11-10T05:40:16-05:00. The code already did this, so nothing changed, and this is the
-  owner's explicit exception to "Commits should never fail." for such an index. Record:
+- An index the commit repair cannot read or write stops with a named reason:
+  "Stop with a named reason
+  (Recommended)",
+  2026-11-10T05:40:16-05:00.
+  The code already did this,
+  so nothing changed,
+  and this is the
+  owner's explicit exception to "Commits should never fail."
+  for such an index.
+  Record:
   `package/git-policy/cli/SPEC.md`.
 
 #### Git steps, tools and checks end only on no progress
@@ -14309,12 +14895,21 @@ The step:
   The service's own list is searched only when no list came with the request:
   a service that restarted holds none,
   and so does a push an earlier release queued.
+  A value that is not valid text is the third state,
+  and the push keeps the service's own value of it rather than none at all:
+  the request carries the name and never the value,
+  so a push whose `PATH` no line could hold still finds its programs,
+  and its refusal names the service's list as the list it searched
+  (`src/native/service/service_work_push_environment.rs`).
+  A name the command left unset keeps none of the manager's,
+  which is the state the removal exists for.
   A push whose command chose `GIT_SSH`,
   `GIT_SSH_COMMAND` or `GIT_PROXY_COMMAND` stops rather than speaking another transport when those settings are gone,
   and its words name the repository,
   the branch,
-  both ways the settings can be gone (a service started again since,
-  or a command that could not reach it),
+  the way the settings are gone (a service started again since,
+  a command that could not reach it,
+  or a value that is not text and so could not travel with the request),
   and the one command that pushes
   (`src/native/push/push_without_its_transport.rs`).
   A merge's,
@@ -21250,15 +21845,77 @@ in this order:
   and a recorded identity that changed.
   It opens the configured checkout read-only and reads no entry there.
 - It reads the source from
-  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`:
-  one `startProbe` object holds `dataset`,
+  `/etc/monochromatic-git-policy-cli/git-worktree-clone-mounts.jsonc`
+  when that file is there,
+  and otherwise from the names the design fixes.
+  One `startProbe` object holds `dataset`,
   which names the dataset whose `ready` snapshot the probe attaches,
   and `checkout`,
   which names the folder the walk opens.
+  An entry that is there is used as written,
+  and each entry the file or the object leaves out is found:
+  the checkout is the one mounted ZFS dataset of this namespace whose last name
+  component is `monochromatic-git-checkout`,
+  and the dataset is `nosnap/git-worktree-probe` in the pool that holds it,
+  which is the checkout dataset's first component,
+  with the snapshot `ready`.
+  The probe reads the sweep's `cloneMounts.parent` as well,
+  so that a clone the account makes inside the container this run uses is no
+  second instance of the checkout for it either;
+  that one key is the cost the first answer above states.
+  When the probe meets none or several it prints every mounted dataset it found
+  with its path,
+  as the sweep does,
+  which is the project's second answer of 2026-11-22 in the same section,
+  quoted:
+  "When the probe meets none or several,
+  it prints each mounted dataset it found with its path."
+  The mode recomputes the look-up in its own process,
+  which is in the host mount namespace,
+  and prints the refusal's own words.
+  Those words name the probe's own keys:
+  the remedy is `startProbe.checkout` or `startProbe.dataset`,
+  never the sweep's `cloneMounts` entries,
+  which the probe does not read
+  (the second pass's finding B2).
+  Every other refusal the probe's configuration can produce gets its sentence
+  the same way,
+  and the empty file's says an empty file is not the same as no file,
+  as the project's fourth answer asks.
+  The record keeps its closed word and its format.
+  A file that is absent,
+  or that holds no `startProbe` object,
+  is therefore no refusal:
+  before the project's answer of 2026-11-22 it left the record `blocked` with
+  `configuration-missing`,
+  and now it leaves a probe that runs.
+  A file that is there and unreadable or unparsable,
+  a file that is there and empty,
+  and a value of the wrong type,
+  are still refusals,
+  because such a file won a precedence it cannot fill.
+  The empty file is the project's fourth answer of 2026-11-22:
+  "An empty file is refused,
+  and the message says an empty file is not the same as no file."
+  The probe's record carries the word `configuration-empty` for it,
+  and the sweep's own message says the same and names removing the file as the
+  way out.
   The dataset is checked as a name:
   each component holds alphanumerics and `_ - . :`,
   the dataset and its `@ready` suffix together are at most 255 bytes,
   and the dataset carries no `@` or `#`.
+  A checkout that cannot be told,
+  or several mounted instances of the leaf name,
+  leave the checkout-root step not exercised with the reason word
+  `mount-table-unreadable`,
+  `no-mounted-checkout` or `several-mounted-checkouts`,
+  and a dataset that cannot be told for want of a pool leaves the source-name
+  step not exercised with `no-mounted-checkout`.
+  The mode's own line for a blocked record whose attach arm asked for a source
+  the pool does not hold names the two commands plan step 19's setup runs,
+  `zfs create` with the design's properties and `zfs snapshot <dataset>@ready`,
+  so a boot that meets an absent dataset reads which command creates it rather
+  than only which call answered `ENOENT`.
 - It opens a `zfs` context,
   writes the source and the `ro`,
   `nosuid` and `nodev` options,
@@ -21368,6 +22025,57 @@ The deadline is 350 milliseconds.
 The clock starts just before the worker's fork,
 so the bound covers the worker and holder phases and not the gate,
 the fingerprint or the started record.
+A probe with no configuration file costs one read of this process's mount table
+and its parse over one whose file names every entry,
+about 75 microseconds,
+once per boot.
+The look-up reads the table once and takes the checkout's dataset from the row
+that carried the path,
+so the second read the first build made is gone:
+the two look-up calls were timed one by one in the guest,
+against a control of ten reads of the same file (787 microseconds) and a null
+control of 20 nanoseconds,
+and they took 161 microseconds together before the change and 75 after it.
+The whole command is not measurably slower,
+and the arms that would show it do not agree:
+three phases of forty interleaved rounds in one throwaway `mvm` guest,
+each phase with a repeat of its file-named arm as the control of the method,
+gave no file against file-named as 1.147 in a guest busy with this round's own
+builds,
+1.115 before and 1.123 after the second read was removed in a quiet one,
+and 0.974 before and 0.976 after in an idle one,
+with the repeat arms 0.978,
+1.013,
+0.996,
+0.995 and 0.995 of their controls.
+The spread of an unchanged arm was measured before any comparison,
+thirty rounds of the file-named arm against an identical repeat of itself,
+and gave a median per-round ratio of 1.028 over a range of 0.775 to 1.747,
+so one round resolves nothing and only the medians of many paired rounds carry
+a claim.
+What those arms do show is not the look-up's work but a stall this guest shows
+on a process's first touch of the mount table:
+the first open of `/proc/self/mountinfo` in the worker takes 12 to 17
+milliseconds in a quiet guest and 93 to 105 in a loaded one,
+with 3,824 page faults inside that open,
+while the read that follows it is 146 microseconds and a second open and read in
+the same process 44 and 81 with no faults.
+Split by the timestamps of the probe's own step lines,
+the no-file arm pays that stall in its look-up (12.9 milliseconds) and in its
+holder's start (10.8),
+and the file-named arm pays the same stall once,
+at its mount verify (12.2),
+so the two commands are as far apart as the stalls each meets,
+which is what makes the ratio swing across phases and fall below one.
+This round placed that stall and did not explain it,
+and it withdrew the earlier reading of about 25 milliseconds (1.14 times) as a
+look-up cost:
+the work happens inside the worker phase the deadline bounds,
+whose margin is the 231 milliseconds stated below,
+and this build states the cost rather than sizing the deadline by it
+(the rounds,
+the arms and the step split are in
+`package/git-policy/cli/doc/start-probe-no-file-cost-measurement-2026-11-23.md`).
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
 and the control's difference gave worker-phase estimates from 8,861 to
