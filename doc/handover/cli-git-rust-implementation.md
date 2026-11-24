@@ -310,7 +310,8 @@ State:
 plan steps 1 to 10 are built and on `main`,
 step 10's add route gated on a checkout dataset that only step 19 makes,
 so no person's add takes it yet.
-Pieces of steps 13,
+Pieces of steps 12,
+13,
 15,
 16 and 18 are built ahead and on `main`,
 unwired.
@@ -538,10 +539,7 @@ step 16's one-request snapshot delete (`ca9d947b71`),
 step 13's managed lock distinction (`915aa6638b`)
 and step 18's `doctor` checks for steps 2 to 9 (`fcfda032e3`).
 Each round's report under its folder's `keep/` says what the wiring step should know.
-Step 12's move refusal and unmounted report is built;
-its merge stopped on conflicts in `mise.toml`,
-`binary_tests.rs` and `lib.rs`,
-and `pi-zfs-step-12-merge-main-after-the-night-merges` is merging `main`.
+Step 12's move refusal and unmounted report merged too (`3ea4fa16c3`).
 Step 19's two open design parts merged as a proposal,
 `9ab8cd0055`
 (`doc/planning/cli-git-zfs-checkout-boot-mount-provider-and-ordering-design.md`:
@@ -565,7 +563,6 @@ folding the review in and running the arms again in a guest
 (folder `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`).
 
 Next:
-merge step 12 when it ends;
 merge step 19's revision as a proposal,
 have the reviewer read its diff,
 then put the design to the owner.
