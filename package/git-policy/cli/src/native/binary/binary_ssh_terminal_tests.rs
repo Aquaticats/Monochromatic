@@ -739,7 +739,8 @@ fn run_git(fixture: &Fixture, program: &Path, arguments: &[&str], ssh_command_li
 /// What:
 ///  A typed `git clone` at a host key this machine does not know prints the wrapper's sentence,
 ///  then OpenSSH's refusal,
-///  and the same command with the real Git prints the question OpenSSH asks instead.
+///  and the same command with the real Git prints no such line and is refused the same way,
+///  so the line is the rule's value and not OpenSSH's own output.
 /// Why:
 ///   This is the first contact with a host,
 ///  the case the owner's answer of 2026-11-20 sends the person to plain `ssh` for,
@@ -768,14 +769,17 @@ fn a_typed_clone_over_ssh_at_a_new_host_key_prints_the_sentence_before_the_refus
     let control_clone: PathBuf = fixture.root.join("control-clone");
     let control_clone_text: String = control_clone.to_string_lossy().into_owned();
 
-    // The control: the same clone with the real Git, which carries no no-prompt rule, asks the question OpenSSH asks.
+    // The control: the same clone with the real Git, which carries no no-prompt rule, is refused the same way and
+    //  prints no line where a program could not start, so the line below is the wrapper's own value and not OpenSSH's.
+    //  That the fixture can ask the question at all is held by
+    //  `an_unknown_host_key_is_refused_at_a_terminal_and_never_asked`, whose control runs plain `ssh` at a terminal.
     let (control_code, control_stderr) = run_git(&fixture, real_git.as_path(), &["clone", url.as_str(), control_clone_text.as_str()], command_line.as_str());
-    assert!(
-        control_stderr.contains("Are you sure you want to continue connecting"),
-        "the fixture asks OpenSSH's own question when nothing forbids it: {control_stderr:?}"
-    );
     assert_no_question_was_asked(control_stderr.as_str());
     assert_eq!(control_code, Some(128), "the real Git was refused the unknown key: {control_stderr:?}");
+    assert!(
+        control_stderr.contains("Host key verification failed"),
+        "the same refusal arrives without the rule: {control_stderr:?}"
+    );
 
     // The claim: the same clone through the wrapper reads the sentence, then OpenSSH's refusal.
     let (code, stderr) = run_git(&fixture, fixture.root.join("bin/git").as_path(), &["clone", url.as_str(), clone_text.as_str()], command_line.as_str());
@@ -950,7 +954,7 @@ fn a_key_nobody_can_unlock_is_skipped_for_one_that_works_and_the_clone_succeeds_
     assert!(stderr.contains(askpass_sentence_line().as_str()), "the sentence is printed for a question the command survived: {stderr:?}");
     assert!(!stderr.contains("Permission denied"), "the second key was accepted: {stderr:?}");
     assert_eq!(code, Some(0), "the clone succeeded with the key that works: {stderr:?}");
-    assert!(clone.join("HEAD").exists(), "the clone wrote its own HEAD: {stderr:?}");
+    assert!(clone.join(".git").is_dir(), "the clone wrote its own repository: {stderr:?}");
     drop(server);
     remove_settled(&fixture);
 }
