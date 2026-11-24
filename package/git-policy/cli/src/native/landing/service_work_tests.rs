@@ -2696,6 +2696,90 @@ fn the_five_names_the_service_held_are_removed_from_a_push_that_carries_a_list()
 }
 
 /// What:
+///  A `PATH` the request could not carry keeps the service's own list,
+///  and the words that say whose list was searched say the service's.
+/// Why:
+///   The value is not text,
+/// and a protocol line cannot hold it without inventing bytes;
+/// removing the manager's value as well left the push's Git with no `PATH` at all,
+/// so the upload searched no folder and reported `none (the list is empty)` (L1 of the alpha.45 release pass).
+///  The service's list is at least a list a person can act on,
+/// and the refusal names it rather than a shell that never ran the search.
+/// The name the command left unset keeps none of the manager's,
+/// which is the state the removal exists for.
+#[test]
+fn a_path_that_could_not_travel_keeps_the_services_own_list_and_says_so() {
+    use std::os::unix::ffi::OsStringExt;
+    // What: A program list the request cannot carry, beside a name the request left unset.
+    // Why:  `PATH` is never absent from this process's own environment, so the list the push really searches is read from the
+    //  marker and the `GIT_EXEC_PATH` the service held, and the silence of the second name is the state the removal keeps.
+    let service_held: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin:/bin")),
+        (OsString::from("GIT_EXEC_PATH"), OsString::from("/usr/lib/git-core")),
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
+    ];
+    let shell: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
+        (OsString::from("PATH"), OsString::from_vec(b"/shell/\xff/bin:/usr/bin".to_vec())),
+        (OsString::from("GIT_EXEC_PATH"), OsString::from_vec(b"/shell/\xff/git-core".to_vec())),
+    ]);
+    assert_eq!(shell.not_text, vec![String::from("PATH"), String::from("GIT_EXEC_PATH")], "the values the control set cannot travel");
+    let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
+        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
+    assert_eq!(
+        crate::child_environment::environment_value(environment.as_slice(), "GIT_EXEC_PATH"),
+        Some(OsString::from("/usr/lib/git-core")),
+        "a program list the request could not carry keeps the service's own value"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(environment.as_slice(), "GIT_SSH_COMMAND"),
+        None,
+        "a name the command left unset keeps none of the manager's"
+    );
+    // What: The refusal names the list the push searched, and a push that searched nothing is what the fix removes.
+    // Why:  A `PATH` whose value could not travel leaves the service's own list in the environment, so the words must not
+    //  claim the request's.
+    let search: crate::lfs_program_search::ProgramSearch = crate::lfs_program_search::ProgramSearch::of(environment.as_slice());
+    assert_eq!(search.source, crate::lfs_program_search::ProgramSearchSource::ServiceEnvironment, "the refusal names the list the push really searched");
+    assert_eq!(search.path, std::env::var_os("PATH").unwrap_or_default(), "the push searches a list rather than none at all");
+}
+
+/// What:
+///  A transport value the request could not carry keeps none of the manager's transport settings.
+/// Why:
+///   A way out of the network the person chose may carry credentials the manager's way does not,
+/// so the manager's command line must not speak for it;
+/// keeping the manager's value would send the commit through a transport nobody asked for,
+/// which is the incident the carried list exists for,
+/// and the push stops instead (`service_work`).
+#[test]
+fn a_transport_value_that_could_not_travel_keeps_none_of_the_managers() {
+    use std::os::unix::ffi::OsStringExt;
+    let service_held: Vec<(OsString, OsString)> = vec![
+        (OsString::from("PATH"), OsString::from("/usr/local/bin:/usr/bin:/bin")),
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from("ssh -i /nowhere/service-fake")),
+    ];
+    let shell: crate::service_push_programs_held_in_memory::PushPrograms = crate::service_push_programs_held_in_memory::of(&[
+        (OsString::from("PATH"), OsString::from("/shell/bin:/usr/bin")),
+        (OsString::from("GIT_SSH_COMMAND"), OsString::from_vec(b"ssh -i /nowhere/\xff".to_vec())),
+    ]);
+    assert!(shell.transport, "the command chose a transport, whichever way it spelled the value");
+    let (inherited, overlay): (Vec<(OsString, OsString)>, Vec<(OsString, OsString)>) =
+        crate::service_work_push_environment::push_environment_of(service_held.as_slice(), Some(&shell));
+    let environment: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(inherited.as_slice(), overlay.as_slice());
+    assert_eq!(
+        crate::child_environment::environment_value(environment.as_slice(), "GIT_SSH_COMMAND"),
+        None,
+        "the manager's transport is not the command's, so the push has none and stops"
+    );
+    assert_eq!(
+        crate::child_environment::environment_value(environment.as_slice(), "PATH"),
+        Some(OsString::from("/shell/bin:/usr/bin")),
+        "a value that could travel does, and it replaces the manager's"
+    );
+}
+
+/// What:
 ///  The line a planned push retry writes never ends with an empty cause:
 ///  a push whose own output holds no reason is named as one that said nothing.
 /// Why:

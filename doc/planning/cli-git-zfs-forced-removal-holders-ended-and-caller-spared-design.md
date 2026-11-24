@@ -1,9 +1,14 @@
 # The forced arm of a removal: the repaired checkout, the holder's copy, and the record the journal keeps
 
-Non-final,
-unapproved design proposal by an agent,
-written in the round whose commits are listed under "Revisions".
-It is not approved by the project owner and nothing in it is final.
+Design by an agent,
+written in the rounds whose commits are listed under "Revisions",
+and accepted by the project owner on 2026-11-23
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`),
+with its veto-open defaults as that record names them.
+The acceptance is of the design and not of its build:
+the arms it still owes,
+the wait's value and step 17's code are open,
+and the report of each round says which of its own edits no one has yet reviewed.
 It designs the two open items of the accepted ZFS worktree design that are one mechanism:
 "Who ends a holder,
 how a holder is identified,
@@ -1059,6 +1064,11 @@ not a guest's.
   and the code's own comment says it implies `PrivateUsers=` only for user managers;
   a user manager's unit has no `CAP_SYS_ADMIN` in the initial user namespace,
   so the user namespace goes in before the others and the unit's mount namespace is owned by it (F59).
+  Which of the two happens depends on the manager's version and not on the option:
+  the fourth round's guest,
+  systemd 255,
+  gave each such unit's processes a user namespace and left its mount namespace owned by the initial one,
+  so nothing was locked there (F62 says what this machine's `v262` does).
   (Source,
   systemd `v262`,
   `src/core/exec-invoke.c:4610` to `:4651`,
@@ -1082,6 +1092,25 @@ not a guest's.
   `fs/nsfs.c:176`,
   `kernel/user_namespace.c:1377` to `:1392`;
   a handler reading it was not run.)
+
+- F62.
+  On this machine,
+  under systemd 262,
+  a transient unit of the account's own user manager started with `systemd-run --user --property=PrivateMounts=yes sleep 90`
+  had its mount namespace `mnt:[4026533806]` owned,
+  by `NS_GET_USERNS`,
+  by `user:[4026533557]`,
+  while the session's own shell's mount namespace is owned by the initial `user:[4026531837]`;
+  the unit was stopped afterwards and no unmount was tried.
+  So a `v262` unit of a user manager has a mount namespace owned by a user namespace of its own,
+  where the guest's systemd 255 leaves the mount namespace with the initial one (F60),
+  and the owner read is what says which (F61).
+  (Read by the session on this machine at about 2026-11-24T02:24Z,
+  not by a probe arm;
+  the guest's six shapes are the fourth round's,
+  `doc/planning/cli-git-zfs-measurements-owed-before-acceptance.md`,
+  "The three arms that need no step 17 code,
+  2026-11-23T21:16:46-05:00".)
 
 ## Assumptions
 
@@ -1598,8 +1627,8 @@ and the chosen channel meets all of them in one removal:
   F18,
   F43).
 
-A sixth kind is not met but refused:
-a holder in a user namespace of its own.
+A sixth kind is a holder in a user namespace of its own,
+and it is stopped where it is the account's own service unit and refused where it is not.
 Its copy is locked,
 because the kernel locks every mount copied into a namespace whose user namespace is new (F59),
 so neither way 8's unmount nor way 7's move reaches it.
@@ -1624,16 +1653,23 @@ No arm built one,
 and a phase of T0-14 where the holder mounts its own copy inside its user namespace,
 tested by whether the unmount answers `EINVAL`,
 is what would narrow the class to the copies that crossed.
-The refusal is the preflight's,
-so it comes before the structural stage and before any signal and no job of such a holder is ended;
-the wrapper names the holder,
-its unit or process and the namespace,
-and the word is `holder-locked`.
-What the act should do instead is the choice V10 puts to the owner;
-until the owner answers the design refuses.
-This is a reading of `v7.3` and `v262` and not a run;
-T0-14 is the arm that would show it,
-and it has not run.
+Where the holder is a service unit of the account's own user manager,
+the wrapper stops that unit through that manager in the structural stage and the removal then proceeds (V10's answer);
+the unit's cgroup goes,
+its namespaces and the copy with it,
+nothing else in that namespace is handled,
+and the report names the unit so the person can start it again.
+Where it is not,
+a bubblewrap sandbox,
+a hand-started rootless container or a task in a session scope,
+the preflight refuses `holder-locked` before the structural stage and before any signal,
+so no job of such a holder is ended,
+and the wrapper names the holder,
+its process and the namespace.
+The owner answered this on 2026-11-23 (V10),
+and `The locked holder, and the unit the wrapper may stop` is how the two cases are told apart and how the stop is made.
+The read is a reading of `v7.3` and `v262` and not a probe arm's own run,
+though the fourth round's guest and this machine's read confirm the two halves (F62).
 
 One forced removal from start to end,
 on a clone at `.claude/worktrees/one`:
@@ -2163,11 +2199,17 @@ the first signal and the first unmount:
 - It reads each holder namespace's owner before any signal:
   on the namespace's descriptor it asks `NS_GET_USERNS` for the user namespace that owns it (F61),
   and compares that namespace's inode with `/proc/self/ns/user`,
-  which is the initial user namespace for a root handler;
-  a different inode is `holder-locked`,
-  refused here,
+  which is the initial user namespace for a root handler.
+  A different inode is a locked holder,
+  and this bullet is where the two routes part (V10):
+  a locked holder that is a service unit of the account's own manager,
+  told by the reads of `The locked holder, and the unit the wrapper may stop`,
+  is recorded for the structural stage's stop;
+  any other locked holder is refused `holder-locked` here,
   before the structural stage and before the first signal,
-  so no job in such a namespace is ended (V10).
+  so no job in such a namespace is ended.
+  The preflight stays read-only:
+  it records which locked holders are units to stop and refuses the rest.
 - It reads bound unix sockets by `sock_diag` with `UDIAG_SHOW_VFS` in each network namespace,
   whose answer is the bound file's device and inode (F56),
   where the device is the raw `dev_t` the kernel reports for the superblock and is re-encoded before it is compared with `st_dev`,
@@ -2190,6 +2232,9 @@ or way 7's slave change and directory);
 then the signal stage over every namespace;
 then the unmount stage over every namespace (way 8's unmount,
 or way 7's move and unmount).
+Within the structural stage the locked units come first:
+each is stopped through the account's own manager and its namespace is waited for before any other namespace is changed (V10),
+and the namespaces whose copy went with them are handled by nothing else.
 The structural stage comes before any signal because a busy mount can be moved (F17's check does not stop a move) and the kernel can refuse that stage for a cause reading cannot know;
 after it,
 only a blocker that will not die and an `EBUSY` race follow an ending.
@@ -2202,6 +2247,63 @@ the directory is removed when safe and the parent stays a slave and is reported 
 Way 8's unmount has receivers,
 so all blockers in all receiving namespaces are ended before any unmount,
 and a receiver's copy already gone when its turn comes is success.
+
+### The locked holder, and the unit the wrapper may stop
+
+A locked holder takes one of two routes (V10's answer),
+and four reads say which,
+none of them from a lock flag (F61):
+
+- The namespace's owner.
+  `NS_GET_USERNS` on a descriptor for the holder's mount namespace gives the user namespace that owns it,
+  and the handler compares that namespace's inode with the initial user namespace's (F61);
+  a different inode is a locked holder (F59).
+- The unit's name.
+  For a task of the holder the handler reads `/proc/<pid>/cgroup`,
+  whose unified hierarchy prints one `0::<path>` line (`kernel/cgroup/cgroup.c:6716` to `:6760` at `v7.3`),
+  and takes the last component of `<path>`,
+  which is the unit's own name where the path runs through `user@<uid>.service/`,
+  the account's user manager (`units/user@.service.in`,
+  "User Manager for UID %i",
+  at `v262`).
+  Only a name ending `.service` counts:
+  a `session-<n>.scope` is the person's own shell or a group of its processes,
+  and a scope is never stopped,
+  because a scope's stop ends whatever its creator put in it.
+- The manager's answer.
+  The wrapper asks the account's own manager for that unit (`GetUnit`,
+  `man/org.freedesktop.systemd1.xml:1367` to `:1370` at `v262`,
+  which fails for a name that manager has not loaded),
+  and only a unit it answers for is one it may stop.
+  The wrapper runs as the account whose manager it is,
+  so this is the one manager it can ask;
+  a locked holder owned by another account or by the system manager is not this case and is refused.
+- The protected set.
+  The preflight's check comes first,
+  so a unit that holds the caller's own session or its ancestors refuses `caller-protected-holds` and is never stopped.
+
+The stop:
+the wrapper asks the same manager to stop the unit (`StopUnit`,
+`man/org.freedesktop.systemd1.xml:85` and `src/core/dbus-manager.c:3170` at `v262`),
+which ends the unit's cgroup and,
+with it,
+the namespaces of its tasks and the copy;
+then it waits `T_stop` (unvalued,
+like `T_wait`) for that cgroup to leave `/proc/<pid>/cgroup` and for the manager to report the unit inactive,
+and re-reads the holder's namespace.
+Three outcomes refuse `holder-locked` and change nothing else:
+a stop the manager answers with a failure,
+a cgroup still there when `T_stop` ends,
+which a unit with `KillMode=none` gives,
+and a unit active again before the act's structural stage ends,
+which a unit with `Restart=` gives.
+Each of those reports the attempt,
+the unit's state,
+the reason and that nothing was unmounted,
+and the clone stays where it was for a later run or a person's own stop.
+A unit stopped this way is reported with its cgroup and the namespace that went with it,
+so the person can start it again;
+the receipt's lines and the report's carry one line for each such unit.
 
 ### The signal
 
@@ -2317,18 +2419,17 @@ What the design still refuses:
   the act there ends path holders only;
 - a namespace whose root mount is the copy (F48);
 - a mount under the copy;
-- a holder whose copy is locked,
-  because its namespace is owned by a user namespace of its own:
+- a locked holder that is not a service unit of the account's own user manager:
   a bubblewrap or rootless-container sandbox,
-  a unit with `PrivateUsers=yes`,
-  or a unit of the person's own user manager with `PrivateMounts=`,
-  `PrivateTmp=`,
-  `ProtectSystem=`,
-  `ProtectHome=` or a bind option (F59,
+  or a task in a session scope,
+  whose copy the kernel locked (F59,
   F60);
   the preflight reads the owner (F61) and refuses `holder-locked` before the structural stage and any signal,
   naming the holder and its namespace,
-  and V10 holds what the act would do instead;
+  while a locked holder that is such a unit is stopped through that manager and the removal proceeds (V10);
+  a locked unit that is not the account's,
+  or one whose stop fails,
+  is still refused;
 - a second mount of the dataset in the same namespace;
 - a holder the preflight proves cannot be ended,
   and a blind spot;
@@ -2439,17 +2540,24 @@ What that promise covers:
 a unit of the system manager with any sandboxing option,
 and a sandbox in the handler's own user namespace,
 which is every namespace the Tier 0 arms built.
-It does not cover a sandbox with a user namespace of its own:
+A sandbox with a user namespace of its own is covered in one half and refused in the other (V10's answer of 2026-11-23):
 a unit of the person's own user manager that sets `PrivateMounts=`,
 `PrivateTmp=`,
 `ProtectSystem=`,
-`ProtectHome=` or a bind option gets one from systemd (F60),
-and so does a bubblewrap or rootless sandbox,
-and the kernel locks their copies,
-so neither way reaches them.
-Those holders are `holder-locked` and refused before any signal,
-and V10 holds the choice of what the act should do about them;
-the promise's sentence is this one and not that one.
+`ProtectHome=` or a bind option gets one from systemd (F60,
+and this machine's `v262` gives it its own mount namespace,
+F62),
+so the kernel locks its copy and neither way reaches it,
+and the removal stops that unit through that manager,
+finishes,
+and names the unit it stopped.
+The service does not keep running in that case,
+which is what the answer chose;
+the person starts it again.
+A locked holder that is not such a unit,
+a bubblewrap or rootless sandbox or a task in a session scope,
+is `holder-locked` and refused before any signal,
+and the promise's first sentence is the one that holds for the cases it names.
 
 Concrete case:
 the checkout `/home/user/Monochromatic` is its own mount and is private on the host,
@@ -2457,8 +2565,11 @@ the repaired state;
 `watcher.service` has a build sandbox inside it (a slave namespace),
 and a job in the service has its working directory in `one/target`.
 
-- Option A (recommended):
+- Option A (recommended,
+  and accepted on 2026-11-23):
   the policy of "Ranking and the recommended way":
+  a locked holder that is a service unit of the account's own user manager is stopped through that manager and named,
+  and a locked holder that is not one is refused `holder-locked`;
   way 8 where the preflight proves the handle and no outside receiver with a mount at the slot;
   otherwise way 7,
   which in the repaired state is also way 3's change;
@@ -2590,6 +2701,10 @@ this section states what holds for every act.
   executable,
   mapped file,
   root or bound socket is in the clone.
+- The only stop the act asks another program for is a locked unit's,
+  through the account's own manager (`The locked holder, and the unit the wrapper may stop`);
+  the act signals none of that unit's tasks itself,
+  and a unit whose stop fails is refused and not forced.
 - The handler refuses when any protected task is a holder,
   and a namespace's tasks and threads are all enumerated.
 - The number of tasks and namespaces one act reaches is bounded by the scan's own bounds (F23),
@@ -2637,6 +2752,11 @@ by the records record:
   its name,
   the namespace,
   and whether it was removed or left;
+- one line per unit stopped:
+  the unit's name,
+  its cgroup,
+  the mount namespace that went with it,
+  and that the removal may be run again and the unit started after;
 - one line per holder not ended:
   the same fields plus the failing proof;
 - one line per refused namespace,
@@ -2680,13 +2800,15 @@ and the receipt's failed step names which:
   a read the preflight could not make (`EACCES` or `EPERM`);
   it refuses before any act.
 - `holder-locked`:
-  a holder whose mount namespace is owned by a user namespace other than the handler's,
-  so the kernel locked its copy and neither the unmount nor the move reaches it (F59,
+  a locked holder the removal would not stop,
+  which is one whose mount namespace is owned by a user namespace other than the handler's and which is not a service unit of the account's own manager (F59,
   F60,
-  F61);
-  the preflight finds it and refuses here,
-  before the structural stage and before any signal,
-  so no job of that holder was ended (V10).
+  F61),
+  or such a unit whose stop failed,
+  left its cgroup or came back active;
+  the preflight refuses the first before the structural stage and before any signal,
+  and the stop stage refuses the second there,
+  so no job of that holder was ended by this removal (V10).
 - `holder-structural`:
   a change the kernel refused in the middle of the structural stage;
   nothing was ended,
@@ -2736,15 +2858,16 @@ Nothing was destroyed after that point.
 ```
 
 The fourth,
-a holder the kernel locked because its namespace is owned by a user namespace of its own:
+a locked holder the removal would not stop:
 
 ```text
 the removal of <slot> was refused before anything was ended, because one of the holders has a user namespace of its own.
-holder <unit or process> in mount namespace <namespace> keeps a copy at <mount point> (mount <id>).
+holder <process, unit name or cgroup> in mount namespace <namespace> keeps a copy at <mount point> (mount <id>).
 That namespace is owned by a user namespace other than this machine's first one, so the kernel locked every mount it received:
 this removal cannot unmount the copy, and moving it is refused too.
+<one of: it is not a service unit of this account's own user manager, so this removal may not stop it; or it is that unit and the manager's stop failed, or left its cgroup, or the unit restarted, and that state is named here>
 Nothing was moved, unmounted or destroyed: the clone, its snapshots, the Git registration and that holder are as they were.
-<where V10 lands: the unit must be stopped by its own manager and the removal run again, or the report names the command that stops it>
+<if it is a service unit of this account's manager: `systemctl --user stop <unit>` and run the removal again>
 ```
 
 The third text's list of reasons carries the locked case in its own words,
@@ -3107,9 +3230,30 @@ the option the record did not choose is (2).
 
 ### V10. What a forced removal does about a holder in a user namespace of its own
 
-Options,
+**Answered by the owner on 2026-11-23 with "Stop that unit (Recommended)",
+option (2).**
+`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`,
+"A holder whose copy is locked (V10)",
+records the answer and its scope:
+for a locked holder that is a unit of the account's own user manager,
+the forced removal stops the unit through that manager,
+whose stop ends the unit's jobs in the manager's own way,
+and the removal then proceeds,
+the report naming the unit it stopped so the person can start it again;
+a locked holder that is not such a unit,
+a bubblewrap sandbox or a rootless container started by hand,
+has no manager to stop it through,
+so for it the design's refusal stands,
+which the record marks as the session's reading of the answer's scope and open to the owner's veto.
+`The locked holder, and the unit the wrapper may stop` holds how the two are told apart,
+how the stop is made,
+what the wait is and what a failed or restarted stop reports.
+
+The three options it chose between,
+as the question put them,
 each with what the person sees:
-(1) refuse and name the holder (the design's answer until the owner chooses);
+(1) refuse and name the holder,
+which is what this design did until the answer;
 (2) the wrapper stops that unit through the account's own user manager and the removal then proceeds;
 (3) refuse and name the unit with the command that stops it,
 so the person stops it and runs the removal again.
@@ -3161,10 +3305,19 @@ Ranking:
 because (2) finishes the removal the owner asked to finish in one run and ends the unit the way its manager would,
 where (3) leaves the person a two-step route and (1) leaves none;
 and (3) over (1) because a refusal that names the command can be acted on where one that names only the holder cannot.
-The design keeps (1) until the owner answers,
-because stopping the person's unit is destructive and is not this design's to authorise (PX2);
-the veto's alternative is (2),
-and (3) is a change to the report's text only.
+The owner took (2) on 2026-11-23,
+which is why the design now stops that unit rather than refusing it,
+and why the report names each unit it stopped.
+(3) rides along in the report's text:
+a refused locked holder that is a unit of the manager the wrapper cannot stop is named with the command that stops it.
+What (2) costs,
+and what this design adds to keep it safe:
+the stop is only for a service unit of the account's own manager,
+told by the reads in that section;
+a stop the manager refuses,
+a cgroup still there after the wait,
+and a unit active again before the structural stage ends each refuse `holder-locked` and change nothing;
+and the person is told which unit was stopped.
 
 ## The record of who a forced removal ended, and the questions left
 
@@ -3345,8 +3498,21 @@ and whether it needs a guest.
     guest.
 21. `doctor` names holders,
     the protected set,
-    the propagation changes and a matching leftover directory;
+    the propagation changes,
+    the units a removal stopped and a matching leftover directory;
     device-free.
+22. A locked holder that is a service unit of the account's own manager is stopped through that manager,
+    its cgroup waited for,
+    the removal finished and the unit named in the report;
+    a lock held by a bubblewrap sandbox,
+    a hand-started rootless container or a task in a session scope is refused `holder-locked` before any signal;
+    a unit whose manager refuses the stop,
+    one that keeps its cgroup (`KillMode=none`) and one that comes back (`Restart=`) each refuse `holder-locked` and unmount nothing;
+    a unit that holds the caller's own session refuses `caller-protected-holds` and is never stopped;
+    guest,
+    with a systemd of `v262`'s shape and one of `255`'s,
+    since the two give a unit's mount namespace different owners (F60,
+    F62).
 
 ## Measurements owed
 
@@ -3421,10 +3587,15 @@ never passed (Z5).
 - **The constants**:
   the wait between `SIGTERM` and `SIGKILL` is `T_wait = 10 s` provisional;
   the heartbeat period `T_h = 1 s` and the give-up window `T_g = 4 s` (= 4 `T_h`) provisional;
+  the wait for a locked unit's stop,
+  `T_stop`,
+  has no provisional value,
+  because a manager's stop is not the act's own wait and nothing has timed one;
   the harness timeout per arm is 900 s.
   M12 sizes `T_wait`,
   `T_h`,
-  `T_g` and step 22's removal deadline;
+  `T_g`,
+  `T_stop` and step 22's removal deadline;
   until then the arms run with these provisional values,
   recorded with each run.
   The provisional values are the harness's,
@@ -4011,48 +4182,51 @@ and the check and the tables are recorded.
 - **T0-14.
   A holder in a user namespace of its own.**
   Start:
-  three holders,
-  each with a copy mounted in H at the slot before it is made:
-  (a) a namespace made with `unshare --user --map-root-user --mount` from H,
-  its user namespace new,
-  so the kernel locks every mount it copies (F59);
-  (b) a unit of the harness account's own user manager started with `systemd-run --user --unit=<name> --property=PrivateMounts=yes`,
-  which systemd gives a user namespace of its own (F60),
-  the shape the design's own example has when it is a user unit;
-  (c) the control,
-  a namespace made with `unshare --mount` and no user namespace.
-  One action per holder:
-  the preflight's own read,
+  one holder per shape,
+  each with a copy mounted at the slot before the holder is made:
+  (a) `unshare --user --map-root-user --mount`,
+  which makes its user and mount namespaces at once,
+  the shape bubblewrap and rootless containers make;
+  (b) a unit of the account's own user manager with `PrivateMounts=yes`;
+  (c) the same with `PrivateMounts=yes` and `PrivateUsers=yes`;
+  (d) the same with `ProtectHome=read-only`;
+  (e) the same with `PrivateTmp=yes`;
+  (f) the control,
+  a unit of the system manager with `PrivateMounts=yes`.
+  One action per holder,
+  with the guest root's own namespace as the handler's:
+  the read the preflight makes,
   `NS_GET_USERNS` on the holder's mount namespace descriptor,
   compared with `/proc/self/ns/user` (F61);
-  then way 8's unmount in the holder by the recorded handle,
-  and,
-  in a second phase from the same start,
-  way 7's `mount --make-slave` and `move_mount`.
-  Positive control:
-  holder (c) reads the initial user namespace and both actions succeed there.
-  Expected:
-  holders (a) and (b) read a different user namespace,
-  which the arm records as the input to `holder-locked`;
-  the unmount answers `EINVAL` and the move refuses the source,
-  so neither way reaches the copy,
-  and the two halves agree:
-  a different owner and a refused action are the same holders.
-  A fourth phase mounts a copy of the clone inside holder (a)'s own user namespace,
-  from a path that holder can see,
-  and reads whether its unmount answers `EINVAL`:
-  that is the copy the read would refuse without cause,
-  and the phase is what would narrow the class to the copies that crossed a user namespace.
+  then `move_mount` after making the parent a slave (way 7's step 1),
+  and in a second phase way 8's `umount2` by the recorded handle;
+  and the control that the same copy unmounted in the guest's own root namespace is accepted.
+  Expected,
+  and observed in both runs of the fourth round:
+  (a) reads `user:[4026532392]` against the initial `user:[4026531837]`,
+  and both the move and the unmount answer `EINVAL` while the copy stays,
+  which is the locked class;
+  (b) to (e) give the unit's processes a user namespace of their own but leave its mount namespace owned by the initial one under the guest's systemd 255,
+  so nothing is locked and both actions are accepted there;
+  (f) reads the initial one and both actions are accepted.
+  So the read is what names the class and the option is not,
+  which is exactly the difference F62 records on this machine:
+  a `v262` user unit's mount namespace is owned by a user namespace of its own,
+  so on this machine shape (b) is a locked holder,
+  while on the guest's `255` it is not.
+  A further phase mounts a copy inside (a)'s own user namespace from a path that holder can see,
+  and reads whether its unmount answers `EINVAL`,
+  which is the copy the read would refuse without cause and the phase that would narrow the class.
   Bound:
   120 s.
   Decides:
   that the owner read names the holders the kernel locks,
-  that systemd's user-unit shape is among them (F60),
-  and that no way reaches a locked copy.
+  that a copy made across a user namespace boundary is the one the kernel locks,
+  and that a manager's version decides what a unit's mount namespace is owned by (F60,
+  F62).
   Tier 0;
-  unrun,
-  so the refusal rests on the readings of F59,
-  F60 and F61.
+  the fourth round ran the six shapes in a `7.0.0-43-generic` guest under systemd 255,
+  and this machine's `v262` read is the session's and not a probe arm's (F62).
 
 ### Tier 1: a ZFS pool, no route
 
@@ -4403,6 +4577,7 @@ and the check and the tables are recorded.
   the scan file's publish to the wrapper's read;
   the wait for one and for many blockers;
   the liveness detection;
+  a locked unit's stop through its manager;
   the slave change,
   the directory,
   the move and the unmount.
@@ -4542,9 +4717,13 @@ and the check and the tables are recorded.
 - The deferred-destroy checks themselves and step 16's call sites (D3).
 - A second scan,
   any force or lazy unmount of a staged mount,
-  any fallback that ends every task of a namespace,
+  any fallback in which the act itself ends every task of a namespace,
   any unmount of the host's clone mount by the forced arm,
   and any change to a unit's own mount settings.
+  The one ending that is not such a fallback is the manager's own stop of a locked unit,
+  which V10's answer chose and which the manager makes,
+  not this act:
+  the act asks for it and reads the result.
 - A namespace or a state the reach refuses beyond the refusal and the report:
   no recovery is designed for a copy left at a destination when moving it back also fails,
   and no restoration of a private mount's original group is designed.
@@ -4885,6 +5064,26 @@ the questions section is the decided record.
   the confirmation's order and the limitations bullet brought up to date,
   the marker route's condition stated with the arm that would loosen it,
   and `holder-locked` with its own report text.
+- `b3044bdc9e`,
+  2026-11-23T21:26:06-05:00:
+  the merge of `main` with the owner's acceptance and V10's answer.
+- `5c92a940eb`,
+  2026-11-23T21:31:11-05:00:
+  V10 answered with "Stop that unit" and its scope quoted,
+  option (2) carried through the sixth kind,
+  the preflight,
+  the structural stage's order,
+  "What is still refused",
+  the confirmation's promise and Option A,
+  the refusal word,
+  its report text,
+  the report's lines,
+  test 22,
+  the constants and M12;
+  the new section `The locked holder, and the unit the wrapper may stop` with its four reads and the stop;
+  F62's machine read and F60's version caveat;
+  T0-14 rewritten to the fourth round's six shapes;
+  and the front matter's status after the owner's acceptance.
 
 ## What this revision left as it was
 

@@ -1339,21 +1339,46 @@ From lines 43501 to 43503 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  facts read at 2026-11-22T15:50-05:00, for whoever reads a guest timing: swap is zram (61.7 G, 36 G used) at
-  `vm.swappiness` 150; three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G); the ZFS cache was at
-  2.1 G of 60.7 G; memory pressure about 4 percent; 30 processors at a load of 17 to 25. Three notes went to running rounds
+  facts read at 2026-11-22T15:50-05:00,
+  for whoever reads a guest timing:
+  swap is zram (61.7 G,
+  36 G used) at
+  `vm.swappiness` 150;
+  three guests held 0.9 G resident and 23 G in zram (unit peak 23.7 G of 33.1 G);
+  the ZFS cache was at
+  2.1 G of 60.7 G;
+  memory pressure about 4 percent;
+  30 processors at a load of 17 to 25.
+  Three notes went to running rounds
 
 From lines 43553 to 43559 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  newer in its guest, since every guest figure of this branch so far is from 2.43.0. MORE RUNS AT ONCE: the owner asked "Can
-  we parallelize more?" after the 6344 round's start. Measured between then and 2026-11-22T17:16:54-05:00: eight Pi runs and
-  one Sonnet check going against a standard pool that takes 20; 29 GiB of memory available; three guests of 8 GiB each
-  (mvm's default) holding 2.5 GiB resident and 30 GiB of swap in a unit capped at 33 GiB; swap 44 of 63 GiB used (zram held
-  35.1 GB in 12.7 GB); load 19 to 27 on 30 processors. What held work back was the order of work and not the machine: none
-  of the designs the plan marks as blocking steps 10 to 19 was written. Step 10's "Depends on" (steps 2, 3, 6 and 8) is
-  met, but its "Open items" block it on the add-time Git lock, and its binding record has no home (plan lines 1479 and 2864
+  newer in its guest,
+  since every guest figure of this branch so far is from 2.43.0.
+  MORE RUNS AT ONCE:
+  the owner asked "Can
+  we parallelize more?"
+  after the 6344 round's start.
+  Measured between then and 2026-11-22T17:16:54-05:00:
+  eight Pi runs and
+  one Sonnet check going against a standard pool that takes 20;
+  29 GiB of memory available;
+  three guests of 8 GiB each
+  (mvm's default) holding 2.5 GiB resident and 30 GiB of swap in a unit capped at 33 GiB;
+  swap 44 of 63 GiB used (zram held
+  35.1 GB in 12.7 GB);
+  load 19 to 27 on 30 processors.
+  What held work back was the order of work and not the machine:
+  none
+  of the designs the plan marks as blocking steps 10 to 19 was written.
+  Step 10's "Depends on" (steps 2,
+  3,
+  6 and 8) is
+  met,
+  but its "Open items" block it on the add-time Git lock,
+  and its binding record has no home (plan lines 1479 and 2864
 
 From lines 1364 to 1372 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),

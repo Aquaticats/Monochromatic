@@ -435,11 +435,6 @@ fn the_fixture_service_takes_a_wrapped_commit_and_goes_with_its_owner() {
     remove_settled(&fixture);
 }
 
-/// The directory holding a program on the search path.
-fn directory_of(program: &str) -> Option<PathBuf> {
-    return std::env::var_os("PATH").and_then(|paths| { return std::env::split_paths(&paths).find(|directory| { return directory.join(program).is_file(); }); });
-}
-
 /// Real Git with `git-lfs` reachable,
 /// in the fixture's hermetic environment.
 fn git_with_lfs(fixture: &Fixture, repo: &Path, lfs: &Path, arguments: &[&str]) {
@@ -513,13 +508,15 @@ fn a_commit_from_a_pid_namespace_lands() {
 /// and no temporary path
 ///  is printed.
 /// Needs the real `git-lfs`;
-/// without it the control says so and stops.
+/// without it the control says so and stops,
+/// and a run that states the program must be there fails it instead.
 #[test]
 fn a_scoped_commit_beside_a_stat_dirty_lfs_asset_lands_through_the_service() {
-    let Some(lfs) = directory_of("git-lfs") else {
-        eprintln!("skipped: git-lfs is not installed, so no LFS filter ran");
+    let Some(program) = super::real_git_lfs_the_run_requires::required("the scoped commit beside a stat-dirty LFS asset") else {
         return;
     };
+    // The program's own folder, which the commit's `PATH` names so the LFS filter finds the program there.
+    let lfs: PathBuf = program.parent().expect("a program has a folder").to_path_buf();
     let fixture: Fixture = fixture("service-lfs");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     git_with_lfs(&fixture, &repo, lfs.as_path(), &["lfs", "install", "--local", "--skip-repo"]);
@@ -1132,4 +1129,25 @@ fn a_replace_ref_keeps_the_amendment_on_the_parents_git_reads() {
         "the amended commit stands on the parents Git reads under the replace ref, which are none"
     );
     remove_settled(&fixture);
+}
+
+/// What:
+///  A run that states the real `git-lfs` must be there fails the scoped commit beside an LFS asset,
+///  rather than passing it without an LFS filter running.
+/// Why:
+///   The gate image installs `git-lfs` and sets `CLI_GIT_REQUIRE_REAL_GIT_LFS`,
+/// so an image that lost the program has to be red,
+/// and the decision that control makes is what turns the old line into a failure.
+///  The absence and the statement are passed in because a control cannot change this process's environment beside the
+/// other controls of this binary;
+/// the variable itself is proved where a child process can set it
+///  (`testing/real_git_lfs_the_run_requires_tests.rs`).
+#[test]
+#[should_panic(expected = "CLI_GIT_REQUIRE_REAL_GIT_LFS")]
+fn the_scoped_commit_beside_an_lfs_asset_fails_where_the_run_requires_the_program_and_path_finds_none() {
+    let _absent: Option<PathBuf> = super::real_git_lfs_the_run_requires::decided(
+        "the scoped commit beside a stat-dirty LFS asset",
+        None,
+        true,
+    );
 }

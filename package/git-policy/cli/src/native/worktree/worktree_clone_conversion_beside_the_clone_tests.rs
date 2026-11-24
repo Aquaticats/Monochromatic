@@ -11,6 +11,7 @@
 use super::*;
 use crate::subvolume_index_files::fields_of;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::worktree_clone_conversion_fence::fence_the_attributes;
 use crate::worktree_clean::stored_stats;
 use crate::worktree_ladder_test_support::{commit_all, main_identity, tracked};
 use crate::worktree_snapshot_source::common_source;

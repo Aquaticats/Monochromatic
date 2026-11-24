@@ -542,6 +542,19 @@ fn the_report_of_what_stays_names_the_count_the_examples_and_the_command() {
     assert!(report.starts_with("3 entries") && report.contains("dir/a.txt, b.txt") && report.contains("git -C /base/topic status"), "{report}");
 }
 
+/// A run that created only directories names no example,
+/// because there is no file to name.
+///
+/// (The release pass over alpha.45 printed "2 entries the clones created stay in /work/topic (for example )" for such a
+/// run.)
+#[test]
+fn the_report_of_what_stays_names_no_example_when_only_directories_stay() {
+    let created: Vec<Created> = vec![Created { names: vec![OsString::from("dir")], directory: true }, Created { names: vec![OsString::from("dir"), OsString::from("deeper")], directory: true }];
+    let report: String = leftover_report(created.as_slice(), Path::new("/base/topic"));
+    assert!(report.starts_with("2 entries") && report.contains("stay in /base/topic;"), "no empty example stands in the sentence: {report}");
+    assert!(!report.contains("for example"), "a run of directories names no example: {report}");
+}
+
 /// A file replaced after it was cloned,
 /// with the same size and time,
 /// is not certified:

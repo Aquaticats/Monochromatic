@@ -289,9 +289,13 @@ impl AttributeFence {
     /// Why:
     ///   The sizes are one `git ls-tree`,
     /// the dear read of this fence,
-    ///  and a source whose paths no rule reaches
-    ///  (`core.autocrlf` off and no attributes file setting one) is decided from the attributes and the stat data alone,
-    ///  so the read is not paid and a read started earlier is not waited for.
+    ///  and only a link or a path an attribute rule hands to Git is decided without one:
+    /// a path with no rule still needs its blob's size,
+    ///  because its file may hold the form of a rule that is gone today
+    ///  (`needs_blob_size`).
+    /// So an ordinary source pays this read too,
+    /// and the answer is nothing only for a source of links and converting paths,
+    ///  where a read started earlier is not waited for.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -302,6 +306,35 @@ impl AttributeFence {
             let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
             return entry.mode & MODE_TYPE_MASK != MODE_SYMLINK && needs_blob_size(&held, &self.rules);
         });
+    }
+
+    /// What:
+    ///  The bytes the clones copy:
+    /// the recorded sizes of the tracked files whose attributes leave them to the size proof,
+    /// and of every link.
+    /// Why:
+    ///   A clone copies the working files the fence may carry and no other,
+    /// so a limit on the bytes a clone copies must leave out every path an attribute rule hands to Git:
+    /// a filter such as `filter=lfs` makes the index record the file's own bytes while the blob holds a pointer,
+    /// and this machine's own checkout records 244 MB of such bytes out of 770 MB
+    /// (the release pass over alpha.45's finding M2).
+    /// A path whose file changed or whose times are stale is counted here as its index records it,
+    /// which the partial clone then writes with Git rather than copying,
+    /// so the sum is the carried bytes as the attributes and the index alone say them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const bytes = (read) => read.entries.filter((entry) => isLink(entry) || needsBlobSize(read.attributes.get(entry.path), read.rules)).reduce((sum, entry) => sum + entry.stored.size, 0);
+    /// ```
+    pub fn bytes_the_clones_carry(&self) -> u64 {
+        let mut total: usize = 0;
+        for entry in &self.entries {
+            let held: PathAttributes = self.attributes.get(entry.path.as_slice()).cloned().unwrap_or_default();
+            if entry.mode & MODE_TYPE_MASK == MODE_SYMLINK || needs_blob_size(&held, &self.rules) {
+                total += entry.stored.size as usize;
+            }
+        }
+        return total as u64;
     }
 
     /// What:

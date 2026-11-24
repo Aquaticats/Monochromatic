@@ -30,15 +30,18 @@ Each record is cited so the context is one read away.
   since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
   Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
   Nothing has proved it necessary.
-  (Interactive Pi sessions keep their environment, answered 2026-11-10T08:23:02-05:00.)
+  (Interactive Pi sessions keep their environment,
+  answered 2026-11-10T08:23:02-05:00.)
 - Do the `container-`,
   `windows-` and `test-` record prefixes belong in `cargo-shadow lean`'s list?
   And what should happen to the eighteen logs redirected by hand,
   and the one renamed 17.9 MB record,
   in the linter's verification folder?
-- Fuzzing the wrapper: may the artifact reference stand without a landed evidence file?
+- Fuzzing the wrapper:
+  may the artifact reference stand without a landed evidence file?
   (Whether the checked-in seeds get a cheap native control in normal tests was answered
-  "Leave them to campaigns", 2026-11-10T08:24:33-05:00.)
+  "Leave them to campaigns",
+  2026-11-10T08:24:33-05:00.)
 - The unmerged copy-in-service branch:
   the audit in `doc/planning/cli-git-copy-route-findings-on-main.md` ranks B over C over A.
   The coordinator picked option B,
@@ -550,7 +553,8 @@ Under the owner's "Please make any non-destructive options (when they are the on
 yourself from now on for this session.",
 "never discard user data" and "commits vs native git should not take 5s longer",
 the coordinator picked neither side of that trade:
-the flush stays, it starts as early as the code allows,
+the flush stays,
+it starts as early as the code allows,
 and a landing that finds the marker still flushing takes the lock the ordinary way and never waits for that flush.
 The same agent built it (`c72e9f3174`):
 the marker of the next batch is started as soon as a landing has its lock,
@@ -566,7 +570,8 @@ Say "undo" to publish without the flush instead.
 ### Two tokio choices made by an agent (coordinator's pick, veto open)
 
 Agent `tokio-next-step-on-the-runtime`,
-building the owner's "Full on tokio. Multi-thread.",
+building the owner's "Full on tokio.
+Multi-thread.",
 made two choices on branch `refactor/git-policy-cli-tokio-next-step-on-the-runtime`
 and recorded both in `doc/planning/git-policy-cli-full-tokio.md`:
 
@@ -677,7 +682,8 @@ picked) yourself from now on for this session."
   a bare `-0` in `@monochromatic-dev/toml-edit-core` emits `-0.0`,
   so the sign survives a reparse.
 - `catalog-tighten`'s `test:matrix` adopts the passing arm of
-  `doc/troubleshooting/catalog-tighten-matrix-cannot-start.md`: mount the resolved store read-only and take pnpm's
+  `doc/troubleshooting/catalog-tighten-matrix-cannot-start.md`:
+  mount the resolved store read-only and take pnpm's
   first version line.
 - The first trash hand-over in a repository whose service is not running keeps waiting for the service to start,
   bounded by the commit path's start wait.
@@ -691,11 +697,41 @@ picked) yourself from now on for this session."
 - `package/test-fixture/data-sequence` keeps a `.` entry serving TypeScript source,
   following issue 1579's acceptance and the `hook-type` precedent.
 
+## Open: two wrapper behaviours the alpha.45 release pass left to the owner, recorded 2026-11-23T21:08:00-05:00
+
+They wait while the ZFS route is the priority.
+The pass is `~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/commit-push-lfs-lock/keep/review.md`.
+
+### What a relayed git-lfs error line hides (the pass's L2)
+
+The relayed URL mask keeps a path segment only when it is lower-case letters and `-._~`,
+so `https://github.com/Org/Repo.git/info/lfs` loses `Org` and `Repo.git` and the line no longer names the repository
+(`package/git-policy/cli/src/native/lfs/lfs_output_mask.rs`;
+the test at `lfs/lfs_output_mask_tests.rs:343` asserts it).
+The owner's earlier answer for the mask was "Hide long words only".
+The choice is whether a segment with a capital or a digit stays shown.
+
+### Words for a typed command at an unknown host key or a missing passphrase (the pass's L4)
+
+A typed `git clone`,
+`fetch`,
+`pull` or non-LFS `push` that meets a new SSH host key ends with OpenSSH's "Host key verification failed."
+and no next step,
+because the no-prompt rule of 2026-11-20 sets `SSH_ASKPASS` to `false` and the wrapper hands the command to Git.
+The pass ranked "ship a small askpass program" over "stop handing network commands to Git" over "leave it";
+the owner's later answer "One program only,
+ever"
+(`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`)
+rules out a separate program,
+so the first option would become a mode of the wrapper that `SSH_ASKPASS` names.
+
 ## Open: two `AGENTS.md` rules proposed after agent failures, recorded 2026-11-19T22:53:13-05:00
 
-Both wait for the owner's word, because `AGENTS.md` changes are the owner's to accept;
+Both wait for the owner's word,
+because `AGENTS.md` changes are the owner's to accept;
 until then every brief the coordinator writes carries the same instruction.
-Each code was checked against `AGENTS.md`, the skills and both forbidden-strings appendixes.
+Each code was checked against `AGENTS.md`,
+the skills and both forbidden-strings appendixes.
 
 ### Stop only what you started
 
@@ -739,28 +775,36 @@ KDT:
 ## Open: link the already installed tools into the main checkout? (recorded 2026-11-19, about 23:20 -05:00)
 
 The plan's step 1 records that nothing is installed on this host until the mpm-shadow change you put first
-("A: mpm-shadow change first (Recommended)").
+("A:
+mpm-shadow change first (Recommended)").
 Tonight a ZFS step 4 agent ran `mise run toolchain:install` in its worktree,
 and it reported `0 installed, 66 unchanged, 0 failed`:
 the locked tools are already in `~/.local/share/monochromatic-dev/toolchain`,
 `cargo-shadow` and `cargo-nextest` among them,
 and the run only made that worktree's `.cache/toolchain-bin` link folder.
 The main checkout has no such folder,
-so tasks that start with `cargo-shadow` (the wrapper's `native:test:container`, `test:git-image`) exit 127 there
+so tasks that start with `cargo-shadow` (the wrapper's `native:test:container`,
+`test:git-image`) exit 127 there
 and every gate runs their second step by hand.
 Running the same task in the main checkout would install nothing and make the link folder,
 putting those tools on the checkout's `PATH` for every session.
 
-- Link them now (recommended): the documented task routes work again and no tool is installed;
+- Link them now (recommended):
+  the documented task routes work again and no tool is installed;
   the cost is that every session in the main checkout starts finding these tools at once.
-- Wait for the mpm-shadow change: nothing on `PATH` changes; gates keep running the second step by hand.
+- Wait for the mpm-shadow change:
+  nothing on `PATH` changes;
+  gates keep running the second step by hand.
 
-Ranking: link now > wait, because the record's reason for waiting was an install that converges the whole toolchain,
+Ranking:
+link now > wait,
+because the record's reason for waiting was an install that converges the whole toolchain,
 and the measurement shows nothing left to install.
 
 ## Answered: approve ZFS step 4's slot identity store format? (recorded 2026-11-20, about 02:00 -05:00)
 
-Answered 2026-11-21T16:24:40-05:00 in the question tool: "B:
+Answered 2026-11-21T16:24:40-05:00 in the question tool:
+"B:
 folder,
 one file per slot".
 Recorded in `doc/decision/cli-git-zfs-slot-identity-store-format.md`;
@@ -768,88 +812,169 @@ a design for B goes to review before it is built.
 The question as it was put stays here for the record.
 
 What it is:
-step 4 records, for each worktree slot, the identities the attach checks (device, inode, owner, permissions, access
-lists of the folders), in one root-controlled file the wrapper appends to, `git-worktree-clone-slot-identities`, as
+step 4 records,
+for each worktree slot,
+the identities the attach checks (device,
+inode,
+owner,
+permissions,
+access
+lists of the folders),
+in one root-controlled file the wrapper appends to,
+`git-worktree-clone-slot-identities`,
+as
 `package/git-policy/cli/SPEC.md` describes under "The recorded identities store".
-Step 8 will build on this format, and no decision record approves it yet; step 4's second integration pass asked that
+Step 8 will build on this format,
+and no decision record approves it yet;
+step 4's second integration pass asked that
 you do.
 
-- (a) One file, one line per slot, appended under a lock only root can open, waited for with a bounded deadline
-  (as built; recommended). One read sees the parent and every slot in one state, which step 8's checks rely on.
-- (b) A folder with one file per slot, each made with `O_EXCL`, no lock. Lock-free, which the repository's concurrency
-  rule prefers; it loses the single-read state and rewrites the format, every refusal that names a line and about a
+- (a) One file,
+  one line per slot,
+  appended under a lock only root can open,
+  waited for with a bounded deadline
+  (as built;
+  recommended).
+  One read sees the parent and every slot in one state,
+  which step 8's checks rely on.
+- (b) A folder with one file per slot,
+  each made with `O_EXCL`,
+  no lock.
+  Lock-free,
+  which the repository's concurrency
+  rule prefers;
+  it loses the single-read state and rewrites the format,
+  every refusal that names a line and about a
   thousand lines of controls.
 
-Ranking a > b: a keeps the one-read consistency step 8 needs and its lock covers one appended line, held only by root;
+Ranking a > b:
+a keeps the one-read consistency step 8 needs and its lock covers one appended line,
+held only by root;
 b buys lock-freedom at the cost of that consistency and a rewrite.
 
 ## Answered: should ZFS step 6 refuse a BTF entry wider than `btf-rs` reads? (recorded 2026-11-20T23:40-05:00)
 
-Answered 2026-11-21 in the question tool: "A: accept, revisit later (Recommended)".
-Recorded in `doc/decision/cli-git-zfs-runtime-layout-checker.md`, section "Widened entry fields, answered 2026-11-21".
+Answered 2026-11-21 in the question tool:
+"A:
+accept,
+revisit later (Recommended)".
+Recorded in `doc/decision/cli-git-zfs-runtime-layout-checker.md`,
+section "Widened entry fields,
+answered 2026-11-21".
 
 What it is:
-step 6's start-time check reads the loaded ZFS module's type data through `btf-rs` 2.0.1, adopted on
+step 6's start-time check reads the loaded ZFS module's type data through `btf-rs` 2.0.1,
+adopted on
 2026-11-20T20:18:04-05:00.
-That release reads an entry's kind in 5 bits and a record's member count in 16, so a kernel that widened either field
+That release reads an entry's kind in 5 bits and a record's member count in 16,
+so a kernel that widened either field
 would be read as the narrower one;
-the step 6 integration pass measured a kind-33 entry read as compatible, where the removed stand-in refused it
-(`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`, M1).
+the step 6 integration pass measured a kind-33 entry read as compatible,
+where the removed stand-in refused it
+(`~/temp/agent/integration-pass-zfs-step-6-with-the-btf-rs-reader-2026-11-20/keep/review.md`,
+M1).
 No kernel on record uses a wider field,
 and the adoption record lists the lag as a revisit trigger.
-It does not hold step 6's merge: a round is making the docs say what the code does.
+It does not hold step 6's merge:
+a round is making the docs say what the code does.
 
-- (a) Accept the lag as recorded and revisit when a kernel or a `btf-rs` release widens the fields (recommended): no new
-  code, and the gate's other checks stay.
+- (a) Accept the lag as recorded and revisit when a kernel or a `btf-rs` release widens the fields (recommended):
+  no new
+  code,
+  and the gate's other checks stay.
 - (b) Add a reader-neutral check to the pre-scan that refuses any entry whose kind or member count exceeds what the reader
-  reads: keeps the old refusal, but it is a second small walker of the entry stream beside the adopted reader.
+  reads:
+  keeps the old refusal,
+  but it is a second small walker of the entry stream beside the adopted reader.
 - (c) Wait for a `btf-rs` release that reads the wider masks before merging step 6.
 
-Ranking a > b > c: a matches the adoption record and costs nothing while no kernel uses a wider field; b restores a
-refusal at the price of parsing the stream twice, near what the record declined as an in-house reader; c holds step 6 on
+Ranking a > b > c:
+a matches the adoption record and costs nothing while no kernel uses a wider field;
+b restores a
+refusal at the price of parsing the stream twice,
+near what the record declined as an in-house reader;
+c holds step 6 on
 another project's release.
 
-Also for information, not a choice:
+Also for information,
+not a choice:
 the record's rule that the request range's two endpoints are compared means a ZFS release that only appends a request,
-moving `ZFS_IOC_LAST` with no layout change, turns the raw route off until the expected range is updated;
-it fails safe, and neither the record nor the design examined that case.
+moving `ZFS_IOC_LAST` with no layout change,
+turns the raw route off until the expected range is updated;
+it fails safe,
+and neither the record nor the design examined that case.
 
 ## Answered: ZFS step 3 makes a worktree add from a dirty checkout slower; what then? (recorded 2026-11-20, about 00:30 -05:00)
 
-Answered 2026-11-20 on the third asking, "A: merge with cloning on", recorded as
-`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`, which also holds the partial-clone proposal that ends the
+Answered 2026-11-20 on the third asking,
+"A:
+merge with cloning on",
+recorded as
+`doc/decision/cli-git-zfs-clone-rung-dirty-source-waiver.md`,
+which also holds the partial-clone proposal that ends the
 waiver and the miss behind it.
-The same round chose "Tighten NQH" for `AGENTS.md`, committed the same day.
+The same round chose "Tighten NQH" for `AGENTS.md`,
+committed the same day.
 This section moves out once step 3 merges.
 
-First asking: through the question tool on 2026-11-20, the owner replied "What? Why are we running checks?".
-The coordinator answered that in the session and asked again, adding a question about cloning only the unchanged files.
-The owner's replies, 2026-11-20:
-to what step 3 merges with now, "Then this was an even worse decision made and implies multiple agents missed the rule
-about the machine never being quiet." (read as: a fast path that needs a clean source was designed and measured as the
-main case on a machine whose main checkout other sessions keep dirty; no option was picked, so the merge choice is
+First asking:
+through the question tool on 2026-11-20,
+the owner replied "What?
+Why are we running checks?".
+The coordinator answered that in the session and asked again,
+adding a question about cloning only the unchanged files.
+The owner's replies,
+2026-11-20:
+to what step 3 merges with now,
+"Then this was an even worse decision made and implies multiple agents missed the rule
+about the machine never being quiet."
+(read as:
+a fast path that needs a clean source was designed and measured as the
+main case on a machine whose main checkout other sessions keep dirty;
+no option was picked,
+so the merge choice is
 asked again);
-to "Should a writer design and measure a different clone path?" (clone every tracked file the proof shows unchanged,
-let Git write only the changed ones), "Yes, design and measure it (Recommended)".
+to "Should a writer design and measure a different clone path?"
+(clone every tracked file the proof shows unchanged,
+let Git write only the changed ones),
+"Yes,
+design and measure it (Recommended)".
 That proposal goes to `doc/planning/` with measurements and comes back to the owner before any code changes.
 
 ### Why the clone path checks the source
 
 Git's `worktree add` writes each file from the commit.
 The clone path instead clones the files sitting in the source checkout (`FICLONE` of every tracked file) and installs
-the source's own index with the clones' stat data (`worktree_clone.rs`, `install_index_in`), because a reflink needs a
+the source's own index with the clones' stat data (`worktree_clone.rs`,
+`install_index_in`),
+because a reflink needs a
 file on disk with the same bytes and the commit's bytes live compressed in Git's object store.
 So the clone path gives the right worktree only when the source's files are exactly the commit's.
-Before it clones it proves that (`SPEC.md`, "Rung 2 needs a clean source"): no merge, rebase or other operation in
-progress, the index equal to `HEAD`'s tree, every tracked file matching its index entry, and no untracked file
+Before it clones it proves that (`SPEC.md`,
+"Rung 2 needs a clean source"):
+no merge,
+rebase or other operation in
+progress,
+the index equal to `HEAD`'s tree,
+every tracked file matching its index entry,
+and no untracked file
 (the refusal kinds in `src/native/worktree/worktree_clean_stat_verdicts.rs`).
-Without the proof an uncommitted edit would be cloned into the new worktree, and the copied index would make its
+Without the proof an uncommitted edit would be cloned into the new worktree,
+and the copied index would make its
 `git status` call the file clean.
-On `main` the wrapper does not know ZFS can clone, so on this host it goes straight to Git's checkout and never runs
-the proof; step 3 teaches it ZFS, so the proof now runs, and on a dirty source it finds the change and falls back to
+On `main` the wrapper does not know ZFS can clone,
+so on this host it goes straight to Git's checkout and never runs
+the proof;
+step 3 teaches it ZFS,
+so the proof now runs,
+and on a dirty source it finds the change and falls back to
 Git's checkout after spending the time.
-The steps measured on that path: `git ls-files` 79 to 133 ms against the control's 45 to 50, `git check-ignore` 36 to
-47 ms, `git status` 36 to 57 ms, and an in-process stat walk of about 34 ms
+The steps measured on that path:
+`git ls-files` 79 to 133 ms against the control's 45 to 50,
+`git check-ignore` 36 to
+47 ms,
+`git status` 36 to 57 ms,
+and an in-process stat walk of about 34 ms
 (`~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`).
 
 What it is:
@@ -857,39 +982,85 @@ step 3 teaches the wrapper to see a ZFS dataset as able to share data blocks,
 so `git worktree add` from a clean source clones the files instead of checking them out.
 Your merge bar says a branch may not make anything `main` does well worse.
 
-What was measured on this machine (24,313 tracked files, the branch against `main` built the same way, alternating):
+What was measured on this machine (24,313 tracked files,
+the branch against `main` built the same way,
+alternating):
 
-- Clean source: the add now takes 0.51 to 1.57 times `main`'s time, median 0.66,
+- Clean source:
+  the add now takes 0.51 to 1.57 times `main`'s time,
+  median 0.66,
   since the round cloned the files in parallel slices
-  (before that round it was about 1.9 times, which the integration pass rightly refused).
+  (before that round it was about 1.9 times,
+  which the integration pass rightly refused).
   A source written in the last few seconds can add at most about 0.7 s once,
   because OpenZFS waits for its write-out before cloning freshly written blocks.
-- Dirty source (uncommitted changes, so no clone happens): about 1.2 times `main`'s time, about +0.2 s.
-  `main` skipped the clone rung's checks on ZFS at once; the branch now runs them before it falls back to Git's
-  checkout. The round tried two ways to make those checks cheaper and neither reached parity.
+- Dirty source (uncommitted changes,
+  so no clone happens):
+  about 1.2 times `main`'s time,
+  about +0.2 s.
+  `main` skipped the clone rung's checks on ZFS at once;
+  the branch now runs them before it falls back to Git's
+  checkout.
+  The round tried two ways to make those checks cheaper and neither reached parity.
 
-The main checkout here usually carries uncommitted files (it holds four now), so adds from it take the dirty path.
+The main checkout here usually carries uncommitted files (it holds four now),
+so adds from it take the dirty path.
 
-What the clone saves on disk, measured by step 3's guest arm on 2026-11-20 (an encrypted test pool, the crate's own
-`src` as the tree, 2,456 files, 34.7 MB, Git's add and the wrapper's add alternated over two rounds, the pool's
-allocation read after a sync): a clean add saved 22,979,072 bytes, about two thirds of the tree.
+What the clone saves on disk,
+measured by step 3's guest arm on 2026-11-20 (an encrypted test pool,
+the crate's own
+`src` as the tree,
+2,456 files,
+34.7 MB,
+Git's add and the wrapper's add alternated over two rounds,
+the pool's
+allocation read after a sync):
+a clean add saved 22,979,072 bytes,
+about two thirds of the tree.
 
 Options:
 
-- C. Do not take the clone rung on ZFS until the dirty-source checks cost no more than `main`'s, then turn it on
-  (recommended). Both paths behave exactly as `main` does today; the recognition, its tests and the guest arm stay. It
-  postpones a part of the accepted design (the clone rung on ZFS), which is why it is yours to choose.
-- A. Keep the clone rung on ZFS and waive the merge bar for this +0.2 s on a dirty-source add, recorded in
-  `doc/decision/`. Clean adds get faster now and save about two thirds of the tree's disk; most adds here, from a dirty
-  checkout, get slower by about 1 per cent of a real add (which also copies the ignored files) and save nothing.
-- B. Run the tracked-file check first and the untracked scan only if it passes: the dirty path about 50 ms cheaper,
-  the clean path about 34 ms dearer on every host whose snapshot rung is refused; still short of parity, so the bar is
+- C.
+  Do not take the clone rung on ZFS until the dirty-source checks cost no more than `main`'s,
+  then turn it on
+  (recommended).
+  Both paths behave exactly as `main` does today;
+  the recognition,
+  its tests and the guest arm stay.
+  It
+  postpones a part of the accepted design (the clone rung on ZFS),
+  which is why it is yours to choose.
+- A.
+  Keep the clone rung on ZFS and waive the merge bar for this +0.2 s on a dirty-source add,
+  recorded in
+  `doc/decision/`.
+  Clean adds get faster now and save about two thirds of the tree's disk;
+  most adds here,
+  from a dirty
+  checkout,
+  get slower by about 1 per cent of a real add (which also copies the ignored files) and save nothing.
+- B.
+  Run the tracked-file check first and the untracked scan only if it passes:
+  the dirty path about 50 ms cheaper,
+  the clean path about 34 ms dearer on every host whose snapshot rung is refused;
+  still short of parity,
+  so the bar is
   still missed.
-- D. Choose the clone rung by a measured size threshold: departs from the ladder's design and rests on a guess.
+- D.
+  Choose the clone rung by a measured size threshold:
+  departs from the ladder's design and rests on a guess.
 
-Ranking: C > A > B > D. C over A because the dirty path is the common one here, so A's cost lands on most adds and
-its saving on few, and C needs no waiver; A over B because B still misses the bar and moves cost onto other hosts; B over
-D because D leaves the design for a guessed threshold. The round's report, with every measurement:
+Ranking:
+C > A > B > D.
+C over A because the dirty path is the common one here,
+so A's cost lands on most adds and
+its saving on few,
+and C needs no waiver;
+A over B because B still misses the bar and moves cost onto other hosts;
+B over
+D because D leaves the design for a guessed threshold.
+The round's report,
+with every measurement:
 `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`.
 
 ## Moved from the old handover
@@ -898,7 +1069,8 @@ From lines 46556 to 46556 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit): not yet framed with its measurements.
+- The margin above the longest quiet gap for each quiet window (picks 4 and 9 of the limits audit):
+  not yet framed with its measurements.
 
 From lines 2755 to 2822 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -906,18 +1078,27 @@ moved verbatim on 2026-11-23:
 
 - Added 2026-11-15T22:34:53-05:00,
   from the run on the automatic push of a branch never pushed
-  (tip `c11272e4b6`, six controls and no product change:
-  a commit on such a branch is pushed to `origin` with its upstream set, as `SPEC.md` lines 9204 and 9205 say;
-  what pass 53 saw were two `git merge` commands, which the trigger declines for a branch with no upstream),
+  (tip `c11272e4b6`,
+  six controls and no product change:
+  a commit on such a branch is pushed to `origin` with its upstream set,
+  as `SPEC.md` lines 9204 and 9205 say;
+  what pass 53 saw were two `git merge` commands,
+  which the trigger declines for a branch with no upstream),
   not blocking work:
-  - Should a merge on a branch never pushed push it and set its upstream, as a commit there does?
+  - Should a merge on a branch never pushed push it and set its upstream,
+    as a commit there does?
     Today the trigger declines it (`upstream-not-single`) and `SPEC.md` near line 9048 and `README.md` line 556 say so.
-  - A declined push says nothing to the person; only the trigger's record file explains it.
-    Is one line of notice wanted, or a README line naming the record file?
-  - Three settings the author measured where the rule can be read either way, left as built:
-    `push.default=nothing` with no upstream and an `origin` (the wrapper pushes; plain Git refuses);
+  - A declined push says nothing to the person;
+    only the trigger's record file explains it.
+    Is one line of notice wanted,
+    or a README line naming the record file?
+  - Three settings the author measured where the rule can be read either way,
+    left as built:
+    `push.default=nothing` with no upstream and an `origin` (the wrapper pushes;
+    plain Git refuses);
     `remote.pushDefault` naming another remote with no `origin` (skipped in silence);
-    `branch.<name>.remote` naming another remote with no `.merge` (pushed to `origin`; plain Git refuses).
+    `branch.<name>.remote` naming another remote with no `.merge` (pushed to `origin`;
+    plain Git refuses).
 - Added 2026-11-15T02:12:39-05:00,
   from two authors' reports of that hour,
   not blocking work:
@@ -949,25 +1130,35 @@ moved verbatim on 2026-11-23:
     given another name?
   - mpm-shadow's cleanup (tip `3a96da6dbf`):
     are one year for the work limit and one hundred years for the age floor the right largest values?
-  - The queue of runs filled from the package, its third answer (tip `a634fbf060`, added 2026-11-14T17:41-05:00):
+  - The queue of runs filled from the package,
+    its third answer (tip `a634fbf060`,
+    added 2026-11-14T17:41-05:00):
     does a put-back finish an interrupted set-aside itself?
-  - The commit service that needs no service manager (tip `b896c60d97`, added 2026-11-14T15:02-05:00):
-    a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
+  - The commit service that needs no service manager (tip `b896c60d97`,
+    added 2026-11-14T15:02-05:00):
+    a service that is alive but stopped (a debugger,
+    a starved acceptor) reads as recovering,
     and the command ends after up to two minutes;
     is a shorter bound wanted with the same words?
-  - mpm-shadow's install removes no version, the fresh run's second answer
-    (tip `937485686f`, added 2026-11-14T19:22-05:00):
+  - mpm-shadow's install removes no version,
+    the fresh run's second answer
+    (tip `937485686f`,
+    added 2026-11-14T19:22-05:00):
     is keeping a version when all 32 claim names are taken the trade wanted?
-  - mpm-shadow's cleanup of old versions, its fourth answer (tip `b416f1e2b0`, added 2026-11-14T16:23-05:00):
+  - mpm-shadow's cleanup of old versions,
+    its fourth answer (tip `b416f1e2b0`,
+    added 2026-11-14T16:23-05:00):
     on Windows,
     where no inode is read,
     is the write time alone enough to say an entry is the one judged?
-  - mpm-shadow's cleanup of old versions (tip `542b881860`, added 2026-11-14T14:48-05:00):
+  - mpm-shadow's cleanup of old versions (tip `542b881860`,
+    added 2026-11-14T14:48-05:00):
     a `current` link can dangle until the next sync repairs it;
     no store-wide lock is adopted to close that window,
     by the project's rule on concurrency,
     open to veto.
-  - The queue of runs filled from the driver package (tip `9a778654e9`, added 2026-11-14T13:15-05:00):
+  - The queue of runs filled from the driver package (tip `9a778654e9`,
+    added 2026-11-14T13:15-05:00):
     is half an hour the right bound for the notice that the filling has stalled;
     is an entry whose batch gave up waiting for a place at its two-hour deadline put back
     (a fresh run now covers a launcher that fails or gives up)?
@@ -976,10 +1167,12 @@ From lines 3597 to 3601 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- Whether the hand-written writes to standard error and the commit's reports (about sixty files, its row six) go through the door next.
+- Whether the hand-written writes to standard error and the commit's reports (about sixty files,
+  its row six) go through the door next.
   **Kept for the owner**:
   that would make an error's own text and a command's last words lines that can be dropped after 250 ms,
-  which is a different trade from a `debug` line, and no record settles it.
+  which is a different trade from a `debug` line,
+  and no record settles it.
 
 From lines 8699 to 8712 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -1024,13 +1217,16 @@ From lines 31101 to 31108 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-Open, for the owner:
+Open,
+for the owner:
 
 - A merge whose answer passes the ceiling is admitted whatever its part count,
   and its commit message and journal entry grow with that count
   (35 MB for 103,000 parts).
-  Whether the part list keeps a cap, and whether a merge that deterministically exceeds the 300-second step
-  ceiling should be retried, are the owner's decisions;
+  Whether the part list keeps a cap,
+  and whether a merge that deterministically exceeds the 300-second step
+  ceiling should be retried,
+  are the owner's decisions;
   today the service retries it.
 
 From lines 34613 to 34616 of the old handover

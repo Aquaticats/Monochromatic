@@ -22,6 +22,7 @@ use super::adopt_worktree_parent_mode;
 use super::attaching_sweep_mode::{self, SweepPlaces};
 use super::boot_reconcile_mode::{self, ReconcilePlaces};
 use super::handler_mode_arguments::{self, HandlerMode};
+use super::holder_scan_mode;
 use super::root_mode_caller::NotRootRefusal;
 use super::shutdown_unmount_mode;
 use crate::diagnostic_lines_off_the_calling_thread::write;
@@ -337,6 +338,7 @@ pub fn run_behind_at(gate: &dyn BeforeRequests, places: &DispatchPlaces, argumen
         HandlerMode::ShutdownUnmount => report(behind_the_gate(gate, || {
             return shutdown_unmount_mode::run().map_err(|awaiting| return awaiting.message());
         })),
+        HandlerMode::HolderScan(invocation) => report(behind_the_gate(gate, || return holder_scan_mode::run(&invocation))),
         HandlerMode::AdoptWorktreeParent(request) => report(adopt_worktree_parent_mode::run(&request).map_err(|failure| return failure.message())),
     };
 }

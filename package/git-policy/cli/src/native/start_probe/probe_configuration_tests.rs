@@ -19,10 +19,12 @@
 //! expect(sourceName(undefined, path, table, undefined).snapshotName()).toBe('pool/nosnap/git-worktree-probe@ready');
 //! ```
 
-use super::{CHECKOUT_KEY, DATASET_KEY, START_PROBE_KEY, checkout_path, read_configuration, source_name};
+use super::{CHECKOUT_KEY, DATASET_KEY, ProbeCheckout, START_PROBE_KEY, checkout_path, read_configuration, source_name};
 use crate::start_probe::probe_configuration_refusal::{CheckoutRefusal, SourceRefusal};
 use crate::start_probe::probe_source_name::ProbeSource;
 use crate::testing::mounted_dataset_table::{ScriptedMountTable, row, the_designs_table};
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{MountHoldingAPath, MountedDatasetInstance, MountedDatasets};
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 /// The configuration the controls read as if it were the installed one.
@@ -37,6 +39,12 @@ const PROBE_DATASET: &str = "zpcachyos/nosnap/git-worktree-probe";
 
 /// The checkout the controls name.
 const CHECKOUT: &str = "/home/user/Monochromatic";
+
+/// A checkout the file named,
+/// which carries no dataset because the file named a folder and not a table row.
+fn named_checkout() -> ProbeCheckout {
+    return ProbeCheckout { path: PathBuf::from(CHECKOUT), dataset: None };
+}
 
 /// The design's own table.
 fn designed() -> ScriptedMountTable {
@@ -54,9 +62,9 @@ fn both(dataset: &str, checkout: &str) -> String {
 #[test]
 fn no_file_takes_the_designs_probe_dataset_and_the_mounted_checkout() {
     let table: ScriptedMountTable = designed();
-    let checkout: PathBuf = checkout_path(None, &table).expect("the table holds the checkout once");
-    assert_eq!(checkout, PathBuf::from(CHECKOUT));
-    let source: ProbeSource = source_name(None, Path::new(CONFIGURATION), &table, Some(checkout.as_path())).expect("the design's probe dataset is named");
+    let checkout: ProbeCheckout = checkout_path(None, &table).expect("the table holds the checkout once");
+    assert_eq!(checkout.path, PathBuf::from(CHECKOUT));
+    let source: ProbeSource = source_name(None, Path::new(CONFIGURATION), &table, Some(&checkout)).expect("the design's probe dataset is named");
     assert_eq!(source.dataset, PROBE_DATASET);
     assert_eq!(source.snapshot_name(), "zpcachyos/nosnap/git-worktree-probe@ready");
 }
@@ -66,9 +74,9 @@ fn no_file_takes_the_designs_probe_dataset_and_the_mounted_checkout() {
 fn a_file_holding_no_start_probe_object_takes_the_designs_names() {
     let table: ScriptedMountTable = designed();
     let document: &str = r#"{"cloneMounts":{"checkout":"/home/user/Monochromatic"}}"#;
-    let checkout: PathBuf = checkout_path(Some(document), &table).expect("the table holds the checkout once");
-    assert_eq!(checkout, PathBuf::from(CHECKOUT));
-    let source: ProbeSource = source_name(Some(document), Path::new(CONFIGURATION), &table, Some(checkout.as_path())).expect("the design's names fill in");
+    let checkout: ProbeCheckout = checkout_path(Some(document), &table).expect("the table holds the checkout once");
+    assert_eq!(checkout.path, PathBuf::from(CHECKOUT));
+    let source: ProbeSource = source_name(Some(document), Path::new(CONFIGURATION), &table, Some(&checkout)).expect("the design's names fill in");
     assert_eq!(source.dataset, PROBE_DATASET);
 }
 
@@ -78,9 +86,9 @@ fn a_file_holding_no_start_probe_object_takes_the_designs_names() {
 fn a_file_naming_both_uses_both() {
     let table: ScriptedMountTable = designed();
     let document: String = both("zpcachyos/nosnap/another-probe", "/home/user/another-checkout");
-    let checkout: PathBuf = checkout_path(Some(document.as_str()), &table).expect("the file names the checkout");
-    assert_eq!(checkout, PathBuf::from("/home/user/another-checkout"));
-    let source: ProbeSource = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &table, Some(checkout.as_path())).expect("the file names the dataset");
+    let checkout: ProbeCheckout = checkout_path(Some(document.as_str()), &table).expect("the file names the checkout");
+    assert_eq!(checkout.path, PathBuf::from("/home/user/another-checkout"));
+    let source: ProbeSource = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &table, Some(&checkout)).expect("the file names the dataset");
     assert_eq!(source.dataset, "zpcachyos/nosnap/another-probe");
 }
 
@@ -89,8 +97,8 @@ fn a_file_naming_both_uses_both() {
 fn a_start_probe_object_without_the_checkout_takes_the_mounted_one() {
     let table: ScriptedMountTable = designed();
     let document: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{DATASET_KEY}": "{PROBE_DATASET}" }} }}"#);
-    let checkout: PathBuf = checkout_path(Some(document.as_str()), &table).expect("the table holds the checkout once");
-    assert_eq!(checkout, PathBuf::from(CHECKOUT));
+    let checkout: ProbeCheckout = checkout_path(Some(document.as_str()), &table).expect("the table holds the checkout once");
+    assert_eq!(checkout.path, PathBuf::from(CHECKOUT));
 }
 
 /// The probe reads the clone-container key as well as its own object,
@@ -102,8 +110,8 @@ fn a_clone_row_in_the_container_the_file_names_is_ignored() {
     let rows: Vec<String> = vec![row(40, 1, "/", CHECKOUT, "zfs", CHECKOUT_DATASET), row(41, 1, "/", "/home/user/Monochromatic/.claude/worktrees/clone", "zfs", clone.as_str())];
     let table: ScriptedMountTable = ScriptedMountTable::holding(&rows);
     let document: String = format!(r#"{{ "cloneMounts": {{ "parent": "{named}" }} }}"#);
-    let checkout: PathBuf = checkout_path(Some(document.as_str()), &table).expect("a clone in the named container is no second instance");
-    assert_eq!(checkout, PathBuf::from(CHECKOUT));
+    let checkout: ProbeCheckout = checkout_path(Some(document.as_str()), &table).expect("a clone in the named container is no second instance");
+    assert_eq!(checkout.path, PathBuf::from(CHECKOUT));
 }
 
 /// Two mounted instances of the design's leaf name are refused,
@@ -155,7 +163,7 @@ fn a_relative_checkout_is_refused() {
 #[test]
 fn a_dataset_name_the_kernel_refuses_is_refused() {
     let document: String = both("zpcachyos/nosnap/probe@ready", CHECKOUT);
-    let refusal: SourceRefusal = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &designed(), Some(Path::new(CHECKOUT))).expect_err("a snapshot is no dataset");
+    let refusal: SourceRefusal = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &designed(), Some(&named_checkout())).expect_err("a snapshot is no dataset");
     assert_eq!(refusal.word(), "name-refused");
     assert!(refusal.message(Path::new(CONFIGURATION)).contains("snapshot or a bookmark"), "{}", refusal.message(Path::new(CONFIGURATION)));
 }
@@ -165,7 +173,7 @@ fn a_dataset_name_the_kernel_refuses_is_refused() {
 #[test]
 fn a_value_of_another_type_is_refused() {
     let numbered: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{DATASET_KEY}": 7 }} }}"#);
-    let refusal: SourceRefusal = source_name(Some(numbered.as_str()), Path::new(CONFIGURATION), &designed(), Some(Path::new(CHECKOUT))).expect_err("a number is not text");
+    let refusal: SourceRefusal = source_name(Some(numbered.as_str()), Path::new(CONFIGURATION), &designed(), Some(&named_checkout())).expect_err("a number is not text");
     assert_eq!(refusal.word(), "name-not-text");
     let numbered_checkout: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{CHECKOUT_KEY}": 7 }} }}"#);
     let checkout_refusal: CheckoutRefusal = checkout_path(Some(numbered_checkout.as_str()), &designed()).expect_err("a number is not text");
@@ -243,8 +251,80 @@ fn the_file_is_read_once_and_both_names_come_from_it() {
     let file: PathBuf = folder.join("git-worktree-clone-mounts.jsonc");
     std::fs::write(file.as_path(), both(PROBE_DATASET, CHECKOUT).as_str()).expect("the fixture configuration is written");
     let document: Option<String> = read_configuration(file.as_path()).expect("the fixture file is readable");
-    let checkout: PathBuf = checkout_path(document.as_deref(), &designed()).expect("the file names the checkout");
-    assert_eq!(checkout, PathBuf::from(CHECKOUT));
-    let source: ProbeSource = source_name(document.as_deref(), file.as_path(), &designed(), Some(checkout.as_path())).expect("the file names the dataset");
+    let checkout: ProbeCheckout = checkout_path(document.as_deref(), &designed()).expect("the file names the checkout");
+    assert_eq!(checkout.path, PathBuf::from(CHECKOUT));
+    let source: ProbeSource = source_name(document.as_deref(), file.as_path(), &designed(), Some(&checkout)).expect("the file names the dataset");
     assert_eq!(source.dataset, PROBE_DATASET);
+}
+
+/// A mount table that counts the two questions asked of it,
+/// so a control can prove how many reads of system state one look-up costs.
+struct CountingMountTable {
+    /// The table both questions are answered from.
+    table: ScriptedMountTable,
+    /// How many times every row was asked for.
+    table_reads: Cell<usize>,
+    /// How many times the mount a path is on was asked for.
+    path_reads: Cell<usize>,
+}
+
+impl CountingMountTable {
+    /// The design's table,
+    /// counting its questions.
+    fn over(table: ScriptedMountTable) -> Self {
+        return CountingMountTable { table, table_reads: Cell::new(0), path_reads: Cell::new(0) };
+    }
+}
+
+impl MountedDatasets for CountingMountTable {
+    fn mounted_datasets(&self) -> Result<Vec<MountedDatasetInstance>, String> {
+        self.table_reads.set(self.table_reads.get() + 1);
+        return self.table.mounted_datasets();
+    }
+
+    fn mount_holding(&self, path: &Path) -> Result<Option<MountHoldingAPath>, String> {
+        self.path_reads.set(self.path_reads.get() + 1);
+        return self.table.mount_holding(path);
+    }
+}
+
+/// What:
+///  With no file the look-up asks the mount table once,
+///  and takes the probe dataset's pool from the row that carried the checkout.
+/// Why:
+///  The row answers both what the walk opens and which dataset the checkout is on
+///  (`ProbeCheckout`),
+///  so asking the table a second time for the answer the first read held is work a
+///  person waits for at boot and nothing else.
+///  Without the change the source arm read the whole table again,
+///  which this control counts as a second read and a path question.
+#[test]
+fn no_file_asks_the_mount_table_once() {
+    let table: CountingMountTable = CountingMountTable::over(designed());
+    let checkout: ProbeCheckout = checkout_path(None, &table).expect("the table holds the checkout once");
+    assert_eq!(checkout.dataset.as_deref(), Some(CHECKOUT_DATASET));
+    let source: ProbeSource = source_name(None, Path::new(CONFIGURATION), &table, Some(&checkout)).expect("the design's probe dataset is named");
+    assert_eq!(source.dataset, PROBE_DATASET);
+    assert_eq!((table.table_reads.get(), table.path_reads.get()), (1, 0));
+}
+
+/// What:
+///  A file that names the checkout and no dataset asks the table for the one
+///  answer only the table holds.
+/// Why:
+///  The file named a folder and not a row,
+///  so the dataset the pool comes from is a question the path can only answer
+///  through the table,
+///  and this states the one read such a file costs.
+#[test]
+fn a_file_naming_the_checkout_reads_the_table_once_for_its_dataset() {
+    let table: CountingMountTable = CountingMountTable::over(designed());
+    let document: String = format!(r#"{{ "{START_PROBE_KEY}": {{ "{CHECKOUT_KEY}": "{CHECKOUT}" }} }}"#);
+    let checkout: ProbeCheckout = checkout_path(Some(document.as_str()), &table).expect("the file names the checkout");
+    assert_eq!(checkout.path, PathBuf::from(CHECKOUT));
+    assert_eq!(checkout.dataset, None);
+    assert_eq!((table.table_reads.get(), table.path_reads.get()), (0, 0));
+    let source: ProbeSource = source_name(Some(document.as_str()), Path::new(CONFIGURATION), &table, Some(&checkout)).expect("the design's probe dataset is named");
+    assert_eq!(source.dataset, PROBE_DATASET);
+    assert_eq!((table.table_reads.get(), table.path_reads.get()), (0, 1));
 }

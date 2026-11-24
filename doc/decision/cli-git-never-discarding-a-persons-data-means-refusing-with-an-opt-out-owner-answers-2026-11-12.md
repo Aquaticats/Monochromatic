@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -13,9 +14,11 @@ moved verbatim on 2026-11-23:
 
 ### The owner on what "never discard user data" means, and on deleting after a merge (2026-11-12, about 10:33, typed while the answers of 10:32:10 were being recorded)
 
-The owner's message, whole:
+The owner's message,
+whole:
 
-"I do want to say "never discard user data" means to block potentially destructive commands with a --no-enforce-* opt-out, not that we save everything myself.
+"I do want to say "never discard user data" means to block potentially destructive commands with a --no-enforce-* opt-out,
+not that we save everything myself.
 And wthe merge + delete one - the delete should still be able to delete async because the wrapper has the data of what is there and what is not there and what is pushed and what is local."
 
 What it settles:
@@ -76,7 +79,8 @@ Asked through the question tool in the same turn.
 
 What stays as answered and is not touched by this:
 `git clean -fX` and `-fx` of ignored files delete,
-exit 0 and are logged ("Keep allow and log", 10:27:45);
+exit 0 and are logged ("Keep allow and log",
+10:27:45);
 a batch whose scratch reference cannot be proven is committed and says so (10:27:45);
 a commit against a service that does not answer fails with a clear message (10:32:10);
 a merge step hung in an LFS download is ended before the branch write (10:32:10).
@@ -115,7 +119,8 @@ moved verbatim on 2026-11-23:
 ### The owner's answers of 2026-11-12T10:32:10-05:00, through the question tool: four decisions taken under delegation, two confirmed and two overturned
 
 The item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
-Each had been decided by this session while the owner was away, with the veto open.
+Each had been decided by this session while the owner was away,
+with the veto open.
 
 - Item 1.7,
   abort and skip:

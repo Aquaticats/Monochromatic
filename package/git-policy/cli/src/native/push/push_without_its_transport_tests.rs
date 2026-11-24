@@ -58,11 +58,12 @@ fn push_item(world: &World) -> WorkItem {
 }
 
 /// The words for the push of `world`,
-/// as the person's next command shows them.
-fn words_of(world: &World) -> String {
+/// as the person's next command shows them,
+/// for the settings that are gone.
+fn words_of(world: &World, gone: TransportGone) -> String {
     let git: PushGit = push_git(world);
     let item: WorkItem = push_item(world);
-    return crate::lazy_runtime::run_on_runtime(super::words(&git, &item)).expect("the plan asks only the local repository");
+    return crate::lazy_runtime::run_on_runtime(super::words(&git, &item, gone)).expect("the plan asks only the local repository");
 }
 
 /// What:
@@ -78,7 +79,7 @@ fn words_of(world: &World) -> String {
 #[test]
 fn the_words_name_the_push_and_the_command_that_makes_it() {
     let world: World = world("transport-gone");
-    let words: String = words_of(&world);
+    let words: String = words_of(&world, TransportGone::TheServiceWasStartedAgain);
     assert!(words.contains(world.repo.to_str().expect("a path that is text")), "{words}");
     assert!(words.contains("refs/heads/main"), "{words}");
     assert!(words.contains("held only in the memory of the commit service"), "{words}");
@@ -103,7 +104,7 @@ fn the_words_name_the_push_and_the_command_that_makes_it() {
 #[test]
 fn the_command_that_is_printed_pushes_the_branch() {
     let world: World = world("transport-gone-runs");
-    let words: String = words_of(&world);
+    let words: String = words_of(&world, TransportGone::TheServiceWasStartedAgain);
     let command: String = words.rsplit('\n').next().expect("the words have a last line").split_once(": ").expect("the line names a command").1.to_string();
     let run = std::process::Command::new("/bin/sh").current_dir(world.repo.as_path()).arg("-c").arg(command.as_str()).env_clear().env("PATH", "/usr/bin:/bin").env("GIT_CONFIG_NOSYSTEM", "1").env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config").output().expect("the printed command runs");
     assert!(run.status.success(), "the printed command pushes: {}\n{}", String::from_utf8_lossy(run.stdout.as_slice()), String::from_utf8_lossy(run.stderr.as_slice()));
@@ -126,8 +127,62 @@ fn the_command_that_is_printed_pushes_the_branch() {
 fn a_branch_with_nowhere_to_go_names_no_command() {
     let world: World = world("transport-gone-nowhere");
     crate::test_support::git(world.repo.as_path(), &["remote", "remove", "origin"]);
-    let words: String = words_of(&world);
+    let words: String = words_of(&world, TransportGone::TheServiceWasStartedAgain);
     assert!(words.contains("names no remote to push to"), "{words}");
     assert!(!words.contains("git push"), "no command is printed: {words}");
     crate::test_support::remove(world.root.as_path());
+}
+
+/// What:
+///  A transport setting the request could not carry is told apart from a service that was started again:
+///  the words say the value is not text and never reached the service,
+///  and still print the command that pushes the branch.
+/// Why:
+///   A value that is not valid text cannot travel in a request line,
+/// so the push stops for a reason that no restart explains;
+/// words that blamed a restart would send the person to restart a service that is running.
+#[test]
+fn the_words_name_a_value_that_could_not_travel_apart_from_a_restart() {
+    let world: World = world("transport-unspellable");
+    let words: String = words_of(&world, TransportGone::TheValueCouldNotTravel);
+    assert!(words.contains("not valid text"), "{words}");
+    assert!(words.contains("could not travel"), "{words}");
+    assert!(!words.contains("started again"), "no restart is blamed for a value the request could not carry: {words}");
+    assert!(words.contains("nothing was sent through another transport"), "{words}");
+    let last: &str = words.rsplit('\n').next().expect("the words have a last line");
+    assert!(last.starts_with(&format!("Run this in {}: ", world.repo.display())), "the command is printed: {last}");
+    crate::test_support::remove(world.root.as_path());
+}
+
+/// What:
+///  The reason a push stops is read from the record and from the list this service holds:
+///  a command that chose no transport may run,
+///  one whose list is gone stops for a restart,
+///  and one whose chosen value could not travel stops for that.
+/// Why:
+///   The decision used to sit inline where the push runs,
+/// and the two reasons it picks between owe a person different next steps;
+///  a wrong answer would blame a restart that never happened or let the manager's transport speak.
+#[test]
+fn the_reason_a_push_stops_is_read_from_the_record_and_the_list_it_holds() {
+    use crate::service_push_programs_held_in_memory::{PushPrograms, of};
+    let chosen: Vec<(std::ffi::OsString, std::ffi::OsString)> =
+        vec![(std::ffi::OsString::from("GIT_SSH_COMMAND"), std::ffi::OsString::from("ssh -i /nowhere/key"))];
+    let carried: PushPrograms = of(chosen.as_slice());
+    assert_eq!(super::gone(None, false), None, "a command that chose no transport never stops here");
+    assert_eq!(super::gone(Some(&carried), false), None, "a list alone does not stop a push");
+    assert_eq!(super::gone(None, true), Some(TransportGone::TheServiceWasStartedAgain), "a service that holds no list took the choice away");
+    assert_eq!(super::gone(Some(&carried), true), None, "the list holds the chosen value, so the push runs with it");
+    let unspellable: PushPrograms = of(&[(
+        std::ffi::OsString::from("GIT_SSH_COMMAND"),
+        {
+            use std::os::unix::ffi::OsStringExt;
+            std::ffi::OsString::from_vec(b"ssh -i /nowhere/\xff".to_vec())
+        },
+    )]);
+    assert_eq!(
+        super::gone(Some(&unspellable), true),
+        Some(TransportGone::TheValueCouldNotTravel),
+        "the name travelled and the value could not, which is its own reason"
+    );
 }

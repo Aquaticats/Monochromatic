@@ -24,7 +24,9 @@ the store is `/home/user/.local/share/pnpm/store/v11`.
 ## What was probed
 
 `node_modules/.bin/oxlint` there is a regular file
-(a pnpm cmd-shim), not a symlink, and its last line records the target it wants:
+(a pnpm cmd-shim),
+not a symlink,
+and its last line records the target it wants:
 
 ```text
 # cmd-shim-target=/home/user/.local/share/pnpm/store/v11/links/@/oxlint/1.94.0/<hash>/node_modules/oxlint/bin/oxlint
@@ -36,17 +38,21 @@ The command it actually runs names the same store with a relative climb:
 exec node "$basedir_abs"/'../../../.local/share/pnpm/store/v11/links/@/oxlint/1.94.0/<hash>/node_modules/oxlint/bin/oxlint' "$@"
 ```
 
-`basedir_abs` is the shim's own folder, `<checkout>/node_modules/.bin`.
+`basedir_abs` is the shim's own folder,
+`<checkout>/node_modules/.bin`.
 Three levels up from there is `/home/user/` only when the checkout sits directly under the home folder.
-Here it is `/home/user/Monochromatic/.claude/worktrees`, so the climb lands on
+Here it is `/home/user/Monochromatic/.claude/worktrees`,
+so the climb lands on
 `/home/user/Monochromatic/.claude/worktrees/.local/share/pnpm/store/...`.
 
 Nine of the thirty-nine shims in that folder name a store path in a relative climb,
 and each of the nine climbs resolved from that folder to a path that does not exist there.
 The other two shims that resolve to nothing are workspace commands whose `dist` was never built here.
 Worktrees whose `oxlint` is 1.93.0 carry the same store target with six levels
-(`'../../../../../../.local/share/...'`), which resolves from a worktree as well as from the main checkout;
-two worktrees made on 2026-11-23 carry three levels with 1.94.0, like this one.
+(`'../../../../../../.local/share/...'`),
+which resolves from a worktree as well as from the main checkout;
+two worktrees made on 2026-11-23 carry three levels with 1.94.0,
+like this one.
 
 ## Mechanism
 
@@ -78,7 +84,8 @@ for (const name of ["oxlint", "tsgolint"]) {
 Rerunning `pnpm install` in the worktree writes the shims for that depth itself,
 which is the repair to prefer where an install is allowed.
 That round was told not to run `pnpm install` in the worktree (issue 6339),
-so the shims were rewritten as above, and the seven other shims carrying the same climb were left as they were.
+so the shims were rewritten as above,
+and the seven other shims carrying the same climb were left as they were.
 
 ## What else that folder lacked
 
@@ -86,7 +93,8 @@ Recorded because they were met in the same session and named different faults:
 
 - `mise run //package/pi-shared/subagent-driver:format:dprint` answered
   `No files found to format with the specified plugins at <package folder>.`
-  so no dprint formatting could run there; `format:oxlint` did run.
+  so no dprint formatting could run there;
+  `format:oxlint` did run.
 - The repo-wide Markdown linter `monochromatic-lint` has no executable in that worktree,
   so the README's Markdown was not linted.
 

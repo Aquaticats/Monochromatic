@@ -11,7 +11,7 @@
 //! the real `git-lfs` against an LFS server written inline is `binary_lfs_server_tests.rs`.
 
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit, wrapped_commit};
-use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, executable, fixture, git, observe, path_of_a_folder_that_links_only, repository, stderr_of};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -344,16 +344,27 @@ fn a_repository_without_lfs_keys_runs_no_upload() {
 }
 
 /// Without `git-lfs` on PATH the push stops with the install-or-remove explanation and publishes nothing.
+/// The `PATH` names one fixture folder and nothing else,
+/// because a host or the gate image installs the real program in `/usr/bin`
+/// (L5 of the alpha.45 release pass).
 #[test]
 fn a_missing_git_lfs_blocks_the_push_and_names_the_remedies() {
     let fixture: Fixture = fixture("lfs-push-missing");
     let world: World = world(&fixture, true, None);
-    let pushed: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
+    let programs: PathBuf = fixture.root.join("programs-a-missing-push-needs");
+    let only: std::ffi::OsString = path_of_a_folder_that_links_only(
+        &fixture,
+        "programs-a-missing-push-needs",
+        &[("git", Path::new(REAL_GIT)), ("sh", Path::new("/bin/sh"))],
+    );
+    let mut command = wrapped_commit(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
+    command.env("PATH", &only);
+    let pushed: Observed = observe(&mut command, b"");
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");
     assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
     assert!(stderr.contains("`git-lfs` was not found in the folders this push searches"), "{stderr}");
-    assert!(stderr.contains(&fixture.root.join("bin").display().to_string()), "the refusal names the folders it searched: {stderr}");
+    assert!(stderr.contains(&programs.display().to_string()), "the refusal names the folders it searched: {stderr}");
     assert!(stderr.contains("The list is this command's own `PATH`"), "{stderr}");
     assert!(stderr.contains("install Git LFS"), "{stderr}");
     assert!(stderr.contains("git lfs uninstall"), "{stderr}");
