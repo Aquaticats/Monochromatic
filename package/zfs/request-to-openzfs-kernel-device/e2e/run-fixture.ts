@@ -1448,6 +1448,9 @@ function step10Pool(options: Options): void {
     `rm --force ${STEP10_FIXTURE_ROOT}/pool.img ${STEP10_FIXTURE_ROOT}/raw-key`,
     `truncate --size 1G ${STEP10_FIXTURE_ROOT}/pool.img`,
     `head --bytes 32 /dev/urandom > ${STEP10_FIXTURE_ROOT}/raw-key`,
+    // The fixture's own two files are flushed: T28's cut loses what a file left unflushed, and the pool's key and image
+    // must outlive the cut for the arm to be about the record rather than about the fixture.
+    `sync ${STEP10_FIXTURE_ROOT}/pool.img ${STEP10_FIXTURE_ROOT}/raw-key`,
     `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP10_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 ${STEP10_POOL} ${STEP10_FIXTURE_ROOT}/pool.img`,
     `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT`,
     `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT/home`,
