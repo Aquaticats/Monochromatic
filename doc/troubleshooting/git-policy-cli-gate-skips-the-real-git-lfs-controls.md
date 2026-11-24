@@ -8,14 +8,14 @@ the base image the gate builds on,
 installed every tool the tests start except that one,
 and every control that uploads against the real program printed one line and returned:
 
-```
+```text
 skipped: git-lfs is not on PATH, so the real upload was not exercised
 ```
 
 A gate-like run of the two modules of that kind
 (a `PATH` naming one empty folder:
 
-```
+```sh
 PATH=<empty folder> target/debug/deps/native_binary-<hash> --exact <name> --test-threads=1
 ```
 
