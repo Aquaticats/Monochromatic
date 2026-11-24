@@ -4641,7 +4641,8 @@ one that holds no `cloneGuid=` prints "run the add again at `<slot>`",
 one whose clone stands prints `git worktree remove <slot>`,
 a binding at `filled` whose clone is gone with no plan prints the settling command,
 a binding at `cloned` or `mounted` whose clone is gone with no plan prints the settling command,
-and the same with the pool refusing the listing prints it too,
+whether its absence is proved or the pool refuses the listing,
+which is the state K14 of the eleventh removal-side read names,
 a registration whose slot holds no clone mount and whose `.git` names it prints the worktree line and not a missing
 binding,
 and a `filled` binding whose clone is gone with a plan standing prints the plan design's command for the head word
