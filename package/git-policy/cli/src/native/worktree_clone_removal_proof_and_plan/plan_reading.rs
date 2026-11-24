@@ -27,7 +27,7 @@
 use crate::foundation::plain_file::open_plain_file;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{ATTEMPT_LINE_MAXIMUM_BYTES, PLAN_HEADER_MAXIMUM_BYTES, plan_maximum_bytes};
+use crate::worktree_clone_removal_proof_and_plan::plan_bounds::{ATTEMPT_LINE_MAXIMUM_BYTES, PLAN_HEADER_MAXIMUM_BYTES};
 use crate::worktree_clone_removal_proof_and_plan::plan_name::is_canonical_plan_name;
 use crate::worktree_clone_removal_proof_and_plan::plan_parse::{PlanHeader, parse_plan, parse_plan_header};
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
@@ -71,11 +71,11 @@ pub fn read_the_plan_at(path: &Path, filed_under: Option<&str>) -> Result<Destru
     let parsed_header: PlanHeader = parse_plan_header(stage_one[..header_bytes].as_ref())?;
     let count: u64 = parsed_header.count;
     drop(parsed_header);
+    // The design's bound is two bounds: the header, which stage one refused past its own cap, and the attempt
+    // region, which holds at most one widest line for each line the record declares. Their sum is
+    // `plan_maximum_bytes(count)`, and this is where the second half of it is refused, after the length read and
+    // before an attempt byte.
     let length: u64 = file.metadata().map_err(|error| return PlanRefusal::of(PlanRefusalCause::Unreadable, error.to_string()))?.len();
-    let maximum: u64 = plan_maximum_bytes(count);
-    if length > maximum {
-        return Err(PlanRefusal::at(PlanRefusalCause::Oversized, "file", format!("{length} bytes, and {maximum} is the most {count} attempt lines allow")));
-    }
     let held_after_the_header: u64 = length - header_bytes as u64;
     let already_read: u64 = stage_one.len() as u64 - header_bytes as u64;
     if already_read > held_after_the_header {
@@ -83,7 +83,7 @@ pub fn read_the_plan_at(path: &Path, filed_under: Option<&str>) -> Result<Destru
     }
     let widest_attempts: u64 = ATTEMPT_LINE_MAXIMUM_BYTES * count;
     if held_after_the_header > widest_attempts {
-        return Err(PlanRefusal::at(PlanRefusalCause::Oversized, "attempts", format!("{held_after_the_header} bytes for {count} declared lines")));
+        return Err(PlanRefusal::at(PlanRefusalCause::Oversized, "attempts", format!("{held_after_the_header} bytes for {count} declared lines, and {widest_attempts} is the most they allow")));
     }
     let mut stage_two: Vec<u8> = stage_one[header_bytes..].to_vec();
     let remaining: u64 = held_after_the_header - already_read;

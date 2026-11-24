@@ -205,16 +205,9 @@ pub fn enter_the_removal(entry: &RemovalEntry<'_>, reads: &dyn RemovalPoolReads,
     let answer = unmount.request_the_unmount(&intent.mount_intent())?;
     let proof: UnmountProof = verify_the_answer(&answer, &ExpectedUnmount { clone_guid: recorded.clone_guid, nonce: intent.nonce.clone() })?;
     // The design verifies the clone GUID, the underlay identity and the Git registration again after the unmount, so a
-    // registration or underlay swapped during the request stops the plan rather than the destroy.
-    let registration_after: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
-    if registration_after != registration {
-        return Err(RemovalStop::IdentityDiffers {
-            object: String::from("the Git registration"),
-            field: "registrationIdentity",
-            recorded: registration.encode(),
-            live: registration_after.encode(),
-        });
-    }
+    // registration swapped during the request stops the plan rather than the destroy. The proof is the same identity
+    // comparison the entry made before the request, so a registration whose inode and birth time changed refuses here.
+    prove_the_adds_registration(entry.common_dir, &recorded)?;
     let facts: PlanFacts = facts_of(&recorded, &proven, &proof, registration, clock)?;
     let plan: DestructionPlan = DestructionPlan::first_write(facts, proven.own_snapshots.as_slice());
     let folder: PlanFolder = PlanFolder::open_or_create(entry.common_dir).map_err(|refusal| {

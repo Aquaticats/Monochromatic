@@ -168,9 +168,12 @@ impl Fixture {
     }
 
     /// One dataset's live GUID and creation transaction group.
+    ///
+    /// A `zfs get` of two properties prints one line per property,
+    /// so the values are read as lines and never as one separated row.
     fn identity(&self, name: &str) -> (u64, u64) {
         let printed: String = self.run("zfs", &["get", "-H", "-p", "-o", "value", "guid,createtxg", name]);
-        let mut values = printed.split('\t');
+        let mut values = printed.lines();
         let guid: u64 = values.next().expect("the GUID is printed").trim().parse().expect("the GUID is a number");
         let createtxg: u64 = values.next().expect("the group is printed").trim().parse().expect("the group is a number");
         return (guid, createtxg);
@@ -270,7 +273,9 @@ impl Fixture {
             origin_snapshot_guid: guid_of(origin_snapshot_guid),
             origin_snapshot_createtxg,
             registration_id: Vec::from(SLOT.as_bytes()),
-            registration_identity: FolderIdentity::of_folder(self.registration().as_path()).expect("the registration's identity"),
+            // The records writer reads the registration's own identity once the folder stands; the proof compares
+            // none of it, so a placeholder here keeps the identity read in one place.
+            registration_identity: FolderIdentity::decode("1:1:1").expect("a decodable identity"),
         };
     }
 

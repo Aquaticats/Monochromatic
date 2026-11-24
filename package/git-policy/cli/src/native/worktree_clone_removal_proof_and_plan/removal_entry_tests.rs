@@ -63,6 +63,24 @@ impl RemovalClock for ScriptedClock {
 }
 
 /// What:
+///  What one scripted unmount does to the repository while it answers.
+/// Why:
+///  The design verifies the clone GUID,
+/// the underlay identity and the Git registration again after the
+///  unmount,
+/// so a registration swapped during the request has to stop the plan rather than the destroy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Act = 'answer' | 'swap-the-registration';
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Act {
+    Answer,
+    SwapTheRegistration,
+}
+
+/// What:
 ///  The unmount a control answers,
 ///  with the count of times it was asked and the operation it was asked for.
 /// Why:
@@ -76,15 +94,21 @@ impl RemovalClock for ScriptedClock {
 struct ScriptedUnmount {
     asked: RefCell<Vec<MountOperation>>,
     refuse: Option<String>,
+    act: Act,
+    registration: Option<std::path::PathBuf>,
 }
 
 impl ScriptedUnmount {
     fn answering() -> ScriptedUnmount {
-        return ScriptedUnmount { asked: RefCell::new(Vec::new()), refuse: None };
+        return ScriptedUnmount { asked: RefCell::new(Vec::new()), refuse: None, act: Act::Answer, registration: None };
     }
 
     fn refusing(step: &str) -> ScriptedUnmount {
-        return ScriptedUnmount { asked: RefCell::new(Vec::new()), refuse: Some(String::from(step)) };
+        return ScriptedUnmount { asked: RefCell::new(Vec::new()), refuse: Some(String::from(step)), act: Act::Answer, registration: None };
+    }
+
+    fn swapping_the_registration(registration: &std::path::Path) -> ScriptedUnmount {
+        return ScriptedUnmount { asked: RefCell::new(Vec::new()), refuse: None, act: Act::SwapTheRegistration, registration: Some(registration.to_path_buf()) };
     }
 
     fn times_asked(&self) -> usize {
@@ -97,6 +121,13 @@ impl RemovalUnmount for ScriptedUnmount {
         self.asked.borrow_mut().push(intent.operation);
         if let Some(step) = &self.refuse {
             return Err(RemovalStop::UnmountFailed { step: step.clone(), said: String::from("the control refused this step") });
+        }
+        if self.act == Act::SwapTheRegistration {
+            let Some(registration) = &self.registration else {
+                panic!("the control that swaps a registration names one");
+            };
+            std::fs::remove_dir_all(registration.as_path()).expect("the registration goes");
+            std::fs::create_dir_all(registration.as_path()).expect("another registration takes its name");
         }
         return Ok(UnmountAnswer {
             dataset: guid(CLONE_GUID),
@@ -185,6 +216,19 @@ fn an_unmount_that_is_not_proved_stops_before_the_plan_is_written() {
     }
     assert_eq!(unmount.times_asked(), 1);
     assert_eq!(fixture.the_plan_folder_holds(), 0, "the plan is written only after the unmount is proved");
+}
+
+#[test]
+fn a_registration_swapped_during_the_unmount_stops_the_plan() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("entry-registration-swapped");
+    let pool: ScriptedPool = fixture.healthy_pool();
+    let unmount: ScriptedUnmount = ScriptedUnmount::swapping_the_registration(fixture.registration.as_path());
+    match enter_the_removal(&entry(&fixture), &pool, &unmount, &ScriptedClock).expect_err("a registration swapped during the unmount stops the removal") {
+        RemovalStop::IdentityDiffers { field, .. } => assert_eq!(field, "registrationIdentity"),
+        other => panic!("a swapped registration stops on its identity, not {other:?}"),
+    }
+    assert_eq!(unmount.times_asked(), 1, "the swap happened inside the one unmount request");
+    assert_eq!(fixture.the_plan_folder_holds(), 0, "no plan was written for a registration that is not the recorded one");
 }
 
 #[test]
