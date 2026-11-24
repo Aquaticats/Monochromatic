@@ -16,14 +16,16 @@ in a guest carrying `selinux-policy-42.12-1.fc43` and
 
 Diagnosed and fixed in `mvm` on 2026-11-24 by an agent round.
 The work is unapproved and not final.
-Done and checked: the cause is traced to Fedora's policy module and measured in
+Done and checked:
+the cause is traced to Fedora's policy module and measured in
 the guest,
 the fix is in `package/mvm/cli` at commit `46222892f7`,
 its unit tests and `lint:types` pass,
 and the routes are shown refused in a guest whose template an earlier `mvm`
 baked and working in a guest whose template that commit baked,
 with the guest's SELinux enforcing in both.
-Open: a template baked before that commit has to be baked again by hand,
+Open:
+a template baked before that commit has to be baked again by hand,
 and a future change to Fedora's unit arguments has to be mirrored in the
 drop-in.
 Section [Fix](#fix) describes the change,
@@ -130,7 +132,8 @@ cat: /var/log/audit/audit.log: Permission denied
 getenforce:  security_getenforce() failed:  Permission denied
 ```
 
-`ls -la /usr/bin/sudo`, `/usr/bin/journalctl` and `/usr/bin/rpm` are refused for
+`ls -la /usr/bin/sudo`,
+`/usr/bin/journalctl` and `/usr/bin/rpm` are refused for
 the same reason,
 which makes a confined guest look as if those programs were missing:
 `bash` prints `command not found` for a program it may not even `getattr`.
@@ -162,7 +165,8 @@ and which domain a new process would get.
 The probe below was pushed with `mvm push`,
 run as root with `mvm exec`,
 and reads selinuxfs only.
-Its output, verbatim:
+Its output,
+verbatim:
 
 ```text
 == the domain Fedora starts qemu-guest-agent in
@@ -193,7 +197,8 @@ Its output, verbatim:
   process      transition=DENY                          system_u:system_r:unconfined_service_t:s0 -> system_u:system_r:virt_qemu_ga_t:s0
 ```
 
-The probe itself, runnable in any SELinux guest:
+The probe itself,
+runnable in any SELinux guest:
 
 ```python
 #!/usr/bin/env python3
@@ -321,8 +326,14 @@ manage_files_pattern(virt_qemu_ga_t, virt_qemu_ga_tmp_t, virt_qemu_ga_tmp_t)
 files_tmp_filetrans(virt_qemu_ga_t, virt_qemu_ga_tmp_t, { file dir })
 ```
 
-`manage_files_pattern` expands to `create`, `open`, `read`, `write`, `getattr`,
-`setattr`, `unlink`, `rename` and the rest of the file permissions,
+`manage_files_pattern` expands to `create`,
+`open`,
+`read`,
+`write`,
+`getattr`,
+`setattr`,
+`unlink`,
+`rename` and the rest of the file permissions,
 and it does not include `execute`.
 Everything the agent creates in `/tmp` or `/var/tmp` therefore carries
 `virt_qemu_ga_tmp_t` and cannot be run,
@@ -380,9 +391,11 @@ the agent itself stays in `virt_qemu_ga_t`.
 
 `/usr/bin/env` is labeled `bin_t`.
 Fedora's `unconfined.te` gives `unconfined_service_t`
-blanket access (`unconfined_domain(unconfined_service_t)`, line 14)
+blanket access (`unconfined_domain(unconfined_service_t)`,
+line 14)
 and the `entrypoint` permission on `bin_t`
-(`corecmd_bin_entry_type(unconfined_service_t)`, line 20),
+(`corecmd_bin_entry_type(unconfined_service_t)`,
+line 20),
 [lines 9 to 20](https://github.com/fedora-selinux/selinux-policy/blob/415b33792f9ea17d816a9e2602cddf21c16e7255/policy/modules/system/unconfined.te#L9-L20):
 
 ```te
@@ -407,12 +420,14 @@ execute them and open sockets.
 
 Which rule gives the system manager the `init_t` + `bin_t` to
 `unconfined_service_t` transition was not traced to a source line;
-what the guest does is measured: the process label,
+what the guest does is measured:
+the process label,
 and `transition=allow` for that pair.
 
 ### The unit whose arguments the drop-in mirrors
 
-Fedora's `qemu-guest-agent.service`, read in the guest
+Fedora's `qemu-guest-agent.service`,
+read in the guest
 (`qemu-guest-agent-10.1.0-7.fc43`,
 identical to
 [the file on the package's `f43` branch](https://src.fedoraproject.org/rpms/qemu/raw/f43/f/qemu-guest-agent.service),
@@ -440,12 +455,14 @@ so a drop-in that replaces `ExecStart` has to repeat them.
 ### Two readings that were wrong
 
 The round that read the refusals on 2026-11-24
-(its `keep/state-so-far.md`, lines 30 to 55)
+(its `keep/state-so-far.md`,
+lines 30 to 55)
 read them as the guest's SELinux confining the guest agent and stopped there,
 after finding that `getenforce` and `setenforce 0` are refused as well.
 That denial is the agent's own domain being refused the policy file,
 not a policy that cannot be relaxed:
-the console's unconfined root reads `Enforcing`, and so does the agent once it
+the console's unconfined root reads `Enforcing`,
+and so does the agent once it
 runs in a domain that may.
 
 The first candidate fix was to set the module's boolean,
@@ -488,8 +505,8 @@ committed as `46222892f7`:
   through `/usr/bin/env`,
   and `templateRuncmd` writes both the drop-in and `systemctl daemon-reload`
   before `systemctl enable --now qemu-guest-agent` for such a guest.
-- `src/cloud-init.ts` passes the flag into `templateRuncmd`, and
-  `templateUserData` is exported for the built artifact's tests.
+- `src/cloud-init.ts` passes the flag into `templateRuncmd` and exports
+  `templateUserData` for the built artifact's tests.
 - `src/cloud-init.unit.test.ts` asserts the Fedora template user-data carries
   the drop-in,
   that the wrapped command mirrors the distro unit's arguments and leaves
@@ -506,7 +523,8 @@ ExecStart=
 ExecStart=/usr/bin/env /usr/bin/qemu-ga --method=virtio-serial --path=/dev/virtio-ports/org.qemu.guest_agent.0 -F${FSFREEZE_HOOK_PATHNAME} $QEMU_GA_ARGS
 ```
 
-It is in the template's cloud-init, before the unit is enabled,
+It is in the template's cloud-init,
+before the unit is enabled,
 so the first agent process of every guest from that template already runs
 unconfined:
 no restart is needed at first boot,
@@ -534,7 +552,8 @@ The tradeoffs:
 - A custom template of another SELinux distro is used as it is,
   with `CUSTOM_GUEST_DEFAULTS`,
   so `mvm` cannot add the drop-in there.
-  The same drop-in by hand is the answer, as below.
+  The same drop-in by hand is the answer,
+  as below.
 
 ## Verification
 
@@ -545,7 +564,9 @@ kernel `6.17.1-300.fc43.x86_64`,
 `glibc-2.42-4.fc43`,
 `qemu-guest-agent-10.1.0-7.fc43`,
 `selinux-policy-42.12-1.fc43` enforcing.
-Host: this repository's host, `mvm`'s libvirt backend,
+Host:
+this repository's host,
+`mvm`'s libvirt backend,
 `virtiofsd` available so the guests had the virtiofs share.
 
 The guests were created and destroyed through `mvm` alone,
@@ -662,7 +683,8 @@ systemctl daemon-reload
 systemctl restart qemu-guest-agent
 ```
 
-Tradeoffs: it is per guest and lost when the guest is destroyed or recreated;
+Tradeoffs:
+it is per guest and lost when the guest is destroyed or recreated;
 it has to be repeated after a template re-bake only if the new template lost it.
 The restart interrupts whatever the agent was doing,
 so run it before the first `mvm exec` rather than during a transfer.
@@ -671,16 +693,21 @@ so run it before the first `mvm exec` rather than during a transfer.
 
 Deleting `~/.local/share/mvm/images/template-fedora.qcow2` makes the next
 `mvm create --image fedora` bake a template that carries the drop-in.
-Tradeoffs: it re-bakes one image (not the whole registry, as `mvm update`
-does), and it must not happen while a guest created from that template runs,
+Tradeoffs:
+it re-bakes one image (not the whole registry,
+as `mvm update`
+does),
+and it must not happen while a guest created from that template runs,
 because those disks use the file as their qcow2 backing file.
 That is why this round verified the fix in a `HOME` of its own instead.
 
 ### The module's read-only boolean
 
 `setsebool -P virt_qemu_ga_read_nonsecurity_files on` makes reads work:
-the share, the audit log and the policy.
-Tradeoffs: it grants no write and no execute,
+the share,
+the audit log and the policy.
+Tradeoffs:
+it grants no write and no execute,
 so push into a directory the agent may not write and executing a pushed file
 stay refused,
 and it opens every non-security file in the guest to the agent's reads.
@@ -688,37 +715,48 @@ and it opens every non-security file in the guest to the agent's reads.
 ## What does not work
 
 - **`SELinuxContext=` in a drop-in.**
-  Measured: the unit fails with `status=203/EXEC` and
+  Measured:
+  the unit fails with `status=203/EXEC` and
   `avc: denied { entrypoint }` for `virt_qemu_ga_exec_t`.
-  The permission belongs to the target domain, and only `virt_qemu_ga_t` has it.
+  The permission belongs to the target domain,
+  and only `virt_qemu_ga_t` has it.
 - **`virt_qemu_ga_run_unconfined`.**
   It grants a transition to `virt_qemu_ga_unconfined_t` for scripts under
   `fsfreeze-hook.d` only;
   the agent does not move.
 - **`virt_qemu_ga_read_nonsecurity_files` alone.**
-  Read-only; measured above.
-  It cannot make push place a file, or exec run one.
-- **Turning SELinux off, or permissive.**
+  Read-only;
+  measured above.
+  It cannot make push place a file,
+  or exec run one.
+- **Turning SELinux off,
+  or permissive.**
   Never used and not a fix:
   the guest's own enforcement is the distro's decision,
   and the reported problem is that `mvm`'s agent was in the wrong domain.
 - **Relabelling `/usr/bin/qemu-ga` or the guest's files.**
   Not attempted:
-  it edits the distro's files, `restorecon` and the next policy update revert
-  it, and it is a persistent guest-wide change where a unit drop-in is not.
+  it edits the distro's files,
+  `restorecon` and the next policy update revert
+  it,
+  and it is a persistent guest-wide change where a unit drop-in is not.
 - **Expecting `mvm push` to place a file through the agent in a directory the
   agent may not write.**
   The refusal names the mode and the path;
-  `mvm` cannot create the parent directory, and the fix here is the drop-in,
+  `mvm` cannot create the parent directory,
+  and the fix here is the drop-in,
   not a relocation of the file.
 - **Reading the guest's audit log through the agent while the agent is
   confined.**
-  `auditd_log_t` reads are denied; the serial console is the way in.
+  `auditd_log_t` reads are denied;
+  the serial console is the way in.
 
 ## Upstream filing decision
 
 `.out-of-scope/` was read on 2026-11-24;
-no entry covers SELinux, qemu-guest-agent, Fedora's policy or `mvm`.
+no entry covers SELinux,
+qemu-guest-agent,
+Fedora's policy or `mvm`.
 
 1.  Is it really upstream's fault?
     No.
