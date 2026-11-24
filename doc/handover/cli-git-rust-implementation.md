@@ -412,7 +412,8 @@ and the gate serves only the step 19 dataset;
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
-`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`,
+`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`
+(the companion is built, about 0.13 of an add, and back in `pi-zfs-step-10-account-companion-clippy` for 18 Clippy findings the package's task reports),
 whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
 the first also writes up what widening the gate would need, for the owner.
 Running too,
@@ -503,15 +504,18 @@ which is not the answer's letter,
 and the proposed guard admits a call site,
 not one name;
 it drafted a rule that keeps both the answer and a fail-closed install.
-Waiting for the memory stall to ease
-(rising at 2026-11-24T01:55-05:00 with 7.2 GiB available):
+Running:
 `pi-zfs-root-modes-second-revision`,
-prompt ready in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
+with its prompt in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
 (branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
-Running too:
-`pi-mvm-fedora-guest-refuses-every-file-route`,
-with its prompt in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
-(branch `fix/mvm-fedora-guest-refuses-every-file-route`).
+mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
+(`8ca430dd2f`;
+`doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md`).
+mvm was rebuilt from `main` at 2026-11-24T02:19:46-05:00 and the cached `template-fedora.qcow2` deleted,
+so the next Fedora guest bakes the fixed template.
+Open:
+a template cache that never reuses a path,
+so a re-bake cannot corrupt a running guest's backing file.
 
 Next:
 start the second revision when the stall eases,
@@ -579,14 +583,21 @@ three boots' logs were overwritten,
 so their quoted lines rest on the journal or on nothing;
 and `After=zfs-mount.service` carries a provider restart to the gate,
 which two accepted designs rely on.
+Its revision merged as a proposal,
+`eeb76c96bf`:
+the hook is the root-owned wrapper file under a ZED-legal name with no argument,
+the failure arm ran with `canmount=noauto`,
+every boot kept its own log,
+`RequiresMountsFor=` is the first V3 option,
+and a start bound (V8) and a unit per nested dataset (V9) are new;
+its arms ran on systemd 258 in a Fedora guest set permissive,
+so no result is about an enforcing boot.
 Running:
-`pi-zfs-step-19-design-after-its-gate-review`,
-folding the review in and running the arms again in a guest
-(folder `~/temp/agent/zfs-step-19-design-after-its-gate-review-2026-11-24/`).
+a Sonnet re-read of that revision
+(`~/temp/agent/gate-review-zfs-step-19-revision-2026-11-24/`).
 
 Next:
-merge step 19's revision as a proposal,
-have the reviewer read its diff,
+the re-read,
 then put the design to the owner.
 
 ### The clone rung serves every source no slower than `main`
@@ -608,12 +619,11 @@ The Btrfs round D2 asked for merged as `edfd13bd90`
 (`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`):
 the clone was no slower than Git's checkout on every Btrfs shape,
 so the record's condition to drop the dirty-tree limit there holds.
-Running:
-`pi-clone-rung-drops-the-dirty-limit-on-btrfs`,
-on `fix/git-policy-cli-clone-rung-drops-the-dirty-limit-on-btrfs`.
+The Btrfs dirty limit is dropped as `ce3f2c8518`,
+shown in a Btrfs guest red with the old choice and green with the new.
 
 Next:
-merge it when it ends.
+nothing until the next release's pass.
 
 
 ### The wrapper's test gate tells the truth
@@ -733,20 +743,38 @@ the cause-H pair;
 the source guard `the_release_code_keeps_blocking_work_off_the_runtime`,
 on two `std::thread::sleep` calls step 10 brought (`add_mount.rs:70`, `add_route_plan.rs:265`);
 and the `statmount` control,
-whose call answers `ENOSYS` inside the rootless container though the host kernel has it.
+whose call answers `ENOSYS` inside the rootless container though the host kernel has it:
+podman's default seccomp profile lists neither `statmount` nor `listmount`
+(`doc/troubleshooting/podman-default-seccomp-blocks-statmount-in-a-container.md`);
+fixed as `ada7a937b0`,
+the gate deriving its profile from the host's with those two calls added
+and the controls proving the fallback under a real seccomp refusal.
 The end-to-end push program controls passed in about 5 ms each,
 so they declined there too:
 the gate image now holds a real `git-lfs`.
+Fixed as `09f58f1470`:
+every list the controls hand a push names the fixture's own folders,
+so a real `git-lfs` in `/usr/bin` no longer turns the red control's refusal into a push that succeeds,
+the decline is gone,
+and the restart control acts on the service the commands reach.
 Its new denials (`git` asking `dac_override`,
 `git//ssh` running `/work/stubs/askpass`,
 `ssh-agent` asking `setgid` and making sockets,
 `ssh` running `true`, `false`, `cat` and `echo`)
-map to no failure and have no rule yet.
+map to no failure.
+Their trace (the account's "Ninth batch: the gate at 8519c599d0", merged as `68c8dcaa21`)
+put most on the L4 design round's own probe containers,
+left the 28 capability records unattributed with no grant,
+and proposed one rule for `systemd-analyze`'s working folder;
+applied with the two read rules a run showed it needs,
+the daily-update timer's `systemd-analyze --user verify` now exits 0.
+It also named a blind spot,
+the ssh-terminal and askpass controls passing when their askpass program is refused,
+which `pi-askpass-controls-see-a-refused-program` fixes.
 Waiting for the memory stall to ease,
 with prompts ready in their folders under `~/temp/agent/`:
-`zfs-step-10-add-route-blocking-sleeps-2026-11-24`,
-`statmount-control-in-the-gate-container-2026-11-24`
-and `end-to-end-push-program-controls-run-in-the-gate-2026-11-24`.
+all three merged since
+(`a80675a4af`, `ada7a937b0` and `09f58f1470`).
 The kernel's audit backlog dropped 69,301 records at its default of 64;
 the owner chose 8192,
 kept across reboots,
@@ -825,18 +853,25 @@ Its L4 waits in `doc/handover/questions-for-the-owner.md`,
 and its options merged as a proposal,
 `41bdf36a2a`
 (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
-ranked B > D > C > E > A, B being the wrapper as the askpass program),
-with its Sonnet gate review running
-(`~/temp/agent/gate-review-typed-network-command-next-step-2026-11-24/`).
+ranked B > D > C > E > A, B being the wrapper as the askpass program).
+Its gate review
+(`review-of-the-host-key-next-step-design.md` in `~/temp/agent/gate-review-typed-network-command-next-step-2026-11-24/keep/`)
+found B's transcripts composed, never run,
+its passphrase sentence wrong when ssh goes on to a key that works,
+and B needing AppArmor rules in two stacked profiles per build,
+and added an option J:
+the sentence itself as `SSH_ASKPASS`'s value,
+which OpenSSH prints in its exec failure line.
+Running:
+`pi-typed-network-command-next-step-after-its-review`,
+with its prompt in its folder of that name under `~/temp/agent/` (ending `-2026-11-24`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
 issue 6447,
 fixed as `0127911061` and closed:
 the control stopped a second fixture service no command reached.
-The same fixture pattern sits in `binary_push_programs_end_to_end_tests.rs`,
-whose controls decline wherever a real `git-lfs` is in `/usr/bin`;
-whether they still run anywhere after the gate image gained `git-lfs` is read from the next gate.
+The same fixture pattern in `binary_push_programs_end_to_end_tests.rs` is fixed as `09f58f1470`.
 
 The next alpha waits for the one-program build round:
 the record says "alpha.45 shipped with the second program,"
@@ -890,8 +925,14 @@ and fix step 19's proposal once its review has ended.
 Issues 6348 to 6352 on GitHub hold them,
 each with the journal text that was kept.
 Nobody is working on them.
-Issue 6399's repair control failed in a second gate on 2026-11-24 (commented there),
-and `pi-repair-control-hand-over-after-the-bound-start-race` is on it.
+Issue 6399's repair control is fixed as `d1af169091` and the issue closed:
+a test-only seam waits for the fixture's first write,
+so the scene is forced rather than raced.
+Its round found issue 6448:
+a control that makes a non-UTF-8 folder name fails on this host,
+whose home dataset is `utf8only`;
+its round `pi-non-utf8-name-controls-on-a-utf8only-home` runs,
+with its prompt in `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`.
 
 ### The desktop stays usable under agent runs
 

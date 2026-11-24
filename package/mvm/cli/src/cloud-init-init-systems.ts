@@ -6,20 +6,84 @@
 
 import type { InitSystem, } from './registry.ts';
 
+//region Guest agent under a confining SELinux policy
+
+/**
+ Path of the systemd drop-in that starts the guest agent through `/usr/bin/env`.
+ A distro that confines the agent with SELinux gets this file from cloud-init
+ before the agent is enabled.
+ */
+export const GUEST_AGENT_DROP_IN_PATH =
+  '/etc/systemd/system/qemu-guest-agent.service.d/mvm-unconfined.conf';
+
+/**
+ Write-files entry that starts `qemu-guest-agent` through `/usr/bin/env`.
+
+ Fedora labels the agent binary `virt_qemu_ga_exec_t` and starts it from
+ `/usr/lib/systemd/system/qemu-guest-agent.service`,
+ whose unit file the policy turns into the `virt_qemu_ga_t` domain.
+ That domain may not read the virtiofs share (`virtiofs_t`),
+ write the guest's own files (`admin_home_t`),
+ execute a file it wrote (`virt_qemu_ga_tmp_t`),
+ or open a TCP connection,
+ so every `mvm` route into the guest is refused.
+
+ `/usr/bin/env` is labeled `bin_t`,
+ which the policy lets the system manager turn into `unconfined_service_t`;
+ `env` then executes the agent in that domain,
+ with the same arguments the distro unit passes
+ (`/usr/lib/systemd/system/qemu-guest-agent.service`).
+ The two `EnvironmentFile` values stay unexpanded here on purpose:
+ systemd expands them from `/etc/sysconfig/qemu-ga`,
+ exactly as the distro unit does.
+
+ @returns The `write_files` list entry, already indented for cloud-init
+
+ @example
+ ```ts
+ guestAgentUnconfinedDropInEntry();
+ // => '  - path: /etc/systemd/system/qemu-guest-agent.service.d/mvm-unconfined.conf\n    content: |\n      [Service]\n…'
+ ```
+ */
+function guestAgentUnconfinedDropInEntry(): string {
+  return `  - path: ${GUEST_AGENT_DROP_IN_PATH}
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/env /usr/bin/qemu-ga --method=virtio-serial --path=/dev/virtio-ports/org.qemu.guest_agent.0 -F\${FSFREEZE_HOOK_PATHNAME} $QEMU_GA_ARGS`;
+}
+
+//endregion Guest agent under a confining SELinux policy
+
 //region Systemd user-data helpers
 
 /**
  Generates runcmd entries for enabling qemu-guest-agent on systemd distros.
+ For a guest whose SELinux policy confines the agent,
+ the same user-data first writes the drop-in that starts the agent through
+ `/usr/bin/env`,
+ so the first agent process already runs where it may read the virtiofs share
+ and write and execute the guest's files.
  
- @returns Cloud-init runcmd block for systemd
+ @param guestAgentIsSelinuxConfined - Whether this guest confines the agent
+
+ @returns Cloud-init write_files and runcmd blocks for systemd
  
  @example
  ```ts
- templateRuncmdSystemd(); // => 'runcmd:\n  - systemctl enable --now qemu-guest-agent\n'
+ templateRuncmdSystemd(false); // => 'runcmd:\n  - systemctl enable --now qemu-guest-agent\n'
  ```
  */
-function templateRuncmdSystemd(): string {
-  return `runcmd:
+function templateRuncmdSystemd(guestAgentIsSelinuxConfined: boolean,): string {
+  if (!guestAgentIsSelinuxConfined) {
+    return `runcmd:
+  - systemctl enable --now qemu-guest-agent
+`;
+  }
+  return `write_files:
+${guestAgentUnconfinedDropInEntry()}
+runcmd:
+  - systemctl daemon-reload
   - systemctl enable --now qemu-guest-agent
 `;
 }
@@ -114,19 +178,27 @@ runcmd:
  Dispatches to the correct template runcmd generator, {@link templateRuncmdOpenrc}
  or {@link templateRuncmdSystemd}, for the given init system.
  
+ @param guestAgentIsSelinuxConfined - Whether the guest confines the agent with SELinux
+
  @param initSystem - Target init system
- 
- @returns Cloud-init runcmd block
+
+ @returns Cloud-init write_files and runcmd block
  
  @example
  ```ts
- templateRuncmd('systemd');
+ templateRuncmd({ guestAgentIsSelinuxConfined: true, initSystem: 'systemd' });
  ```
  */
-export function templateRuncmd(initSystem: InitSystem,): string {
+export function templateRuncmd({
+  guestAgentIsSelinuxConfined,
+  initSystem,
+}: {
+  readonly guestAgentIsSelinuxConfined: boolean;
+  readonly initSystem: InitSystem;
+},): string {
   if (initSystem === 'openrc')
     return templateRuncmdOpenrc();
-  return templateRuncmdSystemd();
+  return templateRuncmdSystemd(guestAgentIsSelinuxConfined,);
 }
 
 /**

@@ -54,6 +54,9 @@ pub struct MountedHere {
 /// Why:
 ///  The one fact that ends the wait is the caller's own mount view: a source
 ///  that is the clone's dataset and a mount point that is the slot.
+///  The pause holds this command's own thread, which runs no task of the runtime; the guard's exception list
+///  names it for that reason and awaits it when the route is a task
+///  (`source_guard/blocking_code_off_the_runtime_rules_tests.rs`).
 ///
 /// # Errors
 /// The deadline passed,

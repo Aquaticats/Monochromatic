@@ -80,6 +80,23 @@ export type {
 } from './backend/types.ts';
 export * from './clone.ts';
 /**
+ The cloud-init user-data generators and the guest agent drop-in path, exposed
+ for built-artifact verification.
+
+ @internal
+ */
+export {
+  createSeedIso,
+  templateUserData,
+} from './cloud-init.ts';
+/**
+ The systemd drop-in path that starts a confined guest agent through `/usr/bin/env`,
+ exposed for built-artifact verification.
+
+ @internal
+ */
+export { GUEST_AGENT_DROP_IN_PATH, } from './cloud-init-init-systems.ts';
+/**
  The session daemon's unit name and idle limit, exposed for built-artifact
  verification.
 

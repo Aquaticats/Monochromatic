@@ -865,10 +865,18 @@ fn is_collected_soon(pid: i32) -> bool {
 /// the job's value owns the child whenever the run stops waiting for it,
 /// and the one answer that cannot promise the tool never
 ///  ran says it was stopped instead.
+///  The tool's own first write takes time of its own,
+/// and the bound that ends the start must not race it:
+/// a gate on four CPUs held the tool's `/bin/sh` past the 50 ms bound,
+/// the stop landed before its first write,
+///  and this control failed on evidence it never gave the run (issue 6399).
+/// So the control names the file the fixture writes its number into,
+/// and the run waits for that write before it gives up,
+///  whatever order the fixture's own start takes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holdAfterTheStart(250); const run = await runToolReapingStartedWithin(tool, command, limits, 50, reap);
+/// holdAfterTheStart(250); waitForToolNumber(pidFile); const run = await runToolReapingStartedWithin(tool, command, limits, 50, reap);
 /// expect(run.end.reason).not.toContain('nothing of it ran'); expect(await collected(child)).toBe(true); await sleep(1_200);
 /// expect(await exists(marker)).toBe(false);
 /// ```
@@ -885,9 +893,13 @@ fn a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_u
     );
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
     crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(Some(AUDIT_HOLD_AFTER_THE_START)));
+    // The tool writes its own number first, and the run does not give up on the child before that write landed: what the
+    // control checks below is the scene it names, and never which of the two won a race.
+    crate::package_repair_start::WAIT_FOR_THE_TOOLS_NUMBER.with(|seam| *seam.borrow_mut() = Some(recorded.clone()));
     let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY }, AUDIT_START_BOUND, &reap_within_stop_grace))
         .expect("the runtime runs the tool");
     crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(None));
+    crate::package_repair_start::WAIT_FOR_THE_TOOLS_NUMBER.with(|seam| *seam.borrow_mut() = None);
     let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
     assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
     assert!(!text.contains("nothing of it ran"), "the answer promises that nothing ran about a child it let go: {text}");

@@ -244,6 +244,8 @@ impl Stops {
     ///  The full-pool arm has to fill the pool between the capture and the
     ///  snapshot, where no other state can tell it the moment arrived; the wait
     ///  is bounded so a dead test ends the add.
+    ///  The pause holds the add's own thread, which runs no task, so no worker of the runtime
+    ///  waits here; the guard's exception list names it beside the mount's wait of the same route.
     ///
     /// # Errors
     /// The bound passed with no release file,

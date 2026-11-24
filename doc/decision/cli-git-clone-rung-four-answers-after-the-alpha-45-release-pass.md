@@ -55,8 +55,12 @@ The clone's pooled ratio to Git's checkout was below 1 on every shape it measure
 so the condition holds,
 and the limit is dropped on Btrfs only;
 ZFS and the kinds not measured keep it.
-The change is built in the round `pi-clone-rung-drops-the-dirty-limit-on-btrfs`,
-on the branch `fix/git-policy-cli-clone-rung-drops-the-dirty-limit-on-btrfs`.
+The change merged as `ce3f2c8518`:
+a Btrfs source with changes takes no whole-tree size rule,
+and ZFS and every kind not measured keep the 762,000,000-byte limit.
+The add prints a rule's sentence only when the rule declines,
+so a cloned Btrfs add prints no limit line,
+as a clean one does.
 
 ## What the whole-tree limit sums (D3)
 

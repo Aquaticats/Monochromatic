@@ -417,15 +417,16 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
         // What:
         //  The rung's provisional limits are asked here,
         //  before its claim on a stage name and its first copy:
-        //  a source with changes whose clones would copy too few bytes for a clone to win,
+        //  a source with changes whose clones would copy too few bytes for a clone to win on its filesystem,
         //  a source with no tracked change whose mean tracked file is too small for one,
         //  and a source whose changed paths exceed the cut.
         // Why:
         //  They decide between this rung and Git's own checkout,
         //  so asking them later makes a declined add pay the claim and the copies it was declined for;
         //  each limit's value, its measurement and why it sits at that edge are beside it
-        //  (`worktree_clone_rung_limits`), and all send the add to Git's own checkout, which is the baseline they were
-        //  measured against.
+        //  (`worktree_clone_rung_limits`), and each sends the add to Git's own checkout, which is the baseline it was
+        //  measured against,
+        //  only on a filesystem whose measurement gives it a value.
         //  The index is parsed once here and shared with the rung's own copies,
         //  so the limits cost no parse of their own and the rung no second one.
         //

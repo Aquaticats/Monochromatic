@@ -116,6 +116,10 @@ runcmd:
  Generates cloud-init user-data for template creation.
  Installs qemu-guest-agent so the template image has it pre-baked,
  avoiding package downloads on every VM boot.
+ A guest whose SELinux policy confines the agent also gets the systemd drop-in
+ that starts it through `/usr/bin/env`,
+ so the first agent process can already read the virtiofs share and write and
+ execute the guest's files.
  
  @param guest - Guest config for distro-specific cloud-init settings
  
@@ -128,7 +132,7 @@ runcmd:
  templateUserData({ name: 'template-setup', guest: IMAGES['ubuntu'] });
  ```
  */
-function templateUserData(
+export function templateUserData(
   {
     guest,
     name,
@@ -149,7 +153,10 @@ users:
     shell: ${linux.shell}
 packages:
   - qemu-guest-agent
-${templateRuncmd(linux.initSystem,)}`;
+${templateRuncmd({
+    guestAgentIsSelinuxConfined: linux.guestAgentIsSelinuxConfined === true,
+    initSystem: linux.initSystem,
+  },)}`;
 }
 
 //endregion User-data generators
