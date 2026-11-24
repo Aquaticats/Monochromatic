@@ -122,7 +122,9 @@ and `stop_the_service` and `serve_the_service` are the only places the control e
   and the control failed at `never happened: the push records what stopped it` after 123 seconds.
 - Green with the guard restored:
   twelve consecutive runs of that one control,
-  each passing in about four seconds.
+  each passing in about four seconds,
+  and the same control passed in a run of the four controls of its file and in one run of its own after its helpers were
+  renamed.
 - One `started release` line per worktree at the top of a control's journal is the cheap check that the control has one
   service.
   A second line of the same instance means two services answer for one worktree,
