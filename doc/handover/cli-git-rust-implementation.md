@@ -243,36 +243,26 @@ The second pass on the no-configuration branch and the fourth recheck of the obj
 each is briefed again from the rules file,
 the earlier review in its `keep/` folder and its state file.
 
-Units a pass started,
-seen running at that reading and its own to stop:
-`ipass-holder-scan-plants-4`,
-`declined-step-pass-loadlog`,
-`recheck-f4-gate-2-20261123`,
-`ssc2-6344-followups-gate-20261123`,
-and the scope `ipnc2-drivers`.
 After a restart of Claude Code alone,
 a gate unit whose pass is gone is left to end,
 and its containers and image tag are then cleared as the gate rules say.
+The pass units listed here before all read `inactive` at 2026-11-23T19:4x-05:00.
 
 ### Results that are not acted on yet
 
-- Issue 6342's follow-up round ended by itself after 109 turns.
-  Its report,
-  `keep/report-pi-lock-control-second-pass-lows.md` under
-  `~/temp/agent/lock-control-freed-name-pid-file-failed-once-in-a-gate-2026-11-22/`,
-  and its diff are unread,
-  and its Sonnet pass is not started.
-- The binding record's round on both seventh reads ended by itself after 62 turns,
-  at `86ce40be3c`.
-  Its report,
-  `keep/report-seventh-reads.md` in its round folder,
-  and its diff are unread.
-- The guest round on the forced removal's first probe arms ended.
-  Its report and its results are unread.
-- The origin cleanup record and the plan record have lows from the record reviewer's seventh read,
-  and no round on them is started.
-- Two sorters' ledgers are complete and neither is applied
-  ("The handover holds only open work").
+- Two run-log sorters' reports
+  (`keep/report-as-returned-to-the-coordinator.md` in `sorter-lines-153-to-7110/` and `sorter-lines-21104-to-28113/`
+  of the housekeeping folder)
+  propose rule text and name contradictions;
+  the ones acted on so far are the lost hall-monitor answer and the stale sentence this list held.
+  Still open from them:
+  issue 6295 is open while 6299,
+  the same defect,
+  is closed with its fix on `main` (`47a403a0e2`);
+  `.agents/skills/pi-as-subagent/SKILL.md` says "The practical limit is 20",
+  against `doc/handover/agents-at-once-on-this-machine.md`;
+  and two records were made for the commit service needing no service manager,
+  one from each sorter.
 
 ### Only in scratch
 
@@ -379,13 +369,23 @@ and said the question was framed wrong in ranking the easier option first
 (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 "A standing mount's source is read by its mount number";
 the ranking rule is now `AGENTS.md`'s `RBE`).
+The round on that,
+P2-M1 to P2-M3 and the lows ended with each done and a control red without its guard
+(`keep/report-pi-zfs-step-8-sweep-second-pass-findings.md` in
+`~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`),
+but its context ran out before the timing set,
+so the cost of the added `statx` and `statmount` is unmeasured.
+Its merge into `main` stopped on a conflict with step 9's unmount in `sweep_one_clone_tests.rs`.
+Its corrective sentence for `f334d1db60`'s message is posted as a commit comment.
 Running:
-`pi-zfs-step-8-sweep-second-pass-findings`,
-on that and P2-M1 to P2-M3 and the lows.
+`pi-zfs-step-8-merge-main-and-the-sweep-timing`,
+a fresh round on the same branch
+(folder `~/temp/agent/zfs-step-8-merge-main-and-the-sweep-timing-2026-11-23/`):
+merge `main`,
+then the timing set interleaved with `main`.
 
 Next:
-a Sonnet pass on its diff;
-then merge.
+merge when it ends.
 
 #### Step 9: the holder scan across mount namespaces
 
@@ -485,18 +485,21 @@ Outcome:
 the owner accepts the records a removal persists.
 
 State:
-the plan record and the origin cleanup record are on `main` as proposals
-(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-`doc/planning/cli-git-zfs-origin-cleanup-record-design.md`).
-The binding they share states with is accepted for step 10.
+the owner accepted the three records on 2026-11-23,
+choosing one `key=value` format for all three and one plan line per attempt,
+and asked for the 14 edits to two accepted designs and a clause for a fallback that made no clone
+(`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`).
+The binding merged with K14 closed as `ed8ad9a749`.
 Running:
-the record reviewer's eleventh read of the binding's last diff against the set,
-writing the acceptance question with its list of accepted-design sentences that the records leave untrue
-(`review-eleventh-read-and-the-records-question.md` in
-`~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/`).
+the origin record's round on the format (`continuation-one-key-value-format.md`),
+the plan record's round on the history (`continuation-one-line-per-attempt.md`),
+and `pi-zfs-accepted-designs-true-to-the-records`,
+which applies the 14 entries by script from the review's words and drafts the clause,
+on `docs/planning-cli-git-zfs-accepted-designs-true-to-the-records`.
 
 Next:
-the acceptance question for the two records.
+merge each when it ends;
+the owner reads the clause in that diff.
 
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
@@ -721,13 +724,28 @@ and "You should (almost) never be waiting.
 There is always more work.",
 now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
 
+That audit read only `delete` items,
+so the owner's words inside `issue`,
+`home` and `open` items were never checked;
+"Move hall-monitor to package-paused altogether." (old-file line 45973,
+in an `issue` item) is held by no tracked file but the frozen one.
 Running:
-five Sonnet sorters of the run logs (lines 153 to 34,866),
-one per range of about 7,000 lines,
-briefed by `brief-sorter-run-logs.md` in that folder,
-each scanning its own `delete` items with the audit's quote scan before it ends.
+three of the five Sonnet sorters of the run logs (lines 153 to 34,866;
+the two that ended scanned every non-move item, not only `delete` ones),
+briefed by `brief-sorter-run-logs.md` in that folder;
+an agent scanning every non-move item of the applied ledgers for the owner's words
+(`brief-owner-quotations-in-every-non-move-item.md`),
+whose amended ledger is applied like the others;
+and an agent filing the 35 issue drafts
+(`brief-file-the-sorters-issue-drafts.md`).
+The harness refuses a subagent's write of a report file
+("Subagents should return findings as text, not write report files."),
+so a sorter's report is its final message,
+saved by the coordinator as `keep/report-as-returned-to-the-coordinator.md`.
 
 Next:
+before the old file goes,
+every non-move item of every ledger is scanned for the owner's words;
 apply their ledgers the same way,
 a script moving text verbatim so that the owner's words pass through no model;
 file the sorters' `issue` items
