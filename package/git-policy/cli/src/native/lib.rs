@@ -365,6 +365,24 @@ pub mod worktree_clone_managed_lock;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_managed_lock::*;
 
+/// The removal-side half of the ZFS worktree route that needs no command yet:
+///  the lineage proof a removal makes before its first delete,
+///  the clone inventory and the decided bookmark rule,
+///  the persisted destruction plan with its two-stage reader,
+///  the removal's `unmount` intent and verified answer,
+///  and the names it prints as lost.
+/// Plan step 14's piece,
+/// built ahead of the plan's order:
+/// no command reaches it until that step wires it in.
+/// It is Linux only,
+/// like the pool reads and the folder modes it checks.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_removal_proof_and_plan;
+
+/// The same re-export for `worktree_clone_removal_proof_and_plan`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_removal_proof_and_plan::*;
+
 /// What one worktree-clone slot is,
 ///  read without changing anything:
 ///  a known unmounted clone,
