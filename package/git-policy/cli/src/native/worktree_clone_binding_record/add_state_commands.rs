@@ -22,7 +22,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const command = commandForState({ phase, clone: 'gone-unprovable', registrationStands: true, planStands: false });
+//! const command = commandForState({ phase: 'mounted', clone: 'gone-unprovable', planHead: 'present' });
 //! // { kind: 'settling' }
 //! ```
 
