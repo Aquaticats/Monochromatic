@@ -781,9 +781,15 @@ the files that unmerged branches change
 (among them `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` with 580 findings and
 `package/pi-shared/subagent-driver/README.md`),
 everything under `package/git-policy/cli/`,
-and two files whose fix changed more than whitespace,
-step 19's proposal and `doc/troubleshooting/cachyos-apparmor-missing-dbus-profile-boot-failure.md`
-(their fix is kept as `two-files-left-out.patch` there).
+and step 19's proposal,
+whose fix changed more than whitespace
+(kept as `two-files-left-out.patch` there)
+and which its gate review is reading by line number.
+The other such file,
+`doc/troubleshooting/cachyos-apparmor-missing-dbus-profile-boot-failure.md`,
+is fixed:
+its one change beyond whitespace was a blockquote marker on a split quotation,
+and `pandoc` renders it to the same HTML.
 `monochromatic-lint` is not on the main checkout's `PATH`,
 so `mise run //:lint:monochromatic-lint` fails with "command not found";
 the binary is under `~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-lint/`.
@@ -791,7 +797,7 @@ the binary is under `~/.local/share/monochromatic-dev/toolchain/cargo-monochroma
 Next:
 when those branches have merged,
 run `fix-whitespace-only-line-breaks.ts` again for the rest,
-and fix the two left-out files by hand.
+and fix step 19's proposal once its review has ended.
 
 #### Tests that failed once and are not diagnosed
 
