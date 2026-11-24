@@ -40,7 +40,9 @@ The hand list also measured against a misreading:
 this entry,
 and the session's working notes,
 carried the rule as at most three `&&`,
-where the repository's rule 1CB allows three `&&`-chained steps,
+where the repository's rule 1CB allowed three `&&`-chained steps
+(1CB was retired on 2026-11-23,
+on the owner's word that agents cannot follow it),
 which is two `&&`;
 2,326 of the 3,231 long chains are exactly four steps.
 Prevention:
@@ -466,7 +468,8 @@ It happened again the same day,
 two `diff` runs appending to one review file joined by `;`;
 the second run's exit status went unread,
 and a third diff in its own call followed.
-The session's shell rule allows at most three `&&`-chained steps and no `;`,
+The session's shell rule allowed at most three `&&`-chained steps and no `;`
+(retired on 2026-11-23),
 since a `;` runs the next step whatever the last one returned,
 so a failed read reads as an empty one.
 Prevention:
