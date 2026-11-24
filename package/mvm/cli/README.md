@@ -442,7 +442,7 @@ The next `mvm create --image fedora` bakes it again.
 Do not delete or replace that file while a Fedora guest created from it runs:
 those disks use it as their qcow2 backing file.
 A custom template of another SELinux distro needs the same drop-in by hand;
-see `doc/troubleshooting/mvm-fedora-guest-agent-confined-by-selinux.md` in the
+see `doc/troubleshooting/mvm-fedora-guest-confined-by-selinux.md` in the
 repository root.
 
 ## Hetzner Cloud backend
