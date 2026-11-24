@@ -1866,7 +1866,7 @@ and a rewrite re-emits the whole record with them changed.
 A rewrite with an unchanged outcome writes the same bytes,
 which control T1 asserts.
 
-Why the identity and the state do not share one line each:
+Why the state's lines and the identity's lines are two runs:
 the writer re-emits the record by one rename,
 so a reader sees one whole record either way,
 and a fixed order with a header line is what lets a reader refuse a damaged one without guessing.
@@ -4714,7 +4714,68 @@ and the proposal's steps 3 to 5 at `:894` to `:957`.
   whose Choice 10 is now the size choice,
   and the binding design's "The route's record convention",
   whose Q7 is decided.
-- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `c2773c9ea4`.
+- `ea271e9e1d`,
+  2026-11-23T17:17:29-05:00:
+  the eighth round's revision entry and the References section's sibling tips,
+  read at `c077bdb1e1` and `28c590b4c4`.
+- `8a15bf9f33`,
+  2026-11-23T19:40:46-05:00:
+  the ninth round,
+  after `git merge --no-ff main` at `6ba3c22e97`,
+  which brought the project's acceptance of the three records.
+  The record's format is rewritten as plain `key=value` lines,
+  one key per line,
+  in the shape the add's record and the plan write,
+  because the project chose that one format
+  (`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`,
+  "Choice 2").
+  Its findings and where each is fixed:
+  - The format:
+    "The lines,
+    the encodings and the order the reader requires" replaces the short lines and the one JSON object,
+    and it states the header line,
+    every field,
+    the order rule and each value's encoding.
+  - The example:
+    the record is now the header line and one line per field,
+    with `slotPath=` in hexadecimal and no JSON.
+  - The bound:
+    9,217 bytes replace 13,368,
+    from the same named limits and no escape rule,
+    and T2's width follows it.
+  - The reader's refusals:
+    T2 names a key the record does not have,
+    a key out of order,
+    a repeated key and a line that does not parse,
+    and its missing-key arm names which keys the state excuses.
+  - The precedents:
+    the leaving record's lines are taken and its JSON object is not,
+    and the add's record and the plan replace `foundation/json_record.rs` as the shape's precedent,
+    which "Sources read" no longer lists.
+  - L9:
+    the bound is the field widths alone,
+    with no escape rule.
+  - V2:
+    it is decided.
+    Its text quotes the record's choice,
+    and it is no longer one of the project's vetoes.
+  - The sibling section:
+    point 3 says all three write one shape now,
+    and point 14 gives this design's bound as 9,217.
+  Text the check found sound that a fix forced to change:
+  the example,
+  the field list,
+  the bound,
+  T1's cross-reference,
+  T2,
+  L9,
+  V2,
+  the two precedents,
+  "Sources read",
+  the add's subsection cross-reference,
+  and sibling points 3 and 14.
+  Nothing else the check found sound was changed.
+- The commit that adds this entry is the one `git log --format=%cI` reports for this path after `8a15bf9f33`.
 
 ## References
 
