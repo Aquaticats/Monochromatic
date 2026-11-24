@@ -4,14 +4,25 @@ import type {
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import {
   BUN_TEST_BAN_REASON,
+  findLiteralRmPathsInCommand,
   hasNotUnderstoodShellSyntax,
   invokesBunTest,
   invokesMutatingGitThroughRealGitPath,
+  literalRmPathFindingsAnEditWouldAdd,
+  literalRmPathFindingsAWriteWouldAdd,
+  literalRmPathRefusal,
+  type LiteralRmPathFinding,
   NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
   PROCESS_NAME_WAIT_BAN_REASON,
   REAL_GIT_MUTATION_BAN_REASON,
   waitsOnProcessName,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer/ts';
+
+import {
+  fileChangeOf,
+  NO_FILE_CHANGE,
+  type FileChangeRequest,
+} from './guardrail-file-change.ts';
 
 import {
   makeHookInputParser,
@@ -73,6 +84,61 @@ const REAL_GIT_MUTATION_DENY_OUTPUT: GuardrailOutput = {
     permissionDecisionReason: REAL_GIT_MUTATION_BAN_REASON,
   },
 };
+
+/**
+ Build deny response for command lines that delete a path they compute.
+
+ @param findings - what the call was found to run
+
+ @returns deny response naming each finding and the spelling the rule asks for
+
+ @example
+ ```ts
+ literalRmPathDenyOutput([{ command: 'rm -rf "$d"', word: '"$d"' }]);
+ ```
+ */
+function literalRmPathDenyOutput(findings: readonly LiteralRmPathFinding[],): GuardrailOutput {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: literalRmPathRefusal({ findings, },),
+    },
+  };
+}
+
+/**
+ Reports the violations one file change would add, whichever text it changes.
+
+ A write replaces the file and an edit replaces strings inside it,
+ and the shared analyzer judges the text each call leaves on disk.
+
+ @param change - file change the call asks for
+
+ @returns deny response when the change adds a violation, `{}` when it adds none
+
+ @example
+ ```ts
+ await fileChangeDenyOutput({ kind: 'write', path: '/repo/clean.sh', content: 'rm -rf "$d"\n' });
+ ```
+ */
+async function fileChangeDenyOutput(change: FileChangeRequest,): Promise<GuardrailOutput> {
+  /**
+   Violations the call would add to the file.
+   */
+  const findings = (change.kind === 'write')
+    ? await literalRmPathFindingsAWriteWouldAdd({
+      path: change.path,
+      content: change.content,
+    },)
+    : await literalRmPathFindingsAnEditWouldAdd({
+      path: change.path,
+      edits: change.edits,
+    },);
+  return (findings.length === 0)
+    ? {}
+    : literalRmPathDenyOutput(findings,);
+}
 
 /**
  Build deny response for Agent resume polling.
@@ -141,10 +207,31 @@ async function guardrailHandler(
 
       if (await invokesMutatingGitThroughRealGitPath({ command, },))
         return REAL_GIT_MUTATION_DENY_OUTPUT;
+
+      /**
+       Command lines this call would run that delete a path they compute,
+       including the script files it runs and the here-document bodies it writes.
+       */
+      const literalRmPathFindings = await findLiteralRmPathsInCommand({
+        command,
+        cwd: event.cwd,
+      },);
+      if (literalRmPathFindings.length > 0)
+        return literalRmPathDenyOutput(literalRmPathFindings,);
     }
 
     return {};
   }
+
+  /**
+   File change this call asks for, which every editing tool reports.
+   */
+  const fileChange = fileChangeOf({
+    toolName: event.tool_name,
+    input: event.tool_input,
+  },);
+  if (fileChange !== NO_FILE_CHANGE)
+    return await fileChangeDenyOutput(fileChange,);
 
   if (event.tool_name !== 'Agent')
     return {};
