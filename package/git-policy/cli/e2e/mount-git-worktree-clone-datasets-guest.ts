@@ -133,6 +133,20 @@ const EXPECTED_UNMOUNT_MARKERS = [
   'UNMOUNT done',
 ] as const;
 
+/** The lines a run must find in the guest's slot-state log, one per class and per move arm plan step 12 runs. */
+const EXPECTED_SLOT_STATE_MARKERS = [
+  'SLOT-STATE mounted class=mounted managed clone dataset=',
+  'SLOT-STATE record-behind-mount class=cannot be proved',
+  'SLOT-STATE unmounted class=known unmounted clone intent=mount-requested',
+  'SLOT-STATE pending-add class=pending add',
+  'SLOT-STATE pending-removal class=pending removal',
+  'MOVE-REFUSAL mounted cause=bound',
+  'MOVE-REFUSAL mounted git=refused-busy',
+  'MOVE-REFUSAL unmounted cause=bound',
+  'MOVE-REFUSAL unmounted git=succeeded',
+  'SLOT-STATE done',
+] as const;
+
 /** The checkout the sweep arms walk inside the guest, under the guest's own root. */
 const SWEEP_CHECKOUT = '/root/sweep-checkout';
 
@@ -338,6 +352,7 @@ async function run(chosen: Options): Promise<void> {
   publicationFsync({ chosen, });
   sweepArms({ chosen, });
   unmountArms({ chosen, });
+  slotStateArms({ chosen, });
 }
 
 /**
@@ -705,6 +720,43 @@ function unmountArms({ chosen, }: { readonly chosen: Options; }): void {
   for (const marker of EXPECTED_UNMOUNT_MARKERS) {
     if (!pulled.includes(marker))
       throw new Error(`the pulled unmount-arm log lacks ${marker}; the guest ran the arm without performing it`);
+  }
+}
+
+/**
+ Drive plan step 12's slot classes and move refusal in the same guest: one real registration and one real clone, the mounted and the unmounted class of the same slot, a record that disagrees with the mount, a pending add and a pending removal, and the wrapper's refusal beside Git's own answer, which is a busy mount while mounted and success while unmounted.
+
+ The arm prints one marker per arm; the driver requires every one of them in the pulled log.
+
+ @param chosen - the run's options
+
+ @throws Error naming the marker the pulled log lacks
+ */
+function slotStateArms({ chosen, }: { readonly chosen: Options; }): void {
+  const script = [
+    'set -eu',
+    `cd ${CRATE_DIR}/package/git-policy/cli`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `export CLI_GIT_ZFS_SLOT_STATE_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SWEEP_POOL=${SWEEP_POOL}`,
+    'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
+    `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${SWEEP_CHECKOUT}`,
+    'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
+      `--filterset "test(zfs_slot_state_guest)" > /root/slot-state-arm.log 2>&1; then status=0; else status=$?; fi`,
+    'tail --lines=60 /root/slot-state-arm.log',
+    'test "$status" = 0',
+    `if grep --quiet '^SKIPPED' /root/slot-state-arm.log; then echo 'the slot-state arm returned without running'; exit 1; fi`,
+    ...EXPECTED_SLOT_STATE_MARKERS.map(function markerLine(marker) {
+      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/slot-state-arm.log`;
+    }),
+    'cp /root/slot-state-arm.log /mnt/shared/slot-state-arm.log',
+  ].join('\n');
+  guest({ chosen, script, log: 'guest-slot-state.log', timeout: ARM_TIMEOUT_MS * 2, });
+  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/slot-state-arm.log', join(chosen.logDir, 'slot-state-arm.log'),], log: 'host-pull-slot-state.log', });
+  const pulled = readFileSync(join(chosen.logDir, 'slot-state-arm.log'), 'utf8');
+  for (const marker of EXPECTED_SLOT_STATE_MARKERS) {
+    if (!pulled.includes(marker))
+      throw new Error(`the pulled slot-state log lacks ${marker}; the guest ran the arm without performing it`);
   }
 }
 

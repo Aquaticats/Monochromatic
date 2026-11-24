@@ -1040,3 +1040,12 @@ mod zfs_sweep_guest;
 /// Plan step 9's staging mechanics in the throwaway guest.
 #[path = "binary_zfs_unmount_guest_tests.rs"]
 mod zfs_unmount_guest;
+
+/// Plan step 12's slot classes and `git worktree move` refusal in the throwaway guest.
+#[path = "binary_zfs_slot_state_guest_fixture.rs"]
+mod zfs_slot_state_guest_fixture;
+
+/// Plan step 12's arms: one real clone's mounted and unmounted class, a pending add and
+/// removal, and the refusal beside Git's own answer.
+#[path = "binary_zfs_slot_state_guest_tests.rs"]
+mod zfs_slot_state_guest;
