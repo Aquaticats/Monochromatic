@@ -1464,6 +1464,28 @@ No mount row,
 no sharing or master relation,
 no delivery and no unmount result differs between the kernels.
 
+The third pass against the second,
+from the kept `check-rounds.py`:
+ten of the eighteen guest arms reproduce line for line,
+table rows included
+(T0-1,
+T0-2,
+T0-3,
+T0-4,
+T0-6,
+T0-7,
+T0-9,
+T0-11,
+T0-12 and Z1-1),
+and the eight that differ do so only in what this round changed on purpose or in a number each run makes:
+the handle route's printed label for the top row (T0-5a,
+T0-5a-literal,
+T0-5b and T0-5c),
+T0-10's new lines and its id-to-descriptor step,
+the shapes T0-13 gained,
+T0-8's tmpfs device number,
+and Z1-2's `zpool` used figures.
+
 ### T0-1. A plain unmount reaches the parent's receivers
 
 Expected:
