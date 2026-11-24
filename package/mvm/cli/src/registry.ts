@@ -51,6 +51,20 @@ export type LinuxGuestConfig = {
    */
   readonly defaultUser: string;
   /**
+   Whether the guest's own SELinux policy confines the QEMU guest agent.
+   Fedora labels the agent `virt_qemu_ga_t`,
+   a domain that may not read the virtiofs share,
+   write the guest's files outside the agent's own `/var/tmp` labels,
+   execute what it writes,
+   or open a TCP connection,
+   which leaves `mvm push`,
+   `mvm exec` and `mvm pull` refused.
+   Such a guest starts the agent through `/usr/bin/env`,
+   which the policy gives a domain that may;
+   `cloud-init-init-systems.ts` writes that systemd drop-in.
+   */
+  readonly guestAgentIsSelinuxConfined?: boolean;
+  /**
    Init system for service management (systemd or openrc).
    */
   readonly initSystem: InitSystem;
@@ -227,6 +241,7 @@ export const IMAGES: Readonly<Record<string, ImageSpec>> = {
     osFamily: 'linux',
     defaultUser: 'fedora',
     fileName: 'Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2',
+    guestAgentIsSelinuxConfined: true,
     initSystem: 'systemd',
     shell: '/bin/bash',
     templateFileName: 'template-fedora.qcow2',
