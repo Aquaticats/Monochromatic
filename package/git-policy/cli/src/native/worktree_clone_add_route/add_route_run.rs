@@ -227,7 +227,7 @@ fn fresh_the_record(route: &RouteFacts, plan: &crate::worktree_add_plan::AddPlan
     // stand only from step 14, so the read finds nothing today and refuses at
     // once when it does.
     let clone_dataset: String = route.clone_dataset();
-    refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, clone_dataset.as_str()).map_err(|stop| return StepRefusal::refused(format!("{stop:?}")))?;
+    refuse_while_a_plan_names_the_clone(route.common_dir.as_path(), None, clone_dataset.as_str()).map_err(|stop| return StepRefusal::refused(String::from(stop.sentence())))?;
     let names: AddNames = name_the_add(route, plan, arguments).map_err(StepRefusal::refused)?;
     clear_other_adds_records(home_folder(route.common_dir.as_path()).as_path(), route.slot.as_str(), &names.nonce).map_err(StepRefusal::refused)?;
     let repository_identity: FolderIdentity = FolderIdentity::of_folder(route.common_dir.as_path()).map_err(|error| return StepRefusal::refused(format!("the common Git directory cannot be identified ({error})")))?;
