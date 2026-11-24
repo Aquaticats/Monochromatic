@@ -199,7 +199,7 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
-    `rm --recursive --force ${CHECKOUT}`,
+    // The arm's own layout call destroys the pool's tree and its mounts first, so no stale mount is left to refuse.
     'if cargo nextest run --release --locked --test native_binary --no-capture --status-level all ' +
       `--filterset "test(zfs_managed_lock_guest)" > /root/lock-arm.log 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=60 /root/lock-arm.log',
