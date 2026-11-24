@@ -616,8 +616,13 @@ and the ZED hook not allowed by this host's `zed` AppArmor profile.
 The third revision merged as `ae0a9ea7ee`;
 its Sonnet read (`read-of-the-third-step-19-revision.md` in `~/temp/agent/gate-review-zfs-step-19-third-revision-2026-11-24/keep/`)
 found no high, and nine mediums, among them V9-B not existing on `main` either and the AppArmor section's need misstated.
+The fourth revision merged as `ba7ade182a`,
+with the unit booted as written, a flag-on hazard arm that fails closed, and this host's unit without key lines;
+it ranks a dedicated `px` profile for the ZED hook above rules in `local/zed`,
+which must be put to the owner beside the owner's earlier answer for rules over a dedicated profile.
 Running:
-`pi-zfs-step-19-fourth-revision`.
+a Sonnet read of that revision's diff (`~/temp/agent/gate-review-zfs-step-19-fourth-revision-2026-11-24/`),
+then the choices go to the owner.
 
 Next:
 the re-read,
