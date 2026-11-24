@@ -414,6 +414,31 @@ pub fn source_or_dirty(context: &GitContext, identity: &WorktreeIdentity) -> Res
 }
 
 /// What:
+///  Whether the checks refused a source only because its files differ from `HEAD`.
+/// Why:
+///   A rung that copies such a source restores the copy to `HEAD`,
+/// and every other refusal is a state or a feature no commit settles:
+/// an operation in progress,
+/// a state the checks
+///  cannot read,
+/// a sparse checkout,
+/// a worktree-scope configuration and a failed listing are not dirt.
+/// A rung that can copy neither leaves the add to the next rung rather than
+///  failing it,
+/// which is what the ZFS add route does until plan step 11's verified dirty
+/// restore lands
+/// (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+/// lines 1858 to 1862).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusedOnlyForItsChanges = (refusal: Refusal): boolean => refusal.kind.kind === 'unclean' && restorable(refusal.kind.reason);
+/// ```
+pub fn refused_only_for_uncommitted_changes(refusal: &Refusal) -> bool {
+    return matches!(refusal.kind, RefusalKind::Unclean(kind) if kind.restorable());
+}
+
+/// What:
 ///  The Git configuration of the source,
 /// timed as the work `readConfig`.
 /// Why:
