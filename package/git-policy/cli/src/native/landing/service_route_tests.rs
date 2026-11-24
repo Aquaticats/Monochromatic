@@ -8,6 +8,7 @@ use super::*;
 use crate::service_address_of_a_worktree::socket_address_of;
 use crate::service_instance::{instance_of, socket_for};
 use crate::test_support::{fixture, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 
 const GIT: &str = "/usr/bin/git";
 
@@ -249,6 +250,9 @@ fn an_unreachable_git_directory_has_no_route_and_names_nothing() {
 ///  so the commit was refused as "the Git directory cannot be resolved".
 #[test]
 fn the_worktree_git_directory_keeps_a_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("landing::service_route::tests::the_worktree_git_directory_keeps_a_path_that_is_not_text") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("route-git-dir-not-utf8");
     let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));

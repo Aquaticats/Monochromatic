@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
@@ -111,6 +112,9 @@ fn a_conflict_over_a_name_that_is_not_utf8_reports_its_exact_bytes() {
 /// each once.
 #[test]
 fn conflicting_names_are_sorted_by_their_bytes() {
+    if !in_a_fixture_root_taking_any_name("shadow::replay_merge::tests::conflicting_names_are_sorted_by_their_bytes") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("replay-merge-conflict-order");
     let repo: PathBuf = repository(root.as_path(), "repo");

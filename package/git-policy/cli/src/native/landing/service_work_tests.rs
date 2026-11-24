@@ -15,6 +15,7 @@ use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
 use crate::merge_second_pass::tests::await_it;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::sync::Mutex;
@@ -1637,6 +1638,9 @@ fn state_names(common: &Path, state: &str) -> Vec<String> {
 /// and the push and the upkeep never run.
 #[test]
 fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
+    if !in_a_fixture_root_taking_any_name("landing::service_work::tests::the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs") {
+        return;
+    }
     use crate::service_handoff::{HANDED_OVER, ServiceHandoff, hand_over};
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("work-non-utf8-path");

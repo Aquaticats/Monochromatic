@@ -19,6 +19,7 @@ use super::tests::{at, paths, store, write};
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion};
 use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -27,6 +28,9 @@ use std::rc::Rc;
 ///  listed against the empty tree.
 #[test]
 fn unborn_head_lists_every_index_entry_as_added() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::baseline_tests::unborn_head_lists_every_index_entry_as_added") {
+        return;
+    }
     let root: PathBuf = fixture("store-unborn");
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("repository directory");

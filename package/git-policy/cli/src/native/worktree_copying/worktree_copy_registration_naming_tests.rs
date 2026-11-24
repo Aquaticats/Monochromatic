@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 
 /// A repository with one linked worktree at `root/topic`,
 /// and its canonical common directory.
@@ -131,6 +132,9 @@ fn a_gitdir_that_cannot_be_resolved_proves_nothing_about_a_registration() {
 #[cfg(unix)]
 #[test]
 fn a_recorded_path_keeps_the_space_it_begins_with() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_registration_naming::tests::a_recorded_path_keeps_the_space_it_begins_with") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("registration-naming-leading-space");
     let common: PathBuf = root.join("common");

@@ -28,6 +28,7 @@ use crate::candidate_record::CandidateRecord;
 use crate::candidate_tree::TreeRecord;
 /// Shared fixture directories and real Git.
 use crate::test_support::{fixture, git, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 /// Unix permission bits,
 /// for the executable file.
 use std::os::unix::fs::PermissionsExt;
@@ -166,6 +167,9 @@ fn a_store_lists_a_commit_once_and_a_second_store_lists_it_again() {
 /// A pushed tree lists a name that is not UTF-8 by its exact bytes.
 #[test]
 fn a_pushed_tree_lists_a_name_that_is_not_utf8_exactly() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_store::tree_tests::a_pushed_tree_lists_a_name_that_is_not_utf8_exactly") {
+        return;
+    }
     let root: PathBuf = fixture("store-pushed-tree-bytes");
     let repo: PathBuf = repository(root.as_path(), "repo");
     write(repo.as_path(), b"bad\xff.txt", b"bytes\n");

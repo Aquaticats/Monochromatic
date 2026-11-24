@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::path::PathBuf;
 
 /// The batch parser reads by size,
@@ -148,6 +149,9 @@ const LONG_FILE_LINES: usize = 200;
 #[cfg(unix)]
 #[test]
 fn an_unquoted_non_utf8_path_keeps_its_changed_line() {
+    if !in_a_fixture_root_taking_any_name("standards_review::standards_review_source::tests::an_unquoted_non_utf8_path_keeps_its_changed_line") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStringExt as _;
     let parent: PathBuf = fixture("source-unquoted-bytes");

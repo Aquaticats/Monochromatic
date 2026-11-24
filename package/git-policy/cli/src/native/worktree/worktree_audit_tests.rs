@@ -18,6 +18,7 @@ use crate::command_test_support::git_status;
 use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
 use crate::path_bytes::path_bytes_of;
 use crate::transaction_git::GitContext;
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -389,6 +390,9 @@ fn a_git_whose_status_ignores_the_request_to_end(root: &Path) -> GitContext {
 ///  and a removal recorded nothing about what it took.
 #[test]
 fn a_pointer_to_a_directory_that_is_not_text_names_it() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_audit::tests::a_pointer_to_a_directory_that_is_not_text_names_it") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("worktree-audit-pointer-not-text");
     let linked: PathBuf = root.join("linked");

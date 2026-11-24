@@ -16,6 +16,7 @@
 /// Import the identity functions under test and shared fixtures.
 use super::{WorktreeIdentity, parse_identity_output, resolve_worktree_identity, worktree_root};
 use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -254,6 +255,9 @@ fn native_git_reports_locations_without_a_worktree() {
 /// A repository whose path is not UTF-8 is identified by its exact bytes.
 #[test]
 fn native_git_identifies_non_utf8_repository_paths() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_identity::tests::native_git_identifies_non_utf8_repository_paths") {
+        return;
+    }
     let root: PathBuf = fixture("identity-bytes");
     let name: OsString = OsString::from_vec(b"repo-\xff\xfe".to_vec());
     let created: PathBuf = repository(root.as_path(), "placeholder");

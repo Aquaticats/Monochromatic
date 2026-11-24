@@ -11,6 +11,7 @@ use crate::path_bytes_in_records::hex_of_bytes;
 use crate::worktree_copy_journal_removal::*;
 use crate::private_storage::{take_directory_syncs, take_file_syncs};
 use crate::test_support::{fixture, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::os::unix::fs::PermissionsExt;
 
 /// A valid staged journal whose paths live under one fixture root.
@@ -807,6 +808,9 @@ fn recovery_installs_into_a_destination_whose_path_is_not_text() {
 /// recovery fills each destination with its own copy and neither takes the other's.
 #[test]
 fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_journal::tests::two_journals_whose_roots_differ_only_in_bytes_are_two_records") {
+        return;
+    }
     use crate::test_support::dead_copy_owner;
     use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::worktree_copy_selection::CopySelection;
@@ -923,6 +927,9 @@ fn a_journal_file_that_is_not_text_reads_as_a_record_nothing_can_read() {
 #[cfg(unix)]
 #[test]
 fn recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_journal::tests::recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name") {
+        return;
+    }
     use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
     use crate::test_support::dead_copy_owner;
     use crate::worktree_copy_selection::CopySelection;

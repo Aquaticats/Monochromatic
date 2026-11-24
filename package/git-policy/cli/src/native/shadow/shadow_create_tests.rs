@@ -12,6 +12,7 @@ use crate::shadow_git::shadow_request;
 use crate::shadow_init_attempts::{clear_the_planted_cut, cut_the_first_init_attempt_at, init_attempts, note_init_attempt, reset_init_attempts};
 use crate::transaction_git::{GitRequest, GitOutput, run_git_checked};
 use crate::transaction_journal::RefFormat;
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::OsString;
 
 /// Captures the invocation of a repository's working directory,
@@ -141,6 +142,9 @@ fn shadow_links_shared_entries_and_keeps_private_ones_out() {
 ///  so the alternate named a directory that does not exist and the shadow's Git called the shadow no repository.
 #[test]
 fn the_alternates_keep_a_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_create::tests::the_alternates_keep_a_path_that_is_not_text") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("shadow-create-not-utf8");
     let repo: PathBuf = root.join(std::ffi::OsString::from_vec(b"rep\xefo".to_vec()));
@@ -304,6 +308,9 @@ fn sha256_and_reftable_repositories_get_matching_shadows() {
 ///  so the commit could not be prepared and a stray shadow stayed under the replacement-character name.
 #[test]
 fn a_reftable_shadow_is_made_at_a_path_that_is_not_text() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_create::tests::a_reftable_shadow_is_made_at_a_path_that_is_not_text") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt;
     let root: PathBuf = fixture("shadow-create-reftable-not-utf8");
     let repo: PathBuf = root.join(OsString::from_vec(b"reftable-\xef".to_vec()));
@@ -652,6 +659,9 @@ fn only_a_cut_or_refused_start_of_init_is_retried() {
 /// and the commit the wrapper builds needs the same repository.
 #[test]
 fn a_ref_name_that_is_not_text_does_not_stop_the_shadow() {
+    if !in_a_fixture_root_taking_any_name("shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow") {
+        return;
+    }
     let root: PathBuf = fixture("shadow-create-non-utf8-ref");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);

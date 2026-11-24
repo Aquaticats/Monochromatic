@@ -19,6 +19,7 @@ use crate::event_hints::finding_hint;
 use crate::event_path::EventPath;
 use crate::policy_engine::PolicyFinding;
 use crate::test_support::{fixture, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use monochromatic_catalog_specifier::FindingKind;
 /// Raw bytes of a name.
 use std::ffi::OsString;
@@ -33,6 +34,9 @@ const LATIN_ONE_DIRECTORY: &[u8] = b"caf\xe9";
 ///  and a finding keeps the exact bytes of the name in its pathname.
 #[test]
 fn a_manifest_below_a_name_that_is_not_utf8_is_still_checked() {
+    if !in_a_fixture_root_taking_any_name("policy::policy_catalog_specifiers::tests::path_cases::a_manifest_below_a_name_that_is_not_utf8_is_still_checked") {
+        return;
+    }
     let root: PathBuf = fixture("catalog-bytes");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let directory: PathBuf = repo.join(OsString::from_vec(LATIN_ONE_DIRECTORY.to_vec()));

@@ -10,6 +10,7 @@ use crate::service_provision_loaded_unit_texts::{record, record_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
 use crate::test_support::{git, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 
 /// The units of a worktree that was removed are stopped by name through the manager,
 /// the socket first so nothing starts the service again,
@@ -137,6 +138,9 @@ fn the_note_written_at_provisioning_maps_the_instance_to_its_worktree() {
 /// and the units of a removed worktree are never stopped (the survey says "unmapped").
 #[test]
 fn the_note_of_a_directory_that_is_not_text_maps_its_instance() {
+    if !in_a_fixture_root_taking_any_name("service::service_units_of_removed_worktrees::tests::the_note_of_a_directory_that_is_not_text_maps_its_instance") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let machine: Machine = machine("units-note-bytes");
@@ -193,6 +197,9 @@ fn a_note_of_plain_text_is_still_read() {
 /// and that line is what names a directory whose path is not text.
 #[test]
 fn an_instance_is_mapped_by_the_bytes_in_its_journal_records() {
+    if !in_a_fixture_root_taking_any_name("service::service_units_of_removed_worktrees::tests::an_instance_is_mapped_by_the_bytes_in_its_journal_records") {
+        return;
+    }
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
     let machine: Machine = machine("units-journal-bytes");

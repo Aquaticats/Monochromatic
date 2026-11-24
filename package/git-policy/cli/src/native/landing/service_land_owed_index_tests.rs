@@ -10,6 +10,7 @@ use super::*;
 use std::io::Write as _;
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::test_support::{git, git_text, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::path::Path;
 
 /// The path of the owed record of batch `seq` in the world's worktree.
@@ -1168,6 +1169,9 @@ fn a_derived_record_of_a_moved_worktree_does_not_fail_the_commit() {
 /// and so is a path of the batch.
 #[test]
 fn a_record_keeps_the_bytes_of_every_path_of_a_non_utf8_worktree() {
+    if !in_a_fixture_root_taking_any_name("landing::service_land::owed_index_tests::a_record_keeps_the_bytes_of_every_path_of_a_non_utf8_worktree") {
+        return;
+    }
     let root: PathBuf = crate::test_support::fixture("service-land-owed-non-utf8-record");
     // A name whose bytes are not UTF-8: `0xFF` is no start byte of any text.
     let odd: std::ffi::OsString = <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(b"work\xfftree".to_vec());

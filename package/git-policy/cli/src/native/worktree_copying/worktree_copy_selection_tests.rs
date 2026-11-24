@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::cmp::Ordering;
 
 /// A named FIFO created with the platform's `mkfifo` utility.
@@ -138,6 +139,9 @@ fn ignored_directories_collapse_into_outermost_root() {
 #[cfg(unix)]
 #[test]
 fn an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_selection::tests::an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("selection-non-text-root");
     let source: PathBuf = ignoring(root.as_path(), "source", "*.log\n");
@@ -367,6 +371,9 @@ fn named_path_with_glob_characters_is_found_literally() {
 #[cfg(unix)]
 #[test]
 fn a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_selection::tests::a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("selection-named-non-text");
     let source: PathBuf = ignoring(root.as_path(), "source", "*.env\n");

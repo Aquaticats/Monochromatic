@@ -24,6 +24,7 @@ use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::Candidate;
 use crate::test_support::{REAL_GIT, fixture, git, git_output, remove, repository};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -344,6 +345,9 @@ fn a_conflict_elsewhere_does_not_stop_the_prediction() {
 ///  a repository without commits and a linked worktree all work.
 #[test]
 fn names_directories_unborn_heads_and_linked_worktrees() {
+    if !in_a_fixture_root_taking_any_name("candidate::candidate_prediction::tests::names_directories_unborn_heads_and_linked_worktrees") {
+        return;
+    }
     let root: PathBuf = fixture("predict-add-places");
     let repo: PathBuf = base(root.as_path(), "repo");
     let name: &[u8] = b"n\xffme \x01.txt";

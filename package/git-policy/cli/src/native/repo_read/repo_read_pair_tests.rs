@@ -9,6 +9,7 @@
 
 use super::tests::{answered, declined, text};
 use crate::test_support::{fixture, git, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
@@ -57,6 +58,9 @@ fn history(root: &Path, name: &str, format: &str) -> (PathBuf, Vec<String>) {
 /// spells in one of its two questions.
 #[test]
 fn name_lists_between_two_commits_equal_git() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::pair_tests::name_lists_between_two_commits_equal_git") {
+        return;
+    }
     let root = fixture("repo-read-pair-names");
     for format in ["sha1", "sha256"] {
         let (repo, commits) = history(root.as_path(), format, format);
@@ -75,6 +79,9 @@ fn name_lists_between_two_commits_equal_git() {
 /// The one-commit spelling of the post-commit gate and the review lists the paths against the first parent.
 #[test]
 fn name_lists_of_one_commit_equal_git() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::pair_tests::name_lists_of_one_commit_equal_git") {
+        return;
+    }
     let root = fixture("repo-read-pair-one");
     for format in ["sha1", "sha256"] {
         let (repo, commits) = history(root.as_path(), format, format);
@@ -90,6 +97,9 @@ fn name_lists_of_one_commit_equal_git() {
 /// a file that became a directory and a gitlink are left to Git.
 #[test]
 fn states_that_need_git_are_declined() {
+    if !in_a_fixture_root_taking_any_name("repo_read::repo_read_query::pair_tests::states_that_need_git_are_declined") {
+        return;
+    }
     let root = fixture("repo-read-pair-declined");
     let (repo, commits) = history(root.as_path(), "plain", "sha1");
     // The first commit has no parent, and a one-commit listing of it is empty in Git without `--root`.

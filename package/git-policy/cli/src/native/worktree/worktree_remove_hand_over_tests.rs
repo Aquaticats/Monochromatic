@@ -14,6 +14,7 @@ use crate::worktree_remove::{Held, RemoveOperations, RemoveOutcome, RemoveReques
 use crate::worktree_remove_hand_over as test_support;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::work_item::WorkKind;
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 
 /// What:
 ///  A subvolume inside a fresh disposable root,
@@ -318,6 +319,9 @@ fn a_renamed_subvolume_whose_record_was_already_settled_is_deleted_here() {
 /// ```
 #[test]
 fn a_parent_path_no_record_can_name_is_not_handed_over() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_remove_hand_over::tests::a_parent_path_no_record_can_name_is_not_handed_over") {
+        return;
+    }
     use std::os::unix::ffi::OsStringExt as _;
     let root: PathBuf = fixture("remove-non-utf8-parent");
     let common: PathBuf = root.join("common");

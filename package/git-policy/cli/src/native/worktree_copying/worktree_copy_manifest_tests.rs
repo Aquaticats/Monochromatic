@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::test_support::{fixture, remove};
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 
 /// A manifest entry shorthand for expected values.
 fn entry(kind: EntryKind, mode: u32, relative_path: &[u8]) -> WorktreeCopyEntry {
@@ -214,6 +215,9 @@ fn retained_mode_of(path: &Path) -> u32 {
 #[cfg(unix)]
 #[test]
 fn a_name_that_is_not_text_is_one_entry_with_its_own_bytes() {
+    if !in_a_fixture_root_taking_any_name("worktree_copying::worktree_copy_manifest::tests::a_name_that_is_not_text_is_one_entry_with_its_own_bytes") {
+        return;
+    }
     use std::os::unix::ffi::OsStrExt;
     let root: PathBuf = fixture("manifest-non-text-name");
     std::fs::create_dir_all(root.join("cache")).expect("cache");

@@ -15,6 +15,7 @@ use crate::subvolume_test_support::{backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
 use crate::worktree_clean::{check_clean_tracked, check_clean_tracked_by_content, stored_stats};
 use crate::worktree_convert::inspect;
+use crate::testing::test_support::in_a_fixture_root_taking_any_name;
 use std::os::unix::ffi::OsStrExt;
 
 /// How long a step that must not block may take in a control.
@@ -107,6 +108,9 @@ fn the_system_attributes_file_is_not_derived_from_the_system_config_path() {
 ///  file of a directory with such a name is that directory's own.
 #[test]
 fn paths_and_patterns_are_matched_as_bytes() {
+    if !in_a_fixture_root_taking_any_name("worktree::worktree_clean_content::safety_tests::paths_and_patterns_are_matched_as_bytes") {
+        return;
+    }
     let (parent, root, worktree) = settled("content-bytes", &|root: &Path| {
         std::fs::write(root.join(std::ffi::OsStr::from_bytes(b"\xFF.txt")), b"$Id: old $\n").expect("non-UTF-8 name");
         std::fs::write(root.join("\u{130}.txt"), b"$Id: old $\n").expect("two-byte letter");
