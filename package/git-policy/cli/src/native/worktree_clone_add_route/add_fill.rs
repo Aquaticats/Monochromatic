@@ -151,6 +151,10 @@ pub fn fill_the_clone(input: &FillInput<'_>) -> Result<Filled, String> {
     exchange_the_git_entry(input.clone_root, &prepared)?;
     input.stops.after("exchange");
     check_the_result(input)?;
+    // The filled worktree is no resumable state, so the proof's records go in
+    // the design's order: the marker first, then the capture. A kill between
+    // them leaves a capture whose nonce the next add clears.
+    super::add_capture_store::remove_capture(input.home, input.slot);
     return Ok(Filled {
         trash: Some(PendingTrash { destination: input.clone_root.to_path_buf(), common_dir: input.common_dir.to_path_buf(), manifest: prepared.manifest, taken_over: 0, quiet: input.quiet }),
     });

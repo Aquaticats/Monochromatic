@@ -4653,6 +4653,199 @@ From lines 49296 to 49316 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
+### The add that registers a ZFS clone before it fills the slot
+
+Designs and decisions:
+`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+`doc/planning/cli-git-zfs-add-time-git-lock-design.md`
+and
+`doc/decision/cli-git-zfs-step-10-add-time-lock-and-binding-record.md`.
+This is plan step 10's route;
+the fallback that finishes a failed add with Git's own checkout,
+and the writes that a conversion rule or a dirty source needs,
+are plan step 11's and are stated as missing below.
+
+The route serves one `git worktree add`:
+the command runs in the main checkout,
+the checkout's path is the mount of the ZFS dataset whose leaf name is
+`monochromatic-git-checkout`,
+the destination is a direct child of `<checkout>/.claude/worktrees`,
+and the command names no `--lock`,
+`--reason`,
+`--checkout` or `--no-checkout`,
+because the route takes the named lock itself.
+Every other add,
+including every add in a checkout on another filesystem or on a ZFS dataset of
+another name,
+takes the ladder and copy route described above, unchanged.
+The dataset name is the gate the route has until plan step 19's one-time
+migration makes it, so no person meets the route before that step.
+
+The route writes the add's order,
+and every step reads the state a kill at the step before it leaves:
+
+- The preflight writes nothing.
+  It proves the clean source,
+  the checkout dataset,
+  its sibling clone container,
+  the pool,
+  the boot's start-time compatibility gate,
+  and a current handler readiness report for this boot,
+  pool and checkout,
+  and it refuses a repository whose Git does not ignore
+  `.claude/cli-git-trash`,
+  because the copied Git administration must be left somewhere the disposal
+  can prove.
+- The slot's claim is the wrapper's own claim file,
+  `<slot>.claim.<n>`,
+  in `<common>/monochromatic-git-policy-cli/worktree-clones/v1/`.
+  A live owner refuses the add with its process id.
+- The record's first version is written before any mutation beyond the claim.
+  It holds the claim's generation,
+  the add's random nonce,
+  the request the person gave,
+  the phase `claimed`,
+  the checkout dataset and its GUID,
+  the repository's path and identity,
+  the slot's path,
+  the pool and its GUID,
+  the origin snapshot's proposed name,
+  and the clone's proposed dataset name.
+- The slot is made or verified as an empty folder of this account,
+  and its inode and birth time are recorded,
+  while no mount covers it.
+- Git runs once:
+  `git worktree add --no-checkout --lock --reason <sentence> <slot> <commit-ish>`.
+  The sentence is a pure function of the recorded nonce,
+  and Git writes it into the registration's `locked` file,
+  so the registration is locked from its first moment.
+  The wrapper writes no lock of its own and no second reason.
+  The departure from the ladder's `--no-checkout` form, and the lock,
+  are the add-time lock design's.
+- The scan of `<common>/worktrees` reads each entry's `locked`,
+  its `gitdir` and the slot's pointer,
+  adopts the complete registration,
+  clears an incomplete one through the fixed recipe with the lock last,
+  and re-runs Git when nothing stands.
+  A person's lock on this slot,
+  a complete registration with no lock this add wrote,
+  and a slot pointer with no registration refuse and name what stands.
+  The adopted registration's path,
+  its identity and the pointer's bytes are recorded,
+  and the phase becomes `registered`.
+- If no frozen capture stands,
+  it is taken and published now,
+  before the snapshot:
+  the index's length,
+  modification time and SHA-256,
+  every tracked path's kind,
+  size,
+  modification and change time,
+  execute bit and link target,
+  and the commit the new worktree checks out beside the source's own.
+  The capture is flushed;
+  a snapshot that stands without it is refused.
+- The checkout is snapshotted as
+  `<checkout>@git-worktree-clone-origin-<nonce>`,
+  its GUID and creation transaction group are read back,
+  the origin inventory of snapsets and bookmarks at or below that group is
+  published,
+  and the phase becomes `snapshotted`.
+- The origin snapshot is cloned as
+  `<container>/<slot>` with `mountpoint=legacy` and `canmount=off`,
+  so the design's own mount is the only one it gets.
+  Its GUID and group are read back,
+  and its initial inventory is published even when it holds no entry.
+  A dataset that already answers at the clone's name is adopted only when its
+  origin is the recorded snapshot;
+  any other dataset there refuses.
+  The phase becomes `cloned`.
+- The add asks the handler for the mount through the clone's local
+  desired-state user property,
+  and waits,
+  bounded by the protocol's provisional mount-request deadline,
+  for this command's own mount table to show the clone's dataset mounted at the
+  slot.
+  A receipt is the handler's account;
+  the mount the caller sees is the fact.
+  The phase becomes `mounted`.
+- The frozen proof compares the clone's copied index with the capture and every
+  tracked path's own facts with the captured ones,
+  before any byte of the clone is written.
+  A difference refuses and names the path and the field.
+  The proof's phase marker is published once.
+- The leave-outs remove the copies of other worktrees' stubs and the copies of
+  other adds' trash,
+  and set the inherited trash aside for the disposal.
+- The fill writes the captured index under `index.pending` in the new
+  worktree's administrative directory,
+  with the entries' recorded stat fields kept and the untracked-cache and
+  fsmonitor extensions dropped,
+  and publishes it under the worktree's own name with one rename.
+- The saved pointer bytes are written into the new worktree's trash as
+  `d<n>`,
+  the copied administration's identity is recorded in the trash's own
+  manifest in one atomic rewrite,
+  and one `renameat2(RENAME_EXCHANGE)` swaps the pointer with the copied
+  `.git`.
+  The slot therefore holds a `.git` at every instant:
+  the copied directory before the call and the pointer after it.
+- The result is checked:
+  the slot's `.git` is the pointer this add saved,
+  it names this add's registration,
+  the registration's `commondir` is this repository,
+  and the registration holds the published index.
+  The phase becomes `filled`.
+- The new worktree's package state is repaired,
+  and the trash is handed to the service,
+  which empties it after the command returns.
+
+The record is
+`<common>/monochromatic-git-policy-cli/worktree-clones/v1/<slot>.binding`,
+one `key=value` line per field,
+flushed on every write,
+with the two inventories beside it and the capture under its own name.
+A record this release cannot read,
+a record of another add at this slot,
+and a record whose phase is ahead of the live facts all refuse and change
+nothing.
+
+A kill at any step leaves the claim,
+the slot and whatever Git registered,
+and the record's phase names the last step that wrote.
+The next add at the same slot takes the next claim generation,
+proves it is the same request,
+and continues from that phase:
+it re-makes the slot only before a registration is named,
+recovers the clone's identity from the pool when the clone stands and the
+record does not name it,
+rebuilds a missing inventory while the clone holds no snapshot of its own,
+reads a live mount instead of waiting for it,
+and re-does only the writes whose state it can prove did not land.
+A snapshot or clone the pool refuses for want of space leaves the claim,
+the slot and the locked registration,
+names the operation,
+the object and the pool,
+and the next add resumes once space is free.
+
+What this release does not yet do:
+
+- It writes no path through Git for a conversion rule,
+  so a path whose `.gitattributes`, `core.autocrlf`, `ident`, encoding or filter
+  would give Git different bytes keeps the source's bytes in the new worktree
+  until plan step 11's fence write lands (issue 6323).
+- It does not restore a dirty main checkout;
+  such a source is not this route's until plan step 11, and it takes the
+  ladder's rung 3 as the owner decided on 2026-11-19.
+- A failed add does not finish itself with Git's own checkout;
+  it keeps what it made and the next add resumes it (plan step 11).
+- A record that says an add is settling,
+  the lost-lock installer,
+  removal and the settling command are plan steps 11, 13 and 16.
+- The route checks no effective ZFS grant of its own;
+  the first refused snapshot or clone reports the kernel's error with the pool
+  already named in the record.
+
 ### The removal guard leaves out the command's own chain of parents (2026-11-14, answered by 18:19-05:00)
 
 Asked what the wrapper does when a removal is run where it cannot read other processes' working folders
@@ -4675,6 +4868,18 @@ the owner chose "Skip own parent chain".
   who writes it into the guard's own doc.
 
 ### The records an add writes for itself
+
+The records of the ZFS clone route above are a different case:
+the claim,
+the binding,
+the two inventories and the frozen capture are flushed on every write,
+because each reports a fact the pool already committed that no later command
+can rediscover,
+and a power cut that lost one would leave a clone or a snapshot nothing proves
+the wrapper made
+(`doc/planning/cli-git-zfs-add-binding-record-design.md`, "Publication, and what
+a kill leaves").
+Everything here concerns the add's other bookkeeping.
 
 An add's own bookkeeping is published whole and flushed by nobody.
 That is the stage claim (`<id>.stage`),
