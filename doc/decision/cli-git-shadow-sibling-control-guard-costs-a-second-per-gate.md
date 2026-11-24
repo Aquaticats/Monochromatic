@@ -8,7 +8,8 @@ It confirms the option the coordinating session had adopted without asking,
 on the integration pass of issue 6344's fix
 (`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/review.md`,
 "Decision 3:
-committed guards for the first-attempt-only plant and the cleared plant (L1, L2)").
+committed guards for the first-attempt-only plant and the cleared plant (L1,
+L2)").
 It is built on `fix/git-policy-cli-shadow-sibling-control-two-timing-windows` at `48346ef6c2`.
 
 ## What was asked

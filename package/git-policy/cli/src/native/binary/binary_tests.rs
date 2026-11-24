@@ -28,6 +28,11 @@ mod hold_at_prepare;
 #[path = "binary_support_program_names_and_time_bound.rs"]
 mod support_program_names_and_time_bound;
 
+/// The real `git-lfs` a control proves the upload against,
+/// and what a control does in a run that has none.
+#[path = "../testing/real_git_lfs_the_run_requires.rs"]
+mod real_git_lfs_the_run_requires;
+
 /// The native Git command a control starts,
 /// its bound,
 /// and the read that keeps its streams in files.
@@ -87,6 +92,11 @@ mod support_btrfs_controls;
 /// and the pool's block-clone counters.
 #[path = "binary_support_zfs_controls.rs"]
 mod support_zfs_controls;
+
+/// The one place a control says that it needs a fixture root on which a file can be reflinked,
+/// which a btrfs host, a ZFS host and an XFS host with reflink answer.
+#[path = "binary_support_reflink_controls.rs"]
+mod support_reflink_controls;
 
 /// The physical address of a file's first extent,
 /// which two files share when one is a clone of the other.
@@ -1034,6 +1044,13 @@ mod mount_git_worktree_clone_datasets;
 #[path = "binary_zfs_adoption_guest_tests.rs"]
 mod zfs_adoption_guest;
 
+/// Plan step 10's add route in the throwaway guest:
+/// the whole add,
+/// a kill at each phase and its resume,
+/// and the pool's full answer at the clone.
+#[path = "binary_zfs_add_guest_tests.rs"]
+mod zfs_add_guest;
+
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
@@ -1045,3 +1062,26 @@ mod zfs_unmount_guest;
 /// Git's own lock, the clone mounted over the slot, the pointer's loss, and the three prune commands.
 #[path = "binary_zfs_managed_lock_guest_tests.rs"]
 mod zfs_managed_lock_guest;
+
+/// The staging design's M3 to M9 as guest arms.
+#[path = "binary_zfs_step9_m_arms_tests.rs"]
+mod zfs_step9_m_arms;
+
+/// Plan step 9's holder-scan arms in the throwaway guest:
+/// the built scan against the design's layout and the clone the built sweep attached,
+/// a second mount namespace holding it,
+/// a namespace made after the attach under both intents,
+/// a thread with a mount namespace of its own,
+/// a task whose leader has ended,
+/// a namespace whose lowest task is chrooted,
+/// a confined consumer,
+/// task churn,
+/// a detached mount pinned by a working directory,
+/// a pinned namespace with no live member,
+/// and one scan's cost against the number of live tasks.
+#[path = "binary_zfs_holder_scan_guest_tests.rs"]
+mod zfs_holder_scan_guest;
+
+/// Plan step 18's `doctor` checks for steps 2 to 9 in the throwaway guest.
+#[path = "binary_zfs_doctor_route_guest_tests.rs"]
+mod zfs_doctor_route_guest;

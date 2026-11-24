@@ -39,6 +39,10 @@ const jsonIndent = 2;
  */
 const reportedPackages = [
   'git',
+  // The real program the upload controls prove against, which the image installs so the gate runs them instead of
+  // printing the line that says they did not run
+  // (`doc/troubleshooting/git-policy-cli-gate-skips-the-real-git-lfs-controls.md`).
+  'git-lfs',
   'nodejs',
   'pnpm',
   'strace',

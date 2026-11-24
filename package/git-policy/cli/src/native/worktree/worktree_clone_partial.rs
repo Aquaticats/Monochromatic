@@ -188,7 +188,17 @@ pub(crate) fn clone_the_unchanged(work: PartialClone<'_>) -> Result<(PartCloned,
     // ```
     let cut: usize = crate::worktree_clone_rung_limits::the_changed_file_cut(tracked.entries.len());
     if split.writes.len() > cut {
-        return Err(format!("the file times recorded for {} of the {} tracked files of {} are out of date though their bytes are unchanged, and Git must write those {}, more than the {} the add copies before Git writes the rest; run `git status` once in {} to refresh the times, and the next add clones", split.writes.len(), tracked.entries.len(), crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str()), split.writes.len(), cut, crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str())));
+        let changed: usize = split.writes.len() - split.stale_times.len();
+        return Err(format!(
+            "Git must write {} of the {} tracked files of {}: the file times recorded for {} of them no longer match their files, and {} of them changed or were staged; that is more than the {} the add clones before Git writes the rest. Run `git status` once in {} to refresh the times, and the next add clones",
+            split.writes.len(),
+            tracked.entries.len(),
+            crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str()),
+            split.stale_times.len(),
+            changed,
+            cut,
+            crate::worktree_snapshot_source::plain(source.root.display().to_string().as_str())
+        ));
     }
     let staged_entered: bool = begin_step("partStaged");
     let staged_outcome = staged_paths(context, source).and_then(|staged| {

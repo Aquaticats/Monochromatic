@@ -103,6 +103,20 @@ pub struct PushPrograms {
     /// it cannot be carried without inventing bytes,
     /// and a lossy value could name a folder no shell searched.
     pub variables: Vec<(String, String)>,
+    /// The names that command held a value for that is not text,
+    /// in [`CARRIED`] order.
+    /// Why:
+    ///  A name the command set and a name the command left unset are not the same thing:
+    /// the first keeps the service's own value available to the push,
+    /// because the only other list is none at all,
+    /// and the second must have none,
+    /// because the manager's value is not the command's;
+    /// without this list a value that cannot travel reads as a name the command cleared
+    /// (`service_work_push_environment`).
+    /// The names are carried,
+    /// never the values:
+    /// a value that is not text is no more writable in a line than a password is.
+    pub not_text: Vec<String>,
     /// Whether that command set one of [`TRANSPORT`],
     /// read from the environment before a value that is not text is left out,
     /// so a transport this release cannot spell still stops a push whose settings are gone.
@@ -123,14 +137,14 @@ pub struct PushPrograms {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const debug = (programs) => `PushPrograms { variables: [${programs.variables.map(([name]) => `"${name}"`).join(', ')}], transport: ${programs.transport} }`;
+/// const debug = (programs) => `PushPrograms { variables: [${programs.variables.map(([name]) => `"${name}"`).join(', ')}], notText: [${programs.notText.join(', ')}], transport: ${programs.transport} }`;
 /// ```
 impl std::fmt::Debug for PushPrograms {
     /// Writes the names,
     /// and a placeholder for each value.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let names: Vec<&str> = self.variables.iter().map(|(name, _value)| { return name.as_str(); }).collect();
-        return write!(formatter, "PushPrograms {{ variables: {names:?}, transport: {} }}", self.transport);
+        return write!(formatter, "PushPrograms {{ variables: {names:?}, not_text: {:?}, transport: {} }}", self.not_text, self.transport);
     }
 }
 
@@ -164,6 +178,7 @@ pub fn of_this_process() -> PushPrograms {
 /// ```
 pub fn of(environment: &[(OsString, OsString)]) -> PushPrograms {
     let mut variables: Vec<(String, String)> = Vec::new();
+    let mut not_text: Vec<String> = Vec::new();
     for name in CARRIED {
         let mut value: Option<&OsString> = None;
         for (held, held_value) in environment.iter().rev() {
@@ -175,16 +190,19 @@ pub fn of(environment: &[(OsString, OsString)]) -> PushPrograms {
         let Some(held_value) = value else {
             continue;
         };
-        let (Some(plain_name), Some(plain_value)) = (OsStr::new(name).to_str(), held_value.to_str()) else {
+        let Some(plain_value) = held_value.to_str() else {
+            // The command named this variable and its value cannot be written in a line, which the push has to know apart
+            //  from a name the command left unset.
+            not_text.push(String::from(name));
             continue;
         };
-        variables.push((String::from(plain_name), String::from(plain_value)));
+        variables.push((String::from(name), String::from(plain_value)));
     }
     let mut transport: bool = false;
     for name in TRANSPORT {
         transport = transport || last_value(environment, name).is_some();
     }
-    return PushPrograms { variables, transport };
+    return PushPrograms { variables, not_text, transport };
 }
 
 /// What:

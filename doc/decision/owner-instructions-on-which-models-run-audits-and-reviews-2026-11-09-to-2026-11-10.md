@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -30,7 +31,8 @@ moved verbatim on 2026-11-23:
   It was not restarted or reworded.
   What it wrote is `dbb8087dfe` on `docs/planning-cli-git-invocation-and-argument-audit`,
   and its worktree keeps one uncommitted test file of the audit's.
-  The owner answered "New Claude Sonnet audit (Recommended)", and it ran as `invocation-and-arguments`.
+  The owner answered "New Claude Sonnet audit (Recommended)",
+  and it ran as `invocation-and-arguments`.
   Fixing the findings it already wrote is ordinary work and waits for a slot.
 
 From lines 34179 to 34214 of the old handover

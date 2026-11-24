@@ -851,12 +851,39 @@ From lines 44559 to 44567 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  citations. THE OWNER ANSWERED (2026-11-20, question tool): to the host key, "1. We must support situations in which
-  ssh-agent isn't there. 2. refuse, say what to do."; asked which reading of the first point, "A: work agentless, never
-  ask": keys without a passphrase keep working with no agent (with a control), and a refused passphrase key's message
-  no longer assumes an agent (start one with `eval "$(ssh-agent)"` then `ssh-add`, or use a key without a passphrase);
-  no prompt ever. An unknown host key is refused, and the message and docs say to connect once with plain `ssh <host>`
-  or add the key to `known_hosts`, then retry. GOING: `pi-git-policy-cli-lfs-narrow-check-findings-fixed` (DeepSeek on
-  Neuralwatt, cap 510): merge `main`, the agentless control and messages, the host-key refusal sentence and docs, F1's
-  race closed, the lows, one whole gate; brief under
+  citations.
+  THE OWNER ANSWERED (2026-11-20,
+  question tool):
+  to the host key,
+  "1.
+  We must support situations in which
+  ssh-agent isn't there. 2.
+  refuse,
+  say what to do.";
+  asked which reading of the first point,
+  "A:
+  work agentless,
+  never
+  ask":
+  keys without a passphrase keep working with no agent (with a control),
+  and a refused passphrase key's message
+  no longer assumes an agent (start one with `eval "$(ssh-agent)"` then `ssh-add`,
+  or use a key without a passphrase);
+  no prompt ever.
+  An unknown host key is refused,
+  and the message and docs say to connect once with plain `ssh <host>`
+  or add the key to `known_hosts`,
+  then retry.
+  GOING:
+  `pi-git-policy-cli-lfs-narrow-check-findings-fixed` (DeepSeek on
+  Neuralwatt,
+  cap 510):
+  merge `main`,
+  the agentless control and messages,
+  the host-key refusal sentence and docs,
+  F1's
+  race closed,
+  the lows,
+  one whole gate;
+  brief under
   `~/temp/agent/git-policy-cli-lfs-narrow-check-findings-and-owner-answers-fixed-2026-11-20/`.

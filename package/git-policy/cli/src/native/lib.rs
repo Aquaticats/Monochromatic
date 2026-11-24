@@ -280,9 +280,44 @@ pub use worktree_clone_unmount::*;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_binding_record;
 
+/// The execution half of the ZFS add route:
+///  the gate,
+///  the preflight,
+///  the claim,
+///  Git's locked add,
+///  the scan,
+///  the snapshot and clone,
+///  the mount,
+///  the frozen proof,
+///  the fill and the resume a later add makes.
+/// It is Linux only,
+/// like the descriptor walks and the pool calls it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_add_route;
+
+/// The same re-export for `worktree_clone_add_route`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_add_route::*;
+
 /// The same re-export for `worktree_clone_binding_record`.
 #[cfg(target_os = "linux")]
 pub use worktree_clone_binding_record::*;
+
+/// The deferred-origin checks of a ZFS worktree clone's removal:
+///  the one verdict function a removal calls before the first snapshot request and
+///  again before the head destroy,
+///  the look the lineage proof makes before anything is taken down,
+///  and the words a refusal prints.
+/// Plan step 15's piece, built ahead of the plan's order: no command reaches it until that
+///  step wires it in.
+/// It is Linux only,
+///  like the two reads it makes through the binding.
+#[cfg(target_os = "linux")]
+pub mod worktree_removal_deferred_origin_check;
+
+/// The same re-export for `worktree_removal_deferred_origin_check`.
+#[cfg(target_os = "linux")]
+pub use worktree_removal_deferred_origin_check::*;
 
 /// The managed Git lock's life after the add wrote it:
 ///  the states `doctor` and the removal tell apart,
@@ -326,6 +361,33 @@ pub mod zfs_mounted_dataset;
 /// like the module it builds on.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
+
+/// The root handler's all-namespace holder scan of one ZFS clone:
+///  the live tasks grouped by mount namespace,
+///  one mount table read per namespace,
+///  the exact ZFS source match,
+///  the managed attach a standing `unmount` intent sets aside,
+///  and the result that names the holders,
+///  the reads it could not complete,
+///  and the GUID and nonce it answers under.
+/// The plan's step 16 consumes the result before each snapshot-destroy request
+///  and before the head destroy,
+///  and step 18 reports its holders,
+/// and it is Linux only,
+/// like the `/proc` files it reads.
+#[cfg(target_os = "linux")]
+pub mod clone_holder_scan;
+
+/// The mount-namespace read two of the wrapper's scans share:
+///  every live task grouped by the kernel's own namespace identity,
+///  one mount table read per namespace,
+///  and the exact ZFS source match.
+/// It is shared by the root start probe and the root handler's holder scan,
+///  so the two cannot disagree about what a mount of one dataset is,
+/// and it is Linux only,
+/// like the `/proc` files it reads.
+#[cfg(target_os = "linux")]
+pub mod mount_namespace_scan;
 
 /// The root start probe the kernel-release answer asks for:
 /// the private namespace and the scratch tmpfs,

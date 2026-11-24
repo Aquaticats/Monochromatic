@@ -25,18 +25,25 @@ const MENTIONING: &str = "41 30 0:32 / /run/probe/scratch/slot ro,nosuid,nodev -
 /// A mount line of the same dataset that is no source the probe asked for.
 const OTHER_SOURCE: &str = "41 30 0:32 / /home/user/Monochromatic rw - zfs zpcachyos/ROOT/cos/home rw\n";
 
+/// One fixture thread of one task,
+/// in the namespace its link names,
+/// with the mount table it answers.
+fn thread(proc_root: &Path, pid: &str, namespace: &str, mountinfo: &str) {
+    let task: PathBuf = proc_root.join(pid).join("task").join(pid);
+    std::fs::create_dir_all(task.join("ns")).expect("the fixture thread is made");
+    std::os::unix::fs::symlink(namespace, task.join("ns/mnt")).expect("the namespace link is made");
+    std::fs::write(task.join("mountinfo"), mountinfo).expect("the mount table is written");
+}
+
 /// One fixture `/proc` root:
 /// two tasks in one namespace that mention the source,
 /// one in a second that does not,
 /// and one file that is no task.
 fn proc_root(root: &Path, mentioning: &str, other: &str) -> PathBuf {
     let proc_root_dir: PathBuf = root.join("proc");
-    for (pid, namespace, mountinfo) in [("11", "mnt:[4026531840]", mentioning), ("12", "mnt:[4026531840]", mentioning), ("21", "mnt:[4026532001]", other)] {
-        let task: PathBuf = proc_root_dir.join(pid);
-        std::fs::create_dir_all(task.join("ns")).expect("the fixture task is made");
-        std::os::unix::fs::symlink(namespace, task.join("ns/mnt")).expect("the namespace link is made");
-        std::fs::write(task.join("mountinfo"), mountinfo).expect("the mount table is written");
-    }
+    thread(proc_root_dir.as_path(), "11", "mnt:[4026531840]", mentioning);
+    thread(proc_root_dir.as_path(), "12", "mnt:[4026531840]", mentioning);
+    thread(proc_root_dir.as_path(), "21", "mnt:[4026532001]", other);
     std::fs::create_dir_all(proc_root_dir.join("self")).expect("the non-task directory is made");
     return proc_root_dir;
 }
@@ -84,15 +91,15 @@ fn an_unlistable_proc_root_is_a_refusal() {
 fn a_task_gone_between_listing_and_read_is_skipped() {
     let root: PathBuf = fixture("start-probe-scan-gone");
     let proc: PathBuf = proc_root(root.as_path(), MENTIONING, OTHER_SOURCE);
-    std::fs::remove_file(proc.join("11/mountinfo")).expect("the vanished task's table is removed");
+    std::fs::remove_file(proc.join("11/task/11/mountinfo")).expect("the vanished thread's table is removed");
     let tables: Vec<NamespaceTable> = namespaces_outside(proc.as_path()).expect("the scan reads the live task's table");
     assert_eq!(tables.len(), 2);
-    for (pid, namespace) in [("31", "mnt:[4026533001]"), ("32", "mnt:[4026533001]")] {
-        let task: PathBuf = proc.join(pid);
-        std::fs::create_dir_all(task.join("ns")).expect("the fixture task is made");
-        std::os::unix::fs::symlink(namespace, task.join("ns/mnt")).expect("the namespace link is made");
+    for pid in ["31", "32"] {
+        let task: PathBuf = proc.join(pid).join("task").join(pid);
+        std::fs::create_dir_all(task.join("ns")).expect("the fixture thread is made");
+        std::os::unix::fs::symlink("mnt:[4026533001]", task.join("ns/mnt")).expect("the namespace link is made");
     }
-    std::fs::remove_file(proc.join("21/mountinfo")).expect("the second namespace's first table is removed");
+    std::fs::remove_file(proc.join("21/task/21/mountinfo")).expect("the second namespace's first table is removed");
     let mentioned: Vec<String> = scan_namespaces(proc.as_path(), "zpcachyos/nosnap/git-worktree-probe@ready").expect("the scan reads");
     assert_eq!(mentioned, vec![String::from("mnt:[4026531840]")]);
 }
@@ -103,10 +110,10 @@ fn a_task_gone_between_listing_and_read_is_skipped() {
 fn a_persistent_read_error_on_a_live_task_still_refuses() {
     let root: PathBuf = fixture("start-probe-scan-error");
     let proc: PathBuf = proc_root(root.as_path(), MENTIONING, OTHER_SOURCE);
-    std::fs::remove_file(proc.join("21/mountinfo")).expect("the table is removed");
-    std::fs::create_dir(proc.join("21/mountinfo")).expect("a directory stands where the table was");
+    std::fs::remove_file(proc.join("21/task/21/mountinfo")).expect("the table is removed");
+    std::fs::create_dir(proc.join("21/task/21/mountinfo")).expect("a directory stands where the table was");
     match namespaces_outside(proc.as_path()) {
-        Err(ScanRefusal::Table { path, .. }) => assert_eq!(path, proc.join("21/mountinfo")),
+        Err(ScanRefusal::Table { path, .. }) => assert_eq!(path, proc.join("21/task/21/mountinfo")),
         other => panic!("{other:?}"),
     }
 }

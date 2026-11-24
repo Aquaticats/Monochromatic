@@ -14,6 +14,12 @@
 //! (`working-tree-encoding`,
 //! whose clean and checkout are inverses here,
 //! and a filter the design already declines).
+//! The fixture root these controls need is one on which a file can be reflinked,
+//! which is the mechanism the rung itself needs:
+//! a btrfs host, a ZFS host and an XFS host with reflink answer it,
+//! and the gate image's tmpfs fixture root does not,
+//! so the controls that need no dataset run on every host that can serve the rung
+//! (the release pass over alpha.45's finding M4 kept them to a ZFS root alone).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +28,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, on_zfs_or_acknowledged, porcelain, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, on_a_reflink_capable_fixture, porcelain, remove, repository, run_direct, run_wrapped_verbose, stderr_of};
 use super::worktree_snapshot::{commit_all, tracked, tracked_above_the_mean_edge, tracked_content};
 use git_policy_cli::worktree::worktree_clone_conversion_fence::{DECLINE_PATHS_FLOOR, DECLINE_SHARE_DIVISOR};
 
@@ -116,8 +122,8 @@ fn assert_rung_equals_git_expecting(fixture: &Fixture, repo: &Path, served: bool
 
 #[test]
 fn a_text_attribute_asking_for_crlf_over_lf_files_is_written_by_git() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-eol-crlf");
-    if !on_zfs_or_acknowledged(&fixture, "a_text_attribute_asking_for_crlf_over_lf_files_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-eol-crlf");
+    if !on_a_reflink_capable_fixture(&fixture, "a_text_attribute_asking_for_crlf_over_lf_files_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -127,8 +133,8 @@ fn a_text_attribute_asking_for_crlf_over_lf_files_is_written_by_git() {
 
 #[test]
 fn core_autocrlf_true_set_after_the_files_were_written_is_written_by_git() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-autocrlf");
-    if !on_zfs_or_acknowledged(&fixture, "core_autocrlf_true_set_after_the_files_were_written_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-autocrlf");
+    if !on_a_reflink_capable_fixture(&fixture, "core_autocrlf_true_set_after_the_files_were_written_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -140,8 +146,8 @@ fn core_autocrlf_true_set_after_the_files_were_written_is_written_by_git() {
 
 #[test]
 fn an_ident_attribute_over_an_unexpanded_keyword_is_written_by_git() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-ident");
-    if !on_zfs_or_acknowledged(&fixture, "an_ident_attribute_over_an_unexpanded_keyword_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-ident");
+    if !on_a_reflink_capable_fixture(&fixture, "an_ident_attribute_over_an_unexpanded_keyword_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -151,8 +157,8 @@ fn an_ident_attribute_over_an_unexpanded_keyword_is_written_by_git() {
 
 #[test]
 fn a_crlf_file_added_under_text_auto_eol_lf_is_written_by_git() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-normalized");
-    if !on_zfs_or_acknowledged(&fixture, "a_crlf_file_added_under_text_auto_eol_lf_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-normalized");
+    if !on_a_reflink_capable_fixture(&fixture, "a_crlf_file_added_under_text_auto_eol_lf_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -171,8 +177,8 @@ fn a_crlf_file_added_under_text_auto_eol_lf_is_written_by_git() {
 fn an_eol_crlf_attribute_without_text_is_written_by_git() {
     // `convert_attrs` lets `eol` refine an action nothing has named yet, so `*.txt eol=crlf` alone writes carriage
     // returns; the prototype carried these LF files before the fix (the gate review's `m01`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-bare-eol-crlf");
-    if !on_zfs_or_acknowledged(&fixture, "an_eol_crlf_attribute_without_text_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-bare-eol-crlf");
+    if !on_a_reflink_capable_fixture(&fixture, "an_eol_crlf_attribute_without_text_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -184,8 +190,8 @@ fn an_eol_crlf_attribute_without_text_is_written_by_git() {
 fn an_eol_lf_attribute_without_text_is_written_by_git() {
     // The same refinement in the other direction: a CRLF file added under `*.txt eol=lf` has an LF blob and the fence's
     // size proof sends it to Git; the prototype carried it before the fix (the gate review's `m02`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-bare-eol-lf");
-    if !on_zfs_or_acknowledged(&fixture, "an_eol_lf_attribute_without_text_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-bare-eol-lf");
+    if !on_a_reflink_capable_fixture(&fixture, "an_eol_lf_attribute_without_text_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -203,8 +209,8 @@ fn an_eol_lf_attribute_without_text_is_written_by_git() {
 fn a_legacy_crlf_attribute_beside_core_eol_crlf_is_written_by_git() {
     // The legacy `crlf` attribute is `text`'s fallback, and `core.eol=crlf` gives it the carriage return ending, so Git
     // writes these LF files; the prototype read no `crlf` attribute at all (the gate review's `m03`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-legacy-crlf");
-    if !on_zfs_or_acknowledged(&fixture, "a_legacy_crlf_attribute_beside_core_eol_crlf_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-legacy-crlf");
+    if !on_a_reflink_capable_fixture(&fixture, "a_legacy_crlf_attribute_beside_core_eol_crlf_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -218,8 +224,8 @@ fn a_legacy_crlf_attribute_beside_core_eol_crlf_is_written_by_git() {
 fn a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git() {
     // `*.txt crlf` over a file added with carriage returns: the blob is the LF form and the file the CRLF one, so the
     // size proof sends it to Git (the gate review's `m03b`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-legacy-crlf-added");
-    if !on_zfs_or_acknowledged(&fixture, "a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-legacy-crlf-added");
+    if !on_a_reflink_capable_fixture(&fixture, "a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -237,8 +243,8 @@ fn a_legacy_crlf_attribute_over_an_added_crlf_file_is_written_by_git() {
 fn a_config_rule_gone_after_the_add_is_written_by_git() {
     // `core.autocrlf=input` when the CRLF file was added and unset afterwards: no rule is left, the file is stat-exact,
     // and only the sizes differ (the gate review's `m04`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-config-gone");
-    if !on_zfs_or_acknowledged(&fixture, "a_config_rule_gone_after_the_add_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-config-gone");
+    if !on_a_reflink_capable_fixture(&fixture, "a_config_rule_gone_after_the_add_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -261,8 +267,8 @@ fn a_config_rule_gone_after_the_add_is_written_by_git() {
 fn a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git() {
     // `* text=auto` when the CRLF file was added, the tracked `.gitattributes` deleted by a later commit: the path has no
     // rule today, the file is stat-exact, and only the sizes differ (the gate review's `m06`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-attributes-deleted");
-    if !on_zfs_or_acknowledged(&fixture, "a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-attributes-deleted");
+    if !on_a_reflink_capable_fixture(&fixture, "a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -283,8 +289,8 @@ fn a_tracked_attributes_file_a_later_commit_deleted_is_written_by_git() {
 
 #[test]
 fn an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-ignored-attributes");
-    if !on_zfs_or_acknowledged(&fixture, "an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout") {
+    let fixture: Fixture = fixture("clone-conversion-ignored-attributes");
+    if !on_a_reflink_capable_fixture(&fixture, "an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout") {
         remove(&fixture);
         return;
     }
@@ -310,8 +316,8 @@ fn an_ignored_untracked_attributes_file_sends_the_add_to_gits_checkout() {
 
 #[test]
 fn a_working_tree_encoding_carries_the_sources_bytes_as_gits_checkout_does() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-encoding");
-    if !on_zfs_or_acknowledged(&fixture, "a_working_tree_encoding_carries_the_sources_bytes_as_gits_checkout_does") {
+    let fixture: Fixture = fixture("clone-conversion-encoding");
+    if !on_a_reflink_capable_fixture(&fixture, "a_working_tree_encoding_carries_the_sources_bytes_as_gits_checkout_does") {
         remove(&fixture);
         return;
     }
@@ -325,8 +331,8 @@ fn a_core_autocrlf_key_written_without_a_value_is_written_by_git() {
     // `git_parse_maybe_bool_text(NULL)` is 1 (`parse.c`) and `core.autocrlf` goes through `git_config_bool`
     // (`config.c`), so `[core]` with a line holding only `autocrlf` is true and Git writes carriage returns here. The
     // fence read the missing value as an absent key and carried these files before the gate re-check's `p01`.
-    let fixture: Fixture = fixture("zfs-clone-conversion-valueless-autocrlf");
-    if !on_zfs_or_acknowledged(&fixture, "a_core_autocrlf_key_written_without_a_value_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-valueless-autocrlf");
+    if !on_a_reflink_capable_fixture(&fixture, "a_core_autocrlf_key_written_without_a_value_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -345,8 +351,8 @@ fn a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git() {
     // `git check-attr` prints the literal value `text=unset` as `unset`, exactly as it prints `-text`, and Git reads
     // the literal value as `CRLF_UNDEFINED` (`git_path_check_crlf`), which `convert_attrs` gives to `core.autocrlf`;
     // under `core.autocrlf=true` it therefore writes carriage returns here (the gate re-check's `p02`).
-    let fixture: Fixture = fixture("zfs-clone-conversion-text-unset-value");
-    if !on_zfs_or_acknowledged(&fixture, "a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git") {
+    let fixture: Fixture = fixture("clone-conversion-text-unset-value");
+    if !on_a_reflink_capable_fixture(&fixture, "a_literal_text_unset_value_under_core_autocrlf_true_is_written_by_git") {
         remove(&fixture);
         return;
     }
@@ -386,8 +392,8 @@ fn decline_fixture(fixture: &Fixture, name: &str, converting: usize, other: usiz
 #[test]
 fn a_converting_count_at_the_floor_keeps_the_clone_rung() {
     // A thousand converting paths of a tiny tree are a share far past a quarter, and the floor is what keeps the rung.
-    let fixture: Fixture = fixture("zfs-clone-conversion-decline-floor-below");
-    if !on_zfs_or_acknowledged(&fixture, "a_converting_count_at_the_floor_keeps_the_clone_rung") {
+    let fixture: Fixture = fixture("clone-conversion-decline-floor-below");
+    if !on_a_reflink_capable_fixture(&fixture, "a_converting_count_at_the_floor_keeps_the_clone_rung") {
         remove(&fixture);
         return;
     }
@@ -397,8 +403,8 @@ fn a_converting_count_at_the_floor_keeps_the_clone_rung() {
 
 #[test]
 fn a_converting_count_one_past_the_floor_declines_the_rung() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-decline-floor-above");
-    if !on_zfs_or_acknowledged(&fixture, "a_converting_count_one_past_the_floor_declines_the_rung") {
+    let fixture: Fixture = fixture("clone-conversion-decline-floor-above");
+    if !on_a_reflink_capable_fixture(&fixture, "a_converting_count_one_past_the_floor_declines_the_rung") {
         remove(&fixture);
         return;
     }
@@ -408,8 +414,8 @@ fn a_converting_count_one_past_the_floor_declines_the_rung() {
 
 #[test]
 fn a_converting_share_of_exactly_a_quarter_keeps_the_clone_rung() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-decline-quarter-exact");
-    if !on_zfs_or_acknowledged(&fixture, "a_converting_share_of_exactly_a_quarter_keeps_the_clone_rung") {
+    let fixture: Fixture = fixture("clone-conversion-decline-quarter-exact");
+    if !on_a_reflink_capable_fixture(&fixture, "a_converting_share_of_exactly_a_quarter_keeps_the_clone_rung") {
         remove(&fixture);
         return;
     }
@@ -422,8 +428,8 @@ fn a_converting_share_of_exactly_a_quarter_keeps_the_clone_rung() {
 
 #[test]
 fn a_converting_share_one_path_past_a_quarter_declines_the_rung() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-decline-quarter-above");
-    if !on_zfs_or_acknowledged(&fixture, "a_converting_share_one_path_past_a_quarter_declines_the_rung") {
+    let fixture: Fixture = fixture("clone-conversion-decline-quarter-above");
+    if !on_a_reflink_capable_fixture(&fixture, "a_converting_share_one_path_past_a_quarter_declines_the_rung") {
         remove(&fixture);
         return;
     }
@@ -542,8 +548,8 @@ fn size_fenced_older_target_fixture(fixture: &Fixture) -> PathBuf {
 /// so this control keeps the ending the skip cannot catch.
 #[test]
 fn a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-older-target");
-    if !on_zfs_or_acknowledged(&fixture, "a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind") {
+    let fixture: Fixture = fixture("clone-conversion-older-target");
+    if !on_a_reflink_capable_fixture(&fixture, "a_target_tree_that_lacks_a_fenced_path_leaves_no_path_of_the_clones_behind") {
         remove(&fixture);
         return;
     }
@@ -603,8 +609,8 @@ fn add_records(repo: &Path) -> Vec<serde_json::Value> {
 ///  and the sentence names the path and the commit.
 #[test]
 fn a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy() {
-    let fixture: Fixture = fixture("zfs-clone-conversion-older-target-skip");
-    if !on_zfs_or_acknowledged(&fixture, "a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy") {
+    let fixture: Fixture = fixture("clone-conversion-older-target-skip");
+    if !on_a_reflink_capable_fixture(&fixture, "a_target_tree_that_lacks_a_fenced_path_is_skipped_before_any_copy") {
         remove(&fixture);
         return;
     }

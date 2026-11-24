@@ -7,6 +7,10 @@
 //! Hosts without `git-lfs` on PATH report that and check nothing;
 //! the stand-in controls in
 //!  `binary_lfs_pre_push_tests.rs` cover the same paths there.
+//! A run that states the real program must be there,
+//! which the container gate image does,
+//! fails every control here instead of passing it
+//! (`testing/real_git_lfs_the_run_requires.rs`).
 
 use super::commit::remove_settled;
 use super::support::{Fixture, Observed, REAL_GIT, decline_in_process_lfs_scan, direct, fixture, git, observe, repository, stderr_of};
@@ -247,22 +251,16 @@ impl Drop for LfsServer {
 }
 
 /// The real `git-lfs` on the test process's PATH,
-/// if any.
+/// or nothing with the line that says the real upload was not exercised.
 fn real_lfs_program() -> Option<PathBuf> {
-    let path: std::ffi::OsString = std::env::var_os("PATH")?;
-    return std::env::split_paths(&path)
-        .map(|directory| { return directory.join("git-lfs"); })
-        .find(|candidate| { return candidate.is_file(); });
+    return super::real_git_lfs_the_run_requires::required("the real LFS upload against the server of this file");
 }
 
 /// A repository wired to the real `git-lfs` and the server,
 /// with one committed LFS file;
 /// `None` without `git-lfs`.
 fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)> {
-    let Some(program) = real_lfs_program() else {
-        eprintln!("skipped: git-lfs is not on PATH, so the real upload was not exercised");
-        return None;
-    };
+    let program: PathBuf = real_lfs_program()?;
     std::os::unix::fs::symlink(program, fixture.root.join("bin/git-lfs")).expect("git-lfs link");
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
@@ -311,6 +309,27 @@ fn lfs_world(fixture: &Fixture) -> Option<(PathBuf, PathBuf, LfsServer, Vec<u8>)
     std::fs::set_permissions(&hooks, std::fs::Permissions::from_mode(0o555)).expect("read-only hooks directory");
     server.hooks = Some(hooks);
     return Some((repo, origin, server, content));
+}
+
+/// What:
+///  A run that states the real `git-lfs` must be there fails this file's controls,
+///  rather than passing them without an upload.
+/// Why:
+///   The gate image installs `git-lfs` and sets `CLI_GIT_REQUIRE_REAL_GIT_LFS`,
+/// so an image that lost the program has to be red,
+/// and the decision `real_lfs_program` makes is what turns the old line into a failure.
+///  The absence and the statement are passed in because a control cannot change this process's environment beside the
+/// other controls of this binary;
+/// the variable itself is proved where a child process can set it
+///  (`testing/real_git_lfs_the_run_requires_tests.rs`).
+#[test]
+#[should_panic(expected = "CLI_GIT_REQUIRE_REAL_GIT_LFS")]
+fn the_real_upload_fails_where_the_run_requires_the_program_and_path_finds_none() {
+    let _absent: Option<PathBuf> = super::real_git_lfs_the_run_requires::decided(
+        "the real LFS upload against the server of this file",
+        None,
+        true,
+    );
 }
 
 /// The object name a pointer file at `rev:path` records.

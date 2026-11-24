@@ -48,17 +48,22 @@ const FAKE_TRANSPORT_TWO: &str = "ssh -i /nowhere/FAKE_KEY_TWO_9c7e";
 /// The plainly fake proxy command a commit's shell names.
 const FAKE_PROXY: &str = "nc -x fakeuser:FAKE_PROXY_PASSWORD_2a6f proxy.invalid 1080";
 
-/// The folder the stand-in `git-lfs` of these controls lives in,
-/// outside the fixture:
-/// it stands in for a program the shell that commits has and the service's own list does not,
+/// What:
+///  The folder the stand-in `git-lfs` of one control lives in.
+/// Why:
+///   It stands in for a program the shell that commits has and the service's own list does not,
 /// and it is reached through the list the request carries,
-/// so it must not sit anywhere a sweep of the fixture reads.
-/// A control removes its own folder when it ends,
-/// so a run leaves none behind.
+/// so it must not sit anywhere a sweep of the fixture reads:
+/// it sits beside the fixture,
+/// in the fixture root the run was given,
+///  never under the shared `HOME`,
+/// where two sessions running this control at once wrote and removed one folder
+/// (L3 of the alpha.45 release pass).
+/// The name carries the process id,
+/// so two runs never share it either,
+/// and a control removes its own folder when it ends.
 fn stand_in_folder(name: &str) -> PathBuf {
-    return PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
-        .join("temp/agent/lfs-push-programs-held-in-memory-stand-in-git-lfs")
-        .join(name);
+    return super::support::fixture_root().join(format!("lfs-push-programs-held-in-memory-stand-in-git-lfs-{}-{name}", std::process::id()));
 }
 
 /// A repository with one tracked file,
@@ -343,6 +348,45 @@ fn a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command() {
         .expect("the printed command runs");
     assert!(pushed.status.success(), "the printed command pushes: {}\n{}", String::from_utf8_lossy(pushed.stdout.as_slice()), String::from_utf8_lossy(pushed.stderr.as_slice()));
     assert_eq!(origin_main(&world), commit, "the commit the stopped push held is on the remote");
+    world.service.stop_all();
+    remove_settled(&world.fixture);
+    std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");
+}
+
+/// What:
+///  A transport setting whose value is not text stops the push with words that name that cause,
+///  and not a restart that never happened.
+/// Why:
+///   The value cannot travel in a request line,
+/// so the service holds the name and none of the value;
+/// the push must not run through the manager's transport,
+/// which is the incident the carried list exists for,
+/// and the person must learn why their own value did not arrive (L1 of the alpha.45 release pass).
+#[test]
+fn a_transport_value_that_could_not_travel_stops_the_push_and_names_that_cause() {
+    use std::os::unix::ffi::OsStringExt;
+    let world: World = world("push-programs-unspellable-transport");
+    let unspellable: OsString = OsString::from_vec(b"ssh -i /nowhere/FAKE_UNSPELLABLE_2c7d_\xff".to_vec());
+    let mut committing: Command = wrapped_commit(&world.fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--allow-empty"]);
+    committing.env("GIT_SSH_COMMAND", &unspellable);
+    let landed: std::process::Output = committing.output().expect("the wrapped commit runs");
+    assert!(landed.status.success(), "the commit itself succeeds: {}", String::from_utf8_lossy(landed.stderr.as_slice()));
+    let commit: String = head_of(&world);
+    assert_ne!(origin_main(&world), commit, "the push has not been made");
+    // The service holds the record and none of the bytes that could not travel:
+    let notice: PathBuf = git_policy_cli::push_failure_notice::notice_directory(git_dir(&world).as_path());
+    wait_until("the push records what stopped it", &|| {
+        return std::fs::read_dir(notice.as_path()).is_ok_and(|entries| { return entries.flatten().next().is_some(); });
+    });
+    let shown: Observed = wrapped_with(&world, &["status"], &[]);
+    let words: String = stderr_of(&shown);
+    assert!(words.contains("was not made"), "the push was not made: {words}");
+    assert!(words.contains("not valid text"), "the value that could not travel is named as such: {words}");
+    assert!(words.contains("could not travel with the push's request"), "the request line is named as what could not hold it: {words}");
+    assert!(!words.contains("started again"), "no restart is blamed for a value that never travelled: {words}");
+    assert!(words.contains("nothing was sent through another transport"), "no other transport was used: {words}");
+    assert!(words.lines().any(|line| { return line.trim_start().starts_with("Run this in ") && line.contains("git push "); }), "the command that pushes is printed: {words}");
+    assert_ne!(origin_main(&world), commit, "and nothing reached the remote");
     world.service.stop_all();
     remove_settled(&world.fixture);
     std::fs::remove_dir_all(world.stand_in.as_path()).expect("the stand-in's own folder goes");

@@ -18,7 +18,8 @@
 //
 // Usage: node e2e/run-fixture.ts <create|prepare|run|record|destroy|all|pool|wrapper|arm|
 //          zfs-attach-pool|zfs-attach-arm|zfs-gate-arm|zfs-gate-version-arm|zfs-gate-change-arm|
-//          zfs-protocol-pool|zfs-protocol-arm|zfs-protocol-teardown|zfs-protocol-record>
+//          zfs-protocol-pool|zfs-protocol-arm|zfs-protocol-teardown|zfs-protocol-record|
+//          zfs-add-pool|zfs-add-arm|zfs-add-teardown|zfs-add-record|zfs-add>
 //          [--name <guest>] [--log-dir <dir>] [--crate <dir>] [--keep-guest]
 // `create` refuses a name `mvm list` already reports, and `all` destroys only a
 // guest its own `create` returned, so no run removes another run's guest.
@@ -1345,6 +1346,203 @@ function runThenDestroy(checked: Options, ordered: readonly ((checkedStep: Optio
     throw failure;
 }
 
+//region The step 10 arm: the whole ZFS add, its kills and its resumes
+
+/**
+ The step 10 arm's fixture root, above the checkout dataset's mountpoint.
+ */
+const STEP10_FIXTURE_ROOT = '/home/zfs-step-10-fixture';
+/** The step 10 pool, a 1 GiB image with the design's two sibling datasets. */
+const STEP10_POOL = 'zfsstep10';
+/** The dataset the add route needs at the checkout's path. */
+const STEP10_CHECKOUT = `${STEP10_POOL}/ROOT/home/monochromatic-git-checkout`;
+/** The sibling container the route makes its clones in. */
+const STEP10_CONTAINER = `${STEP10_POOL}/ROOT/home/monochromatic-git-worktree-clone-datasets`;
+/** The checkout's path, which the design's leaf name gives the dataset. */
+const STEP10_CHECKOUT_PATH = `${STEP10_FIXTURE_ROOT}/monochromatic-git-checkout`;
+/** Where the wrapper's packages are unpacked inside the guest. */
+const STEP10_WRAPPER_ROOT = '/opt/zfs-step-10-repo';
+/** The wrapper crate itself, below that root. */
+const STEP10_WRAPPER_DIR = `${STEP10_WRAPPER_ROOT}/package/git-policy/cli`;
+/** The wrapper crate's own packages and the ones its manifests name by path. */
+const STEP10_WRAPPER_PACKAGES: readonly string[] = [
+  'package/git-policy/cli',
+  'package/catalog-specifier/core-rust',
+  'package/forbidden-strings/cli',
+  'package/forbidden-strings/core',
+  'package/jsonc-edit/core-rust',
+  'package/linter/monochromatic-lint',
+  'package/zfs/request-to-openzfs-kernel-device',
+];
+/** The OpenZFS userspace's library and program paths, as shell assignments. */
+const STEP10_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/bin:${OPENZFS_PREFIX}/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+
+/** The environment the add arms read inside the guest. */
+function step10Environment(options: Options): string {
+  return `CLI_GIT_ZFS_ADD_GUEST=${options.name} ` +
+    `CLI_GIT_ZFS_ADD_ROOT=${STEP10_CHECKOUT_PATH} ` +
+    `CLI_GIT_ZFS_ADD_POOL=${STEP10_POOL} ` +
+    `CLI_GIT_ZFS_ADD_SBIN=${OPENZFS_PREFIX}/sbin`;
+}
+
+/**
+ Make the step 10 pool and the design's layout:
+ a 1 GiB encrypted image,
+ the checkout dataset whose leaf name the route reads,
+ and its sibling container, kept unmounted with a legacy mountpoint.
+ The checkout's mount is made private, because the design's attach requires a
+ parent that shares nothing, and the arm mounts the clone below it.
+ */
+function step10Pool(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP10_OPENZFS}`,
+    `mkdir --parents ${STEP10_FIXTURE_ROOT}`,
+    `chmod 0755 ${STEP10_FIXTURE_ROOT}`,
+    `if zpool list -H -o name | grep --quiet "^${STEP10_POOL}$"; then zpool destroy -f ${STEP10_POOL}; fi`,
+    `rm --force ${STEP10_FIXTURE_ROOT}/pool.img ${STEP10_FIXTURE_ROOT}/raw-key`,
+    `truncate --size 1G ${STEP10_FIXTURE_ROOT}/pool.img`,
+    `head --bytes 32 /dev/urandom > ${STEP10_FIXTURE_ROOT}/raw-key`,
+    `zpool create -o cachefile=none -O mountpoint=none -O encryption=aes-256-gcm -O keyformat=raw -O keylocation=file://${STEP10_FIXTURE_ROOT}/raw-key -O recordsize=32K -O compression=zstd-3 ${STEP10_POOL} ${STEP10_FIXTURE_ROOT}/pool.img`,
+    `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT`,
+    `zfs create -o mountpoint=none ${STEP10_POOL}/ROOT/home`,
+    `zfs create -o mountpoint=${STEP10_CHECKOUT_PATH} ${STEP10_CHECKOUT}`,
+    `zfs create -o mountpoint=legacy -o canmount=off ${STEP10_CONTAINER}`,
+    `mount --make-rprivate ${STEP10_CHECKOUT_PATH}`,
+    // The handler's readiness report the route's preflight requires, as the
+    // boot unit would publish it; the test itself rewrites it with this boot's
+    // identifier and time once it runs, and this line only makes the directory.
+    `mkdir --parents /run/git-worktree-clone-mount-readiness`,
+    'zfs list -o name,mountpoint,mounted,canmount -r ' + STEP10_POOL,
+  ].join('\n');
+  guest({ options, script, log: 'step10-pool.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** Push the wrapper's packages, build its tests inside the guest, and run step 10's arms. */
+function step10Arms(options: Options): void {
+  const repository = join(import.meta.dirname, '../../../..');
+  const tarball = join(options.logDir, 'step10-wrapper.tar.gz');
+  host({
+    options,
+    command: 'tar',
+    args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--exclude=node_modules', '--directory', repository, ...STEP10_WRAPPER_PACKAGES],
+    log: 'step10-host-package.log',
+  });
+  host({
+    options,
+    command: 'mvm',
+    args: ['--backend', 'libvirt', 'push', options.name, tarball, '/root/step10-wrapper.tar.gz'],
+    log: 'step10-guest-push.log',
+  });
+  const build = [
+    'set -eu',
+    'if test -f /mnt/shared/step10-wrapper.tar.gz; then cp /mnt/shared/step10-wrapper.tar.gz /root/step10-wrapper.tar.gz; fi',
+    `mkdir --parents ${STEP10_WRAPPER_ROOT}`,
+    `tar --extract --gzip --file /root/step10-wrapper.tar.gz --directory ${STEP10_WRAPPER_ROOT}`,
+    `cd ${STEP10_WRAPPER_DIR}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    // One job: the guest has 8 GiB, and two rustc processes at the crate's
+    // largest reached 7.3 GiB and were killed by its OOM killer on 2026-11-24.
+    'cargo build --release --tests --locked --jobs 1 > /root/step10-wrapper-build.log 2>&1',
+    'tail --lines=3 /root/step10-wrapper-build.log',
+  ].join('\n');
+  guest({ options, script: build, log: 'step10-wrapper-build.log', timeout: CRATE_BUILD_TIMEOUT_MS });
+  const suite = [
+    'set -eu',
+    `cd ${STEP10_WRAPPER_DIR}`,
+    'export HOME=/root',
+    `export ${STEP10_OPENZFS}`,
+    `export ${step10Environment(options)}`,
+    'if cargo nextest run --release --test native_binary --test-threads 1 --no-fail-fast --status-level all --no-capture ' +
+      '--run-ignored all --filterset "test(zfs_add_guest::)" ' +
+      '> /root/step10-suite.log 2>&1; then status=0; else status=$?; fi',
+    'tail --lines=80 /root/step10-suite.log',
+    'test "$status" = 0',
+    'if grep --quiet "^SKIP binary_zfs_add_guest:" /root/step10-suite.log; then echo "an add arm returned without running"; exit 1; fi',
+    'grep --quiet "^test zfs_add_guest::the_add_makes_a_verified_clone_and_a_second_add_refuses" /root/step10-suite.log',
+    'grep --quiet "^test zfs_add_guest::a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes" /root/step10-suite.log',
+    'grep --quiet "^test zfs_add_guest::a_full_pool_at_the_snapshot_leaves_the_claim_the_slot_and_the_registration" /root/step10-suite.log',
+  ].join('\n');
+  guest({ options, script: suite, log: 'step10-suite.log', timeout: SUITE_TIMEOUT_MS });
+}
+
+/** Take down every mount the arms left, destroy the pool, and record what remains. */
+function step10Teardown(options: Options): void {
+  const script = [
+    'set -eu',
+    `export ${STEP10_OPENZFS}`,
+    `grep --fixed-strings " ${STEP10_CHECKOUT_PATH}/" /proc/self/mountinfo | cut --delimiter=' ' --fields=5 | sed 's/\\\\040/ /g' | while read -r mount_point; do umount "$mount_point" 2>/dev/null || true; done`,
+    `zpool destroy -f ${STEP10_POOL} 2>/dev/null || true`,
+    `rm --recursive --force ${STEP10_FIXTURE_ROOT}`,
+    '{ echo "pools after the step 10 arms:"',
+    'zpool list -H -o name || true',
+    'echo "datasets after the step 10 arms:"',
+    'zfs list -H -o name -r || true',
+    'echo "mounts left below the step 10 checkout:"',
+    `grep --fixed-strings " ${STEP10_CHECKOUT_PATH}" /proc/self/mountinfo || true`,
+    '} | tee /root/step10-teardown.log',
+  ].join('\n');
+  guest({ options, script, log: 'step10-teardown.log', timeout: RECORD_TIMEOUT_MS });
+}
+
+/** Record the add arm's versions and pull its logs. */
+function step10Record(options: Options): void {
+  const versions = [
+    'set -eu',
+    `export ${STEP10_OPENZFS}`,
+    '{ uname --kernel-release',
+    'cat /sys/module/zfs/version',
+    'zfs version',
+    'git --version',
+    '/root/.cargo/bin/rustc --version',
+    '/root/.cargo/bin/cargo nextest --version',
+    '} | tee /root/step10-versions.log',
+  ].join('\n');
+  guest({ options, script: versions, log: 'step10-versions.log', timeout: RECORD_TIMEOUT_MS });
+  const share = [
+    'set -eu',
+    'test -d /mnt/shared',
+    'for name in step10-suite step10-teardown step10-versions step10-wrapper-build; do if test -f /root/$name.log; then cp /root/$name.log /mnt/shared/; fi; done',
+  ].join('\n');
+  guest({ options, script: share, log: 'step10-guest-share-logs.log', timeout: RECORD_TIMEOUT_MS });
+  for (const name of ['step10-suite', 'step10-teardown', 'step10-versions', 'step10-wrapper-build',] as const) {
+    host({
+      options,
+      command: 'mvm',
+      args: ['--backend', 'libvirt', 'pull', options.name, `/mnt/shared/${name}.log`, join(options.logDir, `${name}.log`)],
+      log: `step10-host-pull-${name}.log`,
+    });
+  }
+}
+
+/**
+ Run step 10's pool, arms and teardown in the guest the driver prepared, and
+ pull the logs even when an arm failed.
+ */
+function step10(options: Options): void {
+  let failure: unknown = null;
+  try {
+    step10Pool(options);
+    step10Arms(options);
+  } catch (thrown) {
+    failure = thrown;
+  }
+  try {
+    step10Teardown(options);
+  } catch (teardown) {
+    if (failure === null)
+      throw teardown;
+    console.error(`step 10: the teardown also failed: ${teardown}`);
+  }
+  try {
+    step10Record(options);
+  } catch (recordFailure) {
+    console.error(`step 10: recording also failed: ${recordFailure}`);
+  }
+  if (failure !== null)
+    throw failure;
+}
+
 const steps: Record<string, (checked: Options) => void> = {
   create,
   prepare,
@@ -1598,6 +1796,11 @@ const step7Steps: Record<string, (checked: Options) => void> = {
   'zfs-protocol-pool': step7Pool,
   'zfs-protocol-arm': step7Arms,
   'zfs-protocol-record': step7Record,
+  'zfs-add-pool': step10Pool,
+  'zfs-add-arm': step10Arms,
+  'zfs-add-teardown': step10Teardown,
+  'zfs-add-record': step10Record,
+  'zfs-add': step10,
   'zfs-protocol-teardown': step7Teardown,
 };
 /**

@@ -50,7 +50,7 @@ use crate::side_by_side_on_the_runtime::AJob;
 use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::with_zeroed_stat;
 use crate::transaction_git::GitContext;
-use crate::worktree_clone_conversion_fence::{AttributeFence, Fence, decide_the_paths, fence_the_attributes};
+use crate::worktree_clone_conversion_fence::{AttributeFence, Fence, decide_the_paths};
 use crate::worktree_clone_index::{PendingIndex, install_the_index_beside_the_write};
 #[cfg(test)]
 use crate::worktree_clone_conversion_fence::fence_the_clone;
@@ -105,25 +105,32 @@ pub enum CloneFence {
 /// and a measurement build may decide the whole fence here instead
 /// (`beforeclone` is option A′;
 ///  `decline` and `all` are options C and D,
-/// which need no read of the source's paths at all).
+/// which the fence read above already decides).
 /// A refusal or a decline is the caller's signal to take Git's own checkout,
 ///  and it comes out of the attributes half,
 /// before the rung's record is claimed.
+/// The attributes are read by the caller and handed in:
+/// the rung's whole-tree limit sums the bytes the clones would carry,
+/// which is the attributes' answer,
+///  so the limit is asked from this read rather than after it
+/// (`decline_before_cloning`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function theFenceOfThisBuild(source, context): CloneFence; // throws the reason the rung cannot be proven
+/// function theFenceOfThisBuild(source, context, held): CloneFence; // throws the reason the rung cannot be proven
 /// ```
-pub fn the_fence_of_this_build(source: &SnapshotSource, context: &GitContext) -> Result<CloneFence, String> {
+pub fn the_fence_of_this_build(source: &SnapshotSource, context: &GitContext, held: AttributeFence) -> Result<CloneFence, String> {
     #[cfg(feature = "measurement-routes")]
     if let Some(decided) = crate::worktree_clone_conversion_fence_measurement_routes::fence_of_the_measurement_route(source) {
         return Ok(CloneFence::BeforeTheClone(decided?));
     }
-    let held: AttributeFence = fence_the_attributes(source, context)?;
     #[cfg(feature = "measurement-routes")]
     if std::env::var("MONOCHROMATIC_CLONE_FENCE").unwrap_or_default() == "beforeclone" {
         return Ok(CloneFence::BeforeTheClone(decide_the_paths(source, context, held)?));
     }
+    // The source and the context are what the measurement shapes read; the shipped shape decides from the attributes
+    // this call was handed.
+    let _ = (source, context);
     return Ok(CloneFence::Beside(held));
 }
 
