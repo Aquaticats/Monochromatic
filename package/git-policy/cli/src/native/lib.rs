@@ -284,6 +284,22 @@ pub mod worktree_clone_binding_record;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_binding_record::*;
 
+/// The deferred-origin checks of a ZFS worktree clone's removal:
+///  the one verdict function a removal calls before the first snapshot request and
+///  again before the head destroy,
+///  the look the lineage proof makes before anything is taken down,
+///  and the words a refusal prints.
+/// Plan step 15's piece, built ahead of the plan's order: no command reaches it until that
+///  step wires it in.
+/// It is Linux only,
+///  like the two reads it makes through the binding.
+#[cfg(target_os = "linux")]
+pub mod worktree_removal_deferred_origin_check;
+
+/// The same re-export for `worktree_removal_deferred_origin_check`.
+#[cfg(target_os = "linux")]
+pub use worktree_removal_deferred_origin_check::*;
+
 /// The ZFS datasets this process's own mount table shows mounted,
 ///  and the design names the route finds the checkout,
 ///  its container and the probe dataset by when the configuration leaves an
