@@ -33,9 +33,42 @@ if (process.argv[2] === 'update') {
 `;
 
 /**
- The fake `pnpm`: nothing to install in the fixture.
+ The workspace catalog the fixture's fake `catalog:tighten` raises.
+ */
+export const PNPM_WORKSPACE: string = 'catalog:\n  oxlint: \'>=1.93\'\n';
+
+/**
+ The lock text that records the catalog value before the raise, and the version the fake `deps:update` moves.
+ */
+export const PNPM_LOCK: string =
+  'lockfileVersion: \'9.0\'\n\ncatalogs:\n  default:\n    oxlint:\n      specifier: \'>=1.93\'\n      version: 1.93.4\n';
+
+/**
+ The fake `pnpm`: it records the catalog the way pnpm 12 does, and refuses the pair that does not match the way its
+ `--frozen-lockfile` does.
+
+ `FIXTURE_PNPM_SKIPS_LOCKFILE_WRITE=1` makes the plain install leave the lock as it was, which is the state a run that
+ stopped before the tail leaves behind; the frozen install must then fail, exactly as `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
+ refuses on 2026-11-23 (`doc/troubleshooting/pnpm-frozen-install-validation-drift.md`).
  */
 export const FAKE_PNPM: string = `#!/usr/bin/env node
+const { existsSync, readFileSync, writeFileSync } = require('node:fs');
+const workspace = 'pnpm-workspace.yaml';
+const lock = 'pnpm-lock.yaml';
+if (!existsSync(workspace) || !existsSync(lock)) { process.exit(0); }
+const wanted = /^\\s+[^:]+: '(>=.+?)'$/m.exec(readFileSync(workspace, 'utf8'))?.[1];
+const recorded = /specifier: '(>=.+?)'/.exec(readFileSync(lock, 'utf8'))?.[1];
+if (process.argv.includes('--frozen-lockfile')) {
+  if (wanted !== recorded) {
+    process.stderr.write('Error: ERR_PNPM_LOCKFILE_CONFIG_MISMATCH\\n\\n  x installing dependencies\\n  ' +
+      'The current "catalogs" configuration does not match the value found in the lockfile: ' +
+      workspace + ' has "' + wanted + '", ' + lock + ' has "' + recorded + '"\\n');
+    process.exit(1);
+  }
+  process.exit(0);
+}
+if (process.env.FIXTURE_PNPM_SKIPS_LOCKFILE_WRITE === '1') { process.exit(0); }
+writeFileSync(lock, readFileSync(lock, 'utf8').replace("specifier: '" + recorded, "specifier: '" + wanted));
 `;
 
 /**
@@ -87,9 +120,9 @@ run = "node steps/move.ts $FIXTURE_GLOBAL_LOCK nightly-1 nightly-2"
 [tasks."toolchain:install:global"]
 run = "node -e 0"
 [tasks."deps:update"]
-run = "node -e 0"
+run = "node steps/move.ts pnpm-lock.yaml 1.93.4 1.94.0"
 [tasks."catalog:tighten"]
-run = "node -e 0"
+run = 'node steps/move.ts pnpm-workspace.yaml ">=1.93" ">=1.94"'
 [tasks."sync:files"]
 run = "node -e 0"
 [tasks."check:files"]

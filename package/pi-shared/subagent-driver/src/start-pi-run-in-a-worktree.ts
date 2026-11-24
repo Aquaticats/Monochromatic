@@ -3,9 +3,12 @@
  `start-pi-run-in-a-worktree`: makes the worktree a run works in, links its dependencies, starts the driver as a capped systemd
  unit, and removes the worktree once the run has finished with it. See `README.md` for the options.
 
- Nothing is made before these pass, in this order: the `git` the session would run is this repository's policy wrapper, the
- prompt file can be read, the base names a commit, and no unit already holds the run's name. One line is printed per step, and
- the driver's own files land in the run folder.
+ A command line that names no provider takes the first open pool in the owner's order, which this command counts the way the pool
+ gate counts, so the unit it starts names the pool and the gate reads the run as holding its slot.
+
+ Nothing is made before these pass, in this order: the pool the run takes, the `git` the session would run is this repository's
+ policy wrapper, the prompt file can be read, the base names a commit, and no unit already holds the run's name. One line is
+ printed per step, and the driver's own files land in the run folder.
 
  @module
  */
@@ -28,6 +31,7 @@ import {
 } from './checks-before-a-start.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
+import { poolPlacementOfAWorktreeLaunch, } from './pool-placement-of-a-worktree-launch.ts';
 import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
 import { nextRunNumber, } from './next-run-number.ts';
 import {
@@ -37,10 +41,8 @@ import {
   worktreeFolderOf,
 } from './parse-worktree-launcher-options.ts';
 import {
-  CLOSED_POOL_EXIT_STATUS,
-  ClosedPoolRefusalError,
-  refuseARunOnAClosedPool,
-} from './refusal-of-a-run-on-a-closed-pool.ts';
+  POOL_LIMITS_VARIABLE,
+} from './pool-limits.ts';
 import {
   CommandAnswerMissingError,
   requiredOutputOf,
@@ -96,30 +98,48 @@ const options = parseWorktreeLauncherOptions({
   checkoutFolder,
 },);
 
-// A run whose provider and model name a closed pool is refused before the worktree, the dependency link and the unit, and before
-// the questions this command asks the session: a closed pool is no work a start should spend anything on. The refusal names the
-// pools a run that names no model of its own may take instead, and, for a command line that named no provider at all, the pool gate
-// that counts the runs going and chooses one.
-try {
-  refuseARunOnAClosedPool({
-    provider: options.provider,
-    model: options.model,
-    namesItsOwnPool: options.namesItsOwnProvider,
-    environment: env,
-  },);
-}
-catch (error) {
-  if (!(error instanceof ClosedPoolRefusalError)) {
-    throw error;
-  }
-  console.error(`${options.name}: refusing to start: ${error.message}`,);
-  process.exit(CLOSED_POOL_EXIT_STATUS,);
-}
+/**
+ The folder the process table is read from, which is where a Linux machine keeps it. A test points this at a folder of its own, so
+ no test counts the processes of the machine it runs on.
+ */
+const processFolder = env.PI_RUNS_PROCESS_FOLDER ?? '/proc';
 
 /**
  Whether the run works in the checkout itself, which is what a run that only reads does.
  */
 const readOnlyInMain = options.branch === NO_WORKTREE_BRANCH;
+
+/**
+ The provider, model and wall clock the run takes, or the refusal this start ends with.
+
+ A run naming a pool that takes no new run is refused before the worktree, the dependency link and the unit, and before the
+ questions this command asks the session: a closed pool is no work a start should spend anything on, and its refusal names the
+ pools a run that names no model of its own may take. A command line that names no provider takes the first open pool in the
+ owner's order instead, counted the way the pool gate counts so the run holds the slot it took; a run no pool has room for is
+ refused naming each pool and why.
+ */
+const decided = await poolPlacementOfAWorktreeLaunch({
+  provider: options.provider,
+  model: options.model,
+  namedByTheCommandLine: options.namedByTheCommandLine,
+  resumes: options.session !== undefined,
+  runName: options.name,
+  wallSeconds: options.wallSeconds,
+  environment: env,
+  processFolder,
+  run: runCommandWithChildProcess,
+},);
+if (decided.took === 'no-run') {
+  console.error(`${options.name}: refusing to start: ${decided.message}`,);
+  process.exit(decided.status,);
+}
+for (const line of decided.lines) {
+  console.log(line,);
+}
+/**
+ The provider, model and wall clock the run takes.
+ */
+const placed = decided;
 
 /**
  The worktree the run works in.
@@ -306,9 +326,13 @@ const unit = unitCommandOf({
   cpuPercent: options.cpuPercent,
   memory: options.memory,
   taskCount: options.taskCount,
-  wallSeconds: options.wallSeconds,
+  wallSeconds: placed.wallSeconds,
   pathOfMiseEnvironment: sessionPath,
   home: env.HOME ?? '',
+  // The unit inherits nothing, so a pool this command reopened through the variable is reopened for the driver inside the unit
+  // only by this word. Without it the driver reads the shipped table, finds the pool closed and refuses the run the launcher let
+  // through, telling its reader to set the variable they already set.
+  ...((env[POOL_LIMITS_VARIABLE] === undefined) ? {} : { poolLimits: env[POOL_LIMITS_VARIABLE] }),
   node: await requiredOutputOf({
     run: runCommandWithChildProcess,
     command: 'mise',
@@ -330,8 +354,8 @@ const unit = unitCommandOf({
   runFolder,
   workingFolder: worktree,
   promptFile: options.promptFile,
-  provider: options.provider,
-  model: options.model,
+  provider: placed.provider,
+  model: placed.model,
   idleSeconds: options.idleSeconds,
   turnCap,
   ...(options.session === undefined ? {} : { session: options.session, }),
@@ -355,7 +379,7 @@ const waiter = spawn(
 const waited = await waitForUnitToEnd({
   run: runCommandWithChildProcess,
   unitName: unitNameOfGiven({ name: options.name, },),
-  deadline: Date.now() + ((options.wallSeconds + UNIT_WAIT_GRACE_SECONDS) * MILLISECONDS_PER_SECOND),
+  deadline: Date.now() + ((placed.wallSeconds + UNIT_WAIT_GRACE_SECONDS) * MILLISECONDS_PER_SECOND),
   wait: waitBetweenLooks,
   now: Date.now,
   endWaiter: function endWaiter() {
@@ -392,11 +416,11 @@ const finished = await finishTheRun({
   runName: options.name,
   runFolder,
   runsFolder: options.runsFolder,
-  wallSeconds: options.wallSeconds,
+  wallSeconds: placed.wallSeconds,
   readOnlyInMain,
   worktree,
   checkoutFolder: options.checkoutFolder,
-  processFolder: env.PI_RUNS_PROCESS_FOLDER ?? '/proc',
+  processFolder,
   commandLine: argv.slice(2,),
   launcherEntry: argv[1] ?? '',
   wakesSoFar: Number(env.PI_RUN_WAKES ?? '0',),

@@ -197,6 +197,9 @@ await describe({
             expect(at('mise run sync:files',),).toBeGreaterThan(at('mise run catalog:tighten',),);
             expect(at('mise exec -- cargo-shadow install',),).toBeGreaterThan(at('mise run sync:files',),);
             expect(at('mise exec -- pnpm install',),).toBeGreaterThan(at('mise run sync:files',),);
+            expect(at('mise exec -- pnpm install --frozen-lockfile',),).toBeGreaterThan(
+              at('mise exec -- pnpm install',),
+            );
             expect(at('mise run check:files',),).toBeGreaterThan(at('mise exec -- cargo-shadow install',),);
           },
         },),

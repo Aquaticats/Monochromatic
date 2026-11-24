@@ -4,6 +4,9 @@
 
 Moved on 2026-11-23 from the old handover, verbatim;
 not yet edited into a record of its own.
+The owner set how wide the ZFS route's own work may run under this hold on 2026-11-23,
+"Up to 64 rounds at once."
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
 
 ## Moved from the old handover
 
@@ -86,3 +89,11 @@ From lines 44658 to 44658 of the old handover
 moved verbatim on 2026-11-23:
 
   owner's "Finish, then hold" of 2026-11-19: the rebuild `pi-rate-limit-fallback-hybrid-rebuild` (DeepSeek on
+
+From lines 45590 to 45592 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+(25 of them) names the refusal, and in the user journal only the probe does. The owner, plain text: "I turned on the permission
+model by default. And we should figure out how to work with it, not disable it." and "Shouldn't the probe be in rust
+with hyperfine anyway?" So nothing here clears `NODE_OPTIONS`, and the disk probe becomes a Rust program timed by

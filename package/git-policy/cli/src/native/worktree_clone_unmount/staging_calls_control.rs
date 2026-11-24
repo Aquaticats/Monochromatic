@@ -48,6 +48,9 @@ pub(crate) struct RecordingCalls {
     /// The facts `mount_facts` answers,
     /// and whether it refuses.
     pub facts: RefCell<Option<MountFacts>>,
+    /// The facts `mount_facts` answers for named mounts,
+    /// consulted before `facts`.
+    pub facts_by_id: RefCell<Vec<(u64, MountFacts)>>,
     /// The path every descriptor names.
     pub observed: PathBuf,
     /// What the handle open answers.
@@ -78,6 +81,7 @@ impl Default for RecordingCalls {
             mount_ids: RefCell::new(VecDeque::new()),
             table: RefCell::new(Vec::new()),
             facts: RefCell::new(None),
+            facts_by_id: RefCell::new(Vec::new()),
             observed: PathBuf::from("/fixture/slot"),
             open_handle: RefCell::new(None),
             bind: RefCell::new(None),
@@ -171,8 +175,12 @@ impl StagingCalls for RecordingCalls {
         return Ok(self.observed.clone());
     }
 
-    fn mount_facts(&self, _mount_id: u64) -> Result<MountFacts, StagingCallRefusal> {
+    fn mount_facts(&self, mount_id: u64) -> Result<MountFacts, StagingCallRefusal> {
         self.note(StagingCall::MountTable, String::new());
+        let named = self.facts_by_id.borrow().iter().find(|(id, _)| return *id == mount_id).map(|(_, facts)| return facts.clone());
+        if let Some(facts) = named {
+            return Ok(facts);
+        }
         return match self.facts.borrow().clone() {
             Some(facts) => Ok(facts),
             None => Err(StagingCallRefusal { call: StagingCall::MountTable, errno: libc::ENOENT, detail: String::from("the control scripted no mount facts") }),

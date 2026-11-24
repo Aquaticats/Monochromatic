@@ -356,3 +356,17 @@ moved verbatim on 2026-11-23:
   a session checks the paths, finds the agent cap again with the drive probe,
   then starts reviews and Pi runs from the queue without waiting for the owner.
   It was asked before the owner named the new system, so on CachyOS it holds once the tools and the repository are in place there.
+
+From lines 45742 to 45744 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Answers through the question tool and words typed in the session, after the owner wrote "I'm back. On the new system."
+
+- **Old worktrees:** "A, and this implies we really should be doing proper fast route first."
+
+From lines 45799 to 45799 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The wrapper on ZFS:** "Oh and the wrapper has to support ZFS properly as well."

@@ -66,8 +66,12 @@
 //!   what the record pins about the machine and the build.
 //! - `probe_source_name.rs`:
 //!   the dataset-name rule and the fixed snapshot.
+//! - `probe_configuration_refusal.rs`:
+//!   why the source or the checkout could not be told,
+//!   and the closed word the record carries for each cause.
 //! - `probe_configuration.rs`:
-//!   the two names the root-owned configuration supplies.
+//!   the two names the configuration supplies,
+//!   and the design's own names the mount table supplies when it does not.
 //! - `probe_mount_verify.rs`:
 //!   what the read-back must find.
 //! - `probe_namespace_scan.rs`:
@@ -157,7 +161,11 @@ pub mod probe_descriptor_calls;
 pub mod probe_fingerprint;
 /// The dataset-name rule and the fixed snapshot.
 pub mod probe_source_name;
-/// The two names the configuration supplies.
+/// Why the source or the checkout could not be told,
+/// and the record's words.
+pub mod probe_configuration_refusal;
+/// The two names the configuration supplies,
+/// and the mount table's own.
 pub mod probe_configuration;
 /// What the read-back must find.
 pub mod probe_mount_verify;

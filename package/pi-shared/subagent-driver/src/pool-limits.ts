@@ -404,13 +404,46 @@ export function poolsWithTheseLimits({
       limit,
       wallFactor: pool.wallFactor,
       takesDefaultRuns: pool.takesDefaultRuns,
-      // A pool a caller closes says so, even one the owner closed before: what takes no new run now is the caller's zero, and the
-      // owner's own reason stays beside the pool's declaration for the pools no caller touched.
+      // A pool a caller closes says so, and a pool the owner had already closed says both: the caller's zero is what takes no new
+      // run now, and the owner's reason is why the pool was set aside in the first place. A reader told only about the zero would
+      // take a mistyped setting for the whole story.
       ...((limit > 0)
         ? {}
-        : { closed: { reason: `${POOL_LIMITS_VARIABLE} set its limit to zero`, }, }),
+        : { closed: { reason: closedReasonOf({ pool, },), }, }),
     };
   },);
+}
+
+/**
+ Says why a pool a caller closed takes no new run: the caller's zero, and, for a pool the owner had already closed, the owner's own
+ reason after it.
+
+ @param pool - the pool as it ships, which carries the owner's reason when the owner closed it
+
+ @returns the reason the pool takes no new run now
+
+ @example
+ ```ts
+ const reason = closedReasonOf({ pool: NEURALWATT_KIMI_FLEX, },);
+ ```
+ */
+function closedReasonOf({ pool, }: { readonly pool: ProviderPool },): string {
+  /**
+   What the caller's zero says, which is what takes no new run now.
+   */
+  const byTheCaller = `${POOL_LIMITS_VARIABLE} set its limit to zero`;
+  /**
+   The owner's own closing of this pool, when it carries one.
+   */
+  const { closed, } = pool;
+  if (closed === undefined) {
+    return byTheCaller;
+  }
+  /**
+   The owner's reason, which follows the caller's zero rather than standing in for it.
+   */
+  const byTheOwner = closed.reason;
+  return `${byTheCaller}, and ${byTheOwner}`;
 }
 
 /**

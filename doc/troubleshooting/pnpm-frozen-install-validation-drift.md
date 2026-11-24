@@ -166,6 +166,58 @@ pnpm 11 (TypeScript tree in the same source checkout) keeps the checksum compari
 (`pnpm11/lockfile/verification/src/satisfiesPackageManifest.ts:39`,
 `pnpm11/installing/deps-installer/src/install/verifyFrozenLockfile.ts:85-101`).
 
+## The workspace catalog variant, 2026-11-23
+
+The same message names `"catalogs"` when the default catalog in `pnpm-workspace.yaml` moved
+and the lockfile kept the values it recorded before the move.
+pnpm records, per catalog entry, both the specifier it saw and the version it resolved,
+so a raised `>=` floor is drift even when the resolution is unchanged.
+Three spots in the lockfile carry it:
+`catalogs.default` per entry,
+the `overrides` value of an entry referenced as `catalog:` there,
+and each importer's recorded specifier for such an entry.
+
+Observed on `aead90ed51`
+(2026-11-23T05:41:01-05:00,
+`chore(*): daily update of the pnpm lock and the pnpm and Slint catalog floors`):
+24 catalog entries were raised and the lockfile kept the floors from before the raise,
+plus the two derived lines above,
+26 specifier lines in all,
+with no version moved.
+What that commit had in common with the 2026-10-22 incidents is the shape, not the tool:
+the catalog half landed without the install that records it,
+just as the lockfile regen then landed without the config it encoded.
+
+Verified 2026-11-23T20:30:00-05:00:
+
+- A clean copy of `main` in a rootless podman container stops at
+  `pnpm install --frozen-lockfile` with the quoted message.
+- `pnpm install` (12.21.0 and 12.22.0,
+  plain and `--lockfile-only`,
+  `--offline`) rewrites those 26 lines from `pnpm-workspace.yaml`,
+  and the frozen install then passes on the same tree.
+- `pnpm install --frozen-lockfile --lockfile-only` refuses the stale pair in 0.13 s on a warm store,
+  against 0.27 s for the full frozen install,
+  and neither touches `node_modules` before the refusal.
+
+The daily update's tail
+(`package/monorepo-task/core-exec/src/daily-update-plan.ts`)
+now ends its pnpm half with the frozen install,
+so a run that leaves the lockfile out of step with the catalog fails that hard step and lands nothing.
+Its whole-path fixture's stand-in `pnpm`
+(`daily-update-whole-path-scripts-fixture.ts`)
+records the catalog on a plain install and refuses the frozen one when the pair differs;
+the control test `lands no dependency lock when the install left the pnpm lock out of step with the catalog`
+passes no run without the new command.
+
+The wrapper meets the same error when it relinks a worktree
+(`pnpm --dir <worktree> install --offline --frozen-lockfile`, issue 6339):
+the relink is a frozen install, so a checkout whose lockfile and catalog disagree refuses it.
+On 2026-11-23 the worktree at `fix/mise-daily-update-leaves-the-pnpm-lock-out-of-step-with-the-catalog`
+printed exactly that,
+with `package state ... was not relinked` and the same quoted message,
+before the lockfile was regenerated.
+
 ## Verification
 
 Version under test:

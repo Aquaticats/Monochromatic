@@ -11,7 +11,9 @@
 
 import {
   CLOSED_POOL_LIMIT,
+  MODEL_OF_A_RUN_NAMING_NONE,
   POOL_LIMITS_VARIABLE,
+  PROVIDER_OF_A_RUN_NAMING_NONE,
   type ProviderPool,
   limitsIn,
   poolNamed,
@@ -39,6 +41,86 @@ export class ClosedPoolRefusalError extends Error {
 }
 
 /**
+ Says which of the two words the command line named and which this command filled in from its own defaults, so a reader is never
+ told the command line named nothing when it named a model, and never told the run would have taken a default model it did not take.
+
+ @param provider - the provider the run's command line held, named or filled in
+
+ @param model - the model the run's command line held, named or filled in
+
+ @param namedByTheCommandLine - which of the two the command line named itself
+
+ @returns one line saying what was filled in and where a run this command's defaults decide should start, or nothing when the command
+ line named both
+
+ @example
+ ```ts
+ const lines = defaultsSentenceOf({ provider: 'neuralwatt', model: 'kimi-k3.1-pro-flex', namedByTheCommandLine: { provider: false, model: true, }, },);
+ ```
+ */
+function defaultsSentenceOf({
+  provider,
+  model,
+  namedByTheCommandLine,
+}: {
+  readonly provider: string;
+  readonly model: string;
+  readonly namedByTheCommandLine: {
+    readonly provider: boolean;
+    readonly model: boolean;
+  };
+},): readonly string[] {
+  if (namedByTheCommandLine.provider && namedByTheCommandLine.model) {
+    return [];
+  }
+  return [
+    filledInSentenceOf({
+      provider,
+      model,
+      namedByTheCommandLine,
+    },),
+    'A run whose command line names no provider takes the first open pool in the owner\'s order, and a model one pool takes keeps that pool: name another provider and model, or name no provider to let start-pi-run-in-a-worktree choose one.',
+  ];
+}
+
+/**
+ Says what this command filled in for the words the command line did not name, and keeps the words it did name.
+
+ @param provider - the provider the run's command line held, named or filled in
+
+ @param model - the model the run's command line held, named or filled in
+
+ @param namedByTheCommandLine - which of the two the command line named itself
+
+ @returns one sentence naming what was filled in, which never tells a reader the command line named nothing when it named one of them
+
+ @example
+ ```ts
+ const line = filledInSentenceOf({ provider: 'neuralwatt', model: 'kimi-k3.1-pro-flex', namedByTheCommandLine: { provider: false, model: true, }, },);
+ ```
+ */
+function filledInSentenceOf({
+  provider,
+  model,
+  namedByTheCommandLine,
+}: {
+  readonly provider: string;
+  readonly model: string;
+  readonly namedByTheCommandLine: {
+    readonly provider: boolean;
+    readonly model: boolean;
+  };
+},): string {
+  if (namedByTheCommandLine.provider) {
+    return `This command line named no model, so this command took ${MODEL_OF_A_RUN_NAMING_NONE} and kept the provider it named, ${provider}.`;
+  }
+  if (namedByTheCommandLine.model) {
+    return `This command line named no provider, so this command took ${PROVIDER_OF_A_RUN_NAMING_NONE} and kept the model it named, ${model}.`;
+  }
+  return `This command line named no provider and no model, so this command took ${PROVIDER_OF_A_RUN_NAMING_NONE} and ${MODEL_OF_A_RUN_NAMING_NONE}.`;
+}
+
+/**
  Says what a run on a closed pool is refused with: the pool it named, the reason that pool takes no new run, the pools a run that
  names no model of its own may take instead, in the table's order, and the variable that gives a pool room again.
 
@@ -50,14 +132,14 @@ export class ClosedPoolRefusalError extends Error {
 
  @param pools - the table with the caller's limits, which is where the pools to name instead come from
 
- @param namesItsOwnPool - whether the command line named the provider and model itself, or a command's own default was read in their
- place
+ @param namedByTheCommandLine - which of the provider and the model the command line named itself, and which this command filled in
+ from its own defaults
 
  @returns the refusal, one line per thing a reader needs
 
  @example
  ```ts
- const text = refusalTextOf({ provider: 'neuralwatt', model: 'deepseek-v4.1-flash', pool: NEURALWATT_STANDARD, pools: PROVIDER_POOLS, namesItsOwnPool: true, },);
+ const text = refusalTextOf({ provider: 'neuralwatt', model: 'deepseek-v4.1-flash', pool: NEURALWATT_STANDARD, pools: PROVIDER_POOLS, namedByTheCommandLine: { provider: true, model: true, }, },);
  ```
  */
 function refusalTextOf({
@@ -65,25 +147,40 @@ function refusalTextOf({
   model,
   pool,
   pools,
-  namesItsOwnPool,
+  namedByTheCommandLine,
 }: {
   readonly provider: string;
   readonly model: string;
   readonly pool: ProviderPool;
   readonly pools: readonly ProviderPool[];
-  readonly namesItsOwnPool: boolean;
+  readonly namedByTheCommandLine: {
+    readonly provider: boolean;
+    readonly model: boolean;
+  };
 },): string {
+  /**
+   The owner's closing of the pool, when it carries one.
+   */
+  const { closed, } = pool;
+  /**
+   Why the pool takes no new run: the reason its `closed` field gives, or its limit when nothing else was said.
+   */
+  const reason = (closed === undefined)
+    ? `its limit is ${String(CLOSED_POOL_LIMIT,)}`
+    : closed.reason;
   /**
    What a run that names this pool is refused with, one line per thing the reader needs.
    */
   const lines: string[] = [
-    `--provider=${provider} --model=${model} names the ${pool.name} pool, which takes no new run: ${
-      pool.closed?.reason ?? `its limit is ${String(CLOSED_POOL_LIMIT,)}`
-    }.`,
+    `--provider=${provider} --model=${model} names the ${pool.name} pool, which takes no new run: ${reason}.`,
   ];
-  if (!namesItsOwnPool) {
+  if ((!namedByTheCommandLine.provider) || (!namedByTheCommandLine.model)) {
     lines.push(
-      'This command line named no provider, so the run would have taken this command\'s default provider and model, which name that pool. Start a run that names none through start-pi-run-when-a-pool-has-room, which counts the runs going and gives the run a pool with room.',
+      ...defaultsSentenceOf({
+        provider,
+        model,
+        namedByTheCommandLine,
+      },),
     );
   }
   lines.push(
@@ -114,18 +211,24 @@ function refusalTextOf({
  on a pool the owner closed. The pool is read from the table with the limits `PI_RUNS_POOL_LIMITS` sets applied, so a pool
  reopened that way takes runs again, and a provider and model that belong to no pool are left to run.
 
+ The setting is read only for a run that names a pool at all, and then every pair of it is read or none is: a run outside every
+ pool is refused by nothing a broken setting says, and a run inside one is refused rather than counted against a table the caller
+ may have meant to change. A caller who meant to close one pool with a pair this command cannot read has said nothing it can act
+ on.
+
  @param provider - the provider the run names
 
  @param model - the model the run names
 
  @param environment - the environment the command runs with, whose `PI_RUNS_POOL_LIMITS` sets the pools' limits
 
- @param namesItsOwnPool - whether the command line named the provider and model itself, or a command's own default was read in their
- place
+ @param namedByTheCommandLine - which of the provider and the model the command line named itself, and which this command filled in
+ from its own defaults; both are true when this command has no defaults of its own
 
  @throws ClosedPoolRefusalError when the provider and model name a pool that takes no new run
 
- @throws PoolLimitsError when `PI_RUNS_POOL_LIMITS` names no pool or holds anything but a whole number
+ @throws PoolLimitsError when the run names a pool and `PI_RUNS_POOL_LIMITS` names no pool or holds anything but a whole number,
+ which the caller answers by naming the setting and its fault and starting nothing
 
  @example
  ```ts
@@ -136,19 +239,19 @@ export function refuseARunOnAClosedPool({
   provider,
   model,
   environment,
-  namesItsOwnPool = true,
+  namedByTheCommandLine = {
+    provider: true,
+    model: true,
+  },
 }: {
   readonly provider: string;
   readonly model: string;
-  readonly environment: NodeJS.ProcessEnv;
-  readonly namesItsOwnPool?: boolean;
+  readonly environment: Readonly<NodeJS.ProcessEnv>;
+  readonly namedByTheCommandLine?: {
+    readonly provider: boolean;
+    readonly model: boolean;
+  };
 },): void {
-  /**
-   The pools with the limits this command's caller set, which is where a pool reopened through the variable takes runs again.
-   */
-  const pools = poolsWithTheseLimits({
-    limits: limitsIn({ listed: environment[POOL_LIMITS_VARIABLE] ?? '', },),
-  },);
   /**
    The pool this run's provider and model share, or that no pool holds them.
    */
@@ -156,9 +259,17 @@ export function refuseARunOnAClosedPool({
     provider,
     model,
   },);
+  // A run outside every pool reads no limit at all: the setting can neither close the pool it names nor reopen one, so a value
+  // this command cannot read refuses nothing here.
   if (membership.holds !== 'a-pool') {
     return;
   }
+  /**
+   The pools with the limits this command's caller set, which is where a pool reopened through the variable takes runs again.
+   */
+  const pools = poolsWithTheseLimits({
+    limits: limitsIn({ listed: environment[POOL_LIMITS_VARIABLE] ?? '', },),
+  },);
   /**
    The pool the run names, as the table with the caller's limits holds it.
    */
@@ -174,6 +285,6 @@ export function refuseARunOnAClosedPool({
     model,
     pool,
     pools,
-    namesItsOwnPool,
+    namedByTheCommandLine,
   },),);
 }

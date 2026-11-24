@@ -704,12 +704,6 @@ EDR:
  so a command reading a fresh edit can see the pre-edit file;
  send dependent commands only after the edit returns.
 
-1CB:
- At most three `&&`-chained steps per shell call;
- no `;` chains or loops.
-Longer multi-step work:
- write a scratch `.ts` (`node:child_process`) and run it.
-
 RGP:
  `rg` without a path may read stdin:
  always pass `.` or an absolute path.
