@@ -112,3 +112,40 @@ moved verbatim on 2026-11-23:
   spot-checked against the review files and hold. Put to the owner as a challenge; answered (decision entry
   "Reviewers: DeepSeek stays for short, frequent reviews; Sonnet for long reviews and audits, rare"). The bench is
   closed; its run folders stay because the scoring report cites their review files.
+
+From lines 44962 to 44963 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+**Pi writes into `/tmp` (owner, 2026-11-19: "What are you doing, why are you saving stuff to /tmp when a rule bans
+it?").** Checked: nothing of the coordinator's own went to `/tmp` (its scratch is in `~/temp/agent`); the `/tmp` paths
+
+From lines 44977 to 44978 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+**Owner, 2026-11-19, on the writer model:** "Don't just look at the same topic. And if you think GPT is giving us too
+much trouble, cull it entirely." The decision is delegated to the coordinator's judgement on evidence. A second Sonnet
+
+From lines 45433 to 45433 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+(23 lines added, 48 removed). The owner chose "Save as patch (Recommended)": the paragraph is saved as
+
+From lines 45754 to 45757 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **Writers and reviewers:** "Also, I'm now making GPT 6.2 Sol as writer and deepseek as reviewer.",
+  then "Once again, /pi-as-subagent . GPT and deepseek should both be in it now. And don't use the deepseek official provider.",
+  "We already have a package about pi as subagents in the workspace." and "If that wasn't obvious from the skill, edit the skill."
+  Then through the question tool: the writer's provider "A: openai (Recommended)", so `--provider openai --model gpt-6.2-sol`;
+
+From lines 45762 to 45764 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **`AGENTS.md` rewrite:** the owner picked "A: Rewrite; audits go to DeepSeek (Recommended)" with the note
+  "Rewrite, audits stay sonnet, but Synthetic, then ... are implementation details in our driver package and shouldn't take up precious tokens.
+  Also you're supposed to bench deepseek as reviewer against what we had before and challenge me if you think we need more changes."

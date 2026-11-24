@@ -33,3 +33,13 @@ Implementation:
 [`cli-git-rust-implementation.md`](../planning/cli-git-rust-implementation.md).
 Execution:
 [`cli-git-rust-implementation.md`](../handover/cli-git-rust-implementation.md).
+
+## Moved from the old handover
+
+From lines 35163 to 35165 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The TypeScript port of the wrapper package,
+  after the layout move (owner:
+  "After the layout move (Recommended)").

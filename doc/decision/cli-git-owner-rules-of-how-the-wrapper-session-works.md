@@ -117,3 +117,20 @@ moved verbatim on 2026-11-23:
   Pi's `process` tool from `@aliou/pi-processes`,
   and DSH's managed background jobs,
   `run_in_background` in `@deepseek-ai/dsh-tool-terminal` and `dsh-tool-pwsh` 0.2.2-rc.1.
+
+From lines 39715 to 39718 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  the owner answered "I'll rotate it" and,
+  asked whether to add an `AGENTS.md`
+  rule for exact-name environment reads,
+  "Don't add it".
+
+From lines 39923 to 39925 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  (owner:
+  "This is about how you ask questions and which questions to ask.
+  Your wording is bad.");

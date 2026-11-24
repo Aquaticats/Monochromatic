@@ -162,3 +162,38 @@ and what it queued.
 - **The owner's words, about 04:51**:
   "I need to go to sleep for a few hours.
   Keep CPU temp lower than 80 degrees until I say I've finished sleeping for today."
+
+From lines 46590 to 46590 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **"Add the rule (Recommended)"**:
+
+From lines 46625 to 46627 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+The owner wrote "I've finished sleeping now and you can lift the CPU temp limits.",
+and then answered four questions through the question tool,
+between 10:46:27 and 10:48.
+
+From lines 46629 to 46630 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The CPU temperature**:
+  "Leave lifted".
+
+From lines 46635 to 46636 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The cap on agents**:
+  "Step to 20 with the probe (Recommended)".
+
+From lines 46684 to 46685 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- **The briefing rule in `AGENTS.md`**:
+  "Name both folders (Recommended)".

@@ -62,3 +62,9 @@ under the owner's "860 move:
 You delete it."
 and "Delete both (Recommended)".
 No rollback to the NVMe remains.
+
+From lines 45973 to 45973 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- `hall-monitor/daemon` and its lint rule: **"Move hall-monitor to package-paused altogether."**
