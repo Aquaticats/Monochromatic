@@ -444,12 +444,14 @@ pub(super) const ALLOWED: &[Allowed] = &[
     Allowed {
         file: "repair/package_repair_start.rs",
         rule: "blocking-sleep",
-        why: "the hold a control sets between a child that has reported itself and the job that started it, which is the interval \
-              the audit of 0.6.1-alpha.12 forced. Release code never takes it (`HOLD_AFTER_THE_START` holds no value outside a \
-              build for tests), and it runs inside the closure handed to `run_blocking_job`, so it pauses a thread of the blocking \
-              pool and no worker of the runtime: the control \
-              `a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_unrun` answers at its 50 ms bound while \
-              the job holds 250 ms. The entry goes with the control that sets that hold",
+        why: "the two pauses a control's start takes, and no release run: the hold between a child that has reported itself and \
+              the job that started it, which is the interval the audit of 0.6.1-alpha.12 forced, and the pause between looks \
+              for the file that control's fixture writes its process number into first, which the run's answer waits for so \
+              the tool's own first write never races the bound (issue 6399). Release code takes neither (`HOLD_AFTER_THE_START` \
+              and `WAIT_FOR_THE_TOOLS_NUMBER` hold no value outside a build for tests), and both run inside closures handed to \
+              `run_blocking_job`, so they pause threads of the blocking pool and no worker of the runtime: the control \
+              `a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_unrun` answers at its 50 ms bound \
+              while the job holds 250 ms. The entry goes with those controls' holds",
     },
     Allowed {
         file: "service/service_is_gone_after_a_stop.rs",

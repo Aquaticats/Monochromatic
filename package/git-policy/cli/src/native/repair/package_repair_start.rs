@@ -183,7 +183,8 @@ impl Drop for AChildNotYetTaken {
 pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> ToolStart {
     let began: Instant = Instant::now();
     // A control holds the child before it reports itself, or after the run lets it go, which are the two places a start
-    // can be made to take time; the run that ships holds neither.
+    // can be made to take time; the run that ships holds neither. A control can also name the file its fixture's tool
+    // writes first, which is where the run's own answer waits for that write; the run that ships names none.
     #[cfg(test)]
     let held_before_the_report: Option<Duration> = HOLD_BEFORE_EXEC.with(std::cell::Cell::get);
     #[cfg(not(test))]
@@ -240,6 +241,19 @@ pub(crate) async fn start_within(ceiling: Duration, mut command: Command) -> Too
     if let Err(error) = gate.let_the_child_go() {
         // The child is gone, so its end of the gate is closed: nothing of the tool can run.
         return ToolStart::Refused(format!("the child could not be let go ({error})"));
+    }
+    // What: A control names the file its fixture's tool writes its own process number into first, and the run does not
+    //       give up on the child before that number is there.
+    // Why:  The tool's own `exec` and its first write take time, and a control that reads that write to see what the tool
+    //       did has no way to make them fast: on a loaded host the write lost a race against the bound that ends the
+    //       start, and the control failed on evidence the run never gave it. Waiting here forces the scene such a control
+    //       names (a child let go whose start outlasts the bound) in every order the fixture's own start takes.
+    //       The run that ships names no file.
+    #[cfg(test)]
+    if let Some(number_file) = WAIT_FOR_THE_TOOLS_NUMBER.with(|seam| return seam.borrow().clone()) {
+        // The looks at the file, and the pause between them, are a job of the blocking pool: no worker of the runtime is
+        // held by the wait the control armed.
+        let _waited = run_blocking_job(move || return wait_for_a_number_in(number_file.as_path())).await;
     }
     let left_of_the_ceiling: Duration = ceiling.saturating_sub(began.elapsed());
     return match tokio::time::timeout(left_of_the_ceiling, job).await {
@@ -583,4 +597,61 @@ thread_local! {
     /// and the one the audit of
     ///  0.6.1-alpha.12 forced.
     pub(crate) static HOLD_AFTER_THE_START: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The file a control's fixture tool writes its own process number into first,
+    /// which the run does not give up on the child before:
+    /// the tool's own first write then never races the bound that ends its start.
+    /// The seam is read on the thread that enters the runtime,
+    /// so a control sets it there,
+    /// and the run that ships names no file.
+    pub(crate) static WAIT_FOR_THE_TOOLS_NUMBER: std::cell::RefCell<Option<std::path::PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// How long a control's fixture has to write the number the run waits for:
+/// long enough for a loaded host,
+/// and short enough that a fixture that never writes still answers.
+#[cfg(test)]
+const THE_TOOLS_FIRST_WRITE_WAIT: Duration = Duration::from_secs(10);
+
+/// The pause between looks at the file a control's fixture writes its number into,
+/// which is a job of the blocking pool's own pause and no worker of the runtime's.
+#[cfg(test)]
+const THE_TOOLS_FIRST_WRITE_PAUSE: Duration = Duration::from_millis(2);
+
+/// What:
+///  The process number a control's fixture wrote to `path`,
+///  awaited no longer than `THE_TOOLS_FIRST_WRITE_WAIT`.
+/// Why:
+///   A control forces its scene by naming the file its fixture's tool writes first:
+/// the run does not give up on the child before that write landed,
+///  so the tool's own start never loses a race against the bound.
+///  A tool that never writes leaves this wait at its own bound,
+/// and the control's own read of the number then says what happened.
+///  The read and the pause between looks run in the job `start_within` hands to the blocking pool,
+/// so no worker of the runtime waits for a file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const numberIn = (path: string, ceilingMs: number): number | undefined => {
+///   for (const until = Date.now() + ceilingMs; Date.now() < until; sleepSync(2)) {
+///     const number = Number.parseInt(readFileSync(path, 'utf8'), 10);
+///     if (!Number.isNaN(number)) return number;
+///   }
+/// };
+/// ```
+#[cfg(test)]
+fn wait_for_a_number_in(path: &std::path::Path) -> Option<i32> {
+    let waiting_since: Instant = Instant::now();
+    while waiting_since.elapsed() < THE_TOOLS_FIRST_WRITE_WAIT {
+        if let Ok(text) = std::fs::read_to_string(path)
+            && let Ok(number) = text.trim().parse::<i32>()
+        {
+            return Some(number);
+        }
+        std::thread::sleep(THE_TOOLS_FIRST_WRITE_PAUSE);
+    }
+    return None;
 }
