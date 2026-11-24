@@ -295,14 +295,12 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the cadence of that line, a pause of a thread that holds nothing else; `tokio::time::sleep` replaces it when the add path is a task",
     },
     Allowed {
-        file: "process/open_file_of_a_descriptor_in_a_child.rs",
-        rule: "thread-start",
-        why: "the reaper of a child left running, which outlives the command that started it",
-    },
-    Allowed {
         file: "process/stuck_children_reaped_when_the_kernel_lets_go.rs",
         rule: "thread-start",
-        why: "the reaper of a stopped child's whole group, which outlives the command",
+        why: "the one reaper of a child the kernel has not released, whether its starter still holds a `Child` or only the number a \
+              raw fork left, whose wait may never end: no job of the blocking pool can carry it, because the pool's threads are \
+              bounded and such a job never returns. The child outlives the command that started it, so nothing of the pool \
+              replaces the thread",
     },
     Allowed {
         file: "process/thread_quiet.rs",

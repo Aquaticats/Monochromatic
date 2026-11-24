@@ -35,7 +35,7 @@ use super::companion_child::{ChildStart, run as run_the_child};
 use super::companion_calls::CompanionCall;
 use super::companion_deadline::the_deadline;
 use super::companion_lines::{CompanionVerdict, Refusal, Skip};
-use super::companion_process_calls::{Exit, effective_ids, fork, is_alive, kill_group, pause, pid_descriptor, pipe_pair, read_available, ready_within, reap_now, reap_soon};
+use super::companion_process_calls::{Exit, effective_ids, fork, is_alive, kill_group, pause, pid_descriptor, pipe_pair, read_available, ready_within, reap_now};
 use super::companion_records::{Decoded, decode_all};
 use super::companion_scratch::{RunDirectory, ScratchRefusal, make_run_directory, remove_run_directory};
 use super::companion_settings::{self, Settings};
@@ -205,7 +205,8 @@ fn wait_for_the_child(run: &RunDirectory, child: libc::pid_t, reading: &OwnedFd,
         let _killed = kill_group(child);
         let ended: Exit = reap_now(child).unwrap_or(Exit::StillRunning);
         if ended == Exit::StillRunning {
-            reap_soon(child);
+            // The crate's own reaper collects a child the kernel has not released, whenever it does.
+            crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon_pid(child);
             return CompanionVerdict::Refused { refusal: Refusal::Deadline { deadline: bound } };
         }
         remove_run_directory(run);
