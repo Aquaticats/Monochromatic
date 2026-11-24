@@ -522,16 +522,16 @@ choosing one `key=value` format for all three and one plan line per attempt,
 and asked for the 14 edits to two accepted designs and a clause for a fallback that made no clone
 (`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`).
 The binding merged with K14 closed as `ed8ad9a749`.
-Running:
-the origin record's round on the format (`continuation-one-key-value-format.md`),
-the plan record's round on the history (`continuation-one-line-per-attempt.md`),
-and `pi-zfs-accepted-designs-true-to-the-records`,
-which applies the 14 entries by script from the review's words and drafts the clause,
-on `docs/planning-cli-git-zfs-accepted-designs-true-to-the-records`.
+The 14 edits and the no-clone clause merged as `ab140367b3`,
+the origin record in its one `key=value` format,
+and the plan record with one line per attempt as `8457f7fcab`
+(`tuple=<kind> <attempt> <outcome> <guid> <createtxg> <errno> name=<name>`,
+the attempt a per-snapshot number from `0`).
 
 Next:
-merge each when it ends;
-the owner reads the clause in that diff.
+the records are built in steps 14 and 16;
+the owner may read the no-clone clause,
+quoted to the owner on 2026-11-23.
 
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
