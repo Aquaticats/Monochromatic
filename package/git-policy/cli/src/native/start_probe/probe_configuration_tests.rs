@@ -40,7 +40,8 @@ const PROBE_DATASET: &str = "zpcachyos/nosnap/git-worktree-probe";
 /// The checkout the controls name.
 const CHECKOUT: &str = "/home/user/Monochromatic";
 
-/// A checkout the file named, which carries no dataset because the file named a folder and not a table row.
+/// A checkout the file named,
+/// which carries no dataset because the file named a folder and not a table row.
 fn named_checkout() -> ProbeCheckout {
     return ProbeCheckout { path: PathBuf::from(CHECKOUT), dataset: None };
 }
@@ -243,7 +244,8 @@ struct CountingMountTable {
 }
 
 impl CountingMountTable {
-    /// The design's table, counting its questions.
+    /// The design's table,
+    /// counting its questions.
     fn over(table: ScriptedMountTable) -> Self {
         return CountingMountTable { table, table_reads: Cell::new(0), path_reads: Cell::new(0) };
     }

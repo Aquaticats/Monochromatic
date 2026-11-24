@@ -21502,7 +21502,8 @@ the look-up's own work went from 162 to 90 microseconds,
 timed in the guest against a control of ten reads of the same file (787
 microseconds) and a null control of 20 nanoseconds,
 while the whole command moved by no measurable time (129.2 milliseconds after,
-1.000 times the arm before, spread -169.5 to +53.7).
+1.000 times the arm before,
+spread -169.5 to +53.7).
 What the 13 milliseconds are is a stall this guest shows on a process's first
 touch of the mount table:
 the first open of `/proc/self/mountinfo` in the worker takes 12 to 17
@@ -21513,7 +21514,8 @@ the same process 44 and 81 with no faults.
 Split by the timestamps of the probe's own step lines,
 the no-file arm pays that stall in its look-up (12.9 milliseconds) and again in
 its holder's start (10.8),
-and the file-named arm pays it once, at the mount verify (12.2),
+and the file-named arm pays it once,
+at the mount verify (12.2),
 which is what makes the two whole commands 13 milliseconds apart rather than
 three:
 the worker phases are 33.2 milliseconds with no file and 22.4 with one,
@@ -21522,7 +21524,8 @@ This round placed that stall and did not explain it;
 the work happens inside the worker phase the deadline bounds,
 whose margin is the 231 milliseconds stated below,
 and this build states the cost rather than sizing the deadline by it
-(the rounds, the arms and the step split are in
+(the rounds,
+the arms and the step split are in
 `package/git-policy/cli/doc/start-probe-no-file-cost-measurement-2026-11-23.md`).
 The guest's kept rounds gave whole-probe times from 94,973 microseconds warm to
 211,176 with 309 mount namespaces,
