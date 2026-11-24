@@ -70,16 +70,41 @@ From lines 43424 to 43433 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  exists on the attach path only), lows L-1 to L-5, and two owner items. OWNER ITEM 1, ASKED 2026-11-22: with no
-  configuration file, with `{}`, or with only a `startProbe` object, the sweep exits 2 and attaches nothing;
-  `cloneMounts.checkout` is required, the start probe needs `startProbe.dataset` and `startProbe.checkout`, and the
-  accepted start-probe design has `doctor` print the probe's field for the owner to apply, against the owner's "Everything
-  must work by default w/o any configuration". OWNER ITEM 2, the sweep's cost with every clone mounted: 64 children about
-  0.3 s steady and 1 s cold (one child about 0.15 s); 1,024 about 8.3 s and 25.5 s; 2,048 about 26 s and 66 s. A
-  `git worktree add` waits on a sweep's receipt, so the growth is treated as a defect on a waiting path and fixed without a
-  question; the bound's measured figures go beside the constant, veto open. GOING:
+  exists on the attach path only),
+  lows L-1 to L-5,
+  and two owner items.
+  OWNER ITEM 1,
+  ASKED 2026-11-22:
+  with no
+  configuration file,
+  with `{}`,
+  or with only a `startProbe` object,
+  the sweep exits 2 and attaches nothing;
+  `cloneMounts.checkout` is required,
+  the start probe needs `startProbe.dataset` and `startProbe.checkout`,
+  and the
+  accepted start-probe design has `doctor` print the probe's field for the owner to apply,
+  against the owner's "Everything
+  must work by default w/o any configuration".
+  OWNER ITEM 2,
+  the sweep's cost with every clone mounted:
+  64 children about
+  0.3 s steady and 1 s cold (one child about 0.15 s);
+  1,024 about 8.3 s and 25.5 s;
+  2,048 about 26 s and 66 s.
+  A
+  `git worktree add` waits on a sweep's receipt,
+  so the growth is treated as a defect on a waiting path and fixed without a
+  question;
+  the bound's measured figures go beside the constant,
+  veto open.
+  GOING:
   `pi-zfs-step-8-recheck-findings-and-sweep-cost` on `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` (M-1 to
-  M-4, the lows, the sweep's cost; brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`; the
+  M-4,
+  the lows,
+  the sweep's cost;
+  brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`;
+  the
 
 ### Receipts for refusals
 

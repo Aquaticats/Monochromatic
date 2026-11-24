@@ -76,7 +76,8 @@ and each stays in force until the owner changes it.
   "Up to 64 rounds at once.",
   and later steps' pieces are built ahead of the plan's order,
   unwired:
-  "Build them ahead, unwired (Recommended)"
+  "Build them ahead,
+  unwired (Recommended)"
   (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
   A rising memory stall pauses new starts.
 - A branch may not make anything `main` does well worse.
@@ -432,7 +433,8 @@ the release holds one executable,
 and the ZFS route's root modes are modes of `monochromatic-git-policy-cli`.
 
 State:
-the owner answered "One program only, ever" on 2026-11-23
+the owner answered "One program only,
+ever" on 2026-11-23
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`);
 alpha.45 shipped the second program by the owner's "Let it finish (Recommended)".
 The design merged as a proposal,
@@ -645,12 +647,15 @@ after the eighth batch and the `stale_ref_lock` fix,
 gave `10085 tests run: 10083 passed (7 slow), 2 failed, 37 skipped`:
 the cause-H pair alone,
 which is not AppArmor's
-(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`, "Cause H").
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
+"Cause H").
 Its only denials were `umount`'s `dac_override` (no test needs it)
 and the browser's.
 So AppArmor enforcement costs `main` no test now.
 The gate on `main` at `0576c39994`
-(run `native-TtGef4`, 2026-11-24T01:57:53Z to 02:51:53Z, beside six guests and a dozen rounds)
+(run `native-TtGef4`,
+2026-11-24T01:57:53Z to 02:51:53Z,
+beside six guests and a dozen rounds)
 gave `10219 tests run: 10215 passed (10 slow), 4 failed, 37 skipped`:
 the cause-H pair,
 the size read's child control
@@ -691,7 +696,8 @@ archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`;
 an alpha is not published to crates.io).
 It ships the second program `mount-git-worktree-clone-datasets`,
 by the owner's "Let it finish (Recommended)";
-the owner's "One program only, ever" removes it from later releases
+the owner's "One program only,
+ever" removes it from later releases
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
 and `pi-zfs-root-modes-in-the-one-wrapper-executable-design` designs how the root modes join the wrapper.
 The first dry run failed at `pnpm install --frozen-lockfile`
@@ -711,7 +717,8 @@ The ZFS route's release pass found it fit to ship,
 with two medium findings on the handler's words and its `start-probe`'s missing root check
 (`zfs-route-reach/keep/review.md` in
 `~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`).
-For its `start-probe` the owner chose "Refuse non-root, exit 2 (Recommended)";
+For its `start-probe` the owner chose "Refuse non-root,
+exit 2 (Recommended)";
 its `--help` paths are left to the fold.
 The commit,
 push,
