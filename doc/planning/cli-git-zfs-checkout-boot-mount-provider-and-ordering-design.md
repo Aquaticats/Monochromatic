@@ -1900,8 +1900,9 @@ Earlier rounds' logs are named with their round.
   `state-bound-stop.log`, `evidence-bound-stop.log`, `timeouts-read-back.log` (round four): the unit
   text with both bounds, this host's shape, the hazard with the flag on, and the cooperative
   hung-start arm.
-- `mvm-create-guest.log`, `mvm-destroy-guest.log`, `mvm-list-after-destroy.log`: this round's guest's
-  create and destroy records.
+- `mvm-create-guest.log`, `mvm-destroy-guest.log`, `mvm-create-guest-chosen.log`,
+  `mvm-destroy-guest-chosen.log`: both guests' create and destroy records, through
+  `mvm --backend libvirt`, by the names the creates printed.
 - `host-reads.log`, `apparmor-and-unit-reads.log`: every host fact this revision states, read this
   round.
 
@@ -1921,11 +1922,11 @@ round four's; and the logs this revision names with round five are round five's.
 - Not a generated mount unit. No arm made the ZFS mount generator write a unit, because that needs a
   root-written cache file on a machine whose ZED tracks the pool; the branch of the rule that names
   `<escaped checkout path>.mount` as the provider is a source reading plus the host reads, not a run.
-- Not the generator's key units as generated: this round's guest had no key unit for the checkout at
-  all, and its two key units were written by hand in the generator's names.
+- Not the generator's key units as generated: the guests have no generator-written key unit, and the
+  two key units both guests ran were written by hand in the generator's names.
 - Not ZED. No arm ran `zfs-zed.service`, and the hook is a text this design proposes.
-- Not AppArmor. The guest runs Fedora's SELinux, not this host's AppArmor, so the hook's own profile
-  question is a reading here, not a run, and none of the six shapes has been loaded.
+- Not AppArmor. The guest runs Fedora's SELinux, not this host's AppArmor, so the hook's rules are a
+  reading here, not a run, and no shape has been loaded.
 - Not this host's key path. The guest's checkout is an encryption root of its own with a file key;
   this host's inherits the pool's passphrase, which round four's host-shape arm models but does not
   reproduce in its prompt.
