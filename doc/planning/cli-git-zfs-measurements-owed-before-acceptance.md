@@ -1,26 +1,48 @@
 # Measurements owed before accepting the ZFS worktree design
 
-**Non-final draft by an agent, unapproved.** It records guest observations and design implications, not design
-acceptance. A section heading's stamp is the commit time of the commit that landed that section. This file's own
-revision stamp is what `git log --format=%cI -1` prints for the file, which before this revision's commit reported
-2026-11-19T01:34:47-05:00 at `6a678f1b5b`. The account ownership decision in the
+**Non-final draft by an agent,
+unapproved.**
+It records guest observations and design implications,
+not design
+acceptance.
+A section heading's stamp is the commit time of the commit that landed that section.
+This file's own
+revision stamp is what `git log --format=%cI -1` prints for the file,
+which before this revision's commit reported
+2026-11-19T01:34:47-05:00 at `6a678f1b5b`.
+The account ownership decision in the
 [planning record](cli-git-zfs-worktree.md#owners-answers-of-2026-11-18) makes the refusal repeat a pre-acceptance
-condition, not something to postpone until implementation.
+condition,
+not something to postpone until implementation.
 
 ## Fixture and evidence
 
 The 2026-11-18 gate review of proposal `71fa25ece8` and the dated corrections in the
-[clones research](cli-git-zfs-clones-mounted-under-the-checkout.md) supplied the open measurements. The guest probe
-reused the descriptor calls from that research's `guest-extra-commands.txt`. Full commands, output and assertions
-are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`, in `guest-probe.py` and the
-per-item logs. Each item uses a separate encrypted file-backed pool in `zfs-acceptance-mvm`, an Ubuntu 24.04 `mvm`
+[clones research](cli-git-zfs-clones-mounted-under-the-checkout.md) supplied the open measurements.
+The guest probe
+reused the descriptor calls from that research's `guest-extra-commands.txt`.
+Full commands,
+output and assertions
+are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/keep/`,
+in `guest-probe.py` and the
+per-item logs.
+Each item uses a separate encrypted file-backed pool in `zfs-acceptance-mvm`,
+an Ubuntu 24.04 `mvm`
 libvirt guest.
-The checkout and worktree clone parent are sibling datasets under the guest home dataset. The Git fixtures use
-plain `git` in the guest, with a disposable `HOME` and `XDG_RUNTIME_DIR`. The guest Git is `2.43.0`; the host wrapper
-reports Git `2.56.1`. The probe is not an execution of the proposed Rust binding or product handler.
+The checkout and worktree clone parent are sibling datasets under the guest home dataset.
+The Git fixtures use
+plain `git` in the guest,
+with a disposable `HOME` and `XDG_RUNTIME_DIR`.
+The guest Git is `2.43.0`;
+the host wrapper
+reports Git `2.56.1`.
+The probe is not an execution of the proposed Rust binding or product handler.
 
-Host, read-only: `uname --kernel-release` printed `7.3.5-1-cachyos` and `/sys/module/zfs/version` read `2.4.4-1`.
-`findmnt --output TARGET,SOURCE,PROPAGATION --target` returned these sources for `/`, `/home` and `~/.cache`:
+Host,
+read-only:
+`uname --kernel-release` printed `7.3.5-1-cachyos` and `/sys/module/zfs/version` read `2.4.4-1`.
+`findmnt --output TARGET,SOURCE,PROPAGATION --target` returned these sources for `/`,
+`/home` and `~/.cache`:
 
 ```text
 /                 zpcachyos/ROOT/cos/root     shared
@@ -28,23 +50,48 @@ Host, read-only: `uname --kernel-release` printed `7.3.5-1-cachyos` and `/sys/mo
 /home/user/.cache zpcachyos/nosnap/user-cache shared
 ```
 
-`findmnt --target /home/user/Monochromatic` resolves to `/home`, not a dedicated checkout mount yet.
-`zfs get` on the host home dataset returned `aes-256-gcm`, encryption root `zpcachyos`, key `available`,
-`recordsize=32K` and `compression=zstd-3`. No host pool, filesystem mount or propagation was changed.
+`findmnt --target /home/user/Monochromatic` resolves to `/home`,
+not a dedicated checkout mount yet.
+`zfs get` on the host home dataset returned `aes-256-gcm`,
+encryption root `zpcachyos`,
+key `available`,
+`recordsize=32K` and `compression=zstd-3`.
+No host pool,
+filesystem mount or propagation was changed.
 
 ## 1. Register, snapshot, attach and fill
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace `2.4.4-1`, module `2.4.4-1` (`item-1-exact.log`). The kernel differs
-from the host; the ZFS module release matches. A separate setup run used the guest package module `2.2.2-0ubuntu9.5`
-with 2.4.4-1 userspace and also passed (`item-1-packaged-module.log`); the results here are from the matched run.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace `2.4.4-1`,
+module `2.4.4-1` (`item-1-exact.log`).
+The kernel differs
+from the host;
+the ZFS module release matches.
+A separate setup run used the guest package module `2.2.2-0ubuntu9.5`
+with 2.4.4-1 userspace and also passed (`item-1-packaged-module.log`);
+the results here are from the matched run.
 
-The account made an empty slot under its own `.claude/worktrees`, ran
-`git worktree add --no-checkout --detach <slot> HEAD`, then root ran `zfs snapshot` and `zfs clone` in that order.
+The account made an empty slot under its own `.claude/worktrees`,
+ran
+`git worktree add --no-checkout --detach <slot> HEAD`,
+then root ran `zfs snapshot` and `zfs clone` in that order.
 The root fixture opened the checkout and walked the target components with `openat2` and
-`RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS`, comparing the recorded device,
-inode, owner, mode and ACL of the parent and slot. It used `fsopen`, `fsconfig` with the clone as source, `fsmount`
-with `nosuid,nodev`, and `move_mount` onto the checked descriptor. A fresh walk from the checkout crossed the
-final mount only and matched mount ID, device, inode, filesystem and source to the mounted descriptor.
+`RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_MAGICLINKS`,
+comparing the recorded device,
+inode,
+owner,
+mode and ACL of the parent and slot.
+It used `fsopen`,
+`fsconfig` with the clone as source,
+`fsmount`
+with `nosuid,nodev`,
+and `move_mount` onto the checked descriptor.
+A fresh walk from the checkout crossed the
+final mount only and matched mount ID,
+device,
+inode,
+filesystem and source to the mounted descriptor.
 
 ```text
 Preparing worktree (detached HEAD 1ae6bf0)
@@ -53,9 +100,15 @@ recorded parent/slot: (47, 3, 1000, 493, ()) (47, 22, 1000, 493, ())
 post-attach identity: ['361', 48, 34, 'zfs', 'zfsowed1/home/worktree-clone-datasets/registered']
 ```
 
-The clone's root had a `.git` directory; the nested copy of the slot had the exact underlay pointer, proving the
-snapshot included the registration. The account moved the directory aside, installed the pointer and ran
-`git read-tree HEAD`. `rev-parse --show-toplevel`, `rev-parse --git-common-dir` and the byte count of
+The clone's root had a `.git` directory;
+the nested copy of the slot had the exact underlay pointer,
+proving the
+snapshot included the registration.
+The account moved the directory aside,
+installed the pointer and ran
+`git read-tree HEAD`.
+`rev-parse --show-toplevel`,
+`rev-parse --git-common-dir` and the byte count of
 `status --porcelain --untracked-files=no` returned:
 
 ```text
@@ -65,15 +118,26 @@ tracked status stdout bytes: 0
 underlay pointer unchanged after unmount
 ```
 
-The specified order works in this fixture. Keep both pointer copies, recheck the canonical mount before fill, and
-never run Git against the copied administration. Moving that directory aside did not measure the deletion cost or
+The specified order works in this fixture.
+Keep both pointer copies,
+recheck the canonical mount before fill,
+and
+never run Git against the copied administration.
+Moving that directory aside did not measure the deletion cost or
 prove recovery after interruption.
 
 ## 2. Refusals with account-owned parent and slot
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-2-exact.log`). The kernel differs from the host;
-the module release matches. Both recorded owners were UID 1000, both modes 0755. The account created the links,
-replaced the slot and changed its mode and ACL. Root supplied the unexpected owner and the bind mount controls.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-2-exact.log`).
+The kernel differs from the host;
+the module release matches.
+Both recorded owners were UID 1000,
+both modes 0755.
+The account created the links,
+replaced the slot and changed its mode and ACL.
+Root supplied the unexpected owner and the bind mount controls.
 The attach control reused the item 1 descriptor checks.
 
 ```text
@@ -93,14 +157,25 @@ already attached ZFS clone: openat2: EXDEV
 post-attach identity: ['361', 48, 34, 'zfs', 'zfsowed2/home/worktree-clone-datasets/checked']
 ```
 
-The account-created link is a changed result: creation now **succeeds** and the descriptor walk refuses it. The
-magic-link arm used a real procfs descriptor link; it did not make procfs reachable below the checkout. The ACL
-arms changed the access and default ACL separately while preserving mode bits. Mode alone missed both changes.
+The account-created link is a changed result:
+creation now **succeeds** and the descriptor walk refuses it.
+The
+magic-link arm used a real procfs descriptor link;
+it did not make procfs reachable below the checkout.
+The ACL
+arms changed the access and default ACL separately while preserving mode bits.
+Mode alone missed both changes.
 
-In a bounded rename loop, each trial synchronized one account rename of `.claude` between opening and attaching.
-`move_mount` succeeded onto the held inode, not the canonical path. Each fresh walk from the checkout refused,
-and the probe confirmed the clone at the renamed path, moved that mount to staging and unmounted it. It asserted
-no mount remained at the canonical slot or staging; the final undisturbed descriptor attach worked.
+In a bounded rename loop,
+each trial synchronized one account rename of `.claude` between opening and attaching.
+`move_mount` succeeded onto the held inode,
+not the canonical path.
+Each fresh walk from the checkout refused,
+and the probe confirmed the clone at the renamed path,
+moved that mount to staging and unmounted it.
+It asserted
+no mount remained at the canonical slot or staging;
+the final undisturbed descriptor attach worked.
 
 ```text
 rename trial 1: canonical post-check: openat2: ENOENT
@@ -108,17 +183,31 @@ rename trial 6: canonical post-check: openat2: ENOENT
 6 synchronized rename interleavings: misplaced attaches detected and removed; final control passed
 ```
 
-Refuse identity changes without adopting them. A held parent descriptor can move with its ancestor, so only a fresh
-canonical walk catches this case. The post-check and rollback are necessary; this is not a proof of atomic placement
-or coverage of every free-running interleaving. The rollback was in a private namespace; item 3 measures the
+Refuse identity changes without adopting them.
+A held parent descriptor can move with its ancestor,
+so only a fresh
+canonical walk catches this case.
+The post-check and rollback are necessary;
+this is not a proof of atomic placement
+or coverage of every free-running interleaving.
+The rollback was in a private namespace;
+item 3 measures the
 propagation precondition.
 
 ## 3. Shared propagation and a confined reader
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-3-fresh-signals.log`). The kernel differs from
-the host; the module release matches. The mount topology and units ran in the guest boot namespace so the guest
-PID 1 could start confined readers from the mount tree being tested. The guest's `/home` was a bind in an independent
-shared group, not a separate ZFS home as on the host; the ZFS fixture home under it was also shared.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-3-fresh-signals.log`).
+The kernel differs from
+the host;
+the module release matches.
+The mount topology and units ran in the guest boot namespace so the guest
+PID 1 could start confined readers from the mount tree being tested.
+The guest's `/home` was a bind in an independent
+shared group,
+not a separate ZFS home as on the host;
+the ZFS fixture home under it was also shared.
 
 ```text
 29      1 /dev/vda1 shared      rw,relatime
@@ -127,14 +216,26 @@ shared group, not a separate ZFS home as on the host; the ZFS fixture home under
 123    120 zfsowed3/home/checkout shared      rw,relatime
 ```
 
-In both arms the probe created a clone with the item 1 descriptor route. Before attachment a guest systemd unit
-used `PrivateMounts=yes` and `ReadOnlyPaths=` on an unrelated directory, outside the checkout. A readiness file
-confirmed its own `findmnt` and marker looked absent before attach. After attach, the mounting process wrote a
-marker and signaled the reader. Once the reader finished, a fresh process tried the same descriptor move to the
-same private staging bind in both arms. The source parent and staging propagation were re-read at each move.
+In both arms the probe created a clone with the item 1 descriptor route.
+Before attachment a guest systemd unit
+used `PrivateMounts=yes` and `ReadOnlyPaths=` on an unrelated directory,
+outside the checkout.
+A readiness file
+confirmed its own `findmnt` and marker looked absent before attach.
+After attach,
+the mounting process wrote a
+marker and signaled the reader.
+Once the reader finished,
+a fresh process tried the same descriptor move to the
+same private staging bind in both arms.
+The source parent and staging propagation were re-read at each move.
 
-With the **checkout shared**, the unit saw the later mount and marker, but the move refused and the clone stayed
-at its slot. Excerpts from the reader, move and subsequent `findmnt`:
+With the **checkout shared**,
+the unit saw the later mount and marker,
+but the move refused and the clone stayed
+at its slot.
+Excerpts from the reader,
+move and subsequent `findmnt`:
 
 ```text
 reader before: {"mount": "", "marker": null}
@@ -143,9 +244,11 @@ move_mount: EINVAL
 267    123 zfsowed3/home/worktree-clone-datasets/shared shared      rw,nosuid,nodev,relatime
 ```
 
-With **only the checkout private**, the mounting namespace saw the clone but the same kind of reader did not.
+With **only the checkout private**,
+the mounting namespace saw the clone but the same kind of reader did not.
 The fresh process moved mount ID 267 from the checkout to staging mount ID 210 and unmounted it with exit 0;
-the staging bind remained, not the clone.
+the staging bind remained,
+not the clone.
 
 ```text
 reader before: {"mount": "", "marker": null}
@@ -156,26 +259,53 @@ reader after: {"mount": "", "marker": null}
 clone mount ID 267 absent from mountinfo after unmount
 ```
 
-The shared-parent refusal predicted by gate review GM1 held. The proposal's stronger claim that the checkout's
-ancestors must also be private did not: only the checkout changed. That narrower option still loses delivery of
-later mounts to already-confined consumers. The design needs to state which property it requires, and must not
-assume both with the same move-to-staging route. Check visibility from the actual caller namespace. The probe did
+The shared-parent refusal predicted by gate review GM1 held.
+The proposal's stronger claim that the checkout's
+ancestors must also be private did not:
+only the checkout changed.
+That narrower option still loses delivery of
+later mounts to already-confined consumers.
+The design needs to state which property it requires,
+and must not
+assume both with the same move-to-staging route.
+Check visibility from the actual caller namespace.
+The probe did
 not choose a propagation policy or test a different unmount mechanism.
 
-Two fixture attempts are not the comparison: the first bind accidentally left `/home` a peer of `/`, duplicating
-mounts, and the staging assertion mistook the staging bind for a surviving clone (`item-3-exact.log`). The next
-attempt reused a readiness marker (`item-3-corrected.log`). The recorded run separated the peer groups, checked the
-clone's mount ID after unmount, and deleted each arm's readiness, completion and result files before launching it.
+Two fixture attempts are not the comparison:
+the first bind accidentally left `/home` a peer of `/`,
+duplicating
+mounts,
+and the staging assertion mistook the staging bind for a surviving clone (`item-3-exact.log`).
+The next
+attempt reused a readiness marker (`item-3-corrected.log`).
+The recorded run separated the peer groups,
+checked the
+clone's mount ID after unmount,
+and deleted each arm's readiness,
+completion and result files before launching it.
 
 ## 4. Unmount from a fresh process
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-4-exact.log`). The kernel differs from the
-host; the module release matches. The attach process recorded the mounted root and closed its descriptors.
-A new process opened the slot relative to the checkout, keeping the no-cross-device flag on the parent walk
-but removing it for the final component. The attach flags on that final component had the expected `EXDEV`.
-The new process matched mount ID from its own descriptor record, device and inode from `fstat`, and filesystem
-and dataset source from its own mountinfo. With those values equal it called `move_mount` with the two
-descriptors, closed them, then ran `umount` at the private staging path.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-4-exact.log`).
+The kernel differs from the
+host;
+the module release matches.
+The attach process recorded the mounted root and closed its descriptors.
+A new process opened the slot relative to the checkout,
+keeping the no-cross-device flag on the parent walk
+but removing it for the final component.
+The attach flags on that final component had the expected `EXDEV`.
+The new process matched mount ID from its own descriptor record,
+device and inode from `fstat`,
+and filesystem
+and dataset source from its own mountinfo.
+With those values equal it called `move_mount` with the two
+descriptors,
+closed them,
+then ran `umount` at the private staging path.
 
 ```text
 attacher process 57766 has closed its mount descriptors
@@ -185,11 +315,19 @@ clone mount ID 276 absent from mountinfo after unmount
 ```
 
 In the synchronized substitution arm the account renamed the ancestor after the fresh process opened the clone,
-then recreated a plain slot. A second canonical walk saw the checkout dataset instead of the clone. The fixture
+then recreated a plain slot.
+A second canonical walk saw the checkout dataset instead of the clone.
+The fixture
 refused to move anything and verified the clone remained at the renamed path with its held identity unchanged.
-A separate different-clone control put another ZFS mount at the canonical slot. The old record missed only the
-dataset source: **mount ID 276, device 48 and inode 34 were reused**. The fixture refused the stale record
-and left that clone mounted. With its own record, the replacement then unmounted normally.
+A separate different-clone control put another ZFS mount at the canonical slot.
+The old record missed only the
+dataset source:
+**mount ID 276,
+device 48 and inode 34 were reused**.
+The fixture refused the stale record
+and left that clone mounted.
+With its own record,
+the replacement then unmounted normally.
 
 ```text
 REFUSED before move: mounted identity differs
@@ -197,29 +335,56 @@ REFUSED before move: mounted identity differs
 ```
 
 A separate busy-holder arm moved the verified clone to staging while a process kept its working directory there.
-Staging `umount` refused, the clone remained visible at staging, and a retry after the holder exited succeeded.
+Staging `umount` refused,
+the clone remained visible at staging,
+and a retry after the holder exited succeeded.
 
 ```text
 umount: /var/lib/zfs-acceptance-fixtures/item-4/staging: target is busy.
 276     62 zfsowed4/home/worktree-clone-datasets/mount-to-remove private     rw,nosuid,nodev,relatime
 ```
 
-Open and verify the actual mounted object in each handler process; do not treat an old mount ID, even together
-with device and inode, as durable identity. Check the source and the live dataset GUID from the binding before
-moving or destroying; the probe did not substitute a new dataset under the same dataset name. Recheck the canonical
-relationship without using it as the action operand. Keep explicit staged state after a busy refusal; absence
-at the slot is not absence from the namespace. The probe did not exercise reattach or staged-state crash recovery.
+Open and verify the actual mounted object in each handler process;
+do not treat an old mount ID,
+even together
+with device and inode,
+as durable identity.
+Check the source and the live dataset GUID from the binding before
+moving or destroying;
+the probe did not substitute a new dataset under the same dataset name.
+Recheck the canonical
+relationship without using it as the action operand.
+Keep explicit staged state after a busy refusal;
+absence
+at the slot is not absence from the namespace.
+The probe did not exercise reattach or staged-state crash recovery.
 
 ## 5. Encrypted fixture and an unloaded key
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-5-exact.log`). The kernel differs from the
-host; the module release matches. Every numbered item used a separate 1 GiB file-backed pool with an encryption root
-at the pool root, `encryption=aes-256-gcm`, `keyformat=raw` with a guest-local key file, `recordsize=32K` and
-`compression=zstd-3`. Each log records the inherited checkout properties. This matches the host values requested,
-not the host's storage topology, pool feature flags or physical I/O.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-5-exact.log`).
+The kernel differs from the
+host;
+the module release matches.
+Every numbered item used a separate 1 GiB file-backed pool with an encryption root
+at the pool root,
+`encryption=aes-256-gcm`,
+`keyformat=raw` with a guest-local key file,
+`recordsize=32K` and
+`compression=zstd-3`.
+Each log records the inherited checkout properties.
+This matches the host values requested,
+not the host's storage topology,
+pool feature flags or physical I/O.
 
-For the unloaded-key arm the probe took the origin snapshot, unmounted checkout and fixture home, and ran
-`zfs unload-key zfsowed5`. With stdin closed, root's `zfs clone` still exited 0. The clone's `zfs get` output was:
+For the unloaded-key arm the probe took the origin snapshot,
+unmounted checkout and fixture home,
+and ran
+`zfs unload-key zfsowed5`.
+With stdin closed,
+root's `zfs clone` still exited 0.
+The clone's `zfs get` output was:
 
 ```text
 zfsowed5/home/worktree-clone-datasets/key-unavailable	encryption	aes-256-gcm
@@ -231,28 +396,50 @@ zfsowed5/home/worktree-clone-datasets/key-unavailable	compression	zstd-3
 detached mount while key unavailable: fsconfig(create): EACCES
 ```
 
-The detached mount failed before `fsmount` or any target attach. The test set a user property on the clone;
-a guest ZED daemon delivered the history event to a root-owned test zedlet, which queried `keystatus` and
-recorded the following. The product handler does not yet exist.
+The detached mount failed before `fsmount` or any target attach.
+The test set a user property on the clone;
+a guest ZED daemon delivered the history event to a root-owned test zedlet,
+which queried `keystatus` and
+recorded the following.
+The product handler does not yet exist.
 
 ```text
 ZED test zedlet: uid=0 keystatus=unavailable; action=defer without mount
 ```
 
 `zfs load-key zfsowed5` followed by mounting the fixture home and checkout changed clone `keystatus` to
-`available`; a descriptor attach then passed. A successful clone is not mount or fill readiness. Identify the
-encryption root and report an unavailable key separately from mount identity or permission failures, before
-attaching. Reconcile after key load and verified checkout mount rather than relying on another add request.
+`available`;
+a descriptor attach then passed.
+A successful clone is not mount or fill readiness.
+Identify the
+encryption root and report an unavailable key separately from mount identity or permission failures,
+before
+attaching.
+Reconcile after key load and verified checkout mount rather than relying on another add request.
 The root CLI probe did not exercise delegated clone permission with the key unloaded or automatic post-load retry.
 
 ## 6. Deleted underlay pointer, prune and lock
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1`, Git `2.43.0` (`item-6-exact.log`). The kernel
-and Git releases differ from the host; the ZFS module release matches. No `gc.worktreePruneExpire` override
-was set. In each arm the account registered and filled a clone-backed worktree, root unmounted the clone
-and checked the slot was not a mountpoint, then the account unlinked its underlay `.git`. The locked arm ran
-`git worktree lock --reason 'ZFS test underlay' <slot>` before unlink. The probe ran real
-`git worktree prune --verbose`, not a dry run, then `--expire now`, and checked the administrative directory.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1`,
+Git `2.43.0` (`item-6-exact.log`).
+The kernel
+and Git releases differ from the host;
+the ZFS module release matches.
+No `gc.worktreePruneExpire` override
+was set.
+In each arm the account registered and filled a clone-backed worktree,
+root unmounted the clone
+and checked the slot was not a mountpoint,
+then the account unlinked its underlay `.git`.
+The locked arm ran
+`git worktree lock --reason 'ZFS test underlay' <slot>` before unlink.
+The probe ran real
+`git worktree prune --verbose`,
+not a dry run,
+then `--expire now`,
+and checked the administrative directory.
 
 ```text
 Removing worktrees/unlocked: gitdir file points to non-existent location
@@ -263,8 +450,11 @@ registration after default prune: True
 registration after --expire now: True
 ```
 
-With the locked arm's pointer restored and the clone still unmounted, Git refused both normal and
-single-`--force` move and remove. With `--force --force` each operation exited 0, and the dataset still existed
+With the locked arm's pointer restored and the clone still unmounted,
+Git refused both normal and
+single-`--force` move and remove.
+With `--force --force` each operation exited 0,
+and the dataset still existed
 after Git removed the registration.
 
 ```text
@@ -273,18 +463,32 @@ fatal: cannot remove a locked working tree, lock reason: ZFS test underlay
 zfsowed6/home/worktree-clone-datasets/locked
 ```
 
-The lock guards registration against normal pruning even when the account deletes the pointer. It is not an
+The lock guards registration against normal pruning even when the account deletes the pointer.
+It is not an
 authority boundary and is not a substitute for the clone binding or the wrapper's separate move refusal.
-If the design uses a managed lock, distinguish it from a user lock and release it only as part of a verified
-removal, not by forwarding force. Preserve both pointer copies; the lock does not repair either.
+If the design uses a managed lock,
+distinguish it from a user lock and release it only as part of a verified
+removal,
+not by forwarding force.
+Preserve both pointer copies;
+the lock does not repair either.
 
 ## 7. Setuid execution on the clone
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-7-exact.log`). The kernel differs from the
-host; the module release matches. The account installed a compiled executable that only prints its real and
-effective UIDs. Root supplied ownership and mode `4755` for the positive control: a setuid program owned by
-the executing account would not elevate even with no mount restriction. The probe ran the same executable as the
-account on the same clone mounted first with no added VFS restrictions, then with `nosuid,nodev` via `fsmount`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-7-exact.log`).
+The kernel differs from the
+host;
+the module release matches.
+The account installed a compiled executable that only prints its real and
+effective UIDs.
+Root supplied ownership and mode `4755` for the positive control:
+a setuid program owned by
+the executing account would not elevate even with no mount restriction.
+The probe ran the same executable as the
+account on the same clone mounted first with no added VFS restrictions,
+then with `nosuid,nodev` via `fsmount`.
 
 ```text
 276    274 zfsowed7/home/worktree-clone-datasets/privilege-probe private     rw,relatime
@@ -293,26 +497,49 @@ real=1000 effective=0
 real=1000 effective=1000
 ```
 
-The second run did not gain privilege despite unchanged root ownership and setuid mode. Enforce and verify the
-mount flag independently of dataset properties; the control deliberately let setuid work at the dataset level.
-This measures the setuid half of gate 5 for the descriptor primitive, not the installed handler.
+The second run did not gain privilege despite unchanged root ownership and setuid mode.
+Enforce and verify the
+mount flag independently of dataset properties;
+the control deliberately let setuid work at the dataset level.
+This measures the setuid half of gate 5 for the descriptor primitive,
+not the installed handler.
 
 ## 8. Immutable underlay, boot and parent rollback
 
-Guest before and after reboot: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-8-pre-exact.log`,
-`guest-reboot.log`, `item-8-post-exact.log`). The kernel differs from the host; the module release matches.
+Guest before and after reboot:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-8-pre-exact.log`,
+`guest-reboot.log`,
+`item-8-post-exact.log`).
+The kernel differs from the host;
+the module release matches.
 
-With the checkout **unmounted**, the account could rename its underlay folder and create a replacement at
-the original path. Root snapshotted the parent dataset and ran `chattr +i` on the underlay directory.
-With the same ownership and now an immutable directory, the account's `mv --no-target-directory` and
-`rmdir` both exited 1, ending with `Operation not permitted`. `zfs mount -a` still mounted the checkout there;
-after unmount, `lsattr -d` still reported `----i-----------------`.
+With the checkout **unmounted**,
+the account could rename its underlay folder and create a replacement at
+the original path.
+Root snapshotted the parent dataset and ran `chattr +i` on the underlay directory.
+With the same ownership and now an immutable directory,
+the account's `mv --no-target-directory` and
+`rmdir` both exited 1,
+ending with `Operation not permitted`.
+`zfs mount -a` still mounted the checkout there;
+after unmount,
+`lsattr -d` still reported `----i-----------------`.
 
-The probe exported the file-backed pool, rebooted the VM, reloaded the exact module, imported with `-N`,
-loaded the key and mounted only the parent. The boot ID changed from
-`00ee24e6-a78a-4f9c-aeef-cd896fa0763b` to `df936c8d-fd5b-4b35-b763-ecbd06b8349e`. The flag remained and
-the account's rename and remove still refused. Next, root cleared the flag, rolled back to the snapshot
-that contained it, then rolled back again to the pre-flag snapshot:
+The probe exported the file-backed pool,
+rebooted the VM,
+reloaded the exact module,
+imported with `-N`,
+loaded the key and mounted only the parent.
+The boot ID changed from
+`00ee24e6-a78a-4f9c-aeef-cd896fa0763b` to `df936c8d-fd5b-4b35-b763-ecbd06b8349e`.
+The flag remained and
+the account's rename and remove still refused.
+Next,
+root cleared the flag,
+rolled back to the snapshot
+that contained it,
+then rolled back again to the pre-flag snapshot:
 
 ```text
 flag persisted through mount -a
@@ -320,23 +547,44 @@ rollback to flag-bearing snapshot restored immutable
 rollback to pre-flag snapshot removed immutable
 ```
 
-The account again renamed and replaced the unprotected folder after the second rollback. An immutable
-entry is a viable protection for this directory under that ancestor layout, but not an invariant after a
-parent rollback. Verify the underlay protection and intended mount identity before an automated checkout
-attach, and after reimport or rollback. This was persistence across a normal reboot with manual import and
-key load, not a test of the production boot service or of replacing an ancestor of the protected entry.
+The account again renamed and replaced the unprotected folder after the second rollback.
+An immutable
+entry is a viable protection for this directory under that ancestor layout,
+but not an invariant after a
+parent rollback.
+Verify the underlay protection and intended mount identity before an automated checkout
+attach,
+and after reimport or rollback.
+This was persistence across a normal reboot with manual import and
+key load,
+not a test of the production boot service or of replacing an ancestor of the protected entry.
 
 ## 9. Automatic mounts below a legacy checkout
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-9-exact.log`). The kernel differs from the
-host; the module release matches. Host `zfs list` reported `zpcachyos/nosnap/vm-builder-output` mounted at
-`/home/user/Monochromatic/package/vm-builder/cli/output`. The guest output dataset was likewise separate
-in dataset ancestry but nested by path. The checkout had `mountpoint=legacy`. The probe created the
-output dataset without mounting it (`zfs create -u`), then ran `zfs mount -a`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-9-exact.log`).
+The kernel differs from the
+host;
+the module release matches.
+Host `zfs list` reported `zpcachyos/nosnap/vm-builder-output` mounted at
+`/home/user/Monochromatic/package/vm-builder/cli/output`.
+The guest output dataset was likewise separate
+in dataset ancestry but nested by path.
+The checkout had `mountpoint=legacy`.
+The probe created the
+output dataset without mounting it (`zfs create -u`),
+then ran `zfs mount -a`.
 
-The checkout was still not mounted, but the output dataset was attached to the home underlay. The probe
-wrote a marker into that dataset, then attached the checkout by descriptor. The two mounts had the same
-parent ID, 361. The checkout hid the output marker, even though the output mount still appeared in
+The checkout was still not mounted,
+but the output dataset was attached to the home underlay.
+The probe
+wrote a marker into that dataset,
+then attached the checkout by descriptor.
+The two mounts had the same
+parent ID, 361.
+The checkout hid the output marker,
+even though the output mount still appeared in
 `findmnt --mountpoint` and mountinfo:
 
 ```text
@@ -345,43 +593,80 @@ parent ID, 361. The checkout hid the output marker, even though the output mount
 362    361 zfsowed9/nosnap/vm-builder-output
 ```
 
-`stat` on the marker exited 1 with `No such file or directory`. After unmounting the checkout, the marker
-and output mount ID 362 were visible again. Hidden did not mean unmounted.
+`stat` on the marker exited 1 with `No such file or directory`.
+After unmounting the checkout,
+the marker
+and output mount ID 362 were visible again.
+Hidden did not mean unmounted.
 
-GM8's prediction held for an ordinary mount under a legacy checkout. A legacy checkout boot scheme must
+GM8's prediction held for an ordinary mount under a legacy checkout.
+A legacy checkout boot scheme must
 exclude all path descendants from automatic early mounting and order their attachment after the verified
-checkout mount, or refuse if that ordering cannot be proved. Include datasets outside the checkout's ZFS
-ancestry and verify path reachability, not only mount-table membership. This did not exercise a failed
+checkout mount,
+or refuse if that ordering cannot be proved.
+Include datasets outside the checkout's ZFS
+ancestry and verify path reachability,
+not only mount-table membership.
+This did not exercise a failed
 ordinary-checkout mount or production boot units.
 
 ## 10. Explicit ZFS mount of a legacy clone
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-10-exact.log`). The kernel differs from the
-host; the module release matches. `zfs get` showed inherited `mountpoint=legacy`, default `canmount=on` and
-`mounted=no`. An explicit `zfs mount <clone>` exited 1 and left the slot unmounted:
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-10-exact.log`).
+The kernel differs from the
+host;
+the module release matches.
+`zfs get` showed inherited `mountpoint=legacy`,
+default `canmount=on` and
+`mounted=no`.
+An explicit `zfs mount <clone>` exited 1 and left the slot unmounted:
 
 ```text
 cannot mount 'zfsowed10/home/worktree-clone-datasets/legacy': legacy mountpoint
 use mount(8) to mount this filesystem
 ```
 
-The descriptor attach of that same dataset succeeded, with `rw,nosuid,nodev,relatime`. This confirms the
-explicit-mount branch of `zfs-2.4.4`'s `cmd/zfs/zfs_main.c:7240` to `:7248`. The proposal's citation at the time
-(its lines 118 to 119) pointed at the unmount branch instead; the current proposal cites this branch. Treat the
-refusal as expected: an inherited legacy property does not name a target slot, and the design must not fall back
+The descriptor attach of that same dataset succeeded,
+with `rw,nosuid,nodev,relatime`.
+This confirms the
+explicit-mount branch of `zfs-2.4.4`'s `cmd/zfs/zfs_main.c:7240` to `:7248`.
+The proposal's citation at the time
+(its lines 118 to 119) pointed at the unmount branch instead;
+the current proposal cites this branch.
+Treat the
+refusal as expected:
+an inherited legacy property does not name a target slot,
+and the design must not fall back
 to a path-based mount.
 
 ## 11. Promote and the checkout's snapshot history
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace/module `2.4.4-1` (`item-11-exact.log`). The kernel differs from the
-host; the module release matches. The probe made checkout snapshots `@earliest`, `@origin` and
-`@checkout-later`, cloned `@origin`, and made `@worktree-own` on the clone. It recorded the origin and
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace/module `2.4.4-1` (`item-11-exact.log`).
+The kernel differs from the
+host;
+the module release matches.
+The probe made checkout snapshots `@earliest`,
+`@origin` and
+`@checkout-later`,
+cloned `@origin`,
+and made `@worktree-own` on the clone.
+It recorded the origin and
 encryption root of both datasets and snapshot names and GUIDs before and after `zfs promote <worktree-clone>`.
 
-The checkout started independent and the worktree depended on checkout's `@origin`. Promotion reversed
-that dependency: checkout now depended on the worktree's `@origin`. Checkout's origin snapshot and its
-older snapshot moved to the worktree without changing GUIDs; the later checkout and worktree-owned snapshots
-stayed where they were. This matches `zfs-promote(8)`. After promotion:
+The checkout started independent and the worktree depended on checkout's `@origin`.
+Promotion reversed
+that dependency:
+checkout now depended on the worktree's `@origin`.
+Checkout's origin snapshot and its
+older snapshot moved to the worktree without changing GUIDs;
+the later checkout and worktree-owned snapshots
+stayed where they were.
+This matches `zfs-promote(8)`.
+After promotion:
 
 ```text
 zfsowed11/home/checkout	origin	zfsowed11/home/worktree-clone-datasets/promotion@origin
@@ -392,7 +677,8 @@ zfsowed11/home/worktree-clone-datasets/promotion@origin	14322725115875610900
 zfsowed11/home/worktree-clone-datasets/promotion@worktree-own	15127986852297743065
 ```
 
-`zfs destroy -r <promoted-clone>` exited 1 with the snapshot list unchanged. A **dry run** with `-n -v -R`
+`zfs destroy -r <promoted-clone>` exited 1 with the snapshot list unchanged.
+A **dry run** with `-n -v -R`
 included the checkout itself and its later snapshot:
 
 ```text
@@ -401,75 +687,144 @@ would destroy zfsowed11/home/checkout@checkout-later
 would destroy zfsowed11/home/checkout
 ```
 
-Promoting the checkout back restored the full pre-promotion snapshot map and origins. The unmounted
-worktree and its own snapshot then destroyed together with `zfs destroy -r` exit 0, and the checkout
-retained all its snapshots. This control is not a requirement to issue a recursive destroy in the wrapper.
+Promoting the checkout back restored the full pre-promotion snapshot map and origins.
+The unmounted
+worktree and its own snapshot then destroyed together with `zfs destroy -r` exit 0,
+and the checkout
+retained all its snapshots.
+This control is not a requirement to issue a recursive destroy in the wrapper.
 
 A second promotion showed why the ordinary recursive refusal is not protection for the proposal's
-individual snapshot deletes. `zfs destroy <promoted-clone>@earliest` exited 0. Destroying its `@origin`
-then refused with `snapshot has dependent clones`. Promoting checkout back did not restore the older snapshot:
+individual snapshot deletes.
+`zfs destroy <promoted-clone>@earliest` exited 0.
+Destroying its `@origin`
+then refused with `snapshot has dependent clones`.
+Promoting checkout back did not restore the older snapshot:
 
 ```text
 cannot open 'zfsowed11/home/checkout@earliest': dataset does not exist
 explicit removal lost checkout @earliest before the protected origin stopped it
 ```
 
-Include the binding primitive as decided, but do not let ordinary add or remove promote from the protected
-checkout into a removable worktree. For any explicit lineage change, prove who owns the affected snapshot
-GUIDs, what will depend on the result, and where protected history will remain. Removal must reject a
-promoted or otherwise mismatched lineage **before deleting the first snapshot**. A successful reverse
-promotion in this fixture is a recovery control, not a guarantee for conflicting snapshot names, changed
-history, other encryption roots or other clone relationships.
+Include the binding primitive as decided,
+but do not let ordinary add or remove promote from the protected
+checkout into a removable worktree.
+For any explicit lineage change,
+prove who owns the affected snapshot
+GUIDs,
+what will depend on the result,
+and where protected history will remain.
+Removal must reject a
+promoted or otherwise mismatched lineage **before deleting the first snapshot**.
+A successful reverse
+promotion in this fixture is a recovery control,
+not a guarantee for conflicting snapshot names,
+changed
+history,
+other encryption roots or other clone relationships.
 
 ## Differences from the proposal and gate review
 
-- The account-owned-parent refusal repeat belongs before design acceptance, as GH1 says. The permission denial
-  GH1 predicted for account-created links is not part of this layout: link creation worked; the descriptor walk
+- The account-owned-parent refusal repeat belongs before design acceptance,
+  as GH1 says.
+  The permission denial
+  GH1 predicted for account-created links is not part of this layout:
+  link creation worked;
+  the descriptor walk
   refused it.
-- GM1's shared-checkout prediction held and its narrower private-checkout control worked. The proposal and the
-  clones research then required private ancestors too; this item disproved that requirement for the move, and the
-  current proposal requires only a verified private immediate parent. The cost is the loss of propagation into an
+- GM1's shared-checkout prediction held and its narrower private-checkout control worked.
+  The proposal and the
+  clones research then required private ancestors too;
+  this item disproved that requirement for the move,
+  and the
+  current proposal requires only a verified private immediate parent.
+  The cost is the loss of propagation into an
   already-confined reader.
 - GM4 and GM5 reviewed a version before the project selected inclusion of `promote` and immediate destruction
-  of the removed worktree's own snapshots. Those decisions stand; the measurements show why inherited checkout
+  of the removed worktree's own snapshots.
+  Those decisions stand;
+  the measurements show why inherited checkout
   history must not be mistaken for the worktree's own history.
-- The rename loop used synchronized, bounded interleavings, not a tight stress loop. Item 3 used the disposable
-  VM's boot namespace so its real systemd units inherited the tested mount topology. The host was not used for
+- The rename loop used synchronized,
+  bounded interleavings,
+  not a tight stress loop.
+  Item 3 used the disposable
+  VM's boot namespace so its real systemd units inherited the tested mount topology.
+  The host was not used for
   either mount or rename probes.
 
 ## What this did not show
 
-- Host-kernel execution or Git `2.56.1` runtime behavior: the agreed probe boundary was the disposable guest.
-  A file-backed encrypted pool measures semantics, not performance on the host's storage.
-- Product wrapper, Rust binding, ZED reconciliation, confinement variants or boot orchestration: the fixture used
-  direct kernel calls, guest Git, a limited systemd reader and a test zedlet. Item 8 explicitly imported and loaded
-  the key after reboot; it was not an unattended startup or shutdown test of the design.
-- Free-running rename and replacement interleavings, recreation under the same dataset name, failed rollback or
-  reattach, and process interruption at lifecycle steps. The controls synchronized selected windows and verified
-  state, rather than claiming exhaustive scheduling coverage.
-- Promotion reversal with name collisions, other encrypted lineage shapes, or dependents beyond the fixture.
-  The dependent-destroy variant ran as a dry run only, because the deletion set, not destroying the checkout,
+- Host-kernel execution or Git `2.56.1` runtime behavior:
+  the agreed probe boundary was the disposable guest.
+  A file-backed encrypted pool measures semantics,
+  not performance on the host's storage.
+- Product wrapper,
+  Rust binding,
+  ZED reconciliation,
+  confinement variants or boot orchestration:
+  the fixture used
+  direct kernel calls,
+  guest Git,
+  a limited systemd reader and a test zedlet.
+  Item 8 explicitly imported and loaded
+  the key after reboot;
+  it was not an unattended startup or shutdown test of the design.
+- Free-running rename and replacement interleavings,
+  recreation under the same dataset name,
+  failed rollback or
+  reattach,
+  and process interruption at lifecycle steps.
+  The controls synchronized selected windows and verified
+  state,
+  rather than claiming exhaustive scheduling coverage.
+- Promotion reversal with name collisions,
+  other encrypted lineage shapes,
+  or dependents beyond the fixture.
+  The dependent-destroy variant ran as a dry run only,
+  because the deletion set,
+  not destroying the checkout,
   was the relevant evidence.
 
 ## Delta gate measurements, 2026-11-18T23:04:53-05:00
 
-This non-final, unapproved repeat addresses the delta gate review of proposal `652b51d74d`. Its first item commit
-is `cc87958f37` at 2026-11-18T23:04:53-05:00 and its last is `666d6e2617` at 2026-11-18T23:16:35-05:00. The guest was
-`zfs-delta-measurements`, an Ubuntu 24.04 `mvm` libvirt VM. Each probe reused the encrypted file-backed fixture:
-`aes-256-gcm`, raw key, `recordsize=32K`, `compression=zstd-3`, checkout and clone parent under the same home dataset.
+This non-final,
+unapproved repeat addresses the delta gate review of proposal `652b51d74d`.
+Its first item commit
+is `cc87958f37` at 2026-11-18T23:04:53-05:00 and its last is `666d6e2617` at 2026-11-18T23:16:35-05:00.
+The guest was
+`zfs-delta-measurements`,
+an Ubuntu 24.04 `mvm` libvirt VM.
+Each probe reused the encrypted file-backed fixture:
+`aes-256-gcm`,
+raw key,
+`recordsize=32K`,
+`compression=zstd-3`,
+checkout and clone parent under the same home dataset.
 Scripts and logs are in `~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/delta-review-items/keep/`.
 The project decisions to destroy the worktree and its own snapshots at once and to include `promote` still stand.
 
 ### 12. Same-name replacement with delegated grants
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-12-exact.log`). Root enabled pool
-`delegation`, set `zfs allow -l -u ubuntu create,mount` on the clone parent, `-d -u ubuntu clone` on the checkout,
-and `-d -u ubuntu mount,destroy,userprop` on the clone parent. No other ZFS grants were set. The proposal also
-lists local checkout `snapshot`; the DH1 repeat deliberately omitted it as requested, and root made the origin.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-12-exact.log`).
+Root enabled pool
+`delegation`,
+set `zfs allow -l -u ubuntu create,mount` on the clone parent,
+`-d -u ubuntu clone` on the checkout,
+and `-d -u ubuntu mount,destroy,userprop` on the clone parent.
+No other ZFS grants were set.
+The proposal also
+lists local checkout `snapshot`;
+the DH1 repeat deliberately omitted it as requested,
+and root made the origin.
 `id` under `runuser` returned `uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu)`.
 
 The account cloned `zfsowed12/home/checkout@replacement` to `zfsowed12/home/worktree-clone-datasets/replacement`.
-It ran `zfs destroy` (exit 0), then `zfs create` at the same name (exit 0). A `zfs get` before and after saw:
+It ran `zfs destroy` (exit 0),
+then `zfs create` at the same name (exit 0).
+A `zfs get` before and after saw:
 
 ```text
 # item-12-exact.log, selected property rows
@@ -481,9 +836,13 @@ zfsowed12/home/worktree-clone-datasets/replacement	guid	7645651087564023451
 zfsowed12/home/worktree-clone-datasets/replacement	createtxg	21
 ```
 
-`identity-destroy.lua` reads `guid`, `origin` and `createtxg` using `zfs.get_prop`, and calls `zfs.sync.destroy`
-only if all match. `zfs program -- <pool> <script> <dataset> <guid> <origin> <createtxg>` as `ubuntu` with the
-original clone's matching tuple exited 1, with the clone unchanged:
+`identity-destroy.lua` reads `guid`,
+`origin` and `createtxg` using `zfs.get_prop`,
+and calls `zfs.sync.destroy`
+only if all match.
+`zfs program -- <pool> <script> <dataset> <guid> <origin> <createtxg>` as `ubuntu` with the
+original clone's matching tuple exited 1,
+with the clone unchanged:
 
 ```text
 # item-12-exact.log
@@ -491,8 +850,10 @@ Channel program execution failed:
 Permission denied. Channel programs must be run as root.
 ```
 
-As root, the stale original tuple against the plain replacement exited 1 with an `identity mismatch` diagnostic
-naming the replacement's GUID, `origin=-` and `createtxg` (`item-12-exact.log:93`):
+As root,
+the stale original tuple against the plain replacement exited 1 with an `identity mismatch` diagnostic
+naming the replacement's GUID,
+`origin=-` and `createtxg` (`item-12-exact.log:93`):
 
 ```text
 # item-12-exact.log:93, the plain replacement's refusal
@@ -500,8 +861,12 @@ naming the replacement's GUID, `origin=-` and `createtxg` (`item-12-exact.log:93
 ```
 
 The account then replaced that filesystem
-with a new clone of the **same** origin. The root program again exited 1 on the original tuple, and the new clone
-was unchanged. With its actual tuple it exited 0; `zfs list` then exited 1 with `dataset does not exist`:
+with a new clone of the **same** origin.
+The root program again exited 1 on the original tuple,
+and the new clone
+was unchanged.
+With its actual tuple it exited 0;
+`zfs list` then exited 1 with `dataset does not exist`:
 
 ```text
 # item-12-exact.log, selected output
@@ -515,21 +880,36 @@ Channel program fully executed and produced output:
 ```
 
 The probe passed GUIDs as exact signed 64-bit decimal strings to match Lua's representation of unsigned ZFS
-GUID bits. The `--` prevents a negative GUID from being parsed as a CLI option. Two setup attempts caught
-that argument issue and that `delegation` is a `zpool set` property, not a `zfs set` property.
+GUID bits.
+The `--` prevents a negative GUID from being parsed as a CLI option.
+Two setup attempts caught
+that argument issue and that `delegation` is a `zpool set` property,
+not a `zfs set` property.
 
 This confirms DH1's same-name replacement with the three grants and the root-only conditional destroy on this
-release. A GUID read identifies the object at the time of the read; even matching the old origin name does not
-identify a replacement. The test does not demonstrate the timing of a concurrent replacement, verify a product
-removal path, or authorize a new privileged destroy service.
+release.
+A GUID read identifies the object at the time of the read;
+even matching the old origin name does not
+identify a replacement.
+The test does not demonstrate the timing of a concurrent replacement,
+verify a product
+removal path,
+or authorize a new privileged destroy service.
 
 ### 13. Creation transaction groups and a bookmark after promote
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-13-exact.log`). The probe repeated
-item 11's `zfs snapshot`, `zfs clone` and `zfs promote` sequence. Between `@earliest` and `@origin`, it ran
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-13-exact.log`).
+The probe repeated
+item 11's `zfs snapshot`,
+`zfs clone` and `zfs promote` sequence.
+Between `@earliest` and `@origin`,
+it ran
 `zfs bookmark zfsowed13/home/checkout@earliest 'zfsowed13/home/checkout#from-earliest'`.
 It read the clone with `zfs get -H -p -o value createtxg,guid` and listed snapshots and bookmarks under both
-heads with `zfs list -H -p -o name,createtxg,guid -r`, selecting each object type in turn.
+heads with `zfs list -H -p -o name,createtxg,guid -r`,
+selecting each object type in turn.
 
 ```text
 # item-13-exact.log, selected rows before promote
@@ -549,23 +929,40 @@ own @worktree-own: 18 > clone 17: True
 bookmark tuple unchanged: True
 ```
 
-Both transferred snapshots retained their `createtxg` and GUID. The checkout's later snapshot stayed on the
-checkout; the clone's own snapshot stayed on the clone. The checkout acquired the promoted clone's `@origin`
-as its direct origin, and the promoted clone's own origin became `-`. The bookmark moved to the promoted
-clone with the same tuple and was no longer listed on the checkout. Promoting the checkout back restored the
+Both transferred snapshots retained their `createtxg` and GUID.
+The checkout's later snapshot stayed on the
+checkout;
+the clone's own snapshot stayed on the clone.
+The checkout acquired the promoted clone's `@origin`
+as its direct origin,
+and the promoted clone's own origin became `-`.
+The bookmark moved to the promoted
+clone with the same tuple and was no longer listed on the checkout.
+Promoting the checkout back restored the
 snapshot map and printed `bookmark restored by reverse promote: True`.
 
-The transaction-group comparisons separated transferred and own snapshots in this topology, and a snapshot-only
-inventory missed the transferred bookmark. This is not proof of provenance based on `createtxg` alone for other
-lineage changes, different encryption roots, or creation of multiple objects in one transaction group.
+The transaction-group comparisons separated transferred and own snapshots in this topology,
+and a snapshot-only
+inventory missed the transferred bookmark.
+This is not proof of provenance based on `createtxg` alone for other
+lineage changes,
+different encryption roots,
+or creation of multiple objects in one transaction group.
 
 ### 14. One snapshot destroy request after promote
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`). This item ran as root:
-the log runs `zfs destroy` and `/usr/bin/python3 /root/guest-delta-probe.py` from the root shell, and drops to the
-account with `runuser` only to create its own fixture directory. The probe repeated item 11's promote with an
-extra worktree-owned snapshot for the positive control. It traced each destroy with
-`strace -X raw -e trace=ioctl` and counted `0x5a3b`, `ZFS_IOC_DESTROY_SNAPS` in OpenZFS `include/sys/fs/zfs.h`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-14-exact.log`).
+This item ran as root:
+the log runs `zfs destroy` and `/usr/bin/python3 /root/guest-delta-probe.py` from the root shell,
+and drops to the
+account with `runuser` only to create its own fixture directory.
+The probe repeated item 11's promote with an
+extra worktree-owned snapshot for the positive control.
+It traced each destroy with
+`strace -X raw -e trace=ioctl` and counted `0x5a3b`,
+`ZFS_IOC_DESTROY_SNAPS` in OpenZFS `include/sys/fs/zfs.h`.
 `zfs destroy zfsowed14/home/worktree-clone-datasets/promotion@earliest,origin` exited 1:
 
 ```text
@@ -574,14 +971,26 @@ cannot destroy 'zfsowed14/home/worktree-clone-datasets/promotion@origin': snapsh
 ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 0
 ```
 
-The CLI refused before submitting the batch, so this command did not measure kernel atomicity. In the `zfs-2.4.4`
-source, `snapshot_to_nvl_cb` in `cmd/zfs/zfs_main.c` checks dependents while gathering the snapshot names.
-To exercise the kernel, the guest helper submitted exactly those two names in one `lzc_destroy_snaps` call
-with `defer=false` (`argtypes` and call at `guest-delta-items.py:156` to `:165`). That the counted ioctl carried no
-`defer` key is reasoning, not something the trace read: it ran with `-X raw` and shows the request's address, so the
-inference rests on the helper's `defer=false` call, on `libzfs_core` adding the key only when it defers
-(`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`), and on the guest userspace being that release.
-It returned `EEXIST`, with only `@origin` in the per-name errors:
+The CLI refused before submitting the batch,
+so this command did not measure kernel atomicity.
+In the `zfs-2.4.4`
+source,
+`snapshot_to_nvl_cb` in `cmd/zfs/zfs_main.c` checks dependents while gathering the snapshot names.
+To exercise the kernel,
+the guest helper submitted exactly those two names in one `lzc_destroy_snaps` call
+with `defer=false` (`argtypes` and call at `guest-delta-items.py:156` to `:165`).
+That the counted ioctl carried no
+`defer` key is reasoning,
+not something the trace read:
+it ran with `-X raw` and shows the request's address,
+so the
+inference rests on the helper's `defer=false` call,
+on `libzfs_core` adding the key only when it defers
+(`lib/libzfs_core/libzfs_core.c:475` to `:476`,
+`zfs-2.4.4`),
+and on the guest userspace being that release.
+It returned `EEXIST`,
+with only `@origin` in the per-name errors:
 
 ```text
 # item-14-exact.log, selected direct-call output
@@ -599,27 +1008,52 @@ zfsowed14/home/worktree-clone-datasets/promotion@earliest	13	1397524674383436074
 zfsowed14/home/worktree-clone-datasets/promotion@origin	14	7714848456831525633
 ```
 
-Positive control: `zfs destroy <promoted-clone>@worktree-own,worktree-own-next` exited 0 with
-`ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1`. Both own snapshots disappeared and no others did. This supports
-DM2's all-or-nothing result for this kernel request, but not its premise that the refused CLI command issues it.
-It does not prove ownership, make the subsequent dataset destroy atomic with the batch, test batch limits,
-or establish safety if an unprotected foreign snapshot appears in a submitted set. Because every call ran as root,
-it does not show that the delegated account may submit the same batch under the proposed grants; the only
+Positive control:
+`zfs destroy <promoted-clone>@worktree-own,worktree-own-next` exited 0 with
+`ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1`.
+Both own snapshots disappeared and no others did.
+This supports
+DM2's all-or-nothing result for this kernel request,
+but not its premise that the refused CLI command issues it.
+It does not prove ownership,
+make the subsequent dataset destroy atomic with the batch,
+test batch limits,
+or establish safety if an unprotected foreign snapshot appears in a submitted set.
+Because every call ran as root,
+it does not show that the delegated account may submit the same batch under the proposed grants;
+the only
 delegated destroy measured is item 12's head destroy.
 
 ### 15. Mount namespaces created after attach
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-15-exact.log`). Both arms ran in the
-VM boot namespace so that PID 1 could start the reader unit after attach. `/`, `/home` and the fixture home
-were shared; staging was private. After attaching with the descriptor calls from item 3, the probe started
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-15-exact.log`).
+Both arms ran in the
+VM boot namespace so that PID 1 could start the reader unit after attach.
+`/`,
+`/home` and the fixture home
+were shared;
+staging was private.
+After attaching with the descriptor calls from item 3,
+the probe started
 `unshare --mount --propagation unchanged -- sleep 65` and a bounded `systemd-run` unit with
-`--property=PrivateMounts=yes`. Both readers inherited the clone; neither worked in the clone directory.
+`--property=PrivateMounts=yes`.
+Both readers inherited the clone;
+neither worked in the clone directory.
 `unchanged` preserves peer propagation for the shared control instead of making that reader recursively private.
 
-With a private checkout, a fresh process moved the clone mount to staging and unmounted it. The clone vanished
-from the first namespace, but **both** readers' `/proc/<pid>/mountinfo` still had a ZFS row for the clone at the
-slot. As guest root, the probe grouped PIDs by `/proc/<pid>/ns/mnt`, read a representative `mountinfo` for each,
-and matched the filesystem and source. After unmount it found both remaining holders:
+With a private checkout,
+a fresh process moved the clone mount to staging and unmounted it.
+The clone vanished
+from the first namespace,
+but **both** readers' `/proc/<pid>/mountinfo` still had a ZFS row for the clone at the
+slot.
+As guest root,
+the probe grouped PIDs by `/proc/<pid>/ns/mnt`,
+read a representative `mountinfo` for each,
+and matched the filesystem and source.
+After unmount it found both remaining holders:
 
 ```text
 # item-15-exact.log, selected rows after private-checkout move and unmount
@@ -633,8 +1067,13 @@ root scan: mnt:[4026532396] representative /proc/127996/mountinfo; hits=1
 root scan: mnt:[4026532397] representative /proc/127998/mountinfo; hits=1
 ```
 
-With the readers alive, the probe created and destroyed a disposable own snapshot (both exit 0), and confirmed
-it was gone. `zfs destroy` of the clone then exited 1. After stopping both readers, no scanned namespace still
+With the readers alive,
+the probe created and destroyed a disposable own snapshot (both exit 0),
+and confirmed
+it was gone.
+`zfs destroy` of the clone then exited 1.
+After stopping both readers,
+no scanned namespace still
 listed it and retrying the same clone destroy exited 0:
 
 ```text
@@ -644,9 +1083,14 @@ cannot destroy 'zfsowed15private/home/worktree-clone-datasets/post-attach': data
 private checkout destroy with readers alive: 1
 ```
 
-With a shared checkout, the `unshare` reader was a peer and the unit's copy had a `master` pointing to the
-first namespace's group. The descriptor move refused with `EINVAL`, as in item 3. A plain path `umount` in
-the first namespace was used only as the shared propagation control. While both readers were still alive:
+With a shared checkout,
+the `unshare` reader was a peer and the unit's copy had a `master` pointing to the
+first namespace's group.
+The descriptor move refused with `EINVAL`,
+as in item 3.
+A plain path `umount` in
+the first namespace was used only as the shared propagation control.
+While both readers were still alive:
 
 ```text
 # item-15-exact.log, selected shared-checkout control output
@@ -659,17 +1103,29 @@ root scan: inspected 11 distinct namespaces; 0 unreadable or vanished PID entrie
 shared checkout destroy with readers alive: 0
 ```
 
-All scanned namespaces had zero hits after the shared unmount. DM3's distinction holds: a private move and
-unmount can succeed locally while another namespace keeps the clone busy, and snapshot destruction can succeed
-before the clone destroy refuses. The scan detected the live, process-visible holders in this VM. It was not
-a race-free proof of absence and did not test namespace references without a visible member PID, processes
-with different root directories, the default `unshare --mount` propagation, or the installed Pi driver.
+All scanned namespaces had zero hits after the shared unmount.
+DM3's distinction holds:
+a private move and
+unmount can succeed locally while another namespace keeps the clone busy,
+and snapshot destruction can succeed
+before the clone destroy refuses.
+The scan detected the live,
+process-visible holders in this VM.
+It was not
+a race-free proof of absence and did not test namespace references without a visible member PID,
+processes
+with different root directories,
+the default `unshare --mount` propagation,
+or the installed Pi driver.
 
 ### 16. Availability of a guest with the host kernel
 
 The guest used for items 12 to 15 booted `6.8.0-147-generic` and printed `zfs-2.4.4-1` and `zfs-kmod-2.4.4-1`.
-The host, read-only, reported `7.3.5-1-cachyos` from `uname --kernel-release` and `2.4.4-1` from
-`/sys/module/zfs/version`. The package ownership and tool queries returned:
+The host,
+read-only,
+reported `7.3.5-1-cachyos` from `uname --kernel-release` and `2.4.4-1` from
+`/sys/module/zfs/version`.
+The package ownership and tool queries returned:
 
 ```text
 # pacman --query --owns on the host kernel image and ZFS module
@@ -683,9 +1139,15 @@ zfs-utils 2.4.4-3
 
 `mvm create --help` said `Image to use: ubuntu (default), fedora, alpine, windows, or a custom template name`.
 The [image documentation](../../package/mvm/cli/README.md#available-images) and `IMAGES` in
-`package/mvm/cli/src/registry.ts` resolve those to Ubuntu 24.04 LTS, Fedora 43 Cloud Base, Alpine 3.23 and
-Windows Server 2025. There is no `linux-cachyos` image in that libvirt registry. `ls --format=single-column`
-of `~/.local/share/mvm/images/`, the `resolveImage` custom-template directory, returned only:
+`package/mvm/cli/src/registry.ts` resolve those to Ubuntu 24.04 LTS,
+Fedora 43 Cloud Base,
+Alpine 3.23 and
+Windows Server 2025.
+There is no `linux-cachyos` image in that libvirt registry.
+`ls --format=single-column`
+of `~/.local/share/mvm/images/`,
+the `resolveImage` custom-template directory,
+returned only:
 
 ```text
 # ls --format=single-column -- ~/.local/share/mvm/images
@@ -693,40 +1155,80 @@ noble-server-cloudimg-amd64.img
 template-ubuntu.qcow2
 ```
 
-No offered local image boots the target package combination. The Hetzner backend defines no CachyOS shorthand;
-its remote catalog and arbitrary image IDs were not queried or provisioned. The `mvm` custom-template route
-would need a bootable x86-64 CachyOS qcow2 with `linux-cachyos` `7.3.5-1`, its matching `linux-cachyos-zfs`
-module (or the same OpenZFS release built against the exact guest kernel headers), OpenZFS `2.4.4` userspace,
-and an enabled `qemu-guest-agent`. It must boot that kernel, not just have the package on disk. Verify
+No offered local image boots the target package combination.
+The Hetzner backend defines no CachyOS shorthand;
+its remote catalog and arbitrary image IDs were not queried or provisioned.
+The `mvm` custom-template route
+would need a bootable x86-64 CachyOS qcow2 with `linux-cachyos` `7.3.5-1`,
+its matching `linux-cachyos-zfs`
+module (or the same OpenZFS release built against the exact guest kernel headers),
+OpenZFS `2.4.4` userspace,
+and an enabled `qemu-guest-agent`.
+It must boot that kernel,
+not just have the package on disk.
+Verify
 `uname --kernel-release` and `zfs version` in that guest before repeating item 1 with a disposable encrypted
-file-backed pool. No exact-kernel guest was available, so item 1's calls were not rerun. Matching the module
+file-backed pool.
+No exact-kernel guest was available,
+so item 1's calls were not rerun.
+Matching the module
 release in the Ubuntu guest does not establish that the host kernel passes the calls.
 
 ### What this repeat did not show
 
-- No run on `7.3.5-1-cachyos`, because no built-in or locally supplied image booted it. No probe ran against
+- No run on `7.3.5-1-cachyos`,
+  because no built-in or locally supplied image booted it.
+  No probe ran against
   the host's `zpcachyos` pool.
-- No product-level removal, handler readiness gate, or concurrency guarantee. The same-name test sequenced
-  the substitution; the privileged program was a fixture, not a delegated primitive or a production service.
-- No universal transaction-group provenance rule, destroy batch limit or proof against a change between
-  inspection and use. Only the selected promote, batch and hold cases were exercised.
-- No snapshot batch submitted by the delegated account under the proposed grants. Item 14 ran its batch as
-  root, and the only delegated destroy measured is item 12's head destroy; the account's permission on a clone's
+- No product-level removal,
+  handler readiness gate,
+  or concurrency guarantee.
+  The same-name test sequenced
+  the substitution;
+  the privileged program was a fixture,
+  not a delegated primitive or a production service.
+- No universal transaction-group provenance rule,
+  destroy batch limit or proof against a change between
+  inspection and use.
+  Only the selected promote,
+  batch and hold cases were exercised.
+- No snapshot batch submitted by the delegated account under the proposed grants.
+  Item 14 ran its batch as
+  root,
+  and the only delegated destroy measured is item 12's head destroy;
+  the account's permission on a clone's
   snapshots under the `-d` grants is unmeasured.
-- No complete namespace or mount-reference exclusion. The guest scan had readable, live representatives
-  for the observed namespaces; the result does not generalize to pinned namespaces or racing task changes.
+- No complete namespace or mount-reference exclusion.
+  The guest scan had readable,
+  live representatives
+  for the observed namespaces;
+  the result does not generalize to pinned namespaces or racing task changes.
 
 ## 17. Delegated snapshot batch, 2026-11-19T00:44:01-05:00
 
-This non-final, unapproved section answers finding L6 of the second delta review of `7fe84c7be8`: item 14's batch
-ran as root, and the delegated account had been measured destroying only a head (item 12). It also answers the
-delta section's "What this repeat did not show" bullet about a delegated batch. The guest was
-`zfs-item-17-measurements`, an Ubuntu 24.04 `mvm` libvirt VM, destroyed after the run
-(`item-17/keep/mvm-destroy.log`). Scripts are in
-`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-17/`: `guest-probe.py` and
-`guest-delta-items.py` are unchanged copies of the kept harness, `guest-item-17-items.py` adds the arms and
-`run-item-17.ts` runs them through `mvm exec` in a private mount namespace, and `keep/item-17-exact-3.log` holds
-every command and output quoted here. The host, read-only, reported `7.3.5-1-cachyos` from
+This non-final,
+unapproved section answers finding L6 of the second delta review of `7fe84c7be8`:
+item 14's batch
+ran as root,
+and the delegated account had been measured destroying only a head (item 12).
+It also answers the
+delta section's "What this repeat did not show" bullet about a delegated batch.
+The guest was
+`zfs-item-17-measurements`,
+an Ubuntu 24.04 `mvm` libvirt VM,
+destroyed after the run
+(`item-17/keep/mvm-destroy.log`).
+Scripts are in
+`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-17/`:
+`guest-probe.py` and
+`guest-delta-items.py` are unchanged copies of the kept harness,
+`guest-item-17-items.py` adds the arms and
+`run-item-17.ts` runs them through `mvm exec` in a private mount namespace,
+and `keep/item-17-exact-3.log` holds
+every command and output quoted here.
+The host,
+read-only,
+reported `7.3.5-1-cachyos` from
 `uname --kernel-release` and `2.4.4-1` from `/sys/module/zfs/version` in this run.
 
 The run printed its own versions before any pool existed:
@@ -742,15 +1244,27 @@ zfs-2.4.4-1
 zfs-kmod-2.4.4-1
 ```
 
-The guest kernel differs from the host's. OpenZFS userspace and module came from the `zfs-2.4.4` release
-tarball built against that guest kernel, and their release matches the host module's.
+The guest kernel differs from the host's.
+OpenZFS userspace and module came from the `zfs-2.4.4` release
+tarball built against that guest kernel,
+and their release matches the host module's.
 
 ### Item 1: one batch by the delegated account
 
-The pool was `zfsowed17` in the fixture layout above: `aes-256-gcm` with a raw key file, `recordsize=32K`,
-`compression=zstd-3`, a `legacy`, `canmount=off` clone parent, and the checkout dataset mounted under the guest
-home. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`). Root set item
-12's three `zfs allow` grants and no others, then printed them:
+The pool was `zfsowed17` in the fixture layout above:
+`aes-256-gcm` with a raw key file,
+`recordsize=32K`,
+`compression=zstd-3`,
+a `legacy`,
+`canmount=off` clone parent,
+and the checkout dataset mounted under the guest
+home.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`).
+Root set item
+12's three `zfs allow` grants and no others,
+then printed them:
 
 ```text
 # item-17-exact-3.log
@@ -766,14 +1280,27 @@ $ runuser --preserve-environment -u ubuntu -- id
 uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu)
 ```
 
-The proposal's delegation section also lists local `snapshot` on the checkout dataset. It was not set, as in item
-12, because root made every snapshot. That grant could not reach a clone's snapshots either: the checkout dataset
-is not an ancestor of the clone, and a snapshot's permission is checked as a descendant grant from its own dataset
-upward (`module/zfs/dsl_deleg.c:576`, `zfs-2.4.4`).
+The proposal's delegation section also lists local `snapshot` on the checkout dataset.
+It was not set,
+as in item
+12,
+because root made every snapshot.
+That grant could not reach a clone's snapshots either:
+the checkout dataset
+is not an ancestor of the clone,
+and a snapshot's permission is checked as a descendant grant from its own dataset
+upward (`module/zfs/dsl_deleg.c:576`,
+`zfs-2.4.4`).
 
-Root then made the clone as items 11 and 14 do, with `@earliest`, `@origin` and `@checkout-later` on the checkout,
-`zfs clone <checkout>@origin <clone>`, `@worktree-own` and `@worktree-own-next` on the clone, and
-`zfs promote <clone>`. The clone stayed unmounted, and the promotion left the checkout as a clone of it:
+Root then made the clone as items 11 and 14 do,
+with `@earliest`,
+`@origin` and `@checkout-later` on the checkout,
+`zfs clone <checkout>@origin <clone>`,
+`@worktree-own` and `@worktree-own-next` on the clone,
+and
+`zfs promote <clone>`.
+The clone stayed unmounted,
+and the promotion left the checkout as a clone of it:
 
 ```text
 # item-17-exact-3.log, before the batch
@@ -785,10 +1312,16 @@ zfsowed17/home/worktree-clone-datasets/removal@worktree-own	21	82966955953005516
 zfsowed17/home/worktree-clone-datasets/removal@worktree-own-next	22	6366918254970259933
 ```
 
-The account then ran one `python3` process under `strace -X raw -e trace=ioctl`. It submitted both
-`@worktree-own` and `@worktree-own-next` through `lzc_destroy_snaps` with `defer=false`, the same direct path item
-14 used (`guest-delta-items.py:164`); `libzfs_core` adds no `defer` key for that value
-(`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`). Its output, with the names elided in the middle:
+The account then ran one `python3` process under `strace -X raw -e trace=ioctl`.
+It submitted both
+`@worktree-own` and `@worktree-own-next` through `lzc_destroy_snaps` with `defer=false`,
+the same direct path item
+14 used (`guest-delta-items.py:164`);
+`libzfs_core` adds no `defer` key for that value
+(`lib/libzfs_core/libzfs_core.c:475` to `:476`,
+`zfs-2.4.4`).
+Its output,
+with the names elided in the middle:
 
 ```text
 # item-17-exact-3.log
@@ -798,8 +1331,11 @@ ioctl(3, 0x5a3b, 0x7ffddc554040)        = 0
 ZFS_IOC_DESTROY_SNAPS (0x5a3b) count: 1
 ```
 
-No per-name error entries were printed: the helper prints them only when the call filled an error list
-(`guest-delta-items.py:166` to `:172`). The snapshot list afterwards, in the log's order and with the command line
+No per-name error entries were printed:
+the helper prints them only when the call filled an error list
+(`guest-delta-items.py:166` to `:172`).
+The snapshot list afterwards,
+in the log's order and with the command line
 elided:
 
 ```text
@@ -811,18 +1347,35 @@ item 1 named snapshots still present: []
 ```
 
 It shows that the account holding exactly these grants destroyed both snapshots made on the clone in one kernel
-request, with return value 0 and one `ZFS_IOC_DESTROY_SNAPS` call, and that the transferred origin history stayed.
-It does not show a held snapshot, a `defer` key, names from more than one dataset, a set larger than two, an
-unpromoted clone, another OpenZFS release, or the host kernel. Why the grants allow it is a source reading, not
-this run: the request's policy requires `mount` and `destroy` for each name (`module/zfs/zfs_ioctl.c:824` to
-`:834` and `:843` to `:877`), and a snapshot is checked for descendant grants only
-(`module/zfs/dsl_deleg.c:576`), which the clone parent's `-d mount,destroy` supplies.
+request,
+with return value 0 and one `ZFS_IOC_DESTROY_SNAPS` call,
+and that the transferred origin history stayed.
+It does not show a held snapshot,
+a `defer` key,
+names from more than one dataset,
+a set larger than two,
+an
+unpromoted clone,
+another OpenZFS release,
+or the host kernel.
+Why the grants allow it is a source reading,
+not
+this run:
+the request's policy requires `mount` and `destroy` for each name (`module/zfs/zfs_ioctl.c:824` to
+`:834` and `:843` to `:877`),
+and a snapshot is checked for descendant grants only
+(`module/zfs/dsl_deleg.c:576`),
+which the clone parent's `-d mount,destroy` supplies.
 
 ### Item 2: one named snapshot has a dependent clone
 
 Root created `@with-dependent` and `@without-dependent` on the clone and cloned `@with-dependent` as
-`zfsowed17/home/worktree-clone-datasets/dependent`; the log quotes that clone's `origin` and `mounted no`. Guest:
-`6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`). The account then sent the
+`zfsowed17/home/worktree-clone-datasets/dependent`;
+the log quotes that clone's `origin` and `mounted no`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`).
+The account then sent the
 same direct batch naming both snapshots:
 
 ```text
@@ -836,15 +1389,26 @@ item 2 process exit: 17
 item 2 named snapshots still present: ['...@with-dependent', '...@without-dependent']
 ```
 
-It shows that the account's batch kept the all-or-nothing result item 14 measured as root: one dependent clone made
-the request return `EEXIST`, the per-name error named only the dependent snapshot, one request was sent, and the
-snapshot without a dependent was not deleted either. It does not show a user hold instead of a clone, several
-dependent names in one request, or a name outside the account's grants.
+It shows that the account's batch kept the all-or-nothing result item 14 measured as root:
+one dependent clone made
+the request return `EEXIST`,
+the per-name error named only the dependent snapshot,
+one request was sent,
+and the
+snapshot without a dependent was not deleted either.
+It does not show a user hold instead of a clone,
+several
+dependent names in one request,
+or a name outside the account's grants.
 
 ### Item 3: the same request as root
 
-After item 1, root created `@root-control-one` and `@root-control-two` and ran the same helper and trace as
-`uid=0`. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`):
+After item 1,
+root created `@root-control-one` and `@root-control-two` and ran the same helper and trace as
+`uid=0`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-17-exact-3.log`):
 
 ```text
 # item-17-exact-3.log, names elided
@@ -856,43 +1420,86 @@ item 3 process exit: 0
 item 3 named snapshots still present: []
 ```
 
-It is the control that the request the account sent is well formed on this guest: the same call shape returned 0 and
-deleted both names as root too. It does not show a root-only refusal for a name outside a grant.
+It is the control that the request the account sent is well formed on this guest:
+the same call shape returned 0 and
+deleted both names as root too.
+It does not show a root-only refusal for a name outside a grant.
 
 ### Item 4: not needed
 
-Item 1 was accepted, so no refusal had a permission to name and no grant was added. The log records
-`item 4: not run, item 1 was accepted`. Which permission such a refusal would name, and whether adding only a
-descendant `destroy` grant on each clone would change it, remain unmeasured: no run in this record produced that
+Item 1 was accepted,
+so no refusal had a permission to name and no grant was added.
+The log records
+`item 4: not run, item 1 was accepted`.
+Which permission such a refusal would name,
+and whether adding only a
+descendant `destroy` grant on each clone would change it,
+remain unmeasured:
+no run in this record produced that
 refusal.
 
 ### What item 17 did not show
 
-- No user hold, `defer` key, larger set, split or batch limit. Item 14 left request limits unmeasured, and they
+- No user hold,
+  `defer` key,
+  larger set,
+  split or batch limit.
+  Item 14 left request limits unmeasured,
+  and they
   remain unmeasured.
-- No route through the proposed binding, the root handler or a conditional channel program; the helper is the
-  fixture item 14 used, called as the account.
-- No unpromoted clone, other clone topology or encryption root, other OpenZFS release, or `7.3.5-1-cachyos`.
+- No route through the proposed binding,
+  the root handler or a conditional channel program;
+  the helper is the
+  fixture item 14 used,
+  called as the account.
+- No unpromoted clone,
+  other clone topology or encryption root,
+  other OpenZFS release,
+  or `7.3.5-1-cachyos`.
   [Item 18](#18-delegated-batch-unpromoted-clone-2026-11-19t012534-0500) measured an unpromoted clone in a guest of
   its own.
-- No head destroy after the batch, no interleaving with a snapshot created between inspection and request, and
-  no interleaving with a mount or unmount. The limits of items 14 and 15 stand.
-- No request naming a transferred snapshot, a foreign snapshot or one outside the clone parent. The design names
-  only the clone's own snapshots; what the same account could do to a transferred one under these grants was not
+- No head destroy after the batch,
+  no interleaving with a snapshot created between inspection and request,
+  and
+  no interleaving with a mount or unmount.
+  The limits of items 14 and 15 stand.
+- No request naming a transferred snapshot,
+  a foreign snapshot or one outside the clone parent.
+  The design names
+  only the clone's own snapshots;
+  what the same account could do to a transferred one under these grants was not
   measured.
 
 ## 18. Delegated batch, unpromoted clone, 2026-11-19T01:25:34-05:00
 
-This non-final, unapproved section answers the third bullet of item 17's "What item 17 did not show" and the
-unpromoted-clone limitation item 17 states under its item 1: removal destroys verified unpromoted clones, and no
-unpromoted clone had been measured. The fixture, account, grants and direct `lzc_destroy_snaps` path are item
-17's; the removal arms differ only in that the clone is never promoted, and `lists` calls were added to print both
-datasets' snapshot names after each request (`guest-item-18-items.py`, against unchanged copies of `guest-probe.py`
-and `guest-delta-items.py`). The guest was `zfs-item-18-measurements`, an Ubuntu 24.04 `mvm` libvirt VM,
-destroyed after the run (`keep/mvm-destroy.log`). Scripts are in
-`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-18/`: `prepare-item-18.ts` prepared the guest
-and built OpenZFS, `run-item-18.ts` pushed the probe and ran the arm, and `keep/item-18-exact.log` holds every
-command and output quoted here. The host, read-only, reported `7.3.5-1-cachyos` from `uname --kernel-release` and
+This non-final,
+unapproved section answers the third bullet of item 17's "What item 17 did not show" and the
+unpromoted-clone limitation item 17 states under its item 1:
+removal destroys verified unpromoted clones,
+and no
+unpromoted clone had been measured.
+The fixture,
+account,
+grants and direct `lzc_destroy_snaps` path are item
+17's;
+the removal arms differ only in that the clone is never promoted,
+and `lists` calls were added to print both
+datasets' snapshot names after each request (`guest-item-18-items.py`,
+against unchanged copies of `guest-probe.py`
+and `guest-delta-items.py`).
+The guest was `zfs-item-18-measurements`,
+an Ubuntu 24.04 `mvm` libvirt VM,
+destroyed after the run (`keep/mvm-destroy.log`).
+Scripts are in
+`~/temp/agent/zfs-measurements-owed-before-acceptance-2026-11-18/item-18/`:
+`prepare-item-18.ts` prepared the guest
+and built OpenZFS,
+`run-item-18.ts` pushed the probe and ran the arm,
+and `keep/item-18-exact.log` holds every
+command and output quoted here.
+The host,
+read-only,
+reported `7.3.5-1-cachyos` from `uname --kernel-release` and
 `2.4.4-1` from `/sys/module/zfs/version` in this run.
 
 The run printed its own versions before any pool existed:
@@ -911,16 +1518,31 @@ zfs-2.4.4-1
 zfs-kmod-2.4.4-1
 ```
 
-The guest kernel differs from the host's. `prepare-item-18.ts` built the `zfs-2.4.4` release tarball in that
-guest, configuring `--with-linux` for the guest's own kernel headers, and both userspace and module report release
-`2.4.4-1`, the host module's release (`keep/guest-build-driver.log`).
+The guest kernel differs from the host's.
+`prepare-item-18.ts` built the `zfs-2.4.4` release tarball in that
+guest,
+configuring `--with-linux` for the guest's own kernel headers,
+and both userspace and module report release
+`2.4.4-1`,
+the host module's release (`keep/guest-build-driver.log`).
 
 ### Grants and layout before the batch
 
-The pool was `zfsowed18`, in the layout item 17 used: `aes-256-gcm` with a raw key file, `recordsize=32K`,
-`compression=zstd-3`, a `legacy`, `canmount=off` clone parent, and the checkout dataset mounted under the guest
-home. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-18-exact.log`). Root set item 12's
-three `zfs allow` grants and no others, then printed them:
+The pool was `zfsowed18`,
+in the layout item 17 used:
+`aes-256-gcm` with a raw key file,
+`recordsize=32K`,
+`compression=zstd-3`,
+a `legacy`,
+`canmount=off` clone parent,
+and the checkout dataset mounted under the guest
+home.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-18-exact.log`).
+Root set item 12's
+three `zfs allow` grants and no others,
+then printed them:
 
 ```text
 # item-18-exact.log, selected grant rows
@@ -941,14 +1563,25 @@ rc=0
 uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu)
 ```
 
-As in items 12 and 17, the checkout's local `snapshot` grant was not set, because root made every snapshot, and it
-could not reach a clone's snapshots either: the checkout dataset is not an ancestor of the clone, and a
+As in items 12 and 17,
+the checkout's local `snapshot` grant was not set,
+because root made every snapshot,
+and it
+could not reach a clone's snapshots either:
+the checkout dataset is not an ancestor of the clone,
+and a
 snapshot's permission is checked as a descendant grant from its own dataset upward (`module/zfs/dsl_deleg.c:576`,
 `zfs-2.4.4`).
 
-Root made the clone as items 11 and 14 do, with `@earliest`, `@origin` and `@checkout-later` on the checkout,
-`zfs clone <checkout>@origin <clone>`, then `@worktree-own` and `@worktree-own-next` on the clone, and did not
-promote it. The clone stayed unmounted, and the checkout kept all three snapshots and its own origin role:
+Root made the clone as items 11 and 14 do,
+with `@earliest`,
+`@origin` and `@checkout-later` on the checkout,
+`zfs clone <checkout>@origin <clone>`,
+then `@worktree-own` and `@worktree-own-next` on the clone,
+and did not
+promote it.
+The clone stayed unmounted,
+and the checkout kept all three snapshots and its own origin role:
 
 ```text
 # item-18-exact.log, before the batch
@@ -963,18 +1596,31 @@ zfsowed18/home/checkout@origin	18	16453277525178033700
 zfsowed18/home/checkout@checkout-later	19	9491771657209599626
 ```
 
-The clone's snapshot list held only the two names made on it, so the set a removal batch builds from that list is
-exactly the clone's own snapshots. `@earliest` and `@origin` are listed under the checkout and not under the
-clone, which is the difference promotion made in item 17: there both transferred names were listed under the
+The clone's snapshot list held only the two names made on it,
+so the set a removal batch builds from that list is
+exactly the clone's own snapshots.
+`@earliest` and `@origin` are listed under the checkout and not under the
+clone,
+which is the difference promotion made in item 17:
+there both transferred names were listed under the
 promoted clone and stayed after its own snapshots were destroyed.
 
 ### Item 1: one batch by the delegated account
 
-Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-18-exact.log`). The account then ran one
-`python3` process under `strace -X raw -e trace=ioctl`. It submitted both `@worktree-own` and
-`@worktree-own-next` through `lzc_destroy_snaps` with `defer=false`, the same direct path item 14 used
-(`guest-delta-items.py:164`); `libzfs_core` adds no `defer` key for that value
-(`lib/libzfs_core/libzfs_core.c:475` to `:476`, `zfs-2.4.4`). Its output, with the names elided in the middle:
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-18-exact.log`).
+The account then ran one
+`python3` process under `strace -X raw -e trace=ioctl`.
+It submitted both `@worktree-own` and
+`@worktree-own-next` through `lzc_destroy_snaps` with `defer=false`,
+the same direct path item 14 used
+(`guest-delta-items.py:164`);
+`libzfs_core` adds no `defer` key for that value
+(`lib/libzfs_core/libzfs_core.c:475` to `:476`,
+`zfs-2.4.4`).
+Its output,
+with the names elided in the middle:
 
 ```text
 # item-18-exact.log
@@ -986,8 +1632,11 @@ item 1 process exit: 0
 item 1 named snapshots still present: []
 ```
 
-No per-name error entries were printed: the helper prints them only when the call filled an error list
-(`guest-delta-items.py:166` to `:172`). The snapshot lists afterwards, in the log's order:
+No per-name error entries were printed:
+the helper prints them only when the call filled an error list
+(`guest-delta-items.py:166` to `:172`).
+The snapshot lists afterwards,
+in the log's order:
 
 ```text
 # item-18-exact.log, excerpt
@@ -998,18 +1647,36 @@ zfsowed18/home/checkout@checkout-later	19	9491771657209599626
 ```
 
 It shows that the account holding exactly these grants destroyed both snapshots made on the unpromoted clone in
-one kernel request, with return value 0 and one `ZFS_IOC_DESTROY_SNAPS` call, that the per-name error list was
-empty, and that the checkout's three snapshots kept their transaction groups and GUIDs. It does not show a held
-snapshot, a `defer` key, names from more than one dataset, a set larger than two, another OpenZFS release, or the
-host kernel. Why the grants allow it is a source reading, not this run: the request's policy requires `mount` and
-`destroy` for each name (`module/zfs/zfs_ioctl.c:824` to `:834` and `:843` to `:877`), and a snapshot is checked
-for descendant grants only (`module/zfs/dsl_deleg.c:576`), which the clone parent's `-d mount,destroy` supplies.
+one kernel request,
+with return value 0 and one `ZFS_IOC_DESTROY_SNAPS` call,
+that the per-name error list was
+empty,
+and that the checkout's three snapshots kept their transaction groups and GUIDs.
+It does not show a held
+snapshot,
+a `defer` key,
+names from more than one dataset,
+a set larger than two,
+another OpenZFS release,
+or the
+host kernel.
+Why the grants allow it is a source reading,
+not this run:
+the request's policy requires `mount` and
+`destroy` for each name (`module/zfs/zfs_ioctl.c:824` to `:834` and `:843` to `:877`),
+and a snapshot is checked
+for descendant grants only (`module/zfs/dsl_deleg.c:576`),
+which the clone parent's `-d mount,destroy` supplies.
 
 ### Item 2: one named snapshot has a dependent clone
 
 Root created `@with-dependent` and `@without-dependent` on the clone and cloned `@with-dependent` as
-`zfsowed18/home/worktree-clone-datasets/dependent`; the log quotes that clone's `origin` and `mounted no`. Guest:
-`6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1` (`item-18-exact.log`). The account then sent the same
+`zfsowed18/home/worktree-clone-datasets/dependent`;
+the log quotes that clone's `origin` and `mounted no`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1` (`item-18-exact.log`).
+The account then sent the same
 direct batch naming both snapshots:
 
 ```text
@@ -1024,15 +1691,27 @@ item 2 named snapshots still present: ['...@with-dependent', '...@without-depend
 ```
 
 It shows that on an unpromoted clone the account's batch kept the all-or-nothing result items 14 and 17
-measured: one dependent clone made the request return `EEXIST`, the per-name error named only the dependent
-snapshot, one request was sent, and the snapshot without a dependent was not deleted either. The checkout's three
-snapshots kept their transaction groups and GUIDs. It does not show a user hold instead of a clone, several
-dependent names in one request, or a name outside the account's grants.
+measured:
+one dependent clone made the request return `EEXIST`,
+the per-name error named only the dependent
+snapshot,
+one request was sent,
+and the snapshot without a dependent was not deleted either.
+The checkout's three
+snapshots kept their transaction groups and GUIDs.
+It does not show a user hold instead of a clone,
+several
+dependent names in one request,
+or a name outside the account's grants.
 
 ### Item 3: the same request as root
 
-After item 1, root created `@root-control-one` and `@root-control-two` on the same unpromoted clone and ran the
-same helper and trace as `uid=0`. Guest: `6.8.0-147-generic`, OpenZFS userspace and module `2.4.4-1`
+After item 1,
+root created `@root-control-one` and `@root-control-two` on the same unpromoted clone and ran the
+same helper and trace as `uid=0`.
+Guest:
+`6.8.0-147-generic`,
+OpenZFS userspace and module `2.4.4-1`
 (`item-18-exact.log`):
 
 ```text
@@ -1045,29 +1724,56 @@ item 3 process exit: 0
 item 3 named snapshots still present: []
 ```
 
-It is the control that the request the account sent is well formed on this guest: the same call shape returned 0
-and deleted both names as root too, and the checkout's snapshots were unchanged. It does not show a root-only
+It is the control that the request the account sent is well formed on this guest:
+the same call shape returned 0
+and deleted both names as root too,
+and the checkout's snapshots were unchanged.
+It does not show a root-only
 refusal for a name outside a grant.
 
 ### Item 4: not needed
 
-Item 1 was accepted, so no refusal had a permission to name and no grant was added. The log records
-`item 4: not run, item 1 was accepted`. Which permission such a refusal would name on an unpromoted clone, and
-whether adding only a descendant `destroy` grant on each clone would change it, remain unmeasured.
+Item 1 was accepted,
+so no refusal had a permission to name and no grant was added.
+The log records
+`item 4: not run, item 1 was accepted`.
+Which permission such a refusal would name on an unpromoted clone,
+and
+whether adding only a descendant `destroy` grant on each clone would change it,
+remain unmeasured.
 
 ### What item 18 did not show
 
-- No user hold, `defer` key, larger set, split or batch limit. Item 14 left request limits unmeasured, and they
+- No user hold,
+  `defer` key,
+  larger set,
+  split or batch limit.
+  Item 14 left request limits unmeasured,
+  and they
   remain unmeasured.
-- No route through the proposed binding, the root handler or a conditional channel program; the helper is the
-  fixture item 14 used, called as the account.
-- No promoted clone in this guest. Item 17 promoted its clone in a separate guest on the same releases, so the
-  two results agree across guests, not within one.
-- No other clone topology or encryption root, other OpenZFS release, or `7.3.5-1-cachyos`.
-- No head destroy after the batch, no interleaving with a snapshot created between inspection and request, and
-  no interleaving with a mount or unmount. The limits of items 14 and 15 stand.
-- No request naming a transferred snapshot or a foreign snapshot. On an unpromoted clone the transferred names
-  are not in the clone's snapshot list, so a batch built from that list cannot name them; what the same account
+- No route through the proposed binding,
+  the root handler or a conditional channel program;
+  the helper is the
+  fixture item 14 used,
+  called as the account.
+- No promoted clone in this guest.
+  Item 17 promoted its clone in a separate guest on the same releases,
+  so the
+  two results agree across guests,
+  not within one.
+- No other clone topology or encryption root,
+  other OpenZFS release,
+  or `7.3.5-1-cachyos`.
+- No head destroy after the batch,
+  no interleaving with a snapshot created between inspection and request,
+  and
+  no interleaving with a mount or unmount.
+  The limits of items 14 and 15 stand.
+- No request naming a transferred snapshot or a foreign snapshot.
+  On an unpromoted clone the transferred names
+  are not in the clone's snapshot list,
+  so a batch built from that list cannot name them;
+  what the same account
   could do to a checkout snapshot under these grants was not measured.
 
 ## Tier 0 on two kernels and Tier 1 on ZFS, 2026-11-23T18:44:55-05:00
@@ -2510,3 +3216,314 @@ as the review left them:
 - `<a holder in its own user namespace, whose copied mounts the kernel locks: a run, not the reading above>`.
 - `<the kill cases: a blocker that will not die, EBUSY after the structural stage, and what a kill leaves>`.
 - `<a read-only parent, and way 8 where way 7 is refused>`. 
+
+## The three arms that need no step 17 code, 2026-11-23T21:16:46-05:00
+
+**Measured by an agent.**
+Unapproved and non-final.
+The heading is the commit time of `c3084fbc96`,
+the commit that wrote this section.
+This section records the three Tier 0 arms the third read listed as unrun or open and that need no step 17
+code:
+T0-14 in the shape that read's P1 names,
+T0-10 as the handler would run it,
+and T0-3's delivery control.
+It decides nothing the design or the record decides.
+
+### The guest, its kernel and the program
+
+One guest,
+`zfs-probe-fourth-round-user-units-and-listns-20261124`,
+made through `mvm --backend libvirt create` from the cached template `template-ubuntu.qcow2`,
+nothing downloaded to make it,
+and destroyed through `mvm` when the round ended.
+It is `Ubuntu 24.04.5 LTS`.
+It was created with the template's `6.8.0-147-generic`,
+and its own Ubuntu archive then offered `linux-image-generic-hwe-24.04` at `7.0.0-43`,
+which was installed inside the guest and booted,
+so every log in this section is a log on **`7.0.0-43-generic`**,
+a kernel of 6.19 or newer whose syscall table has `listns`.
+The guest's own pool was made under the older kernel (`tier1pool`,
+a 2 GiB sparse file,
+ZFS `2.2.2-0ubuntu9.5`) and imported on the new one with the distribution's `zfs-kmod-2.4.1-1ubuntu5.1`,
+so the fixture kept its file-backed pool across the change;
+none of these three arms needs it.
+
+The program is `probe-round4.py`,
+sha256 `02e0a82c6e33d3077d9a627493cdecd90a51ac48a470e7af1c5c5fdfa4108879`,
+kept with the logs in `~/temp/agent/zfs-forced-removal-first-probe-arms-in-a-guest-2026-11-23/keep/`,
+and every log in this section prints that name and hash as its sixth line,
+after the driver's push lines.
+Each arm ran twice,
+and every log ends `0 failing phase(s)`:
+
+- `arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log`
+- `arm-T0-10-root-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log`
+- `arm-T0-3-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log`
+
+### T0-14. A holder that is a systemd unit, and what a user namespace does to its copy
+
+The third read's P1 reads that a sandboxed unit of a person's own user manager is in the class the design
+refuses,
+because systemd gives such a unit a user namespace of its own,
+and that the design's lock read cannot be made from `mountinfo`.
+This arm measures the class instead of reading it:
+six shapes,
+each run twice,
+each measuring the same five things over a copy the holder holds.
+
+This arm's H is not a fresh private namespace.
+A unit started by systemd is forked from the guest's init,
+so a mount made in a private namespace of the probe never reaches it;
+the arm therefore mounts in the guest's own root namespace,
+before each unit starts,
+and unmounts everything before it returns (each phase prints the count of its own rows left behind,
+which is zero).
+That deviation from the common start is the arm's,
+not the program's,
+and it is what makes the holder's namespace *copy* the copy rather than receive it by propagation.
+
+Each shape prints,
+in this order:
+the unit's own `uid_map` and `CapEff`;
+whether its user namespace differs from the initial one;
+`NS_GET_USERNS` on its mount namespace descriptor and whether that owner is the initial user namespace;
+the copy's row in the holder's own table;
+what the holder's namespace answers to a move and to an unmount,
+entered as root of the initial user namespace in a child per action;
+and,
+as the control,
+the same copy unmounted in this arm's H.
+
+The system unit with the same option,
+which the brief names as the control that must differ:
+
+```text
+# arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase system-private-mounts
+# the unit: system manager, properties ['PrivateMounts=yes']
+# /proc/2874/uid_map = 0          0 4294967295
+# /proc/2874/status CapEff = 000001ffffffffff
+# the initial user namespace's inode = 4026531837; the holder's = 4026531837; they differ = false
+# NS_GET_USERNS on the holder's mount namespace = ["user:[4026531837]", 4026531837], failure null
+# its mount namespace is owned by the initial user namespace = true
+# the holder holds the copy = true: id=464 parent=463 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:382 master:1]
+# the move probe = {"action": "move", "the copy in that namespace": "id=464 parent=463 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:382 master:1]", "make-slave of the parent": "accepted", "move_mount of the copy": "accepted", "the destination row": "id=464 parent=463 dev=253:1 root=$B/copy mp=$B/parent/.move-probe fstype=ext4 source=/dev/vda1 tags=[shared:382 master:1]", "the move back": "EINVAL", "the copy at the slot after the action": "none"}
+# the umount probe = {"action": "umount", "the copy in that namespace": "none", "the copy the umount probe met at": "$B/parent/.move-probe", "umount2 of the copy": "accepted", "the copy at the slot after the action": "none"}
+# control: the same copy unmounted in the guest root namespace was accepted
+```
+
+A user-manager unit with `PrivateMounts=yes`,
+which is the shape the design's own example has:
+
+```text
+# arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase user-private-mounts
+# the unit: user manager, properties ['PrivateMounts=yes']
+# /proc/2898/uid_map = 1000       1000          1
+# the initial user namespace's inode = 4026531837; the holder's = 4026532395; they differ = true
+# NS_GET_USERNS on the holder's mount namespace = ["user:[4026531837]", 4026531837], failure null
+# its mount namespace is owned by the initial user namespace = true
+# the holder holds the copy = true: id=113 parent=105 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:1]
+# the move probe = {"action": "move", "the copy in that namespace": "id=113 parent=105 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[shared:1]", "make-slave of the parent": "accepted", "move_mount of the copy": "accepted", "the destination row": "id=113 parent=105 dev=253:1 root=$B/copy mp=$B/parent/.move-probe fstype=ext4 source=/dev/vda1 tags=[shared:1]", "the move back": "EINVAL", "the copy at the slot after the action": "none"}
+# the umount probe = {"action": "umount", "the copy in that namespace": "none", "the copy the umount probe met at": "$B/parent/.move-probe", "umount2 of the copy": "accepted", "the copy at the slot after the action": "none"}
+# control: the same copy unmounted in the guest root namespace was accepted
+```
+
+The three other user-manager shapes behave the same,
+in both runs:
+`PrivateMounts=yes` with `PrivateUsers=yes`,
+`ProtectHome=read-only`,
+and `PrivateTmp=yes` each give the process its own user namespace (`uid_map` reads `1000 1000 1`,
+the holder's user namespace inode differs from the initial one) and leave the *mount* namespace owned by the
+initial one (`NS_GET_USERNS` reads `user:[4026531837]`),
+so the move and the unmount are both accepted.
+
+The kernel's locked class is reached by a holder whose mount and user namespaces are made in one clone,
+which is what bubblewrap and a rootless container do:
+
+```text
+# arm-T0-14-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase handmade-user-namespace
+# the holder: unshare --user --map-root-user --mount, then sleep
+# the holder's main process: 3056; waited 0.05 s for its own user namespace
+# /proc/3056/uid_map = 0          0          1
+# the initial user namespace's inode = 4026531837; the holder's = 4026532392; they differ = true
+# NS_GET_USERNS on the holder's mount namespace = ["user:[4026532392]", 4026532392], failure null
+# its mount namespace is owned by the initial user namespace = false
+# the holder holds the copy = true: id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]
+# the move probe = {"action": "move", "the copy in that namespace": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]", "make-slave of the parent": "accepted", "move_mount of the copy": "EINVAL", "the copy at the slot after the action": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]"}
+# the umount probe = {"action": "umount", "the copy in that namespace": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]", "the copy the umount probe met at": "$B/parent/slot", "umount2 of the copy": "EINVAL", "the copy at the slot after the action": "id=433 parent=432 dev=253:1 root=$B/copy mp=$B/parent/slot fstype=ext4 source=/dev/vda1 tags=[]"}
+# control: the same copy unmounted in the guest root namespace was accepted
+```
+
+What the six shapes show,
+in both runs:
+
+- The class the design refuses is not "a unit with `PrivateMounts=yes`":
+  it is **a mount namespace owned by a user namespace other than the initial one**,
+  and only the hand-made holder has one.
+  `NS_GET_USERNS` on a namespace descriptor reads exactly that,
+  and the reading does not need `mountinfo`.
+- systemd 255,
+  which this guest has,
+  creates the unit's *mount* namespace before the user namespace,
+  so the mount namespace stays owned by the initial user namespace even though the unit's processes run in one
+  of their own;
+  the kernel then locks nothing,
+  and both the move and the unmount are accepted from the handler's side.
+  The third read's reading is of systemd `v262`,
+  and this guest does not have it;
+  the host does,
+  and no unit was run on the host.
+- When the two namespaces are made at once,
+  as bubblewrap and rootless containers do,
+  the copy is locked:
+  the move answers `EINVAL`,
+  the unmount answers `EINVAL`,
+  and the copy stays at the slot,
+  while the same copy unmounted in H is accepted,
+  so the probe can see a difference.
+  That is the reviewer's P1 confirmed by a run,
+  and the read that distinguishes the two shapes is `NS_GET_USERNS`,
+  not a `MNT_LOCKED` tag.
+- In the systemd shapes the copy is a *peer* of the copy in H (`tags=[shared:1]` on both),
+  so an unmount inside the holder would reach H's copy too;
+  in the hand-made shape the copy is private (`tags=[]`) and H's copy is untouched.
+
+Decisions needed to script it:
+the arm mounts in the guest's own root namespace rather than a fresh one,
+for the reason above;
+the unit is started with `--machine=ubuntu@.host --user` from root,
+because a process merely set to that uid has no session and the manager refuses it with "Interactive
+authentication required";
+the copy is mounted before the unit starts,
+so that the unit's namespace copies it;
+the move probe makes the parent a slave first,
+as way 7's step 1 does,
+because a shared parent refuses a move by itself;
+the hand-made holder is waited for until its user namespace differs from the initial one,
+because a read taken at once reports the mapping the process inherited.
+
+### T0-10 with the handler's privileges
+
+The third read's P2 says the namespace no task holds is unmeasured on a kernel that has `listns`.
+This arm runs as root in the guest's initial user and pid namespaces,
+which is where the design's handler runs,
+and keeps a namespace alive only by a **bind of its `nsfs` file**:
+the child that made it unshares,
+mounts a tmpfs mark and exits,
+so no task holds it and no descriptor but the bind does.
+
+```text
+# arm-T0-10-root-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1
+# /proc/self/uid_map = 0 0 4294967295; the initial user namespace reads "0 0 4294967295" = true
+# /proc/self/status CapEff = 000001ffffffffff
+# /proc/self/ns/pid equals /proc/1/ns/pid = true
+# the child 2847 has exited; its mount namespace is kept alive by the bind at $B/kept-namespace only
+    id=439 parent=107 dev=0:5 root=mnt:[4026532397] mp=$B/kept-namespace fstype=nsfs source=nsfs tags=[]
+# no task holds that namespace: /proc lists no process whose ns/mnt is it = true
+# NS_GET_ID on the kept bind: 166
+# listns(470) for CLONE_NEWNS over 2 page(s): 11 id(s), failure "end of list (ENOENT)"
+# the ids listns returned: [8, 10, 18, 23, 25, 27, 31, 33, 36, 165, 166]
+# the kept namespace's id is in the listed set = true
+# the kept id 166 opened by open_by_handle_at(FD_NSFS_ROOT): mnt:[4026532397]
+# entered the kept namespace by its listed id: {"rows": 29, "mark": ["id=438 parent=410 dev=0:53 root=/ mp=/mnt/kept-probe fstype=tmpfs source=tmpfs tags=[]"]
+```
+
+Both runs are the same and both are complete:
+`listns` lists eleven mount namespaces over two pages,
+the kept namespace's id is among them,
+`open_by_handle_at` on the nsfs root turns that id into a descriptor naming `mnt:[4026532397]`,
+and `setns` on it enters the namespace,
+whose table holds the tmpfs mark the child left.
+`ENOENT` on the walk is `listns`'s way of saying the page cursor is past the last id,
+which the program now prints as the end of the list rather than as a failure.
+So for a caller in the initial namespaces the taskless route works:
+a namespace no task holds is found by id and entered,
+without any descriptor kept by the scan.
+The container's answer in the third round was the other half of this:
+a caller without the initial user namespace's `CAP_SYS_ADMIN` is not given such an id,
+and the kernel answers `ESTALE` when it tries to enter one.
+
+Decisions needed to script it:
+the bind target is a file,
+because a bind of an `nsfs` file onto a directory is refused `ENOTDIR`;
+the arm reads the kept namespace's id with `NS_GET_ID` on the bind it made;
+and the walk from a listed id to an entered namespace is a handle of `{ns_id, 0, 0}` of type `FILEID_NSFS`
+opened with `open_by_handle_at(FD_NSFS_ROOT, …)`,
+which is the design's own route.
+
+### T0-3's delivery control
+
+The section's previous passes recorded this control as owed:
+the design's T0-3 names "a mount made in H under P reaches S before the change,
+recorded first",
+and no log had it.
+It is now its own phase,
+on variant (a)'s start,
+before the plain-unmount control and the action:
+
+```text
+# arm-T0-3-round4-zfs-probe-fourth-round-user-units-and-listns-20261124.log, run 1, phase variant-a-delivery-control
+# the control: a mount made in H under P reaches S before the change
+# control delivery to U and S = {"U": true, "S": true}
+# control withdrawal in U and S = {"U": true, "S": true}
+# the action the control precedes: umount2 the copy in U, plain
+# observed: S slot gone = true
+```
+
+Both runs agree:
+the mount made in H under P reaches U and S,
+its withdrawal reaches both,
+and the plain unmount that follows removes S's copy,
+so the control and the action it precedes are shown on the same start.
+The arm's other four phases are unchanged and their rows are in the same log.
+
+### What these three arms show and do not show
+
+Shown,
+on `7.0.0-43-generic`:
+
+- A holder whose mount namespace is owned by a user namespace of its own has its copy locked:
+  the move and the unmount both answer `EINVAL`,
+  and the copy stays.
+  T0-14's hand-made shape,
+  both runs,
+  with the control that the same copy unmounted in H is accepted.
+- A systemd user-manager unit with `PrivateMounts=yes`,
+  `PrivateUsers=yes`,
+  `ProtectHome=read-only` or `PrivateTmp=yes` has its processes in a user namespace but its mount namespace
+  owned by the initial one,
+  so nothing is locked and both actions are accepted.
+  T0-14's five systemd shapes,
+  both runs,
+  with the system unit as the control.
+- `NS_GET_USERNS` on a holder's mount namespace distinguishes the two shapes,
+  which is a read a preflight can make before ending anything.
+- For root in the initial namespaces,
+  `listns` lists a mount namespace that only a bind of its `nsfs` file keeps alive,
+  and `open_by_handle_at` on the nsfs root enters it by its id.
+  T0-10-root,
+  both runs.
+- T0-3's delivery control fires,
+  on the start the arm names.
+  Both runs.
+
+Not shown:
+
+- A systemd that creates the unit's mount and user namespaces at once,
+  which the third read reads in `v262` and this guest,
+  systemd 255,
+  does not have.
+  The host has `v262` and no unit was run there,
+  so which of the two shapes a `v262` user unit takes is unmeasured.
+- A bubblewrap or rootless-container holder:
+  the hand-made `unshare` holder is the same kernel class and not those tools.
+- `ProtectSystem=`,
+  `ReadOnlyPaths=` and the other options the third read lists,
+  and any option on a unit of a user manager other than the four measured.
+- Whether the design's preflight should refuse such a holder,
+  and with which word:
+  that is the design's,
+  and the third read's P1 and P6 are its to settle.
+- The taskless route for a caller that also holds a snapshot batch that must not be lost:
+  the arm measures the scan's reach,
+  not the removal's behaviour when the scan misses.

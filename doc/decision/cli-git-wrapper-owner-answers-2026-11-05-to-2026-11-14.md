@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -52,7 +53,8 @@ From lines 49400 to 49401 of the old handover
 moved verbatim on 2026-11-23:
 
 - **The plugin that lets Pi retry the reviewer provider's passing token-rate limit** (issue 6297):
-  "Yes, after review (Recommended)":
+  "Yes,
+  after review (Recommended)":
 
 From lines 49405 to 49408 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -67,14 +69,27 @@ From lines 49455 to 49458 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- Two answers were "open a gh issue": the built-output imports in the translation-repair family ("You focus on
-  the git wrapper. Open a gh issue about this one. I'm leaning on veto.") is issue 6275, and the real-Git
-  guard in Claude Code ("Focus on the wrapper itself. Open a gh issue about this instead.") is issue 6276,
+- Two answers were "open a gh issue":
+  the built-output imports in the translation-repair family ("You focus on
+  the git wrapper.
+  Open a gh issue about this one.
+  I'm leaning on veto.")
+  is issue 6275,
+  and the real-Git
+  guard in Claude Code ("Focus on the wrapper itself.
+  Open a gh issue about this instead.")
+  is issue 6276,
   both answered 2026-11-10T05:40:16-05:00.
 
 From lines 49465 to 49466 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- Prose fixes inside `doc/decision/` run with form only: "Yes, form only (Recommended)",
-  2026-11-10T08:08:51-05:00. Punctuation, emphasis, list markers and headings change; the owner's quoted words
+- Prose fixes inside `doc/decision/` run with form only:
+  "Yes,
+  form only (Recommended)",
+  2026-11-10T08:08:51-05:00.
+  Punctuation,
+  emphasis,
+  list markers and headings change;
+  the owner's quoted words

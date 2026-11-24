@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -13,13 +14,18 @@ moved verbatim on 2026-11-23:
 
 ### Pi tooling lives in the workspace, and alphas run no extra release work (2026-11-11T17:55:17-05:00)
 
-The owner, at about 17:50, after the coordinator had again edited scratch scripts:
+The owner,
+at about 17:50,
+after the coordinator had again edited scratch scripts:
 "I've said to fold pi-runs set of scripts into a proper workspace package before.
 I believe there is also a launcher already as a proper workspace package.
 I don't wanna see you edit pi-runs outside the workspace again.
 Please pick that up."
 So no script under `~/temp/agent/pi-runs` is created or edited any more;
-only data lives there (briefs, batch lists, inbox notes, run folders).
+only data lives there (briefs,
+batch lists,
+inbox notes,
+run folders).
 
 From lines 33039 to 33056 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),

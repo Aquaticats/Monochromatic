@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -32,7 +33,8 @@ From lines 17663 to 17676 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-- **A Pi run cannot write into the main checkout** (tip `ca137eb2bf`, ended 13:54:18):
+- **A Pi run cannot write into the main checkout** (tip `ca137eb2bf`,
+  ended 13:54:18):
   the run's unit gets the main checkout read-only (`ReadOnlyPaths=`),
   with its own worktree,
   the common Git directory,

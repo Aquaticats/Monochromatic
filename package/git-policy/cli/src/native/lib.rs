@@ -312,6 +312,33 @@ pub mod zfs_mounted_dataset;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
 
+/// The root handler's all-namespace holder scan of one ZFS clone:
+///  the live tasks grouped by mount namespace,
+///  one mount table read per namespace,
+///  the exact ZFS source match,
+///  the managed attach a standing `unmount` intent sets aside,
+///  and the result that names the holders,
+///  the reads it could not complete,
+///  and the GUID and nonce it answers under.
+/// The plan's step 16 consumes the result before each snapshot-destroy request
+///  and before the head destroy,
+///  and step 18 reports its holders,
+/// and it is Linux only,
+/// like the `/proc` files it reads.
+#[cfg(target_os = "linux")]
+pub mod clone_holder_scan;
+
+/// The mount-namespace read two of the wrapper's scans share:
+///  every live task grouped by the kernel's own namespace identity,
+///  one mount table read per namespace,
+///  and the exact ZFS source match.
+/// It is shared by the root start probe and the root handler's holder scan,
+///  so the two cannot disagree about what a mount of one dataset is,
+/// and it is Linux only,
+/// like the `/proc` files it reads.
+#[cfg(target_os = "linux")]
+pub mod mount_namespace_scan;
+
 /// The root start probe the kernel-release answer asks for:
 /// the private namespace and the scratch tmpfs,
 /// the exclusive attach,

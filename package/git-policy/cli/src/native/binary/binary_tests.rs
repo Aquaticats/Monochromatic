@@ -1040,3 +1040,22 @@ mod zfs_sweep_guest;
 /// Plan step 9's staging mechanics in the throwaway guest.
 #[path = "binary_zfs_unmount_guest_tests.rs"]
 mod zfs_unmount_guest;
+
+/// The staging design's M3 to M9 as guest arms.
+#[path = "binary_zfs_step9_m_arms_tests.rs"]
+mod zfs_step9_m_arms;
+
+/// Plan step 9's holder-scan arms in the throwaway guest:
+/// the built scan against the design's layout and the clone the built sweep attached,
+/// a second mount namespace holding it,
+/// a namespace made after the attach under both intents,
+/// a thread with a mount namespace of its own,
+/// a task whose leader has ended,
+/// a namespace whose lowest task is chrooted,
+/// a confined consumer,
+/// task churn,
+/// a detached mount pinned by a working directory,
+/// a pinned namespace with no live member,
+/// and one scan's cost against the number of live tasks.
+#[path = "binary_zfs_holder_scan_guest_tests.rs"]
+mod zfs_holder_scan_guest;

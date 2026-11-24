@@ -3543,7 +3543,8 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
   - The timing logs and the push trigger log keep one generation,
     `.1`,
     as before.
-    Since 2026-11-10 they keep numbered generations up to 32 MiB too, as every log of the wrapper does.
+    Since 2026-11-10 they keep numbered generations up to 32 MiB too,
+    as every log of the wrapper does.
   - The 4 MiB is derived,
     not measured:
     the busiest measured
@@ -6462,7 +6463,8 @@ and the audit log held 782,685 bytes in 1,619
 lines from 2026-10-21 to 2026-11-10 (about 42 KB a day,
 so the bound is the whole history of an ordinary
 repository).
-The reading that decides whether an audit generation pins costs, on this host,
+The reading that decides whether an audit generation pins costs,
+on this host,
 a median of 13 ms and a 99th percentile
 of 254 ms when it drops one generation,
 and a median of 369 ms and a 99th percentile of 432 ms when every generation pins
