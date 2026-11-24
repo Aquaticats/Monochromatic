@@ -612,13 +612,26 @@ fn the_holder_scan_finds_each_holder_the_guest_can_make() {
     // Arm 8 (M3): a namespace whose lowest task is chrooted is read at its own root.
     match python_task(CHROOTED_LOWEST_SCRIPT, "/root/holder-scan-chrooted.pid", sbin.as_str(), clone.as_str(), CHROOT_MOUNT_FOLDER) {
         Some(mut chrooted) => {
-            let holding: Option<(String, String)> = wait_for_a_thread_holding(chrooted.pid, CHROOT_MOUNT_FOLDER);
-            let (thread_path, thread_namespace): (String, String) =
-                holding.unwrap_or_else(|| panic!("the child's table shows its mount at {CHROOT_MOUNT_FOLDER}; see the arm's log for the mount's own refusal"));
+            let child: u32 = wait_for_a_pid_file("/root/holder-scan-chrooted-child.pid")
+                .unwrap_or_else(|| panic!("the chrooted task's child wrote its pid; see the arm's log for the mount's own refusal"));
+            assert!(
+                wait_for_a_process_table_to_mention(child, CHROOT_MOUNT_FOLDER),
+                "the child's table shows its mount at {CHROOT_MOUNT_FOLDER}"
+            );
+            let lowest_table: String = std::fs::read_to_string(format!("/proc/{}/mountinfo", chrooted.pid)).unwrap_or_default();
+            assert!(!lowest_table.contains(CHROOT_MOUNT_FOLDER), "the lowest task's table omits the mount, as a chrooted task's does");
+            let thread_namespace: String = std::fs::read_link(format!("/proc/{child}/ns/mnt"))
+                .expect("the child's namespace link reads")
+                .to_string_lossy()
+                .into_owned();
             let scan: HolderScan = scan_that_parses(clone.as_str(), None, "with a chrooted lowest task");
             let found: bool = scan.holders.iter().any(|found| return found.namespace() == thread_namespace);
             assert!(found, "a namespace whose lowest task is chrooted is read through a task at its root: {:?}", scan.holders);
-            println!("SCAN chrooted-lowest found=true namespace={thread_namespace} read-through={thread_path} lowest-is-chrooted=true");
+            println!(
+                "SCAN chrooted-lowest found=true namespace={thread_namespace} lowest-pid={} lowest-omits-mount=true",
+                chrooted.pid
+            );
+            let _ended: bool = Command::new("kill").args(["-9", child.to_string().as_str()]).status().is_ok_and(|status| return status.success());
             end(&mut chrooted);
         }
         None => println!("SCAN chrooted-lowest found=false reason=the-python-task-could-not-start"),
@@ -751,6 +764,7 @@ clone, folder, away, mount_zfs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv
 os.unshare(os.CLONE_NEWNS)
 pid = os.fork()
 if pid == 0:
+    open("/root/holder-scan-chrooted-child.pid", "w").write(str(os.getpid()))
     os.makedirs(folder, exist_ok=True)
     subprocess.run([mount_zfs, clone, folder], check=True)
     time.sleep(600)
@@ -774,6 +788,37 @@ fn python_task(script: &str, pid_file: &str, sbin: &str, clone: &str, folder: &s
     let helper: String = if Path::new(named.as_str()).exists() { named } else { String::from("/sbin/mount.zfs") };
     let command: String = format!("exec python3 -I {outline} {clone} {folder} {CHROOT_AWAY_FOLDER} {helper}");
     return start_task(command.as_str(), pid_file, sbin, &[]);
+}
+
+/// Wait,
+/// bounded,
+/// for a task to write its own pid into a file,
+/// which is how an arm learns a forked child it did not start.
+fn wait_for_a_pid_file(path: &str) -> Option<u32> {
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        let written: Option<u32> = std::fs::read_to_string(path).ok().and_then(|text| return text.trim().parse::<u32>().ok());
+        if let Some(pid) = written {
+            return Some(pid);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return None;
+}
+
+/// Wait,
+/// bounded,
+/// for one process's own mount table to mention a folder.
+fn wait_for_a_process_table_to_mention(pid: u32, needle: &str) -> bool {
+    let table: String = format!("/proc/{pid}/mountinfo");
+    let deadline: Instant = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < deadline {
+        if std::fs::read_to_string(table.as_str()).is_ok_and(|text| return text.contains(needle)) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    return false;
 }
 
 /// Wait,
