@@ -3757,7 +3757,7 @@ with each committer time from `git log --format=%cI`:
   the split's A24 release,
   the command for each state after A20 cited,
   and the fifth round's commit named.
-- 2026-11-24T01:41-05:00:
+- 2026-11-24T01:39:36-05:00 (`072c92d463`):
   the lock's attribution boundary as the build has it:
   a prefix that stops at the nonce's last byte attributes nothing,
   which S2,

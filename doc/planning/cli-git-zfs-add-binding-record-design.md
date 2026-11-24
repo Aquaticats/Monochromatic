@@ -6744,7 +6744,7 @@ and any test suite.
   and 2026-11-23T19:29:15-05:00 (`cddb3c87f5`):
   the round's Revisions entry,
   and the plan design's section cited as it now reads beside the five readers.
-- 2026-11-24T01:41-05:00:
+- 2026-11-24T01:39:36-05:00 (`072c92d463`):
   wrote step 10's build decisions into this design at the place a reader meets each question,
   each checked against the code on `main` and cited to the half that decided it
   (`cde8ad55a8`,
