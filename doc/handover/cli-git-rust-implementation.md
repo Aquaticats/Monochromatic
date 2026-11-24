@@ -715,27 +715,6 @@ on `fix/git-policy-cli-lock-control-pid-file-follow-ups-arm-answers-by-phase`.
 Next:
 merge when it ends.
 
-#### Issue 6344: the sibling shadow control
-
-State:
-merged as `0b7a48def4`.
-The follow-ups merged as `a87967fe57`;
-the guard costs about one second per gate,
-and the owner kept it
-(`doc/decision/cli-git-shadow-sibling-control-guard-costs-a-second-per-gate.md`).
-Their pass,
-stopped early
-(`review-follow-ups.md` in
-`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/keep/`),
-found each guard red when broken,
-and one medium in cause M's words with lows.
-Running:
-`pi-shadow-sibling-control-follow-ups-on-main`,
-on `fix/git-policy-cli-shadow-sibling-control-follow-ups-cause-m-words`.
-
-Next:
-merge when it ends.
-
 
 #### The tests and the gate under AppArmor
 
@@ -858,89 +837,34 @@ are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
 The held backlog is on GitHub
 ("Held work").
 Ranges applied so far:
-none.
-
-Two sorters have ended,
-each with a ledger that covers its range exactly once and with issue drafts,
-under `sorter-lines-<first>-to-<last>/keep/` in that folder:
-
-- lines 44,768 to 46,713,
-  in 307 items.
-  The coordinator's check script passed its coverage,
-  and one stretch read by hand agreed with it.
-  Its `delete` items are not applied until each quotation inside them that stands nowhere else is moved or shown to be held.
-- lines 46,714 to 49,499,
-  in 151 items,
-  after the same lesson was sent to it:
-  it moved the owner's sentences and answer labels out of `delete`.
-  Four of its items are private and get no target.
-  Not yet checked by the coordinator.
-
-Each sorter's report came as its last message,
-with contradictions between the old text and current documents and proposals for rule text.
-The second sorter's is also in its `keep/state-so-far.md`;
-the first sorter's is only in the session's record until it is copied into its `keep/`.
-
-The sorters of lines 41,470 to 44,767
-and of the open review findings,
-the picks and the working rules
-(40,844 to 41,469 and 49,500 to 49,707)
-have ended too,
-the second with 78 items covering its 834 lines exactly.
-
-The check of quotations inside `delete` items first matched a passage's first forty characters;
-a control set showed it wrong both ways,
-the unsafe way being a sentence taken as held because another opens alike
-(`keep/quotation-check-controls-2026-11-23.md`).
-Its replacement,
-`list-whole-quotations-a-ledger-would-delete.ts`,
-matches whole passages with whitespace read as one space,
-and got all three control items right.
-Over the four ended ledgers it finds 208 quoted passages in `delete` items,
-159 of them held nowhere else:
-76 in lines 41,470 to 44,767,
-65 in 44,768 to 46,713,
-17 in 46,714 to 49,499,
-and one in the findings,
-picks and working rules.
-
-The sorter of the open work (34,867 to 40,843) has ended:
-196 items cover its 5,977 lines exactly,
-112 of them `delete`,
-with seven issue drafts
-(`sorter-lines-34867-to-40843/keep/`).
-The Sonnet audit of the 159 has ended
-(`quotations-the-ended-ledgers-would-delete/keep/`):
-30 are the owner's words,
-9 are held elsewhere,
-and 120 are not the owner's.
-It found the check pairs quotes by alternation,
-so a short quotation flips every pair after it,
-and its own scan found 11 more of the owner's quotations the check never listed.
-Of the owner's,
-ten stand nowhere else,
-not even in a range another ledger moves
-(Group 1 in its report,
-among them "Fall back automatically (Recommended)",
-"Kimi for these only"
-and "Fix the driver too.");
-the rest have a copy in a range a ledger moves.
-The rule that reviews never block a merge was one such unmoved passage,
-and it was lost from the rewrite until the owner said it again;
-it is now `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
+lines 34,867 to 49,707 of the old file,
+committed as `a2b4fca7c8`.
+Five sorters gave each range a disposition,
+and `apply-the-cut-moves-to-their-targets.ts` in that folder moved 187 entries verbatim into 73 targets
+(41 existing files and 32 new records,
+each new one saying in its status that it holds moved text only),
+each after a line naming its lines in the old file;
+one entry was already held and was skipped.
+Before that,
+every quotation of the owner's inside a `delete` item was made a `move`
+(`quotations-the-ended-ledgers-would-delete/keep/` and `ledgers-keep-every-owner-quotation/keep/` in that folder),
+because the first check of quotations read them by alternation and by their opening characters and missed some
+(its controls and flaws:
+`keep/quotation-check-controls-2026-11-23.md`).
+Among the owner's words the rewrite had lost are
+"Treat reviews as async."
+and "You should (almost) never be waiting.
+There is always more work.",
+now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
 
 Next:
-turn the audit's Group 1 lines into `move` items in their ledgers,
-then apply the ledgers by script;
-the ranges in this order:
-the owner's decisions (lines 41,470 to 49,499 of the old file),
-the open review findings and the picks made under delegation (40,844 to 41,469),
-the open work (34,867 to 40,843),
-the working rules (49,500 to 49,707),
-and the run logs last (153 to 34,866).
-A sorter gives each range a disposition with its evidence and moves nothing;
-a script then moves text verbatim,
-so that the owner's words pass through no model.
+file the sorters' `issue` items
+(drafts under each `sorter-lines-*/keep/`),
+each after a search for an issue that already holds it;
+then sort the run logs (lines 153 to 34,866) the same way,
+a sorter giving each range a disposition and a script moving text verbatim,
+so that the owner's words pass through no model;
+then delete the old file.
 
 ## Held work
 
