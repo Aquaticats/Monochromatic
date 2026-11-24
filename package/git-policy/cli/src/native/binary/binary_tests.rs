@@ -1066,3 +1066,7 @@ mod zfs_step9_m_arms;
 /// and one scan's cost against the number of live tasks.
 #[path = "binary_zfs_holder_scan_guest_tests.rs"]
 mod zfs_holder_scan_guest;
+
+/// Plan step 18's `doctor` checks for steps 2 to 9 in the throwaway guest.
+#[path = "binary_zfs_doctor_route_guest_tests.rs"]
+mod zfs_doctor_route_guest;
