@@ -87,7 +87,7 @@ pub enum PlanHeadWord {
 
 impl PlanHeadWord {
     /// The word the plan's record spells,
-    /// which a refusal prints and a control names.
+    /// which a control names beside the command it expects.
     pub fn word(self) -> &'static str {
         return match self {
             PlanHeadWord::Present => "present",

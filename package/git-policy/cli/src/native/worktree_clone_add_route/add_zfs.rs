@@ -20,6 +20,7 @@
 //! const clone = cloneTheOrigin(device, target, origin, guid);
 //! ```
 
+use crate::doctor_zfs_route::{Grant, grants_of};
 use crate::worktree_clone_binding_record::binding_inventory::{EntryKind, InventoryEntry, InventoryKind, InventoryRecord};
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{MountIntent, MountOperation};
 use crate::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
@@ -171,9 +172,9 @@ impl OpenedDevice {
     /// # Errors
     /// The pool refused the read,
     /// or answered a shape this reader cannot represent.
-    pub fn grants_at(&self, dataset: &str) -> Result<Vec<crate::doctor_zfs_route::Grant>, String> {
+    pub fn grants_at(&self, dataset: &str) -> Result<Vec<Grant>, String> {
         let reply: NvList = self.device.get_fsacl(dataset).map_err(|error| return format!("the delegations of {dataset} cannot be read ({error})"))?;
-        return crate::doctor_zfs_route::grants_of(&reply).map_err(|reason| return format!("the delegations of {dataset} are not a shape this reader represents ({reason})"));
+        return grants_of(&reply).map_err(|reason| return format!("the delegations of {dataset} are not a shape this reader represents ({reason})"));
     }
 
     /// Ask the handler for the clone's mount.

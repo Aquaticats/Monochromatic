@@ -126,10 +126,7 @@ fn groups_of_this_account() -> Result<Vec<u32>, StepRefusal> {
     // SAFETY: a zero size with a null buffer only asks the kernel how many groups there are.
     let counted: libc::c_int = unsafe { libc::getgroups(0, std::ptr::null_mut()) };
     if counted < 0 {
-        return Err(StepRefusal::refused(format!(
-            "this account's groups cannot be read ({}), so nothing proves which group's ZFS grant reaches the account. Ways forward: run the add from a session whose groups the kernel will name.",
-            std::io::Error::last_os_error()
-        )));
+        return Err(the_groups_cannot_be_read());
     }
     if counted == 0 {
         return Ok(Vec::new());
@@ -138,13 +135,19 @@ fn groups_of_this_account() -> Result<Vec<u32>, StepRefusal> {
     // SAFETY: the buffer holds exactly `counted` ids, which is the count the kernel just answered.
     let read: libc::c_int = unsafe { libc::getgroups(counted, filled.as_mut_ptr()) };
     if read < 0 {
-        return Err(StepRefusal::refused(format!(
-            "this account's groups cannot be read ({}), so nothing proves which group's ZFS grant reaches the account. Ways forward: run the add from a session whose groups the kernel will name.",
-            std::io::Error::last_os_error()
-        )));
+        return Err(the_groups_cannot_be_read());
     }
     filled.truncate(read as usize);
     return Ok(filled.into_iter().map(|group| return group as u32).collect());
+}
+
+/// Why this account's groups could not be read,
+/// and what a person does next.
+fn the_groups_cannot_be_read() -> StepRefusal {
+    return StepRefusal::refused(format!(
+        "this account's groups cannot be read ({}), so nothing proves which group's ZFS grant reaches the account. Ways forward: run the add from a session whose groups the kernel will name.",
+        std::io::Error::last_os_error()
+    ));
 }
 
 /// Controls stay out of the release executable.
