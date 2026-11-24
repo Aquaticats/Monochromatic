@@ -2186,8 +2186,8 @@ A kill leaves a mounted clone whose slot shows either the copied directory or th
 never neither,
 and the resume reads which and continues.
 The build records the copied administration's identity in the trash's own manifest with one atomic rewrite:
-it appends the identity to the manifest's entries and renames `.manifest.pending` over `.manifest` (`add_exchange.rs`:178
-and :248 to :256;
+it appends the identity to the manifest's entries and renames `.manifest.pending` over `.manifest`
+(`add_exchange.rs`:178 and :248 to :256;
 `bee6531780`,
 2026-11-24T00:51:32-05:00).
 A resume that finds the exchange unmade re-runs the leave-outs,
@@ -2197,8 +2197,8 @@ whose disposal empties both (`add_fill.rs`:113 to :133).
 A successful fill then removes the proof's marker and,
 after it,
 the capture,
-and a kill between the two leaves a capture the next add at the slot clears by its nonce (`add_capture_store.rs`:154 to :157
-and :171 to :180).
+and a kill between the two leaves a capture the next add at the slot clears by its nonce
+(`add_capture_store.rs`:154 to :157 and :171 to :180).
 The exchange's own guest run is still owed (the decision's "Still owed"),
 and it is the dirty-main design's measurement,
 not this record's.
@@ -4588,10 +4588,12 @@ Neither switch is a mode a person's add enters.
 The guest arm mounts the clone as root with `/usr/bin/mount -t zfs -o nosuid,nodev`
 at the step the clone's intent property asks,
 never as soon as the dataset exists,
-because the handler's own attach is steps 4 and 7's arm and this route's subject is the order (`binary_zfs_add_guest_tests.rs`:302);
+because the handler's own attach is step 4's arm and this route's subject is the order,
+which its mount command at `binary_zfs_add_guest_tests.rs`:302 shows;
 and its snapshot listings name the dataset with no depth,
 because a `-d 1` listing shows no snapshot of it,
-so a check through one would pass while an earlier arm's origin snapshot stayed in the pool (`binary_zfs_add_guest_tests.rs`:333 and :378).
+so a check through one would pass while an earlier arm's origin snapshot stayed in the pool
+(`binary_zfs_add_guest_tests.rs`:333 and :378).
 
 Guest tests,
 because they need a real pool,
