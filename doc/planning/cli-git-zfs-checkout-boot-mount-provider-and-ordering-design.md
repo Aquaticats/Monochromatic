@@ -369,7 +369,13 @@ so the failure is the checkout's own and not the pool's.
 
 ## The units, whole
 
-Four installed files, the two drop-ins, and the ZED hook.
+The files this design installs are the boot unit, one unit per dataset whose mountpoint lies inside the checkout path,
+the propagation service, the provider's drop-in, the propagation drop-in, and the ZED hook.
+Two of the lines below wait on a value or a measurement this round does not have,
+and each says so where it appears:
+`TimeoutStartSec=`, whose value choice V8 settles, and `ExecStartPre=`, which the accepted start-probe design
+installs only once the probe's deadline is measured.
+
 The program they start is a **placeholder**:
 the owner answered "One program only, ever" on 2026-11-23
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
