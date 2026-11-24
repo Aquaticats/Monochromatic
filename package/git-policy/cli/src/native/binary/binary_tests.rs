@@ -88,6 +88,11 @@ mod support_btrfs_controls;
 #[path = "binary_support_zfs_controls.rs"]
 mod support_zfs_controls;
 
+/// The one place a control says that it needs a fixture root on which a file can be reflinked,
+/// which a btrfs host, a ZFS host and an XFS host with reflink answer.
+#[path = "binary_support_reflink_controls.rs"]
+mod support_reflink_controls;
+
 /// The physical address of a file's first extent,
 /// which two files share when one is a clone of the other.
 #[path = "binary_support_first_physical_extent.rs"]
