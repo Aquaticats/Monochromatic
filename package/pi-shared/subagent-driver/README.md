@@ -399,8 +399,9 @@ The pools of that order are the ones that take a run naming no model of its own,
 so a pool that only a run naming its own model takes is never taken this way,
 and a closed pool is never taken.
 A command line naming no provider and no model reads as Neuralwatt's standard DeepSeek model,
-the pair the owner replaced,
-and that pair is where the order starts rather than a refusal.
+the pair the owner replaced;
+that pair names a pool that takes such a run,
+so it is placed rather than refused.
 
 The pools are counted the way `start-pi-run-when-a-pool-has-room` counts them,
 with the same functions and the same setting:
@@ -420,7 +421,8 @@ why each takes no run now,
 and what gives a pool room again.
 A pool that answers more slowly gives the run more wall clock,
 as the pool gate gives a run it moves there:
-taking the flex pool doubles `--wall` for the unit's `RuntimeMaxSec`,
+both `opencode-go` and the flex pool carry a wall factor of two,
+which stretches `--wall` for the unit's `RuntimeMaxSec`,
 the driver's wall clock and the launcher's own wait.
 A limits setting or a unit listing this launcher cannot read refuses the run that could have taken such a pool,
 naming the setting or the fault and starting nothing,
