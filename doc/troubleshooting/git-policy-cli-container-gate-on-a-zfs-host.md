@@ -1869,7 +1869,7 @@ and the module was green before the first plant and after the last one
 (`Summary [0.176s] 22 tests run: 22 passed, 8632 skipped`).
 
 The pass after the merge moved the judged metadata read to after the lock's unlink,
-which makes the device, the inode and the change time compare one file with itself,
+which makes the three metadata terms compare one file with itself,
 and every control passed then:
 the arm answered a control's reads by counting them,
 so a judged read taken in the last look's place was still answered as the judged one.
