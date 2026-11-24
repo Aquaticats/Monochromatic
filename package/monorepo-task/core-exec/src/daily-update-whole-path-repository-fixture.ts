@@ -25,6 +25,8 @@ import {
   CARGO_LOCK,
   CLIPPY_SCRIPT,
   MOVE_SCRIPT,
+  PNPM_LOCK,
+  PNPM_WORKSPACE,
   ROOT_MISE,
 } from './daily-update-whole-path-scripts-fixture.ts';
 
@@ -260,6 +262,20 @@ export async function layOutRepository({
     put({
       path: join(
         root,
+        'pnpm-workspace.yaml',
+      ),
+      content: PNPM_WORKSPACE,
+    },),
+    put({
+      path: join(
+        root,
+        'pnpm-lock.yaml',
+      ),
+      content: PNPM_LOCK,
+    },),
+    put({
+      path: join(
+        root,
         'steps',
         'move.ts',
       ),
@@ -331,6 +347,8 @@ export async function layOutRepository({
     'mise.toml',
     '.gitignore',
     'toolchain.lock.json',
+    'pnpm-workspace.yaml',
+    'pnpm-lock.yaml',
     'steps',
     'package',
   ];

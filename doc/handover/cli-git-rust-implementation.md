@@ -68,6 +68,13 @@ and each stays in force until the owner changes it.
   "We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."
   About thirty wrapper and driver branches that wait for a review are held under this
   ("Held work").
+  For the ZFS route's own work the owner set the width on 2026-11-23:
+  "Up to 64 rounds at once.",
+  and later steps' pieces are built ahead of the plan's order,
+  unwired:
+  "Build them ahead, unwired (Recommended)"
+  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
+  A rising memory stall pauses new starts.
 - A branch may not make anything `main` does well worse.
   The owner waived this once,
   for one case:
@@ -410,13 +417,28 @@ The owner answered its three questions
 no set-aside,
 read every thread and root,
 and the wrapper names the holders before each destroy.
+The fix round ended at `9969232138`:
+no set-aside,
+an unreadable namespace link named as an incomplete read,
+a nonce per scan,
+every thread and root read with four guest arms,
+25 plants each red without its guard,
+and `299 tests run: 299 passed` on the host
+(`keep/report-pi-zfs-step-9-holder-scan-integration-pass-findings.md` in
+`~/temp/agent/zfs-step-9-holder-scan-across-mount-namespaces-2026-11-22/`).
+A holder on a detached mount is found by no scan of processes;
+`SPEC.md` names it as a limit.
+Its merge stopped on conflicts with the unmount,
+which merged first,
+in `SPEC.md`,
+the guest end-to-end file and `binary_tests.rs`.
 Running:
-`pi-zfs-step-9-holder-scan-integration-pass-findings`,
-with the answers in its inbox.
+`pi-zfs-step-9-holder-scan-merge-main`,
+on the same branch.
 
 Next:
-a second Sonnet pass.
-This branch lands before the unmount.
+merge it when it ends;
+its Sonnet pass is the release's.
 
 #### Step 9: the unmount, staging and reattach
 
@@ -515,16 +537,16 @@ choosing one `key=value` format for all three and one plan line per attempt,
 and asked for the 14 edits to two accepted designs and a clause for a fallback that made no clone
 (`doc/decision/cli-git-zfs-removal-side-records-and-the-adds-record-accepted.md`).
 The binding merged with K14 closed as `ed8ad9a749`.
-Running:
-the origin record's round on the format (`continuation-one-key-value-format.md`),
-the plan record's round on the history (`continuation-one-line-per-attempt.md`),
-and `pi-zfs-accepted-designs-true-to-the-records`,
-which applies the 14 entries by script from the review's words and drafts the clause,
-on `docs/planning-cli-git-zfs-accepted-designs-true-to-the-records`.
+The 14 edits and the no-clone clause merged as `ab140367b3`,
+the origin record in its one `key=value` format,
+and the plan record with one line per attempt as `8457f7fcab`
+(`tuple=<kind> <attempt> <outcome> <guid> <createtxg> <errno> name=<name>`,
+the attempt a per-snapshot number from `0`).
 
 Next:
-merge each when it ends;
-the owner reads the clause in that diff.
+the records are built in steps 14 and 16;
+the owner may read the no-clone clause,
+quoted to the owner on 2026-11-23.
 
 #### Step 17's designs: forced removal, and a cancelled or interrupted removal
 
@@ -578,6 +600,36 @@ then the acceptance question for the two designs.
   look whether it is gone before removing it by hand.
 
 Each one's acceptance is the section "The design is accepted" of its decision record.
+
+#### Later steps' pieces built ahead, unwired
+
+Outcome:
+pieces of later steps that need only work on `main` are merged as code no person's command reaches,
+so their steps wait only for their wiring.
+
+State:
+started 2026-11-23 evening,
+one round each,
+under `rules-for-a-build-ahead-round-from-2026-11-23.md` in
+`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`:
+`pi-zfs-step-15-deferred-origin-check-built-ahead`,
+`pi-zfs-step-16-snapshot-batch-request-built-ahead`,
+`pi-zfs-step-12-move-refusal-and-unmounted-report-built-ahead`,
+`pi-zfs-step-13-managed-lock-distinction-built-ahead`
+and `pi-zfs-step-18-doctor-checks-for-steps-2-to-9-built-ahead`,
+each on the branch of the same name under `feat/git-policy-cli-`.
+Step 19's two open design parts,
+the unit that mounts the checkout and the boot ordering's proof,
+run as `pi-zfs-step-19-checkout-boot-mount-provider-and-ordering`
+(`zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23`),
+started at 2026-11-24T01:50Z once the memory stall the wave raised had eased
+(the freeze document,
+"The comparison that would verify the change").
+
+Next:
+merge each when it ends,
+step 19's as a proposal;
+the freeze document still owes a read across six guests and a whole gate.
 
 ### The clone rung serves every source no slower than `main`
 
