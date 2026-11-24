@@ -4974,6 +4974,12 @@ the slot and the locked registration,
 names the operation,
 the object and the pool,
 and the next add resumes once space is free.
+A continuation needs a source the route can copy:
+an add from a main checkout with uncommitted changes takes the ladder's rung 3
+instead,
+so a record that stands waits for an add whose source is clean
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+lines 1858 to 1862).
 
 
 The preflight reads the account's effective delegation over the checkout dataset
