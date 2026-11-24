@@ -204,6 +204,7 @@ pub fn step_git(steps: &Steps<'_>, record: &mut BindingRecord) -> Result<(), Ste
                     steps.out.borrow_mut().push(format!("monochromatic-git-policy-cli: cleared an incomplete registration at {} ({}).\n", steps.route.slot, cleared.join(", ")));
                 }
                 run_the_git_add(steps, &record.nonce)?;
+                steps.stops.after("git-add");
             }
         }
     }

@@ -372,6 +372,27 @@ fn the_add_makes_a_verified_clone_and_a_second_add_refuses() {
     assert!(String::from_utf8_lossy(listed.stdout.as_slice()).contains(slot.display().to_string().as_str()), "Git lists the worktree");
     let trash: PathBuf = slot.join(".claude").join("cli-git-trash");
     assert!(trash.is_dir(), "the copied administration was left in the wrapper's trash");
+    // T22: the origin inventory is the checkout's snapshots as `zfs list` reads them.
+    let home: PathBuf = fixture.home();
+    let origin: git_policy_cli::InventoryRecord = git_policy_cli::read_inventory(home.as_path(), "whole", git_policy_cli::InventoryKind::Origin).expect("the origin inventory reads");
+    let listed: Output = fixture.zfs(&["list", "-H", "-o", "name", "-d", "1", "-t", "snapshot", fixture.checkout().as_str()]);
+    let listed_names: Vec<String> = String::from_utf8_lossy(listed.stdout.as_slice()).lines().map(|line| return line.rsplit('@').next().unwrap_or("").to_string()).filter(|name| return !name.is_empty()).collect();
+    let recorded: Vec<String> = origin.entries.iter().filter(|entry| return entry.kind == git_policy_cli::EntryKind::Snapshot).map(|entry| return entry.name.clone()).collect();
+    assert_eq!(recorded.len(), listed_names.len(), "the inventory counts the checkout's snapshots");
+    for name in &listed_names {
+        assert!(recorded.contains(name), "the inventory records {name}");
+    }
+    assert_eq!(origin.bounds, record.origin_snapshot.as_str(), "the inventory is bounded by the add's snapshot");
+    // T25: prune keeps a locked registration whose underlay pointer is gone.
+    let unmounted: Output = Command::new("/usr/bin/umount").arg(slot.as_path()).output().expect("the unmount runs");
+    assert!(unmounted.status.success(), "the clone unmounts");
+    let _pointer_gone: std::io::Result<()> = std::fs::remove_file(slot.join(".git"));
+    let pruned: Output = Command::new("/usr/bin/git").current_dir(fixture.root.as_path()).args(["worktree", "prune", "--verbose"]).output().expect("prune runs");
+    assert!(pruned.status.success(), "prune succeeds: {}", String::from_utf8_lossy(pruned.stderr.as_slice()));
+    let registration: PathBuf = fixture.common().join("worktrees").join("whole");
+    assert!(registration.is_dir(), "the managed lock keeps the registration through prune");
+    assert!(fixture.dataset_stands(fixture.clone("whole").as_str()), "the clone stands through prune");
+    assert_eq!(fixture.binding("whole").expect("the record reads after prune").phase, Phase::Filled);
     let again: Output = fixture.run_add("whole");
     assert!(!again.status.success(), "a second add at a filled slot is refused");
     assert!(String::from_utf8_lossy(again.stderr.as_slice()).contains("already a whole ZFS clone"), "the refusal says the worktree is whole");
@@ -387,8 +408,9 @@ fn a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes() {
     // Each arm kills the add after one step's write and then runs the same add
     // again, which resumes it. The phase the kill leaves is the last one that
     // step wrote.
-    let arms: [(&str, Phase); 8] = [
+    let arms: [(&str, Phase); 9] = [
         ("slot-identity", Phase::Slot),
+        ("git-add", Phase::Slot),
         ("registered", Phase::Registered),
         ("clone", Phase::Snapshotted),
         ("clone-inventory", Phase::Cloned),
@@ -413,6 +435,11 @@ fn a_kill_at_each_phase_leaves_that_state_and_the_next_add_resumes() {
         assert_eq!(record.phase, left, "the {step} kill left the phase the step before it wrote");
         match step {
             "slot-identity" => assert!(fixture.slot(name.as_str()).is_dir(), "the slot stands after the kill"),
+            "git-add" => {
+                let slot: PathBuf = fixture.slot(name.as_str());
+                assert!(slot.join(".git").is_file(), "Git\'s pointer stands and no scan has adopted it");
+                assert!(!fixture.dataset_stands(fixture.clone(name.as_str()).as_str()), "no clone was made");
+            }
             "registered" => {
                 let slot: PathBuf = fixture.slot(name.as_str());
                 assert!(slot.join(".git").is_file(), "the registration's pointer stands");
