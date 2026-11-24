@@ -412,7 +412,8 @@ and the gate serves only the step 19 dataset;
 and `SPEC.md` names `canmount=off` and a fall to rung 3 the code does not do.
 Waiting for the memory stall to ease
 (`full` avg60 1.02 and rising at 2026-11-24T01:46-05:00):
-`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`,
+`pi-zfs-step-10-build-matches-its-accepted-designs` and `pi-zfs-step-10-account-companion-probe`
+(the companion is built, about 0.13 of an add, and back in `pi-zfs-step-10-account-companion-clippy` for 18 Clippy findings the package's task reports),
 whose prompts are ready in their folders under `~/temp/agent/` (names ending `-2026-11-24`);
 the first also writes up what widening the gate would need, for the owner.
 Running too,
