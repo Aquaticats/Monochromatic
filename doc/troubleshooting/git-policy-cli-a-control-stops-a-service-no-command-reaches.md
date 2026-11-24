@@ -108,7 +108,7 @@ The control now forms that scene itself and races nothing:
 A control that starts a service of its own,
 and every helper that stops one,
 now acts on `Fixture.service`:
-`the_service` in `binary_push_programs_held_in_memory_tests.rs` holds that lock,
+`the_service_lock` in `binary_push_programs_held_in_memory_tests.rs` holds that lock,
 and `stop_the_service` and `serve_the_service` are the only places the control ends or starts one.
 
 ## Verification
