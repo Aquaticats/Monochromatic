@@ -1053,7 +1053,10 @@ lock descriptor in a child that outlives the wrapper holds that pipe or lock ope
 a child that `SIGKILL` cannot end: it kills the child it can and leaves a thread to wait for it in the shape the
 wrapper's reaper states (`package/git-policy/cli/src/native/process/stuck_children_reaped_when_the_kernel_lets_go.rs:1`
 to `:32`; its `reap_soon` takes a `std::process::Child` at `:57`, so this raw-forked pid needs that rule written
-for a pid, which step 6 does), which is the rule [Limits](#limits) states for the probe's own child.
+for a pid, which step 6 does), which is the rule [Limits](#limits) states for the probe's own child. That rule for a
+pid is written (`reap_soon_pid` in the same file, which the companion's parent and the descriptor reader both
+call, 2026-11-24; it took the place of a reaper thread of the companion's own), and the line numbers above named
+`reap_soon` before that round grew the file.
 
 Its parent-death signal, and what a killed wrapper leaves. The child sets `PR_SET_PDEATHSIG` to `SIGKILL` and
 rechecks `getppid()`, as the probe's children do, so a wrapper killed outright takes its child with it, and the
