@@ -1,12 +1,15 @@
 //! What:
-//!  Whether a control is running inside a user namespace of its own,
+//!  Whether a control is running inside a user and mount namespace of its own,
 //!  where this run's own files are root's,
 //!  and the re-execution that puts it there.
 //! Why:
 //!  A control that needs a file root owns cannot make one as the account the tests run as,
 //!  and the store the route reads is refused unless root owns it:
-//!  `unshare --user --map-root-user` makes the run root inside a namespace of its own,
-//!  so a fixture written there is root's and the same test can prove both the accept and the refusal.
+//!  `unshare --user --map-root-user --mount --propagation private` makes the run
+//!  root and gives it a mount namespace whose mounts stay inside it,
+//!  so a fixture written there is root's,
+//!  a control can mount a tmpfs that no other namespace sees,
+//!  and the same test can prove both the accept and the refusal.
 //!  One variable says which half a run is,
 //!  and the outer half asserts the inner one really ran and passed,
 //!  so a namespace that ran nothing fails rather than passing.
@@ -56,7 +59,8 @@ pub(crate) fn in_a_root_namespace(variable: &str, test: &str) -> bool {
     if std::env::var_os(variable).is_some() {
         return true;
     }
-    let probe: std::process::Output = Command::new(UNSHARE).args(["--user", "--map-root-user", "/bin/true"]).output().expect("unshare runs");
+    let namespace_flags: [&str; 5] = ["--user", "--map-root-user", "--mount", "--propagation", "private"];
+    let probe: std::process::Output = Command::new(UNSHARE).args(namespace_flags).arg("/bin/true").output().expect("unshare runs");
     if !probe.status.success() {
         let said: String = String::from_utf8_lossy(probe.stderr.as_slice()).trim().to_string();
         let acknowledged: bool = std::env::var_os(NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty(); });
@@ -68,7 +72,7 @@ pub(crate) fn in_a_root_namespace(variable: &str, test: &str) -> bool {
         return false;
     }
     let done: std::process::Output = Command::new(UNSHARE)
-        .args(["--user", "--map-root-user"])
+        .args(namespace_flags)
         .arg(std::env::current_exe().expect("this test binary"))
         .args(["--exact", test, "--nocapture"])
         .env(variable, "1")

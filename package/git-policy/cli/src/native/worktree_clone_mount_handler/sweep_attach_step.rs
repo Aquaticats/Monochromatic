@@ -37,8 +37,8 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath_mount_facts::mount_id_of;
 use crate::start_probe::probe_errno_names::ErrnoWord;
 use crate::worktree_clone_mount::{
-    AttachOutcome, AttachPostCheck, CloneSlotRefusal, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, MountIdentity, RollbackPlan, attach_the_clone, hold_clone_slot_under_root_control,
-    look_again_at_the_slot, mount_id_at_the_held_target, plan_rollback_of, post_attach_check, unmount_through_descriptor,
+    AttachOutcome, AttachPostCheck, AttachRefusal, AttachedMount, CloneSlotRefusal, HeldCloneSlot, HoldCloneSlotRequest, LookAgainAtSlotRequest, MountIdentity, RollbackPlan, attach_the_clone,
+    hold_clone_slot_under_root_control, look_again_at_the_slot, mount_id_at_the_held_target, plan_rollback_of, post_attach_check, unmount_through_descriptor,
 };
 use std::path::Path;
 
@@ -197,6 +197,42 @@ pub trait CloneAttachStep {
 }
 
 /// What:
+///  The one mount call the release step makes.
+/// Why:
+///  The real call mounts a clone and only the guest may run it,
+///  while a control needs the step's own order and its mapping of a refusal to
+///  a retained answer;
+///  the seam is the mount alone,
+///  so the walk,
+///  the proofs and the rollback stay the release code in both arms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface CloneMountCall { attachTheMount(source, target): AttachedMount }
+/// ```
+pub trait CloneMountCall {
+    /// Attach one clone's dataset to the target the walk held.
+    fn attach_the_mount(&self, source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal>;
+}
+
+/// What:
+///  The release mount call:
+///  step 4's descriptor attach.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const call = new RealCloneMountCall();
+/// ```
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RealCloneMountCall;
+
+impl CloneMountCall for RealCloneMountCall {
+    fn attach_the_mount(&self, source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
+        return attach_the_clone(source, target);
+    }
+}
+
+/// What:
 ///  The release step:
 ///  the walk,
 ///  the mount and both post-attach proofs,
@@ -212,13 +248,15 @@ pub trait CloneAttachStep {
 /// ```ts
 /// const outcome = RealAttachStep.default().attach(request);
 /// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub struct RealAttachStep<Calls: RollbackCalls = RealRollbackCalls> {
+#[derive(Clone, Debug, Default)]
+pub struct RealAttachStep<Calls: RollbackCalls = RealRollbackCalls, Mount: CloneMountCall = RealCloneMountCall> {
     /// The rollback's two calls.
     pub calls: Calls,
+    /// The one mount call.
+    pub mount_call: Mount,
 }
 
-impl<Calls: RollbackCalls> CloneAttachStep for RealAttachStep<Calls> {
+impl<Calls: RollbackCalls, Mount: CloneMountCall> CloneAttachStep for RealAttachStep<Calls, Mount> {
     fn attach(&self, request: &AttachRequest<'_>) -> AttachStepOutcome {
         let walk: HoldCloneSlotRequest<'_> = HoldCloneSlotRequest { checkout: request.checkout, slot: request.slot, store: request.store };
         let held: HeldCloneSlot = match hold_clone_slot_under_root_control(&walk) {
@@ -228,7 +266,7 @@ impl<Calls: RollbackCalls> CloneAttachStep for RealAttachStep<Calls> {
                 return AttachStepOutcome::Refused { step: String::from(step), errno, said: refusal.message() };
             }
         };
-        let attached_mount_id: u64 = match attach_the_clone(request.clone, &held.target) {
+        let attached_mount_id: u64 = match self.mount_call.attach_the_mount(request.clone, &held.target) {
             Ok(attached) => attached.mount_id,
             Err(refusal) => return the_outcome_of_a_refused_attach(&refusal),
         };

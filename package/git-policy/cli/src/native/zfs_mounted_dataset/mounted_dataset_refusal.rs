@@ -145,7 +145,7 @@ impl MountedDatasetRefusal {
                 "this process's own mount table could not be read ({said}), so nothing here says which dataset the route acts on"
             ),
             MountedDatasetRefusal::NoneMounted { leaf, ignored } => format!(
-                "no mount in this process's own mount table is an instance of the checkout dataset, whose last name component is `{leaf}`. A row counts only when its root within the dataset is `/`, and a dataset mounted directly inside the clone container this run uses is a managed clone, never the checkout. The table's ZFS rows whose source carried that leaf name are {}",
+                "no mount in this process's own mount table is an instance of the checkout dataset, whose last name component is `{leaf}`. A row counts only when its root within the dataset is `/`, and a dataset mounted directly inside the clone container this run uses is a managed clone, never the checkout. The table's ZFS rows whose source carried that leaf name: {}",
                 listed_or_nothing(ignored.as_slice())
             ),
             MountedDatasetRefusal::SeveralMounted { leaf, found } => format!(
@@ -200,7 +200,7 @@ impl MountedDatasetRefusal {
                 "Ways forward: run the route from a process that can read `/proc/self/mountinfo`, or write `cloneMounts.checkout` and `cloneMounts.checkoutDataset` in {file}."
             ),
             MountedDatasetRefusal::NoneMounted { .. } | MountedDatasetRefusal::DatasetNotMounted { .. } => format!(
-                "Ways forward: run plan step 19's setup, which creates the checkout dataset `{DESIGN_CHECKOUT_DATASET_NAME}` and mounts it at the checkout path, then run this again; or write `cloneMounts.checkout` (the path) or `cloneMounts.checkoutDataset` (the dataset) in {file}. `git monochromatic-git-policy-cli doctor` reports which entry is missing once plan step 18 adds that."
+                "Ways forward: write `cloneMounts.checkout` (the checkout path) or `cloneMounts.checkoutDataset` (the checkout dataset) in {file}, naming the checkout this run acts on; leave both keys out and the route finds the one mounted dataset whose last name component is `{DESIGN_CHECKOUT_DATASET_NAME}`, which this release carries no setup that creates or mounts."
             ),
             MountedDatasetRefusal::SeveralMounted { .. } | MountedDatasetRefusal::DatasetMountedSeveralTimes { .. } => format!(
                 "Ways forward: leave one mounted instance of the checkout dataset and run this again, or name the dataset with `cloneMounts.checkoutDataset` and its path with `cloneMounts.checkout` in {file}."
@@ -212,10 +212,10 @@ impl MountedDatasetRefusal {
                 format!("Ways forward: write `startProbe.dataset` in {file}, naming the probe dataset in full.")
             }
             MountedDatasetRefusal::LeafNameDiffers { found, .. } => format!(
-                "Ways forward: mount the design's checkout dataset at that path, which plan step 19's setup does, or write `cloneMounts.checkoutDataset` in {file} naming `{found}`."
+                "Ways forward: mount the design's checkout dataset at that path, or write `cloneMounts.checkoutDataset` in {file} naming `{found}`."
             ),
             MountedDatasetRefusal::NotADataset { .. } => format!(
-                "Ways forward: mount the design's checkout dataset at that path, which plan step 19's setup does, or write `cloneMounts.checkoutDataset` in {file} naming the dataset."
+                "Ways forward: mount the design's checkout dataset at that path, or write `cloneMounts.checkoutDataset` in {file} naming the dataset."
             ),
         };
     }
@@ -224,5 +224,5 @@ impl MountedDatasetRefusal {
 /// One list in words,
 /// or a phrase saying it held nothing.
 fn listed_or_nothing(items: &[String]) -> String {
-    return if items.is_empty() { String::from("none, so no row's source carried it") } else { items.join("; ") };
+    return if items.is_empty() { String::from("none") } else { items.join("; ") };
 }

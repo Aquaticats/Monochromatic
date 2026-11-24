@@ -41,6 +41,16 @@ pub enum SourceRefusal {
         /// What the read answered.
         reason: String,
     },
+    /// The configuration file is not one this program alone may write:
+    /// a link at the path,
+    /// another account's file,
+    /// or a mode that lets another account write it.
+    ConfigurationNotUnderRootControl {
+        /// The path that was read.
+        path: PathBuf,
+        /// Why the file is not one this program alone may write.
+        reason: String,
+    },
     /// The configuration file is there and holds nothing,
     /// which is not the same as no file at all.
     ConfigurationEmpty {
@@ -85,6 +95,7 @@ impl SourceRefusal {
     pub fn word(&self) -> &'static str {
         return match self {
             SourceRefusal::ConfigurationUnreadable { .. } => "configuration-unreadable",
+            SourceRefusal::ConfigurationNotUnderRootControl { .. } => "configuration-not-under-root-control",
             SourceRefusal::ConfigurationEmpty { .. } => "configuration-empty",
             SourceRefusal::ConfigurationUnparsable { .. } => "configuration-unparsable",
             SourceRefusal::NameNotText { .. } => "name-not-text",
@@ -102,6 +113,12 @@ impl SourceRefusal {
         return match self {
             SourceRefusal::ConfigurationUnreadable { path, reason } => format!(
                 "the probe's source is not configured: {} could not be read ({reason}). Nothing was attached. Ways forward: make the file readable by root and run the probe again.",
+                path.display()
+            ),
+            SourceRefusal::ConfigurationNotUnderRootControl { path, reason } => format!(
+                "the probe's source is not configured: {} is not a file this program alone may write ({reason}). Nothing was attached. Ways forward: make it root's own file with `chown root:root {}` and `chmod go-w {}`, and run the probe again.",
+                path.display(),
+                path.display(),
                 path.display()
             ),
             SourceRefusal::ConfigurationEmpty { path } => format!(
@@ -126,7 +143,7 @@ impl SourceRefusal {
                 remedy = probe_checkout_remedy(refusal, configuration, format!("{START_PROBE_KEY}.{CHECKOUT_KEY}").as_str())
             ),
             SourceRefusal::CheckoutNotFound { path } => format!(
-                "the probe's dataset is not configured and no checkout was found to take the pool from, so `nosnap/git-worktree-probe` has no pool to sit in ({} was read). Nothing was attached. Ways forward: write `{key}` in {} naming the probe dataset, or run plan step 19's setup so the checkout dataset is mounted.",
+                "the probe's dataset is not configured and no checkout was found to take the pool from, so `nosnap/git-worktree-probe` has no pool to sit in ({} was read). Nothing was attached. Ways forward: write `{key}` in {} naming the probe dataset, or mount the checkout dataset so the route can find the pool.",
                 path.display(),
                 configuration.display()
             ),
@@ -169,7 +186,7 @@ fn probe_checkout_remedy(refusal: &MountedDatasetRefusal, path: &Path, key: &str
         | MountedDatasetRefusal::NoDatasetAtThePath { .. }
         | MountedDatasetRefusal::LeafNameDiffers { .. }
         | MountedDatasetRefusal::NotADataset { .. } => format!(
-            "Ways forward: mount the checkout dataset `monochromatic-git-checkout`, which plan step 19's setup does, or write `{key}` in {file} naming the checkout path."
+            "Ways forward: mount the checkout dataset `monochromatic-git-checkout`, which this release carries no setup for, or write `{key}` in {file} naming the checkout path."
         ),
     };
 }

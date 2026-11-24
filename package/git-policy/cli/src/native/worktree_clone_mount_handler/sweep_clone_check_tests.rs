@@ -147,8 +147,8 @@ fn the_object_type_the_snapshot_flag_and_the_origin_are_each_checked() {
 ///  A clone of the container's own snapshot is refused,
 ///  and a checkout snapshot that is not the add route's is refused too.
 /// Why:
-///  H1 of step 8's integration pass proved the sweep accepted only a snapshot of
-///  the container,
+///  A clone of the container's own snapshot is the origin the origin check
+///  refuses,
 ///  which is the one shape the design's add route never makes:
 ///  it snapshots the checkout and clones that snapshot,
 ///  and the snapshot's own name is the prefix the design gives

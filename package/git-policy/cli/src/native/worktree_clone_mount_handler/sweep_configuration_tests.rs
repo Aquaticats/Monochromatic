@@ -25,6 +25,7 @@ use super::{
     read_configuration,
 };
 use crate::testing::mounted_dataset_table::{ScriptedMountTable, row, the_designs_table};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 /// The file every control parses as if it were the installed one.
@@ -204,8 +205,11 @@ fn no_instance_is_refused_with_the_leaf_name_and_the_rows_that_carried_it() {
     let refusal: ConfigurationRefusal = parse_configuration("{}", Path::new(CONFIGURATION), &absent).expect_err("no row is the design's dataset");
     let said: String = refusal.message();
     assert!(said.contains("`monochromatic-git-checkout`"), "the refusal names the leaf it looked for: {said}");
-    assert!(said.contains("none, so no row's source carried it"), "the refusal says the table held none under that leaf: {said}");
-    assert!(said.contains("plan step 19"), "the refusal names the setup step: {said}");
+    assert!(said.contains("whose source carried that leaf name: none"), "the refusal says the table held none under that leaf, in one clause: {said}");
+    assert!(!said.contains("none, so no row's source carried it"), "the fact is said once: {said}");
+    assert!(said.contains("write `cloneMounts.checkout`"), "the refusal names what a person can write in this release: {said}");
+    assert!(!said.contains("plan step"), "the refusal sends no one to a step no release carries: {said}");
+    assert!(!said.contains("doctor"), "the refusal sends no one to a report this release lacks: {said}");
     assert_eq!(refusal.key(), Some(format!("{CLONE_MOUNTS_KEY}.{CHECKOUT_DATASET_KEY}")));
 }
 
@@ -417,9 +421,47 @@ fn a_file_that_is_there_and_unreadable_is_refused() {
     let fixture: Fixture = Fixture::new("unreadable");
     let directory: PathBuf = fixture.path.join("a-directory.jsonc");
     std::fs::create_dir_all(directory.as_path()).expect("the fixture folder is made");
-    let refusal: ConfigurationRefusal = read_configuration(directory.as_path(), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET))).expect_err("a folder is not a file");
+    let refusal: ConfigurationRefusal = read_configuration(directory.as_path(), &ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET)))
+        .expect_err("a folder is not a file");
     assert!(matches!(refusal, ConfigurationRefusal::Unreadable { .. }), "{refusal:?}");
     assert!(refusal.message().contains("could not be read"), "{}", refusal.message());
+}
+
+/// What:
+///  A configuration file another account could write is refused,
+///  and a file of this program's own is read,
+///  so the refusal is the rule and not a reader that never reads.
+/// Why:
+///  The file names the datasets root acts on,
+///  and a file an account could rewrite would make every entry advisory.
+#[test]
+fn a_configuration_another_account_could_write_is_refused() {
+    let fixture: Fixture = Fixture::new("writable-by-others");
+    let file: PathBuf = fixture.write(document(PARENT, CHECKOUT, CHECKOUT_DATASET).as_str());
+    let table: ScriptedMountTable = ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET));
+    assert!(read_configuration(file.as_path(), &table).is_ok(), "a file this account alone may write is the positive control");
+    std::fs::set_permissions(file.as_path(), std::fs::Permissions::from_mode(0o664)).expect("the fixture mode is set");
+    let refusal: ConfigurationRefusal = read_configuration(file.as_path(), &table).expect_err("a group write bit is refused");
+    assert!(matches!(refusal, ConfigurationRefusal::NotUnderRootControl { .. }), "{refusal:?}");
+    let said: String = refusal.message();
+    assert!(said.contains("0664"), "the refusal names the mode it found: {said}");
+    assert!(said.contains("chmod go-w"), "the refusal names what to run: {said}");
+    assert_eq!(refusal.key(), Some(String::from(CLONE_MOUNTS_KEY)), "the refusal names the object a person writes");
+}
+
+/// A link at the configuration's path is refused rather than followed,
+/// so an account that can replace the name cannot choose what root reads.
+#[test]
+fn a_link_at_the_configuration_path_is_refused() {
+    let fixture: Fixture = Fixture::new("link");
+    let target: PathBuf = fixture.write(document(PARENT, CHECKOUT, CHECKOUT_DATASET).as_str());
+    let link: PathBuf = fixture.path.join("linked.jsonc");
+    std::os::unix::fs::symlink(&target, &link).expect("the fixture link is made");
+    let table: ScriptedMountTable = ScriptedMountTable::text(&the_designs_table(CHECKOUT, CHECKOUT_DATASET));
+    assert!(read_configuration(target.as_path(), &table).is_ok(), "the target reads, so the link's refusal is the rule");
+    let refusal: ConfigurationRefusal = read_configuration(link.as_path(), &table).expect_err("a link is not opened");
+    assert!(matches!(refusal, ConfigurationRefusal::NotUnderRootControl { .. }), "{refusal:?}");
+    assert!(refusal.message().contains("is a link"), "{}", refusal.message());
 }
 
 /// A file that is there and holds nothing is refused,
@@ -434,6 +476,7 @@ fn an_empty_file_is_refused_and_says_it_is_not_the_same_as_no_file() {
     let said: String = refusal.message();
     assert!(said.contains("is empty"), "the message says the file is empty: {said}");
     assert!(said.contains("an empty file is not the same as no file"), "the message says the difference: {said}");
+    assert!(!said.contains("so this sweep acts on nothing"), "the sweep's own clause is said once: {said}");
     assert!(said.contains("remove the file") || said.contains("is removed"), "the message names the way out: {said}");
     assert!(!said.contains("not one JSONC document"), "an empty file is not worded as a broken one: {said}");
     let whitespace: PathBuf = fixture.write("\n  \t\n");
