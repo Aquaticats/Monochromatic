@@ -503,10 +503,9 @@ which is not the answer's letter,
 and the proposed guard admits a call site,
 not one name;
 it drafted a rule that keeps both the answer and a fail-closed install.
-Waiting for the memory stall to ease
-(rising at 2026-11-24T01:55-05:00 with 7.2 GiB available):
+Running:
 `pi-zfs-root-modes-second-revision`,
-prompt ready in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
+with its prompt in `~/temp/agent/zfs-root-modes-second-revision-2026-11-24/`
 (branch `docs/planning-cli-git-zfs-root-modes-second-revision`).
 mvm's Fedora template now starts the guest agent unconfined with SELinux still enforcing
 (`8ca430dd2f`;
@@ -592,8 +591,9 @@ every boot kept its own log,
 and a start bound (V8) and a unit per nested dataset (V9) are new;
 its arms ran on systemd 258 in a Fedora guest set permissive,
 so no result is about an enforcing boot.
-Waiting for the memory stall to ease:
-a Sonnet re-read of that revision.
+Running:
+a Sonnet re-read of that revision
+(`~/temp/agent/gate-review-zfs-step-19-revision-2026-11-24/`).
 
 Next:
 the re-read,
@@ -843,9 +843,9 @@ and B needing AppArmor rules in two stacked profiles per build,
 and added an option J:
 the sentence itself as `SSH_ASKPASS`'s value,
 which OpenSSH prints in its exec failure line.
-Waiting for the memory stall to ease:
+Running:
 `pi-typed-network-command-next-step-after-its-review`,
-prompt ready in its folder of that name under `~/temp/agent/` (ending `-2026-11-24`).
+with its prompt in its folder of that name under `~/temp/agent/` (ending `-2026-11-24`).
 The LFS round found `push_programs_held_in_memory::a_push_a_restarted_service_has_to_try_again_stops_and_names_the_command`
 failing 4 of 8 on the host,
 not its regression:
@@ -914,8 +914,8 @@ so the scene is forced rather than raced.
 Its round found issue 6448:
 a control that makes a non-UTF-8 folder name fails on this host,
 whose home dataset is `utf8only`;
-its round waits for the memory stall with the one-program second revision,
-prompt ready in `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`.
+its round `pi-non-utf8-name-controls-on-a-utf8only-home` runs,
+with its prompt in `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`.
 
 ### The desktop stays usable under agent runs
 
