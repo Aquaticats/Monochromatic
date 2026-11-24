@@ -471,13 +471,31 @@ the owner answered "Lift it for the ZED hook only (Recommended)"
 only the zedlet's file name selects a root mode,
 and units,
 adoption and a person use words.
+The revision to that answer and the review merged as a proposal,
+`1e5f417430`:
+the zedlet's file name or the words `monochromatic-git-policy-cli zfs-root` select a root mode,
+probed over nineteen fixture starts with the guard predicates replayed,
+and six choices left open (the group word,
+what root's install holds,
+where the dispatch sits,
+what `--version` says,
+the account's short name,
+and whether release keeps the modes' test-only variables),
+each ranked.
+Its cold first-start read ran on the host with each file's pages evicted
+(the wrapper 6.04 ms slower than the handler at the median),
+because mvm's Fedora guest refused every file route
+(`keep/state-so-far.md` in `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
 Running:
-`pi-zfs-root-modes-after-the-start-name-answer`,
-revising the proposal to that answer and the review
-(folder `~/temp/agent/zfs-root-modes-after-the-start-name-answer-2026-11-24/`).
+a Sonnet re-read of the revision
+(`~/temp/agent/gate-review-zfs-root-modes-revision-2026-11-24/`).
+Waiting for the memory stall to ease:
+`pi-mvm-fedora-guest-refuses-every-file-route`,
+whose prompt is ready in `~/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
+(branch `fix/mvm-fedora-guest-refuses-every-file-route`).
 
 Next:
-put the choices it re-poses to the owner,
+fold the re-read in and put the six choices to the owner,
 then a build round removes the second `[[bin]]` and wires the modes.
 
 #### Accepted designs that wait for their build steps
