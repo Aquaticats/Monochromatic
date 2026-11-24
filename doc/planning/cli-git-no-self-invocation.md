@@ -1134,6 +1134,13 @@ the record).
   because a once-only notice needs a
   file that outlives the process and a decision about when it expires.
 
+From lines 47670 to 47672 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Fallback to the installed real Git (four picks):
+  "Keep all (Recommended)".
+
 ## Hang analysis: the owner's suspicion of a concurrent LFS deadlock
 
 The owner's words:

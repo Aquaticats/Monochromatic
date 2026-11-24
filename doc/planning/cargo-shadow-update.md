@@ -238,6 +238,28 @@ commit `c7b46ae`).
 - The launcher test is bounded by a nesting counter in the environment and a 20-second deadline.
   With the spawn guard removed from `cargo_run.rs` it fails within seconds (GFP).
 
+From lines 49074 to 49078 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+  "PnPM doesn't have the reconcile keyword.
+  Our Rust catalog tooling should follow pnpm and shouldn't have that keyword too."
+  (2026-11-03T04:30:37-05:00).
+  These live on the unmerged cargo-shadow branch;
+  `doc/decision/rust-dependency-catalog.md` records the catalog rules.
+
+From lines 49079 to 49085 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- Workflows are editable like any file ("Who said you can't touch workflows?
+  No one said that.
+  Just do it.")
+  and "Workflows
+  should never use mise at all."
+  (2026-11-03T05:31:50-05:00).
+  CI runs tasks through `task-run`.
+
 ## Review findings fixed (cross-vendor review of 2026-11-03T13:26:08Z)
 
 The review ("Do not rely on this implementation as a policy-enforcement boundary yet.")

@@ -56,6 +56,13 @@ named the program `cli-git-native` as a vague name:
   exempt package folders (Recommended)";
   VGW now ends "Package folders are exempt."
 
+From lines 49459 to 49460 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The rename note in old records ran as described: "Run the fix as described", 2026-11-07T02:03:01-05:00,
+  done in `31f3223d25` (the note left the six decision records and was reworded in the other 111).
+
 ## What changes
 
 - `package/git-policy/cli/Cargo.toml`:

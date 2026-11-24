@@ -360,10 +360,14 @@ impl AttributeFence {
 /// function fenceTheAttributes(source, context): AttributeFence; // throws the reason the rung cannot be proven
 /// ```
 pub fn fence_the_attributes(source: &SnapshotSource, context: &GitContext) -> Result<AttributeFence, String> {
-    refuse_untracked_attributes(source)?;
+    // The index is read once here and both the untracked-attributes refusal and the attributes walk judge those entries;
+    // a second read of this repository's 24,648 entries costs about 2 ms on every add.
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
         return Err(String::from("the source's index changed shape"));
     };
+    if let Some(reason) = first_untracked_attributes(entries.as_slice(), source.root.as_path()) {
+        return Err(reason);
+    }
     let rules: ConversionRules = conversion_rules_from_config(source.config.entries());
     let attributes: HashMap<Vec<u8>, PathAttributes> = attributes_of(context, source.root.as_path(), entries.as_slice())?;
     // What:

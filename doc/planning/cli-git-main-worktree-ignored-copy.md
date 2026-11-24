@@ -52,6 +52,17 @@ all were removed.
   the journal and recovery;
   `--no-worktree-copy` keeps working.
 
+From lines 49004 to 49009 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+Speed (2026-11-03T04:03:31-05:00):
+"60s is fine for adding worktrees.
+And make sure we're running everything that can be run in
+parallel in parallel."
+and "No,
+I didn't say speed is unnecessary!"
+
 ## Summary
 
 - Before:

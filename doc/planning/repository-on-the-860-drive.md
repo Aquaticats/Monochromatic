@@ -94,6 +94,20 @@ subagents send it the exact privileged commands instead of running them.
   a reboot can make data on this machine's NVMe permanently unreadable,
   so commit and push before any reboot and never count on uncommitted files surviving one.
 
+From lines 49462 to 49464 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- During the 860 cut-over the owner's other processes were stopped: "Stop agents and adb for me",
+  2026-11-08T06:45:53-05:00. The seven processes were sent TERM by PID after each command line was re-read,
+  and all exited; the owner closed Zed and the terminals.
+
+From lines 49487 to 49487 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The 860 move's old trees are deleted: "860 move: You delete it.", 2026-11-10T07:24:16-05:00.
+
 ## What the plan decides and what it leaves to the owner
 
 The owner picked the design,
@@ -405,6 +419,20 @@ None needs an answer for the plan to proceed.
 - Freeze method:
   `btrfs property set -ts <path> ro true` per subvolume,
   plus holder scans before and after (review item 4).
+
+From lines 39952 to 39960 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+- The plan's scratch subvolumes in `/var/home/user/temp/agent/dangling` (`svfix`,
+  `svfix-snap`,
+  `svfix-snap-ro`,
+  `svfix-asm` and two nested ones) are deleted,
+  without sudo:
+  the owner said "I don't think they need sudo.",
+  and emptying then `rmdir` works (kernel feature `rmdir_subvol`).
+  The plan's reason for adding
+  `user_subvol_rm_allowed` is corrected to the wrapper's one-step subvolume removal.
 
 ## Measurements
 
