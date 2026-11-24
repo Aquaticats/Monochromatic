@@ -13,15 +13,19 @@ Until commit `c84e2f1dbf` (2026-11-23T04:39:44-05:00) this path held 49,707 line
 run logs from 2026-11-09 on,
 the owner's decisions,
 open findings and working rules.
-That text is moved,
+That text was moved,
 unchanged,
 to `doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md`.
-A document that points at a heading of this page that is no longer here means that file.
+A document that points at a heading of this page that is no longer here means that file,
+which `git show c84e2f1dbf:doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` still prints.
 
-The old file is being sorted,
+The old file was sorted,
 range by range,
 into the places such facts belong,
-and it is deleted when its last range is sorted:
+and deleted as `f0f870e305` (2026-11-23T20:56:00-05:00) when its last range was sorted.
+Every moved entry names its lines and the commit at which the file held them;
+the sorting's ledgers and scripts are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/`.
+The sorting put:
 
 - the owner's decisions go to records under `doc/decision/`;
 - root causes and workarounds go to `doc/troubleshooting/`;
@@ -467,12 +471,16 @@ ten host controls each red without its guard,
 and the reboot phase of the kill points run in a guest
 (`keep/report-pi-zfs-step-9-unmount-what-the-last-round-left.md` in
 `~/temp/agent/zfs-step-9-unmount-staging-and-reattach-2026-11-22/`).
+The pass's M3 to M9 merged as `0576c39994`,
+seven guest arms built and run,
+each matching its finding,
+with no code fault found
+and `223 tests run: 223 passed` on the host.
 Not yet shown:
-the pass's M3 to M9,
-whose arms must be built,
-not only run.
+M3's positive reader control,
+which printed an empty row.
 Running:
-`pi-zfs-step-9-unmount-m3-to-m9-guest-arms`,
+`pi-zfs-step-9-unmount-m3-positive-reader-control`,
 on the same branch.
 
 Next:
@@ -569,17 +577,32 @@ and Tier 1 on a guest pool
 read against the logs in `review-second-probe-round.md` in
 `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`).
 Tier 2 needs step 17's code.
+The probe round on the second read merged as `a93edae332`,
+and the design writer's V9 and Q10 edits as `93f7b4378d`.
+The reviewer's third read
+(`review-third-read-after-the-probe-rounds.md` beside the second)
+found the measurements sound,
+and one high point that blocks the forced design's question as worded:
+by its reading of systemd `v262`,
+a unit of a person's own user manager with `PrivateMounts=`,
+`PrivateTmp=`,
+`ProtectHome=` or a bind option gets a user namespace of its own,
+so it is in the class the design refuses,
+and the preflight's `MNT_LOCKED` read names no interface a handler can read.
 Running:
-`pi-zfs-forced-removal-probe-arms-second-read-findings`,
-on the read's faults in the measurements section
-(which program ran where,
-the heading's time,
-a user-namespace holder named as unshown,
-one misleading T0-10 line).
+the forced design's round on that and three lows
+(`continuation-third-read-user-namespace-holders.md`),
+the cancelled design's refresh
+(`continuation-third-read-refresh.md`),
+and `pi-zfs-forced-removal-probe-arms-that-need-no-step-17`:
+T0-14 in a real user-manager unit,
+T0-10 with the handler's privileges,
+and T0-3's delivery control.
 
 Next:
-merge it;
-then the acceptance question for the two designs.
+merge each when it ends;
+then the acceptance question,
+with the forced design's choice for a sandboxed user unit if its writer names one.
 
 #### Accepted designs that wait for their build steps
 
@@ -756,31 +779,34 @@ the week of merges since `alpha.44` (2026-11-16) reaches installs as an alpha,
 which the owner lets agents dispatch unasked (standing directions).
 
 State:
-the dry run (GitHub Actions run 45303365282) failed before any push,
-at `pnpm install --frozen-lockfile` on a clean checkout of `main`:
-`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`,
-the "catalogs" configuration not matching the lock,
-since the daily update `aead90ed51` changed both.
-The same error is what a new worktree's relink prints,
-so it is likely issue 6339's cause too.
-A release note holds at most 200 characters.
+the first dry run failed at `pnpm install --frozen-lockfile`
+(`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`);
+the fix merged as `7703a307ea`:
+`toolchain:update:daily` now ends with that frozen install,
+and the lock was regenerated with no version moved.
+The commit that left the pair out of step,
+`aead90ed51`,
+came from a run that did not finish,
+not from a misordered task.
+A release note holds at most 200 characters,
+and the dispatch refuses while `origin/main` lags the local `main`.
+The second dry run passed (run 45308464804),
+and the release was dispatched as run 45308756772 at `0576c39994`.
+The ZFS route's release pass found it fit to ship,
+with two medium findings on the handler's words and its `start-probe`'s missing root check
+(`zfs-route-reach/keep/review.md` in
+`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`).
 Running:
-`pi-pnpm-lock-out-of-step-with-the-catalog`,
-on `fix/mise-daily-update-leaves-the-pnpm-lock-out-of-step-with-the-catalog`;
-and three Sonnet release passes over `alpha.44..main`
-(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/`):
-the clone rung,
-the commit,
+`native:release:wait` on the release,
+the clone rung's and the commit,
 push,
-LFS and lock paths,
-and what of the ZFS code reaches a person today.
+LFS and lock paths' release passes,
+and `pi-zfs-handler-words-true-of-the-release` on the ZFS pass's findings,
+which builds the pass's first-ranked option of its two choices (D1 and D2) for the owner's veto.
 
 Next:
-merge the lock fix,
-dispatch the release with `mise run //package/git-policy/cli:native:release -- 0.6.1-alpha.44 0.6.1-alpha.45 <note>`
-(dry run first),
-follow it with `native:release:wait`,
-and turn the passes' findings into fixes.
+read the release's end,
+and turn the other two passes' findings into fixes.
 
 #### Tests that failed once and are not diagnosed
 
@@ -823,73 +849,6 @@ for the owner to apply.
 A gate's fixture file system is a `tmpfs` capped at 768 MiB,
 so one gate's fixtures hold at most that
 (the freeze account's question 4 has the one reading so far).
-
-### The handover holds only open work
-
-Why:
-the owner asked on 2026-11-23 for this page and the task list to be cut down to what is relevant.
-
-State:
-this page is rewritten,
-and the old text is frozen in the file named under "Where the rest of this page went".
-The sorting's working files,
-and the ledger of which range went where,
-are in `~/temp/agent/handover-cull-and-task-list-rebuild-2026-11-23/keep/`.
-The held backlog is on GitHub
-("Held work").
-Ranges applied so far:
-lines 34,867 to 49,707 of the old file,
-committed as `a2b4fca7c8`.
-Five sorters gave each range a disposition,
-and `apply-the-cut-moves-to-their-targets.ts` in that folder moved 187 entries verbatim into 73 targets
-(41 existing files and 32 new records,
-each new one saying in its status that it holds moved text only),
-each after a line naming its lines in the old file;
-one entry was already held and was skipped.
-Before that,
-every quotation of the owner's inside a `delete` item was made a `move`
-(`quotations-the-ended-ledgers-would-delete/keep/` and `ledgers-keep-every-owner-quotation/keep/` in that folder),
-because the first check of quotations read them by alternation and by their opening characters and missed some
-(its controls and flaws:
-`keep/quotation-check-controls-2026-11-23.md`).
-Among the owner's words the rewrite had lost are
-"Treat reviews as async."
-and "You should (almost) never be waiting.
-There is always more work.",
-now in `doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`.
-
-That audit read only `delete` items,
-so the owner's words inside `issue`,
-`home` and `open` items were never checked;
-"Move hall-monitor to package-paused altogether.",
-at old-file line 45973 in an `issue` item,
-is held by no tracked file but the frozen one.
-The run logs,
-lines 153 to 34,866,
-were sorted by five Sonnet sorters
-(`brief-sorter-run-logs.md`)
-and their 98 moves applied into 42 targets as `98d8601c93`,
-188 entries already held being skipped.
-The first five ranges' 35 issue drafts are filed as issues 6401 to 6427,
-with comments on 13 others
-(`filing-of-the-sorters-issue-drafts/keep/ledger.jsonl`).
-The harness refuses a subagent's write of a report file:
-"Subagents should return findings as text,
-not write report files."
-So a sorter's report is its final message,
-saved by the coordinator as `keep/report-as-returned-to-the-coordinator.md`.
-Running:
-two agents scanning every non-move item for the owner's words,
-one for lines 34,867 to 49,707
-(`brief-owner-quotations-in-every-non-move-item.md`)
-and one for the run logs
-(`brief-owner-quotations-in-the-run-log-ledgers-non-move-items.md`);
-and an agent filing the run-log sorters' 31 drafts
-(`brief-file-the-run-log-sorters-issue-drafts.md`).
-
-Next:
-apply the two scans' amended ledgers' new moves the same way;
-then delete the old file.
 
 ## Held work
 
