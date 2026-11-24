@@ -1423,6 +1423,24 @@ Step 18 will find the folder,
 record and claim under the names the SPEC section states,
 and the record's boot id and namespace pair for its print.
 
+The four interrupted states a kill leaves are finished by a later run in the guest
+(2026-11-23):
+a staged clone,
+a left bind,
+a bind over the slot's clone,
+and nothing mounted
+but the record,
+each ending `unmounted` with its `done` receipt and no row at the slot.
+The file handle round trip is a guest arm too:
+one process writes the record,
+a second
+reopens the folder from it.
+The acceptance round of 2026-11-23 gave a stopped unmount its own answer:
+a `cancelled`
+receipt,
+with the clone's mount fields when it is back at its slot and the bind's state in
+the failed step.
+
 Guest arms run on the design's dataset layout in a throwaway guest on 2026-11-22:
 the plain unmount by a handler that did not attach,
 its `done` receipt,

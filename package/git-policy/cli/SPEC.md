@@ -6654,12 +6654,45 @@ The receipt format's outcomes are `done`,
 `refused` and `failed`;
 this build adds no fourth word and the outcome bound stays seven bytes.
 
+#### A later run finishes an interrupted unmount
+
+An `unmount` intent's sweep first reads the staged-folder record and finishes what an
+interrupted run left,
+before its own turn:
+a clone still staged on the folder is unmounted there,
+a bind left over the folder is unbound (and the turn then proceeds,
+because the clone
+stands at its slot),
+a folder with nothing mounted and a current record files the `done` receipt the waiting
+command never got,
+and a mount that is neither the clone nor the cache's own bind refuses and is reported.
+The wrapper creates and removes the folder;
+the handler never does.
+The record is written before the first bind of every turn,
+and on a later turn it is
+replaced under the same rule.
+
+The bind's own descriptor is taken from the mount table's row for the mount the bind call
+made:
+the cache mount's child,
+carrying the cache's source,
+with a mount id of its own.
+A mount stacked in the gap between the bind call and that open is refused,
+and the bind
+this call made is taken down again before the refusal returns,
+so a refused bind leaves no
+mount behind.
+
 #### The interface later steps call
 
 `worktree_clone_unmount::staged_unmount::unmount_the_staged_mount` takes a held folder descriptor,
 the cache descriptor,
 the folder's name and the clone's source,
 and unmounts the clone then the bind with the checks above.
+`worktree_clone_unmount::staged_unmount::recover_a_staged_unmount` is the call the
+`unmount` arm makes before its own turn,
+and it is what a later run uses to finish an
+interrupted one.
 `worktree_clone_unmount::staged_unmount::finish_a_staged_unmount` takes the cache,
 its path,
 the GUID,
