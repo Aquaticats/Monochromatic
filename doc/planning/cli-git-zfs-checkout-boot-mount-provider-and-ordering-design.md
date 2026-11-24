@@ -202,8 +202,8 @@ The driver and every guest step are kept:
 - The provider drop-in's request runs, and does not need restart propagation to be useful.
   With the gate on `Wants=` the provider's restart left the gate active and the request ran its `ExecReload=`
   (kept log `wants-control.log`).
-  With the gate on `Requires=` the same restart already restarted the gate, so the request merged into that start
-  (kept log `restart-provider.log`).
+  With the gate on `Requires=` the same restart already restarted the gate, and the boot's journal holds no separate
+  reload, so the request added none (kept log `restart-provider.log`).
 - A route-owned unit running `zfs mount <dataset>` gives a status that names the checkout and the reason,
   but only when it does not itself require the key unit:
   `cannot mount 'zfsstep19/home/monochromatic-git-checkout': encryption key not loaded`, exit status one
@@ -597,8 +597,9 @@ after `systemctl restart zfs-mount.service` the gate stayed active and then
 `Reloading reconcile-…` and `Reloaded` appeared
 (journal lines `1795503693.546036` and `1795503693.566525`, kept log `wants-control.log`).
 The `-` prefix kept the provider `active` with `Result=success`.
-With the gate's requirement written as `Requires=`, the same restart already restarted the gate and the request
-merged into that start, so the drop-in's own effect is not visible in that shape
+With the gate's requirement written as `Requires=`, the same restart already restarted the gate,
+and that boot's journal holds no separate reload, so the drop-in's own effect is not visible in that shape.
+The absence is the whole of that result: what the log shows is a restart with no `Reloading` line
 (kept log `dropin.log`).
 The install is the record's, and the record's reason stands: the request is what reconciles after a post-key-load
 checkout mount, including a provider started by something other than the boot.
