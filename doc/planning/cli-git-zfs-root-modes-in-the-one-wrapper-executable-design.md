@@ -66,7 +66,7 @@ so the change to each guard is stated as the single assertion it is.
 `src/native/source_guard/hook_self_invocation_tests.rs:74` to `:83`,
 `src/native/source_guard/no_self_invocation_rules_tests.rs:25` to `:35`,
 `src/native/main.rs:53` and
-`src/native/binary/binary_external_hook_tests.rs:171` are all in the change list,
+`src/native/binary/binary_external_hook_tests.rs:170` are all in the change list,
 with the text each one gets.
 
 #### A root-owned file under the wrapper's own name fails open
@@ -367,7 +367,7 @@ and the answer changes all three for exactly one name:
 Beside them,
 `src/native/main.rs:53` explains the service mode as chosen
 "never by the name this program was started as",
-and `binary/binary_external_hook_tests.rs:171` proves that a start under each Git hook event's name behaves as `git`.
+and `binary/binary_external_hook_tests.rs:170` proves that a start under each Git hook event's name behaves as `git`.
 Both stay true for every name but the one,
 which is what the guard change has to express.
 
@@ -394,7 +394,7 @@ From OpenZFS `zfs-2.4.4`
   root owns it (unless `-f`),
   its owner execute bit is set,
   and it is not group- or other-writable;
-- `cmd/zed/zed_conf.c:51` caps ZED at 16 zedlet processes;
+- `cmd/zed/zed_conf.c:51` caps ZED at 16 concurrent zedlet jobs (`zcp->max_jobs = 16`);
 - `cmd/zed/zed.c:238` to `:241` set `umask(0)` and then `chdir("/")`,
   so no zedlet ever starts in a repository.
 
@@ -541,7 +541,8 @@ and it lives in `src/native/worktree_clone_mount_handler/root_mode_names.rs`:
 a file holding the three constants
 (the ZED hook's name,
 the group word,
-and the wrapper's own word taken from `foundation::wrapper_names_old_and_new::COMMAND_WORD`)
+and the wrapper's own word taken from `wrapper_names_old_and_new::COMMAND_WORD`,
+the constant `service run`'s words already use)
 and one predicate.
 The folder already links `foundation/` in its `uses/` set,
 so no link is added,
@@ -670,7 +671,7 @@ the near-miss names,
 the empty name,
 no name at all,
 and the trailing slash are its cases,
-and `binary_external_hook_tests.rs:171` keeps proving that every Git hook event's name still behaves as `git`.
+and `binary_external_hook_tests.rs:170` keeps proving that every Git hook event's name still behaves as `git`.
 
 `SPEC.md:19050` becomes:
 
@@ -1554,10 +1555,9 @@ and `toolchain:lock:check` compares the plan and the lock offline:
   which is the command `toolchain:lock:check` runs without `--frozen-lockfile`,
   never by hand;
 - `package/git-policy/cli/mise.toml`:
-  the descriptions of `native:build`,
-  `native:build:release`,
-  `build` and `native:install` that count two executables,
-  and the `e2e:mount-git-worktree-clone-datasets` task's own text if it names a binary;
+  the descriptions of `native:build` (`:98`),
+  `native:build:release` (`:102`) and `build` (`:158`) that count two executables,
+  and `native:install`'s description (`:88`), which names both version checks the install runs;
 - `README.md`:
   the release paragraph (`:11`),
   the install section that says one archive carries two executables (`:1865`, `:7967`),
@@ -1605,10 +1605,12 @@ so they land with the release lists:
 - `binary_service_mode_tests.rs:6`:
   the comment that counts two executables;
 - `e2e/start-probe-guest.ts:42`:
-  `HANDLER` becomes the wrapper pushed into the guest plus the link its commands run,
+  `HANDLER` becomes the wrapper pushed into the guest plus the installed-name link its commands run,
   and every `${HANDLER} start-probe` line keeps its shape;
 - `e2e/mount-git-worktree-clone-datasets-guest.ts`:
-  the same link inside the guest.
+  its guest build loses the second program (its tarball excludes `target`,
+  so the guest compiles what it runs at `:326` to `:328`),
+  and the guest creates the installed-name link before the adoption arm runs.
 
 ### The same commit: what `native:install` and the release smoke check instead
 
