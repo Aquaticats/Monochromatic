@@ -170,7 +170,9 @@ pnpm 11 (TypeScript tree in the same source checkout) keeps the checksum compari
 
 The same message names `"catalogs"` when the default catalog in `pnpm-workspace.yaml` moved
 and the lockfile kept the values it recorded before the move.
-pnpm records, per catalog entry, both the specifier it saw and the version it resolved,
+pnpm records,
+per catalog entry,
+both the specifier it saw and the version it resolved,
 so a raised `>=` floor is drift even when the resolution is unchanged.
 Three spots in the lockfile carry it:
 `catalogs.default` per entry,
@@ -184,7 +186,8 @@ Observed on `aead90ed51`
 plus the two derived lines above,
 26 specifier lines in all,
 with no version moved.
-What that commit had in common with the 2026-10-22 incidents is the shape, not the tool:
+What that commit had in common with the 2026-10-22 incidents is the shape,
+not the tool:
 the catalog half landed without the install that records it,
 just as the lockfile regen then landed without the config it encoded.
 
@@ -211,8 +214,10 @@ the control test `lands no dependency lock when the install left the pnpm lock o
 passes no run without the new command.
 
 The wrapper meets the same error when it relinks a worktree
-(`pnpm --dir <worktree> install --offline --frozen-lockfile`, issue 6339):
-the relink is a frozen install, so a checkout whose lockfile and catalog disagree refuses it.
+(`pnpm --dir <worktree> install --offline --frozen-lockfile`,
+issue 6339):
+the relink is a frozen install,
+so a checkout whose lockfile and catalog disagree refuses it.
 On 2026-11-23 the worktree at `fix/mise-daily-update-leaves-the-pnpm-lock-out-of-step-with-the-catalog`
 printed exactly that,
 with `package state ... was not relinked` and the same quoted message,

@@ -17,9 +17,10 @@
 //! ```
 
 use super::{
-    ArgumentRefusal, CHECKOUT_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, INODE_OPTION, MODE_WORDS, VERSION_WORD, parse, usage,
+    ArgumentRefusal, CHECKOUT_OPTION, DATASET_OPTION, DEVICE_OPTION, HELP_WORD, HandlerMode, HolderScanInvocation, INODE_OPTION, MODE_WORDS, NONCE_OPTION, VERSION_WORD, parse, usage,
     version_line,
 };
+use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::worktree_clone_mount_handler::handler_install_paths::{PROGRAM_NAME, SERVICE_INSTALL_PATH, ZEDLET_INSTALL_PATH};
 use monochromatic_zfs_request_to_openzfs_kernel_device::DEVICE_PATH;
 use std::ffi::OsString;
@@ -56,7 +57,41 @@ fn every_mode_word_reads_as_its_mode() {
     assert_eq!(parse(&arguments(&["shutdown-unmount"])), Ok(HandlerMode::ShutdownUnmount));
     assert_eq!(parse(&arguments(&[HELP_WORD])), Ok(HandlerMode::Help));
     assert_eq!(parse(&arguments(&[VERSION_WORD])), Ok(HandlerMode::Version));
-    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "adopt-worktree-parent"]);
+    assert_eq!(MODE_WORDS, ["boot-reconcile", "start-probe", "shutdown-unmount", "holder-scan", "adopt-worktree-parent"]);
+}
+
+/// The holder scan reads its dataset and its optional nonce,
+/// and refuses a missing,
+/// repeated or unreadable one.
+#[test]
+fn the_holder_scan_reads_its_dataset_and_its_nonce() {
+    let wanted = HandlerMode::HolderScan(HolderScanInvocation { dataset: String::from("zpcachyos/nosnap/clones/one"), nonce: None });
+    assert_eq!(parse(&arguments(&["holder-scan", DATASET_OPTION, "zpcachyos/nosnap/clones/one"])), Ok(wanted));
+    let nonce: &str = "00112233445566778899aabbccddeeff";
+    let named = HandlerMode::HolderScan(HolderScanInvocation {
+        dataset: String::from("zpcachyos/nosnap/clones/one"),
+        nonce: Some(RequestNonce::parse(nonce).expect("the fixture nonce is one")),
+    });
+    assert_eq!(parse(&arguments(&["holder-scan", NONCE_OPTION, nonce, DATASET_OPTION, "zpcachyos/nosnap/clones/one"])), Ok(named.clone()));
+    assert_eq!(parse(&arguments(&["holder-scan", DATASET_OPTION, "zpcachyos/nosnap/clones/one", NONCE_OPTION, nonce])), Ok(named));
+    assert_eq!(parse(&arguments(&["holder-scan", NONCE_OPTION, nonce])), Err(ArgumentRefusal::MissingOption { option: DATASET_OPTION }));
+    assert_eq!(parse(&arguments(&["holder-scan", NONCE_OPTION])), Err(ArgumentRefusal::MissingValue { option: NONCE_OPTION }));
+    assert_eq!(
+        parse(&arguments(&["holder-scan", DATASET_OPTION, "a", DATASET_OPTION, "b"])),
+        Err(ArgumentRefusal::RepeatedOption { option: DATASET_OPTION })
+    );
+    assert_eq!(
+        parse(&arguments(&["holder-scan", DATASET_OPTION, "pool/one", NONCE_OPTION, nonce, NONCE_OPTION, nonce])),
+        Err(ArgumentRefusal::RepeatedOption { option: NONCE_OPTION })
+    );
+    let refusal: ArgumentRefusal = parse(&arguments(&["holder-scan", DATASET_OPTION, "pool/one@snapshot"])).expect_err("a snapshot is no dataset name");
+    assert!(matches!(refusal, ArgumentRefusal::DatasetName { .. }), "{refusal:?}");
+    assert!(refusal.message().contains("@"), "{}", refusal.message());
+    for typed in ["00112233445566778899AABBCCDDEEFF", "00112233445566778899aabbccddee", "zz112233445566778899aabbccddeeff"] {
+        let not_a_nonce: ArgumentRefusal = parse(&arguments(&["holder-scan", DATASET_OPTION, "pool/one", NONCE_OPTION, typed])).expect_err("a nonce is 32 lowercase hex digits");
+        assert!(matches!(not_a_nonce, ArgumentRefusal::Nonce { .. }), "{typed}: {not_a_nonce:?}");
+    }
+    assert_eq!(parse(&arguments(&["holder-scan", "--force", "/a"])), Err(ArgumentRefusal::UnexpectedArgument { word: String::from("--force") }));
 }
 
 /// The adoption's three options read as one request,

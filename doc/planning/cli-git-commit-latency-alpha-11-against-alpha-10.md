@@ -436,7 +436,8 @@ moved verbatim on 2026-11-23:
   the batch was formed at 14.428.
   The same span in the two starts before was 106 ms (47 records) and 40 ms (13 records).
 - **Read on `main`**
-  (`service/service_server.rs`, the lines before that log line):
+  (`service/service_server.rs`,
+  the lines before that log line):
   on the landing thread,
   before it reads the queue,
   the service restores its plan and watch,

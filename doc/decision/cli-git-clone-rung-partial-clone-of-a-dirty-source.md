@@ -228,13 +228,34 @@ From lines 42200 to 42209 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`). The owner then asked
-  "Wait, why are we cloning every file individually when we have snapshots?": the accepted design's rung 1 is the ZFS
-  snapshot clone (whole checkout, ignored state included, a verified restore for a dirty main, the proposal's "Rung 1:
-  Snapshot clone"), and per-file cloning is rung 2, the fallback; rung 1 needs the managed route (an account cannot mount
-  a clone), whose add route is step 10 (depends on steps 2, 3, 6 and 8) and dirty-main restore step 11. Asked whether to
-  park the partial clone for steps 6 to 11, the owner answered "B: finish both": the gate review continues and the
-  proposal comes to the owner, while steps 6 onward proceed. Step 6 is split by its own design: the start probe runs the
-  module gate first and skips itself when the gate refuses, so the gate and the layout checker go first
-  (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`, brief
+  (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`).
+  The owner then asked
+  "Wait,
+  why are we cloning every file individually when we have snapshots?":
+  the accepted design's rung 1 is the ZFS
+  snapshot clone (whole checkout,
+  ignored state included,
+  a verified restore for a dirty main,
+  the proposal's "Rung 1:
+  Snapshot clone"),
+  and per-file cloning is rung 2,
+  the fallback;
+  rung 1 needs the managed route (an account cannot mount
+  a clone),
+  whose add route is step 10 (depends on steps 2,
+  3,
+  6 and 8) and dirty-main restore step 11.
+  Asked whether to
+  park the partial clone for steps 6 to 11,
+  the owner answered "B:
+  finish both":
+  the gate review continues and the
+  proposal comes to the owner,
+  while steps 6 onward proceed.
+  Step 6 is split by its own design:
+  the start probe runs the
+  module gate first and skips itself when the gate refuses,
+  so the gate and the layout checker go first
+  (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`,
+  brief
   under `~/temp/agent/zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`) and the start probe follows on top.

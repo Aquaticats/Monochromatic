@@ -88,9 +88,16 @@ The Proxy is callable,
  and `get` are all wired,
  so `lockfile.lockSync(path, opts)` and `lockfile.lock(path, opts)` both return the stub itself.
 
-The stub no longer hangs: `package/pnpm-override/stub-silent/index.cjs` answers `then`, `catch` and
-`finally` with `undefined`, so awaiting the stub, a property chain of it or a call result of it settles at
-once. The owner answered at 2026-11-10T08:08:51-05:00: "Amend the record (Recommended)". The synchronous and
+The stub no longer hangs:
+`package/pnpm-override/stub-silent/index.cjs` answers `then`,
+`catch` and
+`finally` with `undefined`,
+so awaiting the stub,
+a property chain of it or a call result of it settles at
+once.
+The owner answered at 2026-11-10T08:08:51-05:00:
+"Amend the record (Recommended)".
+The synchronous and
 asynchronous consequences under "Silent-stub semantics" describe the state before that change and stand as its
 history.
 
@@ -690,7 +697,8 @@ moved verbatim on 2026-11-23:
 ### The lock shim of Pi is merged with its three amendments (2026-11-14, answered by 16:09-05:00)
 
 Asked through the question tool whether the branch that changes how Pi takes the lock of its models store
-(`package/pnpm-override/shim-proper-lockfile`, tip `578bc34738`,
+(`package/pnpm-override/shim-proper-lockfile`,
+tip `578bc34738`,
 three reviews,
 the last with no defect)
 may be merged,

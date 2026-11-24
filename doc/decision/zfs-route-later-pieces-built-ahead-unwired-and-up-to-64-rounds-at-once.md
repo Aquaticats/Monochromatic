@@ -4,7 +4,8 @@
 
 Decided by the owner on 2026-11-23,
 through the question tool,
-answering the session's question "Can we parallelize better?" put back to the owner as two choices.
+answering the session's question "Can we parallelize better?"
+put back to the owner as two choices.
 Recorded by the session;
 this record holds the owner's words and what follows from them.
 
@@ -12,7 +13,8 @@ this record holds the owner's words and what follows from them.
 
 ### The question
 
-Step 10's second half (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, "Step 10") is the one round every later
+Step 10's second half (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+"Step 10") is the one round every later
 step waits on,
 directly or through another step's "Depends on".
 Some later pieces need only work already on `main`:
@@ -27,7 +29,8 @@ with step 11 kept after step 10 by the owner's earlier "Ship step 10 first (Reco
 
 ### The answer
 
-"Build them ahead, unwired (Recommended)"
+"Build them ahead,
+unwired (Recommended)"
 
 ### What it means
 

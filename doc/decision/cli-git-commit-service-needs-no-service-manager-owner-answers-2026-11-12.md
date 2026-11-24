@@ -2,7 +2,8 @@
 
 ## Status
 
-Moved on 2026-11-23 from the old handover, verbatim;
+Moved on 2026-11-23 from the old handover,
+verbatim;
 not yet edited into a record of its own.
 
 ## Moved from the old handover
@@ -11,19 +12,27 @@ From lines 25974 to 25993 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-#### The owner adds to the systemd answer (typed after 12:11:18, while these were being recorded)
+### The owner adds to the systemd answer (typed after 12:11:18, while these were being recorded)
 
-- "Also regarding systemd answer: We're also supposed to workaround systemd issues."
+- "Also regarding systemd answer:
+  We're also supposed to workaround systemd issues."
 - It adds to the section
-  "The owner: "Remove systemd as a hard dependency. Bazel doesn't need it."":
+  "The owner:
+  "Remove systemd as a hard dependency.
+  Bazel doesn't need it."":
   besides needing no service manager and using one only as an enhancement,
   the wrapper works around the defects of systemd it meets.
-- This session's reading, to be corrected if wrong:
-  a defect of systemd is never a reason for a wrapper command to fail, to wait, or to tell a person to act;
+- This session's reading,
+  to be corrected if wrong:
+  a defect of systemd is never a reason for a wrapper command to fail,
+  to wait,
+  or to tell a person to act;
   the wrapper detects the state and gets its own work done another way.
   The cases on record are those of issue 6286
   (a manager-wide reload that holds every start for seconds or minutes,
-  and systemd v262.1 reading an expired reply as a lost bus name, `src/core/unit.c:3576`, `src/core/service.c:5975`),
+  and systemd v262.1 reading an expired reply as a lost bus name,
+  `src/core/unit.c:3576`,
+  `src/core/service.c:5975`),
   a start request that is not answered within a bound,
   and a unit left in a failed or stale state by an earlier release.
 - Sent as a note to the two agents on that path,
@@ -74,7 +83,8 @@ What this session answered from the record
 
 The second,
 the decision:
-"Remove systemd as a hard dependency. Bazel doesn't need it."
+"Remove systemd as a hard dependency.
+Bazel doesn't need it."
 
 What follows from it:
 
@@ -118,7 +128,8 @@ What follows from it:
   whether it is wanted is the owner's.
 - That question was answered by the owner at about 10:45,
   before it was asked:
-  "Progressively enhance. You can also test on Alpine."
+  "Progressively enhance.
+  You can also test on Alpine."
   So:
   the base is the wrapper whole with no manager;
   where a manager is present the wrapper may use it to do better,
