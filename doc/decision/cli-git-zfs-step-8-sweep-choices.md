@@ -70,16 +70,41 @@ From lines 43424 to 43433 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
 moved verbatim on 2026-11-23:
 
-  exists on the attach path only), lows L-1 to L-5, and two owner items. OWNER ITEM 1, ASKED 2026-11-22: with no
-  configuration file, with `{}`, or with only a `startProbe` object, the sweep exits 2 and attaches nothing;
-  `cloneMounts.checkout` is required, the start probe needs `startProbe.dataset` and `startProbe.checkout`, and the
-  accepted start-probe design has `doctor` print the probe's field for the owner to apply, against the owner's "Everything
-  must work by default w/o any configuration". OWNER ITEM 2, the sweep's cost with every clone mounted: 64 children about
-  0.3 s steady and 1 s cold (one child about 0.15 s); 1,024 about 8.3 s and 25.5 s; 2,048 about 26 s and 66 s. A
-  `git worktree add` waits on a sweep's receipt, so the growth is treated as a defect on a waiting path and fixed without a
-  question; the bound's measured figures go beside the constant, veto open. GOING:
+  exists on the attach path only),
+  lows L-1 to L-5,
+  and two owner items.
+  OWNER ITEM 1,
+  ASKED 2026-11-22:
+  with no
+  configuration file,
+  with `{}`,
+  or with only a `startProbe` object,
+  the sweep exits 2 and attaches nothing;
+  `cloneMounts.checkout` is required,
+  the start probe needs `startProbe.dataset` and `startProbe.checkout`,
+  and the
+  accepted start-probe design has `doctor` print the probe's field for the owner to apply,
+  against the owner's "Everything
+  must work by default w/o any configuration".
+  OWNER ITEM 2,
+  the sweep's cost with every clone mounted:
+  64 children about
+  0.3 s steady and 1 s cold (one child about 0.15 s);
+  1,024 about 8.3 s and 25.5 s;
+  2,048 about 26 s and 66 s.
+  A
+  `git worktree add` waits on a sweep's receipt,
+  so the growth is treated as a defect on a waiting path and fixed without a
+  question;
+  the bound's measured figures go beside the constant,
+  veto open.
+  GOING:
   `pi-zfs-step-8-recheck-findings-and-sweep-cost` on `fix/git-policy-cli-zfs-step-8-recheck-findings-and-sweep-cost` (M-1 to
-  M-4, the lows, the sweep's cost; brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`; the
+  M-4,
+  the lows,
+  the sweep's cost;
+  brief under `~/temp/agent/zfs-step-8-recheck-findings-and-sweep-cost-2026-11-22/`;
+  the
 
 ### Receipts for refusals
 
@@ -327,6 +352,31 @@ except as C's fallback;
 trust the clone's receipt";
 and "A:
 state the limit".
+
+### Measured after the build, 2026-11-24
+
+The round `pi-zfs-step-8-merge-main-and-the-sweep-timing` measured the built choice in one guest
+(Ubuntu 24.04,
+OpenZFS 2.4.4,
+kernel 6.14),
+interleaved with `main`'s handler and an identical-binary control,
+and the branch merged as `c099c069a8`
+(`keep/report-pi-zfs-step-8-merge-main-and-the-sweep-timing.md` in
+`~/temp/agent/zfs-step-8-merge-main-and-the-sweep-timing-2026-11-23/`).
+Two figures in this section do not hold as written:
+
+- The steady sweep was 0.36 (0.30 to 0.58) and 0.34 (0.19 to 0.42) of `main`'s time at 1,024 clones,
+  and inside the control's spread at 8 and 64 clones,
+  so the "0.20 to 0.79 ... from 8 to 1,024 clones" quoted in this section is not reproduced:
+  the gain is real at 1,024 and absent at 8 and 64,
+  where a sweep is mostly the run's fixed cost.
+  Nothing measured was slower than `main`.
+- The kernel's answer the choice needs,
+  a mount's source through `statmount(2)`'s `STATMOUNT_SB_SOURCE`,
+  arrives in Linux 6.13,
+  not the 6.8 the option's text names,
+  so on 6.8 to 6.12 the sweep takes the fallback;
+  a guest that measures this path needs 6.13 or later.
 
 ## Adopted with the project's veto open
 

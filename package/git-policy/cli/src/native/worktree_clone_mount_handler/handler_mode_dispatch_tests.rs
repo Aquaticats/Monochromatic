@@ -1,29 +1,40 @@
 //! What:
 //!  Controls of the command line's statuses:
 //!  the help and version words answer zero,
-//!  every unreadable invocation and every unbuilt mode answers the refusal status,
-//!  and no refusal reaches zero.
+//!  every gated mode word answers the refusal status,
+//!  a refused gate never calls a mode's own work,
+//!  and a probe caller that is not root is refused before the gate or any
+//!  write.
 //! Why:
 //!  A boot unit's `ExecStart` and `ExecStopPost` read this status,
 //!  so a mode that refuses while answering zero would report a reconciled boot that never happened
 //!  (`handler_mode_dispatch`).
+//!  Every mode runs from fixture places and behind a gate that answers without
+//!  this machine,
+//!  so a control reads the command line's own decision and never this host's
+//!  configuration,
+//!  store,
+//!  mount table or `/dev/zfs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(run(['--help'])).toBe(0); expect(run([])).toBe(2);
+//! expect(run(['--help'])).toBe(0); expect(runBehindAt(gate, fixtures, [])).toBe(2);
 //! ```
 
 use super::{
-    EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, behind_the_gate_for_the_probe, boot_reconcile_mode, run_behind,
-    shutdown_unmount_mode,
+    DispatchPlaces, EXIT_DONE, EXIT_REFUSED, attaching_sweep_mode, behind_the_gate, behind_the_gate_for_the_probe_as, boot_reconcile_mode, report,
+    run_behind, run_behind_at, shutdown_unmount_mode,
 };
+use super::handler_mode_arguments::{self, HandlerMode};
 use crate::start_probe::RecordPlace;
 use crate::testing::test_support::fixture;
-use super::handler_mode_arguments::{self, HandlerMode};
+use crate::worktree_clone_mount_protocol::ReadinessFile;
 use crate::zfs_compatibility_gate::gate_verdict::{Facts, Verdict};
 use crate::zfs_compatibility_gate::{BeforeRequests, gate_words::TESTED_MODULE_VERSION};
+use rustix::process::geteuid;
 use std::cell::Cell;
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 /// The gate a control hands in:
 /// compatible,
@@ -58,7 +69,12 @@ impl BeforeRequests for RefusingGate {
     }
 }
 
-/// One invocation through the passing gate.
+/// One invocation through the passing gate,
+/// from this machine's installed places.
+///
+/// Only the words that read no place run this way:
+/// `--help` and `--version` answer before any mode,
+/// and an unreadable invocation never reaches one.
 fn run(words: &[OsString]) -> i32 {
     return run_behind(&PassingGate, words);
 }
@@ -67,6 +83,30 @@ fn run(words: &[OsString]) -> i32 {
 /// as the kernel hands them over.
 fn arguments(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(|word| return OsString::from(*word)).collect();
+}
+
+/// What:
+///  One command line's places,
+///  all of them in one fixture folder,
+///  with a configuration file that is there and holds nothing.
+/// Why:
+///  An empty file is refused before any mode reaches the device,
+///  the store or `/run`,
+///  so each mode answers its own work without touching this machine,
+///  and every place is under the folder the control removes.
+fn fixture_places(label: &str) -> DispatchPlaces {
+    let root: PathBuf = fixture(label);
+    let configuration: PathBuf = root.join("git-worktree-clone-mounts.jsonc");
+    std::fs::write(&configuration, "").expect("the fixture configuration is written");
+    let store: PathBuf = root.join("store");
+    let probe_record: PathBuf = root.join("probe-record");
+    return DispatchPlaces {
+        sweep: super::SweepPlaces::at(configuration.clone(), store.clone(), probe_record.clone()),
+        reconcile: super::ReconcilePlaces::at(configuration.clone(), store, probe_record),
+        readiness: ReadinessFile::at(root.join("readiness"), geteuid().as_raw()),
+        probe: RecordPlace::at(root.join("records")),
+        probe_configuration: configuration,
+    };
 }
 
 /// One line reaches the stream with the newline that ends it,
@@ -90,23 +130,24 @@ fn the_help_and_version_words_answer_zero() {
     assert_eq!(run(arguments(&["--version"]).as_slice()), EXIT_DONE);
 }
 
-/// Every unbuilt mode refuses,
-/// and the default invocation is one of them.
+/// Every gated mode word answers the refusal status,
+/// from the places the control hands in.
 #[test]
-fn every_unbuilt_mode_answers_the_refusal_status() {
-    assert_eq!(run(arguments(&[]).as_slice()), EXIT_REFUSED);
-    assert_eq!(run(arguments(&["boot-reconcile"]).as_slice()), EXIT_REFUSED);
-    assert_eq!(run(arguments(&["shutdown-unmount"]).as_slice()), EXIT_REFUSED);
+fn every_gated_mode_word_answers_the_refusal_status() {
+    let places: DispatchPlaces = fixture_places("dispatch-gated-statuses");
+    for words in [Vec::<&str>::new(), vec!["boot-reconcile"], vec!["shutdown-unmount"]] {
+        assert_eq!(run_behind_at(&PassingGate, &places, arguments(words.as_slice()).as_slice()), EXIT_REFUSED, "{words:?}");
+    }
 }
 
 /// An unreadable invocation is a refusal,
 /// never a mode taken by default.
 #[test]
 fn an_unreadable_invocation_answers_the_refusal_status() {
-    assert_eq!(run(arguments(&["sweep"]).as_slice()), EXIT_REFUSED);
-    assert_eq!(run(arguments(&["boot-reconcile", "--force"]).as_slice()), EXIT_REFUSED);
-    assert_eq!(run(arguments(&["adopt-worktree-parent"]).as_slice()), EXIT_REFUSED);
-    assert_eq!(run(arguments(&["adopt-worktree-parent", "--checkout"]).as_slice()), EXIT_REFUSED);
+    let places: DispatchPlaces = fixture_places("dispatch-unreadable");
+    for words in [vec!["sweep"], vec!["boot-reconcile", "--force"], vec!["adopt-worktree-parent"], vec!["adopt-worktree-parent", "--checkout"]] {
+        assert_eq!(run_behind_at(&PassingGate, &places, arguments(words.as_slice()).as_slice()), EXIT_REFUSED, "{words:?}");
+    }
 }
 
 /// A refused gate never calls the mode's own work,
@@ -132,39 +173,47 @@ fn a_refused_gate_keeps_the_mode_unentered_and_says_so() {
     assert!(ran.get(), "a passing gate did not call the mode");
 }
 
-/// Each unbuilt mode names the plan step that lands it,
-/// so a passing gate still leaves the step a person can act on.
+/// A refused gate answers the refusal status,
+/// and the mode's own work is never called:
+/// the closure that stands for a mode records that it ran,
+/// so a build that entered it answers zero here.
+#[test]
+fn a_refused_gate_answers_the_refusal_status_and_runs_no_mode() {
+    let ran: Cell<bool> = Cell::new(false);
+    let outcome = || {
+        ran.set(true);
+        return Ok(String::new());
+    };
+    assert_eq!(report(behind_the_gate(&RefusingGate, outcome)), EXIT_REFUSED, "a refused gate answered a status other than the refusal status");
+    assert!(!ran.get(), "the refused gate called the mode's own work");
+    let passed = || {
+        ran.set(true);
+        return Ok(String::new());
+    };
+    assert_eq!(report(behind_the_gate(&PassingGate, passed)), EXIT_DONE, "a passing gate did not answer the mode's own status");
+    assert!(ran.get(), "a passing gate did not call the mode's own work");
+}
+
+/// The one mode whose step has not landed names the unit that runs it,
+/// so a passing gate still leaves a step a person can act on.
 ///
-/// Each constant is paired with the invocation that reaches its mode,
+/// The constant is paired with the invocation that reaches its mode,
 /// and the gate's line is the one a person reads:
 /// the message the mode itself answers,
 /// never the awaiting value's own words alone.
 #[test]
-fn each_unbuilt_mode_names_its_plan_step() {
-    for (awaiting, words, mode) in [(shutdown_unmount_mode::AWAITING, vec!["shutdown-unmount"], HandlerMode::ShutdownUnmount)] {
-        let invocation: Vec<OsString> = arguments(words.as_slice());
-        assert_eq!(
-            handler_mode_arguments::parse(invocation.as_slice()),
-            Ok(mode.clone()),
-            "{words:?} does not reach {mode:?}"
-        );
-        let message: String = awaiting.message();
-        assert!(
-            message.contains(format!("plan step {}", awaiting.step).as_str()),
-            "{message}"
-        );
-        let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
-            return match mode {
-                HandlerMode::ShutdownUnmount => shutdown_unmount_mode::run(),
-                _ => unreachable!("the table names only the unbuilt modes"),
-            }
-            .map_err(|refused| return refused.message());
-        });
-        let Err(line): Result<String, String> = answer else {
-            panic!("{words:?} answered a passing gate");
-        };
-        assert!(line.contains(message.as_str()), "{line}");
-    }
+fn the_unbuilt_mode_names_the_unit_that_runs_it() {
+    let invocation: Vec<OsString> = arguments(&["shutdown-unmount"]);
+    assert_eq!(handler_mode_arguments::parse(invocation.as_slice()), Ok(HandlerMode::ShutdownUnmount));
+    let message: String = shutdown_unmount_mode::AWAITING.message();
+    assert!(message.contains(shutdown_unmount_mode::AWAITING.arrives_with), "the refusal names the unit that runs the mode: {message}");
+    let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
+        return shutdown_unmount_mode::run().map_err(|refused| return refused.message());
+    });
+    let Err(line): Result<String, String> = answer else {
+        panic!("shutdown-unmount answered a passing gate");
+    };
+    assert!(line.contains(message.as_str()), "{line}");
 }
 
 /// What:
@@ -174,20 +223,24 @@ fn each_unbuilt_mode_names_its_plan_step() {
 /// Why:
 ///  The two modes plan step 8 builds must not answer as a step that has not
 ///  landed,
-///  and this host has no installed configuration,
-///  so each answers the configuration's own refusal naming the key to write.
+///  and a configuration file that is there and holds nothing is refused by the
+///  mode's own read,
+///  so neither opens the device the control's gate would have let it open.
 #[test]
-fn the_two_built_modes_answer_their_own_work() {
-    for words in [Vec::<&str>::new(), vec!["boot-reconcile"]] {
-        let answer: Result<String, String> = behind_the_gate(&PassingGate, || {
-            return if words.is_empty() { attaching_sweep_mode::run() } else { boot_reconcile_mode::run() };
-        });
-        let Err(line): Result<String, String> = answer else {
-            panic!("{words:?} answered a passing gate on a host with no installed configuration");
-        };
-        assert!(line.contains("git-worktree-clone-mounts.jsonc") || line.contains("start probe"), "the mode entered its own work and answered its own refusal: {line}");
-        assert!(!line.contains("is not built yet"), "a built mode must not answer as one whose step has not landed: {line}");
-    }
+fn the_sweep_and_the_boot_reconciliation_answer_their_own_work_on_fixture_places() {
+    let places: DispatchPlaces = fixture_places("dispatch-modes-own-work");
+    let sweep: Result<String, String> = attaching_sweep_mode::run_at(&places.sweep);
+    let Err(said): Result<String, String> = sweep else {
+        panic!("the sweep answered a configuration that holds nothing");
+    };
+    assert!(said.contains("is empty"), "the sweep answered its own refusal: {said}");
+    assert!(!said.contains("is not built yet"), "a built mode must not answer as one whose step has not landed: {said}");
+    let boot: Result<String, String> = boot_reconcile_mode::run_at(&places.reconcile, &places.readiness);
+    let Err(boot_said): Result<String, String> = boot else {
+        panic!("the boot reconciliation answered a configuration that holds nothing");
+    };
+    assert!(boot_said.contains("is empty"), "the boot reconciliation answered its own refusal: {boot_said}");
+    assert!(!boot_said.contains("is not built yet"), "a built mode must not answer as one whose step has not landed: {boot_said}");
 }
 
 /// The probe's own gate refusal writes a skipped record in the place it is
@@ -196,11 +249,11 @@ fn the_two_built_modes_answer_their_own_work() {
 /// and never reaches the mode's own work.
 #[test]
 fn the_probes_gate_refusal_writes_a_skipped_record_in_the_given_place() {
-    let root: std::path::PathBuf = fixture("start-probe-dispatch-skip");
+    let root: PathBuf = fixture("start-probe-dispatch-skip");
     let place: RecordPlace = RecordPlace::at(root.join("records"));
-    let configuration: std::path::PathBuf = root.join("handler.jsonc");
+    let configuration: PathBuf = root.join("handler.jsonc");
     std::fs::write(&configuration, "{}").expect("the fixture configuration is written");
-    let answer: Result<String, String> = behind_the_gate_for_the_probe(&RefusingGate, &place, configuration.as_path());
+    let answer: Result<String, String> = behind_the_gate_for_the_probe_as(&RefusingGate, &place, configuration.as_path(), true, 0);
     let line: String = answer.expect("a skipped probe is a verdict, not a refusal");
     assert!(line.contains("start probe skipped"), "{line}");
     assert!(line.contains("device"), "{line}");
@@ -209,17 +262,26 @@ fn the_probes_gate_refusal_writes_a_skipped_record_in_the_given_place() {
     assert!(text.contains("skip-reason device"), "{text}");
 }
 
-/// A gate that refuses keeps the mode unentered,
-/// so nothing that mode owns is opened or changed.
+/// A caller that is not root is refused before the gate is asked and before
+/// anything is written,
+/// in the sentence the adoption answers with,
+/// and the status is the refusal status.
+///
+/// The caller's answer is an argument because a control cannot change its own
+/// effective user:
+/// the command line passes the user the kernel reports.
 #[test]
-fn a_refused_gate_answers_the_refusal_status_and_runs_no_mode() {
-    for words in [Vec::<&str>::new(), vec!["boot-reconcile"], vec!["shutdown-unmount"]] {
-        let status: i32 = run_behind(&RefusingGate, arguments(words.as_slice()).as_slice());
-        assert_eq!(status, EXIT_REFUSED, "{words:?}");
-    }
-    assert_eq!(
-        run_behind(&RefusingGate, arguments(&["--help"]).as_slice()),
-        EXIT_DONE,
-        "the words that ask what this build is need no gate"
-    );
+fn a_start_probe_that_is_not_root_is_refused_before_the_gate_or_any_write() {
+    let root: PathBuf = fixture("start-probe-not-root");
+    let place: RecordPlace = RecordPlace::at(root.join("records"));
+    let configuration: PathBuf = root.join("handler.jsonc");
+    std::fs::write(&configuration, "{}").expect("the fixture configuration is written");
+    let answer: Result<String, String> = behind_the_gate_for_the_probe_as(&RefusingGate, &place, configuration.as_path(), false, 1000);
+    let Err(line): Result<String, String> = answer else {
+        panic!("a caller that is not root started the probe: {answer:?}");
+    };
+    assert!(line.contains("the start-probe mode runs as root"), "{line}");
+    assert!(line.contains("effective user is 1000"), "{line}");
+    assert!(!line.contains("compatibility gate"), "the refusal is the caller's, not the gate's: {line}");
+    assert!(!place.result().exists(), "the refused caller wrote a record");
 }

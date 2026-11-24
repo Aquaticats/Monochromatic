@@ -48,6 +48,16 @@ and the limit is dropped there if the clone is no slower than Git's checkout in 
 until the round has run,
 nothing changes on Btrfs.
 
+The round ran on 2026-11-24 and merged as `edfd13bd90`
+(`doc/planning/cli-git-clone-rung-dirty-shapes-on-btrfs-measured.md`).
+The clone's pooled ratio to Git's checkout was below 1 on every shape it measured
+(0.24 to 0.73 as medians),
+so the condition holds,
+and the limit is dropped on Btrfs only;
+ZFS and the kinds not measured keep it.
+The change is built in the round `pi-clone-rung-drops-the-dirty-limit-on-btrfs`,
+on the branch `fix/git-policy-cli-clone-rung-drops-the-dirty-limit-on-btrfs`.
+
 ## What the whole-tree limit sums (D3)
 
 The question:

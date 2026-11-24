@@ -9,6 +9,11 @@
 //! which the crate's controls share,
 //! stays inside the code-line limit,
 //!  and it sits beside the umask and no-thread child runners that hold the same shape.
+//!  The child's three streams are the null device:
+//!  it inherits nothing,
+//!  so a parent whose standard output is a regular file already past the limit
+//!  cannot make the child's first print fail with `EFBIG`
+//!  and turn a passing control red.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,6 +36,9 @@ pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIREC
 /// The limit is a property of the whole process,
 /// so the child runs alone and the parent's other tests
 ///  never see it.
+///  The child writes to no stream it inherits:
+///  a redirected run's standard output is one regular file,
+///  and a write past the limit made the child's own first print the failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,7 +50,11 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
     command
         .args(["--exact", test_name, "--ignored", "--nocapture"])
         .env(LIMITED_DIRECTORY_VARIABLE, directory)
-        .stdin(std::process::Stdio::null());
+        .stdin(std::process::Stdio::null())
+        // The child's own prints say nothing the control reads, and a stream it does not share cannot hold the
+        // run's limit against a file the parent's shell already filled: a redirected test run stays green.
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
     // SAFETY: between fork and exec only `signal` and `setrlimit`, both async-signal-safe, run.
     unsafe {
         command.pre_exec(move || {

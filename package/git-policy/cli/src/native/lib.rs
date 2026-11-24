@@ -268,6 +268,24 @@ pub mod worktree_clone_unmount;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_unmount::*;
 
+/// The snapshot half of a ZFS worktree clone's removal:
+///  the verified set submitted as one `ZFS_IOC_DESTROY_SNAPS` request that
+///  names no `defer` key,
+///  the kernel's per-name outcome kept,
+///  the skip for an empty set,
+///  and the split by largest fitting prefix against a budget the caller passes
+///  in.
+/// It is Linux only,
+/// like the `/dev/zfs` requests it sends,
+/// and no command calls it yet:
+/// step 16's wiring is what reaches it.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_snapshot_batch;
+
+/// The same re-export for `worktree_clone_snapshot_batch`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_snapshot_batch::*;
+
 /// The registration half of the ZFS add route:
 ///  the add's claim and durable binding record,
 ///  the two snapshot inventories,
@@ -318,6 +336,21 @@ pub mod worktree_removal_deferred_origin_check;
 /// The same re-export for `worktree_removal_deferred_origin_check`.
 #[cfg(target_os = "linux")]
 pub use worktree_removal_deferred_origin_check::*;
+
+/// The managed Git lock's life after the add wrote it:
+///  the states `doctor` and the removal tell apart,
+///  the write that puts a lost lock back,
+///  and the release the registration-cleanup step makes after the clone is proven gone.
+/// The piece is built ahead of the plan's order and unwired:
+///  no command of the wrapper calls it until plan step 13 wires it in.
+/// It is Linux only,
+///  like the descriptor-relative release it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_managed_lock;
+
+/// The same re-export for `worktree_clone_managed_lock`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_managed_lock::*;
 
 /// The ZFS datasets this process's own mount table shows mounted,
 ///  and the design names the route finds the checkout,

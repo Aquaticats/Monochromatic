@@ -1878,13 +1878,15 @@ The wrapper is the file a caller runs as `git`;
 the handler is never linked as `git`,
 and a machine that never mounts a ZFS worktree clone leaves it unused.
 
-The handler runs four kinds of work:
+The handler runs five kinds of work:
 no argument at all is the clone-mount sweep the installed ZED event starts,
 `boot-reconcile` is the boot unit's own checks and that same sweep and this
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
-and `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and names plan step 9 when it is run.
+`shutdown-unmount` is the shutdown unit's verified unmount,
+which is not built yet and, when it is run, names the unit that runs it,
+and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
+of its own, which reads and changes nothing.
 `adopt-worktree-parent` is the administrator's decision to record a replacement
 `.claude/worktrees` folder.
 The sweep and `boot-reconcile` are described in `SPEC.md` under the section

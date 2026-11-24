@@ -75,7 +75,7 @@ pub fn compatible_line(facts: &Facts) -> String {
     if !facts.absent.is_empty() {
         words.push_str("; ");
         words.push_str(format!(
-            "this module carries no {}, so the reload check has fewer terms to compare and doctor says the check is weaker there",
+            "this module carries no {}, so the reload check has fewer terms to compare and is weaker here",
             facts.absent.join(", ")
         ).as_str());
     }

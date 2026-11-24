@@ -79,9 +79,16 @@ impl AdoptFailure {
     /// naming the file or field and what an administrator does next.
     pub fn message(&self) -> String {
         return match self {
-            AdoptFailure::NotRoot { effective_user } => format!(
-                "the adopt-worktree-parent mode runs as root, and this process's effective user is {effective_user}. Nothing was read or recorded, because the store under root control is the only record an adoption replaces and an account that could write it could adopt any replacement. Ways forward: run the mode as root, with managed operations quiesced."
-            ),
+            AdoptFailure::NotRoot { effective_user } => {
+                return super::root_mode_caller::NotRootRefusal {
+                    mode: "adopt-worktree-parent",
+                    nothing: "read or recorded",
+                    because: "the store under root control is the only record an adoption replaces and an account that could write it could adopt any replacement",
+                    way: "run the mode as root, with managed operations quiesced",
+                    effective_user: *effective_user,
+                }
+                .sentence();
+            }
             AdoptFailure::Store(refusal) => format!(
                 "the recorded clone slot identities could not be read, so the adoption judged nothing: {}. Nothing was recorded. Ways forward: fix what the store refusal names and run the mode again; the parent record is replaced only after the store reads.",
                 refusal.message()
@@ -287,8 +294,11 @@ fn recorded_line(parent: &HeldWorktreesParent, adoption: &Adoption) -> String {
 ///  the bindings,
 ///  the surviving slots,
 ///  and the fresh canonical lookup.
-///  Nothing is written until all of them agree,
-///  so a refusal leaves the record exactly as it was.
+///  Nothing is recorded until all of them agree,
+///  so a refusal leaves the record exactly as it was;
+///  the one write that can come first is the removal of a killed writer's
+///  staging names,
+///  which the listing this pass reads does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

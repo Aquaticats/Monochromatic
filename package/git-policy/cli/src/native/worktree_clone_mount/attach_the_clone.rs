@@ -315,25 +315,33 @@ fn make_mount(context: RawFd, source: &str) -> Result<OwnedFd, AttachRefusal> {
 /// Every call's own refusal,
 /// with the step a person must look at.
 pub fn attach_the_clone(source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
-    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target);
+    return attach_with(ZFS_FILE_SYSTEM_TYPE, source, target, &mount_id_of);
 }
 
 /// What:
 ///  The attach itself,
-///  with the filesystem type named so a control can refuse one this kernel has.
+///  with the filesystem type and the mount-number read named so a control can
+///  drive either path.
 /// Why:
 ///  A control cannot ask this host to mount a ZFS dataset,
 ///  and the refusal path is the one a machine without the module takes;
 ///  naming the type here is what lets that path be proved on a fixture folder.
+///  The mount-number read is the one call after the move that can fail while a
+///  mount stands,
+///  and a control that fails it proves the take-down rather than trusting that
+///  the call never fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const attached = attachWith('zfs', 'pool/clone', held.target);
+/// const attached = attachWith('zfs', 'pool/clone', held.target, mountIdOf);
 /// ```
 ///
 /// # Errors
 /// Every call's own refusal.
-fn attach_with(filesystem: &str, source: &str, target: &std::fs::File) -> Result<AttachedMount, AttachRefusal> {
+fn attach_with<ReadMountNumber>(filesystem: &str, source: &str, target: &std::fs::File, read_mount_number: &ReadMountNumber) -> Result<AttachedMount, AttachRefusal>
+where
+    ReadMountNumber: Fn(&std::fs::File) -> std::io::Result<u64>,
+{
     let context: OwnedFd = open_context(filesystem, source)?;
     set_source(context.as_raw_fd(), source)?;
     create(context.as_raw_fd(), source)?;
@@ -352,12 +360,14 @@ fn attach_with(filesystem: &str, source: &str, target: &std::fs::File) -> Result
     if moved < 0 {
         return Err(refused(AttachCall::Place, source, std::io::Error::last_os_error()));
     }
-    let mount_id: u64 = match mount_id_of(&held) {
+    let mount_id: u64 = match read_mount_number(&held) {
         Ok(found) => found,
         Err(error) => {
             // The move succeeded, so a mount now stands at the held target whatever this read answered. The descriptor
             // unmount acts on the very folder the move acted on and needs no mount number, so the mount is taken down
-            // here rather than left at a slot the route cannot name.
+            // here rather than left at a slot the route cannot name. The mount descriptor is dropped first because an
+            // open descriptor for the mount itself keeps the kernel's unmount answering EBUSY.
+            drop(held);
             let placement: Placement = match unmount_through_descriptor(target) {
                 Ok(()) => Placement::PlacedThenTakenDown,
                 Err(_refusal) => Placement::PlacedAndRetained,

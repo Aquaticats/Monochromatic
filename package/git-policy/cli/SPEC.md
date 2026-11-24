@@ -262,9 +262,11 @@ One archive and not two because cargo-binstall refuses an archive that lacks any
  the release list and the toolchain lock name both executables and nothing else
  (`src/native/source_guard/release_bins_tests.rs`,
  `bin/native-release-bins.unit.test.ts`).
-The handler answers three modes and a default invocation,
- is installed at `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
- and at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`,
+The handler answers five kinds of work and the administrator's adoption,
+ is meant to be installed at `/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets`
+ and at `/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets`
+ by the setup of plan step 19,
+ which no release carries yet,
  is never linked as `git`,
  and carries no policy:
  it owns clone attachment,
@@ -273,10 +275,16 @@ The handler answers three modes and a default invocation,
 The default invocation,
  which is how the installed ZED event starts it,
  runs the clone-mount sweep;
-`boot-reconcile`,
-`shutdown-unmount`
- and `adopt-worktree-parent` are the named modes,
- and each refuses until the plan step that builds it lands
+`boot-reconcile` is the boot unit's own checks and that same sweep and this
+boot's readiness,
+`start-probe` is the root probe's arms and its record,
+`shutdown-unmount` is the shutdown unit's verified unmount,
+which is not built yet and names the unit that runs it,
+`holder-scan` is the all-namespace holder scan of one dataset under a nonce of
+its own,
+which reads and changes nothing,
+ and `adopt-worktree-parent` is the administrator's decision to record a
+replacement `.claude/worktrees` folder
  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 step 5).
 Both executables start on a machine whose kernel has no ZFS device and neither links one of OpenZFS's CDDL libraries.
@@ -6536,12 +6544,51 @@ The ordinary run is one over a clone whose own mount still stands at its slot,
 because a clone whose intent is `mount` keeps that intent after it attached:
 the sweep reads the canonical slot's mount from the kernel's table,
 and when its source is this clone's dataset it answers `attached` from that
-mount and files the same `done` receipt for the request's nonce,
+mount and keeps the same `done` receipt for the request's nonce,
 instead of walking a slot that stands on another device and refusing it.
+A sweep reads the kernel's mount table once for its own standing-mount
+answers,
+re-reads it when the namespace's event poll says the table changed,
+and counts a poll it cannot make as a change;
+the canonical slot is still walked under the claim.
+The dataset the mount at a slot is of is asked of the kernel for that one mount
+by the unique number `statx(2)` reports,
+because renaming a mounted `legacy` dataset moves the source the table prints
+and raises no event at all;
+where the kernel cannot answer (`statmount(2)` before Linux 6.13,
+or a failed call),
+the sweep reads the live table for that mount,
+which is what this route did before it kept a copy.
+What that one question costs is measured in the guest:
+`statmount(2)` answers each standing answer at 3.1 to 4.4 microseconds there,
+so 1,024 standing answers pay 3 to 5 milliseconds of a sweep that takes 3 to 4
+seconds,
+and the walk's own `statx(2)` carries the unique number,
+so no second `statx` is made.
+A steady sweep over standing mounts was 0.34 of `main`'s time at 1,024 clones
+(0.19 to 0.42,
+identical-binary control 0.65 to 1.65),
+the other run kept beside it measured 0.36,
+and at 8 and 64 clones the two handlers were inside each other's spread,
+as a sweep that small is mostly the run's fixed cost either way.
+A sweep whose mount table changed before every answer stayed inside the
+identical-binary spread it was measured beside
+(`perf/sweep-cost-2026-11-23-statmount-interleaved.json`).
+A standing clone whose `done` receipt is already the one this request would
+file is answered without writing anything.
 A slot holding another dataset's mount is refused as the walk refuses it.
-The holder reads the intent again after it releases the claim,
-and when the nonce or the operation changed it turns once more,
+The holder reads the intent again after every release of a claim the turn took:
+after an attach,
+after answering a standing mount,
+after a reading that changed under the claim,
+after a refused re-read,
+and after the refusal of the first observation's record.
+When the nonce or the operation changed it turns once more,
 so a request made during a sweep is acted on rather than left to a trigger.
+A turn whose own answer is a failure keeps that failure when the second turn
+runs,
+so a retained mount still reaches the run's failure count and the readiness
+record cannot publish `finished` over it.
 The attach then runs the walk again,
 `fsmount` with `nosuid,nodev`,
 `move_mount` onto the held slot descriptor,
@@ -6722,6 +6769,10 @@ renaming it over the GUID's name and syncing the directory,
 so a caller reads one whole receipt.
 A live clone's next result replaces its own entry,
 and nothing in this build removes a receipt for a destroyed clone.
+A standing clone's receipt is not rewritten when the file already agrees with
+the answer,
+so its `time` is when that answer was first filed,
+not when a sweep last confirmed it.
 
 #### The readiness record
 
@@ -21626,9 +21677,12 @@ and reports a successful commit of another file.
 The root-run handler `mount-git-worktree-clone-datasets` runs one gate before
 its first request to `/dev/zfs`,
 and no raw request is made until it passes.
-The wrapper `monochromatic-git-policy-cli` runs the same gate before its first
-request,
-which step 7 added for the clone's durable intent and its sweep nudge.
+The wrapper `monochromatic-git-policy-cli` will run the same gate before its
+first request,
+when the add route calls the writer of the clone's durable intent and its sweep
+nudge;
+nothing calls that writer yet,
+so no wrapper command reaches the gate today.
 The gate is this repository's own code except for the type reader:
 `compatibility_check` in `package/zfs/request-to-openzfs-kernel-device`
 holds the bounded read,
@@ -21760,9 +21814,9 @@ way:
   mounts nothing,
   unmounts nothing and records nothing,
   and registrations and durable recovery state stay as they were.
-- The wrapper runs the same gate before its first request,
-  which step 7 added
-  for the clone's durable intent and its sweep nudge.
+- The wrapper will run the same gate before its first request,
+  when the add route calls the writer of the clone's durable intent and its
+  sweep nudge.
   Its managed commands therefore still take the same-dataset reflink route or
   the ordinary Git route until the add route lands,
   because no command calls the writer yet.

@@ -109,7 +109,9 @@ fn no_instance_names_the_leaf_it_looked_for_and_the_rows_that_carried_it() {
     assert_eq!(refusal.word(), "no-mounted-checkout");
     assert!(said.contains("`monochromatic-git-checkout`"), "the refusal names the leaf: {said}");
     assert!(said.contains("/home/user/bound"), "the refusal lists the row it found: {said}");
-    assert!(said.contains("plan step 19"), "the refusal names the setup step: {said}");
+    assert!(said.contains("write `cloneMounts.checkout`"), "the refusal names what a person can write in this release: {said}");
+    assert!(!said.contains("plan step"), "the refusal sends no one to a step no release carries: {said}");
+    assert!(!said.contains("doctor"), "the refusal sends no one to a report this release lacks: {said}");
 }
 
 /// A table this process cannot read is its own refusal,
