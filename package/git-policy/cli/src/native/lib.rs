@@ -253,6 +253,21 @@ pub mod worktree_clone_mount_protocol;
 #[cfg(target_os = "linux")]
 pub use worktree_clone_mount_protocol::*;
 
+/// The unmount half of the ZFS worktree clone route:
+///  one removal's staging folder under the account's `~/.cache`,
+///  the record beside it,
+///  the `user-cache` pin,
+///  the identity comparisons,
+///  the rollback and the checked reattach.
+/// It is Linux only,
+/// like the mount calls it makes.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_unmount;
+
+/// The same re-export for `worktree_clone_unmount`.
+#[cfg(target_os = "linux")]
+pub use worktree_clone_unmount::*;
+
 /// The ZFS datasets this process's own mount table shows mounted,
 ///  and the design names the route finds the checkout,
 ///  its container and the probe dataset by when the configuration leaves an
