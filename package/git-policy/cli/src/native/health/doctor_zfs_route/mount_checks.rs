@@ -241,9 +241,6 @@ fn reachability(row: &MountFacts, parents: &BTreeMap<u64, u64>, checkout_id: u64
             // reaches the checkout from the row.
             return Reachability::Orphaned;
         };
-        if *parent == 0 {
-            return Reachability::Orphaned;
-        }
         current = *parent;
         steps += 1;
     }
