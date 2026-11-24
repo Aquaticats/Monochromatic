@@ -65,8 +65,8 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{DatasetIdentity, Device
 ///  and at 8 children 1.14 in both runs,
 ///  each inside its control's spread,
 ///  because a sweep that small is mostly the run's fixed cost either way.
-///  Cold sweeps that attach every clone were 0.97, 1.03 and 1.02 of main across
-///  three interleaved passes at 1,024 children (identical-binary control 0.92,
+///  Cold sweeps that attach every clone were 0.97,
+///  1.03 and 1.02 of main across three interleaved passes at 1,024 children (identical-binary control 0.92,
 ///  0.90 and 1.04),
 ///  and each arm opened the mount table 3,073 and 3,074 times there,
 ///  so the attach path is not the standing answer's.

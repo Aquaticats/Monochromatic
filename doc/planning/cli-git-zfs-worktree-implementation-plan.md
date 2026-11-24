@@ -1281,7 +1281,8 @@ Runs in the throwaway guest.
 The sweep's cost against `main`,
 interleaved in one guest with an identical-binary control and a one-child
 control beside every many-child sweep,
-at 8, 64 and 1,024 clones:
+at 8,
+64 and 1,024 clones:
 a steady sweep over standing mounts is 0.34 of `main`'s time at 1,024 clones
 (0.19 to 0.42,
 control 0.65 to 1.65) and 0.36 in the run kept beside it,
