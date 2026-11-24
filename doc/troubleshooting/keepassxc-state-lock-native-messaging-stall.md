@@ -212,6 +212,9 @@ without adding `k` would allow the chain to return.
 - Adding more `r`, `w`, or `l` permissions: none permits `flock()`. The required permission is `k`.
 - Deleting a lock based only on age: a live or nonempty lock must not be treated like these verified
   empty, unheld artifacts.
+- Treating the documentation verifier's six `mkdir` denials for its disposable `browser-profile`
+  under `/home/user/temp/agent` as extension failures: those records came from the stopped citation
+  harness. No Helium grant to that directory was added.
 - Disabling either browser or KeePassXC enforcement: unnecessary and contrary to the measured narrow
   fix.
 
